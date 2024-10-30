@@ -1,6 +1,6 @@
 name: Trigger Headlamp website update
 
-# See https://github.com/headlamp-k8s/headlamp-website
+# See https://github.com/jamowei/headlamp-website
 on:
   push:
     paths:

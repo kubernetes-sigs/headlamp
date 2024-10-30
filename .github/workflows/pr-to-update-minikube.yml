@@ -43,13 +43,13 @@ jobs:
           echo $latestTag
       - name: Sync minikube fork from upstream
         run: |
-          gh repo sync headlamp-k8s/minikube
+          gh repo sync jamowei/ube
         env:
           GITHUB_TOKEN: ${{ secrets. KINVOLK_REPOS_TOKEN }}
       - name: Check out minikube repo
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
-          repository: headlamp-k8s/minikube
+          repository: jamowei/minikube
           path: minikube
           token: ${{ secrets. KINVOLK_REPOS_TOKEN }}
           fetch-depth: 0
@@ -61,7 +61,7 @@ jobs:
           fi
           HEADLAMP_VERSION=${LATEST_HEADLAMP_TAG:1}
           LATEST_HEADLAMP_SHA=$(gh api \
-          "/orgs/headlamp-k8s/packages/container/headlamp/versions" --jq "map(select(.metadata.container.tags[] | contains(\"$LATEST_HEADLAMP_TAG\"))) | .[].name")
+          "/orgs/jamowei/packages/container/headlamp/versions" --jq "map(select(.metadata.container.tags[] | contains(\"$LATEST_HEADLAMP_TAG\"))) | .[].name")
           echo $LATEST_HEADLAMP_SHA
           cd minikube
           if git branch -l | grep -q "update_headlamp_$HEADLAMP_VERSION"; then
@@ -79,12 +79,12 @@ jobs:
           git diff
           git add ./pkg/minikube/assets/addons.go
           git status
-          git commit --signoff -m "Addon headlamp: Update headlamp-k8s/headlamp image from $OLD_HEADLAMP_VERSION to $NEW_HEADLAMP_VERSION"
+          git commit --signoff -m "Addon headlamp: Update jamowei/headlamp image from $OLD_HEADLAMP_VERSION to $NEW_HEADLAMP_VERSION"
           git status
           git log -1
           git push origin "update_headlamp_$HEADLAMP_VERSION" -f
           gh pr create \
-          --title "Addon headlamp: Update headlamp-k8s/headlamp image from $OLD_HEADLAMP_VERSION to $NEW_HEADLAMP_VERSION" \
+          --title "Addon headlamp: Update jamowei/headlamp image from $OLD_HEADLAMP_VERSION to $NEW_HEADLAMP_VERSION" \
           --repo "kubernetes/minikube" \
           --head "headlamp-k8s:update_headlamp_$HEADLAMP_VERSION" \
           --base "master"  \

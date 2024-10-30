@@ -61,7 +61,7 @@ jobs:
       - name: Checkout winget-pkgs
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
-          repository: headlamp-k8s/winget-pkgs
+          repository: jamowei/winget-pkgs
           path: winget-pkgs
           token: ${{ secrets.KINVOLK_REPOS_TOKEN }}
           # we need the full history for the git tag command, so fetch all the branches
@@ -109,4 +109,4 @@ jobs:
         run: |
           echo "Create pull request"
           echo "continue with the following link"
-          echo "https://github.com/headlamp-k8s/winget-pkgs/pull/new/winget-update-$LATEST_HEADLAMP_TAG"
+          echo "https://github.com/jamowei/winget-pkgs/pull/new/winget-update-$LATEST_HEADLAMP_TAG"

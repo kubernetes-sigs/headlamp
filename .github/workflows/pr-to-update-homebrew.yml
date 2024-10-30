@@ -42,13 +42,13 @@ jobs:
           echo $latestTag
       - name: Sync homebrew-cask fork from upstream
         run: |
-          gh repo sync headlamp-k8s/homebrew-cask
+          gh repo sync jamowei/homebrew-cask
         env:
           GITHUB_TOKEN: ${{ secrets.KINVOLK_REPOS_TOKEN }}
       - name: Check out homebrew-cask repo
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
-          repository: headlamp-k8s/homebrew-cask
+          repository: jamowei/homebrew-cask
           path: homebrew-cask
           token: ${{ secrets.KINVOLK_REPOS_TOKEN }}
           fetch-depth: 0
@@ -68,7 +68,7 @@ jobs:
             echo "deleting old branch from remote to avoid conflict"
             git push origin --delete "update_headlamp_$HEADLAMP_VERSION"
           fi
-          wget "https://github.com/headlamp-k8s/headlamp/releases/download/$LATEST_HEADLAMP_TAG/checksums.txt"
+          wget "https://github.com/jamowei/headlamp/releases/download/$LATEST_HEADLAMP_TAG/checksums.txt"
           ARM_SHA=$(cat checksums.txt | grep .arm64.dmg | awk -F" " '{print $1}')
           INTEL_SHA=$(cat checksums.txt | grep .x64.dmg | awk -F" " '{print $1}')
           git checkout -b "update_headlamp_$HEADLAMP_VERSION"

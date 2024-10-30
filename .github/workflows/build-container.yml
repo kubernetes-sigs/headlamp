@@ -83,8 +83,8 @@ jobs:
     - name: Import images to kind
       run: |
         export SHELL=/bin/bash
-        kind load docker-image ghcr.io/headlamp-k8s/headlamp-plugins-test:latest --name test
-        kind load docker-image ghcr.io/headlamp-k8s/headlamp:latest --name test
+        kind load docker-image ghcr.io/jamowei/headlamp-plugins-test:latest --name test
+        kind load docker-image ghcr.io/jamowei/headlamp:latest --name test
     - name: Test .plugins folder
       if: steps.cache-image-restore.outputs.cache-hit != 'true'
       run: |
@@ -92,12 +92,12 @@ jobs:
         echo "----------------------------"
         echo "Test .plugins folder is copied to the right place in the image by 'make image'"
         echo "--- Files in the image /headlamp/ folder: ---"
-        docker run --rm --entrypoint=/bin/sh ghcr.io/headlamp-k8s/headlamp:latest -c "cd /headlamp/ && find ."
+        docker run --rm --entrypoint=/bin/sh ghcr.io/jamowei/headlamp:latest -c "cd /headlamp/ && find ."
         echo "----- Checking if the .plugins/ are copied to the right place in the image -----"
-        docker run --rm --entrypoint=/bin/sh ghcr.io/headlamp-k8s/headlamp:latest -c "set -e; (cd /headlamp/plugins && [ -e pod-counter/package.json ] && [ -e pod-counter/main.js ]) || exit 1"
+        docker run --rm --entrypoint=/bin/sh ghcr.io/jamowei/headlamp:latest -c "set -e; (cd /headlamp/plugins && [ -e pod-counter/package.json ] && [ -e pod-counter/main.js ]) || exit 1"
         echo "----- Checking if the plugins/example folder match copied docker plugins -----"
         # List contents of /plugins inside the container
-        docker_output=$(docker run --rm --entrypoint=/bin/sh ghcr.io/headlamp-k8s/headlamp-plugins-test:latest -c "set -e; ls /plugins || exit 1")
+        docker_output=$(docker run --rm --entrypoint=/bin/sh ghcr.io/jamowei/headlamp-plugins-test:latest -c "set -e; ls /plugins || exit 1")
 
         # Get the list of folders inside the examples folder
         examples_folder="plugins/examples"
@@ -165,8 +165,8 @@ jobs:
       run: |
         export SHELL=/bin/bash
         mkdir -p ~/image-cache
-        docker save -o ~/image-cache/headlamp-plugins-test.tar ghcr.io/headlamp-k8s/headlamp-plugins-test
-        docker save -o ~/image-cache/headlamp.tar ghcr.io/headlamp-k8s/headlamp
+        docker save -o ~/image-cache/headlamp-plugins-test.tar ghcr.io/jamowei/headlamp-plugins-test
+        docker save -o ~/image-cache/headlamp.tar ghcr.io/jamowei/headlamp
     - name: Cache image-cache Folder
       if: steps.cache-image-restore.outputs.cache-hit != 'true'
       id: cache-image-save
