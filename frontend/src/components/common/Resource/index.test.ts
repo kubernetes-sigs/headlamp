@@ -54,6 +54,7 @@ const checkExports = [
   'ViewButton',
   'AuthVisible',
   'LogsButton',
+  'resourceActionsMenu',
 ];
 
 function getFilesToVerify() {
