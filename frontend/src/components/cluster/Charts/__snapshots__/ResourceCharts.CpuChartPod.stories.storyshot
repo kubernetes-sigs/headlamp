@@ -20,7 +20,9 @@
           </div>
           <p
             class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
-          />
+          >
+            NaN / NaN units
+          </p>
         </div>
         <div
           class="MuiBox-root css-0"
@@ -57,73 +59,6 @@
                     />
                   </clippath>
                 </defs>
-                <g
-                  class="recharts-layer recharts-pie"
-                  tabindex="0"
-                >
-                  <g
-                    class="recharts-layer recharts-pie-sector"
-                    tabindex="-1"
-                  >
-                    <path
-                      class="recharts-sector"
-                      cx="61"
-                      cy="61"
-                      d="M 61,16.199999999999996
-    A 44.800000000000004,44.800000000000004,0,
-    0,0,
-    NaN,NaN
-  L NaN,NaN
-            A 33.800000000000004,33.800000000000004,0,
-            0,0,
-            61,27.199999999999996 Z"
-                      fill="#000"
-                      name="used"
-                      role="img"
-                      stroke="#e0e0e0"
-                      tabindex="-1"
-                    />
-                  </g>
-                  <g
-                    class="recharts-layer recharts-pie-sector"
-                    tabindex="-1"
-                  >
-                    <path
-                      class="recharts-sector"
-                      cx="61"
-                      cy="61"
-                      d="M NaN,NaN
-    A 44.800000000000004,44.800000000000004,0,
-    0,0,
-    NaN,NaN
-  L NaN,NaN
-            A 33.800000000000004,33.800000000000004,0,
-            0,0,
-            NaN,NaN Z"
-                      fill="#e0e0e0"
-                      name="total"
-                      role="img"
-                      stroke="#e0e0e0"
-                      tabindex="-1"
-                    />
-                  </g>
-                  <text
-                    class="recharts-text recharts-label"
-                    fill="#808080"
-                    offset="5"
-                    style="font-size: 16.8px; fill: #000;"
-                    text-anchor="middle"
-                    x="61"
-                    y="61"
-                  >
-                    <tspan
-                      dy="0.355em"
-                      x="61"
-                    >
-                      …
-                    </tspan>
-                  </text>
-                </g>
               </svg>
             </div>
           </div>
