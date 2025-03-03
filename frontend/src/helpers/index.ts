@@ -306,10 +306,18 @@ function getProductName(): string | undefined {
   return import.meta.env.REACT_APP_HEADLAMP_PRODUCT_NAME;
 }
 
+export const DEFAULT_NODE_SHELL_LINUX_IMAGE = 'docker.io/library/alpine:latest';
+export const DEFAULT_NODE_SHELL_NAMESPACE = 'kube-system';
+
 export interface ClusterSettings {
   defaultNamespace?: string;
   allowedNamespaces?: string[];
   currentName?: string;
+  nodeShellTerminal?: {
+    linuxImage?: string;
+    namespace?: string;
+    isEnabled?: boolean;
+  };
 }
 
 function storeClusterSettings(clusterName: string, settings: ClusterSettings) {
