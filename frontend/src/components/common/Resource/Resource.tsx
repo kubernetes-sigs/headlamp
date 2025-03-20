@@ -11,7 +11,6 @@ import { BaseTextFieldProps } from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/system';
 import { Location } from 'history';
-import { Base64 } from 'js-base64';
 import _, { has } from 'lodash';
 import React, { PropsWithChildren, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -503,12 +502,12 @@ export function SecretField(props: InputProps) {
       </Grid>
       <Grid item xs>
         <Input
-          readOnly
+          readOnly={!showPassword}
           type="password"
           fullWidth
           multiline={showPassword}
           maxRows="20"
-          value={showPassword ? Base64.decode(value as string) : '******'}
+          value={showPassword ? (value as string) : '******'}
           {...other}
         />
       </Grid>
