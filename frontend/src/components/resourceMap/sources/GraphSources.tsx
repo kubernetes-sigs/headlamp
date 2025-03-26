@@ -55,7 +55,7 @@ export const useSources = () => useContext(Context);
 /**
  * Returns a flat list of all the sources
  */
-function getFlatSources(sources: GraphSource[], result: GraphSource[] = []): GraphSource[] {
+export function getFlatSources(sources: GraphSource[], result: GraphSource[] = []): GraphSource[] {
   for (const source of sources) {
     if ('sources' in source) {
       getFlatSources(source.sources, result);

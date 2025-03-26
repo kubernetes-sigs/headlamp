@@ -58,7 +58,7 @@ import { GraphControlButton } from './GraphControls';
 import { GraphRenderer } from './GraphRenderer';
 import { SelectionBreadcrumbs } from './SelectionBreadcrumbs';
 import { kubeObjectRelations } from './sources/definitions/relations';
-import { allSources } from './sources/definitions/sources';
+import { getAllSources } from './sources/definitions/sources';
 import { GraphSourceManager, useSources } from './sources/GraphSources';
 import { GraphSourcesView } from './sources/GraphSourcesView';
 import { useGraphViewport } from './useGraphViewport';
@@ -450,7 +450,7 @@ function CustomThemeProvider({ children }: { children: ReactNode }) {
  * @returns
  */
 export function GraphView(props: GraphViewContentProps) {
-  const propsSources = props.defaultSources ?? allSources;
+  const propsSources = props.defaultSources ?? getAllSources();
 
   // Load plugin defined sources
   const pluginGraphSources = useTypedSelector(state => state.graphView.graphSources);
