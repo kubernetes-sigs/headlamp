@@ -18,6 +18,77 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
+func TestNewTelemetry(t *testing.T) {
+	tests := []struct {
+		name          string
+		config        Config
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "valid config",
+			config: Config{
+				ServiceName:        "test-service",
+				TracingEnabled:     true,
+				StdoutTraceEnabled: true,
+			},
+			expectError: false,
+		},
+		{
+			name: "valid config with metrics",
+			config: Config{
+				ServiceName:        "test-service",
+				TracingEnabled:     true,
+				MetricsEnabled:     true,
+				PrometheusPort:     9090,
+				StdoutTraceEnabled: true,
+			},
+			expectError: false,
+		},
+		{
+			name: "missing service name",
+			config: Config{
+				TracingEnabled: true,
+			},
+			expectError:   true,
+			errorContains: "service name cannot be empty",
+		},
+		{
+			name: "invalid prometheus port",
+			config: Config{
+				ServiceName:    "test-service",
+				MetricsEnabled: true,
+				PrometheusPort: 0,
+			},
+			expectError:   true,
+			errorContains: "metrics enabled but invalid Prometheus port: 0",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			telemetry, err := NewTelemetry(tc.config)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+				assert.Nil(t, telemetry)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, telemetry)
+
+				// clean up
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				err = telemetry.Shutdown(ctx)
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestCreateReosurce(t *testing.T) {
 	cfg := Config{
 		ServiceName:    "test-service",

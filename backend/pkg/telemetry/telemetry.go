@@ -56,6 +56,53 @@ type Telemetry struct {
 	shutdown       func(context.Context) error
 }
 
+// NewTelemetry creates and initializes a new Telemetry instance based on the provided configuration.
+// It sets up tracing and metrics collection according to the config.
+// Returns a configured Telemetry instance and any error encountered during initialization.
+// If initialization fails, all resources are properly cleaned up.
+func NewTelemetry(cfg Config) (*Telemetry, error) {
+	if cfg.ServiceName == "" {
+		return nil, fmt.Errorf("service name cannot be empty")
+	}
+
+	t := &Telemetry{
+		config: cfg,
+	}
+
+	res, err := createResource(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create telemetry resource: %w", err)
+	}
+
+	// Initialize trace provider if tracing is enabled
+	if cfg.TracingEnabled {
+		if err := setupTracing(t, res, cfg); err != nil {
+			return nil, fmt.Errorf("failed to setup tracing %w", err)
+		}
+	}
+
+	// Initialize metrics provider if metrics are enabled
+	if cfg.MetricsEnabled && cfg.PrometheusPort > 0 {
+		if err := setupMetrics(t, res); err != nil {
+			// Clean up trace provider if metrics setup fails
+			if t.tracerProvider != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				_ = t.tracerProvider.Shutdown(ctx)
+			}
+
+			return nil, fmt.Errorf("failed to setup metrics: %w", err)
+		}
+	} else if cfg.MetricsEnabled && cfg.PrometheusPort <= 0 {
+		return nil, fmt.Errorf("metrics enabled but invalid Prometheus port: %d", cfg.PrometheusPort)
+	}
+
+	setupShutdownFunction(t)
+
+	return t, nil
+}
+
 // createResource creates an OpenTelemetry resource with service information.
 // The resource contains identifying information about the service being monitored,
 // including its name, version, and deployment environment.
