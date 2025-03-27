@@ -6,10 +6,13 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // Config defines the configuration options for telemetry initialization.
@@ -67,4 +70,25 @@ func createResource(cfg Config) (*resource.Resource, error) {
 	}
 
 	return res, nil
+}
+
+// createOTLPExporter creates an OpenTelemetry Protocol (OTLP) exporter
+// that can send traces to compatible backends like Jaeger, etc
+// OTLP-compatible systems. It supports both HTTP and gRPC transport protocols.
+func createOTLPExporter(cfg Config) (trace.SpanExporter, error) {
+	var client otlptrace.Client
+
+	if cfg.UseOTLPHTTP {
+		client = otlptracehttp.NewClient(
+			otlptracehttp.WithEndpoint(cfg.OTLPEndpoint),
+			otlptracehttp.WithInsecure(),
+		)
+	} else {
+		client = otlptracegrpc.NewClient(
+			otlptracegrpc.WithEndpoint(cfg.OTLPEndpoint),
+			otlptracegrpc.WithInsecure(),
+		)
+	}
+
+	return otlptrace.New(context.Background(), client)
 }
