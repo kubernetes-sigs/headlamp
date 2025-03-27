@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
@@ -47,6 +48,20 @@ func TestCreateReosurce(t *testing.T) {
 	assert.True(t, serviceNameFound, "Service name attribute not found")
 	assert.True(t, serviceVersionFound, "Service version attribute not found")
 	assert.True(t, environmentFound, "Environment attribute not found")
+}
+
+func TestCreateStdoutExporter(t *testing.T) {
+	exporter, err := createStdoutExporter()
+	assert.NoError(t, err)
+	assert.NotNil(t, exporter)
+
+	_, ok := exporter.(*stdouttrace.Exporter)
+	assert.True(t, ok, "Expected a stdouttrace.Exporter")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = exporter.Shutdown(ctx)
+	assert.NoError(t, err)
 }
 
 func TestCreateOTLPExporter(t *testing.T) {
