@@ -11,10 +11,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
 func TestCreateReosurce(t *testing.T) {
@@ -259,4 +260,48 @@ func TestCreateSampler(t *testing.T) {
 			_ = tp.Shutdown(context.Background())
 		})
 	}
+}
+
+func TestSetupTracing(t *testing.T) {
+
+	oldTP := otel.GetTracerProvider()
+	defer otel.SetTracerProvider(oldTP)
+
+	telemetry := &Telemetry{
+		config: Config{
+			ServiceName:        "test-service",
+			StdoutTraceEnabled: true,
+		},
+	}
+
+	res, err := createResource(telemetry.config)
+	require.NoError(t, err)
+
+	err = setupTracing(telemetry, res, telemetry.config)
+	require.NoError(t, err)
+
+	assert.NotNil(t, telemetry.tracerProvider)
+
+	tracer := otel.Tracer("test")
+	_, span := tracer.Start(context.Background(), "test-span")
+	span.End()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = telemetry.Shutdown(ctx)
+	assert.NoError(t, err)
+}
+
+func TestShutDown(t *testing.T) {
+	telemetry := &Telemetry{
+		config: Config{
+			ServiceName: "test-service",
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := telemetry.Shutdown(ctx)
+	assert.NoError(t, err)
 }
