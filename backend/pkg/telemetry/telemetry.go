@@ -3,6 +3,8 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"log"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -71,6 +73,84 @@ func createResource(cfg Config) (*resource.Resource, error) {
 	}
 
 	return res, nil
+}
+
+// createSampler creates a sampling strategy based on the configured sampling rate.
+// - 1.0 or greater: sample every trace (AlwaysSample)
+// - 0.0 or lower: sample no traces (NeverSample)
+// - Between 0 and 1: sample the specified fraction of traces
+func createSampler(samplingRate float64) trace.Sampler {
+	if samplingRate >= 1.0 {
+		return trace.AlwaysSample()
+	}
+
+	if samplingRate <= 0.0 {
+		return trace.NeverSample()
+	}
+
+	return trace.TraceIDRatioBased(samplingRate)
+}
+
+// // createTracingExporter creates a span exporter based on cfg.
+// It prioritizes exporters in the following order:
+// 1. Stdout exporter like Jaeger (if StdoutTraceEnabled is true)
+// 2. OTLP exporter (if OTLPEndpoint is set)
+// 3. Defaults to stdout exporter if no other options are available
+func createTracingExporter(cfg Config) (trace.SpanExporter, error) {
+	enabledExporters := 0
+	var enabledTypes []string
+
+	if cfg.StdoutTraceEnabled {
+		enabledExporters++
+		enabledTypes = append(enabledTypes, "stdout")
+	}
+
+	isJaegerConfigured := cfg.JaegerEndpoint != ""
+	isOTLPConfigured := cfg.OTLPEndpoint != ""
+
+	if isJaegerConfigured {
+		enabledExporters++
+		enabledTypes = append(enabledTypes, "Jaeger")
+
+		if !isOTLPConfigured {
+			cfg.OTLPEndpoint = "localhost:4317"
+			isOTLPConfigured = true
+		}
+	}
+
+	if isOTLPConfigured && !isJaegerConfigured {
+		enabledExporters++
+		enabledTypes = append(enabledTypes, "OTLP")
+	}
+
+	if enabledExporters > 1 {
+		log.Printf("Warning: Multiple trace exporters configured (%s). Using %s exporter based on priority.",
+			strings.Join(enabledTypes, ", "), enabledTypes[0])
+	}
+
+	if cfg.StdoutTraceEnabled {
+		exporter, err := createStdoutExporter()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create stdout exporter: %w", err)
+		}
+		return exporter, nil
+	}
+
+	if isOTLPConfigured {
+		exporter, err := createOTLPExporter(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create OTLP exporter with endpoint %s: %w",
+				cfg.OTLPEndpoint, err)
+		}
+		return exporter, nil
+	}
+
+	exporter, err := createStdoutExporter()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create default stdout exporter: %w", err)
+	}
+
+	return exporter, nil
 }
 
 // createOTLPExporter creates an OpenTelemetry Protocol (OTLP) exporter

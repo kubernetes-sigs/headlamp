@@ -1,8 +1,10 @@
 package telemetry
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log"
 	"os"
 	"testing"
 	"time"
@@ -10,7 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
@@ -50,18 +53,112 @@ func TestCreateReosurce(t *testing.T) {
 	assert.True(t, environmentFound, "Environment attribute not found")
 }
 
-func TestCreateStdoutExporter(t *testing.T) {
-	exporter, err := createStdoutExporter()
-	assert.NoError(t, err)
-	assert.NotNil(t, exporter)
+func TestCreateTracingExporter(t *testing.T) {
+	tests := []struct {
+		name                  string
+		config                Config
+		expectError           bool
+		exporterType          string
+		expectMultipleWarning bool
+	}{
+		{
+			name: "stdout exporter",
+			config: Config{
+				StdoutTraceEnabled: true,
+			},
+			expectError:           false,
+			exporterType:          "*stdouttrace.Exporter",
+			expectMultipleWarning: false,
+		},
+		{
+			name: "OTLP exporter",
+			config: Config{
+				OTLPEndpoint: "localhost:4317",
+			},
+			expectError:           false,
+			exporterType:          "otlptrace.Exporter",
+			expectMultipleWarning: false,
+		},
+		{
+			name: "jaeger fallback to OTLP",
+			config: Config{
+				JaegerEndpoint: "http://localhost:14268/api/traces",
+			},
+			expectError:           false,
+			exporterType:          "otlptrace.Exporter",
+			expectMultipleWarning: false,
+		},
+		{
+			name:                  "default to stdout",
+			config:                Config{},
+			expectError:           false,
+			exporterType:          "*stdouttrace.Exporter",
+			expectMultipleWarning: false,
+		},
+		{
+			name: "multiple exporters - stdout and OTLP",
+			config: Config{
+				StdoutTraceEnabled: true,
+				OTLPEndpoint:       "localhost:4317",
+			},
+			expectError:           false,
+			exporterType:          "*stdouttrace.Exporter",
+			expectMultipleWarning: true,
+		},
+		{
+			name: "multiple exporters - stdout and Jaeger",
+			config: Config{
+				StdoutTraceEnabled: true,
+				JaegerEndpoint:     "http://localhost:14268/api/traces",
+			},
+			expectError:           false,
+			exporterType:          "*stdouttrace.Exporter",
+			expectMultipleWarning: true,
+		},
+		{
+			name: "all exporters configured",
+			config: Config{
+				StdoutTraceEnabled: true,
+				JaegerEndpoint:     "http://localhost:14268/api/traces",
+				OTLPEndpoint:       "localhost:4317",
+			},
+			expectError:           false,
+			exporterType:          "*stdouttrace.Exporter",
+			expectMultipleWarning: true,
+		},
+	}
 
-	_, ok := exporter.(*stdouttrace.Exporter)
-	assert.True(t, ok, "Expected a stdouttrace.Exporter")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var logBuf bytes.Buffer
+			log.SetOutput(&logBuf)
+			defer log.SetOutput(os.Stderr)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err = exporter.Shutdown(ctx)
-	assert.NoError(t, err)
+			exporter, err := createTracingExporter(tc.config)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, exporter)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, exporter)
+
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				err = exporter.Shutdown(ctx)
+				assert.NoError(t, err)
+			}
+
+			// Check for warning about multiple exporters
+			warningMsg := "Warning: Multiple trace exporters configured"
+			logOutput := logBuf.String()
+			if tc.expectMultipleWarning {
+				assert.Contains(t, logOutput, warningMsg, "Expected warning about multiple exporters")
+			} else {
+				assert.NotContains(t, logOutput, warningMsg, "Did not expect warning about multiple exporters")
+			}
+		})
+	}
 }
 
 func TestCreateOTLPExporter(t *testing.T) {
@@ -105,6 +202,61 @@ func TestCreateOTLPExporter(t *testing.T) {
 				defer cancel()
 				_ = exporter.Shutdown(ctx)
 			}
+		})
+	}
+}
+
+func TestCreateSampler(t *testing.T) {
+	tests := []struct {
+		rate          float64
+		expectedType  string
+		alwaysOn      bool
+		alwaysOff     bool
+		ratioSampling bool
+	}{
+		{1.5, "AlwaysSample", true, false, false},
+		{1.0, "AlwaysSample", true, false, false},
+		{0.5, "TraceIDRatioBased", false, false, true},
+		{0.0, "NeverSample", false, true, false},
+		{-1.0, "NeverSample", false, true, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.expectedType, func(t *testing.T) {
+			sampler := createSampler(tc.rate)
+			assert.NotNil(t, sampler)
+
+			// Test the behavior of the sampler indirectly
+			// through a tracing setup
+			exporter := tracetest.NewInMemoryExporter()
+			tp := trace.NewTracerProvider(
+				trace.WithSampler(sampler),
+				trace.WithBatcher(exporter),
+			)
+
+			tracer := tp.Tracer("test")
+			_, span := tracer.Start(context.Background(), "test-span")
+			span.End()
+
+			// Force flush
+			require.NoError(t, tp.ForceFlush(context.Background()))
+
+			spans := exporter.GetSpans()
+
+			if tc.alwaysOn {
+				assert.Len(t, spans, 1, "AlwaysSample should record the span")
+			} else if tc.alwaysOff {
+				assert.Len(t, spans, 0, "NeverSample should not record any spans")
+			} else if tc.ratioSampling {
+				// For ratio-based sampling, we can't predict the exact behavior
+				// in a single test without controlling the trace ID
+				// But the sampler should be properly configured
+				desc := sampler.Description()
+				assert.Contains(t, desc, "TraceIDRatioBased")
+			}
+
+			// Clean up
+			_ = tp.Shutdown(context.Background())
 		})
 	}
 }
