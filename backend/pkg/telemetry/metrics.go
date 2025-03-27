@@ -63,3 +63,20 @@ type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
 }
+
+// newResponseWriter creates a new responseWriter instance that wraps an existing http.ResponseWriter.
+// The status code defaults to http.StatusOK (200) and is updated when WriteHeader is called.
+func newResponseWriter(w http.ResponseWriter) *responseWriter {
+	return &responseWriter{
+		ResponseWriter: w,
+		statusCode:     http.StatusOK,
+	}
+}
+
+// WriteHeader overrides the http.ResponseWriter WriteHeader method to
+// capture the response status code before delegating to the wrapped ResponseWriter.
+// This method updates the internal statusCode field and then calls ethe wrapped ResponseWriter's WriteHeader method.
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
