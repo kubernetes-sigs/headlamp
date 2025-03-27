@@ -56,3 +56,10 @@ type Metrics struct {
 	// ErrorCounter counts application errors by category
 	ErrorCounter metric.Int64Counter
 }
+
+// responseWriter is a custom implementation of http.ResponseWriter that
+// captures the status code of the response for metrics collection.
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
