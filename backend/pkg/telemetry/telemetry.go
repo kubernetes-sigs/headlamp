@@ -334,3 +334,19 @@ func (t *Telemetry) Shutdown(ctx context.Context) error {
 
 	return nil
 }
+
+// DefaultConfig provides a reasonable default configuration for telemetry.
+// It enables both tracing and metrics with 100% sampling rate and
+// configures exporters to local endpoints for development use.
+func DefaultConfig() Config {
+	return Config{
+		ServiceName:        "headlamp",
+		ServiceVersion:     "0.30.0",
+		TracingEnabled:     true,
+		MetricsEnabled:     true,
+		OTLPEndpoint:       "localhost:4317",
+		StdoutTraceEnabled: false,
+		PrometheusPort:     9090,
+		SamplingRate:       1.0,
+	}
+}
