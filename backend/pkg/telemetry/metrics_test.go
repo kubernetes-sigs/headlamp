@@ -11,6 +11,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 func TestStartMetricsServer(t *testing.T) {
@@ -38,7 +43,18 @@ func TestStartMetricsServer(t *testing.T) {
 	assert.NoError(t, server.Shutdown(ctx))
 }
 
-// TestResponseWriter tests the custom response writer implementation
+func TestStartMetricsServerInvalidPort(t *testing.T) {
+	server, err := StartMetricsServer(0)
+	assert.Error(t, err)
+	assert.Nil(t, server)
+	assert.Contains(t, err.Error(), "invalid port")
+
+	server, err = StartMetricsServer(-1)
+	assert.Error(t, err)
+	assert.Nil(t, server)
+	assert.Contains(t, err.Error(), "invalid port")
+}
+
 func TestResponseWriter(t *testing.T) {
 	recorder := httptest.NewRecorder()
 
@@ -46,20 +62,67 @@ func TestResponseWriter(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, writer.statusCode)
 
-	// Write a header with a different status
 	writer.WriteHeader(http.StatusNotFound)
 
-	// Status should be updated
 	assert.Equal(t, http.StatusNotFound, writer.statusCode)
 
-	// The underlying ResponseWriter should also receive the status
 	assert.Equal(t, http.StatusNotFound, recorder.Code)
 
-	// Write some content
 	content := "Test Content"
 	_, err := writer.Write([]byte(content))
 	require.NoError(t, err)
 
-	// Content should be written to the underlying ResponseWriter
 	assert.Equal(t, content, recorder.Body.String())
+}
+
+// setupTestMeter creates a test meter provider and reader for metrics inspection
+func setupTestMeter(t *testing.T) (*sdkmetric.MeterProvider, *sdkmetric.ManualReader) {
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+
+	originalProvider := otel.GetMeterProvider()
+	otel.SetMeterProvider(provider)
+
+	t.Cleanup(func() {
+		otel.SetMeterProvider(originalProvider)
+	})
+
+	return provider, reader
+}
+
+func TestNewMetrics(t *testing.T) {
+	provider, reader := setupTestMeter(t)
+	defer provider.Shutdown(context.Background())
+
+	metrics, err := NewMetrics()
+	require.NoError(t, err)
+	require.NotNil(t, metrics)
+
+	assert.NotNil(t, metrics.RequestCounter)
+	assert.NotNil(t, metrics.RequestDuration)
+	assert.NotNil(t, metrics.ActiveRequestsGauge)
+	assert.NotNil(t, metrics.ClusterProxyRequests)
+	assert.NotNil(t, metrics.PluginLoadCount)
+	assert.NotNil(t, metrics.ErrorCounter)
+
+	ctx := context.Background()
+	metrics.RequestCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("test", "value")))
+	metrics.ErrorCounter.Add(ctx, 2, metric.WithAttributes(attribute.String("error", "test_error")))
+
+	var data metricdata.ResourceMetrics
+	err = reader.Collect(ctx, &data)
+	require.NoError(t, err)
+
+	assert.NotEmpty(t, data.ScopeMetrics)
+
+	found := false
+	for _, scopeMetric := range data.ScopeMetrics {
+		for _, m := range scopeMetric.Metrics {
+			if m.Name == "http.server.request_count" {
+				found = true
+				break
+			}
+		}
+	}
+	assert.True(t, found, "Expected to find http.server.request_count metric")
 }

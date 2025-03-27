@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -37,6 +38,72 @@ func StartMetricsServer(port int) (*http.Server, error) {
 	fmt.Printf("Metrics server started on port %d\n", port)
 
 	return server, nil
+}
+
+// NewMetrics creates and registers a set of common application metrics.
+// It initializes metrics for HTTP request counting, duration tracking,
+// active request monitoring, cluster proxy usage, plugin loading, and error counting.
+// The returned metrics instance can be used throughout the application to record metrics data.
+func NewMetrics() (*Metrics, error) {
+	meter := otel.Meter("headlamp")
+
+	requestCounter, err := meter.Int64Counter(
+		"http.server.request_count",
+		metric.WithDescription("Total number of HTTP requests"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	requestDuration, err := meter.Float64Histogram(
+		"http.server.duration",
+		metric.WithDescription("Duration of HTTP requests"),
+		metric.WithUnit("ms"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	activeRequests, err := meter.Int64UpDownCounter(
+		"http.server.active_requests",
+		metric.WithDescription("Number of active HTTP requests"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	clusterProxyRequests, err := meter.Int64Counter(
+		"headlamp.cluster_proxy.requests",
+		metric.WithDescription("Total number of cluster proxy requests"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	pluginLoadCount, err := meter.Int64Counter(
+		"headlamp.plugin.load_count",
+		metric.WithDescription("Number of plugin loads"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	errorCounter, err := meter.Int64Counter(
+		"headlamp.errors",
+		metric.WithDescription("Count of errors"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Metrics{
+		RequestCounter:       requestCounter,
+		RequestDuration:      requestDuration,
+		ActiveRequestsGauge:  activeRequests,
+		ClusterProxyRequests: clusterProxyRequests,
+		PluginLoadCount:      pluginLoadCount,
+		ErrorCounter:         errorCounter,
+	}, nil
 }
 
 // Metrics represents a collection of standardized application metrics.
