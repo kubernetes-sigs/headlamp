@@ -1,4 +1,4 @@
-package telemetry
+package telemetry_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	tel "github.com/headlamp-k8s/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -21,13 +22,19 @@ import (
 func TestStartMetricsServer(t *testing.T) {
 	port := 9090
 
-	server, err := StartMetricsServer(port)
+	server, err := tel.StartMetricsServer(port)
 	require.NoError(t, err)
 	require.NotNil(t, server)
 
 	time.Sleep(100 * time.Millisecond)
 
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/metrics", port))
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://localhost:%d/metrics", port), nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -38,18 +45,19 @@ func TestStartMetricsServer(t *testing.T) {
 
 	assert.Contains(t, string(body), "# HELP")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	assert.NoError(t, server.Shutdown(ctx))
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	assert.NoError(t, server.Shutdown(shutdownCtx))
 }
 
 func TestStartMetricsServerInvalidPort(t *testing.T) {
-	server, err := StartMetricsServer(0)
+	server, err := tel.StartMetricsServer(0)
 	assert.Error(t, err)
 	assert.Nil(t, server)
 	assert.Contains(t, err.Error(), "invalid port")
 
-	server, err = StartMetricsServer(-1)
+	server, err = tel.StartMetricsServer(-1)
 	assert.Error(t, err)
 	assert.Nil(t, server)
 	assert.Contains(t, err.Error(), "invalid port")
@@ -75,7 +83,24 @@ func TestResponseWriter(t *testing.T) {
 	assert.Equal(t, content, recorder.Body.String())
 }
 
-// setupTestMeter creates a test meter provider and reader for metrics inspection
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func newResponseWriter(w http.ResponseWriter) *responseWriter {
+	return &responseWriter{
+		ResponseWriter: w,
+		statusCode:     http.StatusOK,
+	}
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+// setupTestMeter creates a test meter provider and reader for metrics inspection.
 func setupTestMeter(t *testing.T) (*sdkmetric.MeterProvider, *sdkmetric.ManualReader) {
 	reader := sdkmetric.NewManualReader()
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
@@ -92,9 +117,15 @@ func setupTestMeter(t *testing.T) (*sdkmetric.MeterProvider, *sdkmetric.ManualRe
 
 func TestNewMetrics(t *testing.T) {
 	provider, reader := setupTestMeter(t)
-	defer provider.Shutdown(context.Background())
 
-	metrics, err := NewMetrics()
+	t.Cleanup(func() {
+		err := provider.Shutdown(context.Background())
+		if err != nil {
+			t.Logf("Failed to shutdown provider: %v", err)
+		}
+	})
+
+	metrics, err := tel.NewMetrics()
 	require.NoError(t, err)
 	require.NotNil(t, metrics)
 
@@ -116,6 +147,7 @@ func TestNewMetrics(t *testing.T) {
 	assert.NotEmpty(t, data.ScopeMetrics)
 
 	found := false
+
 	for _, scopeMetric := range data.ScopeMetrics {
 		for _, m := range scopeMetric.Metrics {
 			if m.Name == "http.server.request_count" {
@@ -124,20 +156,27 @@ func TestNewMetrics(t *testing.T) {
 			}
 		}
 	}
+
 	assert.True(t, found, "Expected to find http.server.request_count metric")
 }
 
-func TestRequestCounterMiddleware(t *testing.T) {
+func TestRequestCounterMiddleware(t *testing.T) { //nolint:funlen
 	provider, reader := setupTestMeter(t)
-	defer provider.Shutdown(context.Background())
+	t.Cleanup(func() {
+		err := provider.Shutdown(context.Background())
+		if err != nil {
+			t.Logf("Failed to shutdown provider: %v", err)
+		}
+	})
 
-	metrics, err := NewMetrics()
+	metrics, err := tel.NewMetrics()
 	require.NoError(t, err)
 
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/error" {
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte("Error"))
+
 			return
 		}
 
@@ -149,15 +188,23 @@ func TestRequestCounterMiddleware(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/test")
+	ctx := context.Background()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/test", nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	_ = resp.Body.Close()
+	err = resp.Body.Close()
+	require.NoError(t, err)
 
-	resp, err = http.Get(server.URL + "/error")
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/error", nil)
+	require.NoError(t, err)
+	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	_ = resp.Body.Close()
+	err = resp.Body.Close()
+	require.NoError(t, err)
 
 	var data metricdata.ResourceMetrics
 	err = reader.Collect(context.Background(), &data)
@@ -171,14 +218,14 @@ func TestRequestCounterMiddleware(t *testing.T) {
 			if m.Name == "http.server.request_count" {
 				requestCountFound = true
 
-				sum := sumDataPoints(t, m.Data)
-				assert.GreaterOrEqual(t, sum, int64(2), "Expected at least 2 request count increments")
+				sum := sumDataPoints(m.Data)
+				assert.GreaterOrEqual(t, sum, int64(4), "Expected at least 4 request count increments")
 			}
 
 			if m.Name == "http.server.active_requests" {
 				activeRequestsFound = true
 
-				sumActive := sumDataPoints(t, m.Data)
+				sumActive := sumDataPoints(m.Data)
 				assert.Equal(t, int64(0), sumActive, "Expected active requests to be 0 after all requests completed")
 			}
 		}
@@ -192,13 +239,14 @@ func TestRequestCounterMiddlewarePanic(t *testing.T) {
 	provider, reader := setupTestMeter(t)
 	defer provider.Shutdown(context.Background())
 
-	metrics, err := NewMetrics()
+	metrics, err := tel.NewMetrics()
 	require.NoError(t, err)
 
 	panicHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/panic" {
 			panic("deliberate test panic")
 		}
+
 		_, _ = w.Write([]byte("OK"))
 	})
 
@@ -242,7 +290,7 @@ func TestRequestCounterMiddlewarePanic(t *testing.T) {
 			if m.Name == "http.server.request_count" {
 				requestCountFound = true
 
-				sum := sumDataPoints(t, m.Data)
+				sum := sumDataPoints(m.Data)
 				assert.GreaterOrEqual(t, sum, int64(2), "Expected at least 2 request count increments")
 
 				switch v := m.Data.(type) {
@@ -261,7 +309,7 @@ func TestRequestCounterMiddlewarePanic(t *testing.T) {
 			if m.Name == "http.server.active_requests" {
 				activeRequestsFound = true
 
-				sumActive := sumDataPoints(t, m.Data)
+				sumActive := sumDataPoints(m.Data)
 				assert.Equal(t, int64(0), sumActive,
 					"Expected active requests to be 0 after panic request completed")
 			}
@@ -274,19 +322,21 @@ func TestRequestCounterMiddlewarePanic(t *testing.T) {
 		"Expected to find a request with 500 status code from the panic")
 }
 
-func sumDataPoints(t *testing.T, data metricdata.Aggregation) int64 {
+func sumDataPoints(data metricdata.Aggregation) int64 {
 	switch v := data.(type) {
 	case metricdata.Sum[int64]:
 		sum := int64(0)
 		for _, dp := range v.DataPoints {
 			sum += dp.Value
 		}
+
 		return sum
 	case metricdata.Sum[float64]:
 		sum := float64(0)
 		for _, dp := range v.DataPoints {
 			sum += dp.Value
 		}
+
 		return int64(sum)
 	case metricdata.Gauge[int64]:
 		// For gauges, we just take the latest value
@@ -294,5 +344,6 @@ func sumDataPoints(t *testing.T, data metricdata.Aggregation) int64 {
 			return v.DataPoints[len(v.DataPoints)-1].Value
 		}
 	}
+
 	return 0
 }

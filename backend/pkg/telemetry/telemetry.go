@@ -187,10 +187,7 @@ func setupTracing(t *Telemetry, res *resource.Resource, cfg Config) error {
 	return nil
 }
 
-// createSampler creates a sampling strategy based on the configured sampling rate.
-// - 1.0 or greater: sample every trace (AlwaysSample)
-// - 0.0 or lower: sample no traces (NeverSample)
-// - Between 0 and 1: sample the specified fraction of traces
+// - Between 0 and 1: sample the specified fraction of traces.
 func createSampler(samplingRate float64) trace.Sampler {
 	if samplingRate >= 1.0 {
 		return trace.AlwaysSample()
