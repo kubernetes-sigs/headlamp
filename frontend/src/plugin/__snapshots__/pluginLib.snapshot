@@ -149,6 +149,7 @@
     "ViewDialog": [Function],
     "addResourceTableColumnsProcessor": [Function],
     "isRestartableResource": [Function],
+    "logsToSingleLine": [Function],
     "makeStatusLabel": [Function],
     "metadataStyles": [Function],
     "resourceTableSlice": {
