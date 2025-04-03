@@ -561,8 +561,8 @@ export function SecretField(props: InputProps) {
       </Grid>
       <Grid item xs>
         <Input
-          readOnly={!showPassword}
-          type="password"
+          readOnly
+          type="text"
           fullWidth
           multiline={showPassword}
           maxRows="20"
