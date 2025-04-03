@@ -55,6 +55,8 @@ type Metrics struct {
 	ClusterProxyRequests metric.Int64Counter
 	// PluginLoadCount tracks the number of plugin loads
 	PluginLoadCount metric.Int64Counter
+	// PluginDeleteCount tracks the number of plugin deletions
+	PluginDeleteCount metric.Int64Counter
 	// ErrorCounter counts application errors by category
 	ErrorCounter metric.Int64Counter
 }
@@ -63,7 +65,7 @@ type Metrics struct {
 // It initializes metrics for HTTP request counting, duration tracking,
 // active request monitoring, cluster proxy usage, plugin loading, and error counting.
 // The returned metrics instance can be used throughout the application to record metrics data.
-func NewMetrics() (*Metrics, error) {
+func NewMetrics() (*Metrics, error) { //nolint:funlen
 	meter := otel.Meter("headlamp")
 
 	requestCounter, err := meter.Int64Counter(
@@ -107,6 +109,14 @@ func NewMetrics() (*Metrics, error) {
 		return nil, err
 	}
 
+	pluginDeleteCount, err := meter.Int64Counter(
+		"headlamp.plugin.delete_count",
+		metric.WithDescription("Number of plugin deletions"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	errorCounter, err := meter.Int64Counter(
 		"headlamp.errors",
 		metric.WithDescription("Count of errors"),
@@ -121,6 +131,7 @@ func NewMetrics() (*Metrics, error) {
 		ActiveRequestsGauge:  activeRequests,
 		ClusterProxyRequests: clusterProxyRequests,
 		PluginLoadCount:      pluginLoadCount,
+		PluginDeleteCount:    pluginDeleteCount,
 		ErrorCounter:         errorCounter,
 	}, nil
 }
