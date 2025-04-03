@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/schema"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"

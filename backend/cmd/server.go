@@ -4,11 +4,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/cache"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/config"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/kubeconfig"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/plugins"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
 )
 
 func main() {

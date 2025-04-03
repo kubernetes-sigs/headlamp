@@ -8,8 +8,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/config"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

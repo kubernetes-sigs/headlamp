@@ -3,7 +3,7 @@ package utils_test
 import (
 	"testing"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/utils"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/utils"
 )
 
 func TestConatins(t *testing.T) {

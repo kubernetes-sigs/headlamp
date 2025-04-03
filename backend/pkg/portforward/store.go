@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/cache"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
 const storeKeyPrefix = "PORT_FORWARD_"

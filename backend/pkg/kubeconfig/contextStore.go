@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 )
 
 // ContextStore is an interface for storing and retrieving contexts.
