@@ -2,6 +2,8 @@
 // @ts-check
 'use strict';
 
+const { cliOnlyDependencies } = require('./cli-dependencies');
+
 /*
  * # What is dependencies-sync.js for?
  *
@@ -14,19 +16,7 @@
 
 // Some packages are used by headlamp-plugin that are not used by the frontend.
 // These won't be removed from headlamp-plugin/package.json
-const dependenciesFrontDoesNotHave = new Set([
-  'env-paths',
-  'shx',
-  'fs-extra',
-  'validate-npm-package-name',
-  'yargs',
-  'vm-browserify',
-  'table',
-  'tar',
-  'tmp',
-  'vite-plugin-css-injected-by-js',
-  'vite-plugin-static-copy',
-]);
+const dependenciesFrontDoesNotHave = new Set(cliOnlyDependencies);
 
 // Dependencies from frontend/package.json that aren't wanted by headlamp-plugin.
 // These won't be added to headlamp-plugin/package.json
