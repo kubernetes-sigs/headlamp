@@ -119,7 +119,7 @@ const ChipGroup = styled(Box)({
 function GraphViewContent({
   height,
   defaultNodeSelection,
-  defaultSources = allSources,
+  defaultSources = getAllSources(),
   defaultFilters = defaultFiltersValue,
 }: GraphViewContentProps) {
   const { t } = useTranslation();
