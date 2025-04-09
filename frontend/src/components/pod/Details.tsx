@@ -472,7 +472,7 @@ export default function PodDetails(props: PodDetailsProps) {
         item && [
           {
             name: t('State'),
-            value: makePodStatusLabel(item),
+            value: makePodStatusLabel(item, false),
           },
           {
             name: t('Node'),

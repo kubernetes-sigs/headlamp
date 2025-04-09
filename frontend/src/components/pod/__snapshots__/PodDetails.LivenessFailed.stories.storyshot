@@ -219,16 +219,20 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <div
-                      aria-label="back-off 5m0s restarting failed container=liveness pod=liveness-http_default(4f8b71a3-f99c-41c2-9523-83edc1de02ce)"
-                      class="MuiBox-root css-6n7j50"
-                      data-mui-internal-clone-element="true"
+                      class="MuiBox-root css-axw7ok"
                     >
-                      <span
-                        class="MuiTypography-root MuiTypography-body1 css-1q14vbw-MuiTypography-root"
-                        style="background-color: rgb(255, 243, 224); color: rgb(196, 69, 0);"
+                      <div
+                        aria-label="back-off 5m0s restarting failed container=liveness pod=liveness-http_default(4f8b71a3-f99c-41c2-9523-83edc1de02ce)"
+                        class="MuiBox-root css-6n7j50"
+                        data-mui-internal-clone-element="true"
                       >
-                        CrashLoopBackOff
-                      </span>
+                        <span
+                          class="MuiTypography-root MuiTypography-body1 css-1q14vbw-MuiTypography-root"
+                          style="background-color: rgb(255, 243, 224); color: rgb(196, 69, 0);"
+                        >
+                          CrashLoopBackOff
+                        </span>
+                      </div>
                     </div>
                   </dd>
                   <dt

@@ -3,6 +3,7 @@ import { Box } from '@mui/material';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '../../lib/k8s/apiProxy';
+import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
 import { METRIC_REFETCH_INTERVAL_MS, PodMetrics } from '../../lib/k8s/PodMetrics';
 import { parseCpu, parseRam, unparseCpu, unparseRam } from '../../lib/units';
@@ -13,7 +14,7 @@ import { LightTooltip, Link, SimpleTableProps } from '../common';
 import { StatusLabel, StatusLabelProps } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 
-export function makePodStatusLabel(pod: Pod) {
+export function makePodStatusLabel(pod: Pod, showContainerStatus: boolean = true) {
   const phase = pod.status.phase;
   let status: StatusLabelProps['status'] = '';
 
@@ -30,17 +31,34 @@ export function makePodStatusLabel(pod: Pod) {
     }
   }
 
+  const containerStatuses = pod.status?.containerStatuses || [];
+  const containerIndicators = containerStatuses.map((cs, index) => {
+    const { color, tooltip } = getContainerDisplayStatus(cs);
+    return (
+      <LightTooltip title={tooltip} key={index}>
+        <Icon icon="mdi:circle" style={{ color }} width="1rem" height="1rem" />
+      </LightTooltip>
+    );
+  });
+
   return (
-    <LightTooltip title={tooltip} interactive>
-      <Box display="inline">
-        <StatusLabel status={status}>
-          {reason}
-          {(status === 'warning' || status === 'error') && (
-            <Icon aria-label="hidden" icon="mdi:alert-outline" width="1.2rem" height="1.2rem" />
-          )}
-        </StatusLabel>
-      </Box>
-    </LightTooltip>
+    <Box display="flex" alignItems="center" gap={1}>
+      <LightTooltip title={tooltip} interactive>
+        <Box display="inline">
+          <StatusLabel status={status}>
+            {reason}
+            {(status === 'warning' || status === 'error') && (
+              <Icon aria-label="hidden" icon="mdi:alert-outline" width="1.2rem" height="1.2rem" />
+            )}
+          </StatusLabel>
+        </Box>
+      </LightTooltip>
+      {showContainerStatus && containerIndicators.length > 0 && (
+        <Box display="flex" gap={0.5}>
+          {containerIndicators}
+        </Box>
+      )}
+    </Box>
   );
 }
 
@@ -58,6 +76,56 @@ function getReadinessGatesStatus(pods: Pod) {
   });
 
   return readinessGatesMap;
+}
+
+function getContainerDisplayStatus(container: KubeContainerStatus) {
+  const state = container.state || {};
+  let color = 'grey';
+  let label = '';
+  const tooltipLines: string[] = [`Name: ${container.name}`];
+
+  if (state.waiting) {
+    color = 'orange';
+    label = 'Waiting';
+    if (state.waiting.reason) {
+      tooltipLines.push(`Reason: ${state.waiting.reason}`);
+    }
+  } else if (state.terminated) {
+    color = 'green';
+    label = 'Terminated';
+    if (state.terminated.reason) {
+      tooltipLines.push(`Reason: ${state.terminated.reason}`);
+    }
+    if (state.terminated.exitCode !== undefined) {
+      tooltipLines.push(`Exit Code: ${state.terminated.exitCode}`);
+    }
+    if (state.terminated.startedAt) {
+      tooltipLines.push(`Started: ${new Date(state.terminated.startedAt).toLocaleString()}`);
+    }
+    if (state.terminated.finishedAt) {
+      tooltipLines.push(`Finished: ${new Date(state.terminated.finishedAt).toLocaleString()}`);
+    }
+    if (container.restartCount > 0) {
+      tooltipLines.push(`Restarts: ${container.restartCount}`);
+    }
+  } else if (state.running) {
+    color = 'green';
+    label = 'Running';
+    if (state.running.startedAt) {
+      tooltipLines.push(`Started: ${new Date(state.running.startedAt).toLocaleString()}`);
+    }
+    if (container.restartCount > 0) {
+      tooltipLines.push(`Restarts: ${container.restartCount}`);
+    }
+  }
+
+  tooltipLines.splice(1, 0, `Status: ${label}`);
+
+  return {
+    color,
+    label,
+    tooltip: <span style={{ whiteSpace: 'pre-line' }}>{tooltipLines.join('\n')}</span>,
+  };
 }
 
 export interface PodListProps {

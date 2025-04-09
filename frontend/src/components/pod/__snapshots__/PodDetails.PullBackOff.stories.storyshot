@@ -219,16 +219,20 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <div
-                      aria-label="Back-off pulling image "doesnotexist:nover""
-                      class="MuiBox-root css-6n7j50"
-                      data-mui-internal-clone-element="true"
+                      class="MuiBox-root css-axw7ok"
                     >
-                      <span
-                        class="MuiTypography-root MuiTypography-body1 css-1q14vbw-MuiTypography-root"
-                        style="background-color: rgb(240, 240, 240); color: rgba(0, 0, 0, 0.87);"
+                      <div
+                        aria-label="Back-off pulling image "doesnotexist:nover""
+                        class="MuiBox-root css-6n7j50"
+                        data-mui-internal-clone-element="true"
                       >
-                        ImagePullBackOff
-                      </span>
+                        <span
+                          class="MuiTypography-root MuiTypography-body1 css-1q14vbw-MuiTypography-root"
+                          style="background-color: rgb(240, 240, 240); color: rgba(0, 0, 0, 0.87);"
+                        >
+                          ImagePullBackOff
+                        </span>
+                      </div>
                     </div>
                   </dd>
                   <dt

@@ -219,16 +219,20 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <div
-                      aria-label=""
-                      class="MuiBox-root css-6n7j50"
-                      data-mui-internal-clone-element="true"
+                      class="MuiBox-root css-axw7ok"
                     >
-                      <span
-                        class="MuiTypography-root MuiTypography-body1 css-1q14vbw-MuiTypography-root"
-                        style="background-color: rgb(255, 235, 238); color: rgb(198, 40, 40);"
+                      <div
+                        aria-label=""
+                        class="MuiBox-root css-6n7j50"
+                        data-mui-internal-clone-element="true"
                       >
-                        Error
-                      </span>
+                        <span
+                          class="MuiTypography-root MuiTypography-body1 css-1q14vbw-MuiTypography-root"
+                          style="background-color: rgb(255, 235, 238); color: rgb(198, 40, 40);"
+                        >
+                          Error
+                        </span>
+                      </div>
                     </div>
                   </dd>
                   <dt
