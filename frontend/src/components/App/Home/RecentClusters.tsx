@@ -1,4 +1,5 @@
-import Grid from '@mui/material/Grid';
+import { Button, Grid, ToggleButton as MuiToggledButton, ToggleButtonGroup } from '@mui/material';
+import { styled } from '@mui/system';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath, useHistory } from 'react-router-dom';
@@ -7,6 +8,13 @@ import { Cluster } from '../../../lib/k8s/cluster';
 import { createRouteURL } from '../../../lib/router';
 import { getClusterPrefixedPath } from '../../../lib/util';
 import SquareButton from './SquareButton';
+
+const ToggleButton = styled(MuiToggledButton)({
+  textTransform: 'none',
+});
+
+/** Allow selecting multiple recent clusters. */
+const MULTI_ENABLED = import.meta.env.REACT_APP_MULTI_ENABLED === 'true' || true;
 
 interface ClusterButtonProps extends React.PropsWithChildren<{}> {
   /** The cluster to display this button for. */
@@ -49,6 +57,8 @@ export default function RecentClusters(props: RecentClustersProps) {
     }
   }, []);
   const { t } = useTranslation();
+  const [selectedClusters, setSelectedClusters] = React.useState<Cluster[]>([]);
+
   const recentClustersLabelId = 'recent-clusters-label';
   const maxRecentClusters = 3;
   // We slice it here for the maximum recent clusters just for extra safety, since this
@@ -85,6 +95,33 @@ export default function RecentClusters(props: RecentClustersProps) {
     });
   }
 
+  /**
+   * Callback for when different clusters are toggled.
+   *
+   * @param event - The event that triggered the toggle.
+   * @param clusters - The clusters that are toggled.
+   */
+  function onClustersToggled(event: React.MouseEvent<HTMLElement>, clusters: Cluster[]) {
+    setSelectedClusters(clusters);
+  }
+
+  /**
+   * Callback for when the "View" button is clicked. It will navigate to the selected clusters.
+   */
+  function onViewClusters() {
+    selectedClusters.forEach(cluster => {
+      helpers.setRecentCluster(cluster);
+    });
+
+    history.push({
+      pathname: generatePath(getClusterPrefixedPath(), {
+        cluster: selectedClusters.map(cluster => cluster.name).join('+'),
+      }),
+    });
+  }
+
+  const doMulti = recentClusters.length > 1 && MULTI_ENABLED;
+
   return (
     <Grid
       aria-labelledby={`#${recentClustersLabelId}`}
@@ -93,15 +130,42 @@ export default function RecentClusters(props: RecentClustersProps) {
       alignItems="flex-start"
       spacing={2}
     >
-      {recentClusters.map((cluster, i) => (
-        <Grid item key={cluster.name}>
-          <ClusterButton
-            focusedRef={i === 0 ? focusedRef : undefined}
-            cluster={cluster}
-            onClick={() => onClusterButtonClicked(cluster)}
-          />
+      {!doMulti &&
+        recentClusters.map((cluster, i) => (
+          <Grid item key={cluster.name}>
+            <ClusterButton
+              focusedRef={i === 0 ? focusedRef : undefined}
+              cluster={cluster}
+              onClick={() => onClusterButtonClicked(cluster)}
+            />
+          </Grid>
+        ))}
+      {doMulti && (
+        <Grid container item alignItems="center">
+          <ToggleButtonGroup
+            value={selectedClusters}
+            onChange={onClustersToggled}
+            aria-label="selected clusters"
+            exclusive={false}
+          >
+            {recentClusters.map(cluster => (
+              <ToggleButton key={cluster.name} value={cluster}>
+                {cluster.name}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+          <Grid item pl={2}>
+            <Button
+              variant="contained"
+              disabled={selectedClusters.length < 1}
+              color="primary"
+              onClick={onViewClusters}
+            >
+              View
+            </Button>
+          </Grid>
         </Grid>
-      ))}
+      )}
       {helpers.isElectron() && (
         <Grid item>
           <SquareButton
