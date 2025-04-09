@@ -633,6 +633,58 @@ func TestHandleClusterAPI_XForwardedHost(t *testing.T) {
 	assert.Equal(t, "OK", rr.Body.String())
 }
 
+// Handle a cluster rename request.
+func handleClusterRenameRequest(
+	t *testing.T,
+	handler http.Handler,
+	tc struct {
+		name          string
+		clusterReq    RenameClusterRequest
+		expectedState int
+	},
+) {
+	var r *httptest.ResponseRecorder
+
+	var err error
+
+	if tc.clusterReq.Source == "kubeconfig" {
+		url := "/cluster/minikubetestnondynamic?ClusterID=./headlamp_testdata/kubeconfig_rename:minikubetestnondynamic"
+		r, err = getResponseFromRestrictedEndpoint(handler, "PUT", url, tc.clusterReq)
+		require.NoError(t, err)
+		assert.Equal(t, tc.expectedState, r.Code)
+	} else {
+		url := "/cluster/minikubetest?ClusterID=minikubetest"
+		r, err = getResponseFromRestrictedEndpoint(handler, "PUT", url, tc.clusterReq)
+		require.NoError(t, err)
+		assert.Equal(t, tc.expectedState, r.Code)
+	}
+}
+
+// Used to run the cluster rename tests.
+func runClusterRenameTests(
+	t *testing.T,
+	handler http.Handler,
+	tests []struct {
+		name          string
+		clusterReq    RenameClusterRequest
+		expectedState int
+	},
+) {
+	resetConfigByte, err := os.ReadFile("./headlamp_testdata/kubeconfig_rename")
+	require.NoError(t, err)
+
+	for _, tc := range tests {
+		handleClusterRenameRequest(t, handler, tc)
+	}
+
+	// this is a reset line that will reset the kubeconfig file to its original state
+	// without it the tests will fail as it makes changes to the kubeconfig
+	err = os.WriteFile("./headlamp_testdata/kubeconfig_rename", resetConfigByte, 0o600)
+	require.NoError(t, err)
+}
+
+// Test the cluster rename functionality.
+// note: needed to split into multiple parts for linter.
 func TestRenameCluster(t *testing.T) {
 	kubeConfigByte, err := os.ReadFile("./headlamp_testdata/kubeconfig")
 	require.NoError(t, err)
@@ -658,10 +710,7 @@ func TestRenameCluster(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	clusters := c.getClusters()
-
 	assert.Equal(t, http.StatusCreated, r.Code)
-	assert.Equal(t, 2, len(clusters))
 
 	tests := []struct {
 		name          string
@@ -669,29 +718,34 @@ func TestRenameCluster(t *testing.T) {
 		expectedState int
 	}{
 		{
+			name: "stateless",
+			clusterReq: RenameClusterRequest{
+				NewClusterName: "minikubetestworksnew",
+				Stateless:      true,
+			},
+			expectedState: http.StatusCreated,
+		},
+		{
 			name: "passStatefull",
 			clusterReq: RenameClusterRequest{
-				NewClusterName: "minikubetestworks",
+				NewClusterName: "minikubetestworkskubeconfig",
 				Stateless:      false,
 				Source:         "kubeconfig",
 			},
 			expectedState: http.StatusCreated,
 		},
-		{
-			name: "stateless",
-			clusterReq: RenameClusterRequest{
-				NewClusterName: "minikubetestworks",
-				Stateless:      true,
-			},
-			expectedState: http.StatusCreated,
-		},
 	}
 
-	for _, tc := range tests {
-		r, err = getResponseFromRestrictedEndpoint(handler, "PUT", "/cluster/minikubetest", tc.clusterReq)
-		require.NoError(t, err)
-		assert.Equal(t, tc.expectedState, r.Code)
-	}
+	runClusterRenameTests(t, handler, tests)
+
+	remErr := c.kubeConfigStore.RemoveContext("minikubetest")
+	require.NoError(t, remErr, "Failed to remove context: minikubetest")
+
+	remErrNonDy := c.kubeConfigStore.RemoveContext("minikubetestworkskubeconfig")
+	require.NoError(t, remErrNonDy, "Failed to remove context: minikubetestworkskubeconfig")
+
+	clusters := c.getClusters()
+	assert.Equal(t, 2, len(clusters))
 }
 
 func TestFileExists(t *testing.T) {

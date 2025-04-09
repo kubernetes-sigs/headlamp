@@ -272,6 +272,72 @@ export function findKubeconfigByClusterName(clusterName: string): Promise<string
 }
 
 /**
+ * Finds a kubeconfig of a non-dynamic cluster by clusterID.
+ * @param clusterID - The clusterID of the cluster.
+ * @returns A promise that resolves with the kubeconfig, or null if not found.
+ * @throws Error if IndexedDB is not supported.
+ * @throws Error if the kubeconfig is invalid.
+ *
+ * Note: This function is needed to find kubeconfigs for non-dynamic clusters using their unique clusterID and should be used independently.
+ * Currently only non-dynamic clusters have a clusterID.
+ *
+ * This function will be used to both rename and delete non dynamic clusters.
+ */
+export function findKubeconfigByClusterID(clusterID: string): Promise<string | null> {
+  return new Promise<string | null>(async (resolve, reject) => {
+    try {
+      const request = indexedDB.open('kubeconfigs', 1) as any;
+
+      // The onupgradeneeded event is fired when the database is created for the first time.
+      request.onupgradeneeded = handleDatabaseUpgrade;
+
+      // The onsuccess event is fired when the database is opened.
+      // This event is where you specify the actions to take when the database is opened.
+      request.onsuccess = function handleDatabaseSuccess(event: DatabaseEvent) {
+        const db = event.target.result;
+        const transaction = db.transaction(['kubeconfigStore'], 'readonly');
+        const store = transaction.objectStore('kubeconfigStore');
+
+        // The onsuccess event is fired when the request has succeeded.
+        // This is where you handle the results of the request.
+        // The result is the cursor. It is used to iterate through the object store.
+        // The cursor is null when there are no more objects to iterate through.
+        // The cursor is used to find the kubeconfig by cluster name.
+        store.openCursor().onsuccess = function storeSuccess(event: Event) {
+          const successEvent = event as CursorSuccessEvent;
+          const cursor = successEvent.target.result;
+          if (cursor) {
+            const kubeconfigObject = cursor.value;
+            const kubeconfig = kubeconfigObject.kubeconfig;
+
+            const parsedKubeconfig = jsyaml.load(atob(kubeconfig)) as KubeconfigObject;
+
+            // Find the context with the matching clusterID
+            const matchingContext = parsedKubeconfig.contexts.find(
+              context => context.context.clusterID === clusterID
+            );
+
+            if (matchingContext) {
+              resolve(kubeconfig);
+            } else {
+              cursor.continue();
+            }
+          } else {
+            resolve(null); // No matching kubeconfig found
+          }
+        };
+      };
+
+      // The onerror event is fired when the database is opened.
+      // This is where you handle errors.
+      request.onerror = handleDataBaseError;
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+/**
  * In the backend we use a unique ID to identify a user. If there is no ID in localStorage
  * we generate a new one and store it in localStorage. We then combine it with the
  * cluster name and this headlamp-userId to create a unique ID for a cluster. If we don't
