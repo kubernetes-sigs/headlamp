@@ -25,6 +25,7 @@ import { Link, PageGrid, SectionBox, SectionFilterHeader } from '../../common';
 import { ConfirmDialog } from '../../common';
 import ErrorBoundary from '../../common/ErrorBoundary/ErrorBoundary';
 import ResourceTable from '../../common/Resource/ResourceTable';
+import { getCustomClusterNames } from './customClusterNames';
 import RecentClusters from './RecentClusters';
 
 interface ContextMenuProps {
@@ -245,7 +246,9 @@ function useWarningSettingsPerCluster(clusterNames: string[]) {
 
 function HomeComponent(props: HomeComponentProps) {
   const { clusters } = props;
-  const [customNameClusters, setCustomNameClusters] = React.useState(getClusterNames());
+  const [customNameClusters, setCustomNameClusters] = React.useState(
+    getCustomClusterNames(clusters)
+  );
   const { t } = useTranslation(['translation', 'glossary']);
   const [versions, errors] = useClustersVersion(Object.values(clusters));
   const warningLabels = useWarningSettingsPerCluster(
@@ -254,21 +257,12 @@ function HomeComponent(props: HomeComponentProps) {
 
   React.useEffect(() => {
     setCustomNameClusters(currentNames => {
-      if (isEqual(currentNames, getClusterNames())) {
+      if (isEqual(currentNames, getCustomClusterNames(clusters))) {
         return currentNames;
       }
-      return getClusterNames();
+      return getCustomClusterNames(clusters);
     });
   }, [customNameClusters]);
-
-  function getClusterNames() {
-    return Object.values(clusters)
-      .map(c => ({
-        ...c,
-        name: c.meta_data?.extensions?.headlamp_info?.customName || c.name,
-      }))
-      .sort();
-  }
 
   /**
    * Gets the origin of a cluster.
