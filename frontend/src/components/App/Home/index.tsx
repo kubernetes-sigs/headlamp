@@ -1,159 +1,22 @@
 import { Icon } from '@iconify/react';
 import { useTheme } from '@mui/material';
 import Box from '@mui/material/Box';
-import IconButton from '@mui/material/IconButton';
-import ListItemText from '@mui/material/ListItemText';
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
-import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { isEqual } from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
 import { useClustersConf, useClustersVersion } from '../../../lib/k8s';
-import { ApiError, deleteCluster } from '../../../lib/k8s/apiProxy';
+import { ApiError } from '../../../lib/k8s/apiProxy';
 import { Cluster } from '../../../lib/k8s/cluster';
 import Event from '../../../lib/k8s/event';
 import { createRouteURL } from '../../../lib/router';
-import { useId } from '../../../lib/util';
-import { setConfig } from '../../../redux/configSlice';
-import { useTypedSelector } from '../../../redux/reducers/reducers';
 import { Link, PageGrid, SectionBox, SectionFilterHeader } from '../../common';
-import { ConfirmDialog } from '../../common';
-import ErrorBoundary from '../../common/ErrorBoundary/ErrorBoundary';
 import ResourceTable from '../../common/Resource/ResourceTable';
+import ClusterContextMenu from './ClusterContextMenu';
 import { getCustomClusterNames } from './customClusterNames';
 import RecentClusters from './RecentClusters';
-
-interface ContextMenuProps {
-  /** The cluster for the context menu to act on. */
-  cluster: Cluster;
-}
-
-function ContextMenu({ cluster }: ContextMenuProps) {
-  const { t } = useTranslation(['translation']);
-  const history = useHistory();
-  const dispatch = useDispatch();
-  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
-  const menuId = useId('context-menu');
-  const [openConfirmDialog, setOpenConfirmDialog] = React.useState<string | null>(null);
-  const dialogs = useTypedSelector(state => state.clusterProvider.dialogs);
-  const menuItems = useTypedSelector(state => state.clusterProvider.menuItems);
-
-  function removeCluster(cluster: Cluster) {
-    deleteCluster(cluster.name || '')
-      .then(config => {
-        dispatch(setConfig(config));
-      })
-      .catch((err: Error) => {
-        if (err.message === 'Not Found') {
-          // TODO: create notification with error message
-        }
-      })
-      .finally(() => {
-        history.push('/');
-      });
-  }
-
-  function handleMenuClose() {
-    setAnchorEl(null);
-  }
-
-  return (
-    <>
-      <Tooltip title={t('Actions')}>
-        <IconButton
-          size="small"
-          onClick={event => {
-            setAnchorEl(event.currentTarget);
-          }}
-          aria-haspopup="menu"
-          aria-controls={menuId}
-          aria-label={t('Actions')}
-        >
-          <Icon icon="mdi:more-vert" />
-        </IconButton>
-      </Tooltip>
-      <Menu
-        id={menuId}
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={() => {
-          handleMenuClose();
-        }}
-      >
-        <MenuItem
-          onClick={() => {
-            history.push(createRouteURL('cluster', { cluster: cluster.name }));
-            handleMenuClose();
-          }}
-        >
-          <ListItemText>{t('translation|View')}</ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            history.push(createRouteURL('settingsCluster', { cluster: cluster.name }));
-            handleMenuClose();
-          }}
-        >
-          <ListItemText>{t('translation|Settings')}</ListItemText>
-        </MenuItem>
-        {isElectron() && cluster.meta_data?.source === 'dynamic_cluster' && (
-          <MenuItem
-            onClick={() => {
-              setOpenConfirmDialog('deleteDynamic');
-              handleMenuClose();
-            }}
-          >
-            <ListItemText>{t('translation|Delete')}</ListItemText>
-          </MenuItem>
-        )}
-
-        {menuItems.map((Item, index) => {
-          return (
-            <Item
-              cluster={cluster}
-              setOpenConfirmDialog={setOpenConfirmDialog}
-              handleMenuClose={handleMenuClose}
-              key={index}
-            />
-          );
-        })}
-      </Menu>
-      <ConfirmDialog
-        open={openConfirmDialog === 'deleteDynamic'}
-        handleClose={() => setOpenConfirmDialog('')}
-        onConfirm={() => {
-          setOpenConfirmDialog('');
-          removeCluster(cluster);
-        }}
-        title={t('translation|Delete Cluster')}
-        description={t(
-          'translation|Are you sure you want to remove the cluster "{{ clusterName }}"?',
-          {
-            clusterName: cluster.name,
-          }
-        )}
-      />
-      {openConfirmDialog !== null &&
-        dialogs.map((Dialog, index) => {
-          return (
-            <ErrorBoundary>
-              <Dialog
-                cluster={cluster}
-                openConfirmDialog={openConfirmDialog}
-                setOpenConfirmDialog={setOpenConfirmDialog}
-                key={index}
-              />
-            </ErrorBoundary>
-          );
-        })}
-    </>
-  );
-}
 
 function ClusterStatus({ error }: { error?: ApiError | null }) {
   const { t } = useTranslation(['translation']);
@@ -339,7 +202,7 @@ function HomeComponent(props: HomeComponentProps) {
                   align: 'right',
                 },
                 render: cluster => {
-                  return <ContextMenu cluster={cluster} />;
+                  return <ClusterContextMenu cluster={cluster} />;
                 },
               },
             ]}
