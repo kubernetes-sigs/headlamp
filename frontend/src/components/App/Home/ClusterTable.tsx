@@ -1,14 +1,16 @@
 import { Icon } from '@iconify/react';
-import { useTheme } from '@mui/material';
+import { Button, useTheme } from '@mui/material';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
+import { generatePath, useHistory } from 'react-router-dom';
 import { useClustersConf, useClustersVersion } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/apiProxy';
 import { Cluster } from '../../../lib/k8s/cluster';
-import { Link } from '../../common';
-import ResourceTable from '../../common/Resource/ResourceTable';
+import { getClusterPrefixedPath } from '../../../lib/util';
+import { Link, Table } from '../../common';
 import ClusterContextMenu from './ClusterContextMenu';
+import { MULTI_HOME_ENABLED } from './config';
 import { getCustomClusterNames } from './customClusterNames';
 
 /**
@@ -80,6 +82,7 @@ export default function ClusterTable({
   clusters,
   warningLabels,
 }: ClusterTableProps) {
+  const history = useHistory();
   const { t } = useTranslation(['translation']);
 
   /**
@@ -99,56 +102,88 @@ export default function ClusterTable({
     }
     return 'Unknown';
   }
+  const viewClusters = t('View Clusters');
 
   return (
-    <ResourceTable<any>
-      defaultSortingColumn={{ id: 'name', desc: false }}
+    <Table
       columns={[
         {
           id: 'name',
-          label: t('Name'),
-          getValue: cluster => cluster.name,
-          render: ({ name }) => (
-            <Link routeName="cluster" params={{ cluster: name }}>
-              {name}
+          header: t('Name'),
+          accessorKey: 'name',
+          Cell: ({ row: { original } }) => (
+            <Link routeName="cluster" params={{ cluster: original.name }}>
+              {original.name}
             </Link>
           ),
         },
         {
-          label: t('Origin'),
-          getValue: cluster => getOrigin(cluster),
-          render: ({ name }) => (
-            <Typography variant="body2">{getOrigin((clusters || {})[name])}</Typography>
+          header: t('Origin'),
+          accessorFn: cluster => getOrigin(cluster),
+          Cell: ({ row: { original } }) => (
+            <Typography variant="body2">{getOrigin((clusters || {})[original.name])}</Typography>
           ),
         },
         {
-          label: t('Status'),
-          getValue: cluster =>
+          header: t('Status'),
+          accessorFn: cluster =>
             errors[cluster.name] === null ? 'Active' : errors[cluster.name]?.message,
-          render: ({ name }) => <ClusterStatus error={errors[name]} />,
+          Cell: ({ row: { original } }) => <ClusterStatus error={errors[original.name]} />,
+        },
+        { header: t('Warnings'), accessorFn: cluster => warningLabels[cluster.name] },
+        {
+          header: t('glossary|Kubernetes Version'),
+          accessorFn: ({ name }) => versions[name]?.gitVersion || '⋯',
         },
         {
-          label: t('Warnings'),
-          getValue: ({ name }) => warningLabels[name],
-        },
-        {
-          label: t('glossary|Kubernetes Version'),
-          getValue: ({ name }) => versions[name]?.gitVersion || '⋯',
-        },
-        {
-          label: '',
-          getValue: cluster =>
-            errors[cluster.name] === null ? 'Active' : errors[cluster.name]?.message,
-          cellProps: {
+          header: '',
+          muiTableBodyCellProps: {
             align: 'right',
           },
-          render: cluster => {
+          accessorFn: cluster =>
+            errors[cluster.name] === null ? 'Active' : errors[cluster.name]?.message,
+          Cell: ({ row: { original: cluster } }) => {
             return <ClusterContextMenu cluster={cluster} />;
           },
         },
       ]}
       data={Object.values(customNameClusters)}
-      id="headlamp-home-clusters"
+      enableRowSelection={
+        MULTI_HOME_ENABLED
+          ? row => {
+              // Only allow selection if the cluster is working
+              return !errors[row.original.name];
+            }
+          : false
+      }
+      initialState={{
+        sorting: [{ id: 'name', desc: false }],
+      }}
+      muiToolbarAlertBannerProps={{
+        sx: theme => ({
+          background: theme.palette.background.muted,
+        }),
+      }}
+      renderToolbarAlertBannerContent={({ table }) => (
+        <Button
+          variant="contained"
+          sx={{
+            marginLeft: 1,
+          }}
+          onClick={() => {
+            history.push({
+              pathname: generatePath(getClusterPrefixedPath(), {
+                cluster: table
+                  .getSelectedRowModel()
+                  .rows.map(it => it.original.name)
+                  .join('+'),
+              }),
+            });
+          }}
+        >
+          {viewClusters}
+        </Button>
+      )}
     />
   );
 }
