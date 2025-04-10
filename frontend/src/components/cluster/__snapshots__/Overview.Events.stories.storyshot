@@ -16,7 +16,7 @@
               class="MuiBox-root css-j1fy4m"
             >
               <div
-                class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1qm9nul-MuiGrid-root"
+                class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
               >
                 <div
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
@@ -45,7 +45,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-18ph6tx-MuiGrid-root"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation1 css-cmkit5-MuiPaper-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
                     >
                       <div
                         class="MuiBox-root css-qrw4x1"
@@ -106,14 +106,29 @@
                                   tabindex="0"
                                 >
                                   <g
-                                    class="recharts-layer"
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
+                                  />
+                                  <g
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
                                   >
-                                    <g
-                                      class="recharts-layer recharts-pie-sector"
-                                      tabindex="-1"
-                                    />
-                                    <g
-                                      class="recharts-layer recharts-pie-sector"
+                                    <path
+                                      class="recharts-sector"
+                                      cx="61"
+                                      cy="61"
+                                      d="M 61,16.199999999999996
+    A 44.800000000000004,44.800000000000004,0,
+    1,1,
+    60.99921809249515,16.20000000682343
+  L 60.999410078712856,27.200000005148027
+            A 33.800000000000004,33.800000000000004,0,
+            1,0,
+            61,27.199999999999996 Z"
+                                      fill="#e0e0e0"
+                                      name="total"
+                                      role="img"
+                                      stroke="#e0e0e0"
                                       tabindex="-1"
                                     />
                                   </g>
@@ -145,7 +160,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-18ph6tx-MuiGrid-root"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation1 css-cmkit5-MuiPaper-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
                     >
                       <div
                         class="MuiBox-root css-qrw4x1"
@@ -206,14 +221,29 @@
                                   tabindex="0"
                                 >
                                   <g
-                                    class="recharts-layer"
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
+                                  />
+                                  <g
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
                                   >
-                                    <g
-                                      class="recharts-layer recharts-pie-sector"
-                                      tabindex="-1"
-                                    />
-                                    <g
-                                      class="recharts-layer recharts-pie-sector"
+                                    <path
+                                      class="recharts-sector"
+                                      cx="61"
+                                      cy="61"
+                                      d="M 61,16.199999999999996
+    A 44.800000000000004,44.800000000000004,0,
+    1,1,
+    60.99921809249515,16.20000000682343
+  L 60.999410078712856,27.200000005148027
+            A 33.800000000000004,33.800000000000004,0,
+            1,0,
+            61,27.199999999999996 Z"
+                                      fill="#e0e0e0"
+                                      name="total"
+                                      role="img"
+                                      stroke="#e0e0e0"
                                       tabindex="-1"
                                     />
                                   </g>
@@ -245,7 +275,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-18ph6tx-MuiGrid-root"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation1 css-cmkit5-MuiPaper-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
                     >
                       <div
                         class="MuiBox-root css-qrw4x1"
@@ -308,18 +338,33 @@
                                   tabindex="0"
                                 >
                                   <g
-                                    class="recharts-layer"
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
+                                  />
+                                  <g
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
+                                  />
+                                  <g
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
                                   >
-                                    <g
-                                      class="recharts-layer recharts-pie-sector"
-                                      tabindex="-1"
-                                    />
-                                    <g
-                                      class="recharts-layer recharts-pie-sector"
-                                      tabindex="-1"
-                                    />
-                                    <g
-                                      class="recharts-layer recharts-pie-sector"
+                                    <path
+                                      class="recharts-sector"
+                                      cx="61"
+                                      cy="61"
+                                      d="M 61,16.199999999999996
+    A 44.800000000000004,44.800000000000004,0,
+    1,1,
+    60.99921809249515,16.20000000682343
+  L 60.999410078712856,27.200000005148027
+            A 33.800000000000004,33.800000000000004,0,
+            1,0,
+            61,27.199999999999996 Z"
+                                      fill="#e0e0e0"
+                                      name="total"
+                                      role="img"
+                                      stroke="#e0e0e0"
                                       tabindex="-1"
                                     />
                                   </g>
@@ -351,7 +396,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-18ph6tx-MuiGrid-root"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation1 css-cmkit5-MuiPaper-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
                     >
                       <div
                         class="MuiBox-root css-qrw4x1"
@@ -414,21 +459,36 @@
                                   tabindex="0"
                                 >
                                   <g
-                                    class="recharts-layer"
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
+                                  />
+                                  <g
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
                                   >
-                                    <g
-                                      class="recharts-layer recharts-pie-sector"
-                                      tabindex="-1"
-                                    />
-                                    <g
-                                      class="recharts-layer recharts-pie-sector"
-                                      tabindex="-1"
-                                    />
-                                    <g
-                                      class="recharts-layer recharts-pie-sector"
+                                    <path
+                                      class="recharts-sector"
+                                      cx="61"
+                                      cy="61"
+                                      d="M 61,16.199999999999996
+    A 44.800000000000004,44.800000000000004,0,
+    1,1,
+    60.99921809249515,16.20000000682343
+  L 60.999410078712856,27.200000005148027
+            A 33.800000000000004,33.800000000000004,0,
+            1,0,
+            61,27.199999999999996 Z"
+                                      fill="#c62828"
+                                      name="notReady"
+                                      role="img"
+                                      stroke="#e0e0e0"
                                       tabindex="-1"
                                     />
                                   </g>
+                                  <g
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
+                                  />
                                   <text
                                     class="recharts-text recharts-label"
                                     fill="#808080"
@@ -468,7 +528,7 @@
               class="MuiBox-root css-j1fy4m"
             >
               <div
-                class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1qm9nul-MuiGrid-root"
+                class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
               >
                 <div
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
@@ -491,7 +551,7 @@
                           class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
                         >
                           <span
-                            class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1nsozxe-MuiButtonBase-root-MuiSwitch-switchBase"
+                            class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
                           >
                             <input
                               checked=""
@@ -538,7 +598,7 @@
                             style="margin-top: 0px;"
                           >
                             <label
-                              class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1h95xe3-MuiFormLabel-root-MuiInputLabel-root"
+                              class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
                               data-shrink="true"
                               for="namespaces-filter"
                               id="namespaces-filter-label"
@@ -546,7 +606,7 @@
                               Namespaces
                             </label>
                             <div
-                              class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-14gmyd4-MuiInputBase-root-MuiOutlinedInput-root"
+                              class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
                             >
                               <input
                                 aria-autocomplete="both"
@@ -612,7 +672,7 @@
                 class="MuiBox-root css-1txv3mw"
               >
                 <div
-                  class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-172kgz0-MuiPaper-root"
+                  class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
                 >
                   <div
                     class="MuiBox-root css-19midj6"

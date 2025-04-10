@@ -34,10 +34,10 @@ export function makePodStatusLabel(pod: Pod) {
     <LightTooltip title={tooltip} interactive>
       <Box display="inline">
         <StatusLabel status={status}>
-          {reason}
           {(status === 'warning' || status === 'error') && (
             <Icon aria-label="hidden" icon="mdi:alert-outline" width="1.2rem" height="1.2rem" />
           )}
+          {reason}
         </StatusLabel>
       </Box>
     </LightTooltip>

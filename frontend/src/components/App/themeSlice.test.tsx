@@ -1,18 +1,10 @@
 import React from 'react';
 import { AppLogoProps, AppLogoType } from './AppLogo';
-import themeReducer, { setBrandingAppLogoComponent, setTheme, ThemeState } from './themeSlice';
+import themeReducer, { initialState, setBrandingAppLogoComponent, setTheme } from './themeSlice';
 
 describe('themeSlice', () => {
-  const initialState: ThemeState = {
-    logo: null,
-    name: '',
-  };
-
   it('should handle initial state', () => {
-    expect(themeReducer(undefined, { type: 'unknown' })).toEqual({
-      logo: null,
-      name: '',
-    });
+    expect(themeReducer(undefined, { type: 'unknown' })).toEqual(initialState);
   });
 
   it('should handle setBrandingAppLogoComponent', () => {

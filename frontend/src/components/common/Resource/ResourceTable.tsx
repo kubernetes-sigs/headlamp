@@ -414,26 +414,26 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
   const defaultActions: RowAction[] = [
     {
       id: DefaultHeaderAction.RESTART,
-      action: ({ item }) => <RestartButton item={item} buttonStyle="menu" />,
+      action: ({ item }) => <RestartButton item={item} buttonStyle="menu" key="restart" />,
     },
     {
       id: DefaultHeaderAction.SCALE,
-      action: ({ item }) => <ScaleButton item={item} buttonStyle="menu" />,
+      action: ({ item }) => <ScaleButton item={item} buttonStyle="menu" key="scale" />,
     },
     {
       id: DefaultHeaderAction.EDIT,
       action: ({ item, closeMenu }) => (
-        <EditButton item={item} buttonStyle="menu" afterConfirm={closeMenu} />
+        <EditButton item={item} buttonStyle="menu" afterConfirm={closeMenu} key="edit" />
       ),
     },
     {
       id: DefaultHeaderAction.VIEW,
-      action: ({ item }) => <ViewButton item={item} buttonStyle="menu" />,
+      action: ({ item }) => <ViewButton item={item} buttonStyle="menu" key="view" />,
     },
     {
       id: DefaultHeaderAction.DELETE,
       action: ({ item, closeMenu }) => (
-        <DeleteButton item={item} buttonStyle="menu" afterConfirm={closeMenu} />
+        <DeleteButton item={item} buttonStyle="menu" afterConfirm={closeMenu} key="delete" />
       ),
     },
   ];

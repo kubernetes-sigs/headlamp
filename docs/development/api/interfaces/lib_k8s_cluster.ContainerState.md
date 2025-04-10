@@ -18,7 +18,7 @@
 
 #### Defined in
 
-[lib/k8s/cluster.ts:1255](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L1255)
+[lib/k8s/cluster.ts:1255](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L1255)
 
 ___
 
@@ -40,7 +40,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/cluster.ts:1258](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L1258)
+[lib/k8s/cluster.ts:1258](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L1258)
 
 ___
 
@@ -57,4 +57,4 @@ ___
 
 #### Defined in
 
-[lib/k8s/cluster.ts:1267](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L1267)
+[lib/k8s/cluster.ts:1267](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L1267)

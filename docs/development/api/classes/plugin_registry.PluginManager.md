@@ -39,7 +39,7 @@ PluginManager.cancel('pluginID');
 
 #### Defined in
 
-[components/App/pluginManager.ts:130](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/components/App/pluginManager.ts#L130)
+[components/App/pluginManager.ts:130](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/App/pluginManager.ts#L130)
 
 ___
 
@@ -75,7 +75,7 @@ try {
 
 #### Defined in
 
-[components/App/pluginManager.ts:186](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/components/App/pluginManager.ts#L186)
+[components/App/pluginManager.ts:186](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/App/pluginManager.ts#L186)
 
 ___
 
@@ -104,7 +104,7 @@ PluginManager.install('pluginID', ' https://artifacthub.io/packages/headlamp/<re
 
 #### Defined in
 
-[components/App/pluginManager.ts:69](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/components/App/pluginManager.ts#L69)
+[components/App/pluginManager.ts:69](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/App/pluginManager.ts#L69)
 
 ___
 
@@ -136,7 +136,7 @@ try {
 
 #### Defined in
 
-[components/App/pluginManager.ts:155](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/components/App/pluginManager.ts#L155)
+[components/App/pluginManager.ts:155](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/App/pluginManager.ts#L155)
 
 ___
 
@@ -164,7 +164,7 @@ PluginManager.uninstall('pluginID', 'my-plugin');
 
 #### Defined in
 
-[components/App/pluginManager.ts:110](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/components/App/pluginManager.ts#L110)
+[components/App/pluginManager.ts:110](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/App/pluginManager.ts#L110)
 
 ___
 
@@ -192,4 +192,4 @@ PluginManager.update('pluginID', 'my-plugin');
 
 #### Defined in
 
-[components/App/pluginManager.ts:90](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/components/App/pluginManager.ts#L90)
+[components/App/pluginManager.ts:90](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/App/pluginManager.ts#L90)

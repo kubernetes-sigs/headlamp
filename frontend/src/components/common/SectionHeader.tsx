@@ -33,7 +33,6 @@ export default function SectionHeader(props: SectionHeaderProps) {
       sx={theme => ({
         padding: theme.spacing(noPadding ? 0 : 2),
         paddingTop: theme.spacing(noPadding ? 0 : 3),
-        paddingRight: '0',
       })}
       spacing={2}
     >

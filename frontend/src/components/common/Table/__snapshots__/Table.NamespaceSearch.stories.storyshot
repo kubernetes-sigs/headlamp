@@ -1,7 +1,7 @@
 <body>
   <div>
     <div
-      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1qm9nul-MuiGrid-root"
+      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
     >
       <div
         class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
@@ -39,7 +39,7 @@
                   style="margin-top: 0px;"
                 >
                   <label
-                    class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1h95xe3-MuiFormLabel-root-MuiInputLabel-root"
+                    class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
                     data-shrink="true"
                     for="namespaces-filter"
                     id="namespaces-filter-label"
@@ -47,7 +47,7 @@
                     Namespaces
                   </label>
                   <div
-                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-14gmyd4-MuiInputBase-root-MuiOutlinedInput-root"
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
                   >
                     <input
                       aria-autocomplete="both"
@@ -123,7 +123,7 @@
             class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
           >
             <div
-              class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation0 MuiAlert-root MuiAlert-colorInfo MuiAlert-standardInfo MuiAlert-standard css-an9bbg-MuiPaper-root-MuiAlert-root"
+              class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorInfo MuiAlert-standardInfo MuiAlert-standard css-s0ueq2-MuiPaper-root-MuiAlert-root"
               role="alert"
             >
               <div
@@ -234,17 +234,17 @@
       </div>
     </div>
     <table
-      class="MuiTable-root css-ylfzdg-MuiTable-root"
+      class="MuiTable-root css-1rr7dye-MuiTable-root"
     >
       <thead
         class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
       >
         <tr
-          class="css-12nvjnd"
+          class="css-1lqh5un"
         >
           <th
             aria-sort="none"
-            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-bof02n-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-542uyz-MuiTableCell-root"
             colspan="1"
             data-can-sort="true"
             data-index="-1"
@@ -268,7 +268,7 @@
                 >
                   <span
                     aria-label="Sort by Name ascending"
-                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-118d58w-MuiButtonBase-root-MuiTableSortLabel-root"
+                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                     role="button"
                     tabindex="0"
                   >
@@ -299,7 +299,7 @@
           </th>
           <th
             aria-sort="none"
-            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1ob5joe-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-11ihby4-MuiTableCell-root"
             colspan="1"
             data-can-sort="true"
             data-index="-1"
@@ -323,7 +323,7 @@
                 >
                   <span
                     aria-label="Sort by Namespace ascending"
-                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-118d58w-MuiButtonBase-root-MuiTableSortLabel-root"
+                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                     role="button"
                     tabindex="0"
                   >
@@ -354,7 +354,7 @@
           </th>
           <th
             aria-sort="none"
-            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-fju1or-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-9s5e2s-MuiTableCell-root"
             colspan="1"
             data-can-sort="true"
             data-index="-1"
@@ -378,7 +378,7 @@
                 >
                   <span
                     aria-label="Sort by UID ascending"
-                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-118d58w-MuiButtonBase-root-MuiTableSortLabel-root"
+                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                     role="button"
                     tabindex="0"
                   >
@@ -409,7 +409,7 @@
           </th>
           <th
             aria-sort="none"
-            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-dupns9-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-usbwln-MuiTableCell-root"
             colspan="1"
             data-can-sort="true"
             data-index="-1"
@@ -433,7 +433,7 @@
                 >
                   <span
                     aria-label="Sort by Labels descending"
-                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-118d58w-MuiButtonBase-root-MuiTableSortLabel-root"
+                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                     role="button"
                     tabindex="0"
                   >
@@ -468,99 +468,99 @@
         class="css-1obf64m"
       >
         <tr
-          class="css-fqq3az"
+          class="css-1ospngb"
           data-selected="false"
         >
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-6rae6r-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1574zbf-MuiTableCell-root"
           >
             mydefinition.phonyresources0.io
           </td>
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-7lu39a-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
           >
             MyNamespace0
           </td>
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-e2ym6r-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
           >
             phony0
           </td>
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-ussceo-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
           />
         </tr>
         <tr
-          class="css-fqq3az"
+          class="css-1ospngb"
           data-selected="false"
         >
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-6rae6r-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1574zbf-MuiTableCell-root"
           >
             mydefinition.phonyresources1.io
           </td>
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-7lu39a-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
           >
             MyNamespace1
           </td>
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-e2ym6r-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
           >
             phony1
           </td>
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-ussceo-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
           >
             {"mylabel1":"myvalue1"}
           </td>
         </tr>
         <tr
-          class="css-fqq3az"
+          class="css-1ospngb"
           data-selected="false"
         >
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-6rae6r-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1574zbf-MuiTableCell-root"
           >
             mydefinition.phonyresources2.io
           </td>
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-7lu39a-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
           >
             MyNamespace2
           </td>
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-e2ym6r-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
           >
             phony2
           </td>
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-ussceo-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
           >
             {"mykey2":"mylabel"}
           </td>
         </tr>
         <tr
-          class="css-fqq3az"
+          class="css-1ospngb"
           data-selected="false"
         >
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-6rae6r-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1574zbf-MuiTableCell-root"
           >
             mydefinition.phonyresources3.io
           </td>
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-7lu39a-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
           >
             MyNamespace3
           </td>
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-e2ym6r-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
           >
             phony3
           </td>
           <td
-            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-ussceo-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
           >
             {"mykey3":"myvalue3"}
           </td>

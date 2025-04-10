@@ -27,7 +27,7 @@ version of the kubeconfig file.
 
 #### Defined in
 
-[lib/k8s/kubeconfig.ts:14](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L14)
+[lib/k8s/kubeconfig.ts:14](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L14)
 
 ___
 
@@ -41,7 +41,7 @@ Clusters is a map of referencable names to cluster configs.
 
 #### Defined in
 
-[lib/k8s/kubeconfig.ts:34](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L34)
+[lib/k8s/kubeconfig.ts:34](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L34)
 
 ___
 
@@ -55,7 +55,7 @@ Contexts is a map of referencable names to context configs.
 
 #### Defined in
 
-[lib/k8s/kubeconfig.ts:130](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L130)
+[lib/k8s/kubeconfig.ts:130](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L130)
 
 ___
 
@@ -67,7 +67,7 @@ CurrentContext is the name of the context that you would like to use by default
 
 #### Defined in
 
-[lib/k8s/kubeconfig.ts:154](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L154)
+[lib/k8s/kubeconfig.ts:154](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L154)
 
 ___
 
@@ -81,7 +81,7 @@ Extensions holds additional information. This is useful for extenders so that re
 
 #### Defined in
 
-[lib/k8s/kubeconfig.ts:158](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L158)
+[lib/k8s/kubeconfig.ts:158](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L158)
 
 ___
 
@@ -93,7 +93,7 @@ kind is the type of the kubeconfig file. It is always 'Config'.
 
 #### Defined in
 
-[lib/k8s/kubeconfig.ts:16](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L16)
+[lib/k8s/kubeconfig.ts:16](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L16)
 
 ___
 
@@ -114,7 +114,7 @@ Preferences holds general information to be use for cli interactions
 
 #### Defined in
 
-[lib/k8s/kubeconfig.ts:20](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L20)
+[lib/k8s/kubeconfig.ts:20](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L20)
 
 ___
 
@@ -128,4 +128,4 @@ AuthInfos is a map of referencable names to user configs.
 
 #### Defined in
 
-[lib/k8s/kubeconfig.ts:67](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L67)
+[lib/k8s/kubeconfig.ts:67](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/kubeconfig.ts#L67)

@@ -350,10 +350,12 @@ export default function SimpleTable(props: SimpleTableProps) {
           width: 'auto',
           display: 'grid',
           gridTemplateColumns: gridTemplateColumns || '1fr',
+          background: theme.palette.background.default,
           [theme.breakpoints.down('sm')]: {
             overflowX: 'auto', // make it responsive
           },
           '& .MuiTableCell-root': {
+            borderColor: theme.palette.divider,
             padding: '8px 16px 7px 16px',
             [theme.breakpoints.down('sm')]: {
               padding: '15px 24px 15px 16px',
@@ -363,8 +365,6 @@ export default function SimpleTable(props: SimpleTableProps) {
             wordWrap: 'break-word',
           },
           '& .MuiTableBody-root': {
-            background: theme.palette.tables.body.background,
-
             '& .MuiTableRow-root:last-child': {
               '& .MuiTableCell-root': {
                 borderBottom: 'none',
@@ -376,7 +376,7 @@ export default function SimpleTable(props: SimpleTableProps) {
             textOverflow: 'unset',
             whiteSpace: 'nowrap',
             color: theme.palette.tables.head.text,
-            background: theme.palette.tables.head.background,
+            background: theme.palette.background.muted,
             width: '100%',
             minWidth: 'max-content',
           },

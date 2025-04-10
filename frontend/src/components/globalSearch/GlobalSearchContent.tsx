@@ -34,7 +34,7 @@ import StatefulSet from '../../lib/k8s/statefulSet';
 import { createRouteURL, getDefaultRoutes } from '../../lib/router';
 import { getClusterPrefixedPath } from '../../lib/util';
 import { useTypedSelector } from '../../redux/reducers/reducers';
-import { setTheme } from '../App/themeSlice';
+import { setTheme, useAppThemes } from '../App/themeSlice';
 import { Delayed } from './Delayed';
 import { useRecent } from './useRecent';
 
@@ -218,33 +218,21 @@ export function GlobalSearchContent({
     [location.pathname, history, selectedClusters]
   );
 
-  // Custom actions
+  // Themes
   const dispatch = useDispatch();
-  const actions: SearchResult[] = useMemo(
-    () => [
-      {
-        id: 'light-theme',
-        label: t('Use light theme'),
-        icon: <Icon icon="mdi:weather-sunny" />,
-        onClick: () => {
-          dispatch(setTheme('light'));
-        },
-      },
-      {
-        id: 'dark-theme',
-        label: t('Use dark theme'),
-        icon: <Icon icon="mdi:weather-night" />,
-        onClick: () => {
-          dispatch(setTheme('dark'));
-        },
-      },
-    ],
-    [dispatch]
-  );
+  const appThemes = useAppThemes();
+  const themeActions = useMemo(() => {
+    return appThemes.map(theme => ({
+      id: 'switch-theme-' + theme.name,
+      subLabel: 'Theme',
+      label: theme.name,
+      onClick: () => dispatch(setTheme(theme.name)),
+    }));
+  }, [appThemes]);
 
   const allOptions = useMemo(
-    () => [...actions, ...clusterItems, ...routes, ...items],
-    [actions, clusterItems, routes, items]
+    () => [...themeActions, ...clusterItems, ...routes, ...items],
+    [themeActions, clusterItems, routes, items]
   );
 
   const fuse = useMemo(
@@ -343,6 +331,9 @@ export function GlobalSearchContent({
                 )}
               </>
             ),
+            sx: (theme: any) => ({
+              background: theme.palette.background.default,
+            }),
           } as any
         }
       />

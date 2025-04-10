@@ -693,7 +693,7 @@ export function registerHeadlampEventCallback(callback: HeadlampEventCallback) {
  * ```
  *
  * More complete plugin settings example in plugins/examples/change-logo:
- * @see {@link https://github.com/headlamp-k8s/headlamp/tree/main/plugins/examples/change-logo Change Logo Example}
+ * @see {@link https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/change-logo Change Logo Example}
  */
 export function registerPluginSettings(
   name: string,

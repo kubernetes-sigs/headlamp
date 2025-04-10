@@ -95,6 +95,9 @@ function SidebarToggleButton() {
       <ActionButton
         iconButtonProps={{
           size: 'small',
+          sx: theme => ({
+            color: theme.palette.sidebar.color,
+          }),
         }}
         onClick={() => {
           dispatch(setWhetherSidebarOpen(!isOpen));
@@ -319,29 +322,7 @@ export const PureSidebar = memo(
             </List>
           </Grid>
           <Grid item>
-            <Box
-              textAlign="center"
-              p={0}
-              sx={theme => ({
-                '&, & *, & svg': {
-                  color: theme.palette.sidebarLink.color,
-                },
-                '& .MuiButton-root': {
-                  color: theme.palette.sidebarButtonInLinkArea.color,
-                  '&:hover': {
-                    background: theme.palette.sidebarButtonInLinkArea.hover.background,
-                  },
-                },
-                '& .MuiButton-containedPrimary': {
-                  background: theme.palette.sidebarButtonInLinkArea.primary.background,
-                  '&:hover': {
-                    background: theme.palette.sidebarButtonInLinkArea.hover.background,
-                  },
-                },
-              })}
-            >
-              {linkArea}
-            </Box>
+            <Box textAlign="center">{linkArea}</Box>
           </Grid>
         </Grid>
       </>
@@ -385,7 +366,8 @@ export const PureSidebar = memo(
             const drawer = {
               width: drawerWidth,
               flexShrink: 0,
-              background: theme.palette.sidebarBg,
+              background: theme.palette.sidebar.background,
+              color: theme.palette.sidebar.color,
             };
 
             const drawerOpen = {
@@ -394,7 +376,7 @@ export const PureSidebar = memo(
                 easing: theme.transitions.easing.sharp,
                 duration: theme.transitions.duration.enteringScreen,
               }),
-              background: theme.palette.sidebarBg,
+              background: theme.palette.sidebar.background,
             };
 
             const drawerClose = {
@@ -404,7 +386,7 @@ export const PureSidebar = memo(
               }),
               overflowX: 'hidden',
               width: adjustedDrawerWidth,
-              background: theme.palette.sidebarBg,
+              background: theme.palette.sidebar.background,
             };
 
             if (

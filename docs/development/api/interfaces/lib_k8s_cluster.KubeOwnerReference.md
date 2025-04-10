@@ -14,7 +14,7 @@ API version of the referent.
 
 #### Defined in
 
-[lib/k8s/cluster.ts:199](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L199)
+[lib/k8s/cluster.ts:199](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L199)
 
 ___
 
@@ -33,7 +33,7 @@ otherwise 422 (Unprocessable Entity) will be returned.
 
 #### Defined in
 
-[lib/k8s/cluster.ts:211](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L211)
+[lib/k8s/cluster.ts:211](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L211)
 
 ___
 
@@ -45,7 +45,7 @@ If true, this reference points to the managing controller.
 
 #### Defined in
 
-[lib/k8s/cluster.ts:213](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L213)
+[lib/k8s/cluster.ts:213](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L213)
 
 ___
 
@@ -57,7 +57,7 @@ Kind of the referent.
 
 #### Defined in
 
-[lib/k8s/cluster.ts:215](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L215)
+[lib/k8s/cluster.ts:215](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L215)
 
 ___
 
@@ -69,7 +69,7 @@ Name of the referent.
 
 #### Defined in
 
-[lib/k8s/cluster.ts:217](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L217)
+[lib/k8s/cluster.ts:217](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L217)
 
 ___
 
@@ -81,4 +81,4 @@ UID of the referent.
 
 #### Defined in
 
-[lib/k8s/cluster.ts:219](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L219)
+[lib/k8s/cluster.ts:219](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L219)

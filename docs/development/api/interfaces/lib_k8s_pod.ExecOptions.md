@@ -24,7 +24,7 @@ Additional WebSocket protocols to use when connecting.
 
 #### Defined in
 
-[lib/k8s/apiProxy.ts:1286](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1286)
+[lib/k8s/apiProxy.ts:1286](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1286)
 
 ___
 
@@ -38,7 +38,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/apiProxy.ts:1297](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1297)
+[lib/k8s/apiProxy.ts:1297](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1297)
 
 ___
 
@@ -48,7 +48,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/pod.ts:49](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L49)
+[lib/k8s/pod.ts:49](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L49)
 
 ___
 
@@ -64,7 +64,7 @@ Whether the stream is expected to receive JSON data.
 
 #### Defined in
 
-[lib/k8s/apiProxy.ts:1284](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1284)
+[lib/k8s/apiProxy.ts:1284](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1284)
 
 ___
 
@@ -80,7 +80,7 @@ Whether to attempt to reconnect the WebSocket connection if it fails.
 
 #### Defined in
 
-[lib/k8s/apiProxy.ts:1290](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1290)
+[lib/k8s/apiProxy.ts:1290](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1290)
 
 ___
 
@@ -94,7 +94,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/apiProxy.ts:1296](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1296)
+[lib/k8s/apiProxy.ts:1296](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1296)
 
 ___
 
@@ -108,7 +108,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/apiProxy.ts:1294](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1294)
+[lib/k8s/apiProxy.ts:1294](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1294)
 
 ___
 
@@ -122,7 +122,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/apiProxy.ts:1295](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1295)
+[lib/k8s/apiProxy.ts:1295](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1295)
 
 ___
 
@@ -136,7 +136,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/apiProxy.ts:1293](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1293)
+[lib/k8s/apiProxy.ts:1293](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1293)
 
 ## Methods
 
@@ -156,7 +156,7 @@ A callback function to execute when the WebSocket connection is established.
 
 #### Defined in
 
-[lib/k8s/apiProxy.ts:1288](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1288)
+[lib/k8s/apiProxy.ts:1288](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1288)
 
 ___
 
@@ -176,4 +176,4 @@ A callback function to execute when the WebSocket connection fails.
 
 #### Defined in
 
-[lib/k8s/apiProxy.ts:1292](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1292)
+[lib/k8s/apiProxy.ts:1292](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1292)

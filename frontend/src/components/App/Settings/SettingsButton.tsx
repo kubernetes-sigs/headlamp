@@ -18,6 +18,9 @@ export default function SettingsButton(props: { onClickExtra?: () => void }) {
     <ActionButton
       icon="mdi:cog"
       description={t('translation|Settings')}
+      iconButtonProps={{
+        color: 'inherit',
+      }}
       onClick={() => {
         history.push(createRouteURL('settingsCluster', { cluster: clusterName }));
         onClickExtra && onClickExtra();

@@ -905,12 +905,12 @@ function getDefaultAppMenu(): AppMenu[] {
         {
           label: i18n.t('Open an Issue'),
           id: 'original-open-issue',
-          url: 'https://github.com/headlamp-k8s/headlamp/issues',
+          url: 'https://github.com/kubernetes-sigs/headlamp/issues',
         },
         {
           label: i18n.t('About'),
           id: 'original-about',
-          url: 'https://github.com/headlamp-k8s/headlamp',
+          url: 'https://github.com/kubernetes-sigs/headlamp',
         },
       ],
     },

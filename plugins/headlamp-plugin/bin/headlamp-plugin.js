@@ -414,7 +414,7 @@ async function start() {
         const result = stdout.toString();
         const outdated = JSON.parse(result);
         if ('@kinvolk/headlamp-plugin' in outdated) {
-          const url = `https://github.com/headlamp-k8s/headlamp/releases`;
+          const url = `https://github.com/kubernetes-sigs/headlamp/releases`;
           console.warn(
             '    @kinvolk/headlamp-plugin is out of date. Run the following command to upgrade \n' +
               `    See release notes here: ${url}` +

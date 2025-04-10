@@ -42,7 +42,7 @@ Replace `<Your Name>` and `<your-email@example.com>` with your name and email, r
 For detailed instructions on creating a new release, refer to the [GitHub documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository).
 
 :::info
-For security reasons, Headlamp allows the download of plugins exclusively from GitHub, GitLab, and BitBucket. While this may change in the future, if you need your plugins to be downloaded from somewhere else, please [let us know](https://github.com/headlamp-k8s/headlamp/issues).
+For security reasons, Headlamp allows the download of plugins exclusively from GitHub, GitLab, and BitBucket. While this may change in the future, if you need your plugins to be downloaded from somewhere else, please [let us know](https://github.com/kubernetes-sigs/headlamp/issues).
 
 Also, by default the Plugin Catalog only shows plugins marked as official in ArtifactHub, or allow-listed by Headlamp. Users can override this behavior and make Headlamp show all the plugins by switching off the "Only official plugins" setting for the Plugin Catalog. Read more at the [Plugin Catalog README](https://github.com/headlamp-k8s/plugins/tree/main/plugin-catalog#readme).
 :::

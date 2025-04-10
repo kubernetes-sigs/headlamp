@@ -34,6 +34,9 @@ function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selecte
       key={`recent_cluster_${cluster.name}`}
       onClick={onClick}
       id={cluster.name}
+      sx={theme => ({
+        borderRadius: theme.shape.borderRadius + 'px',
+      })}
     >
       <ListItemIcon>
         <Icon icon="mdi:kubernetes" width={26} color={theme.palette.text.primary} />
@@ -215,11 +218,12 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
       }}
       {...otherProps}
     >
-      <Box p={2}>
+      <Box p={2} pb={1}>
         <TextField
           label={t('Choose cluster')}
           id="filled-size-small"
           placeholder={t('translation|Name')}
+          variant="outlined"
           size="small"
           fullWidth
           InputLabelProps={{ shrink: true }}

@@ -4,6 +4,7 @@ import {
   Chip,
   FormControl,
   IconButton,
+  InputLabel,
   MenuItem,
   Select,
   TextField,
@@ -58,7 +59,8 @@ function ClusterSelector(props: ClusterSelectorProps) {
   const { t } = useTranslation('glossary');
 
   return (
-    <FormControl variant="outlined" margin="normal" sx={{ minWidth: 250 }}>
+    <FormControl variant="outlined" margin="normal" size="small" sx={{ minWidth: 250 }}>
+      <InputLabel id="settings--cluster-selector">{t('glossary|Cluster')}</InputLabel>
       <Select
         labelId="settings--cluster-selector"
         value={currentCluster}
@@ -409,6 +411,8 @@ export default function SettingsCluster() {
                         )
                       : invalidNamespaceMessage
                   }
+                  variant="outlined"
+                  size="small"
                   InputProps={{
                     endAdornment: isEditingDefaultNamespace() ? (
                       <Icon
@@ -450,6 +454,8 @@ export default function SettingsCluster() {
                         autocomplete: 'off',
                       },
                     }}
+                    variant="outlined"
+                    size="small"
                     InputProps={{
                       endAdornment: (
                         <IconButton

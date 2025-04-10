@@ -17,7 +17,6 @@ import { useDispatch } from 'react-redux';
 import { getCluster } from '../../../lib/cluster';
 import { apply } from '../../../lib/k8s/apiProxy';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
-import { getThemeName } from '../../../lib/themes';
 import { useId } from '../../../lib/util';
 import { clusterAction } from '../../../redux/clusterActionSlice';
 import {
@@ -26,6 +25,7 @@ import {
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
 import { AppDispatch } from '../../../redux/stores/store';
+import { useCurrentAppTheme } from '../../App/themeSlice';
 import ConfirmButton from '../ConfirmButton';
 import { Dialog, DialogProps } from '../Dialog';
 import Loader from '../Loader';
@@ -76,7 +76,6 @@ export default function EditorDialog(props: EditorDialogProps) {
   };
   const { i18n } = useTranslation();
   const [lang, setLang] = React.useState(i18n.language);
-  const themeName = getThemeName();
 
   const initialCode = typeof item === 'string' ? item : yaml.dump(item || {});
   const originalCodeRef = React.useRef({ code: initialCode, format: item ? 'yaml' : '' });
@@ -91,6 +90,8 @@ export default function EditorDialog(props: EditorDialogProps) {
     KubeObjectInterface | KubeObjectInterface[] | null
   >([]);
   const { t } = useTranslation();
+
+  const theme = useCurrentAppTheme();
 
   const [useSimpleEditor, setUseSimpleEditorState] = React.useState(() => {
     const localData = localStorage.getItem('useSimpleEditor');
@@ -351,7 +352,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     }
 
     return useSimpleEditor ? (
-      <Box paddingTop={2} height="100%">
+      <Box height="100%">
         <SimpleEditor
           language={originalCodeRef.current.format || 'yaml'}
           value={code.code}
@@ -359,10 +360,10 @@ export default function EditorDialog(props: EditorDialogProps) {
         />
       </Box>
     ) : (
-      <Box paddingTop={2} height="100%">
+      <Box height="100%">
         <Editor
           language={originalCodeRef.current.format || 'yaml'}
-          theme={themeName === 'dark' ? 'vs-dark' : 'light'}
+          theme={theme.base === 'dark' ? 'vs-dark' : 'light'}
           value={code.code}
           options={editorOptions}
           onChange={onChange}
@@ -477,6 +478,7 @@ export default function EditorDialog(props: EditorDialogProps) {
               <ConfirmButton
                 disabled={originalCodeRef.current.code === code.code}
                 color="secondary"
+                variant="contained"
                 aria-label={t('translation|Undo')}
                 onConfirm={onUndo}
                 confirmTitle={t('translation|Are you sure?')}
@@ -491,13 +493,14 @@ export default function EditorDialog(props: EditorDialogProps) {
             <div style={{ flex: '1 0 0' }} />
             {errorLabel && <Typography color="error">{errorLabel}</Typography>}
             <div style={{ flex: '1 0 0' }} />
-            <Button onClick={onClose} color="primary">
+            <Button onClick={onClose} color="secondary" variant="contained">
               {t('translation|Close')}
             </Button>
             {!isReadOnly() && (
               <Button
                 onClick={handleSave}
                 color="primary"
+                variant="contained"
                 disabled={originalCodeRef.current.code === code.code || !!error}
                 // @todo: aria-controls should point to the textarea id
               >

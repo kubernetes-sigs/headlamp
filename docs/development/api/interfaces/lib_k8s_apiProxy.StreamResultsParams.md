@@ -12,7 +12,7 @@
 
 #### Defined in
 
-[lib/k8s/apiProxy.ts:1137](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1137)
+[lib/k8s/apiProxy.ts:1137](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1137)
 
 ___
 
@@ -22,7 +22,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/apiProxy.ts:1139](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1139)
+[lib/k8s/apiProxy.ts:1139](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1139)
 
 ___
 
@@ -32,4 +32,4 @@ ___
 
 #### Defined in
 
-[lib/k8s/apiProxy.ts:1138](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1138)
+[lib/k8s/apiProxy.ts:1138](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/apiProxy.ts#L1138)

@@ -28,7 +28,7 @@
     >
       <div
         aria-labelledby="chooser-dialog-title"
-        class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation24 MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm css-1t1j96h-MuiPaper-root-MuiDialog-paper"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm css-1708vl9-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
         <h2
@@ -173,7 +173,7 @@
                     type="button"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation1 MuiCard-root css-t50pmu-MuiPaper-root-MuiCard-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-jxx1xv-MuiPaper-root-MuiCard-root"
                     >
                       <div
                         class="MuiCardContent-root css-d64700-MuiCardContent-root"
@@ -200,7 +200,7 @@
                     type="button"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation1 MuiCard-root css-t50pmu-MuiPaper-root-MuiCard-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-jxx1xv-MuiPaper-root-MuiCard-root"
                     >
                       <div
                         class="MuiCardContent-root css-d64700-MuiCardContent-root"
@@ -227,7 +227,7 @@
                     type="button"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation1 MuiCard-root css-t50pmu-MuiPaper-root-MuiCard-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-jxx1xv-MuiPaper-root-MuiCard-root"
                     >
                       <div
                         class="MuiCardContent-root css-d64700-MuiCardContent-root"
@@ -257,7 +257,7 @@
                     class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                   >
                     <label
-                      class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeMedium MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeMedium MuiInputLabel-outlined css-1a2ml2f-MuiFormLabel-root-MuiInputLabel-root"
+                      class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeMedium MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeMedium MuiInputLabel-outlined css-1213p86-MuiFormLabel-root-MuiInputLabel-root"
                       data-shrink="false"
                       for="cluster-selector-autocomplete"
                       id="cluster-selector-autocomplete-label"
@@ -265,7 +265,7 @@
                       All clusters
                     </label>
                     <div
-                      class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-14gmyd4-MuiInputBase-root-MuiOutlinedInput-root"
+                      class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
                     >
                       <input
                         aria-autocomplete="both"

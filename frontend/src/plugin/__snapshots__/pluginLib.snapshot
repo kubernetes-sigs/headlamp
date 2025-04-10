@@ -133,7 +133,10 @@
     "ShowHideLabel": [Function],
     "SimpleEditor": [Function],
     "SimpleTable": [Function],
-    "StatusLabel": [Function],
+    "StatusLabel": {
+      "$$typeof": Symbol(react.forward_ref),
+      "render": [Function],
+    },
     "TabPanel": [Function],
     "Table": [Function],
     "Tabs": [Function],

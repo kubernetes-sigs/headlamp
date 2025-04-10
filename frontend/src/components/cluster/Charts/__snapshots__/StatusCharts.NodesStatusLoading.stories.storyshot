@@ -1,7 +1,7 @@
 <body>
   <div>
     <div
-      class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation1 css-cmkit5-MuiPaper-root"
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
     >
       <div
         class="MuiBox-root css-qrw4x1"
@@ -34,7 +34,7 @@
               class="MuiBox-root css-5cned0"
             >
               <span
-                class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-wdedfu-MuiCircularProgress-root"
+                class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
                 role="progressbar"
                 style="width: 40px; height: 40px;"
                 title="Loading data for "

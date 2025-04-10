@@ -368,11 +368,7 @@ export const PureTopBar = memo(
       {
         id: DefaultAppBarAction.CLUSTER,
         action: (
-          <Box
-            sx={theme => ({
-              paddingRight: theme.spacing(10),
-            })}
-          >
+          <Box>
             <ClusterTitle cluster={cluster} clusters={clusters} onClick={handleMobileMenuClose} />
           </Box>
         ),
@@ -413,11 +409,15 @@ export const PureTopBar = memo(
         <AppBar
           position="static"
           sx={theme => ({
+            backgroundImage: 'none',
             zIndex: theme.zIndex.drawer + 1,
-            '& > *': {
-              color: theme.palette.text.primary,
-            },
-            backgroundColor: theme.palette.background.default,
+            color:
+              theme.palette.navbar.color ??
+              theme.palette.getContrastText(theme.palette.navbar.background),
+            backgroundColor: theme.palette.navbar.background,
+            boxShadow: 'none',
+            borderBottom: '1px solid #eee',
+            borderColor: theme.palette.divider,
           })}
           elevation={1}
           component="nav"

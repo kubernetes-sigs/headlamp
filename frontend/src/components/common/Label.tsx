@@ -1,8 +1,9 @@
 import { Icon, IconProps } from '@iconify/react';
+import { grey } from '@mui/material/colors';
 import Grid from '@mui/material/Grid';
-import { SxProps, Theme, useTheme } from '@mui/material/styles';
+import { alpha, SxProps, Theme, useTheme } from '@mui/material/styles';
 import Typography, { TypographyProps } from '@mui/material/Typography';
-import React, { useEffect, useState } from 'react';
+import React, { forwardRef, useEffect, useState } from 'react';
 import { DateFormatOptions, localeDate, timeAgo } from '../../lib/util';
 import { LightTooltip, TooltipIcon } from './Tooltip';
 
@@ -69,22 +70,43 @@ export interface StatusLabelProps {
   [otherProps: string]: any;
 }
 
-export function StatusLabel(props: StatusLabelProps) {
+export const StatusLabel = forwardRef<HTMLSpanElement, StatusLabelProps>((props, ref) => {
   const { status, sx, className = '', ...other } = props;
   const theme = useTheme();
 
   const statuses = ['success', 'warning', 'error'];
 
-  // Assign to a status color if it exists.
-  const bgColor = statuses.includes(status)
-    ? theme.palette[status].light
-    : theme.palette.normalEventBg;
-  const color = statuses.includes(status) ? theme.palette[status].main : theme.palette.text.primary;
+  const isLight = theme.palette.mode === 'light';
+  const base = statuses.includes(status) ? theme.palette[status] : grey;
+  const baseColor = base[800] ?? base.main;
+
+  let params: any = {};
+  if (status === '') {
+    params = {
+      backgroundColor: theme.palette.background.muted,
+      color: theme.palette.text.primary,
+      borderColor: theme.palette.divider,
+    };
+  } else if (isLight) {
+    params = {
+      backgroundColor: baseColor,
+      color: theme.palette.getContrastText(baseColor),
+      borderColor: 'transparent',
+    };
+  } else {
+    params = {
+      backgroundColor: alpha(baseColor, 0.2),
+      color: base[400],
+      borderColor: alpha(base[400], 0.5),
+    };
+  }
 
   return (
     <Typography
+      ref={ref}
       sx={{
-        color: theme.palette.primary.contrastText,
+        border: '1px solid',
+        ...params,
         fontSize: theme.typography.pxToRem(14),
         paddingLeft: theme.spacing(1),
         paddingRight: theme.spacing(1),
@@ -93,19 +115,15 @@ export function StatusLabel(props: StatusLabelProps) {
         display: 'inline-flex',
         alignItems: 'normal',
         gap: theme.spacing(0.5),
-        borderRadius: theme.spacing(0.5),
+        borderRadius: theme.shape.borderRadius + 'px',
         ...sx,
       }}
       className={className}
-      style={{
-        backgroundColor: bgColor,
-        color,
-      }}
       component="span"
       {...other}
     />
   );
-}
+});
 
 export function makeStatusLabel(label: string, successStatusName: string) {
   return (

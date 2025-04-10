@@ -14,7 +14,7 @@
             class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
           >
             <div
-              class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation0 MuiAlert-root MuiAlert-colorInfo MuiAlert-standardInfo MuiAlert-standard css-an9bbg-MuiPaper-root-MuiAlert-root"
+              class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorInfo MuiAlert-standardInfo MuiAlert-standard css-s0ueq2-MuiPaper-root-MuiAlert-root"
               role="alert"
             >
               <div
@@ -65,7 +65,7 @@
                   class="MuiFormControl-root MuiTextField-root css-11sh9fj-MuiFormControl-root-MuiTextField-root"
                 >
                   <div
-                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedStart MuiInputBase-adornedEnd css-2x2tup-MuiInputBase-root-MuiOutlinedInput-root"
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedStart MuiInputBase-adornedEnd css-19jxtzy-MuiInputBase-root-MuiOutlinedInput-root"
                   >
                     <svg
                       aria-hidden="true"
@@ -190,17 +190,17 @@
       </div>
     </div>
     <table
-      class="MuiTable-root css-ylfzdg-MuiTable-root"
+      class="MuiTable-root css-1rr7dye-MuiTable-root"
     >
       <thead
         class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
       >
         <tr
-          class="css-12nvjnd"
+          class="css-1lqh5un"
         >
           <th
             aria-sort="none"
-            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-bof02n-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-542uyz-MuiTableCell-root"
             colspan="1"
             data-can-sort="true"
             data-index="-1"
@@ -224,7 +224,7 @@
                 >
                   <span
                     aria-label="Sort by Name descending"
-                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-118d58w-MuiButtonBase-root-MuiTableSortLabel-root"
+                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                     role="button"
                     tabindex="0"
                   >
@@ -255,7 +255,7 @@
           </th>
           <th
             aria-sort="none"
-            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1ob5joe-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-11ihby4-MuiTableCell-root"
             colspan="1"
             data-can-sort="true"
             data-index="-1"
@@ -279,7 +279,7 @@
                 >
                   <span
                     aria-label="Sort by Namespace descending"
-                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-118d58w-MuiButtonBase-root-MuiTableSortLabel-root"
+                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                     role="button"
                     tabindex="0"
                   >
@@ -310,7 +310,7 @@
           </th>
           <th
             aria-sort="none"
-            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-fju1or-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-9s5e2s-MuiTableCell-root"
             colspan="1"
             data-can-sort="true"
             data-index="-1"
@@ -334,7 +334,7 @@
                 >
                   <span
                     aria-label="Sort by UID descending"
-                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-118d58w-MuiButtonBase-root-MuiTableSortLabel-root"
+                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                     role="button"
                     tabindex="0"
                   >
@@ -365,7 +365,7 @@
           </th>
           <th
             aria-sort="none"
-            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-dupns9-MuiTableCell-root"
+            class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-usbwln-MuiTableCell-root"
             colspan="1"
             data-can-sort="true"
             data-index="-1"
@@ -389,7 +389,7 @@
                 >
                   <span
                     aria-label="Sort by Labels descending"
-                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-118d58w-MuiButtonBase-root-MuiTableSortLabel-root"
+                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                     role="button"
                     tabindex="0"
                   >

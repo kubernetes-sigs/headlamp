@@ -136,7 +136,7 @@ const tableLocalizationMap: Record<string, MRT_Localization> = {
 
 const StyledHeadRow = styled('tr')(({ theme }) => ({
   display: 'contents',
-  background: theme.palette.tables.head.background,
+  background: theme.palette.background.muted,
 }));
 const StyledRow = styled('tr')(({ theme }) => ({
   display: 'contents',
@@ -298,7 +298,6 @@ export default function Table<RowItem extends Record<string, any>>({
       sx: {
         width: 'unset',
         minWidth: 'unset',
-        paddingTop: '0.5rem',
         '.MuiTableSortLabel-icon': {
           margin: 0,
           width: '14px',
@@ -430,7 +429,13 @@ const MemoHeadCell = memo(
     showColumnFilters: boolean;
   }) => {
     return (
-      <MRT_TableHeadCell header={header} key={header.id} staticColumnIndex={-1} table={table} />
+      <MRT_TableHeadCell
+        header={header}
+        key={header.id}
+        staticColumnIndex={-1}
+        table={table}
+        sx={theme => ({ borderColor: theme.palette.divider })}
+      />
     );
   },
   (a, b) =>
@@ -473,13 +478,16 @@ const MemoCell = memo(
         cell={cell}
         table={table}
         rowRef={{ current: null }}
-        sx={{
-          whiteSpace: 'normal',
-          width: 'unset',
-          minWidth: 'unset',
-          wordBreak: column.gridTemplate === 'min-content' ? 'normal' : 'break-word',
-          ...(column.muiTableBodyCellProps as TableCellProps)?.sx,
-        }}
+        sx={theme =>
+          ({
+            whiteSpace: 'normal',
+            width: 'unset',
+            minWidth: 'unset',
+            wordBreak: column.gridTemplate === 'min-content' ? 'normal' : 'break-word',
+            borderColor: theme.palette.divider,
+            ...(column.muiTableBodyCellProps as TableCellProps)?.sx,
+          } as any)
+        }
       />
     );
   },

@@ -64,7 +64,7 @@ func testAddRepo(t *testing.T, helmHandler *helm.Handler, repoName, repoURL stri
 	// add headlmap repo
 	addRepo := helm.AddUpdateRepoRequest{
 		Name: "headlamp_test_repo",
-		URL:  "https://headlamp-k8s.github.io/headlamp/",
+		URL:  "https://kubernetes-sigs.github.io/headlamp/",
 	}
 
 	addRepoRequestJSON, err := json.Marshal(addRepo)
@@ -89,7 +89,7 @@ func TestAddRepository(t *testing.T) {
 	helmHandler := newHelmHandler(t)
 
 	t.Run("add_repo_success", func(t *testing.T) {
-		testAddRepo(t, helmHandler, "headlamp_test_repo", "https://headlamp-k8s.github.io/headlamp/")
+		testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
 	})
 
 	t.Run("invalid_add_repo_request", func(t *testing.T) {
@@ -111,7 +111,7 @@ func TestRemoveRepository(t *testing.T) {
 	helmHandler := newHelmHandler(t)
 
 	t.Run("remove_repo_success", func(t *testing.T) {
-		testAddRepo(t, helmHandler, "headlamp_test_repo", "https://headlamp-k8s.github.io/headlamp/")
+		testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
 
 		// remove repository
 		removeRepoRequest, err := http.NewRequestWithContext(context.Background(), "DELETE",
@@ -131,7 +131,7 @@ func TestUpdateRepo(t *testing.T) {
 	helmHandler := newHelmHandler(t)
 
 	t.Run("update_repo_success", func(t *testing.T) {
-		testAddRepo(t, helmHandler, "headlamp_test_repo", "https://headlamp-k8s.github.io/headlamp/")
+		testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
 
 		// update repository request
 		updateRepo := helm.AddUpdateRepoRequest{
@@ -172,7 +172,7 @@ func TestUpdateRepo(t *testing.T) {
 		for _, repo := range listRepoResponse.Repositories {
 			repo := repo
 			if repo.Name == "headlamp_test_repo" {
-				assert.Equal(t, "https://headlamp-k8s-update-url.github.io/headlamp/", repo.URL)
+				assert.Equal(t, "https://kubernetes-sigs-update-url.github.io/headlamp/", repo.URL)
 			}
 		}
 	})
@@ -194,7 +194,7 @@ func TestUpdateRepo(t *testing.T) {
 func TestListRepositories(t *testing.T) {
 	helmHandler := newHelmHandler(t)
 
-	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://headlamp-k8s.github.io/headlamp/")
+	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
 
 	// list repositories
 	listRepoReq, err := http.NewRequestWithContext(context.Background(),

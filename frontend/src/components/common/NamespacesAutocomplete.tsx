@@ -59,7 +59,7 @@ export function PureNamespacesAutocomplete({
       // is useful since the label is ellipsized and this we get to see it change.
       value={[...filter.namespaces.values()].reverse()}
       renderOption={(props, option, { selected }) => (
-        <li {...props}>
+        <li {...props} key={props.key}>
           <Checkbox
             icon={<Icon icon="mdi:checkbox-blank-outline" />}
             checkedIcon={<Icon icon="mdi:check-box-outline" />}

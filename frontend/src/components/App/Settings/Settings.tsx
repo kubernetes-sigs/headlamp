@@ -1,4 +1,5 @@
-import { Box } from '@mui/material';
+import { Box, MenuItem, Select } from '@mui/material';
+import { capitalize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -6,12 +7,13 @@ import LocaleSelect from '../../../i18n/LocaleSelect/LocaleSelect';
 import { setVersionDialogOpen } from '../../../redux/actions/actions';
 import { setAppSettings } from '../../../redux/configSlice';
 import { defaultTableRowsPerPageOptions } from '../../../redux/configSlice';
+import { useTypedSelector } from '../../../redux/reducers/reducers';
 import { ActionButton, NameValueTable, SectionBox } from '../../common';
 import TimezoneSelect from '../../common/TimezoneSelect';
+import { setTheme, useAppThemes } from '../themeSlice';
 import DrawerModeSettings from './DrawerModeSettings';
 import { useSettings } from './hook';
 import NumRowsInput from './NumRowsInput';
-import ThemeChangeButton from './ThemeChangeButton';
 
 export default function Settings() {
   const { t } = useTranslation(['translation']);
@@ -22,6 +24,8 @@ export default function Settings() {
     storedTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   );
   const dispatch = useDispatch();
+  const themeName = useTypedSelector(state => state.theme.name);
+  const appThemes = useAppThemes();
 
   useEffect(() => {
     dispatch(
@@ -56,7 +60,23 @@ export default function Settings() {
           },
           {
             name: t('translation|Theme'),
-            value: <ThemeChangeButton showBothIcons />,
+            value: (
+              <Select
+                variant="outlined"
+                size="small"
+                defaultValue={themeName}
+                onChange={e => {
+                  dispatch(setTheme(e.target.value as string));
+                  console.log(e, e.target.value);
+                }}
+              >
+                {appThemes.map(it => (
+                  <MenuItem key={it.name} value={it.name}>
+                    {capitalize(it.name)}
+                  </MenuItem>
+                ))}
+              </Select>
+            ),
           },
           {
             name: t('translation|Resource details view'),

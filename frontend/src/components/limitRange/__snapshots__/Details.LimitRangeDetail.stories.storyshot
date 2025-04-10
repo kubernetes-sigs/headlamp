@@ -10,7 +10,7 @@
           class="MuiBox-root css-p0cik4"
         >
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary css-w7fpvq-MuiButtonBase-root-MuiButton-root"
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-2aqqdr-MuiButtonBase-root-MuiButton-root"
             tabindex="0"
             type="button"
           >
@@ -36,7 +36,7 @@
           class="MuiBox-root css-p0cik4"
         >
           <div
-            class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1qm9nul-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
           >
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
@@ -120,10 +120,10 @@
                 class="MuiBox-root css-0"
               >
                 <dl
-                  class="MuiGrid-root MuiGrid-container css-uximdg-MuiGrid-root"
+                  class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
                 >
                   <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-trrd7p-MuiGrid-root"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
                     Name
                   </dt>
@@ -131,13 +131,13 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <span
-                      class="MuiTypography-root MuiTypography-body1 css-1qti38g-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                     >
                       limit-range
                     </span>
                   </dd>
                   <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-trrd7p-MuiGrid-root"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
                     Namespace
                   </dt>
@@ -145,14 +145,14 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <a
-                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-srrjpp-MuiTypography-root-MuiLink-root"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
                       href="/"
                     >
                       default
                     </a>
                   </dd>
                   <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-trrd7p-MuiGrid-root"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
                     Creation
                   </dt>
@@ -160,13 +160,13 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <span
-                      class="MuiTypography-root MuiTypography-body1 css-1qti38g-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                     >
                       2022-01-01T00:00:00.000Z
                     </span>
                   </dd>
                   <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-16fae59-MuiGrid-root"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
                   >
                     Container Limits
                   </dt>
@@ -182,31 +182,18 @@
                         Default
                       </h6>
                       <div
-                        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-1 css-17wqeb1-MuiGrid-root"
+                        class="MuiBox-root css-yi3mkw"
                       >
-                        <div
-                          class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-1 css-wdtksl-MuiGrid-root"
-                          style="max-width: 80%;"
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                         >
-                          <div
-                            class="MuiGrid-root MuiGrid-item MuiGrid-zeroMinWidth css-175wz9v-MuiGrid-root"
-                          >
-                            <p
-                              class="MuiTypography-root MuiTypography-body1 css-141xs6k-MuiTypography-root"
-                            >
-                              cpu: 100m
-                            </p>
-                          </div>
-                          <div
-                            class="MuiGrid-root MuiGrid-item MuiGrid-zeroMinWidth css-175wz9v-MuiGrid-root"
-                          >
-                            <p
-                              class="MuiTypography-root MuiTypography-body1 css-141xs6k-MuiTypography-root"
-                            >
-                              memory: 128Mi
-                            </p>
-                          </div>
-                        </div>
+                          cpu: 100m
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
+                          memory: 128Mi
+                        </p>
                       </div>
                     </div>
                     <div
@@ -218,31 +205,18 @@
                         Default Request
                       </h6>
                       <div
-                        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-1 css-17wqeb1-MuiGrid-root"
+                        class="MuiBox-root css-yi3mkw"
                       >
-                        <div
-                          class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-1 css-wdtksl-MuiGrid-root"
-                          style="max-width: 80%;"
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                         >
-                          <div
-                            class="MuiGrid-root MuiGrid-item MuiGrid-zeroMinWidth css-175wz9v-MuiGrid-root"
-                          >
-                            <p
-                              class="MuiTypography-root MuiTypography-body1 css-141xs6k-MuiTypography-root"
-                            >
-                              cpu: 50m
-                            </p>
-                          </div>
-                          <div
-                            class="MuiGrid-root MuiGrid-item MuiGrid-zeroMinWidth css-175wz9v-MuiGrid-root"
-                          >
-                            <p
-                              class="MuiTypography-root MuiTypography-body1 css-141xs6k-MuiTypography-root"
-                            >
-                              memory: 64Mi
-                            </p>
-                          </div>
-                        </div>
+                          cpu: 50m
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
+                          memory: 64Mi
+                        </p>
                       </div>
                     </div>
                     <div
@@ -254,31 +228,18 @@
                         Max
                       </h6>
                       <div
-                        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-1 css-17wqeb1-MuiGrid-root"
+                        class="MuiBox-root css-yi3mkw"
                       >
-                        <div
-                          class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-1 css-wdtksl-MuiGrid-root"
-                          style="max-width: 80%;"
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                         >
-                          <div
-                            class="MuiGrid-root MuiGrid-item MuiGrid-zeroMinWidth css-175wz9v-MuiGrid-root"
-                          >
-                            <p
-                              class="MuiTypography-root MuiTypography-body1 css-141xs6k-MuiTypography-root"
-                            >
-                              cpu: 500m
-                            </p>
-                          </div>
-                          <div
-                            class="MuiGrid-root MuiGrid-item MuiGrid-zeroMinWidth css-175wz9v-MuiGrid-root"
-                          >
-                            <p
-                              class="MuiTypography-root MuiTypography-body1 css-141xs6k-MuiTypography-root"
-                            >
-                              memory: 1Gi
-                            </p>
-                          </div>
-                        </div>
+                          cpu: 500m
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
+                          memory: 1Gi
+                        </p>
                       </div>
                     </div>
                     <div
@@ -290,31 +251,18 @@
                         Min
                       </h6>
                       <div
-                        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-1 css-17wqeb1-MuiGrid-root"
+                        class="MuiBox-root css-yi3mkw"
                       >
-                        <div
-                          class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-1 css-wdtksl-MuiGrid-root"
-                          style="max-width: 80%;"
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                         >
-                          <div
-                            class="MuiGrid-root MuiGrid-item MuiGrid-zeroMinWidth css-175wz9v-MuiGrid-root"
-                          >
-                            <p
-                              class="MuiTypography-root MuiTypography-body1 css-141xs6k-MuiTypography-root"
-                            >
-                              cpu: 10m
-                            </p>
-                          </div>
-                          <div
-                            class="MuiGrid-root MuiGrid-item MuiGrid-zeroMinWidth css-175wz9v-MuiGrid-root"
-                          >
-                            <p
-                              class="MuiTypography-root MuiTypography-body1 css-141xs6k-MuiTypography-root"
-                            >
-                              memory: 4Mi
-                            </p>
-                          </div>
-                        </div>
+                          cpu: 10m
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
+                          memory: 4Mi
+                        </p>
                       </div>
                     </div>
                   </dd>
@@ -334,7 +282,7 @@
             class="MuiBox-root css-j1fy4m"
           >
             <div
-              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1qm9nul-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
             >
               <div
                 class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
@@ -357,7 +305,7 @@
               class="MuiBox-root css-1txv3mw"
             >
               <div
-                class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-172kgz0-MuiPaper-root"
+                class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
               >
                 <div
                   class="MuiBox-root css-19midj6"

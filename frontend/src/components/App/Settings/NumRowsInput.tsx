@@ -141,6 +141,8 @@ export default function NumRowsInput(props: { defaultValue: number[] }) {
           onOpen={handleOpen}
           onChange={handleChange}
           renderValue={value => `${value}`}
+          size="small"
+          variant="outlined"
         >
           {options.map(option => {
             const isCustom = !defaultTableRowsPerPageOptions.includes(option);

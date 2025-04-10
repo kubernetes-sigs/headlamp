@@ -302,7 +302,9 @@ export function PureAuthChooser({
                   {t('translation|Cluster settings')}
                 </Link>
               </Box>
-              <ColorButton onClick={handleTryAgain}>{t('translation|Try Again')}</ColorButton>
+              <Button variant="contained" color="primary" onClick={handleTryAgain}>
+                {t('translation|Try Again')}
+              </Button>
             </Box>
           )}
         </Box>

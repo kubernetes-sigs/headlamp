@@ -5,7 +5,7 @@ Publisher: Headlamp
 PublisherUrl: https://headlamp.dev
 PackageName: Headlamp
 License: Apache 2.0
-LicenseUrl: https://github.com/headlamp-k8s/headlamp/blob/main/LICENSE
+LicenseUrl: https://github.com/kubernetes-sigs/headlamp/blob/main/LICENSE
 ShortDescription: Kubernetes web UI.
 Description: A Kubernetes web UI that is fully-featured, user-friendly and extensible.
 Tags:

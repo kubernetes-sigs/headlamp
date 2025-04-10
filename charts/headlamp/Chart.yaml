@@ -15,8 +15,8 @@ keywords:
   - monitoring
   - logging
 sources:
-  - https://github.com/headlamp-k8s/headlamp/tree/main/charts/headlamp
-  - https://github.com/headlamp-k8s/headlamp
+  - https://github.com/kubernetes-sigs/headlamp/tree/main/charts/headlamp
+  - https://github.com/kubernetes-sigs/headlamp
 maintainers:
   - name: kinvolk
     url: https://kinvolk.io/

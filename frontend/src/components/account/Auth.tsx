@@ -1,3 +1,4 @@
+import { Typography } from '@mui/material';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import DialogActions from '@mui/material/DialogActions';
@@ -118,6 +119,8 @@ export function PureAuthToken({
             id="token"
             label={t('ID token')}
             type="password"
+            size="small"
+            variant="outlined"
             value={token}
             onChange={onChangeToken}
             fullWidth
@@ -126,17 +129,19 @@ export function PureAuthToken({
         </DialogContent>
         <DialogActions>
           <Box ml={2}>
-            <Trans t={t}>
-              Check out how to generate a
-              <Link
-                style={{ cursor: 'pointer', marginLeft: '0.4rem' }}
-                target="_blank"
-                href="https://headlamp.dev/docs/latest/installation/#create-a-service-account-token"
-              >
-                service account token
-              </Link>
-              .
-            </Trans>
+            <Typography variant="body2" color="textSecondary">
+              <Trans t={t}>
+                Check out how to generate a
+                <Link
+                  style={{ cursor: 'pointer', marginLeft: '0.4rem' }}
+                  target="_blank"
+                  href="https://headlamp.dev/docs/latest/installation/#create-a-service-account-token"
+                >
+                  service account token
+                </Link>
+                .
+              </Trans>
+            </Typography>
           </Box>
           <div style={{ flex: '1 0 0' }}></div>
         </DialogActions>
@@ -148,13 +153,13 @@ export function PureAuthToken({
         <DialogActions>
           {showActions && (
             <>
-              <Button onClick={onCancel} color="primary">
+              <Button onClick={onCancel} color="secondary" variant="contained">
                 {t('translation|Cancel')}
               </Button>
               <div style={{ flex: '1 0 0' }} />
             </>
           )}
-          <Button onClick={onAuthClicked} color="primary">
+          <Button onClick={onAuthClicked} color="primary" variant="contained">
             {t('translation|Authenticate')}
           </Button>
         </DialogActions>
