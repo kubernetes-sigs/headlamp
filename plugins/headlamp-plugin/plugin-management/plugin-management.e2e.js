@@ -41,7 +41,7 @@ assert.strictEqual(pluginExists, false, 'Plugin should not be initially installe
 
 // Install the plugin
 const pluginURL = 'https://artifacthub.io/packages/headlamp/test-123/prometheus_headlamp_plugin';
-output = runCommand(`node ../bin/headlamp-plugin.js install ${pluginURL}`);
+output = runCommand(`node ../bin/headlamp-plugin.js install --source ${pluginURL}`);
 console.log('Install output:', output);
 
 // List plugins to verify installation
