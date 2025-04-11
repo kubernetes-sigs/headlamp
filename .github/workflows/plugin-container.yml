@@ -1,0 +1,97 @@
+name: Build Plugin Container
+
+on:
+  pull_request:
+    paths:
+    - 'plugins/headlamp-plugin/**'
+    - '.github/workflows/plugin-container.yml'
+  push:
+    branches:
+      - main
+      - rc-*
+      - testing-rc-*
+    paths:
+    - 'plugins/headlamp-plugin/**'
+    - '.github/workflows/plugin-container.yml'
+
+permissions:
+  contents: read
+  security-events: write # required for uploading security scan results
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+
+    - name: Build plugin container
+      uses: docker/build-push-action@0a97817b6ade9f46837855d676c4cca3a2471fc9 # v4.2.1
+      with:
+        context: plugins/headlamp-plugin
+        file: plugins/headlamp-plugin/Dockerfile
+        push: false
+        tags: ghcr.io/headlamp-k8s/headlamp-plugin:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        load: true
+
+    # Setup Trivy
+    - name: Install Trivy
+      run: |
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.47.0
+
+    # Run vulnerability scan
+    - name: Run Trivy vulnerability scanner
+      run: |
+        # Run the scan and store output
+        trivy image \
+          ghcr.io/headlamp-k8s/headlamp-plugin:test \
+          --format table \
+          --output trivy-result.txt \
+          --severity HIGH,CRITICAL
+
+    - name: Check Trivy result file
+      run: cat trivy-result.txt
+
+    - name: Format Trivy Scan Result
+      run: |
+        if [ -s trivy-result.txt ]; then
+          echo -e "## Vulnerability Scan Results\n<details><summary>Details</summary>\n\n\`\`\`\n$(cat trivy-result.txt)\n\`\`\`\n</details>" > formatted-trivy-result.md
+        else
+          echo -e "## Vulnerability Scan Results\nNo vulnerabilities were detected." > formatted-trivy-result.md
+        fi
+
+    - name: Comment PR with Trivy scan results
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        GITHUB_TOKEN: ${{ secrets.PAT }}
+        path: formatted-trivy-result.md
+        recreate: true
+        hide_classify: OUTDATED
+
+    - name: Clean up Trivy result files
+      run: rm -f trivy-result.txt formatted-trivy-result.md
+
+    - name: Test plugin container
+      run: |
+        # Create test directories
+        mkdir -p test/plugins test/config
+        
+        # Create a test config file
+        cat > test/config/config.yaml <<EOF
+        plugins:
+          - name: test-appcatalog
+            version: 0.0.1
+            repository: https://artifacthub.io/packages/headlamp/test-123/appcatalog_headlamp_plugin
+        EOF
+
+        # Run the container with test config
+        docker run --rm \
+          -v $(pwd)/test/plugins:/plugins-dir \
+          -v $(pwd)/test/config/config.yaml:/plugins.yaml \
+          ghcr.io/headlamp-k8s/headlamp-plugin:test \
+          install https://artifacthub.io/packages/headlamp/test-123/appcatalog_headlamp_plugin
+          
