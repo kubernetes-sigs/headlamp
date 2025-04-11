@@ -67,6 +67,20 @@ function getExtraInfo(extraInfoSpec: AdditionalPrinterColumns, item: KubeCRD) {
     if (spec.jsonPath === '.metadata.creationTimestamp') {
       return;
     }
+    if (spec.jsonPath.toLowerCase().includes('secret')) {
+      const name = JSONPath({ path: '$' + spec.jsonPath, json: item })[0];
+      const secret = (
+        <Link routeName={'Secret'} params={{ namespace: item.metadata.namespace, name: name }}>
+          {name}
+        </Link>
+      );
+      extraInfo.push({
+        name: spec.name,
+        value: secret,
+        hide: false,
+      });
+      return;
+    }
 
     let value: string | undefined;
     try {

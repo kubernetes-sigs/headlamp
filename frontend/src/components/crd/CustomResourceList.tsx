@@ -3,6 +3,7 @@ import { JSONPath } from 'jsonpath-plus';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import { ResourceClasses } from '../../lib/k8s';
 import CRD, { KubeCRD } from '../../lib/k8s/crd';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { localeDate } from '../../lib/util';
@@ -127,6 +128,21 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
     return <Empty>{t('translation|No custom resources found')}</Empty>;
   }
 
+  function LinkOrValue(props: { maybeKind: string; value: string; namespace?: string }) {
+    const { maybeKind, value, namespace } = props;
+    const kubeClass = Object.values(ResourceClasses).find(
+      cls => cls.kind.toLowerCase() === maybeKind.toLowerCase()
+    );
+    if (!kubeClass) {
+      return <span>{value}</span>;
+    }
+    return (
+      <Link routeName={kubeClass.detailsRoute} params={{ name: value, namespace }}>
+        {value}
+      </Link>
+    );
+  }
+
   const additionalPrinterCols = React.useMemo(() => {
     const currentVersion = apiGroup[1];
     const colsFromSpec =
@@ -149,8 +165,13 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
           if (colSpec.type === 'date') {
             value = localeDate(new Date(value));
           }
-
           return value;
+        },
+        render: (resource: KubeObject) => {
+          const value = getValueWithJSONPath(resource, colSpec.jsonPath);
+          const namespace = resource.metadata.namespace;
+          const maybeItemKind = colSpec.name;
+          return <LinkOrValue maybeKind={maybeItemKind} value={value} namespace={namespace} />;
         },
       });
     }
