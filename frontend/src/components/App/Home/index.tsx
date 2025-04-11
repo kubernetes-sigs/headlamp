@@ -338,6 +338,7 @@ function HomeComponent(props: HomeComponentProps) {
                 getValue: ({ name }) => versions[name]?.gitVersion || '⋯',
               },
               {
+                id: 'actions',
                 label: '',
                 getValue: cluster =>
                   errors[cluster.name] === null ? 'Active' : errors[cluster.name]?.message,
