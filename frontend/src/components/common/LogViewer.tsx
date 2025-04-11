@@ -26,6 +26,38 @@ export interface LogViewerProps extends DialogProps {
    * @description This is a boolean that determines whether the reconnect button should be shown or not.
    */
   showReconnectButton?: boolean;
+  isWrappedTextEnabled?: boolean;
+}
+
+// // this function manually formats the logs to a single line.
+// // currently we must manually format the texts as addonFit does not work with multiline texts.
+export function logsToSingleLine(logs: string[], updateLongestLine: Function): string {
+  const singleLineLogs: string[] = [];
+  let longestLineLength = 0;
+
+  logs.forEach(originalLine => {
+    // since each "line" from the log consist of multiple lines in one string,
+    // we need to split them and add them to the singleLineLogs array.
+    const line = originalLine;
+    const subLine = line.split('\n');
+
+    subLine.forEach(part => {
+      const newPart = part + '\n';
+
+      // check if the new part is longer than the current longest line we seen in the logs
+      // if it is, update the longest line length so that we may use it as the width of the terminal.
+      if (newPart.length > longestLineLength) {
+        longestLineLength = newPart.length;
+        updateLongestLine(longestLineLength);
+      }
+
+      singleLineLogs.push(newPart);
+    });
+  });
+
+  const newLogs = singleLineLogs;
+
+  return newLogs.join('').replaceAll('\n', '\r\n');
 }
 
 export function LogViewer(props: LogViewerProps) {
@@ -38,6 +70,7 @@ export function LogViewer(props: LogViewerProps) {
     topActions = [],
     handleReconnect,
     showReconnectButton = false,
+    isWrappedTextEnabled,
     ...other
   } = props;
   const { t } = useTranslation();
@@ -46,6 +79,14 @@ export function LogViewer(props: LogViewerProps) {
   const searchAddonRef = React.useRef<any>(null);
   const [terminalContainerRef, setTerminalContainerRef] = React.useState<HTMLElement | null>(null);
   const [showSearch, setShowSearch] = React.useState(false);
+  const isWrappedTextEnabledRef = isWrappedTextEnabled;
+  const defaultLongestLogLength = Math.max(...logs.map(it => it.length));
+  const [currentLongestLineLength, setCurrentLongestLineLength] =
+    React.useState(defaultLongestLogLength);
+
+  function handleUpdateLongLine(newLongestLineLength: number) {
+    setCurrentLongestLineLength(newLongestLineLength);
+  }
 
   useHotkeys('ctrl+shift+f', () => {
     setShowSearch(true);
@@ -106,7 +147,7 @@ export function LogViewer(props: LogViewerProps) {
       searchAddonRef.current?.dispose();
       xtermRef.current = null;
     };
-  }, [terminalContainerRef, xtermRef.current]);
+  }, [terminalContainerRef, xtermRef.current, isWrappedTextEnabledRef, currentLongestLineLength]);
 
   React.useEffect(() => {
     if (!xtermRef.current) {
@@ -125,6 +166,10 @@ export function LogViewer(props: LogViewerProps) {
   }, [logs, xtermRef]);
 
   function getJointLogs() {
+    if (isWrappedTextEnabledRef) {
+      logsToSingleLine(logs, handleUpdateLongLine);
+    }
+
     return logs?.join('').replaceAll('\n', '\r\n');
   }
 
@@ -162,36 +207,55 @@ export function LogViewer(props: LogViewerProps) {
           },
         })}
       >
-        <Grid container justifyContent="space-between" alignItems="center" wrap="nowrap">
-          <Grid item container spacing={1}>
-            {topActions.map((component, i) => (
-              <Grid item key={i}>
-                {component}
-              </Grid>
-            ))}
-          </Grid>
-          <Grid item xs>
-            <ActionButton
-              description={t('translation|Find')}
-              onClick={() => setShowSearch(show => !show)}
-              icon="mdi:magnify"
-            />
-          </Grid>
-          <Grid item xs>
-            <ActionButton
-              description={t('translation|Clear')}
-              onClick={() => clearPodLogs(xtermRef)}
-              icon="mdi:broom"
-            />
-          </Grid>
-          <Grid item xs>
-            <ActionButton
-              description={t('Download')}
-              onClick={downloadLog}
-              icon="mdi:file-download-outline"
-            />
-          </Grid>
-        </Grid>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+          }}
+        >
+          {/* Main Actions */}
+          <Box>
+            <Grid item container spacing={1}>
+              {topActions.map((component, i) => (
+                <Grid item key={i}>
+                  {component}
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+
+          {/* Side Actions */}
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'flex-end',
+            }}
+          >
+            <Grid item xs>
+              <ActionButton
+                description={t('translation|Find')}
+                onClick={() => setShowSearch(show => !show)}
+                icon="mdi:magnify"
+              />
+            </Grid>
+            <Grid item xs>
+              <ActionButton
+                description={t('translation|Clear')}
+                onClick={() => clearPodLogs(xtermRef)}
+                icon="mdi:broom"
+              />
+            </Grid>
+            <Grid item xs>
+              <ActionButton
+                description={t('Download')}
+                onClick={downloadLog}
+                icon="mdi:file-download-outline"
+              />
+            </Grid>
+          </Box>
+        </Box>
         <Box
           sx={theme => ({
             paddingTop: theme.spacing(1),
@@ -201,6 +265,7 @@ export function LogViewer(props: LogViewerProps) {
             display: 'flex',
             flexDirection: 'column-reverse',
             position: 'relative',
+            overflowX: 'auto',
           })}
         >
           {showReconnectButton && (
@@ -211,7 +276,15 @@ export function LogViewer(props: LogViewerProps) {
           <div
             id="xterm-container"
             ref={ref => setTerminalContainerRef(ref)}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse' }}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column-reverse',
+              width:
+                isWrappedTextEnabledRef && currentLongestLineLength
+                  ? currentLongestLineLength + 'ch'
+                  : undefined,
+            }}
           />
           <SearchPopover
             open={showSearch}
