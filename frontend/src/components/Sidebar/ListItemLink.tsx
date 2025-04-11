@@ -210,7 +210,13 @@ export default function ListItemLink(props: ListItemLinkProps) {
         })}
       >
         {listItemLinkContainer}
-        {!iconOnly && <ListItemText primary={primary} secondary={subtitle} />}
+        {!iconOnly && (
+          <ListItemText
+            primary={primary}
+            secondary={subtitle}
+            secondaryTypographyProps={{ sx: { whiteSpace: 'pre' } }}
+          />
+        )}
       </ListItemButton>
     </StyledLi>
   );

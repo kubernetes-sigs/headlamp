@@ -9,9 +9,9 @@ import DetailsViewSection from '../DetailsViewSection';
 import { LimitRangeRenderer } from '../limitRange/List';
 import { ResourceQuotaRenderer } from '../resourceQuota/List';
 
-export default function NamespaceDetails(props: { name?: string }) {
+export default function NamespaceDetails(props: { name?: string; cluster?: string }) {
   const params = useParams<{ name: string }>();
-  const { name = params.name } = props;
+  const { name = params.name, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   function makeStatusLabel(namespace: Namespace | null) {
@@ -23,6 +23,7 @@ export default function NamespaceDetails(props: { name?: string }) {
     <DetailsGrid
       resourceType={Namespace}
       name={name}
+      cluster={cluster}
       withEvents
       extraInfo={item =>
         item && [

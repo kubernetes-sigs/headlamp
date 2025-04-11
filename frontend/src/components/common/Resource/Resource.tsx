@@ -17,7 +17,7 @@ import React, { PropsWithChildren, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath, NavLinkProps, useLocation } from 'react-router-dom';
 import YAML from 'yaml';
-import { labelSelectorToQuery, ResourceClasses } from '../../../lib/k8s';
+import { labelSelectorToQuery, ResourceClasses, useCluster } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/apiProxy';
 import { KubeCondition, KubeContainer, KubeContainerStatus } from '../../../lib/k8s/cluster';
 import { KubeEvent } from '../../../lib/k8s/event';
@@ -90,6 +90,8 @@ export interface DetailsGridProps<T extends KubeObjectClass>
   name: string;
   /** Namespace of the resource. If not provided, it's assumed the resource is not namespaced. */
   namespace?: string;
+  /** Name of the cluster of the resource */
+  cluster?: string;
   /** Sections to show in the details grid (besides the default ones). */
   extraSections?:
     | ((item: InstanceType<T>) => boolean | DetailsViewSection[] | ReactNode[])
@@ -112,12 +114,14 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
     resourceType,
     name,
     namespace,
+    cluster,
     children,
     withEvents,
     extraSections,
     onResourceUpdate,
     ...otherMainInfoSectionProps
   } = props;
+  const selectedCluster = useCluster();
   const { t } = useTranslation();
   const location = useLocation<{ backLink: NavLinkProps['location'] }>();
   const hasPreviousRoute = useHasPreviousRoute();
@@ -132,10 +136,9 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
   const { extraInfo, actions, noDefaultActions, headerStyle, backLink, title, headerSection } =
     otherMainInfoSectionProps;
 
-  const [item, error] = resourceType.useGet(name, namespace) as [
-    InstanceType<T> | null,
-    ApiError | null
-  ];
+  const [item, error] = resourceType.useGet(name, namespace, {
+    cluster: cluster ?? selectedCluster ?? undefined,
+  }) as [InstanceType<T> | null, ApiError | null];
   const prevItemRef = React.useRef<{ uid?: string; version?: string; error?: ApiError | null }>({});
 
   React.useEffect(() => {

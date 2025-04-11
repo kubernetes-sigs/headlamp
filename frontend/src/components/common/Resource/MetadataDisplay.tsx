@@ -4,7 +4,7 @@ import IconButton from '@mui/material/IconButton';
 import Typography, { TypographyProps } from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ResourceClasses } from '../../../lib/k8s';
+import { ResourceClasses, useSelectedClusters } from '../../../lib/k8s';
 import { KubeOwnerReference } from '../../../lib/k8s/cluster';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { localeDate } from '../../../lib/util';
@@ -36,6 +36,8 @@ export interface MetadataDisplayProps<T extends KubeObject = KubeObject> {
 export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProps<T>) {
   const { resource, extraRows } = props;
   const { t } = useTranslation();
+  const shouldShowCluster = useSelectedClusters().length > 1;
+
   let makeExtraRows: ExtraRowsFunc<T>;
 
   function makeOwnerReferences(ownerReferences: KubeOwnerReference[]) {
@@ -103,6 +105,10 @@ export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProp
         ),
         hide: !resource.metadata.namespace,
       },
+      shouldShowCluster && {
+        name: t('Cluster'),
+        value: resource.cluster,
+      },
       {
         name: t('Creation'),
         value: localeDate(resource.metadata.creationTimestamp),
@@ -127,7 +133,7 @@ export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProp
         value: makeOwnerReferences(resource.metadata.ownerReferences || []),
         hide: !resource.metadata.ownerReferences || resource.metadata.ownerReferences.length === 0,
       },
-    ] as NameValueTableRow[]
+    ].filter(Boolean) as NameValueTableRow[]
   ).concat(makeExtraRows(resource) || []);
 
   return (

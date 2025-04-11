@@ -17,14 +17,27 @@ export function getClusterPrefixedPath(path?: string | null) {
 /**
  * @returns The current cluster name, or null if not in a cluster context.
  */
-export function getCluster(): string | null {
+export function getCluster(urlPath?: string): string | null {
+  const clusterString = getClusterPathParam(urlPath);
+  if (!clusterString) return null;
+
+  if (clusterString.includes('+')) {
+    return clusterString.split('+')[0];
+  }
+  return clusterString;
+}
+
+export function getClusterPathParam(maybeUrlPath?: string): string | undefined {
   const prefix = helpers.getBaseUrl();
-  const urlPath = helpers.isElectron()
-    ? window.location.hash.substring(1)
-    : window.location.pathname.slice(prefix.length);
+  const urlPath =
+    maybeUrlPath ??
+    (helpers.isElectron()
+      ? window.location.hash.substring(1)
+      : window.location.pathname.slice(prefix.length));
 
   const clusterURLMatch = matchPath<{ cluster?: string }>(urlPath, {
     path: getClusterPrefixedPath(),
   });
-  return (!!clusterURLMatch && clusterURLMatch.params.cluster) || null;
+
+  return clusterURLMatch?.params?.cluster;
 }

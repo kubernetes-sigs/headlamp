@@ -5,7 +5,7 @@ import { useHistory } from 'react-router';
 import { filterGeneric, filterResource } from '../redux/filterSlice';
 import { useTypedSelector } from '../redux/reducers/reducers';
 import store from '../redux/stores/store';
-import { getCluster, getClusterPrefixedPath } from './cluster';
+import { getCluster, getClusterPathParam, getClusterPrefixedPath } from './cluster';
 import { ApiError } from './k8s/apiProxy';
 import { KubeMetrics } from './k8s/cluster';
 import { KubeEvent } from './k8s/event';
@@ -173,13 +173,16 @@ export function useFilterFunc<
 }
 
 /**
- * Gets clusters.
+ * Get list of selected clusters.
  *
  * @param returnWhenNoClusters return this value when no clusters are found.
  * @returns the cluster group from the URL.
  */
-export function getClusterGroup(returnWhenNoClusters: string[] = []): string[] {
-  const clusterFromURL = getCluster();
+export function getSelectedClusters(
+  returnWhenNoClusters: string[] = [],
+  urlPath?: string
+): string[] {
+  const clusterFromURL = getClusterPathParam(urlPath);
   return clusterFromURL?.split('+') || returnWhenNoClusters;
 }
 

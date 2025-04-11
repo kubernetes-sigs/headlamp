@@ -65,7 +65,11 @@ export default function DetailsDrawer() {
         <Box>
           {selectedResource && (
             <KubeObjectDetails
-              resource={{ kind: selectedResource.kind, metadata: selectedResource.metadata }}
+              resource={{
+                kind: selectedResource.kind,
+                metadata: selectedResource.metadata,
+                cluster: selectedResource.cluster,
+              }}
               customResourceDefinition={selectedResource.customResourceDefinition}
             />
           )}

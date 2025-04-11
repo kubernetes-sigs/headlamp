@@ -10,15 +10,16 @@ export function makePVStatusLabel(item: PersistentVolume) {
   return StatusLabelByPhase(status);
 }
 
-export default function VolumeDetails(props: { name?: string }) {
+export default function VolumeDetails(props: { name?: string; cluster?: string }) {
   const params = useParams<{ name: string }>();
-  const { name = params.name } = props;
+  const { name = params.name, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   return (
     <DetailsGrid
       resourceType={PersistentVolume}
       name={name}
+      cluster={cluster}
       withEvents
       extraInfo={item =>
         item && [

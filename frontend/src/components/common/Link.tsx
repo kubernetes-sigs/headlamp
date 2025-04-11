@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import React from 'react';
 import { useDispatch } from 'react-redux';
 import { Link as RouterLink } from 'react-router-dom';
+import { getCluster } from '../../lib/cluster';
 import { kubeObjectQueryKey, useEndpoints } from '../../lib/k8s/api/v2/hooks';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { createRouteURL, RouteURLProps } from '../../lib/router';
@@ -123,6 +124,10 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
   const { tooltip, ...propsRest } = props as LinkObjectProps;
 
   const kind = 'kubeObject' in props ? props.kubeObject?._class().kind : props?.routeName;
+  const cluster =
+    'kubeObject' in props && props.kubeObject?.cluster
+      ? props.kubeObject?.cluster
+      : getCluster() ?? '';
 
   const openDrawer =
     drawerEnabled && canRenderDetails(kind)
@@ -142,9 +147,10 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
                     name: props.params?.crName,
                     namespace,
                   },
+                  cluster,
                   customResourceDefinition: props.params?.crd,
                 }
-              : { kind, metadata: { name, namespace } };
+              : { kind, metadata: { name, namespace }, cluster };
 
           dispatch(setSelectedResource(selectedResource));
         }

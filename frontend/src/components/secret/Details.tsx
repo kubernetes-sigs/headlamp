@@ -6,9 +6,13 @@ import { DetailsGrid, SecretField } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
 import { NameValueTable, NameValueTableRow } from '../common/SimpleTable';
 
-export default function SecretDetails(props: { name?: string; namespace?: string }) {
+export default function SecretDetails(props: {
+  name?: string;
+  namespace?: string;
+  cluster?: string;
+}) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation();
 
   return (
@@ -16,6 +20,7 @@ export default function SecretDetails(props: { name?: string; namespace?: string
       resourceType={Secret}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       extraInfo={item =>
         item && [

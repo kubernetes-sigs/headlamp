@@ -15,11 +15,12 @@ interface WorkloadDetailsProps<T extends WorkloadClass> {
   workloadKind: T;
   name?: string;
   namespace?: string;
+  cluster?: string;
 }
 
 export default function WorkloadDetails<T extends WorkloadClass>(props: WorkloadDetailsProps<T>) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const { workloadKind } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
@@ -84,8 +85,9 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
     <DetailsGrid
       resourceType={workloadKind}
       name={name}
-      withEvents
       namespace={namespace}
+      cluster={cluster}
+      withEvents
       actions={item => {
         if (!item) return [];
         const isLoggable = ['Deployment', 'ReplicaSet', 'DaemonSet'].includes(workloadKind.kind);

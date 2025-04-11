@@ -117,9 +117,13 @@ function SpawnJobDialog(props: { cronJob: CronJob; onClose: () => void }) {
   );
 }
 
-export default function CronJobDetails(props: { name?: string; namespace?: string }) {
+export default function CronJobDetails(props: {
+  name?: string;
+  namespace?: string;
+  cluster?: string;
+}) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
 
   const { t, i18n } = useTranslation('glossary');
   const dispatch: AppDispatch = useDispatch();
@@ -206,6 +210,7 @@ export default function CronJobDetails(props: { name?: string; namespace?: strin
       resourceType={CronJob}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       actions={actions}
       extraInfo={item =>

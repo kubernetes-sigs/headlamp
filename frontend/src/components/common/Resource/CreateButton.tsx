@@ -7,7 +7,7 @@ import Select from '@mui/material/Select';
 import { alpha } from '@mui/system';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useClusterGroup } from '../../../lib/k8s';
+import { useSelectedClusters } from '../../../lib/k8s';
 import ActionButton from '../ActionButton';
 import EditorDialog from './EditorDialog';
 
@@ -21,7 +21,7 @@ export default function CreateButton(props: CreateButtonProps) {
   const [openDialog, setOpenDialog] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('');
   const { t } = useTranslation(['translation']);
-  const clusters = useClusterGroup();
+  const clusters = useSelectedClusters();
   const [targetCluster, setTargetCluster] = React.useState(clusters[0] || '');
 
   // We want to avoid resetting the dialog state on close.

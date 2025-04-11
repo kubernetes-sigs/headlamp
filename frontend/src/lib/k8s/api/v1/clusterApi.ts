@@ -6,7 +6,7 @@ import {
   findKubeconfigByClusterName,
   storeStatelessClusterKubeconfig,
 } from '../../../../stateless';
-import { getCluster, getClusterGroup } from '../../../util';
+import { getCluster, getSelectedClusters } from '../../../util';
 import { ClusterRequest, clusterRequest, post, request } from './clusterRequests';
 import { JSON_HEADERS } from './constants';
 
@@ -29,7 +29,7 @@ export async function testAuth(cluster = '', namespace = 'default') {
  * Will throw an error if the cluster is not healthy.
  */
 export async function testClusterHealth(cluster?: string) {
-  const clusterNames = cluster ? [cluster] : getClusterGroup();
+  const clusterNames = cluster ? [cluster] : getSelectedClusters();
 
   const healthChecks = clusterNames.map(clusterName => {
     return clusterRequest('/healthz', { isJSON: false, cluster: clusterName }).catch(error => {

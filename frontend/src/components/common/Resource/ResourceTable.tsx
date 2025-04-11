@@ -1,10 +1,10 @@
-import { MenuItem, TableCellProps } from '@mui/material';
+import { Box, MenuItem, TableCellProps } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { MRT_FilterFns, MRT_Row, MRT_SortingFn, MRT_TableInstance } from 'material-react-table';
 import { ComponentProps, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import helpers from '../../../helpers';
-import { useClusterGroup } from '../../../lib/k8s';
+import { useSelectedClusters } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/apiProxy';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
@@ -254,7 +254,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
   const { t } = useTranslation(['glossary', 'translation']);
   const theme = useTheme();
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
-  const clusters = useClusterGroup();
+  const clusters = useSelectedClusters();
   const tableProcessors = useTypedSelector(state => state.resourceTable.tableColumnsProcessors);
   const defaultFilterFunc = useFilterFunc();
   const [columnVisibility, setColumnVisibility] = useState(() =>
@@ -372,6 +372,10 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
             return {
               id: 'cluster',
               header: t('glossary|Cluster'),
+              gridTemplate: 'min-content',
+              Cell: ({ row }: { row: MRT_Row<RowItem> }) => (
+                <Box sx={{ whiteSpace: 'nowrap' }}>{row.original.cluster}</Box>
+              ),
               accessorFn: (resource: KubeObject) => resource.cluster,
             };
           case 'type':

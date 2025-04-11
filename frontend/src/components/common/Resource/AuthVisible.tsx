@@ -61,7 +61,11 @@ export default function AuthVisible(props: AuthVisibleProps) {
     ],
     queryFn: async () => {
       try {
-        const res = await item!.getAuthorization(authVerb, { subresource, namespace });
+        const res = await item!.getAuthorization(
+          authVerb,
+          { subresource, namespace },
+          (item as any).cluster
+        );
         return res;
       } catch (e: any) {
         onError?.(e);

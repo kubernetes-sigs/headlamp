@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useClusterGroup } from '../../lib/k8s';
+import { useSelectedClusters } from '../../lib/k8s';
 import ClusterRole from '../../lib/k8s/clusterRole';
 import Role from '../../lib/k8s/role';
 import { useNamespaces } from '../../redux/filterSlice';
@@ -13,7 +13,7 @@ export default function RoleList() {
   const { items: roles, errors: rolesErrors } = Role.useList({ namespace: useNamespaces() });
   const { items: clusterRoles, errors: clusterRolesErrors } = ClusterRole.useList();
 
-  const clusters = useClusterGroup();
+  const clusters = useSelectedClusters();
   const isMultiCluster = clusters.length > 1;
 
   const allRoles = React.useMemo(() => {

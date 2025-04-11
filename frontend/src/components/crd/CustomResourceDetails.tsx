@@ -20,15 +20,17 @@ export interface CustomResourceDetailsProps {
   crd: string;
   crName: string;
   namespace: string;
+  cluster?: string;
 }
 
 export function CustomResourceDetails({
   crd: crdName,
   crName,
   namespace: ns,
+  cluster,
 }: CustomResourceDetailsProps) {
   const { t } = useTranslation('glossary');
-  const [crd, error] = CustomResourceDefinition.useGet(crdName);
+  const [crd, error] = CustomResourceDefinition.useGet(crdName, undefined, { cluster });
 
   const namespace = ns === '-' ? undefined : ns;
 
@@ -47,7 +49,12 @@ export function CustomResourceDetails({
       <Loader title={t('translation|Loading custom resource details')} />
     )
   ) : (
-    <CustomResourceDetailsRenderer crd={crd} crName={crName} namespace={namespace} />
+    <CustomResourceDetailsRenderer
+      crd={crd}
+      crName={crName}
+      namespace={namespace}
+      cluster={cluster}
+    />
   );
 }
 
@@ -101,15 +108,16 @@ export interface CustomResourceDetailsRendererProps {
   crd: CustomResourceDefinition;
   crName: string;
   namespace?: string;
+  cluster?: string;
 }
 
 function CustomResourceDetailsRenderer(props: CustomResourceDetailsRendererProps) {
-  const { crd, crName, namespace } = props;
+  const { crd, crName, namespace, cluster } = props;
 
   const { t } = useTranslation('glossary');
 
   const CRClass = React.useMemo(() => crd.makeCRClass(), [crd]);
-  const [item, error] = CRClass.useGet(crName, namespace);
+  const [item, error] = CRClass.useGet(crName, namespace, { cluster });
 
   const apiVersion = item?.jsonData.apiVersion?.split('/')[1] || '';
   const extraColumns: AdditionalPrinterColumns = getExtraColumns(crd, apiVersion) || [];

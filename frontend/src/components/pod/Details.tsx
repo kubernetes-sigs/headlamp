@@ -381,12 +381,13 @@ export interface PodDetailsProps {
   showLogsDefault?: boolean;
   name?: string;
   namespace?: string;
+  cluster?: string;
 }
 
 export default function PodDetails(props: PodDetailsProps) {
   const { showLogsDefault } = props;
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const [showLogs, setShowLogs] = React.useState(!!showLogsDefault);
   const [showTerminal, setShowTerminal] = React.useState(false);
   const { t } = useTranslation('glossary');
@@ -398,6 +399,7 @@ export default function PodDetails(props: PodDetailsProps) {
       resourceType={Pod}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       actions={item =>
         item && [

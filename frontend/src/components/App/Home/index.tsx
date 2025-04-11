@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react';
-import { useTheme } from '@mui/material';
+import { Button, useTheme } from '@mui/material';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import ListItemText from '@mui/material/ListItemText';
@@ -11,20 +11,19 @@ import { isEqual } from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useHistory } from 'react-router-dom';
+import { generatePath, useHistory } from 'react-router-dom';
 import helpers from '../../../helpers';
 import { useClustersConf, useClustersVersion } from '../../../lib/k8s';
 import { ApiError, deleteCluster } from '../../../lib/k8s/apiProxy';
 import { Cluster } from '../../../lib/k8s/cluster';
 import Event from '../../../lib/k8s/event';
 import { createRouteURL } from '../../../lib/router';
-import { useId } from '../../../lib/util';
+import { getClusterPrefixedPath, useId } from '../../../lib/util';
 import { setConfig } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/reducers/reducers';
-import { Link, PageGrid, SectionBox, SectionFilterHeader } from '../../common';
+import { Link, PageGrid, SectionBox, SectionFilterHeader, Table } from '../../common';
 import { ConfirmDialog } from '../../common';
 import ErrorBoundary from '../../common/ErrorBoundary/ErrorBoundary';
-import ResourceTable from '../../common/Resource/ResourceTable';
 import RecentClusters from './RecentClusters';
 
 interface ContextMenuProps {
@@ -244,6 +243,7 @@ function useWarningSettingsPerCluster(clusterNames: string[]) {
 }
 
 function HomeComponent(props: HomeComponentProps) {
+  const history = useHistory();
   const { clusters } = props;
   const [customNameClusters, setCustomNameClusters] = React.useState(getClusterNames());
   const { t } = useTranslation(['translation', 'glossary']);
@@ -303,54 +303,77 @@ function HomeComponent(props: HomeComponentProps) {
             />
           }
         >
-          <ResourceTable<any>
-            defaultSortingColumn={{ id: 'name', desc: false }}
+          <Table
+            data={Object.values(customNameClusters)}
+            enableRowSelection
+            initialState={{
+              sorting: [{ id: 'name', desc: false }],
+            }}
+            muiToolbarAlertBannerProps={{
+              sx: theme => ({
+                background: theme.palette.background.muted,
+              }),
+            }}
+            renderToolbarAlertBannerContent={({ table }) => (
+              <Button
+                variant="contained"
+                sx={{
+                  marginLeft: 1,
+                }}
+                onClick={() => {
+                  const selectedClusters = table.getSelectedRowModel().rows.map(it => it.original);
+
+                  history.push({
+                    pathname: generatePath(getClusterPrefixedPath(), {
+                      cluster: selectedClusters.map(cluster => cluster.name).join('+'),
+                    }),
+                  });
+                }}
+              >
+                {t('View {{count}} clusters', { count: table.getSelectedRowModel().rows.length })}
+              </Button>
+            )}
             columns={[
               {
                 id: 'name',
-                label: t('Name'),
-                getValue: cluster => cluster.name,
-                render: ({ name }) => (
-                  <Link routeName="cluster" params={{ cluster: name }}>
-                    {name}
+                header: t('Name'),
+                accessorKey: 'name',
+                Cell: ({ row: { original } }) => (
+                  <Link routeName="cluster" params={{ cluster: original.name }}>
+                    {original.name}
                   </Link>
                 ),
               },
               {
-                label: t('Origin'),
-                getValue: cluster => getOrigin(cluster),
-                render: ({ name }) => (
-                  <Typography variant="body2">{getOrigin(clusters[name])}</Typography>
+                header: t('Origin'),
+                accessorFn: cluster => getOrigin(cluster),
+                Cell: ({ row: { original } }) => (
+                  <Typography variant="body2">{getOrigin(clusters[original.name])}</Typography>
                 ),
               },
               {
-                label: t('Status'),
-                getValue: cluster =>
+                header: t('Status'),
+                accessorFn: cluster =>
                   errors[cluster.name] === null ? 'Active' : errors[cluster.name]?.message,
-                render: ({ name }) => <ClusterStatus error={errors[name]} />,
+                Cell: ({ row: { original } }) => <ClusterStatus error={errors[original.name]} />,
+              },
+              { header: t('Warnings'), accessorFn: cluster => warningLabels[cluster.name] },
+              {
+                header: t('Kubernetes Version'),
+                accessorFn: ({ name }) => versions[name]?.gitVersion || '⋯',
               },
               {
-                label: t('Warnings'),
-                getValue: ({ name }) => warningLabels[name],
-              },
-              {
-                label: t('glossary|Kubernetes Version'),
-                getValue: ({ name }) => versions[name]?.gitVersion || '⋯',
-              },
-              {
-                label: '',
-                getValue: cluster =>
-                  errors[cluster.name] === null ? 'Active' : errors[cluster.name]?.message,
-                cellProps: {
+                header: '',
+                muiTableBodyCellProps: {
                   align: 'right',
                 },
-                render: cluster => {
+                accessorFn: cluster =>
+                  errors[cluster.name] === null ? 'Active' : errors[cluster.name]?.message,
+                Cell: ({ row: { original: cluster } }) => {
                   return <ContextMenu cluster={cluster} />;
                 },
               },
             ]}
-            data={Object.values(customNameClusters)}
-            id="headlamp-home-clusters"
           />
         </SectionBox>
       </PageGrid>
