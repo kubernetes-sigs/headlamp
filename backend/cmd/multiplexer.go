@@ -343,18 +343,17 @@ func (m *Multiplexer) dialWebSocket(
 		HandshakeTimeout: HandshakeTimeout,
 	}
 
+	headers := http.Header{
+		"Origin": {host},
+	}
+
 	if token != nil {
-		dialer.Subprotocols = []string{
-			"base64.binary.k8s.io",
-			"base64url.bearer.authorization.k8s.io." + base64.RawStdEncoding.EncodeToString([]byte(*token)),
-		}
+		headers.Set("Authorization", "Bearer"+*token)
 	}
 
 	conn, resp, err := dialer.Dial(
 		wsURL,
-		http.Header{
-			"Origin": {host},
-		},
+		headers,
 	)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "dialing WebSocket")
