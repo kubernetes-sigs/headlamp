@@ -17,7 +17,7 @@ export const BASE_HTTP_URL = helpers.getAppUrl();
  *
  * @returns fetch Response
  */
-async function backendFetch(url: string | URL, init: RequestInit) {
+export async function backendFetch(url: string | URL, init?: RequestInit) {
   const response = await fetch(makeUrl([BASE_HTTP_URL, url]), init);
 
   // The backend signals through this header that it wants a reload.

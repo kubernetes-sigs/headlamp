@@ -17,7 +17,7 @@ describe('updateSettingsPackages tests', () => {
         author: 'author1',
       },
     ];
-    const settingsPlugins: PluginInfo[] = [];
+    const settingsPlugins: { name: string; isEnabled: boolean }[] = [];
     const updatedSettingsPlugins = updateSettingsPackages(backendPlugins, settingsPlugins);
     expect(updatedSettingsPlugins.length).toBe(1);
     expect(updatedSettingsPlugins[0].isEnabled).toBe(true);
@@ -33,21 +33,13 @@ describe('updateSettingsPackages tests', () => {
         author: 'author1',
       },
     ];
-    const settingsPlugins: PluginInfo[] = [
+    const settingsPlugins: { name: string; isEnabled: boolean }[] = [
       {
         name: 'ourplugin1',
-        description: 'package description1',
-        homepage: 'https://example.com/1',
-        version: '1.0.0',
-        author: 'author1',
         isEnabled: true,
       },
       {
         name: 'ourplugin2',
-        description: 'package description2',
-        homepage: 'https://example.com/1',
-        version: '1.0.0',
-        author: 'author2',
         isEnabled: true,
       },
     ];
@@ -59,13 +51,9 @@ describe('updateSettingsPackages tests', () => {
 
   test('when a setting exists, but then is removed from the backend', () => {
     const backendPlugins: PluginInfo[] = [];
-    const settingsPlugins: PluginInfo[] = [
+    const settingsPlugins: { name: string; isEnabled: boolean }[] = [
       {
         name: 'ourplugin1',
-        description: 'package description1',
-        homepage: 'https://example.com/1',
-        version: '1.0.0',
-        author: 'author1',
         isEnabled: true,
       },
     ];

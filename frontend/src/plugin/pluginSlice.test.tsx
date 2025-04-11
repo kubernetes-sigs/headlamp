@@ -1,4 +1,5 @@
 import React from 'react';
+import { describe, expect, test } from 'vitest';
 import {
   PluginInfo,
   PluginSettingsComponentType,
@@ -6,30 +7,21 @@ import {
   PluginsState,
 } from './pluginsSlice';
 
-// initial state for the plugins slice
-const initialState: PluginsState = {
-  /** Once the plugins have been fetched and executed. */
-  loaded: false,
-  /** If plugin settings are saved use those. */
-  pluginSettings: JSON.parse(localStorage.getItem('headlampPluginSettings') || '[]'),
-};
-
 // Mock React component for testing
 const MockComponent: React.FC = () => <div>New Component</div>;
 
 describe('pluginsSlice reducers', () => {
   const { setPluginSettingsComponent } = pluginsSlice.actions;
 
-  test('should handle setting a new plugin settings component when plugin name matches', () => {
+  test('should handle setting a new plugin settings component when plugin name matches', async () => {
     const existingPluginName = 'test-plugin';
     const initialStateWithPlugin: PluginsState = {
-      ...initialState,
+      loaded: true,
       pluginSettings: [
         {
           name: existingPluginName,
-          settingsComponent: undefined,
-          displaySettingsComponentWithSaveButton: false,
-        } as PluginInfo,
+          isEnabled: true,
+        },
       ],
     };
 
@@ -39,27 +31,28 @@ describe('pluginsSlice reducers', () => {
       displaySaveButton: true,
     });
 
-    const newState = pluginsSlice.reducer(initialStateWithPlugin, action);
+    const newState = await pluginsSlice.reducer(initialStateWithPlugin, action);
 
-    expect(newState.pluginSettings[0].settingsComponent).toBeDefined();
-    expect(newState.pluginSettings[0].displaySettingsComponentWithSaveButton).toBe(true);
+    expect((newState.pluginSettings[0] as PluginInfo)?.settingsComponent).toBeDefined();
+    expect((newState.pluginSettings[0] as PluginInfo)?.displaySettingsComponentWithSaveButton).toBe(
+      true
+    );
   });
 
   test('should not modify state when plugin name does not match any existing plugin', () => {
     const nonExistingPluginName = 'non-existing-plugin';
     const initialStateWithPlugin: PluginsState = {
-      ...initialState,
+      loaded: true,
       pluginSettings: [
         {
-          name: 'existing-plugin',
-          settingsComponent: undefined,
-          displaySettingsComponentWithSaveButton: false,
-        } as PluginInfo,
+          name: nonExistingPluginName,
+          isEnabled: true,
+        },
       ],
     };
 
     const action = setPluginSettingsComponent({
-      name: nonExistingPluginName,
+      name: 'existing-plugin',
       component: MockComponent as PluginSettingsComponentType,
       displaySaveButton: true,
     });
