@@ -8,3 +8,9 @@ env:
     value: testIssuerURL
   - name: OIDC_SCOPES
     value: testScope
+  - name: OIDC_IMPERSONATE
+    value: "true"
+  - name: OIDC_USER_CLAIM
+    value: preferred_username
+  - name: OIDC_GROUPS_CLAIM
+    value: groups
