@@ -1,4 +1,4 @@
-module github.com/headlamp-k8s/headlamp/backend
+module github.com/kubernetes-sigs/headlamp/backend
 
 go 1.24
 

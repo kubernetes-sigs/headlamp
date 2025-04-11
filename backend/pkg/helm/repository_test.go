@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/cache"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/helm"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -136,7 +136,7 @@ func TestUpdateRepo(t *testing.T) {
 		// update repository request
 		updateRepo := helm.AddUpdateRepoRequest{
 			Name: "headlamp_test_repo",
-			URL:  "https://headlamp-k8s-update-url.github.io/headlamp/",
+			URL:  "https://kubernetes-sigs-update-url.github.io/headlamp/",
 		}
 
 		updateRepoRequestJSON, err := json.Marshal(updateRepo)

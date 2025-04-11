@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

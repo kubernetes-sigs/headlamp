@@ -11,10 +11,10 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/providers/basicflag"
 	"github.com/knadh/koanf/providers/env"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
 const defaultPort = 4466

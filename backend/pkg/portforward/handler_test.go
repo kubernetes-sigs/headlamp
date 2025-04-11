@@ -17,9 +17,9 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/cache"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/kubeconfig"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/portforward"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/portforward"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

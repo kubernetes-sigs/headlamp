@@ -17,8 +17,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/exec"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/exec"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/apis/clientauthentication"
 	rest "k8s.io/client-go/rest"
