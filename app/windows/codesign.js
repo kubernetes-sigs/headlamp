@@ -1,4 +1,4 @@
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -145,8 +145,9 @@ function sign(esrpTool, pathToSign) {
   const authJson = path.resolve(os.tmpdir(), 'Auth.json');
   fs.writeFileSync(authJson, JSON.stringify(AUTH_JSON, undefined, 2));
 
-  exec(
-    `${esrpTool} Sign -a ${authJson} -p ${policyJson} -i ${signInputJson}`,
+  execFile(
+    esrpTool,
+    ['Sign', '-a', authJson, '-p', policyJson, '-i', signInputJson],
     (error, stdout, stderr) => {
       if (error) {
         console.log(`error: ${error.message}`);

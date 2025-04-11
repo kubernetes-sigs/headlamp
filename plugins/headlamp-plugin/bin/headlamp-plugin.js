@@ -549,8 +549,10 @@ function runScriptOnPackages(packageFolder, scriptName, cmdLine, env) {
 
     console.log(`"${folder}": ${scriptName}-ing, :${cmdLineToUse}:...`);
 
+    const [cmd, ...args] = cmdLineToUse.split(' ');
+
     try {
-      child_process.execSync(cmdLineToUse, {
+      child_process.execFileSync(cmd, args, {
         stdio: 'inherit',
         encoding: 'utf8',
         env: { ...process.env, ...(env || {}) },
