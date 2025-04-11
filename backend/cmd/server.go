@@ -53,6 +53,7 @@ func main() {
 		proxyURLs:             strings.Split(conf.ProxyURLs, ","),
 		enableHelm:            conf.EnableHelm,
 		enableDynamicClusters: conf.EnableDynamicClusters,
+		watchPluginsChanges:   conf.WatchPluginsChanges,
 		cache:                 cache,
 		kubeConfigStore:       kubeConfigStore,
 		multiplexer:           multiplexer,
