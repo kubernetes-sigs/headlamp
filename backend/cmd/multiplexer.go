@@ -493,6 +493,7 @@ func (m *Multiplexer) readClientMessage(clientConn *websocket.Conn) (Message, er
 }
 
 // getOrCreateConnection gets an existing connection or creates a new one if it doesn't exist.
+// If a connection exists and a new token is provided, it updates the token to ensure it's fresh.
 func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock) (*Connection, error) {
 	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
 
@@ -516,6 +517,14 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock)
 		}
 
 		go m.handleClusterMessages(conn, clientConn)
+	} else if msg.Token != nil {
+		// Check if the token is different before updating
+		conn.mu.Lock()
+		if conn.Token == nil || *conn.Token != *msg.Token {
+			// Update the token only if it's new
+			conn.Token = msg.Token
+		}
+		conn.mu.Unlock()
 	}
 
 	return conn, nil

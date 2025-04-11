@@ -1067,6 +1067,120 @@ func TestSendCompleteMessage_ErrorConditions(t *testing.T) {
 	}
 }
 
+func TestGetOrCreateConnection_TokenRefresh(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store)
+
+	// Create a mock Kubernetes API server
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	// Add a mock cluster config with our test server URL
+	err := store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server:                   mockServer.URL,
+			InsecureSkipTLSVerify:    true,
+			CertificateAuthorityData: nil,
+		},
+	})
+	require.NoError(t, err)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	// Create initial connection with original token
+	originalToken := "original-token"
+	msg := Message{
+		ClusterID: "test-cluster",
+		Path:      "/api/v1/pods",
+		Query:     "watch=true",
+		UserID:    "test-user",
+		Token:     &originalToken,
+	}
+
+	conn, err := m.getOrCreateConnection(msg, clientConn)
+	assert.NoError(t, err)
+	assert.NotNil(t, conn)
+	assert.Equal(t, &originalToken, conn.Token)
+
+	// Now send a new message with a new token
+	newToken := "new-refreshed-token"
+	msg.Token = &newToken
+
+	// Get the same connection, but with a new token
+	conn2, err := m.getOrCreateConnection(msg, clientConn)
+	assert.NoError(t, err)
+	assert.Equal(t, conn, conn2, "Should return the same connection instance")
+
+	// Verify the token was updated
+	assert.Equal(t, &newToken, conn2.Token, "Token should be updated to the new value")
+}
+
+func TestReconnect_WithToken(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store)
+
+	// Create a mock Kubernetes API server
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	// Add a mock cluster config with our test server URL
+	err := store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server:                   mockServer.URL,
+			InsecureSkipTLSVerify:    true,
+			CertificateAuthorityData: nil,
+		},
+	})
+	require.NoError(t, err)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	// Create initial connection with original token
+	originalToken := "original-token"
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/services", "watch=true", clientConn, &originalToken)
+	wsConn, wsServer := createTestWebSocketConnection()
+
+	defer wsServer.Close()
+
+	conn.WSConn = wsConn.conn
+	conn.Status.State = StateError // Simulate an error state
+
+	// Add the connection to the multiplexer's connections map
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+	m.connections[connKey] = conn
+
+	// Test reconnection with the same token
+	newConn, err := m.reconnect(conn)
+	assert.NoError(t, err)
+	assert.NotNil(t, newConn)
+	assert.Equal(t, &originalToken, newConn.Token, "Token should be preserved during reconnection")
+
+	// Now update the token and verify it's used in reconnection
+	newToken := "new-refreshed-token"
+	newConn.Token = &newToken // Update the token on the new connection
+
+	// Close the connection to force another reconnection
+	if newConn.WSConn != nil {
+		newConn.WSConn.Close()
+	}
+
+	newConn.Status.State = StateError
+
+	// Update the connection in the multiplexer's map
+	connKey = m.createConnectionKey(newConn.ClusterID, newConn.Path, newConn.UserID)
+	m.connections[connKey] = newConn
+
+	// Reconnect with the new token
+	reconnConn, err := m.reconnect(newConn)
+	assert.NoError(t, err)
+	assert.NotNil(t, reconnConn)
+	assert.Equal(t, &newToken, reconnConn.Token, "Updated token should be used during reconnection")
+}
+
 func TestMonitorConnection_Reconnect(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
 	m := NewMultiplexer(contextStore)
