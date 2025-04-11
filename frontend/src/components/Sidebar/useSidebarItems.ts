@@ -17,10 +17,26 @@ const forEachEntry = (items: SidebarItemProps[], cb: (item: SidebarItemProps) =>
   });
 };
 
+const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
+  const homeItems = items.filter(({ name }) => name === 'home');
+  const otherItems = items
+    .filter(({ name }) => name !== 'home')
+    .sort((a, b) => {
+      const aLabel = ((a.label ?? a.name) + '').toLowerCase();
+      const bLabel = ((b.label ?? b.name) + '').toLowerCase();
+      return aLabel.localeCompare(bLabel);
+    });
+  return [...homeItems, ...otherItems].map(item => ({
+    ...item,
+    subList: item.subList ? sortSidebarItems(item.subList) : undefined,
+  }));
+};
+
 export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER) => {
   const clusters = useTypedSelector(state => state.config.clusters) ?? {};
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
+  const settings = useTypedSelector(state => state.config.settings);
   const shouldShowHomeItem = helpers.isElectron() || Object.keys(clusters).length !== 1;
   const cluster = useCluster();
   const { t } = useTranslation();
@@ -355,5 +371,14 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     return sidebars;
   }, [customSidebarEntries, shouldShowHomeItem, Object.keys(clusters).join(','), cluster]);
 
-  return sidebars[sidebarName === '' ? DefaultSidebars.IN_CLUSTER : sidebarName] ?? [];
+  const unsortedItems =
+    sidebars[sidebarName === '' ? DefaultSidebars.IN_CLUSTER : sidebarName] ?? [];
+
+  const sortedItems = useMemo(() => {
+    // Make a deep copy so that we always start from the original (unsorted) order.
+    const itemsCopy = _.cloneDeep(unsortedItems);
+    return settings?.sidebarSortAlphabetically ? sortSidebarItems(itemsCopy) : itemsCopy;
+  }, [unsortedItems, settings.sidebarSortAlphabetically]);
+
+  return sortedItems;
 };

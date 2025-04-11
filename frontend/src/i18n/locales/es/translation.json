@@ -73,6 +73,7 @@
   "Resource details view": "Vista de detalles del recurso",
   "Number of rows for tables": "Núm. de líneas para las tablas",
   "Timezone to display for dates": "Huso horario para mostrar en fechas",
+  "Sort sidebar items alphabetically": "",
   "Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "Los espacios de nombre deben contener solo caracteres alfanuméricos en minúsculas o '-', y deben comenzar y terminar con un carácter alfanumérico.",
   "Cluster name must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "El nombre del cluster debe contener solo caracteres alfanuméricos en minúsculas o '-', y debe comenzar y terminar con un carácter alfanumérico.",
   "Cluster Settings": "Configuración del cluster",

@@ -1,4 +1,4 @@
-import { Box, MenuItem, Select } from '@mui/material';
+import { Box, MenuItem, Select, Switch } from '@mui/material';
 import { capitalize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -20,9 +20,11 @@ export default function Settings() {
   const settingsObj = useSettings();
   const storedTimezone = settingsObj.timezone;
   const storedRowsPerPageOptions = settingsObj.tableRowsPerPageOptions;
+  const storedSortSidebar = settingsObj.sidebarSortAlphabetically;
   const [selectedTimezone, setSelectedTimezone] = useState<string>(
     storedTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   );
+  const [sortSidebar, setSortSidebar] = useState<boolean>(storedSortSidebar);
   const dispatch = useDispatch();
   const themeName = useTypedSelector(state => state.theme.name);
   const appThemes = useAppThemes();
@@ -34,6 +36,14 @@ export default function Settings() {
       })
     );
   }, [selectedTimezone]);
+
+  useEffect(() => {
+    dispatch(
+      setAppSettings({
+        sidebarSortAlphabetically: sortSidebar,
+      })
+    );
+  }, [sortSidebar]);
 
   return (
     <SectionBox
@@ -99,6 +109,16 @@ export default function Settings() {
                   onChange={name => setSelectedTimezone(name)}
                 />
               </Box>
+            ),
+          },
+          {
+            name: t('translation|Sort sidebar items alphabetically'),
+            value: (
+              <Switch
+                color="primary"
+                checked={sortSidebar}
+                onChange={e => setSortSidebar(e.target.checked)}
+              />
             ),
           },
         ]}

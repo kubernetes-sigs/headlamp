@@ -73,6 +73,7 @@
   "Resource details view": "資源詳細資訊檢視",
   "Number of rows for tables": "表格的行數",
   "Timezone to display for dates": "顯示日期的時區",
+  "Sort sidebar items alphabetically": "",
   "Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "命名空間只能包含小寫字母數字字元或 '-'，且必須以字母數字字元開頭和結尾。",
   "Cluster name must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "叢集名稱只能包含小寫字母數字字元或 '-'，且必須以字母數字字元開頭和結尾。",
   "Cluster Settings": "叢集設定",
