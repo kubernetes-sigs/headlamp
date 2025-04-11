@@ -10,6 +10,7 @@ import {
   UseAutocompleteReturnValue,
 } from '@mui/material';
 import Fuse from 'fuse.js';
+import { capitalize } from 'lodash';
 import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -34,6 +35,7 @@ import StatefulSet from '../../lib/k8s/statefulSet';
 import { createRouteURL, getDefaultRoutes } from '../../lib/router';
 import { getClusterPrefixedPath } from '../../lib/util';
 import { useTypedSelector } from '../../redux/reducers/reducers';
+import { ThemePreview } from '../App/Settings/ThemePreview';
 import { setTheme, useAppThemes } from '../App/themeSlice';
 import { Delayed } from './Delayed';
 import { useRecent } from './useRecent';
@@ -225,7 +227,8 @@ export function GlobalSearchContent({
     return appThemes.map(theme => ({
       id: 'switch-theme-' + theme.name,
       subLabel: 'Theme',
-      label: theme.name,
+      icon: <ThemePreview theme={theme} size={32} />,
+      label: capitalize(theme.name),
       onClick: () => dispatch(setTheme(theme.name)),
     }));
   }, [appThemes]);

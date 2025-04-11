@@ -14,6 +14,7 @@ import { setTheme, useAppThemes } from '../themeSlice';
 import DrawerModeSettings from './DrawerModeSettings';
 import { useSettings } from './hook';
 import NumRowsInput from './NumRowsInput';
+import { ThemePreview } from './ThemePreview';
 
 export default function Settings() {
   const { t } = useTranslation(['translation']);
@@ -72,7 +73,10 @@ export default function Settings() {
               >
                 {appThemes.map(it => (
                   <MenuItem key={it.name} value={it.name}>
-                    {capitalize(it.name)}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <ThemePreview theme={it} />
+                      {capitalize(it.name)}
+                    </Box>
                   </MenuItem>
                 ))}
               </Select>
