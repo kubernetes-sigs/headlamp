@@ -82,20 +82,45 @@ func periodicallyWatchSubfolders(watcher *fsnotify.Watcher, path string, interva
 	}
 }
 
+// GetDisabledPlugins returns a list of disabled plugins and a boolean indicating if all plugins are disabled.
+func GetDisabledPlugins(disablePluginsFlag string) ([]string, bool) {
+	// If the flag is an empty string, all plugins are disabled.
+	if disablePluginsFlag == "all" {
+		return nil, true
+	}
+
+	// Parse the list of plugins to disable.
+	disabledPlugins := strings.Split(disablePluginsFlag, ",")
+	for i := range disabledPlugins {
+		disabledPlugins[i] = strings.TrimSpace(disabledPlugins[i])
+	}
+
+	return disabledPlugins, false
+}
+
 // generateSeparatePluginPaths takes the staticPluginDir and pluginDir and returns separate lists of plugin paths.
-func generateSeparatePluginPaths(staticPluginDir, pluginDir string) ([]string, []string, error) {
+func generateSeparatePluginPaths(staticPluginDir,
+	pluginDir string, disablePluginsFlag string,
+) ([]string, []string, error) {
+	// Get the list of disabled plugins and whether all plugins are disabled.
+	disabledPlugins, disableAll := GetDisabledPlugins(disablePluginsFlag)
+
+	if disableAll {
+		return []string{}, []string{}, nil
+	}
+
 	var pluginListURLStatic []string
 
 	if staticPluginDir != "" {
 		var err error
 
-		pluginListURLStatic, err = pluginBasePathListForDir(staticPluginDir, "static-plugins")
+		pluginListURLStatic, err = pluginBasePathListForDir(staticPluginDir, "static-plugins", disabledPlugins)
 		if err != nil {
 			return nil, nil, err
 		}
 	}
 
-	pluginListURL, err := pluginBasePathListForDir(pluginDir, "plugins")
+	pluginListURL, err := pluginBasePathListForDir(pluginDir, "plugins", disabledPlugins)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -104,8 +129,8 @@ func generateSeparatePluginPaths(staticPluginDir, pluginDir string) ([]string, [
 }
 
 // GeneratePluginPaths generates a concatenated list of plugin paths from the staticPluginDir and pluginDir.
-func GeneratePluginPaths(staticPluginDir, pluginDir string) ([]string, error) {
-	pluginListURLStatic, pluginListURL, err := generateSeparatePluginPaths(staticPluginDir, pluginDir)
+func GeneratePluginPaths(staticPluginDir, pluginDir string, disablePluginsFlag string) ([]string, error) {
+	pluginListURLStatic, pluginListURL, err := generateSeparatePluginPaths(staticPluginDir, pluginDir, disablePluginsFlag)
 	if err != nil {
 		return nil, err
 	}
@@ -119,8 +144,8 @@ func GeneratePluginPaths(staticPluginDir, pluginDir string) ([]string, error) {
 }
 
 // ListPlugins lists the plugins in the static and user-added plugin directories.
-func ListPlugins(staticPluginDir, pluginDir string) error {
-	staticPlugins, userPlugins, err := generateSeparatePluginPaths(staticPluginDir, pluginDir)
+func ListPlugins(staticPluginDir, pluginDir string, disablePluginsFlag string) error {
+	staticPlugins, userPlugins, err := generateSeparatePluginPaths(staticPluginDir, pluginDir, disablePluginsFlag)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "listing plugins")
 		return fmt.Errorf("listing plugins: %w", err)
@@ -172,7 +197,7 @@ func ListPlugins(staticPluginDir, pluginDir string) error {
 }
 
 // pluginBasePathListForDir returns a list of valid plugin paths for the given directory.
-func pluginBasePathListForDir(pluginDir string, baseURL string) ([]string, error) {
+func pluginBasePathListForDir(pluginDir string, baseURL string, disabledPlugins []string) ([]string, error) {
 	files, err := os.ReadDir(pluginDir)
 	if err != nil && !os.IsNotExist(err) {
 		logger.Log(logger.LevelError, map[string]string{"pluginDir": pluginDir},
@@ -184,6 +209,12 @@ func pluginBasePathListForDir(pluginDir string, baseURL string) ([]string, error
 	pluginListURLs := make([]string, 0, len(files))
 
 	for _, f := range files {
+		if disabledPlugins != nil && utils.Contains(disabledPlugins, f.Name()) {
+			logger.Log(logger.LevelInfo, map[string]string{"plugin": f.Name()},
+				nil, "Not including plugin path, plugin is disabled")
+			continue
+		}
+
 		if !f.IsDir() {
 			pluginPath := filepath.Join(pluginDir, f.Name())
 			logger.Log(logger.LevelInfo, map[string]string{"pluginPath": pluginPath},
@@ -241,6 +272,7 @@ func canSendRefresh(c cache.Cache[interface{}]) bool {
 // and plugin refresh key in the cache.
 func HandlePluginEvents(staticPluginDir, pluginDir string,
 	notify <-chan string, cache cache.Cache[interface{}],
+	disabledPluginsFlag string,
 ) {
 	for range notify {
 		// Set the refresh signal only if we cannot send it. We prevent it here
@@ -252,7 +284,7 @@ func HandlePluginEvents(staticPluginDir, pluginDir string,
 		}
 
 		// generate the plugin list
-		pluginList, err := GeneratePluginPaths(staticPluginDir, pluginDir)
+		pluginList, err := GeneratePluginPaths(staticPluginDir, pluginDir, disabledPluginsFlag)
 		if err != nil && !os.IsNotExist(err) {
 			logger.Log(logger.LevelError, nil, err, "generating plugins path")
 		}
@@ -265,7 +297,22 @@ func HandlePluginEvents(staticPluginDir, pluginDir string,
 }
 
 // PopulatePluginsCache populates the plugin list and plugin refresh key in the cache.
-func PopulatePluginsCache(staticPluginDir, pluginDir string, cache cache.Cache[interface{}]) {
+func PopulatePluginsCache(staticPluginDir, pluginDir string,
+	cache cache.Cache[interface{}], disabledPluginsFlag string,
+) {
+	_, disableAll := GetDisabledPlugins(disabledPluginsFlag)
+
+	if disableAll {
+		logger.Log(logger.LevelInfo, nil, nil, "All plugins are disabled")
+		// Update cache to reflect that all plugins are disabled.
+		err := cache.Set(context.Background(), PluginListKey, []string{})
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "setting empty plugin list in cache")
+		}
+
+		return
+	}
+
 	// set the plugin refresh key to false
 	err := cache.Set(context.Background(), PluginRefreshKey, false)
 	if err != nil {
@@ -274,7 +321,7 @@ func PopulatePluginsCache(staticPluginDir, pluginDir string, cache cache.Cache[i
 	}
 
 	// generate the plugin list
-	pluginList, err := GeneratePluginPaths(staticPluginDir, pluginDir)
+	pluginList, err := GeneratePluginPaths(staticPluginDir, pluginDir, disabledPluginsFlag)
 	if err != nil && !os.IsNotExist(err) {
 		logger.Log(logger.LevelError,
 			map[string]string{"staticPluginDir": staticPluginDir, "pluginDir": pluginDir},

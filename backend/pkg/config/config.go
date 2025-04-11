@@ -2,7 +2,6 @@ package config
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"io/fs"
 	"os"
@@ -11,9 +10,11 @@ import (
 	"runtime"
 	"strings"
 
+	pflagProvider "github.com/knadh/koanf/providers/posflag"
+	flag "github.com/spf13/pflag"
+
 	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
 	"github.com/knadh/koanf"
-	"github.com/knadh/koanf/providers/basicflag"
 	"github.com/knadh/koanf/providers/env"
 )
 
@@ -36,6 +37,7 @@ type Config struct {
 	OidcClientSecret      string `koanf:"oidc-client-secret"`
 	OidcIdpIssuerURL      string `koanf:"oidc-idp-issuer-url"`
 	OidcScopes            string `koanf:"oidc-scopes"`
+	DisablePlugins        string `koanf:"disable-plugins"`
 }
 
 func (c *Config) Validate() error {
@@ -74,7 +76,7 @@ func Parse(args []string) (*Config, error) {
 	}
 
 	// First Load default args from flags
-	if err := k.Load(basicflag.Provider(f, "."), nil); err != nil {
+	if err := k.Load(pflagProvider.Provider(f, ".", k), nil); err != nil {
 		logger.Log(logger.LevelError, nil, err, "loading default config from flags")
 
 		return nil, fmt.Errorf("error loading default config from flags: %w", err)
@@ -97,7 +99,7 @@ func Parse(args []string) (*Config, error) {
 	}
 
 	// Load only the flags that were set
-	if err := k.Load(basicflag.ProviderWithValue(f, ".", func(key string, value string) (string, interface{}) {
+	if err := k.Load(pflagProvider.ProviderWithValue(f, ".", k, func(key string, value string) (string, interface{}) {
 		flagSet := false
 		f.Visit(func(f *flag.Flag) {
 			if f.Name == key {
@@ -150,7 +152,7 @@ func Parse(args []string) (*Config, error) {
 func flagset() *flag.FlagSet {
 	f := flag.NewFlagSet("config", flag.ContinueOnError)
 
-	f.Bool("in-cluster", false, "Set when running from a k8s cluster")
+	f.BoolP("in-cluster", "i", false, "Set when running from a k8s cluster")
 	f.Bool("dev", false, "Allow connections from other origins")
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
 	f.Bool("enable-dynamic-clusters", false, "Enable dynamic clusters, which stores stateless clusters in the frontend.")
@@ -163,11 +165,16 @@ func flagset() *flag.FlagSet {
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
 
-	f.String("oidc-client-id", "", "ClientID for OIDC")
+	f.StringP("oidc-client-id", "o", "", "ClientID for OIDC")
 	f.String("oidc-client-secret", "", "ClientSecret for OIDC")
 	f.String("oidc-idp-issuer-url", "", "Identity provider issuer URL for OIDC")
 	f.String("oidc-scopes", "profile,email",
 		"A comma separated list of scopes needed from the OIDC provider")
+
+	f.String("disable-plugins", "",
+		"List of plugin names to disable, or empty to disable all plugins")
+
+	f.Lookup("disable-plugins").NoOptDefVal = "all"
 
 	return f
 }

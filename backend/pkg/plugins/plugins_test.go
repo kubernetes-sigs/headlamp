@@ -112,7 +112,7 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 		_, err = os.Create(packageJSONPath)
 		require.NoError(t, err)
 
-		pathList, err := plugins.GeneratePluginPaths("", testDirName)
+		pathList, err := plugins.GeneratePluginPaths("", testDirName, "")
 		require.NoError(t, err)
 		require.Contains(t, pathList, "plugins/"+subDirName)
 
@@ -121,7 +121,7 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 		require.NoError(t, err)
 
 		// test without any valid plugin
-		pathList, err = plugins.GeneratePluginPaths("", testDirName)
+		pathList, err = plugins.GeneratePluginPaths("", testDirName, "")
 		require.NoError(t, err)
 		require.Empty(t, pathList)
 	})
@@ -142,7 +142,7 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 		_, err = os.Create(packageJSONPath)
 		require.NoError(t, err)
 
-		pathList, err := plugins.GeneratePluginPaths(testDirName, "")
+		pathList, err := plugins.GeneratePluginPaths(testDirName, "", "")
 		require.NoError(t, err)
 		require.Contains(t, pathList, "static-plugins/"+subDirName)
 
@@ -151,7 +151,7 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 		require.NoError(t, err)
 
 		// test without any valid plugin
-		pathList, err = plugins.GeneratePluginPaths(testDirName, "")
+		pathList, err = plugins.GeneratePluginPaths(testDirName, "", "")
 		require.NoError(t, err)
 		require.Empty(t, pathList)
 	})
@@ -169,7 +169,7 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 		require.NoError(t, err)
 
 		// test with file as plugin Dir
-		pathList, err := plugins.GeneratePluginPaths(fileName, "")
+		pathList, err := plugins.GeneratePluginPaths(fileName, "", "")
 		assert.Error(t, err)
 		assert.Nil(t, pathList)
 	})
@@ -249,7 +249,7 @@ func TestListPlugins(t *testing.T) {
 
 	// capture the output of the ListPlugins function
 	output, err := captureOutput(func() {
-		err := plugins.ListPlugins(staticPluginDir, pluginDir)
+		err := plugins.ListPlugins(staticPluginDir, pluginDir, "")
 		require.NoError(t, err)
 	})
 	require.NoError(t, err)
@@ -263,7 +263,7 @@ func TestListPlugins(t *testing.T) {
 	os.Remove(path.Join(plugin1Dir, "package.json"))
 
 	output, err = captureOutput(func() {
-		err := plugins.ListPlugins(staticPluginDir, pluginDir)
+		err := plugins.ListPlugins(staticPluginDir, pluginDir, "")
 		require.NoError(t, err)
 	})
 	require.NoError(t, err)
@@ -273,7 +273,7 @@ func TestListPlugins(t *testing.T) {
 	err = os.WriteFile(path.Join(plugin1Dir, "package.json"), []byte("invalid json"), 0o600)
 	require.NoError(t, err)
 	output, err = captureOutput(func() {
-		err := plugins.ListPlugins(staticPluginDir, pluginDir)
+		err := plugins.ListPlugins(staticPluginDir, pluginDir, "")
 		require.NoError(t, err)
 	})
 	require.NoError(t, err)
@@ -315,7 +315,7 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 	// create cache
 	ch := cache.New[interface{}]()
 
-	go plugins.HandlePluginEvents("", testDirPath, events, ch)
+	go plugins.HandlePluginEvents("", testDirPath, events, ch, "")
 
 	// plugin list key should be empty
 	pluginList, err := ch.Get(context.Background(), plugins.PluginListKey)
@@ -356,7 +356,7 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 	err = ch.Delete(context.Background(), plugins.PluginListKey)
 	require.NoError(t, err)
 
-	go plugins.HandlePluginEvents("", testDirPath, events, ch)
+	go plugins.HandlePluginEvents("", testDirPath, events, ch, "")
 
 	// send event
 	events <- "test"
@@ -437,7 +437,7 @@ func TestPopulatePluginsCache(t *testing.T) {
 	ch := cache.New[interface{}]()
 
 	// call PopulatePluginsCache
-	plugins.PopulatePluginsCache("", "", ch)
+	plugins.PopulatePluginsCache("", "", ch, "")
 
 	// check if the plugin refresh key is set to false
 	pluginRefresh, err := ch.Get(context.Background(), plugins.PluginRefreshKey)

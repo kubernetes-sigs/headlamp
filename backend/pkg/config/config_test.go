@@ -38,7 +38,7 @@ func TestParse(t *testing.T) {
 		defer os.Unsetenv("HEADLAMP_CONFIG_OIDC_CLIENT_SECRET")
 
 		args := []string{
-			"go run ./cmd", "-in-cluster",
+			"go run ./cmd", "--in-cluster",
 		}
 		conf, err := config.Parse(args)
 
