@@ -59,6 +59,7 @@ export function RestartButton(props: RestartButtonProps) {
 
   function handleSave() {
     const itemName = item.metadata.name;
+    const redirectUrl = location.pathname.includes('/map') ? undefined : item.getListLink();
 
     dispatch(
       clusterAction(() => restartResource(), {
@@ -67,8 +68,8 @@ export function RestartButton(props: RestartButtonProps) {
         successMessage: t('Restarted {{ itemName }}.', { itemName }),
         errorMessage: t('Failed to restart {{ itemName }}.', { itemName }),
         cancelUrl: location.pathname,
-        startUrl: item.getListLink(),
-        errorUrl: item.getListLink(),
+        startUrl: redirectUrl,
+        errorUrl: redirectUrl,
       })
     );
   }
