@@ -148,6 +148,17 @@ export function useClusterGroup(): string[] {
   return clusterGroup;
 }
 
+/**
+ * Use the cluster name from the URL query parameters if it's there.
+ *
+ * @returns the cluster name from the URL. If no cluster is defined in the URL, undefined is returned.
+ */
+export function useDetailsSingleCluster(): string | undefined {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  return searchParams.get('cluster') || undefined;
+}
+
 export function getVersion(clusterName: string = ''): Promise<StringDict> {
   return clusterRequest('/version', { cluster: clusterName || getCluster() });
 }
