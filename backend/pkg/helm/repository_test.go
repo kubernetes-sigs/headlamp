@@ -136,7 +136,7 @@ func TestUpdateRepo(t *testing.T) {
 		// update repository request
 		updateRepo := helm.AddUpdateRepoRequest{
 			Name: "headlamp_test_repo",
-			URL:  "https://headlamp-k8s-update-url.github.io/headlamp/",
+			URL:  "https://kubernetes-sigs-update-url.github.io/headlamp/",
 		}
 
 		updateRepoRequestJSON, err := json.Marshal(updateRepo)
