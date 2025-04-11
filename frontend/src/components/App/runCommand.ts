@@ -27,7 +27,10 @@
 export function runCommand(
   command: 'minikube' | 'az',
   args: string[],
-  options: {}
+  options: {
+    elevated?: boolean;
+    [key: string]: any;
+  }
 ): {
   stdout: { on: (event: string, listener: (chunk: any) => void) => void };
   stderr: { on: (event: string, listener: (chunk: any) => void) => void };
@@ -45,7 +48,8 @@ export function runCommand(
   const stderr = new EventTarget();
   const exit = new EventTarget();
 
-  window.desktopApi.send('run-command', { id, command, args, options });
+  const {elevated, ...restOptions} = options;
+  window.desktopApi.send('run-command', { id, command, args, options: restOptions, elevated });
 
   window.desktopApi.receive('command-stdout', (cmdId: string, data: string) => {
     if (cmdId === id) {

@@ -1,6 +1,7 @@
-import { ConfigStore } from '@kinvolk/headlamp-plugin/lib';
+import { ConfigStore, runCommand } from '@kinvolk/headlamp-plugin/lib';
 import { NameValueTable } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import { useEffect, useState } from 'react';
 
@@ -67,6 +68,51 @@ interface pluginConfig {
 
 export const store = new ConfigStore<pluginConfig>('change-logo');
 
+async function waitForCommand(command: string, args: string[], options: {}) {
+  return new Promise((resolve, reject) => {
+    const cmd = runCommand(command, args, options);
+    const output = [];
+
+    cmd.stdout.on('data', data => {
+      output.push(data);
+    });
+
+    cmd.stderr.on('data', data => {
+      console.error('stderr:', data);
+    });
+
+    cmd.on('exit', code => {
+      if (code === 0) {
+        resolve(output.join(''));
+      } else {
+        reject(new Error(`Command failed with code: ${code}`));
+      }
+    });
+  });
+}
+
+
+function RunCommandSettings() {
+  async function minikubeElevatedCommand() {
+    const output = await waitForCommand('minikube', ['status'], { elevated: true });
+    console.log('Running minikube command with elevated privileges...');
+    console.log('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>', output);
+  }
+
+  return (
+    <Box>
+      <Button
+        variant="contained"
+        color="primary"
+        onClick={minikubeElevatedCommand}
+        style={{ marginTop: '16px' }}
+      >
+        Run Minikube Command
+      </Button>
+    </Box>
+  );
+}
+
 /**
  * Settings component for managing plugin configuration details.
  * It allows users to update specific configuration properties, such as the logo URL,
@@ -114,6 +160,7 @@ export default function Settings() {
   return (
     <Box width={'80%'} style={{ paddingTop: '8vh' }}>
       <NameValueTable rows={settingsRows} />
+      <RunCommandSettings />
     </Box>
   );
 }
