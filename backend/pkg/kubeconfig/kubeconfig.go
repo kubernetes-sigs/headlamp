@@ -48,10 +48,12 @@ type Context struct {
 }
 
 type OidcConfig struct {
-	ClientID     string
-	ClientSecret string
-	IdpIssuerURL string
-	Scopes       []string
+	ClientID      string
+	ClientSecret  string
+	IdpIssuerURL  string
+	Scopes        []string
+	SkipTLSVerify bool
+	CACert        string
 }
 
 // CustomObject represents the custom object that holds the HeadlampInfo regarding custom name.
@@ -243,11 +245,25 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 		return nil, errors.New("authProvider is nil")
 	}
 
+	var caCert string
+
+	caFilePath, ok := c.AuthInfo.AuthProvider.Config["idp-certificate-authority"]
+	if ok {
+		caFile, err := os.ReadFile(caFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read idp-ca-file: %w", err)
+		}
+
+		caCert = string(caFile)
+	}
+
 	return &OidcConfig{
-		ClientID:     c.AuthInfo.AuthProvider.Config["client-id"],
-		ClientSecret: c.AuthInfo.AuthProvider.Config["client-secret"],
-		Scopes:       strings.Split(c.AuthInfo.AuthProvider.Config["scope"], ","),
-		IdpIssuerURL: c.AuthInfo.AuthProvider.Config["idp-issuer-url"],
+		ClientID:      c.AuthInfo.AuthProvider.Config["client-id"],
+		ClientSecret:  c.AuthInfo.AuthProvider.Config["client-secret"],
+		Scopes:        strings.Split(c.AuthInfo.AuthProvider.Config["scope"], ","),
+		IdpIssuerURL:  c.AuthInfo.AuthProvider.Config["idp-issuer-url"],
+		CACert:        caCert,
+		SkipTLSVerify: c.AuthInfo.AuthProvider.Config["insecure-skip-tls-verify"] == "true",
 	}, nil
 }
 
@@ -871,6 +887,8 @@ func splitKubeConfigPath(path string) []string {
 func GetInClusterContext(oidcIssuerURL string,
 	oidcClientID string, oidcClientSecret string,
 	oidcScopes string,
+	oidcSkipTLSVerify bool,
+	oidcCACert string,
 ) (*Context, error) {
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
@@ -894,10 +912,12 @@ func GetInClusterContext(oidcIssuerURL string,
 
 	if oidcClientID != "" && oidcClientSecret != "" && oidcIssuerURL != "" && oidcScopes != "" {
 		oidcConf = &OidcConfig{
-			ClientID:     oidcClientID,
-			ClientSecret: oidcClientSecret,
-			IdpIssuerURL: oidcIssuerURL,
-			Scopes:       strings.Split(oidcScopes, ","),
+			ClientID:      oidcClientID,
+			ClientSecret:  oidcClientSecret,
+			IdpIssuerURL:  oidcIssuerURL,
+			Scopes:        strings.Split(oidcScopes, ","),
+			SkipTLSVerify: oidcSkipTLSVerify,
+			CACert:        oidcCACert,
 		}
 	}
 

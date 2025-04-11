@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -55,6 +56,8 @@ type HeadlampConfig struct {
 	oidcClientID          string
 	oidcClientSecret      string
 	oidcIdpIssuerURL      string
+	oidcSkipTLSVerify     bool
+	oidcCACert            string
 	baseURL               string
 	oidcScopes            []string
 	proxyURLs             []string
@@ -368,7 +371,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	if config.useInCluster {
 		context, err := kubeconfig.GetInClusterContext(config.oidcIdpIssuerURL,
 			config.oidcClientID, config.oidcClientSecret,
-			strings.Join(config.oidcScopes, ","))
+			strings.Join(config.oidcScopes, ","), config.oidcSkipTLSVerify, config.oidcCACert)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
 		}
@@ -571,6 +574,32 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		if oidcAuthConfig.SkipTLSVerify {
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+			}
+			insecureClient := &http.Client{Transport: tr}
+			ctx = oidc.ClientContext(ctx, insecureClient)
+		}
+
+		if oidcAuthConfig.CACert != "" {
+			caCertPool := x509.NewCertPool()
+			if !caCertPool.AppendCertsFromPEM([]byte(oidcAuthConfig.CACert)) {
+				logger.Log(logger.LevelError, map[string]string{"oidc-ca-file": oidcAuthConfig.CACert},
+					errors.New("failed to append oidc-ca-file to cert pool"), "failed to append oidc-ca-file to cert pool")
+				http.Error(w, "invalid oidc-ca-file", http.StatusBadRequest)
+				return
+			}
+
+			secureTLSClient := &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{RootCAs: caCertPool}, //nolint:gosec
+				},
+			}
+			ctx = oidc.ClientContext(ctx, secureTLSClient)
+		}
+
 		provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
 		if err != nil {
 			logger.Log(logger.LevelError, map[string]string{"idpIssuerURL": oidcAuthConfig.IdpIssuerURL},

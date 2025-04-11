@@ -1,6 +1,7 @@
 package config
 
 import (
+	"crypto/x509"
 	"errors"
 	"flag"
 	"fmt"
@@ -36,6 +37,8 @@ type Config struct {
 	OidcClientSecret      string `koanf:"oidc-client-secret"`
 	OidcIdpIssuerURL      string `koanf:"oidc-idp-issuer-url"`
 	OidcScopes            string `koanf:"oidc-scopes"`
+	OidcSkipTLSVerify     bool   `koanf:"oidc-skip-tls-verify"`
+	OidcCAFile            string `koanf:"oidc-ca-file"`
 }
 
 func (c *Config) Validate() error {
@@ -142,6 +145,22 @@ func Parse(args []string) (*Config, error) {
 		}
 	}
 
+	if config.OidcSkipTLSVerify {
+		logger.Log(logger.LevelWarn, nil, nil, "oidc-skip-tls-verify is set, this is not safe for production")
+	}
+
+	if config.OidcCAFile != "" {
+		caFile, err := os.ReadFile(config.OidcCAFile)
+		if err != nil {
+			return nil, fmt.Errorf("error reading oidc-ca-file: %w", err)
+		}
+		// check if the file is a valid PEM file
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caFile) {
+			return nil, errors.New("invalid oidc-ca-file")
+		}
+	}
+
 	config.KubeConfigPath = kubeConfigPath
 
 	return &config, nil
@@ -168,6 +187,8 @@ func flagset() *flag.FlagSet {
 	f.String("oidc-idp-issuer-url", "", "Identity provider issuer URL for OIDC")
 	f.String("oidc-scopes", "profile,email",
 		"A comma separated list of scopes needed from the OIDC provider")
+	f.Bool("oidc-skip-tls-verify", false, "Skip TLS verification for OIDC")
+	f.String("oidc-ca-file", "", "CA file for OIDC")
 
 	return f
 }
