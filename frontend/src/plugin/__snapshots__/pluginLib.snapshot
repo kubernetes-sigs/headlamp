@@ -16114,6 +16114,7 @@
   "registerAddClusterProvider": [Function],
   "registerAppBarAction": [Function],
   "registerAppLogo": [Function],
+  "registerAppTheme": [Function],
   "registerClusterChooser": [Function],
   "registerClusterProviderDialog": [Function],
   "registerClusterProviderMenuItem": [Function],
