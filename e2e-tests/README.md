@@ -4,6 +4,8 @@
 npx playwright install
 ```
 
+NOTE: The following minikube environment has been deprecated and is no longer supported.
+
 The instructions below assume Headlamp is running locally in-cluster with minikube.
 
 ```bash
