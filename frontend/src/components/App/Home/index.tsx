@@ -9,6 +9,7 @@ import Event from '../../../lib/k8s/event';
 import { createRouteURL } from '../../../lib/router';
 import { PageGrid, SectionBox, SectionFilterHeader } from '../../common';
 import ClusterTable from './ClusterTable';
+import { ENABLE_RECENT_CLUSTERS } from './config';
 import { getCustomClusterNames } from './customClusterNames';
 import RecentClusters from './RecentClusters';
 
@@ -85,17 +86,24 @@ function HomeComponent(props: HomeComponentProps) {
   const memoizedComponent = React.useMemo(
     () => (
       <PageGrid>
-        <SectionBox headerProps={{ headerStyle: 'main' }} title={t('Home')}>
-          <RecentClusters clusters={Object.values(customNameClusters)} onButtonClick={() => {}} />
-        </SectionBox>
+        {ENABLE_RECENT_CLUSTERS && (
+          <SectionBox headerProps={{ headerStyle: 'main' }} title={t('Home')}>
+            <RecentClusters clusters={Object.values(customNameClusters)} onButtonClick={() => {}} />
+          </SectionBox>
+        )}
         <SectionBox
           title={
-            <SectionFilterHeader
-              title={t('All Clusters')}
-              noNamespaceFilter
-              headerStyle="subsection"
-            />
+            ENABLE_RECENT_CLUSTERS ? (
+              t('Home')
+            ) : (
+              <SectionFilterHeader
+                title={t('All Clusters')}
+                noNamespaceFilter
+                headerStyle="subsection"
+              />
+            )
           }
+          headerProps={ENABLE_RECENT_CLUSTERS ? { headerStyle: 'main' } : undefined}
         >
           <ClusterTable
             customNameClusters={customNameClusters}

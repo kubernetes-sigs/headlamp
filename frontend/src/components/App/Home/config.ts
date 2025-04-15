@@ -3,4 +3,4 @@ export const MULTI_HOME_ENABLED = import.meta.env.REACT_APP_MULTI_HOME_ENABLED =
 
 /** Show recent clusters on the home page */
 export const ENABLE_RECENT_CLUSTERS =
-  import.meta.env.REACT_APP_ENABLE_RECENT_CLUSTERS === 'true' || true;
+  import.meta.env.REACT_APP_ENABLE_RECENT_CLUSTERS === 'true' || false;
