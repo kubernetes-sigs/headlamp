@@ -1,4 +1,4 @@
-//nolint:testpackage
+//nolint:testpackage // testing private functions.
 package telemetry
 
 import (
@@ -128,7 +128,7 @@ func TestCreateResource(t *testing.T) {
 	assert.True(t, environmentFound, "Environment attribute not found")
 }
 
-func TestCreateTracingExporter(t *testing.T) {
+func TestCreateTracingExporter(t *testing.T) { //nolint:funlen // too long due to multiple test cases
 	tests := []struct {
 		name                  string
 		config                Config
@@ -206,7 +206,9 @@ func TestCreateTracingExporter(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var logBuf bytes.Buffer
+
 			log.SetOutput(&logBuf)
+
 			defer log.SetOutput(os.Stderr)
 
 			exporter, err := createTracingExporter(tc.config)
@@ -228,6 +230,7 @@ func TestCreateTracingExporter(t *testing.T) {
 			// Check for warning about multiple exporters
 			warningMsg := "Warning: Multiple trace exporters configured"
 			logOutput := logBuf.String()
+
 			if tc.expectMultipleWarning {
 				assert.Contains(t, logOutput, warningMsg, "Expected warning about multiple exporters")
 			} else {
