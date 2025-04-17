@@ -125,6 +125,7 @@ class Event extends KubeObject<KubeEvent> {
     const namespace = object.metadata.namespace;
     const name = object.metadata.name;
     const objectKind = object.kind;
+    const cluster = object.cluster;
 
     let path = '/api/v1/events';
     const fieldSelector: { [key: string]: string } = {
@@ -146,7 +147,7 @@ class Event extends KubeObject<KubeEvent> {
       limit: this.maxLimit,
     };
 
-    const response = await request(path, {}, true, true, queryParams);
+    const response = await request(path, { cluster }, true, true, queryParams);
 
     return response.items;
   }

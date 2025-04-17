@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { generatePath } from 'react-router';
 import { useHistory } from 'react-router-dom';
 import helpers from '../../helpers';
-import { useCluster, useClustersConf } from '../../lib/k8s';
+import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { Cluster } from '../../lib/k8s/cluster';
 import { createRouteURL } from '../../lib/router';
 import { getCluster, getClusterPrefixedPath } from '../../lib/util';
@@ -75,7 +75,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
       node.focus();
     }
   }, []);
-  const currentCluster = useCluster();
+  const selectedClusters = useSelectedClusters();
 
   function handleClose() {
     setFilter('');
@@ -98,7 +98,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
 
     allClusters.forEach(c => {
       const cluster = { ...c };
-      if (c.name === currentCluster) {
+      if (selectedClusters.includes(c.name)) {
         cluster.isCurrent = true;
       }
 
@@ -130,7 +130,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
     });
 
     return [recentClusters, clustersToShow];
-  }, [clusters, currentCluster, filter]);
+  }, [clusters, selectedClusters.join(','), filter]);
 
   React.useEffect(() => {
     setActiveDescendantIndex(-1);

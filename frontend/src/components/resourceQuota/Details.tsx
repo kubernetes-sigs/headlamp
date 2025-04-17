@@ -4,9 +4,13 @@ import ResourceQuota from '../../lib/k8s/resourceQuota';
 import { compareUnits, normalizeUnit } from '../../lib/util';
 import { DetailsGrid, SimpleTable } from '../common';
 
-export default function ResourceQuotaDetails(props: { name?: string; namespace?: string }) {
+export default function ResourceQuotaDetails(props: {
+  name?: string;
+  namespace?: string;
+  cluster?: string;
+}) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation(['translation', 'glossary']);
 
   return (
@@ -14,6 +18,7 @@ export default function ResourceQuotaDetails(props: { name?: string; namespace?:
       resourceType={ResourceQuota}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       extraInfo={item =>
         item && [
