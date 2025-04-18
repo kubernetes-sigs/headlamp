@@ -126,7 +126,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       namespace: this.getNamespace(),
       name: this.getName(),
     };
-    const link = createRouteURL(this.detailsRoute, params);
+    const link = createRouteURL(this.detailsRoute, params, { cluster: this.cluster });
     return link;
   }
 

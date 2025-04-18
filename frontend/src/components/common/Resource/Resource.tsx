@@ -17,7 +17,7 @@ import React, { PropsWithChildren, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath, NavLinkProps, useLocation } from 'react-router-dom';
 import YAML from 'yaml';
-import { labelSelectorToQuery, ResourceClasses } from '../../../lib/k8s';
+import { labelSelectorToQuery, ResourceClasses, useClusterFromURLVar } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/apiProxy';
 import { KubeCondition, KubeContainer, KubeContainerStatus } from '../../../lib/k8s/cluster';
 import { KubeEvent } from '../../../lib/k8s/event';
@@ -90,6 +90,8 @@ export interface DetailsGridProps<T extends KubeObjectClass>
   name: string;
   /** Namespace of the resource. If not provided, it's assumed the resource is not namespaced. */
   namespace?: string;
+  /** Cluster of the resource. If not provided, it's assumed single cluster mode. */
+  cluster?: string;
   /** Sections to show in the details grid (besides the default ones). */
   extraSections?:
     | ((item: InstanceType<T>) => boolean | DetailsViewSection[] | ReactNode[])
@@ -126,13 +128,15 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
     state => state.detailsViewSection.detailsViewSectionsProcessors
   );
   const dispatchHeadlampEvent = useEventCallback();
+  const clusterFromURLVar = useClusterFromURLVar();
+  const cluster = props.cluster || clusterFromURLVar;
 
   // This component used to have a MainInfoSection with all these props passed to it, so we're
   // using them to accomplish the same behavior.
   const { extraInfo, actions, noDefaultActions, headerStyle, backLink, title, headerSection } =
     otherMainInfoSectionProps;
 
-  const [item, error] = resourceType.useGet(name, namespace) as [
+  const [item, error] = resourceType.useGet(name, namespace, { cluster }) as [
     InstanceType<T> | null,
     ApiError | null
   ];
