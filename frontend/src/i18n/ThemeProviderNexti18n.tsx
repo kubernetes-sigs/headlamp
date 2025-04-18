@@ -15,9 +15,9 @@ function getLocale(locale: string): typeof enUS {
     fr: frFR,
     it: itIT,
     'zh-tw': zhTW,
-    jp: jaJP,
+    ja: jaJP,
   };
-  type LocalesType = 'en' | 'pt' | 'es' | 'ta' | 'de' | 'hi' | 'fr' | 'it' | 'zh-tw' | 'jp';
+  type LocalesType = 'en' | 'pt' | 'es' | 'ta' | 'de' | 'hi' | 'fr' | 'it' | 'zh-tw' | 'ja';
   return locale in LOCALES ? LOCALES[locale as LocalesType] : LOCALES['en'];
 }
 
