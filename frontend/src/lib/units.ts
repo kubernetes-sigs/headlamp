@@ -4,7 +4,7 @@
 
 import _ from 'lodash';
 
-const RAM_TYPES = ['Bi', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei'];
+const RAM_TYPES = ['B', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei'];
 const UNITS = ['B', 'K', 'M', 'G', 'T', 'P', 'E'];
 
 export const TO_GB = 1024 * 1024 * 1024;
@@ -22,8 +22,8 @@ export function parseRam(value: string) {
 function parseUnitsOfBytes(value: string): number {
   if (!value) return 0;
 
-  const groups = value.match(/(\d+)([BKMGTPEe])?(i)?(\d+)?/) || [];
-  const number = parseInt(groups[1], 10);
+  const groups = value.match(/(\d+\.?\d*)([BKMGTPEe])?(i)?(\d+)?/) || [];
+  const number = parseFloat(groups[1]);
 
   // number ex. 1000
   if (groups[2] === undefined) {
