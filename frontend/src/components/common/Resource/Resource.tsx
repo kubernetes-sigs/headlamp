@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react';
 import Editor from '@monaco-editor/react';
-import { InputLabel } from '@mui/material';
+import { Button, InputLabel } from '@mui/material';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Grid, { GridProps, GridSize } from '@mui/material/Grid';
@@ -11,7 +11,6 @@ import { BaseTextFieldProps } from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/system';
 import { Location } from 'history';
-import { Base64 } from 'js-base64';
 import _, { has } from 'lodash';
 import React, { PropsWithChildren, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -397,13 +396,24 @@ export function SectionGrid(props: SectionGridProps) {
 
 export interface DataFieldProps extends BaseTextFieldProps {
   disableLabel?: boolean;
+  onSave?: (newValue: string) => void;
+  onChange?: (newValue: string) => void;
 }
 
 export function DataField(props: DataFieldProps) {
-  const { disableLabel, label, value } = props;
+  const { disableLabel, label, value, onSave, onChange } = props;
   // Make sure we reload after a theme change
   useTheme();
   const themeName = getThemeName();
+
+  const [data, setData] = React.useState(value as string);
+
+  const handleChange = (newValue: string | undefined) => {
+    if (newValue !== undefined) {
+      setData(newValue);
+      onChange?.(newValue);
+    }
+  };
 
   function handleEditorDidMount(editor: any) {
     const editorElement: HTMLElement | null = editor.getDomNode();
@@ -425,22 +435,21 @@ export function DataField(props: DataFieldProps) {
   if (language !== 'json') {
     language = 'yaml';
   }
-  if (disableLabel === true) {
-    return (
-      <Box borderTop={0} border={1}>
-        <Editor
-          value={value as string}
-          language={language}
-          onMount={handleEditorDidMount}
-          options={{ readOnly: true, lineNumbers: 'off', automaticLayout: true }}
-          theme={themeName === 'dark' ? 'vs-dark' : 'light'}
-        />
-      </Box>
-    );
-  }
-  return (
-    <>
-      <Box borderTop={0} border={1}>
+
+  const editorComponent = (
+    <Editor
+      value={data}
+      language={language}
+      onChange={handleChange}
+      onMount={handleEditorDidMount}
+      options={{ lineNumbers: 'off', automaticLayout: true }}
+      theme={themeName === 'dark' ? 'vs-dark' : 'light'}
+    />
+  );
+
+  const content = (
+    <Box borderTop={0} border={1}>
+      {!disableLabel && (
         <Box display="flex">
           <Box width="10%" borderTop={1} height={'1px'}></Box>
           <Box pb={1} mt={-1} px={0.5}>
@@ -448,17 +457,24 @@ export function DataField(props: DataFieldProps) {
           </Box>
           <Box width="100%" borderTop={1} height={'1px'}></Box>
         </Box>
-        <Box mt={1} px={1} pb={1}>
-          <Editor
-            value={value as string}
-            language={language}
-            onMount={handleEditorDidMount}
-            options={{ readOnly: true, lineNumbers: 'off', automaticLayout: true }}
-            theme={themeName === 'dark' ? 'vs-dark' : 'light'}
-          />
-        </Box>
+      )}
+      <Box mt={1} px={1} pb={1}>
+        {editorComponent}
       </Box>
-    </>
+    </Box>
+  );
+
+  return (
+    <Box>
+      {content}
+      {onSave && (
+        <Box mt={1} display="flex" justifyContent="flex-end">
+          <Button variant="contained" color="primary" onClick={() => onSave && onSave(data)}>
+            Save
+          </Button>
+        </Box>
+      )}
+    </Box>
   );
 }
 
@@ -486,12 +502,12 @@ export function SecretField(props: InputProps) {
       </Grid>
       <Grid item xs>
         <Input
-          readOnly
+          readOnly={!showPassword}
           type="password"
           fullWidth
           multiline={showPassword}
           maxRows="20"
-          value={showPassword ? Base64.decode(value as string) : '******'}
+          value={showPassword ? (value as string) : '******'}
           {...other}
         />
       </Grid>
