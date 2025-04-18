@@ -11,14 +11,41 @@ export interface Tab {
   component: ReactNode;
 }
 
+/**
+ * Props interface for the `Tabs` component.
+ */
 export interface TabsProps {
+  /**
+   * List of tabs to display.
+   */
   tabs: Tab[];
+
+  /**
+   * Optional props for the MuiTabs component.
+   */
   tabProps?: {
     [propName: string]: any;
   };
+
+  /**
+   * Default selected tab index.
+   */
   defaultIndex?: number | null | boolean;
+
+  /**
+   * Callback for tab change.
+   * @param tabIndex - The index of the selected tab.
+   */
   onTabChanged?: (tabIndex: number) => void;
+
+  /**
+   * Optional styles.
+   */
   sx?: SxProps<Theme>;
+
+  /**
+   * Accessibility label for the Tabs component.
+   */
   ariaLabel: string;
 }
 
