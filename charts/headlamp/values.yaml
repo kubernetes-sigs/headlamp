@@ -66,6 +66,12 @@ config:
     issuerURL: ""
     # -- OIDC scopes to be used
     scopes: ""
+    # -- If true, kubernetes API calls are done with the service account and impersonated as the user and groups in the OIDC token
+    impersonate: false
+    # -- OIDC the claim in the idToken to use as the username, if impersonate is true
+    userClaim: ""
+    # -- OIDC the claim in the idToken to use as for groups, if impersonate is true
+    groupsClaim: ""
 
     # Option 3:
     # @param config.oidc - External OIDC secret configuration

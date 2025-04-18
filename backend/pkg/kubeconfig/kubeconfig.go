@@ -43,6 +43,7 @@ type Context struct {
 	Source      int                    `json:"source"`
 	OidcConf    *OidcConfig            `json:"oidcConfig"`
 	proxy       *httputil.ReverseProxy `json:"-"`
+	BearerToken string                 `json:"bearerToken"`
 	Internal    bool                   `json:"internal"`
 	Error       string                 `json:"error"`
 }
@@ -870,7 +871,7 @@ func splitKubeConfigPath(path string) []string {
 // GetInClusterContext returns the in-cluster context.
 func GetInClusterContext(oidcIssuerURL string,
 	oidcClientID string, oidcClientSecret string,
-	oidcScopes string,
+	oidcScopes string, oidcImpersonate bool,
 ) (*Context, error) {
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
@@ -890,7 +891,10 @@ func GetInClusterContext(oidcIssuerURL string,
 
 	inClusterAuthInfo := &api.AuthInfo{}
 
-	var oidcConf *OidcConfig
+	var (
+		oidcConf    *OidcConfig
+		bearerToken string
+	)
 
 	if oidcClientID != "" && oidcClientSecret != "" && oidcIssuerURL != "" && oidcScopes != "" {
 		oidcConf = &OidcConfig{
@@ -898,6 +902,10 @@ func GetInClusterContext(oidcIssuerURL string,
 			ClientSecret: oidcClientSecret,
 			IdpIssuerURL: oidcIssuerURL,
 			Scopes:       strings.Split(oidcScopes, ","),
+		}
+
+		if oidcImpersonate {
+			bearerToken = clusterConfig.BearerToken
 		}
 	}
 
@@ -907,6 +915,7 @@ func GetInClusterContext(oidcIssuerURL string,
 		Cluster:     cluster,
 		AuthInfo:    inClusterAuthInfo,
 		OidcConf:    oidcConf,
+		BearerToken: bearerToken,
 	}, nil
 }
 
