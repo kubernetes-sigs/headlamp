@@ -39,6 +39,7 @@ export default function DeleteButton(props: DeleteButtonProps) {
       const callback = item!.delete;
 
       const itemName = item!.metadata.name;
+      const redirectUrl = location.pathname.includes('/map') ? undefined : item!.getListLink();
 
       callback &&
         dispatch(
@@ -48,8 +49,8 @@ export default function DeleteButton(props: DeleteButtonProps) {
             successMessage: t('Deleted item {{ itemName }}.', { itemName }),
             errorMessage: t('Error deleting item {{ itemName }}.', { itemName }),
             cancelUrl: location.pathname,
-            startUrl: item!.getListLink(),
-            errorUrl: item!.getListLink(),
+            startUrl: redirectUrl,
+            errorUrl: redirectUrl,
             ...options,
           })
         );
