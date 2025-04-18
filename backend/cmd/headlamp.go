@@ -1136,9 +1136,13 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 
 		r.Host = clusterURL.Host
 		r.Header.Set("X-Forwarded-Host", r.Host)
+		r.Header.Del("User-Agent")
 		r.URL.Host = clusterURL.Host
 		r.URL.Path = mux.Vars(r)["api"]
 		r.URL.Scheme = clusterURL.Scheme
+
+		// Process WebSocket protocol headers if present
+		processWebSocketProtocolHeader(r)
 
 		plugins.HandlePluginReload(c.cache, w)
 
@@ -1151,6 +1155,64 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 			return
 		}
 	})
+}
+
+// Handle WebSocket connections that include token in Sec-WebSocket-Protocol
+// Some cluster setups don't support tokens via Sec-Websocket-Protocol value
+// Authorization header is more commonly supported and it also used by kubectl.
+func processWebSocketProtocolHeader(r *http.Request) {
+	secWebSocketProtocol := r.Header.Get("Sec-Websocket-Protocol")
+	if secWebSocketProtocol == "" {
+		return
+	}
+
+	// Split by comma and trim spaces to get all protocols
+	protocols := strings.Split(secWebSocketProtocol, ",")
+
+	var validProtocols []string
+
+	// This prefix is used to identify bearer tokens in the WebSocket protocol
+	const bearerTokenPrefix = "base64url.bearer.authorization.k8s.io." // #nosec G101
+
+	for _, protocol := range protocols {
+		protocol = strings.TrimSpace(protocol)
+
+		// Process protocols that contain tokens
+		if strings.HasPrefix(protocol, bearerTokenPrefix) {
+			processTokenProtocol(r, protocol, bearerTokenPrefix)
+		} else {
+			// Keep non-token protocols
+			validProtocols = append(validProtocols, protocol)
+		}
+	}
+
+	// Update the header with remaining valid protocols or remove it entirely
+	if len(validProtocols) > 0 {
+		r.Header.Set("Sec-WebSocket-Protocol", strings.Join(validProtocols, ", "))
+	} else {
+		r.Header.Del("Sec-WebSocket-Protocol")
+	}
+}
+
+// processTokenProtocol extracts a bearer token from a WebSocket protocol string
+// and sets it as an Authorization header if one doesn't already exist.
+func processTokenProtocol(r *http.Request, protocol, tokenPrefix string) {
+	// Only process if Authorization header is empty
+	if r.Header.Get("Authorization") != "" {
+		return
+	}
+
+	token := strings.TrimPrefix(protocol, tokenPrefix)
+	if token == "" {
+		return
+	}
+
+	// Try to decode token from base64
+	if decodedBytes, err := base64.URLEncoding.DecodeString(token); err == nil {
+		token = string(decodedBytes)
+	}
+
+	r.Header.Set("Authorization", "Bearer "+token)
 }
 
 func (c *HeadlampConfig) handleClusterRequests(router *mux.Router) {

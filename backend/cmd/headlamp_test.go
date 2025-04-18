@@ -1063,3 +1063,113 @@ func TestHandleClusterHelm(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessWebSocketProtocolHeader(t *testing.T) {
+	tests := []struct {
+		name                   string
+		initialHeader          http.Header
+		expectedAuthHeader     string
+		expectedProtocolHeader string
+	}{
+		{
+			name:                   "No Sec-Websocket-Protocol header",
+			initialHeader:          http.Header{},
+			expectedAuthHeader:     "",
+			expectedProtocolHeader: "",
+		},
+		{
+			name: "Header with non-token protocols",
+			initialHeader: http.Header{
+				"Sec-Websocket-Protocol": []string{"test"},
+			},
+			expectedAuthHeader:     "",
+			expectedProtocolHeader: "test",
+		},
+		{
+			name: "Header with single token protocol",
+			initialHeader: http.Header{
+				"Sec-Websocket-Protocol": []string{"base64url.bearer.authorization.k8s.io.dGVzdC10b2tlbg=="}, // "test-token"
+			},
+			expectedAuthHeader:     "Bearer test-token",
+			expectedProtocolHeader: "",
+		},
+		{
+			name: "Header with multiple protocols including token",
+			initialHeader: http.Header{
+				"Sec-Websocket-Protocol": []string{"test1, base64url.bearer.authorization.k8s.io.dGVzdC10b2tlbg==, test2"},
+			},
+			expectedAuthHeader:     "Bearer test-token",
+			expectedProtocolHeader: "test1, test2",
+		},
+		{
+			name: "Header with token protocol but Authorization already exists",
+			initialHeader: http.Header{
+				"Sec-Websocket-Protocol": []string{"base64url.bearer.authorization.k8s.io.dGVzdC10b2tlbg=="},
+				"Authorization":          []string{"Bearer existing-token"},
+			},
+			expectedAuthHeader:     "Bearer existing-token",
+			expectedProtocolHeader: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header = tt.initialHeader
+
+			processWebSocketProtocolHeader(req)
+
+			assert.Equal(t, tt.expectedAuthHeader, req.Header.Get("Authorization"))
+			assert.Equal(t, tt.expectedProtocolHeader, req.Header.Get("Sec-Websocket-Protocol"))
+		})
+	}
+}
+
+func TestProcessTokenProtocol(t *testing.T) {
+	const tokenPrefix = "base64url.bearer.authorization.k8s.io." // #nosec G101
+
+	tests := []struct {
+		name               string
+		protocol           string
+		initialAuthHeader  string
+		expectedAuthHeader string
+	}{
+		{
+			name:               "Valid token, no existing Auth header",
+			protocol:           tokenPrefix + "dGVzdC10b2tlbg==", // "test-token"
+			initialAuthHeader:  "",
+			expectedAuthHeader: "Bearer test-token",
+		},
+		{
+			name:               "Valid token, existing Auth header",
+			protocol:           tokenPrefix + "dGVzdC10b2tlbg==",
+			initialAuthHeader:  "Bearer existing-token",
+			expectedAuthHeader: "Bearer existing-token", // Should not overwrite
+		},
+		{
+			name:               "Empty token in protocol",
+			protocol:           tokenPrefix,
+			initialAuthHeader:  "",
+			expectedAuthHeader: "", // Should not set Auth header
+		},
+		{
+			name:               "Invalid base64 token",
+			protocol:           tokenPrefix + "invalid-base64",
+			initialAuthHeader:  "",
+			expectedAuthHeader: "Bearer invalid-base64", // Uses raw string if decode fails
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.initialAuthHeader != "" {
+				req.Header.Set("Authorization", tt.initialAuthHeader)
+			}
+
+			processTokenProtocol(req, tt.protocol, tokenPrefix)
+
+			assert.Equal(t, tt.expectedAuthHeader, req.Header.Get("Authorization"))
+		})
+	}
+}
