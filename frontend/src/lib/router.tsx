@@ -993,7 +993,14 @@ export function createRouteURL(routeName: string, params: RouteURLProps = {}) {
   }
 
   const url = getRoutePath(route);
-  return generatePath(url, fullParams);
+  let path = '';
+  try {
+    path = generatePath(url, fullParams);
+  } catch (e) {
+    console.error(`Error generating path for route ${routeName}: ${e}`);
+    return path;
+  }
+  return path;
 }
 
 export function getDefaultRoutes() {
