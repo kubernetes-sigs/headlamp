@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react';
-import { useTheme } from '@mui/material';
+import { Checkbox, DialogContentText, useTheme } from '@mui/material';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import ListItemText from '@mui/material/ListItemText';
@@ -27,23 +27,37 @@ import ErrorBoundary from '../../common/ErrorBoundary/ErrorBoundary';
 import ResourceTable from '../../common/Resource/ResourceTable';
 import RecentClusters from './RecentClusters';
 
-interface ContextMenuProps {
-  /** The cluster for the context menu to act on. */
-  cluster: Cluster;
+/**
+ * Gets the origin of a cluster.
+ *
+ * @param cluster
+ * @returns A description of where the cluster is picked up from: dynamic, in-cluster, or from a kubeconfig file.
+ */
+function getOrigin(cluster: Cluster, t: any): string {
+  if (cluster?.meta_data?.source === 'kubeconfig') {
+    const kubeconfigPath = process.env.KUBECONFIG ?? '~/.kube/config';
+    return `Kubeconfig: ${kubeconfigPath}`;
+  } else if (cluster.meta_data?.source === 'dynamic_cluster') {
+    return t('translation|Plugin');
+  } else if (cluster.meta_data?.source === 'in_cluster') {
+    return t('translation|In-cluster');
+  }
+  return 'Unknown';
 }
 
-function ContextMenu({ cluster }: ContextMenuProps) {
+function ContextMenu({ cluster }: { cluster: Cluster }) {
   const { t } = useTranslation(['translation']);
   const history = useHistory();
   const dispatch = useDispatch();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const menuId = useId('context-menu');
-  const [openConfirmDialog, setOpenConfirmDialog] = React.useState<string | null>(null);
-  const dialogs = useTypedSelector(state => state.clusterProvider.dialogs);
-  const menuItems = useTypedSelector(state => state.clusterProvider.menuItems);
+  const [openConfirmDialog, setOpenConfirmDialog] = React.useState(false);
+  const [deleteFromKubeconfig, setDeleteFromKubeconfig] = React.useState(false);
 
-  function removeCluster(cluster: Cluster) {
-    deleteCluster(cluster.name || '')
+  function removeCluster(cluster: Cluster, removeKubeconfig?: boolean) {
+    // to do: update for original name after merge - improve meta data branch
+    // deleteCluster(cluster?.meta_data?.originalName || cluster.name || '', removeKubeconfig)
+    deleteCluster(cluster.name || '', removeKubeconfig)
       .then(config => {
         dispatch(setConfig(config));
       })
@@ -55,6 +69,53 @@ function ContextMenu({ cluster }: ContextMenuProps) {
       .finally(() => {
         history.push('/');
       });
+  }
+
+  function removeClusterDescription(cluster: Cluster) {
+    function handleChoiceToggle() {
+      setDeleteFromKubeconfig(!deleteFromKubeconfig);
+    }
+
+    const description = t(
+      'translation|This action will remove cluster "{{ clusterName }}" from Headlamp.',
+      {
+        clusterName: cluster.name,
+      }
+    );
+
+    // to do: update for source name after merge - improve meta data branch
+    // const sourcePath = cluster.meta_data?.origin?.kubeconfig ? cluster.meta_data.origin.kubeconfig : getOrigin(cluster, t);
+
+    const removeFromKubeconfigDes =
+      cluster.meta_data?.source === 'kubeconfig' ? (
+        <Typography>
+          {t('translation|Remove from source {{ source }}', {
+            clusterName: cluster.name,
+            source: getOrigin(cluster, t),
+          })}
+        </Typography>
+      ) : null;
+
+    return (
+      <>
+        {description}
+        {removeFromKubeconfigDes && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              marginTop: '1rem',
+              marginBottom: '1rem',
+            }}
+          >
+            <Checkbox checked={deleteFromKubeconfig} onChange={handleChoiceToggle} />
+            <DialogContentText id="alert-dialog-description">
+              {removeFromKubeconfigDes}
+            </DialogContentText>
+          </Box>
+        )}
+      </>
+    );
   }
 
   function handleMenuClose() {
@@ -100,7 +161,8 @@ function ContextMenu({ cluster }: ContextMenuProps) {
         >
           <ListItemText>{t('translation|Settings')}</ListItemText>
         </MenuItem>
-        {helpers.isElectron() && cluster.meta_data?.source === 'dynamic_cluster' && (
+
+        {helpers.isElectron() && (
           <MenuItem
             onClick={() => {
               setOpenConfirmDialog('deleteDynamic');
@@ -123,33 +185,22 @@ function ContextMenu({ cluster }: ContextMenuProps) {
         })}
       </Menu>
       <ConfirmDialog
-        open={openConfirmDialog === 'deleteDynamic'}
-        handleClose={() => setOpenConfirmDialog('')}
+        open={openConfirmDialog}
+        handleClose={() => {
+          setOpenConfirmDialog(false);
+        }}
         onConfirm={() => {
           setOpenConfirmDialog('');
           removeCluster(cluster);
+          if (cluster.meta_data?.source !== 'dynamic_cluster') {
+            removeCluster(cluster, deleteFromKubeconfig);
+          } else {
+            removeCluster(cluster);
+          }
         }}
         title={t('translation|Delete Cluster')}
-        description={t(
-          'translation|Are you sure you want to remove the cluster "{{ clusterName }}"?',
-          {
-            clusterName: cluster.name,
-          }
-        )}
+        description={removeClusterDescription(cluster)}
       />
-      {openConfirmDialog !== null &&
-        dialogs.map((Dialog, index) => {
-          return (
-            <ErrorBoundary>
-              <Dialog
-                cluster={cluster}
-                openConfirmDialog={openConfirmDialog}
-                setOpenConfirmDialog={setOpenConfirmDialog}
-                key={index}
-              />
-            </ErrorBoundary>
-          );
-        })}
     </>
   );
 }
@@ -182,8 +233,8 @@ function ClusterStatus({ error }: { error?: ApiError | null }) {
             color: hasReachError
               ? theme.palette.home.status.error
               : !stateUnknown
-              ? theme.palette.home.status.success
-              : undefined,
+                ? theme.palette.home.status.success
+                : undefined,
           }}
         >
           {hasReachError ? error.message : stateUnknown ? '⋯' : t('translation|Active')}
@@ -270,29 +321,11 @@ function HomeComponent(props: HomeComponentProps) {
       .sort();
   }
 
-  /**
-   * Gets the origin of a cluster.
-   *
-   * @param cluster
-   * @returns A description of where the cluster is picked up from: dynamic, in-cluster, or from a kubeconfig file.
-   */
-  function getOrigin(cluster: Cluster): string {
-    if (cluster.meta_data?.source === 'kubeconfig') {
-      const kubeconfigPath = process.env.KUBECONFIG ?? '~/.kube/config';
-      return `Kubeconfig: ${kubeconfigPath}`;
-    } else if (cluster.meta_data?.source === 'dynamic_cluster') {
-      return t('translation|Plugin');
-    } else if (cluster.meta_data?.source === 'in_cluster') {
-      return t('translation|In-cluster');
-    }
-    return 'Unknown';
-  }
-
   const memoizedComponent = React.useMemo(
     () => (
       <PageGrid>
         <SectionBox headerProps={{ headerStyle: 'main' }} title={t('Home')}>
-          <RecentClusters clusters={Object.values(customNameClusters)} onButtonClick={() => {}} />
+          <RecentClusters clusters={Object.values(customNameClusters)} onButtonClick={() => { }} />
         </SectionBox>
         <SectionBox
           title={
@@ -318,10 +351,8 @@ function HomeComponent(props: HomeComponentProps) {
               },
               {
                 label: t('Origin'),
-                getValue: cluster => getOrigin(cluster),
-                render: ({ name }) => (
-                  <Typography variant="body2">{getOrigin(clusters[name])}</Typography>
-                ),
+                getValue: cluster => getOrigin(cluster, t),
+                render: cluster => <Typography variant="body2">{getOrigin(cluster, t)}</Typography>,
               },
               {
                 label: t('Status'),

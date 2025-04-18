@@ -3,13 +3,19 @@ import MuiDialog, { DialogProps as MuiDialogProps } from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
-import React, { ReactNode } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { DialogTitle } from './Dialog';
 
 export interface ConfirmDialogProps extends MuiDialogProps {
+  /**
+   * Title of the dialog box
+   */
   title: string;
-  description: ReactNode;
+  /**
+   * Description of the dialog box
+   */
+  description: React.ReactNode;
   onConfirm: () => void;
   handleClose: () => void;
   cancelLabel?: string;

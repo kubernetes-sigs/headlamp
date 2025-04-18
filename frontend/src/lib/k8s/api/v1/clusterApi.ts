@@ -75,10 +75,17 @@ export async function setCluster(clusterReq: ClusterRequest) {
   );
 }
 
-// @todo: needs documenting.
-
+/**
+ * The deleteCluster function sends a DELETE request to the backend to delete a cluster.
+ *
+ * If the removeKubeConfig parameter is true, it will also remove the cluster from the kubeconfig.
+ *
+ * @param cluster The name of the cluster to delete.
+ * @param removeKubeConfig Whether to remove the cluster from the kubeconfig. Defaults to false/unused.
+ */
 export async function deleteCluster(
-  cluster: string
+  cluster: string,
+  removeKubeConfig?: boolean
 ): Promise<{ clusters: ConfigState['clusters'] }> {
   if (cluster) {
     const kubeconfig = await findKubeconfigByClusterName(cluster);
@@ -89,12 +96,11 @@ export async function deleteCluster(
     }
   }
 
-  return request(
-    `/cluster/${cluster}`,
-    { method: 'DELETE', headers: { ...getHeadlampAPIHeaders() } },
-    false,
-    false
-  );
+  const url = removeKubeConfig
+    ? `/cluster/${cluster}?removeKubeConfig=true`
+    : `/cluster/${cluster}`;
+
+  return request(url, { method: 'DELETE', headers: { ...getHeadlampAPIHeaders() } }, false, false);
 }
 
 /**

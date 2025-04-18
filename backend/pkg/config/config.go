@@ -14,6 +14,7 @@ import (
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/providers/basicflag"
 	"github.com/knadh/koanf/providers/env"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
@@ -218,4 +219,176 @@ func GetDefaultKubeConfigPath() string {
 	homeDirectory := user.HomeDir
 
 	return filepath.Join(homeDirectory, ".kube", "config")
+}
+
+// DefaultKubeConfigPersistenceDir returns the default directory to store kubeconfig
+// files of clusters that are loaded in Headlamp.
+func DefaultKubeConfigPersistenceDir() (string, error) {
+	userConfigDir, err := os.UserConfigDir()
+
+	if err == nil {
+		kubeConfigDir := filepath.Join(userConfigDir, "Headlamp", "kubeconfigs")
+		if runtime.GOOS == "windows" {
+			// golang is wrong for config folder on windows.
+			// This matches env-paths and headlamp-plugin.
+			kubeConfigDir = filepath.Join(userConfigDir, "Headlamp", "Config", "kubeconfigs")
+		}
+
+		// Create the directory if it doesn't exist.
+		fileMode := 0o755
+
+		err = os.MkdirAll(kubeConfigDir, fs.FileMode(fileMode))
+		if err == nil {
+			return kubeConfigDir, nil
+		}
+	}
+
+	// if any error occurred, fallback to the current directory.
+	ex, err := os.Executable()
+	if err == nil {
+		return filepath.Dir(ex), nil
+	}
+
+	return "", fmt.Errorf("failed to get default kubeconfig persistence directory: %v", err)
+}
+
+func DefaultKubeConfigPersistenceFile() (string, error) {
+	kubeConfigDir, err := DefaultKubeConfigPersistenceDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(kubeConfigDir, "config"), nil
+}
+
+// collectMultiConfigPaths looks at the default dynamic directory
+// (e.g. ~/.config/Headlamp/kubeconfigs) and returns any files found there.
+// This is called from the 'else' block in deleteCluster().
+//
+//nolint:prealloc
+func CollectMultiConfigPaths() ([]string, error) {
+	dynamicDir, err := DefaultKubeConfigPersistenceDir()
+	if err != nil {
+		return nil, fmt.Errorf("getting default kubeconfig persistence dir: %w", err)
+	}
+
+	entries, err := os.ReadDir(dynamicDir)
+	if err != nil {
+		return nil, fmt.Errorf("reading dynamic kubeconfig directory: %w", err)
+	}
+
+	var configPaths []string
+
+	for _, entry := range entries {
+		// Optionally skip directories or non-kubeconfig files, if needed.
+		if entry.IsDir() {
+			continue
+		}
+
+		// Validate known kubeconfig file extensions
+		if !strings.HasSuffix(entry.Name(), ".yaml") && !strings.HasSuffix(entry.Name(), ".yml") {
+			continue
+		}
+
+		filePath := filepath.Join(dynamicDir, entry.Name())
+
+		configPaths = append(configPaths, filePath)
+	}
+
+	return configPaths, nil
+}
+
+// RemoveContextFromConfigs does the real iteration over the configPaths.
+func RemoveContextFromConfigs(contextName string, configPaths []string) error {
+	var removed bool
+
+	for _, filePath := range configPaths {
+		logger.Log(
+			logger.LevelInfo,
+			map[string]string{
+				"cluster":                   contextName,
+				"kubeConfigPersistenceFile": filePath,
+			},
+			nil,
+			"Trying to remove context from kubeconfig",
+		)
+
+		err := kubeconfig.RemoveContextFromFile(contextName, filePath)
+		if err == nil {
+			removed = true
+
+			logger.Log(logger.LevelInfo,
+				map[string]string{"cluster": contextName, "file": filePath},
+				nil, "Removed context from kubeconfig",
+			)
+
+			break
+		}
+
+		if strings.Contains(err.Error(), "context not found") {
+			logger.Log(logger.LevelInfo,
+				map[string]string{"cluster": contextName, "file": filePath},
+				nil, "Context not in this file; checking next.",
+			)
+
+			continue
+		}
+
+		logger.Log(logger.LevelError,
+			map[string]string{"cluster": contextName},
+			err, "removing cluster from kubeconfig",
+		)
+
+		return err
+	}
+
+	if !removed {
+		e := fmt.Errorf("context %q not found in any provided kubeconfig file(s)", contextName)
+
+		logger.Log(
+			logger.LevelError,
+			map[string]string{"cluster": contextName},
+			e,
+			"context not found in any file",
+		)
+
+		return e
+	}
+
+	return nil
+}
+
+func RemoveContextFromDefaultKubeConfig(
+	contextName string,
+	configPaths ...string,
+) error {
+	// Check if contextName is empty
+	if contextName == "" {
+		return fmt.Errorf("context name cannot be empty")
+	}
+
+	// If no specific paths passed, fallback to the default.
+	if len(configPaths) == 0 {
+		discoveredPath, err := DefaultKubeConfigPersistenceFile()
+		if err != nil {
+			logger.Log(
+				logger.LevelError,
+				map[string]string{"cluster": contextName},
+				err,
+				"getting default kubeconfig persistence file",
+			)
+
+			return fmt.Errorf("getting default kubeconfig persistence file: %w", err)
+		}
+
+		configPaths = []string{discoveredPath}
+	}
+
+	// Check if configPaths is empty
+	if len(configPaths) == 0 {
+		return fmt.Errorf("no config paths provided")
+	}
+
+	// Hand off to a small helper function that handles multi-file iteration.
+	return RemoveContextFromConfigs(contextName, configPaths)
 }

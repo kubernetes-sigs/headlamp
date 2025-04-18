@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -511,4 +512,29 @@ func TestHandleConfigLoadError(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestRemoveContextFromDefaultKubeConfig(t *testing.T) {
+	// 1) Create a temp directory for our test kubeconfig
+	tmpDir := t.TempDir()
+	mockConfigFile := filepath.Join(tmpDir, "config")
+
+	// 2) Copy "kubeconfig_remove" (which includes 'kubedelta') into that file
+	testDataPath := filepath.Join("test_data", "kubeconfig_remove")
+	testData, err := os.ReadFile(testDataPath)
+	require.NoError(t, err, "failed to read test data for 'kubeconfig_remove'")
+
+	err = os.WriteFile(mockConfigFile, testData, 0o600)
+	require.NoError(t, err, "failed to write test kubeconfig")
+
+	// 4) Call removeContextFromDefaultKubeConfig with our mock path as the third param
+	err = config.RemoveContextFromDefaultKubeConfig("random-cluster-x", mockConfigFile)
+	require.NoError(t, err, "removeContextFromDefaultKubeConfig should succeed")
+
+	// 5) Verify 'random-cluster-x' is removed from the file
+	updatedData, err := os.ReadFile(mockConfigFile)
+	require.NoError(t, err, "failed to read updated kubeconfig")
+
+	require.NotContains(t, string(updatedData), "random-cluster-x",
+		"Expected 'random-cluster-x' context to be removed from kubeconfig")
 }

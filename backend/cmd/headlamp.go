@@ -27,6 +27,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -246,40 +247,11 @@ func serveWithNoCacheHeader(fs http.Handler) http.HandlerFunc {
 // defaultKubeConfigPersistenceDir returns the default directory to store kubeconfig
 // files of clusters that are loaded in Headlamp.
 func defaultKubeConfigPersistenceDir() (string, error) {
-	userConfigDir, err := os.UserConfigDir()
-	if err == nil {
-		kubeConfigDir := filepath.Join(userConfigDir, "Headlamp", "kubeconfigs")
-		if isWindows {
-			// golang is wrong for config folder on windows.
-			// This matches env-paths and headlamp-plugin.
-			kubeConfigDir = filepath.Join(userConfigDir, "Headlamp", "Config", "kubeconfigs")
-		}
-
-		// Create the directory if it doesn't exist.
-		fileMode := 0o755
-
-		err = os.MkdirAll(kubeConfigDir, fs.FileMode(fileMode))
-		if err == nil {
-			return kubeConfigDir, nil
-		}
-	}
-
-	// if any error occurred, fallback to the current directory.
-	ex, err := os.Executable()
-	if err == nil {
-		return filepath.Dir(ex), nil
-	}
-
-	return "", fmt.Errorf("failed to get default kubeconfig persistence directory: %v", err)
+	return config.DefaultKubeConfigPersistenceDir()
 }
 
 func defaultKubeConfigPersistenceFile() (string, error) {
-	kubeConfigDir, err := defaultKubeConfigPersistenceDir()
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(kubeConfigDir, "config"), nil
+	return config.DefaultKubeConfigPersistenceFile()
 }
 
 // addPluginRoutes adds plugin routes to a router.
@@ -1471,28 +1443,42 @@ func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	kubeConfigPersistenceFile, err := defaultKubeConfigPersistenceFile()
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": name},
-			err, "getting default kubeconfig persistence file")
-		http.Error(w, "getting default kubeconfig persistence file", http.StatusInternalServerError)
+	removeKubeConfig := r.URL.Query().Get("removeKubeConfig") == "true"
 
-		return
+	if removeKubeConfig {
+		kubeConfigFile := config.GetDefaultKubeConfigPath()
+
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"cluster": name},
+				err, "failed to get default kubeconfig file path")
+			http.Error(w, "failed to get default kubeconfig file path", http.StatusInternalServerError)
+
+			return
+		}
+
+		err = kubeconfig.RemoveContextFromFile(name, kubeConfigFile)
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"cluster": name},
+				err, "removing context from default kubeconfig file")
+			http.Error(w, "removing context from default kubeconfig file", http.StatusInternalServerError)
+
+			return
+		}
 	}
 
-	logger.Log(logger.LevelInfo, map[string]string{
-		"cluster":                   name,
-		"kubeConfigPersistenceFile": kubeConfigPersistenceFile,
-	},
-		nil, "Removing cluster from kubeconfig")
+	if !removeKubeConfig {
+		configPathsList, pathErr := config.CollectMultiConfigPaths()
+		if pathErr != nil {
+			logger.Log(logger.LevelError, map[string]string{"cluster": name},
+				pathErr, "collecting multi config paths")
+			http.Error(w, "collecting multi config paths", http.StatusInternalServerError)
 
-	err = kubeconfig.RemoveContextFromFile(name, kubeConfigPersistenceFile)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": name},
-			err, "removing cluster from kubeconfig")
-		http.Error(w, "removing cluster from kubeconfig", http.StatusInternalServerError)
+			return
+		}
 
-		return
+		if err := config.RemoveContextFromDefaultKubeConfig(name, configPathsList...); err != nil {
+			return
+		}
 	}
 
 	logger.Log(logger.LevelInfo, map[string]string{"cluster": name, "proxy": name},
