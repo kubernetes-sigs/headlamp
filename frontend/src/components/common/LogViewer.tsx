@@ -46,6 +46,7 @@ export function LogViewer(props: LogViewerProps) {
   const searchAddonRef = React.useRef<any>(null);
   const [terminalContainerRef, setTerminalContainerRef] = React.useState<HTMLElement | null>(null);
   const [showSearch, setShowSearch] = React.useState(false);
+  const [isWordBreakEnabled, setIsWordBreakEnabled] = React.useState(true);
 
   useHotkeys('ctrl+shift+f', () => {
     setShowSearch(true);
@@ -62,6 +63,42 @@ export function LogViewer(props: LogViewerProps) {
     // Required for FireFox
     document.body.appendChild(element);
     element.click();
+  }
+
+  function wordBreakText(logs: string[], terminalWidth: number): string {
+    const wordBreakLogs: string[] = [];
+
+    logs.forEach(originalLine => {
+      const line = originalLine;
+
+      const subLine = line.split('\n');
+
+      subLine.forEach((part, index) => {
+        let newPart = part;
+
+        while (newPart.length > terminalWidth) {
+          let newLineIndex = terminalWidth;
+          while (newPart[newLineIndex] !== ' ') {
+            newLineIndex--;
+          }
+
+          const newPartSlice = newPart.slice(0, newLineIndex) + '\n';
+          wordBreakLogs.push(newPartSlice);
+
+          newPart = newPart.slice(newLineIndex + 1);
+        }
+
+        if (index < subLine.length - 1) {
+          newPart += '\n';
+        }
+
+        wordBreakLogs.push(newPart);
+      });
+    });
+
+    const newLogs = wordBreakLogs;
+
+    return newLogs.join('').replaceAll('\n', '\r\n');
   }
 
   React.useEffect(() => {
@@ -97,6 +134,8 @@ export function LogViewer(props: LogViewerProps) {
     const pageResizeHandler = () => {
       fitAddonRef.current!.fit();
       console.debug('resize');
+      xtermRef.current?.clear();
+      xtermRef.current?.write(getJointLogs());
     };
     window.addEventListener('resize', pageResizeHandler);
 
@@ -106,7 +145,7 @@ export function LogViewer(props: LogViewerProps) {
       searchAddonRef.current?.dispose();
       xtermRef.current = null;
     };
-  }, [terminalContainerRef, xtermRef.current]);
+  }, [terminalContainerRef, xtermRef.current, isWordBreakEnabled]);
 
   React.useEffect(() => {
     if (!xtermRef.current) {
@@ -122,10 +161,25 @@ export function LogViewer(props: LogViewerProps) {
     xtermRef.current?.write(getJointLogs());
 
     return function cleanup() {};
-  }, [logs, xtermRef]);
+  }, [logs, xtermRef, isWordBreakEnabled]);
 
   function getJointLogs() {
-    return logs?.join('').replaceAll('\n', '\r\n');
+    fitAddonRef.current!.fit();
+    const terminalWidth = xtermRef.current?.cols || 80;
+    if (isWordBreakEnabled) {
+      return wordBreakText(logs, terminalWidth);
+    } else {
+      return logs?.join('').replaceAll('\n', '\r\n');
+    }
+  }
+
+  function handleWordBreakText() {
+    setIsWordBreakEnabled(!isWordBreakEnabled);
+    xtermRef.current?.clear();
+    xtermRef.current?.write(getJointLogs());
+    setTimeout(() => {
+      fitAddonRef.current!.fit();
+    }, 1);
   }
 
   return (
@@ -169,6 +223,17 @@ export function LogViewer(props: LogViewerProps) {
                 {component}
               </Grid>
             ))}
+          </Grid>
+          <Grid item xs>
+            <ActionButton
+              description={
+                isWordBreakEnabled
+                  ? t('translation|Disable Word Break')
+                  : t('translation|Enable Word Break')
+              }
+              onClick={handleWordBreakText}
+              icon={isWordBreakEnabled ? 'mdi:wrap' : 'mdi:wrap-disabled'}
+            />
           </Grid>
           <Grid item xs>
             <ActionButton
