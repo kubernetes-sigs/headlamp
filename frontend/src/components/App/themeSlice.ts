@@ -117,12 +117,26 @@ const themeSlice = createSlice({
       state.appThemes = state.appThemes.filter(it => it.name !== action.payload.name);
       state.appThemes.push(action.payload);
     },
+    /** Checks if the selected theme name doesn't exist anymore and sets a fallback */
+    ensureValidThemeName(state) {
+      const existingTheme = state.appThemes.find(it => it.name === state.name);
+      if (!existingTheme) {
+        // Remove cached theme name so that getThemeName returns theme that
+        // preferred by OS and not the cached name
+        setAppTheme('');
+        const defaultThemeName = getThemeName();
+        state.name = defaultThemeName;
+        setAppTheme(defaultThemeName);
+      }
+    },
   },
 });
 
 export const useAppThemes = () => {
   return useTypedSelector(state => state.theme.appThemes);
 };
+
+const currentThemeCacheKey = 'cached-current-theme';
 
 export const useCurrentAppTheme = () => {
   let themeName = useTypedSelector(state => state.theme.name);
@@ -131,7 +145,24 @@ export const useCurrentAppTheme = () => {
   }
   const allThemes = useAppThemes();
 
-  return allThemes.find(it => it.name === themeName) ?? defaultAppThemes[0];
+  let currentTheme = allThemes.find(it => it.name === themeName);
+
+  if (currentTheme) {
+    localStorage.setItem(currentThemeCacheKey, JSON.stringify(currentTheme));
+  } else {
+    // Try to load cached theme
+    try {
+      const cachedTheme = JSON.parse(localStorage.getItem(currentThemeCacheKey) ?? '') as
+        | AppTheme
+        | undefined;
+
+      if (cachedTheme && cachedTheme?.name === themeName) {
+        currentTheme = cachedTheme;
+      }
+    } catch (e) {}
+  }
+
+  return currentTheme ?? defaultAppThemes[0];
 };
 
 export const { setBrandingAppLogoComponent, setTheme } = themeSlice.actions;

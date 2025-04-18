@@ -173,3 +173,10 @@ The plugins can have user-configurable settings that can be used to change the b
 - Example plugin shows [How to create plugin settings and use them](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/change-logo)
 
 ![screenshot of the plugin settings](../images/plugin-settings.png)
+
+### App Theme
+
+Add a new custom Headlamp theme using [registerAppTheme](../../api/plugin/registry/functions/registerapptheme).
+Theme definition is an object, name must be unique and you must specify 'light' or 'dark' base for the theme.
+
+Check the full [AppTheme](../../api/lib/AppTheme/interfaces/AppTheme.md) definition for all of the properties you can customize.

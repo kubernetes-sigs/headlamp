@@ -19,6 +19,7 @@ import * as ReactRedux from 'react-redux';
 import * as ReactRouter from 'react-router-dom';
 import * as Recharts from 'recharts';
 import semver from 'semver';
+import { themeSlice } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
 import { getAppUrl } from '../helpers/getAppUrl';
 import { isElectron } from '../helpers/isElectron';
@@ -352,4 +353,7 @@ export async function fetchAndExecutePlugins(
       data: { plugins: pluginsLoaded },
     })
   );
+
+  // Refresh theme name if the theme that was used from a plugin was deleted
+  store.dispatch(themeSlice.actions.ensureValidThemeName());
 }

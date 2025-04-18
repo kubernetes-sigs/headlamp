@@ -3,7 +3,7 @@ import React, { ReactNode } from 'react';
 import { AppLogoProps, AppLogoType } from '../components/App/AppLogo';
 import { PluginManager } from '../components/App/pluginManager';
 import { runCommand } from '../components/App/runCommand';
-import { setBrandingAppLogoComponent } from '../components/App/themeSlice';
+import { setBrandingAppLogoComponent, themeSlice } from '../components/App/themeSlice';
 import { ClusterChooserProps, ClusterChooserType } from '../components/cluster/ClusterChooser';
 import {
   addResourceTableColumnsProcessor,
@@ -22,6 +22,7 @@ import { graphViewSlice, IconDefinition } from '../components/resourceMap/graphV
 import { DefaultSidebars, SidebarEntryProps } from '../components/Sidebar';
 import { setSidebarItem, setSidebarItemFilter } from '../components/Sidebar/sidebarSlice';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
+import { AppTheme } from '../lib/AppTheme';
 import { KubeObject } from '../lib/k8s/KubeObject';
 import { Route } from '../lib/router';
 import {
@@ -877,6 +878,27 @@ export function registerClusterProviderDialog(item: DialogComponent) {
  */
 export function registerAddClusterProvider(item: ClusterProviderInfo) {
   store.dispatch(addAddClusterProvider(item));
+}
+
+/**
+ * Add a new theme that will be available in the settings.
+ * Theme name should be unique
+ *
+ * @param theme - App Theme definition
+ *
+ * @example
+ *
+ * ```ts
+ * registerAppTheme({
+ *   name: "My Custom Theme",
+ *   base: "light",
+ *   primary: "#ff0000",
+ *   secondary: "#333",
+ * })
+ *
+ */
+export function registerAppTheme(theme: AppTheme) {
+  store.dispatch(themeSlice.actions.addCustomAppTheme(theme));
 }
 
 /**
