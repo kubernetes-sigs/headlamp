@@ -21,46 +21,36 @@ const ROUTES_WITHOUT_ALERT = ['login', 'token', 'settingsCluster'];
 export function PureAlertNotification({ checkerFunction }: PureAlertNotificationProps) {
   const [networkStatusCheckTimeFactor, setNetworkStatusCheckTimeFactor] = React.useState(0);
   const [error, setError] = React.useState<null | string | boolean>(null);
-  const [intervalID, setIntervalID] = React.useState<NodeJS.Timeout | null>(null);
   const { t } = useTranslation();
   const { pathname } = useLocation();
 
-  function registerSetInterval(): NodeJS.Timeout {
-    return setInterval(() => {
-      if (!window.navigator.onLine) {
-        setError(t('translation|Offline') as string);
-        return;
-      }
+  const performHealthCheck = React.useCallback(() => {
+    if (!window.navigator.onLine) {
+      setError('Offline');
+      return;
+    }
 
-      // Don't check for the cluster health if we are not on a cluster route.
-      if (!getCluster()) {
-        setError(null);
-        return;
-      }
+    // Don't check for the cluster health if we are not on a cluster route.
+    if (!getCluster()) {
+      setError(null);
+      return;
+    }
 
-      checkerFunction()
-        .then(() => {
-          setError(false);
-        })
-        .catch(err => {
-          const error = new Error(err);
-          setError(error.message);
-          setNetworkStatusCheckTimeFactor(
-            (networkStatusCheckTimeFactor: number) => networkStatusCheckTimeFactor + 1
-          );
-        });
-    }, (networkStatusCheckTimeFactor + 1) * NETWORK_STATUS_CHECK_TIME);
-  }
+    return checkerFunction()
+      .then(() => setError(false))
+      .catch(err => {
+        setError(err.message);
+        setNetworkStatusCheckTimeFactor(prev => prev + 1);
+      });
+  }, []);
 
-  React.useEffect(
-    () => {
-      const id = registerSetInterval();
-      setIntervalID(id);
-      return () => clearInterval(id);
-    },
-    // eslint-disable-next-line
-    []
-  );
+  React.useEffect(() => {
+    const interval = setInterval(
+      performHealthCheck,
+      (networkStatusCheckTimeFactor + 1) * NETWORK_STATUS_CHECK_TIME
+    );
+    return () => clearInterval(interval);
+  }, [performHealthCheck, networkStatusCheckTimeFactor]);
 
   // Make sure we do not show the alert notification if we are not on a cluster route.
   React.useEffect(() => {
@@ -68,19 +58,6 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
       setError(null);
     }
   }, [pathname]);
-
-  React.useEffect(
-    () => {
-      if (intervalID) {
-        clearInterval(intervalID);
-      }
-      const id = registerSetInterval();
-      setIntervalID(id);
-      return () => clearInterval(id);
-    },
-    // eslint-disable-next-line
-    [networkStatusCheckTimeFactor]
-  );
 
   const showOnRoute = React.useMemo(() => {
     for (const route of ROUTES_WITHOUT_ALERT) {
@@ -130,7 +107,7 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
               background: theme.palette.error.dark,
             },
           })}
-          onClick={() => setNetworkStatusCheckTimeFactor(0)}
+          onClick={performHealthCheck}
           size="small"
         >
           {t('translation|Try Again')}
