@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import helpers from '../../../helpers';
+import { usePlugins } from '../../../lib/k8s/api/v2/plugins';
 import { useFilterFunc } from '../../../lib/util';
 import { PluginInfo, reloadPage, setPluginSettings } from '../../../plugin/pluginsSlice';
 import { useTypedSelector } from '../../../redux/reducers/reducers';
@@ -285,9 +286,15 @@ export default function PluginSettings() {
 
   const pluginSettings = useTypedSelector(state => state.plugins.pluginSettings);
 
+  const { data: plugins } = usePlugins(pluginSettings);
+
+  if (!plugins?.length) {
+    return null;
+  }
+
   return (
     <PluginSettingsPure
-      plugins={pluginSettings}
+      plugins={plugins}
       onSave={plugins => {
         dispatch(setPluginSettings(plugins));
         dispatch(reloadPage());
