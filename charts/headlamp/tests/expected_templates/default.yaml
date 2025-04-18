@@ -5,10 +5,10 @@ kind: ServiceAccount
 metadata:
   name: headlamp
   labels:
-    helm.sh/chart: headlamp-0.28.0
+    helm.sh/chart: headlamp-0.30.1
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.28.0"
+    app.kubernetes.io/version: "0.30.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: headlamp/templates/secret.yaml
@@ -25,10 +25,10 @@ kind: ClusterRoleBinding
 metadata:
   name: headlamp-admin
   labels:
-    helm.sh/chart: headlamp-0.28.0
+    helm.sh/chart: headlamp-0.30.1
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.28.0"
+    app.kubernetes.io/version: "0.30.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -45,13 +45,14 @@ kind: Service
 metadata:
   name: headlamp
   labels:
-    helm.sh/chart: headlamp-0.28.0
+    helm.sh/chart: headlamp-0.30.1
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.28.0"
+    app.kubernetes.io/version: "0.30.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   type: ClusterIP
+  
   ports:
     - port: 80
       targetPort: http
@@ -62,15 +63,18 @@ spec:
     app.kubernetes.io/instance: headlamp
 ---
 # Source: headlamp/templates/deployment.yaml
+# This block of code is used to extract the values from the env.
+# This is done to check if the values are non-empty and if they are, they are used in the deployment.yaml.
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: headlamp
   labels:
-    helm.sh/chart: headlamp-0.28.0
+    helm.sh/chart: headlamp-0.30.1
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.28.0"
+    app.kubernetes.io/version: "0.30.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -94,13 +98,14 @@ spec:
             runAsGroup: 101
             runAsNonRoot: true
             runAsUser: 100
-          image: "ghcr.io/headlamp-k8s/headlamp:v0.23.1"
+          image: "ghcr.io/headlamp-k8s/headlamp:v0.30.0"
           imagePullPolicy: IfNotPresent
           
           env:
           args:
             - "-in-cluster"
             - "-plugins-dir=/headlamp/plugins"
+            # Check if externalSecret is disabled
           ports:
             - name: http
               containerPort: 4466
