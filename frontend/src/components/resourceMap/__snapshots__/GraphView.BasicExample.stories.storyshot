@@ -820,20 +820,6 @@
               style="pointer-events: all;"
             />
             <div
-              class="react-flow__panel react-flow__attribution bottom right"
-              data-message="Please only hide this attribution when you are subscribed to React Flow Pro: https://pro.reactflow.dev"
-              style="pointer-events: all;"
-            >
-              <a
-                aria-label="React Flow attribution"
-                href="https://reactflow.dev"
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                React Flow
-              </a>
-            </div>
-            <div
               id="react-flow__node-desc-1"
               style="display: none;"
             >

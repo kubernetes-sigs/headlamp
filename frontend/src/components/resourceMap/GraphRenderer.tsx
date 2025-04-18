@@ -80,6 +80,7 @@ export function GraphRenderer({
       }}
       minZoom={minZoom}
       maxZoom={maxZoom}
+      proOptions={{ hideAttribution: true }}
       connectionMode={ConnectionMode.Loose}
     >
       <Background variant={BackgroundVariant.Dots} style={{ color: theme.palette.divider }} />
