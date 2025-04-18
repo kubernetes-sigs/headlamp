@@ -90,9 +90,6 @@
   "Add namespace": "ネームスペースの追加",
   "Remove Cluster": "クラスターの削除",
   "Server": "サーバー",
-  "light theme": "ライトテーマ",
-  "dark theme": "ダークテーマ",
-  "Change theme": "テーマを変更",
   "Log out": "ログアウト",
   "(No token set up)": "(トークンが設定されていません)",
   "Account of current user": "現在のユーザーのアカウント",
@@ -173,7 +170,6 @@
   "All namespaces": "すべてのネームスペース",
   "From": "送信元",
   "Age": "経過時間",
-  "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_one": "{{ eventDate }} ({{ firstEventDate }} 以来 {{ count }} 回)",
   "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_other": "{{ eventDate }} ({{ firstEventDate }} 以来 {{ count }} 回)",
   "Release Notes ({{ appVersion }})": "リリースノート ({{ appVersion }})",
   "Fetching release information…": "リリース情報を取得中…",
@@ -370,8 +366,6 @@
   "Press<1>/</1>to search": "<1>/</1>キーを押して検索",
   "Search resources, pages, clusters by name": "名前でリソース、ページ、クラスターを検索",
   "Page": "ページ",
-  "Use light theme": "ライトテーマを使用",
-  "Use dark theme": "ダークテーマを使用",
   "Reference": "参照",
   "Metrics": "メトリクス",
   "(Current/Target)": "(現在/ターゲット)",
@@ -478,5 +472,6 @@
   "\"{{metricName}}\" on pods": "ポッドの \"{{metricName}}\"",
   "resource {{resourceName}} on pods": "ポッドのリソース {{resourceName}} on pods",
   "resource {{resourceName}} of container {{containerName}} on pods": "ポッドのコンテナー {{containerName}} のリソース {{resourceName}}",
-  "Warning. Incompatible plugins disabled: ({{ pluginList }})": "警告。互換性のないプラグインを無効にしました: ({{ pluginList }})"
+  "Warning. Incompatible plugins disabled: ({{ pluginList }})": "警告。互換性のないプラグインを無効にしました: ({{ pluginList }})",
+  "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_one": "{{ eventDate }} ({{ firstEventDate }} 以来 {{ count }} 回)"
 }
