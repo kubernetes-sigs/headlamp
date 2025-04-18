@@ -13,6 +13,7 @@ export const supportedLanguages: { [langCode: string]: string } = {
   de: 'Deutsch',
   it: 'Italiano',
   'zh-TW': '繁體中文',
+  ja: '日本語',
 };
 
 i18next

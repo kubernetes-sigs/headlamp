@@ -20,6 +20,7 @@ import { MRT_Localization_EN } from 'material-react-table/locales/en';
 import { MRT_Localization_ES } from 'material-react-table/locales/es';
 import { MRT_Localization_FR } from 'material-react-table/locales/fr';
 import { MRT_Localization_IT } from 'material-react-table/locales/it';
+import { MRT_Localization_JA } from 'material-react-table/locales/ja';
 import { MRT_Localization_PT } from 'material-react-table/locales/pt';
 import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -131,6 +132,7 @@ const tableLocalizationMap: Record<string, MRT_Localization> = {
   es: MRT_Localization_ES,
   fr: MRT_Localization_FR,
   it: MRT_Localization_IT,
+  ja: MRT_Localization_JA,
   pt: MRT_Localization_PT,
 };
 
