@@ -36,7 +36,7 @@ func main() {
 	kubeConfigStore := kubeconfig.NewContextStore()
 	multiplexer := NewMultiplexer(kubeConfigStore)
 
-	StartHeadlampServer(&HeadlampConfig{
+	headlampConfig := &HeadlampConfig{
 		useInCluster:          conf.InCluster,
 		kubeConfigPath:        conf.KubeConfigPath,
 		skippedKubeContexts:   conf.SkippedKubeContexts,
@@ -50,6 +50,7 @@ func main() {
 		oidcClientSecret:      conf.OidcClientSecret,
 		oidcIdpIssuerURL:      conf.OidcIdpIssuerURL,
 		oidcScopes:            strings.Split(conf.OidcScopes, ","),
+		oidcSkipTLSVerify:     conf.OidcSkipTLSVerify,
 		baseURL:               conf.BaseURL,
 		proxyURLs:             strings.Split(conf.ProxyURLs, ","),
 		enableHelm:            conf.EnableHelm,
@@ -57,5 +58,17 @@ func main() {
 		cache:                 cache,
 		kubeConfigStore:       kubeConfigStore,
 		multiplexer:           multiplexer,
-	})
+	}
+
+	if conf.OidcCAFile != "" {
+		caFile, err := os.ReadFile(conf.OidcCAFile)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "reading oidc-ca-file")
+			os.Exit(1)
+		}
+
+		headlampConfig.oidcCACert = string(caFile)
+	}
+
+	StartHeadlampServer(headlampConfig)
 }
