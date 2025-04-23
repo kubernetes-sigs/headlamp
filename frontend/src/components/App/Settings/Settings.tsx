@@ -1,4 +1,4 @@
-import { Box, MenuItem, Select, Switch } from '@mui/material';
+import { Box, Switch } from '@mui/material';
 import { capitalize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -72,24 +72,36 @@ export default function Settings() {
           {
             name: t('translation|Theme'),
             value: (
-              <Select
-                variant="outlined"
-                size="small"
-                defaultValue={themeName}
-                onChange={e => {
-                  dispatch(setTheme(e.target.value as string));
-                  console.log(e, e.target.value);
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+                  gap: 2,
                 }}
               >
                 {appThemes.map(it => (
-                  <MenuItem key={it.name} value={it.name}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <ThemePreview theme={it} />
-                      {capitalize(it.name)}
-                    </Box>
-                  </MenuItem>
+                  <Box
+                    key={it.name}
+                    sx={{
+                      cursor: 'pointer',
+                      border: themeName === it.name ? '2px solid' : '1px solid #ccc',
+                      borderRadius: 2,
+                      p: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      transition: '0.2 ease',
+                      '&:hover': {
+                        boxShadow: '0 0 8px rgba(0,0,0,0.2)',
+                      },
+                    }}
+                    onClick={() => dispatch(setTheme(it.name))}
+                  >
+                    <ThemePreview theme={it} />
+                    <Box sx={{ mt: 1 }}>{capitalize(it.name)}</Box>
+                  </Box>
                 ))}
-              </Select>
+              </Box>
             ),
           },
           {

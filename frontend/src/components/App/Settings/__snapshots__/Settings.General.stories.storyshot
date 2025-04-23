@@ -140,76 +140,101 @@
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
           >
             <div
-              class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-sizeSmall  css-uwmwwo-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
+              class="MuiBox-root css-c8v7ee"
             >
               <div
-                aria-controls=":mock-test-id:"
-                aria-expanded="false"
-                aria-haspopup="listbox"
-                class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
-                role="combobox"
-                tabindex="0"
+                class="MuiBox-root css-57y83x"
               >
                 <div
-                  class="MuiBox-root css-axw7ok"
+                  class="MuiBox-root css-1ii52co"
                 >
                   <div
-                    class="MuiBox-root css-1ii52co"
-                  >
-                    <div
-                      class="MuiBox-root css-1f1uc6a"
-                    />
-                    <div
-                      class="MuiBox-root css-1z0uf79"
-                    />
-                    <div
-                      class="MuiBox-root css-5zxu0k"
-                    />
-                    <div
-                      class="MuiBox-root css-1oxk0si"
-                    />
-                    <div
-                      class="MuiBox-root css-jkymop"
-                    />
-                    <div
-                      class="MuiBox-root css-n01h7b"
-                    />
-                  </div>
+                    class="MuiBox-root css-1f1uc6a"
+                  />
+                  <div
+                    class="MuiBox-root css-1z0uf79"
+                  />
+                  <div
+                    class="MuiBox-root css-5zxu0k"
+                  />
+                  <div
+                    class="MuiBox-root css-1oxk0si"
+                  />
+                  <div
+                    class="MuiBox-root css-jkymop"
+                  />
+                  <div
+                    class="MuiBox-root css-n01h7b"
+                  />
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
                   Light
                 </div>
               </div>
-              <input
-                aria-hidden="true"
-                aria-invalid="false"
-                class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
-                tabindex="-1"
-                value="light"
-              />
-              <svg
-                aria-hidden="true"
-                class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiSelect-icon MuiSelect-iconOutlined css-hfutr2-MuiSvgIcon-root-MuiSelect-icon"
-                data-testid="ArrowDropDownIcon"
-                focusable="false"
-                viewBox="0 0 24 24"
+              <div
+                class="MuiBox-root css-sq68dl"
               >
-                <path
-                  d="M7 10l5 5 5-5z"
-                />
-              </svg>
-              <fieldset
-                aria-hidden="true"
-                class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
-              >
-                <legend
-                  class="css-ihdtdm"
+                <div
+                  class="MuiBox-root css-11gsf11"
                 >
-                  <span
-                    class="notranslate"
-                  >
-                    ​
-                  </span>
-                </legend>
-              </fieldset>
+                  <div
+                    class="MuiBox-root css-il3h2l"
+                  />
+                  <div
+                    class="MuiBox-root css-1z0uf79"
+                  />
+                  <div
+                    class="MuiBox-root css-3dcp9m"
+                  />
+                  <div
+                    class="MuiBox-root css-1coq5wc"
+                  />
+                  <div
+                    class="MuiBox-root css-ew82rx"
+                  />
+                  <div
+                    class="MuiBox-root css-1ep3rs4"
+                  />
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
+                  Dark
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-sq68dl"
+              >
+                <div
+                  class="MuiBox-root css-1ii52co"
+                >
+                  <div
+                    class="MuiBox-root css-1aoxae"
+                  />
+                  <div
+                    class="MuiBox-root css-1xqumfe"
+                  />
+                  <div
+                    class="MuiBox-root css-19czym2"
+                  />
+                  <div
+                    class="MuiBox-root css-1swhc7p"
+                  />
+                  <div
+                    class="MuiBox-root css-c8sfqn"
+                  />
+                  <div
+                    class="MuiBox-root css-8jmga1"
+                  />
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
+                  Headlamp classic
+                </div>
+              </div>
             </div>
           </dd>
           <dt
