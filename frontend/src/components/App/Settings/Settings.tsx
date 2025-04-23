@@ -15,9 +15,8 @@
  */
 
 import Box from '@mui/material/Box';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
 import Switch from '@mui/material/Switch';
+import Typography from '@mui/material/Typography';
 import { capitalize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -29,6 +28,7 @@ import { useTypedSelector } from '../../../redux/reducers/reducers';
 import { uiSlice } from '../../../redux/uiSlice';
 import { ActionButton, NameValueTable, SectionBox } from '../../common';
 import TimezoneSelect from '../../common/TimezoneSelect';
+import { theme } from '../../TestHelpers/theme';
 import { setTheme, useAppThemes } from '../themeSlice';
 import DrawerModeSettings from './DrawerModeSettings';
 import { useSettings } from './hook';
@@ -99,29 +99,6 @@ export default function Settings() {
             value: <LocaleSelect showFullNames formControlProps={{ className: '' }} />,
           },
           {
-            name: t('translation|Theme'),
-            value: (
-              <Select
-                variant="outlined"
-                size="small"
-                defaultValue={themeName}
-                onChange={e => {
-                  dispatch(setTheme(e.target.value as string));
-                  console.log(e, e.target.value);
-                }}
-              >
-                {appThemes.map(it => (
-                  <MenuItem key={it.name} value={it.name}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <ThemePreview theme={it} />
-                      {capitalize(it.name)}
-                    </Box>
-                  </MenuItem>
-                ))}
-              </Select>
-            ),
-          },
-          {
             name: t('translation|Resource details view'),
             value: <DrawerModeSettings />,
           },
@@ -166,6 +143,87 @@ export default function Settings() {
           },
         ]}
       />
+      <Box
+        sx={{
+          mt: '2',
+          borderTop: '1px solid',
+          borderTopColor: 'divider',
+          pt: '2',
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'baseline',
+            px: 1.5,
+            py: 1,
+          }}
+        >
+          <Typography
+            variant="body1"
+            sx={theme => ({
+              textAlign: 'left',
+              color: theme.palette.text.secondary,
+              fontSize: '1rem',
+              [theme.breakpoints.down('sm')]: {
+                fontSize: '1.5rem',
+                color: theme.palette.text.primary,
+              },
+            })}
+          >
+            {t('translation|Theme')}
+          </Typography>
+        </Box>
+        <Box
+          sx={{
+            width: '100%',
+            margin: 'auto',
+            pb: 5,
+          }}
+        >
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+              gap: 2,
+              justifyContent: 'center',
+              [theme.breakpoints.down('sm')]: {
+                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                gap: 2,
+              },
+            }}
+          >
+            {appThemes.map(it => (
+              <Box
+                key={it.name}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') dispatch(setTheme(it.name));
+                }}
+                sx={{
+                  cursor: 'pointer',
+                  border: themeName === it.name ? '2px solid' : '1px solid',
+                  borderColor: themeName === it.name ? 'primary' : 'divider',
+                  borderRadius: 2,
+                  p: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  transition: '0.2 ease',
+                  '&:hover': {
+                    backgroundColor: 'divider',
+                  },
+                }}
+                onClick={() => dispatch(setTheme(it.name))}
+              >
+                <ThemePreview theme={it} size={110} />
+                <Box sx={{ mt: 1 }}>{capitalize(it.name)}</Box>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      </Box>
     </SectionBox>
   );
 }
