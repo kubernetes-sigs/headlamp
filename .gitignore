@@ -9,3 +9,12 @@ node_modules
 .idea/
 plugins/headlamp-plugin/headlamp-myfancy/
 plugins/examples/*/dist/
+
+# Generated LLM context files
+# llms-ctx.txt
+# llms-ctx-full.txt
+# plugins/llms-ctx.txt
+# plugins/llms-ctx-full.txt
+# headlamp-core-context.txt
+# headlamp-plugins-context.txt
+*.tmp.txt

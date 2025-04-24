@@ -135,6 +135,32 @@ frontend-i18n-check:
 frontend-test:
 	cd frontend && npm run test -- --coverage
 
+.PHONY: llms-context
+llms-context:
+	@echo "Generating combined LLM context files using gitingest... (Requires 'pip install gitingest')"
+	@echo "Creating core context digests..."
+	@gitingest README.md -o core_readme.tmp.txt
+	@gitingest CONTRIBUTING.md -o core_contrib.tmp.txt
+	@gitingest docs/development/index.md -o core_devguide.tmp.txt
+	@gitingest frontend/src -o core_frontend.tmp.txt
+	@gitingest backend -o core_backend.tmp.txt
+	@gitingest app -o core_app.tmp.txt
+	@gitingest Makefile -o core_makefile.tmp.txt
+	@gitingest Dockerfile -o core_dockerfile.tmp.txt
+	@gitingest Dockerfile.plugins -o core_dockerplugins.tmp.txt
+	@echo "Creating plugin context digests..."
+	@gitingest plugins/README.md -o plug_readme.tmp.txt
+	@gitingest docs/development/plugins/index.md -o plug_devguide.tmp.txt
+	@gitingest plugins/headlamp-plugin -o plug_coreapi.tmp.txt
+	@gitingest plugins/examples -o plug_examples.tmp.txt
+	@gitingest plugins/update-deps.sh -o plug_updatedeps.tmp.txt
+	@echo "Concatenating digests..."
+	@cat core_readme.tmp.txt core_contrib.tmp.txt core_devguide.tmp.txt core_frontend.tmp.txt core_backend.tmp.txt core_app.tmp.txt core_makefile.tmp.txt core_dockerfile.tmp.txt core_dockerplugins.tmp.txt > headlamp-core-context.txt
+	@cat plug_readme.tmp.txt plug_devguide.tmp.txt plug_coreapi.tmp.txt plug_examples.tmp.txt plug_updatedeps.tmp.txt > headlamp-plugins-context.txt
+	@echo "Cleaning up temporary files..."
+	@rm *.tmp.txt
+	@echo "Generated headlamp-core-context.txt and headlamp-plugins-context.txt"
+
 plugins-test:
 	cd plugins/headlamp-plugin && npm install && ./test-headlamp-plugin.js
 	cd plugins/headlamp-plugin && ./test-plugins-examples.sh
