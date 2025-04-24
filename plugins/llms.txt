@@ -1,0 +1,26 @@
+# Headlamp Plugins
+
+> Headlamp features an extensible plugin system allowing developers to add custom functionality, UI elements, and integrations.
+
+This file provides context for AI assistants specifically focused on developing Headlamp plugins. For core Headlamp development context, see the root `llms.txt` file.
+
+Plugins are typically written in TypeScript/JavaScript using React for the UI components. The `headlamp-plugin` package provides the core API and tooling.
+
+## Plugin Development
+
+- [Plugin README](README.md): Overview of the plugin system and how to use bundled plugins.
+- [Plugin Development Docs](docs/development/plugins/index.md): Detailed guide on creating, building, and testing plugins.
+- [Core Plugin API/Tooling](headlamp-plugin/): The source code and definition of the core plugin library (`@kinvolk/headlamp-plugin`).
+
+## Examples
+
+- [Plugin Examples](examples/): A directory containing various example plugins demonstrating different features and patterns.
+
+## Building & Testing Plugins
+
+- [Plugin Tooling Commands](headlamp-plugin/README.md#available-scripts): Describes scripts like `lint`, `format`, `build`, `start` provided by the plugin tooling.
+- [Update Dependencies Script](update-deps.sh): Script for updating plugin dependencies.
+
+## Optional
+
+- [Dockerfile for Plugins](../Dockerfile.plugins): Shows how plugins are built into a separate container image. 
