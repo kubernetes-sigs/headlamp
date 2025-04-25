@@ -26,7 +26,7 @@
                   class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-k7hfet-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -52,7 +52,7 @@
                   class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-k7hfet-MuiButtonBase-root-MuiListItemButton-root"
                     href="/notifications"
                     role="button"
                     tabindex="0"
@@ -78,7 +78,7 @@
                   class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-k7hfet-MuiButtonBase-root-MuiListItemButton-root"
                     href="/settings/general"
                     role="button"
                     tabindex="0"
@@ -120,7 +120,7 @@
                             class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-6d2cug-MuiButtonBase-root-MuiListItemButton-root"
                               href="/settings/general"
                               role="button"
                               tabindex="0"
@@ -143,7 +143,7 @@
                             class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-6d2cug-MuiButtonBase-root-MuiListItemButton-root"
                               href="/settings/plugins"
                               role="button"
                               tabindex="0"
@@ -166,7 +166,7 @@
                             class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-6d2cug-MuiButtonBase-root-MuiListItemButton-root"
                               href="/settings/cluster"
                               role="button"
                               tabindex="0"

@@ -40,7 +40,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   const shouldShowHomeItem = isElectron() || Object.keys(clusters).length !== 1;
   const cluster = useCluster();
   const { t } = useTranslation();
-
+  const favouriteList = useTypedSelector(state => state.sidebar.favourites);
   const sidebars = useMemo(() => {
     const homeItems: SidebarItemProps[] = [
       {
@@ -105,6 +105,19 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'nodes',
             label: t('glossary|Nodes'),
           },
+        ],
+      },
+      {
+        name: 'favourite',
+        icon: 'mdi:star',
+        label: t('translation|Favourite'),
+        subList: [
+          ...favouriteList.map(item => {
+            return {
+              name: item.name,
+              label: t(`glossary|${item.label}`),
+            };
+          }),
         ],
       },
       {
@@ -367,9 +380,15 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         ).map(it => filterSublist(it, customFilter));
       });
     }
-
     return sidebars;
-  }, [customSidebarEntries, shouldShowHomeItem, Object.keys(clusters).join(','), cluster, t]);
+  }, [
+    customSidebarEntries,
+    shouldShowHomeItem,
+    Object.keys(clusters).join(','),
+    cluster,
+    t,
+    favouriteList,
+  ]);
 
   const unsortedItems =
     sidebars[sidebarName === '' ? DefaultSidebars.IN_CLUSTER : sidebarName] ?? [];

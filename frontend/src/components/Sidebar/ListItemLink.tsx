@@ -4,6 +4,7 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import React from 'react';
 import { Link as RouterLink, LinkProps as RouterLinkProps } from 'react-router-dom';
+import { FavouriteItem, useFavourite } from './useFavourite';
 
 const ExpandedIconSize = 20;
 const CollapsedIconSize = 24;
@@ -13,6 +14,7 @@ interface ListItemLinkProps {
   pathname: string;
   search?: string;
   name: string;
+  sidebarName?: string;
   subtitle?: string;
   icon?: IconProps['icon'];
   iconOnly?: boolean;
@@ -22,6 +24,7 @@ interface ListItemLinkProps {
   containerProps?: {
     [prop: string]: any;
   };
+  component?: React.ElementType;
 }
 
 const StyledLi = styled('li')<{ hasParent?: boolean }>(({ hasParent }) => ({
@@ -37,10 +40,12 @@ export default function ListItemLink(props: ListItemLinkProps) {
     search,
     icon,
     name,
+    sidebarName,
     iconOnly,
     subtitle,
     hasParent,
     fullWidth,
+    component,
     ...other
   } = props;
 
@@ -88,11 +93,16 @@ export default function ListItemLink(props: ListItemLinkProps) {
   }
 
   const hasSubtitle = Boolean(subtitle);
+  const { toggleFavourite, checkMenuSelected } = useFavourite();
+  const favItem: FavouriteItem = {
+    name: sidebarName ?? '',
+    label: name,
+  };
 
   return (
     <StyledLi hasParent={hasParent}>
       <ListItemButton
-        component={renderLink}
+        component={component ?? renderLink}
         {...other}
         sx={theme => ({
           color:
@@ -170,6 +180,13 @@ export default function ListItemLink(props: ListItemLinkProps) {
             margin: 0,
           },
 
+          '& .favorite-icon': {
+            opacity: 0,
+          },
+          '&:hover .favorite-icon': {
+            opacity: 100,
+          },
+
           '& *': {
             fontSize: '.875rem',
             textTransform: 'none',
@@ -211,6 +228,20 @@ export default function ListItemLink(props: ListItemLinkProps) {
       >
         {listItemLinkContainer}
         {!iconOnly && <ListItemText primary={primary} secondary={subtitle} />}
+        {hasParent && (
+          <Icon
+            icon={checkMenuSelected(favItem) ? 'mdi:favorite' : 'mdi:favorite-border'}
+            width={iconSize}
+            height={iconSize}
+            className="favorite-icon"
+            onClick={e => {
+              // prevent click event in order to stop router change
+              e.stopPropagation();
+              e.preventDefault();
+              toggleFavourite(favItem);
+            }}
+          />
+        )}
       </ListItemButton>
     </StyledLi>
   );

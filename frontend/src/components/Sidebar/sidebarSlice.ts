@@ -1,5 +1,6 @@
 import { IconProps } from '@iconify/react';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { FavouriteItem, setInitialFavourites } from './useFavourite';
 
 export enum DefaultSidebars {
   HOME = 'HOME',
@@ -73,6 +74,10 @@ export interface SidebarState {
    * Filters to apply to the sidebar entries.
    */
   filters: ((entry: SidebarEntry) => SidebarEntry | null)[];
+  /*
+   * Favourite items
+   */
+  favourites: FavouriteItem[];
 }
 
 export function setInitialSidebarOpen() {
@@ -103,6 +108,7 @@ export const initialState: SidebarState = {
   ...setInitialSidebarOpen(),
   entries: {},
   filters: [],
+  ...setInitialFavourites(),
 };
 
 const sidebarSlice = createSlice({
@@ -152,6 +158,9 @@ const sidebarSlice = createSlice({
       state.isSidebarOpen = action.payload;
       state.isSidebarOpenUserSelected = action.payload;
     },
+    setFavourites(state, action: PayloadAction<FavouriteItem[]>) {
+      state.favourites = action.payload;
+    },
   },
 });
 
@@ -161,6 +170,7 @@ export const {
   setSidebarItem,
   setSidebarItemFilter,
   setWhetherSidebarOpen,
+  setFavourites,
 } = sidebarSlice.actions;
 
 export { sidebarSlice };

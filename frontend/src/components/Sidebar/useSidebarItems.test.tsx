@@ -26,6 +26,7 @@ describe('useSidebarItems', () => {
           filters: customSidebarFilters,
           selected: { item: null, sidebar: DefaultSidebars.IN_CLUSTER },
           isVisible: true,
+          favourites: [],
         },
       },
     });

@@ -1,33 +1,16 @@
 import Collapse from '@mui/material/Collapse';
 import List from '@mui/material/List';
-import ListItem, { ListItemProps } from '@mui/material/ListItem';
-import React, { memo } from 'react';
+import ListItem from '@mui/material/ListItem';
+import React, { memo, useState } from 'react';
 import { generatePath } from 'react-router';
+import { Link as RouterLink, LinkProps as RouterLinkProps } from 'react-router-dom';
 import { getClusterPrefixedPath } from '../../lib/cluster';
 import { useCluster } from '../../lib/k8s';
 import { createRouteURL, getRoute } from '../../lib/router';
 import ListItemLink from './ListItemLink';
-import { SidebarEntry } from './sidebarSlice';
+import SidebarItem, { SidebarItemProps } from './SidebarItem';
 
-/**
- * Adds onto SidebarEntryProps for the display of the sidebars.
- */
-export interface SidebarItemProps extends ListItemProps, SidebarEntry {
-  /** Whether this item is selected. */
-  isSelected?: boolean;
-  /** The navigation is a child. */
-  hasParent?: boolean;
-  /** Displayed wide with icon and text, otherwise with just a small icon. */
-  fullWidth?: boolean;
-  /** Search part of the URL. */
-  search?: string;
-  /** If a menu item has sub menu items, they will be in here. */
-  subList?: Omit<this, 'sidebar'>[];
-  /** Whether to hide the sidebar item. */
-  hide?: boolean;
-}
-
-const SidebarItem = memo((props: SidebarItemProps) => {
+export const FavouriteSidebarItem = memo((props: SidebarItemProps) => {
   const {
     label,
     name,
@@ -36,13 +19,13 @@ const SidebarItem = memo((props: SidebarItemProps) => {
     search,
     useClusterURL = false,
     subList = [],
-    isSelected,
     hasParent = false,
     icon,
     fullWidth = true,
     hide,
     ...other
   } = props;
+  // isSelected
   const cluster = useCluster();
 
   let fullURL = url;
@@ -58,11 +41,25 @@ const SidebarItem = memo((props: SidebarItemProps) => {
     fullURL = createRouteURL(routeName);
   }
 
+  const [open, setOpen] = useState(false);
+
+  const renderLink = React.forwardRef<any, Omit<RouterLinkProps, 'to'>>((itemProps, ref) => (
+    <RouterLink
+      to={{ pathname: fullURL, search: search }}
+      ref={ref}
+      {...itemProps}
+      onClick={() => {
+        console.log('click me');
+        setOpen(!open);
+      }}
+    />
+  ));
+  console.log('open', open);
   return hide ? null : (
     <React.Fragment>
       <ListItemLink
-        selected={isSelected}
-        pathname={fullURL || ''}
+        selected={open}
+        pathname={''}
         primary={fullWidth ? label : ''}
         icon={icon}
         name={label}
@@ -72,6 +69,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
         iconOnly={!fullWidth}
         hasParent={hasParent}
         fullWidth={fullWidth}
+        component={renderLink}
         {...other}
       />
       {subList.length > 0 && (
@@ -80,7 +78,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
             padding: 0,
           }}
         >
-          <Collapse in={fullWidth && isSelected} sx={{ width: '100%' }}>
+          <Collapse in={fullWidth && open} sx={{ width: '100%' }}>
             <List
               component="ul"
               disablePadding
@@ -109,4 +107,4 @@ const SidebarItem = memo((props: SidebarItemProps) => {
   );
 });
 
-export default SidebarItem;
+export default FavouriteSidebarItem;

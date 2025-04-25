@@ -14,6 +14,7 @@ import { createRouteURL } from '../../lib/router';
 import { useTypedSelector } from '../../redux/reducers/reducers';
 import { ActionButton } from '../common';
 import CreateButton from '../common/Resource/CreateButton';
+import FavouriteSidebarItem from './FavouriteSidebarItem';
 import NavigationTabs from './NavigationTabs';
 import SidebarItem, { SidebarItemProps } from './SidebarItem';
 import { DefaultSidebars, setSidebarSelected, setWhetherSidebarOpen } from './sidebarSlice';
@@ -311,15 +312,25 @@ export const PureSidebar = memo(
               onClick={isTemporaryDrawer ? toggleDrawer : undefined}
               onKeyDown={isTemporaryDrawer ? toggleDrawer : undefined}
             >
-              {items.map(item => (
-                <SidebarItem
-                  key={item.name}
-                  isSelected={item.isSelected}
-                  fullWidth={largeSideBarOpen}
-                  search={search}
-                  {...item}
-                />
-              ))}
+              {items.map(item =>
+                item.name === 'favourite' ? (
+                  <FavouriteSidebarItem
+                    key={item.name}
+                    isSelected={item.isSelected}
+                    fullWidth={largeSideBarOpen}
+                    search={search}
+                    {...item}
+                  />
+                ) : (
+                  <SidebarItem
+                    key={item.name}
+                    isSelected={item.isSelected}
+                    fullWidth={largeSideBarOpen}
+                    search={search}
+                    {...item}
+                  />
+                )
+              )}
             </List>
           </Grid>
           <Grid item>
