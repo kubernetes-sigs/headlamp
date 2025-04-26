@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/kubeconfig"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -53,7 +53,7 @@ func (c *HeadlampConfig) setKeyInCache(key string, context kubeconfig.Context) e
 			return err
 		}
 	} else {
-		if err = c.kubeConfigStore.UpdateTTL(key, ContextUpdateChacheTTL); err != nil {
+		if err = c.kubeConfigStore.UpdateTTL(key, ContextUpdateCacheTTL); err != nil {
 			logger.Log(logger.LevelError, map[string]string{"key": key},
 				err, "updating context ttl")
 

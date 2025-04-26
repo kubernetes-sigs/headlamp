@@ -175,6 +175,7 @@ export const WebSocketManager = {
         query,
         userId: userId || '',
         type: 'REQUEST',
+        token: getToken(clusterId), // Include the current token to ensure it's fresh
       };
       socket.send(JSON.stringify(requestMsg));
     });

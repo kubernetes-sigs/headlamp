@@ -57,7 +57,7 @@ jobs:
         run: |
           echo "Downloading checksum"
           cd $GITHUB_WORKSPACE/app/windows/chocolatey
-          curl -L -O "https://github.com/headlamp-k8s/headlamp/releases/download/v$LATEST_HEADLAMP_TAG/checksums.txt"
+          curl -L -O "https://github.com/kubernetes-sigs/headlamp/releases/download/v$LATEST_HEADLAMP_TAG/checksums.txt"
           echo "Checksum downloaded"
           if [ -f checksums.txt ]; then
             echo "Checksum file exists"
@@ -100,7 +100,7 @@ jobs:
           echo "Repository: ${{ github.repository }}"
           echo "Workspace: ${GITHUB_WORKSPACE}"
           pwd
-          echo echo "https://github.com/headlamp-k8s/headlamp/pull/new/choco-update-$LATEST_HEADLAMP_TAG"
+          echo echo "https://github.com/kubernetes-sigs/headlamp/pull/new/choco-update-$LATEST_HEADLAMP_TAG"
           git checkout -b "choco-update-$LATEST_HEADLAMP_TAG"
           git add .
           git commit -s -m "chocolatey: Bump Headlamp version to $LATEST_HEADLAMP_TAG"

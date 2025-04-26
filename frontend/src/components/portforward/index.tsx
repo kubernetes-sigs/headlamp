@@ -5,7 +5,7 @@ import { useTheme } from '@mui/system';
 import { useSnackbar } from 'notistack';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import helpers from '../../helpers';
+import { isDockerDesktop } from '../../helpers/isDockerDesktop';
 import { listPortForward, startPortForward, stopOrDeletePortForward } from '../../lib/k8s/apiProxy';
 import { getCluster } from '../../lib/util';
 import { Link, Loader, SectionBox, SimpleTable, StatusLabel } from '../common';
@@ -104,7 +104,7 @@ export default function PortForwardingList() {
       portForwardInAction;
 
     let address = 'localhost';
-    if (helpers.isDockerDesktop()) {
+    if (isDockerDesktop()) {
       address = '0.0.0.0';
     }
 

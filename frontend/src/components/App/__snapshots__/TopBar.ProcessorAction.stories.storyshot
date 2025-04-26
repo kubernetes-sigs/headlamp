@@ -2,7 +2,7 @@
   <div>
     <nav
       aria-label="Appbar Tools"
-      class="MuiPaper-root MuiPaper-elevation MuiPaper-elevation1 MuiAppBar-root MuiAppBar-colorPrimary MuiAppBar-positionStatic css-uuamzf-MuiPaper-root-MuiAppBar-root"
+      class="MuiPaper-root MuiPaper-outlined MuiAppBar-root MuiAppBar-colorPrimary MuiAppBar-positionStatic css-1sf61jf-MuiPaper-root-MuiAppBar-root"
     >
       <div
         class="MuiToolbar-root MuiToolbar-gutters MuiToolbar-regular css-1g5gxk7-MuiToolbar-root"
@@ -68,7 +68,7 @@
               class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
             >
               <div
-                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedStart MuiInputBase-adornedEnd css-1442447-MuiInputBase-root-MuiOutlinedInput-root"
+                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedStart MuiInputBase-adornedEnd css-5ntm9s-MuiInputBase-root-MuiOutlinedInput-root"
               >
                 <div
                   class="MuiInputAdornment-root MuiInputAdornment-positionStart MuiInputAdornment-outlined MuiInputAdornment-sizeSmall css-16yk9m0-MuiInputAdornment-root"
@@ -117,7 +117,7 @@
           </div>
         </div>
         <div
-          class="MuiBox-root css-3n7f37"
+          class="MuiBox-root css-0"
         />
         <p>
           meow

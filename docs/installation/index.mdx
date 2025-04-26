@@ -23,13 +23,12 @@ authenticate:
 kubectl -n kube-system create serviceaccount headlamp-admin
 ```
 
-2. Give admin rights to the account (check the
-   :
+2. Give admin rights to the account:
 
 :::tip
 
 Check [RBAC docs](https://kubernetes.io/docs/reference/access-authn-authz/rbac) if you want to set more
-   restrictive permissions)
+   restrictive permissions.
 
 :::
 
@@ -55,10 +54,6 @@ import TabItem from '@theme/TabItem';
    ```
   </TabItem>
 </Tabs>
-
-
-
-Otherwise, run the following command to get the token associated with the service account:
 
 
 

@@ -28,7 +28,7 @@ makeKubeObject<KubeDaemonSet\>('DaemonSet').constructor
 
 #### Defined in
 
-[lib/k8s/cluster.ts:318](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L318)
+[lib/k8s/cluster.ts:318](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L318)
 
 ## Properties
 
@@ -51,7 +51,7 @@ makeKubeObject<KubeDaemonSet\>('DaemonSet').constructor
 
 #### Defined in
 
-[lib/k8s/daemonSet.ts:32](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/daemonSet.ts#L32)
+[lib/k8s/daemonSet.ts:32](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/daemonSet.ts#L32)
 
 ___
 
@@ -65,7 +65,7 @@ makeKubeObject<KubeDaemonSet\>('DaemonSet').className
 
 #### Defined in
 
-[lib/k8s/cluster.ts:319](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L319)
+[lib/k8s/cluster.ts:319](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L319)
 
 ## Accessors
 
@@ -79,7 +79,7 @@ makeKubeObject<KubeDaemonSet\>('DaemonSet').className
 
 #### Defined in
 
-[lib/k8s/daemonSet.ts:34](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/daemonSet.ts#L34)
+[lib/k8s/daemonSet.ts:34](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/daemonSet.ts#L34)
 
 ___
 
@@ -93,7 +93,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/daemonSet.ts:38](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/daemonSet.ts#L38)
+[lib/k8s/daemonSet.ts:38](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/daemonSet.ts#L38)
 
 ## Methods
 
@@ -107,7 +107,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/daemonSet.ts:42](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/daemonSet.ts#L42)
+[lib/k8s/daemonSet.ts:42](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/daemonSet.ts#L42)
 
 ___
 
@@ -121,7 +121,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/daemonSet.ts:46](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/daemonSet.ts#L46)
+[lib/k8s/daemonSet.ts:46](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/daemonSet.ts#L46)
 
 ___
 
@@ -147,7 +147,7 @@ makeKubeObject<KubeDaemonSet\>('DaemonSet').apiList
 
 #### Defined in
 
-[lib/k8s/cluster.ts:294](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L294)
+[lib/k8s/cluster.ts:294](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L294)
 
 ___
 
@@ -172,7 +172,7 @@ makeKubeObject<KubeDaemonSet\>('DaemonSet').getAuthorization
 
 #### Defined in
 
-[lib/k8s/cluster.ts:321](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L321)
+[lib/k8s/cluster.ts:321](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L321)
 
 ___
 
@@ -196,7 +196,7 @@ makeKubeObject<KubeDaemonSet\>('DaemonSet').getErrorMessage
 
 #### Defined in
 
-[lib/k8s/cluster.ts:317](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L317)
+[lib/k8s/cluster.ts:317](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L317)
 
 ___
 
@@ -223,7 +223,7 @@ makeKubeObject<KubeDaemonSet\>('DaemonSet').useApiGet
 
 #### Defined in
 
-[lib/k8s/cluster.ts:304](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L304)
+[lib/k8s/cluster.ts:304](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L304)
 
 ___
 
@@ -249,7 +249,7 @@ makeKubeObject<KubeDaemonSet\>('DaemonSet').useApiList
 
 #### Defined in
 
-[lib/k8s/cluster.ts:299](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L299)
+[lib/k8s/cluster.ts:299](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L299)
 
 ___
 
@@ -274,7 +274,7 @@ makeKubeObject<KubeDaemonSet\>('DaemonSet').useGet
 
 #### Defined in
 
-[lib/k8s/cluster.ts:313](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L313)
+[lib/k8s/cluster.ts:313](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L313)
 
 ___
 
@@ -298,4 +298,4 @@ makeKubeObject<KubeDaemonSet\>('DaemonSet').useList
 
 #### Defined in
 
-[lib/k8s/cluster.ts:310](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L310)
+[lib/k8s/cluster.ts:310](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L310)

@@ -448,6 +448,7 @@ describe('WebSocket Tests', () => {
         query,
         userId,
         type: 'REQUEST',
+        token: 'test-token', // Token is now included in resubscription messages
       });
 
       // Verify reconnection state is reset

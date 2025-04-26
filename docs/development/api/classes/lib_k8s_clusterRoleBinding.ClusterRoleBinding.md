@@ -28,7 +28,7 @@
 
 #### Defined in
 
-[lib/k8s/cluster.ts:318](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L318)
+[lib/k8s/cluster.ts:318](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L318)
 
 ## Properties
 
@@ -55,7 +55,7 @@
 
 #### Defined in
 
-[lib/k8s/clusterRoleBinding.ts:5](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/clusterRoleBinding.ts#L5)
+[lib/k8s/clusterRoleBinding.ts:5](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/clusterRoleBinding.ts#L5)
 
 ## Accessors
 
@@ -69,7 +69,7 @@
 
 #### Defined in
 
-[lib/k8s/clusterRoleBinding.ts:11](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/clusterRoleBinding.ts#L11)
+[lib/k8s/clusterRoleBinding.ts:11](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/clusterRoleBinding.ts#L11)
 
 ___
 
@@ -87,7 +87,7 @@ RoleBinding.roleRef
 
 #### Defined in
 
-[lib/k8s/roleBinding.ts:21](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/roleBinding.ts#L21)
+[lib/k8s/roleBinding.ts:21](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/roleBinding.ts#L21)
 
 ___
 
@@ -105,7 +105,7 @@ RoleBinding.subjects
 
 #### Defined in
 
-[lib/k8s/roleBinding.ts:25](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/roleBinding.ts#L25)
+[lib/k8s/roleBinding.ts:25](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/roleBinding.ts#L25)
 
 ___
 
@@ -123,7 +123,7 @@ RoleBinding.className
 
 #### Defined in
 
-[lib/k8s/clusterRoleBinding.ts:7](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/clusterRoleBinding.ts#L7)
+[lib/k8s/clusterRoleBinding.ts:7](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/clusterRoleBinding.ts#L7)
 
 ## Methods
 
@@ -149,7 +149,7 @@ RoleBinding.className
 
 #### Defined in
 
-[lib/k8s/cluster.ts:294](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L294)
+[lib/k8s/cluster.ts:294](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L294)
 
 ___
 
@@ -174,7 +174,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/cluster.ts:321](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L321)
+[lib/k8s/cluster.ts:321](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L321)
 
 ___
 
@@ -198,7 +198,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/cluster.ts:317](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L317)
+[lib/k8s/cluster.ts:317](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L317)
 
 ___
 
@@ -225,7 +225,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/cluster.ts:304](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L304)
+[lib/k8s/cluster.ts:304](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L304)
 
 ___
 
@@ -251,7 +251,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/cluster.ts:299](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L299)
+[lib/k8s/cluster.ts:299](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L299)
 
 ___
 
@@ -276,7 +276,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/cluster.ts:313](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L313)
+[lib/k8s/cluster.ts:313](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L313)
 
 ___
 
@@ -300,4 +300,4 @@ ___
 
 #### Defined in
 
-[lib/k8s/cluster.ts:310](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L310)
+[lib/k8s/cluster.ts:310](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L310)

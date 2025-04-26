@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import helpers from '../../helpers';
+import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { useCluster } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
 import { Link } from '../common';
@@ -22,7 +22,7 @@ export default function NamespacesList() {
 
   React.useEffect(() => {
     if (cluster) {
-      const namespaces = helpers.loadClusterSettings(cluster)?.allowedNamespaces || [];
+      const namespaces = loadClusterSettings(cluster)?.allowedNamespaces || [];
       setAllowedNamespaces(
         namespaces.map(namespace => ({
           metadata: {

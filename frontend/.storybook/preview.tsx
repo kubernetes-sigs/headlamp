@@ -1,4 +1,3 @@
-import themesConf from '../src/lib/themes';
 import { ThemeProvider } from '@mui/material/styles';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 import '../src/index.css';
@@ -6,6 +5,8 @@ import { Title, Subtitle, Description, Primary, Controls } from '@storybook/bloc
 import { baseMocks } from './baseMocks';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from '../src/App';
+import { darkTheme, lightTheme, useAppThemes } from '../src/components/App/themeSlice';
+import { createMuiTheme } from '../src/lib/themes';
 
 // App import will load the whole app dependency tree
 // And assigning it to a value will make sure it's not tree-shaken and removed
@@ -29,11 +30,11 @@ export const queryClient = new QueryClient({
 });
 
 const withThemeProvider = (Story: any, context: any) => {
-  const theme = themesConf[context.globals.backgrounds?.value === '#1f1f1f' ? 'dark' : 'light'];
+  const theme = context.globals.backgrounds?.value === '#1f1f1f' ? darkTheme : lightTheme;
 
   const ourThemeProvider = (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
+      <ThemeProvider theme={createMuiTheme(theme)}>
         <Story {...context} />
       </ThemeProvider>
     </QueryClientProvider>

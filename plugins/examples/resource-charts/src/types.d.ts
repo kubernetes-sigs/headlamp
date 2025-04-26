@@ -1,5 +1,5 @@
-declare module '@material-ui/core' {
-  import { Theme } from '@material-ui/core/styles';
+declare module '@mui/material' {
+  import { Theme } from '@mui/material/styles';
   import { ElementType, ReactNode } from 'react';
 
   export function useTheme(): Theme;
@@ -13,7 +13,7 @@ declare module '@material-ui/core' {
   export const Paper: ElementType;
 }
 
-declare module '@material-ui/core/styles' {
+declare module '@mui/material/styles' {
   export interface Theme {
     palette: {
       error: {

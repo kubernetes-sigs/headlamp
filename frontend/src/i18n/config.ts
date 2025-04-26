@@ -13,6 +13,7 @@ export const supportedLanguages: { [langCode: string]: string } = {
   de: 'Deutsch',
   it: 'Italiano',
   'zh-TW': '繁體中文',
+  zh: '简体中文',
 };
 
 i18next
@@ -41,8 +42,8 @@ i18next
   // i18next options: https://www.i18next.com/overview/configuration-options
   .init({
     debug: import.meta.env.DEV && !import.meta.env.UNDER_TEST,
-    ns: ['translation', 'glossary'],
-    defaultNS: 'translation',
+    ns: sharedConfig.namespaces,
+    defaultNS: sharedConfig.defaultNamespace,
     fallbackLng: 'en',
     contextSeparator: sharedConfig.contextSeparator,
     supportedLngs: Object.keys(supportedLanguages),

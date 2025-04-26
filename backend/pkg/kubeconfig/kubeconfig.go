@@ -17,8 +17,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/exec"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/exec"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/apis/clientauthentication"
 	rest "k8s.io/client-go/rest"
@@ -910,12 +910,40 @@ func GetInClusterContext(oidcIssuerURL string,
 	}, nil
 }
 
+// Func type for context filter, if the func return true,
+// the context will be skipped otherwise the context will be used.
+type shouldBeSkippedFunc = func(kubeContext Context) bool
+
+// AllowAllKubeContext will keep all contexts.
+func AllowAllKubeContext(_ Context) bool {
+	return false
+}
+
+// SkipKubeContextInCommaSeparatedString will skip the contexts
+// whose names are in the given comma-separated string.
+// For example, if pass the "a,b" for blackKubeContextNameStr,
+// the contexts named "a" and "b" will be skipped.
+func SkipKubeContextInCommaSeparatedString(blackKubeContextNameStr string) shouldBeSkippedFunc {
+	blackKubeContextNameList := strings.Split(blackKubeContextNameStr, ",")
+	blackKubeContextNameMap := map[string]bool{}
+
+	for _, blackKubeContextName := range blackKubeContextNameList {
+		blackKubeContextNameMap[blackKubeContextName] = true
+	}
+
+	return func(kubeContext Context) bool {
+		return blackKubeContextNameMap[kubeContext.Name]
+	}
+}
+
 // LoadAndStoreKubeConfigs loads contexts from the given kubeconfig files and
 // stores them in the given context store.
 // It stores the valid contexts and returns the errors if any.
 // Note: No need to remove contexts from the store, since
 // adding a context with the same name will overwrite the old one.
-func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, source int) error {
+func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, source int,
+	ignoreFunc shouldBeSkippedFunc,
+) error {
 	var errs []error //nolint:prealloc
 
 	kubeConfigContexts, contextErrors, err := LoadContextsFromMultipleFiles(kubeConfigs, source)
@@ -923,7 +951,17 @@ func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, s
 		return fmt.Errorf("error loading kubeconfig files: %v", err)
 	}
 
+	// if pass the shouldBeSkippedFunc=nil, it works like before
+	_ignoreFunc := ignoreFunc
+	if _ignoreFunc == nil {
+		_ignoreFunc = AllowAllKubeContext
+	}
+
 	for _, kubeConfigContext := range kubeConfigContexts {
+		if _ignoreFunc(kubeConfigContext) {
+			continue
+		}
+
 		kubeConfigContext := kubeConfigContext
 
 		err := kubeConfigStore.AddContext(&kubeConfigContext)

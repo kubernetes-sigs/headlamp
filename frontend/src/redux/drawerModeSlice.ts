@@ -10,6 +10,7 @@ export interface DrawerModeState {
      * the name of the custom resource definition
      */
     customResourceDefinition?: string;
+    cluster: string;
   };
 }
 

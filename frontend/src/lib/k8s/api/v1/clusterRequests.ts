@@ -1,6 +1,6 @@
 // @todo: Params is a confusing name for options, because params are also query params.
 
-import { isDebugVerbose } from '../../../../helpers';
+import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import store from '../../../../redux/stores/store';
 import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
 import { getToken, logout, setToken } from '../../../auth';

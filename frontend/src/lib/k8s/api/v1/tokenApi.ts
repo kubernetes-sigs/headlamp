@@ -1,5 +1,5 @@
 import { decodeToken } from 'react-jwt';
-import { isDebugVerbose } from '../../../../helpers';
+import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getToken, setToken } from '../../../auth';
 import { getCluster } from '../../../cluster';
 import { KubeToken } from '../../token';

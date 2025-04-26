@@ -20,7 +20,7 @@
 
 #### Defined in
 
-[lib/k8s/ingress.ts:38](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/ingress.ts#L38)
+[lib/k8s/ingress.ts:38](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/ingress.ts#L38)
 
 ___
 
@@ -39,4 +39,4 @@ ___
 
 #### Defined in
 
-[lib/k8s/ingress.ts:31](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/ingress.ts#L31)
+[lib/k8s/ingress.ts:31](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/ingress.ts#L31)

@@ -9,9 +9,13 @@ import {
   OwnedPodsSection,
 } from '../common/Resource';
 
-export default function StatefulSetDetails(props: { name?: string; namespace?: string }) {
+export default function StatefulSetDetails(props: {
+  name?: string;
+  namespace?: string;
+  cluster?: string;
+}) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation('glossary');
 
   return (
@@ -19,6 +23,7 @@ export default function StatefulSetDetails(props: { name?: string; namespace?: s
       resourceType={StatefulSet}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       extraInfo={item =>
         item && [
@@ -36,7 +41,7 @@ export default function StatefulSetDetails(props: { name?: string; namespace?: s
         item && [
           {
             id: 'headlamp.statefulset-owned-pods',
-            section: <OwnedPodsSection resource={item?.jsonData} />,
+            section: <OwnedPodsSection resource={item} />,
           },
           {
             id: 'headlamp.statefulset-containers',

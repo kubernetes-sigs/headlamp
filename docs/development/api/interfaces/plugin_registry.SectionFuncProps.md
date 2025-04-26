@@ -12,7 +12,7 @@
 
 #### Defined in
 
-[plugin/registry.tsx:69](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L69)
+[plugin/registry.tsx:69](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L69)
 
 ## Methods
 
@@ -33,4 +33,4 @@
 
 #### Defined in
 
-[plugin/registry.tsx:70](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L70)
+[plugin/registry.tsx:70](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L70)

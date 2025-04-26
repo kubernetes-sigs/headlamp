@@ -21,7 +21,7 @@ Event fired when scaling a resource.
 
 #### Defined in
 
-[redux/headlampEventSlice.ts:115](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L115)
+[redux/headlampEventSlice.ts:115](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L115)
 
 ___
 
@@ -31,4 +31,4 @@ ___
 
 #### Defined in
 
-[redux/headlampEventSlice.ts:114](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L114)
+[redux/headlampEventSlice.ts:114](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L114)

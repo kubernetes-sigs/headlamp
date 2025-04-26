@@ -119,6 +119,7 @@ export function PercentageCircle(props: PercentageCircleProps) {
           }}
         >
           <Pie
+            isAnimationActive={false}
             data={formatData()}
             // Center the chart
             cx={chartSize / 2}
@@ -202,6 +203,7 @@ export function PercentageBar(props: PercentageBarProps) {
               stackId="1"
               fill={item.fill || theme.palette.primary.main}
               layout="vertical"
+              radius={theme.shape.borderRadius}
               background={{ fill: theme.palette.grey['300'] }}
             />
           );

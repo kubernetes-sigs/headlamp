@@ -5,58 +5,50 @@
       class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-2 css-1vj4bu4-MuiGrid-root"
     >
       <div
-        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-container MuiGrid-item css-lx31tv-MuiGrid-root"
       >
-        <button
-          class="MuiButtonBase-root css-10d1a0h-MuiButtonBase-root"
-          tabindex="0"
-          type="button"
+        <div
+          aria-label="Selected clusters"
+          class="MuiToggleButtonGroup-root css-1kgngcn-MuiToggleButtonGroup-root"
+          role="group"
         >
-          <div
-            class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation1 MuiCard-root css-1o0qjyj-MuiPaper-root-MuiCard-root"
+          <button
+            aria-pressed="false"
+            class="MuiButtonBase-root MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard MuiToggleButtonGroup-firstButton css-1j4gaun-MuiButtonBase-root-MuiToggleButton-root"
+            tabindex="0"
+            type="button"
+            value="[object Object]"
           >
-            <div
-              class="MuiCardContent-root css-d64700-MuiCardContent-root"
-            >
-              <p
-                class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-qscjxq-MuiTypography-root"
-                title="cluster0"
-              >
-                cluster0
-              </p>
-            </div>
-          </div>
-          <span
-            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-          />
-        </button>
-      </div>
-      <div
-        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-      >
-        <button
-          class="MuiButtonBase-root css-10d1a0h-MuiButtonBase-root"
-          tabindex="0"
-          type="button"
+            cluster0
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <button
+            aria-pressed="false"
+            class="MuiButtonBase-root MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard MuiToggleButtonGroup-lastButton css-1j4gaun-MuiButtonBase-root-MuiToggleButton-root"
+            tabindex="0"
+            type="button"
+            value="[object Object]"
+          >
+            cluster1
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+        </div>
+        <div
+          class="MuiGrid-root MuiGrid-item css-1oluiat-MuiGrid-root"
         >
-          <div
-            class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation1 MuiCard-root css-1o0qjyj-MuiPaper-root-MuiCard-root"
+          <button
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
+            disabled=""
+            tabindex="-1"
+            type="button"
           >
-            <div
-              class="MuiCardContent-root css-d64700-MuiCardContent-root"
-            >
-              <p
-                class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-qscjxq-MuiTypography-root"
-                title="cluster1"
-              >
-                cluster1
-              </p>
-            </div>
-          </div>
-          <span
-            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-          />
-        </button>
+            View
+          </button>
+        </div>
       </div>
     </div>
   </div>

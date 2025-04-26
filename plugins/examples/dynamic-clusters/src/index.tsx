@@ -97,7 +97,9 @@ function ClusterCreationButton() {
 
   return (
     <>
-      <Button onClick={handleOpen}>New cluster</Button>
+      <Button color="inherit" onClick={handleOpen}>
+        New cluster
+      </Button>
       <Modal open={open} onClose={handleClose} style={modalStyle}>
         <Paper style={{ padding: '16px', width: '400px' }}>
           <Stack spacing={2}>
@@ -132,7 +134,9 @@ function ClusterCreationButton() {
                 />
               </>
             )}
-            <Button onClick={handleSubmit}>Submit</Button>
+            <Button color="inherit" onClick={handleSubmit}>
+              Submit
+            </Button>
 
             {/* Display error message to the user if an error occurred */}
             {error && (

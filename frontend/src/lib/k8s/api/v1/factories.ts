@@ -2,7 +2,7 @@
 //       is 404 and not trying it again... and again.
 
 import { OpPatch } from 'json-patch';
-import { isDebugVerbose } from '../../../../helpers';
+import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getCluster } from '../../../cluster';
 import { KubeObjectInterface } from '../../KubeObject';
 import { ApiError } from '../v2/ApiError';

@@ -3,7 +3,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router';
-import helpers from '../../../helpers';
+import { isElectron } from '../../../helpers/isElectron';
 import { setSelectedResource } from '../../../redux/drawerModeSlice';
 import { useTypedSelector } from '../../../redux/reducers/reducers';
 import { KubeObjectDetails } from '../../resourceMap/details/KubeNodeDetails';
@@ -19,7 +19,7 @@ export default function DetailsDrawer() {
   const isDetailDrawerEnabled = useTypedSelector(state => state.drawerMode.isDetailDrawerEnabled);
 
   function handleCloseDrawerReset() {
-    if (helpers.isElectron()) return;
+    if (isElectron()) return;
 
     const currentPlacement = location.pathname;
     const pathname = currentPlacement;
@@ -65,7 +65,11 @@ export default function DetailsDrawer() {
         <Box>
           {selectedResource && (
             <KubeObjectDetails
-              resource={{ kind: selectedResource.kind, metadata: selectedResource.metadata }}
+              resource={{
+                kind: selectedResource.kind,
+                metadata: selectedResource.metadata,
+                cluster: selectedResource.cluster,
+              }}
               customResourceDefinition={selectedResource.customResourceDefinition}
             />
           )}

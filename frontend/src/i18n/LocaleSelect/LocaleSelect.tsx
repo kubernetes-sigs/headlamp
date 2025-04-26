@@ -61,6 +61,8 @@ export default function LocaleSelect(props: LocaleSelectProps) {
       <Select
         value={i18n.language ? i18n.language : 'en'}
         onChange={changeLng}
+        size="small"
+        variant="outlined"
         SelectDisplayProps={extraInputProps}
         inputProps={{ 'aria-label': t('Select locale'), ...extraInputProps }}
       >

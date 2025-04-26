@@ -1,9 +1,9 @@
 {
   "name": "headlamp",
-  "version": "0.29.0",
+  "version": "0.30.0",
   "description": "Easy-to-use and extensible Kubernetes web UI",
   "main": "electron/main.js",
-  "homepage": "https://github.com/headlamp-k8s/headlamp/#readme",
+  "homepage": "https://github.com/kubernetes-sigs/headlamp/#readme",
   "productName": "Headlamp",
   "engines": {
     "npm": ">=10.0.0",
@@ -21,7 +21,8 @@
     "package-msi": "npm run build && node windows/msi/build.js",
     "prod-deps": "mkdirp prod_deps && cd ./prod_deps && copyfiles -f ../package.json ../package-lock.json . && npm i --only=prod && cd .. && npx --no-install rimraf ./prod_deps/node_modules/.bin",
     "start": "node scripts/start.js",
-    "test": "jest"
+    "test": "npm run compile-tests && jest",
+    "compile-tests": "babel electron --out-dir electron/ --extensions .ts"
   },
   "build": {
     "appId": "com.microsoft.Headlamp",
@@ -115,7 +116,6 @@
     "files": [
       "electron/main.js",
       "electron/preload.js",
-      "electron/locales/",
       "electron/i18next.config.js",
       "electron/i18n-helper.js",
       "electron/windowSize.js",
@@ -156,12 +156,14 @@
     "@babel/preset-env": "^7.24.8",
     "@babel/preset-typescript": "^7.24.7",
     "@electron/notarize": "^2.3.2",
+    "@headlamp-k8s/eslint-config": "^0.6.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.14.0",
     "electron": "^31.2.0",
     "electron-builder": "^24.13.3",
     "i18next-parser": "^9.0.0",
     "jest": "^29.7.0",
-    "typescript": "5.5.4",
-    "@headlamp-k8s/eslint-config": "^0.6.0"
+    "typescript": "5.5.4"
   },
   "overrides": {
     "typescript": "5.5.4"
@@ -175,6 +177,7 @@
     "i18next": "^23.12.1",
     "i18next-fs-backend": "^2.3.1",
     "mkdirp": "^3.0.1",
+    "nock": "^14.0.1",
     "tar": "^7.4.0",
     "yargs": "^17.7.2"
   }

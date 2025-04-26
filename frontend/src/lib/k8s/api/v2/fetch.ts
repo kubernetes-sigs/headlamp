@@ -1,4 +1,4 @@
-import helpers from '../../../../helpers';
+import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
 import { getToken, setToken } from '../../../auth';
 import { getClusterAuthType } from '../v1/clusterRequests';
@@ -6,7 +6,7 @@ import { refreshToken } from '../v1/tokenApi';
 import { ApiError } from './ApiError';
 import { makeUrl } from './makeUrl';
 
-export const BASE_HTTP_URL = helpers.getAppUrl();
+export const BASE_HTTP_URL = getAppUrl();
 
 /**
  * Simple wrapper around Fetch function

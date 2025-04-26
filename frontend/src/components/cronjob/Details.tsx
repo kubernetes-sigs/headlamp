@@ -32,14 +32,18 @@ const uniqueString = () => {
   return `${timestamp}-${randomNum}`;
 };
 
+const maxNameLength = 63;
+
 function SpawnJobDialog(props: { cronJob: CronJob; onClose: () => void }) {
   const { cronJob, onClose } = props;
   const { namespace } = useParams<{ namespace: string }>();
   const { t } = useTranslation(['translation']);
   const dispatch: AppDispatch = useDispatch();
 
+  const suffix = `-manual-spawn-${uniqueString()}`;
+
   const [jobName, setJobName] = useState(
-    () => `${cronJob?.metadata?.name}-manual-spawn-${uniqueString()}`
+    () => `${cronJob?.metadata?.name.substring(0, maxNameLength - suffix.length)}${suffix}`
   );
 
   function handleSpawn() {
@@ -117,15 +121,19 @@ function SpawnJobDialog(props: { cronJob: CronJob; onClose: () => void }) {
   );
 }
 
-export default function CronJobDetails(props: { name?: string; namespace?: string }) {
+export default function CronJobDetails(props: {
+  name?: string;
+  namespace?: string;
+  cluster?: string;
+}) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
 
   const { t, i18n } = useTranslation('glossary');
   const dispatch: AppDispatch = useDispatch();
 
-  const { items: jobs, errors } = Job.useList({ namespace });
   const [cronJob] = CronJob.useGet(name, namespace);
+  const { items: jobs, errors } = Job.useList({ namespace, cluster: cronJob?.cluster });
   const [isSpawnDialogOpen, setIsSpawnDialogOpen] = useState(false);
   const [isPendingSuspend, setIsPendingSuspend] = useState(false);
   const isCronSuspended = cronJob?.spec.suspend;
@@ -206,6 +214,7 @@ export default function CronJobDetails(props: { name?: string; namespace?: strin
       resourceType={CronJob}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       actions={actions}
       extraInfo={item =>

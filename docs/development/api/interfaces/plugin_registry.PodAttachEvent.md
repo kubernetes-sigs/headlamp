@@ -21,7 +21,7 @@ Event fired when attaching to a pod.
 
 #### Defined in
 
-[redux/headlampEventSlice.ts:178](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L178)
+[redux/headlampEventSlice.ts:178](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L178)
 
 ___
 
@@ -31,4 +31,4 @@ ___
 
 #### Defined in
 
-[redux/headlampEventSlice.ts:177](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L177)
+[redux/headlampEventSlice.ts:177](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L177)

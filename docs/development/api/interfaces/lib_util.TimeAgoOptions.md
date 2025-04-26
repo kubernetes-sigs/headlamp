@@ -12,4 +12,4 @@
 
 #### Defined in
 
-[lib/util.ts:36](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/util.ts#L36)
+[lib/util.ts:36](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/util.ts#L36)

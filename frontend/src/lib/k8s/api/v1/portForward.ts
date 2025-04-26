@@ -1,4 +1,4 @@
-import helpers from '../../../../helpers';
+import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
 import { getToken } from '../../../auth';
 import { JSON_HEADERS } from './constants';
@@ -79,7 +79,7 @@ export async function startPortForward(
     address,
     port,
   };
-  return fetch(`${helpers.getAppUrl()}portforward`, {
+  return fetch(`${getAppUrl()}portforward`, {
     method: 'POST',
     headers: new Headers(headers),
     body: JSON.stringify(request),
@@ -119,7 +119,7 @@ export async function stopOrDeletePortForward(
     headers['X-HEADLAMP-USER-ID'] = getUserIdFromLocalStorage();
   }
 
-  return fetch(`${helpers.getAppUrl()}portforward`, {
+  return fetch(`${getAppUrl()}portforward`, {
     method: 'DELETE',
     body: JSON.stringify({
       cluster,
@@ -154,7 +154,7 @@ export async function listPortForward(cluster: string): Promise<PortForward[]> {
     headers['X-HEADLAMP-USER-ID'] = getUserIdFromLocalStorage();
   }
 
-  return fetch(`${helpers.getAppUrl()}portforward/list?cluster=${cluster}`, {
+  return fetch(`${getAppUrl()}portforward/list?cluster=${cluster}`, {
     headers: new Headers(headers),
   }).then(response => response.json());
 }

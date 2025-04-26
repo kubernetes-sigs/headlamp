@@ -1,4 +1,5 @@
-import helpers from '../helpers';
+import { getProductName, getVersion } from '../helpers/getProductInfo';
+import { isElectron } from '../helpers/isElectron';
 /**
  * The lib.ts file should carry the bits to be used by plugins whereas
  * the index.ts should have the functions that Headlamp itself needs for
@@ -133,7 +134,7 @@ export abstract class Headlamp {
    * @param appMenuFunc A function that receives the current app menu configuration and a new one. If the function returns null, the menu is not changed.
    */
   static setAppMenu(appMenuFunc: (currentAppMenuSpec: AppMenu[] | null) => AppMenu[] | null) {
-    if (!helpers.isElectron()) {
+    if (!isElectron()) {
       console.error('Cannot set app menu: not running as a desktop app!');
       return;
     }
@@ -149,7 +150,7 @@ export abstract class Headlamp {
    * @returns true if Headlamp is running as a desktop app.
    */
   static isRunningAsApp() {
-    return helpers.isElectron();
+    return isElectron();
   }
 
   /**
@@ -160,7 +161,7 @@ export abstract class Headlamp {
    * @returns the version of Headlamp.
    */
   getVersion() {
-    const version = helpers.getVersion();
+    const version = getVersion();
     return { VERSION: version.VERSION || '', GIT_VERSION: version.GIT_VERSION || '' };
   }
 
@@ -170,7 +171,7 @@ export abstract class Headlamp {
    * @returns the name of the product.
    */
   getProductName() {
-    return helpers.getProductName() || '';
+    return getProductName() || '';
   }
 }
 

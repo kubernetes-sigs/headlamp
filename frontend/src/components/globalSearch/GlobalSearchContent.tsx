@@ -10,12 +10,13 @@ import {
   UseAutocompleteReturnValue,
 } from '@mui/material';
 import Fuse from 'fuse.js';
+import { capitalize } from 'lodash';
 import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
 import { FixedSizeList } from 'react-window';
-import { useClusterGroup, useClustersConf } from '../../lib/k8s';
+import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import ConfigMap from '../../lib/k8s/configMap';
 import CronJob from '../../lib/k8s/cronJob';
 import Deployment from '../../lib/k8s/deployment';
@@ -34,7 +35,8 @@ import StatefulSet from '../../lib/k8s/statefulSet';
 import { createRouteURL, getDefaultRoutes } from '../../lib/router';
 import { getClusterPrefixedPath } from '../../lib/util';
 import { useTypedSelector } from '../../redux/reducers/reducers';
-import { setTheme } from '../App/themeSlice';
+import { ThemePreview } from '../App/Settings/ThemePreview';
+import { setTheme, useAppThemes } from '../App/themeSlice';
 import { Delayed } from './Delayed';
 import { useRecent } from './useRecent';
 
@@ -79,7 +81,7 @@ const classes: KubeObjectClass[] = [
  * Loads lists of Kubernetes objects for searching
  */
 function useSearchResources() {
-  const inACluster = useClusterGroup().length > 0;
+  const inACluster = useSelectedClusters().length > 0;
   const results = classes.map(cls => cls.useList({ clusters: inACluster ? undefined : [] }));
 
   return useMemo(() => {
@@ -139,7 +141,7 @@ export function GlobalSearchContent({
   const history = useHistory();
   const [query, setQuery] = useState(defaultValue ?? '');
   const clusters = useClustersConf() ?? {};
-  const selectedClusters = useClusterGroup();
+  const selectedClusters = useSelectedClusters();
 
   const [recent, bump] = useRecent('search-recent-items');
 
@@ -218,33 +220,22 @@ export function GlobalSearchContent({
     [location.pathname, history, selectedClusters]
   );
 
-  // Custom actions
+  // Themes
   const dispatch = useDispatch();
-  const actions: SearchResult[] = useMemo(
-    () => [
-      {
-        id: 'light-theme',
-        label: t('Use light theme'),
-        icon: <Icon icon="mdi:weather-sunny" />,
-        onClick: () => {
-          dispatch(setTheme('light'));
-        },
-      },
-      {
-        id: 'dark-theme',
-        label: t('Use dark theme'),
-        icon: <Icon icon="mdi:weather-night" />,
-        onClick: () => {
-          dispatch(setTheme('dark'));
-        },
-      },
-    ],
-    [dispatch]
-  );
+  const appThemes = useAppThemes();
+  const themeActions = useMemo(() => {
+    return appThemes.map(theme => ({
+      id: 'switch-theme-' + theme.name,
+      subLabel: 'Theme',
+      icon: <ThemePreview theme={theme} size={32} />,
+      label: capitalize(theme.name),
+      onClick: () => dispatch(setTheme(theme.name)),
+    }));
+  }, [appThemes]);
 
   const allOptions = useMemo(
-    () => [...actions, ...clusterItems, ...routes, ...items],
-    [actions, clusterItems, routes, items]
+    () => [...themeActions, ...clusterItems, ...routes, ...items],
+    [themeActions, clusterItems, routes, items]
   );
 
   const fuse = useMemo(
@@ -343,6 +334,9 @@ export function GlobalSearchContent({
                 )}
               </>
             ),
+            sx: (theme: any) => ({
+              background: theme.palette.background.default,
+            }),
           } as any
         }
       />

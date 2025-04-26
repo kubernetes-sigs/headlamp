@@ -52,7 +52,41 @@ interface PluginData {
   artifacthubVersion: string;
 }
 
-interface ArtifactHubHeadlampPkg {
+/**
+ * ExtraFile is a type for extra files that can be downloaded and extracted.
+ */
+type ExtraFile = {
+  /** URL of the file to download. */
+  url: string;
+  /** Checksum of the file in the format "sha256:checksum". */
+  checksum: string;
+  /**
+   * Architecture of the file in the format "os/arch".
+   * @example
+   * 'win32/x64' 'darwin/arm64' 'darwin/x64' 'linux/arm64' 'linux/x64
+   */
+  arch: string;
+  /**
+   * Output files to be extracted.
+   * The key is the output path and the value is the input path in the archive.
+   * @example
+   * output: {
+   *   minikube": {
+   *     output: 'minikube',
+   *     input: 'out/minikube-linux-arm64'
+   *   }
+   * }
+   */
+  output: {
+    [key: string]: {
+      /** The output file path. */
+      output: string;
+      /** The input file path. */
+      input: string;
+    };
+  };
+};
+export interface ArtifactHubHeadlampPkg {
   name: string;
   display_name: string;
   repository: {
@@ -64,6 +98,11 @@ interface ArtifactHubHeadlampPkg {
   archiveChecksum: string;
   distroCompat: string;
   versionCompat: string;
+  /**
+   * Optional extra files to download.
+   * @see ExtraFile
+   */
+  extraFiles?: Record<string, ExtraFile>;
 }
 
 /**
@@ -99,7 +138,7 @@ export class PluginManager {
     progressCallback: null | ProgressCallback = null,
     signal: AbortSignal | null = null
   ) {
-    let pluginInfo;
+    let pluginInfo: ArtifactHubHeadlampPkg | undefined = undefined;
     try {
       pluginInfo = await fetchPluginInfo(URL, progressCallback, signal);
     } catch (e) {
@@ -109,14 +148,15 @@ export class PluginManager {
         throw e;
       }
     }
-
-    return this.installFromPluginPkg(
-      pluginInfo,
-      destinationFolder,
-      headlampVersion,
-      progressCallback,
-      signal
-    );
+    if (pluginInfo) {
+      return this.installFromPluginPkg(
+        pluginInfo,
+        destinationFolder,
+        headlampVersion,
+        progressCallback,
+        signal
+      );
+    }
   }
 
   /**
@@ -153,6 +193,12 @@ export class PluginManager {
       moveDirs(tempFolder, path.join(destinationFolder, path.basename(name)));
       if (progressCallback) {
         progressCallback({ type: 'success', message: 'Plugin Installed' });
+      }
+
+      // Add plugin bin directories to PATH
+      if (validPluginBinFolder(path.basename(name))) {
+        const binPath = path.join(destinationFolder, path.basename(name), 'bin');
+        addToPath([binPath], 'installed plugin');
       }
     } catch (e) {
       if (progressCallback) {
@@ -378,16 +424,22 @@ function validateArchiveURL(archiveURL) {
   const githubRegex = /^https:\/\/github\.com\/[^/]+\/[^/]+\/(releases|archive)\/.*$/;
   const bitbucketRegex = /^https:\/\/bitbucket\.org\/[^/]+\/[^/]+\/(downloads|get)\/.*$/;
   const gitlabRegex = /^https:\/\/gitlab\.com\/[^/]+\/[^/]+\/(-\/archive|releases)\/.*$/;
+  // For testing purposes, we allow localhost URLs.
+  const localRegex = /^https?:\/\/localhost(:\d+)?\/.*$/;
 
   // @todo There is a test plugin at https://github.com/yolossn/headlamp-plugins/
   // need to move that somewhere else, or test differently.
 
-  return (
+  const urlGood =
     githubRegex.test(archiveURL) ||
     bitbucketRegex.test(archiveURL) ||
     gitlabRegex.test(archiveURL) ||
-    archiveURL.startsWith('https://github.com/yolossn/headlamp-plugins/')
-  );
+    archiveURL.startsWith('https://github.com/yolossn/headlamp-plugins/');
+
+  if (process.env.NODE_ENV === 'test') {
+    return urlGood || localRegex.test(archiveURL);
+  }
+  return urlGood;
 }
 
 /**
@@ -414,21 +466,7 @@ async function downloadExtractArchive(
     throw new Error('Invalid plugin name');
   }
 
-  const archiveURL = pluginInfo.archiveURL;
-  if (!validateArchiveURL(archiveURL)) {
-    throw new Error('Invalid plugin/archive-url:' + archiveURL);
-  }
-
-  let checksum = pluginInfo.archiveChecksum;
-  if (!archiveURL || !checksum) {
-    throw new Error('Invalid plugin metadata. Please check the plugin details.');
-  }
-  if (checksum.startsWith('sha256:') || checksum.startsWith('SHA256:')) {
-    checksum = checksum.replace('sha256:', '');
-    checksum = checksum.replace('SHA256:', '');
-  }
-
-  // check if the plugin is compatible with the current Headlamp version
+  // Check if the plugin is compatible with the current Headlamp version
   if (headlampVersion) {
     if (progressCallback) {
       progressCallback({ type: 'info', message: 'Checking compatibility with Headlamp version' });
@@ -446,20 +484,213 @@ async function downloadExtractArchive(
     throw new Error('Download cancelled');
   }
 
+  // Create temporary folder for extraction
   const tempDir = await fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-temp-'));
   // Defaulting to '' should never happen if recursive is true. So this is for the type
   // checker only.
   const tempFolder = fs.mkdirSync(path.join(tempDir, pluginName), { recursive: true }) ?? '';
 
+  // First, download and extract the main archive
   if (progressCallback) {
-    progressCallback({ type: 'info', message: 'Downloading Plugin' });
+    progressCallback({ type: 'info', message: 'Downloading main plugin archive' });
   }
+
+  await downloadAndExtractSingleArchive(
+    pluginInfo.archiveURL,
+    pluginInfo.archiveChecksum,
+    tempFolder,
+    progressCallback,
+    signal
+  );
+
+  await downloadExtraFiles(pluginInfo.extraFiles, tempFolder, progressCallback, signal);
+
+  // Add artifacthub metadata to the plugin
+  const packageJSON = JSON.parse(fs.readFileSync(`${tempFolder}/package.json`, 'utf8'));
+  packageJSON.artifacthub = {
+    name: pluginName,
+    title: pluginInfo.display_name,
+    url: `https://artifacthub.io/packages/headlamp/${pluginInfo.repository.name}/${pluginName}`,
+    version: pluginInfo.version,
+    repoName: pluginInfo.repository.name,
+    author: pluginInfo.repository.user_alias,
+  };
+  packageJSON.isManagedByHeadlampPlugin = true;
+  fs.writeFileSync(`${tempFolder}/package.json`, JSON.stringify(packageJSON, null, 2));
+
+  return [pluginName, tempFolder];
+}
+
+/**
+ * Gets the platform-specific extra files that match the current platform and architecture.
+ * Also returns the current platform and architecture as a string.
+ *
+ * @param extraFiles - The extra files to filter.
+ * @returns An object containing the current platform and architecture as a string, and the matching extra files.
+ */
+export function getMatchingExtraFiles(extraFiles: ArtifactHubHeadlampPkg['extraFiles']): {
+  currentArchString: string;
+  matchingExtraFiles: ExtraFile[];
+} {
+  const currentPlatform = os.platform();
+  const currentArch = os.arch();
+  const currentArchString = `${currentPlatform}/${currentArch}`;
+
+  return {
+    currentArchString: currentArchString,
+    matchingExtraFiles: Object.values(extraFiles || {}).filter(
+      file => file.arch.toLowerCase() === currentArchString.toLowerCase()
+    ),
+  };
+}
+
+/**
+ * Downloads and extracts platform-specific extra files if they match the current platform and architecture.
+ *
+ * @param extraFiles - List of extra files
+ * @param extractFolder - Folder where files should be extracted
+ * @param progressCallback - Callback for progress updates
+ * @param signal - Signal for cancellation
+ */
+async function downloadExtraFiles(
+  extraFiles: ArtifactHubHeadlampPkg['extraFiles'],
+  extractFolder: string,
+  progressCallback: null | ProgressCallback,
+  signal: AbortSignal | null
+): Promise<void> {
+  if (!extraFiles || Object.keys(extraFiles).length === 0) {
+    return;
+  }
+  const { matchingExtraFiles, currentArchString } = getMatchingExtraFiles(extraFiles);
+
+  if (matchingExtraFiles.length === 0) {
+    if (progressCallback) {
+      progressCallback({
+        type: 'info',
+        message: `No extra files found for platform ${currentArchString}`,
+      });
+    }
+    return;
+  }
+
+  // Make sure bin directory exists
+  const binDir = path.join(extractFolder, 'bin');
+  if (!fs.existsSync(binDir)) {
+    fs.mkdirSync(binDir, { recursive: true });
+  }
+
+  // Download and extract each matching file
+  for (const file of matchingExtraFiles) {
+    if (signal && signal.aborted) {
+      throw new Error('Download cancelled');
+    }
+
+    if (progressCallback) {
+      progressCallback({
+        type: 'info',
+        message: `Downloading platform-specific file for ${file.arch}: ${path.basename(file.url)}`,
+      });
+    }
+
+    try {
+      await downloadAndExtractSingleArchive(
+        file.url,
+        file.checksum,
+        binDir,
+        progressCallback,
+        signal,
+        0 // tarStrip
+      );
+    } catch (error) {
+      if (progressCallback) {
+        progressCallback({
+          type: 'error',
+          message: `Failed to download extra file ${file.url}: ${error.message}`,
+        });
+      } else {
+        throw error;
+      }
+    }
+
+    // move the files to the correct output location
+    for (const value of Object.values(file.output)) {
+      if (!value.output || !value.input || value.input === value.output) {
+        continue;
+      }
+      const outputFile = path.join(binDir, value.output);
+      const inputFile = path.join(binDir, value.input);
+
+      fs.copyFileSync(inputFile, outputFile);
+      fs.rmSync(inputFile);
+
+      // remove the input file folder... if it's empty
+      const inputDir = path.dirname(inputFile);
+      if (fs.readdirSync(inputDir).length === 0) {
+        fs.rmdirSync(inputDir);
+      }
+
+      if (progressCallback) {
+        progressCallback({
+          type: 'info',
+          message: `Moved platform-specific file to ${outputFile}`,
+        });
+      }
+    }
+  }
+
+  if (progressCallback) {
+    progressCallback({
+      type: 'info',
+      message: `Downloaded ${matchingExtraFiles.length} extra files for ${currentArchString}`,
+    });
+  }
+}
+
+/**
+ * Downloads and extracts a single archive file.
+ *
+ * @param archiveURL - URL of the archive to download
+ * @param checksum - Expected checksum of the archive
+ * @param extractFolder - Folder where the archive should be extracted
+ * @param progressCallback - Callback for progress updates
+ * @param signal - Signal for cancellation
+ * @param tarStrip - Number of leading path components to strip from the archive
+ */
+async function downloadAndExtractSingleArchive(
+  archiveURL: string,
+  archiveChecksum: string,
+  extractFolder: string,
+  progressCallback: null | ProgressCallback,
+  signal: AbortSignal | null,
+  tarStrip = 1
+): Promise<void> {
+  if (!validateArchiveURL(archiveURL)) {
+    throw new Error('Invalid plugin/archive-url:' + archiveURL);
+  }
+
+  if (!archiveURL || !archiveChecksum) {
+    throw new Error('Invalid plugin metadata. Please check the plugin details.');
+  }
+
+  let checksum = archiveChecksum;
+  if (checksum.startsWith('sha256:') || checksum.startsWith('SHA256:')) {
+    checksum = checksum.replace('sha256:', '');
+    checksum = checksum.replace('SHA256:', '');
+  }
+
   if (signal && signal.aborted) {
     throw new Error('Download cancelled');
   }
 
   // await sleep(4000); // comment out for testing
-  const archResponse = await fetch(archiveURL, { redirect: 'follow', signal });
+  let archResponse;
+
+  try {
+    archResponse = await fetch(archiveURL, { redirect: 'follow', signal });
+  } catch (err) {
+    throw new Error('Failed to fetch archive. Please check the URL and your network connection.');
+  }
+
   if (!archResponse.ok) {
     throw new Error(`Failed to download tarball. Status code: ${archResponse.status}`);
   }
@@ -468,12 +699,8 @@ async function downloadExtractArchive(
     throw new Error('Download cancelled');
   }
 
-  if (progressCallback) {
-    progressCallback({ type: 'info', message: 'Plugin Downloaded' });
-  }
-
   const archChunks: Uint8Array[] = [];
-  let archBufferLengeth = 0;
+  let archBufferLength = 0;
 
   if (!archResponse.body) {
     throw new Error('Download empty');
@@ -481,14 +708,13 @@ async function downloadExtractArchive(
 
   for await (const chunk of archResponse.body) {
     archChunks.push(chunk);
-    archBufferLengeth += chunk.length;
+    archBufferLength += chunk.length;
   }
 
-  const archBuffer = Buffer.concat(archChunks, archBufferLengeth);
+  const archBuffer = Buffer.concat(archChunks, archBufferLength);
 
-  const archiveChecksum = crypto.createHash('sha256').update(archBuffer).digest('hex');
-
-  if (archiveChecksum !== checksum) {
+  const computedChecksum = crypto.createHash('sha256').update(archBuffer).digest('hex');
+  if (computedChecksum !== checksum) {
     throw new Error('Checksum mismatch.');
   }
 
@@ -497,15 +723,19 @@ async function downloadExtractArchive(
   }
 
   if (progressCallback) {
-    progressCallback({ type: 'info', message: 'Extracting Plugin' });
+    progressCallback({
+      type: 'info',
+      message: 'Extracting plugin',
+    });
   }
+  // Extract the archive
   const archStream = new stream.PassThrough();
   archStream.end(archBuffer);
 
   const extractStream: stream.Writable = archStream.pipe(zlib.createGunzip()).pipe(
     tar.extract({
-      cwd: tempFolder,
-      strip: 1,
+      cwd: extractFolder,
+      strip: tarStrip,
       sync: true,
     }) as unknown as stream.Writable
   );
@@ -524,21 +754,90 @@ async function downloadExtractArchive(
   }
 
   if (progressCallback) {
-    progressCallback({ type: 'info', message: 'Plugin Extracted' });
+    progressCallback({ type: 'info', message: 'Plugin extracted' });
   }
-  // add artifacthub metadata to the plugin
-  const packageJSON = JSON.parse(fs.readFileSync(`${tempFolder}/package.json`, 'utf8'));
-  packageJSON.artifacthub = {
-    name: pluginName,
-    title: pluginInfo.display_name,
-    url: `https://artifacthub.io/packages/headlamp/${pluginInfo.repository.name}/${pluginName}`,
-    version: pluginInfo.version,
-    repoName: pluginInfo.repository.name,
-    author: pluginInfo.repository.user_alias,
-  };
-  packageJSON.isManagedByHeadlampPlugin = true;
-  fs.writeFileSync(`${tempFolder}/package.json`, JSON.stringify(packageJSON, null, 2));
-  return [pluginName, tempFolder];
+}
+
+/**
+ * Converts annotations input into a nested JavaScript object structure.
+ * @param annotations - A record of annotations with path-style keys.
+ * @returns A nested JavaScript object structure.
+ */
+function convertAnnotations(annotations: Record<string, string>): Record<string, any> {
+  const result: Record<string, any> = {};
+
+  for (const key in annotations) {
+    const value = annotations[key];
+    const parts = key.split('/');
+    let current = result;
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (i === parts.length - 1) {
+        current[part] = value;
+      } else {
+        if (!current[part]) {
+          current[part] = {};
+        }
+        current = current[part];
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Extracts the extra-files part from the converted annotations.
+ * @param annotations - A record of annotations with path-style keys.
+ * @returns The extra-files part of the nested JavaScript object structure.
+ */
+function getExtraFiles(
+  annotations: Record<string, string>
+): ArtifactHubHeadlampPkg['extraFiles'] | undefined {
+  const converted = convertAnnotations(annotations);
+
+  const extraFiles: ArtifactHubHeadlampPkg['extraFiles'] =
+    converted?.headlamp?.plugin?.['extra-files'];
+  if (!extraFiles) {
+    return undefined;
+  }
+
+  // Validate the input and output.
+  // Check if any of the extra files output.key.output's have anything dangerous.
+  // For example '..' in the path and starting with / or \
+  for (const file of Object.values(extraFiles)) {
+    for (const value of Object.values(file.output)) {
+      if (
+        value.output.startsWith('..') ||
+        value.output.startsWith('/') ||
+        value.output.startsWith('\\')
+      ) {
+        throw new Error(`Invalid extra file output path, ${value.output}`);
+      }
+      if (
+        value.input.startsWith('..') ||
+        value.input.startsWith('/') ||
+        value.input.startsWith('\\')
+      ) {
+        throw new Error(`Invalid extra file input path, ${value.input}`);
+      }
+    }
+  }
+
+  // Validate URLs. Only allow downloads from github.com/kubernetes/minikube for now.
+  for (const file of Object.values(extraFiles)) {
+    // For testing purposes, we allow localhost URLs.
+    const underTest = process.env.NODE_ENV === 'test' && file.url.includes('localhost');
+    const validURL =
+      file.url && file.url.startsWith('https://github.com/kubernetes/minikube/releases/download/');
+
+    if (!underTest && !validURL) {
+      throw new Error(`Invalid URL, ${file.url}`);
+    }
+  }
+
+  return converted.headlamp.plugin['extra-files'];
 }
 
 /**
@@ -578,6 +877,18 @@ async function fetchPluginInfo(URL, progressCallback, signal): Promise<ArtifactH
       versionCompat: pkgResponse.data['headlamp/plugin/version-compat'],
     };
 
+    const extraFiles = getExtraFiles(pkgResponse.data);
+
+    if (extraFiles) {
+      pkg.extraFiles = extraFiles;
+      if (progressCallback) {
+        progressCallback({
+          type: 'info',
+          message: `Found ${Object.keys(pkg.extraFiles)!.length} platform-specific extra files`,
+        });
+      }
+    }
+
     return pkg;
   } catch (e) {
     if (progressCallback) {
@@ -600,14 +911,11 @@ function checkValidPluginFolder(folder) {
   if (!fs.existsSync(folder)) {
     return false;
   }
-  // Check if the folder contains main.js and package.json
   const mainJsPath = path.join(folder, 'main.js');
   const packageJsonPath = path.join(folder, 'package.json');
   if (!fs.existsSync(mainJsPath) || !fs.existsSync(packageJsonPath)) {
     return false;
   }
-
-  // Read package.json and check isManagedByHeadlampPlugin is set to true
   const packageJSON = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
   if (packageJSON.isManagedByHeadlampPlugin) {
     return true;
@@ -623,8 +931,85 @@ function checkValidPluginFolder(folder) {
  *
  * @returns {string} The path to the default plugins directory.
  */
-function defaultPluginsDir() {
+export function defaultPluginsDir() {
   const paths = envPaths('Headlamp', { suffix: '' });
   const configDir = fs.existsSync(paths.data) ? paths.data : paths.config;
   return path.join(configDir, 'plugins');
+}
+
+/**
+ * Checks if a given folder is a valid plugin bin folder.
+ *
+ * @param {string} folder - The path to the folder to check. Should not include /bin in the path.
+ * @returns {boolean} True if the folder is a valid plugin bin folder, false otherwise.
+ */
+function validPluginBinFolder(folder: string): boolean {
+  // For now only allow "headlamp_minikubeprerelease" and "headlamp_minikube"
+  return folder === 'headlamp_minikube' || folder === 'headlamp_minikubeprerelease';
+}
+
+/**
+ * Collects bin directories from all installed plugins.
+ *
+ * @param pluginsDir - The directory containing plugins
+ * @returns Array of plugin bin directory paths
+ */
+export function getPluginBinDirectories(pluginsDir: string): string[] {
+  if (!fs.existsSync(pluginsDir)) {
+    return [];
+  }
+
+  const binDirs: string[] = [];
+
+  try {
+    const entries = fs.readdirSync(pluginsDir, { withFileTypes: true });
+    const pluginFolders = entries.filter(entry => entry.isDirectory());
+
+    for (const pluginFolder of pluginFolders) {
+      if (!validPluginBinFolder(pluginFolder.name)) {
+        continue;
+      }
+
+      const binDir = path.join(pluginsDir, pluginFolder.name, 'bin');
+      if (fs.existsSync(binDir)) {
+        // Make sure binaries are executable
+        if (process.platform !== 'win32') {
+          try {
+            const files = fs.readdirSync(binDir);
+            for (const file of files) {
+              const filePath = path.join(binDir, file);
+              // Skip directories
+              if (fs.statSync(filePath).isDirectory()) {
+                continue;
+              }
+              fs.chmodSync(filePath, 0o755); // rwx r-x r-x
+            }
+          } catch (err) {
+            console.error(`Error setting executable permissions in ${binDir}:`, err);
+          }
+        }
+        binDirs.push(binDir);
+      }
+    }
+  } catch (err) {
+    console.error(`Error scanning plugin directories in ${pluginsDir}:`, err);
+  }
+
+  return binDirs;
+}
+
+/**
+ * Adds directories to the PATH environment variable
+ *
+ * @param dirs - Directories to add to PATH
+ * @param description - Description for logging (e.g., "plugin", "bundled plugin")
+ */
+export function addToPath(dirs: string[], description: string): void {
+  if (dirs.length === 0) return;
+
+  const pathSeparator = process.platform === 'win32' ? ';' : ':';
+  const existingPath = process.env.PATH || '';
+  process.env.PATH = [...dirs, existingPath].join(pathSeparator);
+  const message = `Added ${dirs.length} ${description} bin directories to PATH`;
+  console.info(message);
 }

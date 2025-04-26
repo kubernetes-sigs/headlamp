@@ -17,7 +17,7 @@ package.
 
 The following example will show basic plugin declaration and registration
 in a file that should match the `src/index.tsx` structure explained in the
-[building](./building) section.
+[building](./building.md) section.
 
 ```tsx title="/src/index.tsx"
 import { registerAppBarAction } from "@kinvolk/headlamp-plugin/lib";
@@ -51,5 +51,5 @@ Here is the result, running Headlamp with this plugin and using with a Minikube 
 
 ![screenshot showing a label on the top bar with the number of pods available](./images/podcounter_screenshot.png)
 
-Please refer to the [functionality](./functionality.md) section for learning about
+Please refer to the [functionality](./functionality/index.md) section for learning about
 the different functionality that is available to plugins by the registry.

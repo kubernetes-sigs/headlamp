@@ -117,11 +117,12 @@ export default function VersionButton() {
     >
       <Button
         onClick={() => setOpen(true)}
-        style={{ textTransform: 'none', paddingBottom: 0, paddingTop: 0 }}
+        size="small"
+        sx={theme => ({ textTransform: 'none', color: theme.palette.sidebar.color })}
       >
         <Box display={isSidebarOpen ? 'flex' : 'block'} alignItems="center">
           <Box>
-            <VersionIcon color={theme.palette.text.secondary} icon="mdi:kubernetes" />
+            <VersionIcon color={theme.palette.sidebar.color} icon="mdi:kubernetes" />
           </Box>
           <Box>{clusterVersion.gitVersion}</Box>
         </Box>
@@ -132,7 +133,7 @@ export default function VersionButton() {
           <NameValueTable rows={getVersionRows()} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose} color="primary">
+          <Button onClick={handleClose} color="primary" variant="contained">
             {t('translation|Close')}
           </Button>
         </DialogActions>

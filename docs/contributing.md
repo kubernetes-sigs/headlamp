@@ -7,7 +7,7 @@ sidebar_position: 4
 This section has information on how to contribute to Headlamp. It assumes you have cloned
 this repository (or your own Github fork).
 Any contributions to the project are accepted under the terms of the project's
-license ([Apache 2.0](https://github.com/headlamp-k8s/headlamp/blob/main/LICENSE)).
+license ([Apache 2.0](https://github.com/kubernetes-sigs/headlamp/blob/main/LICENSE)).
 
 ## Code of Conduct
 
@@ -28,7 +28,7 @@ You can find Headlamp's Community Call event in its [CNCF calendar](https://zoom
 
 ## Filing an issue or feature request
 
-Please use the [project's issue tracker](https://github.com/headlamp-k8s/headlamp/issues) for filing any bugs you find or features
+Please use the [project's issue tracker](https://github.com/kubernetes-sigs/headlamp/issues) for filing any bugs you find or features
 you think are useful.
 
 ### Guidelines for Submitting an Issue
@@ -39,8 +39,8 @@ When submitting an issue, follow these guidelines to help maintainers address it
 
 - Use the issue tracker to see if your issue already exists. If it does, consider adding your input to the existing issue instead of opening a new one.
 - If the issue doesn't exist, please create a new issue using one of the templates available:
-  - [For bug related issues](https://github.com/headlamp-k8s/headlamp/issues/new?assignees=&labels=bug&projects=&template=bug_report.md&title=)
-  - [For feature requests](https://github.com/headlamp-k8s/headlamp/issues/new?assignees=&labels=enhancement&projects=&template=feature_request.md&title=)
+  - [For bug related issues](https://github.com/kubernetes-sigs/headlamp/issues/new?assignees=&labels=bug&projects=&template=bug_report.md&title=)
+  - [For feature requests](https://github.com/kubernetes-sigs/headlamp/issues/new?assignees=&labels=enhancement&projects=&template=feature_request.md&title=)
 
 ### Security issues
 

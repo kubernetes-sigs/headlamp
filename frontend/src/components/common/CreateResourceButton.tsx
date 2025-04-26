@@ -36,6 +36,7 @@ export function CreateResourceButton(props: CreateResourceButtonProps) {
         errorMessage={errorMessage}
         onEditorChanged={() => setErrorMessage('')}
         title={t('translation|Create {{ name }}', { name })}
+        aria-label={t('translation|Create {{ name }}', { name })}
       />
     </AuthVisible>
   );

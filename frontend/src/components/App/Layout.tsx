@@ -6,10 +6,11 @@ import { styled } from '@mui/material/styles';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
+import { getCluster } from '../../lib/cluster';
+import { getSelectedClusters } from '../../lib/cluster';
 import { useClustersConf } from '../../lib/k8s';
 import { request } from '../../lib/k8s/apiProxy';
 import { Cluster } from '../../lib/k8s/cluster';
-import { getCluster, getClusterGroup } from '../../lib/util';
 import { setConfig } from '../../redux/configSlice';
 import { ConfigState } from '../../redux/configSlice';
 import { useTypedSelector } from '../../redux/reducers/reducers';
@@ -96,6 +97,12 @@ function mergeClusterConfigs(
   return mergedClusters;
 }
 
+declare global {
+  interface Window {
+    clusterConfigFetchHandler: number;
+  }
+}
+
 export default function Layout({}: LayoutProps) {
   const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
   const dispatch = useDispatch();
@@ -180,7 +187,7 @@ export default function Layout({}: LayoutProps) {
       });
   };
 
-  const urlClusters = getClusterGroup();
+  const urlClusters = getSelectedClusters();
   const clustersNotInURL =
     allClusters && urlClusters.length !== 0
       ? urlClusters.filter(clusterName => !Object.keys(allClusters).includes(clusterName))

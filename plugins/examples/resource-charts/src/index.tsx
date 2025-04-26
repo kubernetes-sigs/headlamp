@@ -4,7 +4,7 @@
 import { K8s, registerOverviewChartsProcessor } from '@kinvolk/headlamp-plugin/lib';
 import { TileChart } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
 import { Box, Paper } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { useTheme } from '@mui/material';
 import React from 'react';
 
 /**

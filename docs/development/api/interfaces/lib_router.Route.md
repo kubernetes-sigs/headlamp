@@ -14,7 +14,7 @@ Whether the route should be disabled (not registered).
 
 #### Defined in
 
-[lib/router.tsx:118](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L118)
+[lib/router.tsx:118](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L118)
 
 ___
 
@@ -26,7 +26,7 @@ When true, will only match if the path matches the location.pathname exactly.
 
 #### Defined in
 
-[lib/router.tsx:97](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L97)
+[lib/router.tsx:97](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L97)
 
 ___
 
@@ -38,7 +38,7 @@ Hide the appbar at the top.
 
 #### Defined in
 
-[lib/router.tsx:116](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L116)
+[lib/router.tsx:116](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L116)
 
 ___
 
@@ -50,7 +50,7 @@ Human readable name. Capitalized and short.
 
 #### Defined in
 
-[lib/router.tsx:99](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L99)
+[lib/router.tsx:99](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L99)
 
 ___
 
@@ -62,7 +62,7 @@ This route does not require Authentication.
 
 #### Defined in
 
-[lib/router.tsx:110](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L110)
+[lib/router.tsx:110](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L110)
 
 ___
 
@@ -76,7 +76,7 @@ In case this route does *not* need a cluster prefix and context.
 
 #### Defined in
 
-[lib/router.tsx:104](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L104)
+[lib/router.tsx:104](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L104)
 
 ___
 
@@ -88,7 +88,7 @@ Any valid URL path or array of paths that path-to-regexp@^1.7.0 understands.
 
 #### Defined in
 
-[lib/router.tsx:95](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L95)
+[lib/router.tsx:95](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L95)
 
 ___
 
@@ -100,7 +100,7 @@ The sidebar entry this Route should enable, or null if it shouldn't enable any. 
 
 #### Defined in
 
-[lib/router.tsx:112](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L112)
+[lib/router.tsx:112](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L112)
 
 ___
 
@@ -112,7 +112,7 @@ Should URL have the cluster prefix? (default=true)
 
 #### Defined in
 
-[lib/router.tsx:108](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L108)
+[lib/router.tsx:108](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L108)
 
 ## Methods
 
@@ -128,4 +128,4 @@ Shown component for this route.
 
 #### Defined in
 
-[lib/router.tsx:114](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L114)
+[lib/router.tsx:114](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L114)

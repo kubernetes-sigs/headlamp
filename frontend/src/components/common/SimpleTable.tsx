@@ -9,7 +9,7 @@ import TablePagination from '@mui/material/TablePagination';
 import TableRow from '@mui/material/TableRow';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import helpers from '../../helpers';
+import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../helpers/tablesRowsPerPage';
 import { useURLState } from '../../lib/util';
 import { useSettings } from '../App/Settings/hook';
 import Empty from './EmptyContent';
@@ -143,10 +143,7 @@ export default function SimpleTable(props: SimpleTableProps) {
   const [displayData, setDisplayData] = React.useState(data);
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = props.rowsPerPage || storeRowsPerPageOptions;
-  const defaultRowsPerPage = React.useMemo(
-    () => helpers.getTablesRowsPerPage(rowsPerPageOptions[0]),
-    []
-  );
+  const defaultRowsPerPage = React.useMemo(() => getTablesRowsPerPage(rowsPerPageOptions[0]), []);
   const [rowsPerPage, setRowsPerPage] = useURLState(shouldReflectInURL ? 'perPage' : '', {
     defaultValue: defaultRowsPerPage,
     prefix,
@@ -193,7 +190,7 @@ export default function SimpleTable(props: SimpleTableProps) {
     event: React.ChangeEvent<HTMLTextAreaElement> | React.ChangeEvent<HTMLInputElement>
   ) {
     const numRows = +event.target.value;
-    helpers.setTablesRowsPerPage(numRows);
+    setTablesRowsPerPage(numRows);
     setRowsPerPage(numRows);
     setPage(0);
   }
@@ -350,10 +347,12 @@ export default function SimpleTable(props: SimpleTableProps) {
           width: 'auto',
           display: 'grid',
           gridTemplateColumns: gridTemplateColumns || '1fr',
+          background: theme.palette.background.default,
           [theme.breakpoints.down('sm')]: {
             overflowX: 'auto', // make it responsive
           },
           '& .MuiTableCell-root': {
+            borderColor: theme.palette.divider,
             padding: '8px 16px 7px 16px',
             [theme.breakpoints.down('sm')]: {
               padding: '15px 24px 15px 16px',
@@ -363,8 +362,6 @@ export default function SimpleTable(props: SimpleTableProps) {
             wordWrap: 'break-word',
           },
           '& .MuiTableBody-root': {
-            background: theme.palette.tables.body.background,
-
             '& .MuiTableRow-root:last-child': {
               '& .MuiTableCell-root': {
                 borderBottom: 'none',
@@ -376,7 +373,7 @@ export default function SimpleTable(props: SimpleTableProps) {
             textOverflow: 'unset',
             whiteSpace: 'nowrap',
             color: theme.palette.tables.head.text,
-            background: theme.palette.tables.head.background,
+            background: theme.palette.background.muted,
             width: '100%',
             minWidth: 'max-content',
           },

@@ -28,7 +28,7 @@ makeKubeObject<KubePriorityClass\>('priorityClass').constructor
 
 #### Defined in
 
-[lib/k8s/cluster.ts:318](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L318)
+[lib/k8s/cluster.ts:318](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L318)
 
 ## Properties
 
@@ -51,7 +51,7 @@ makeKubeObject<KubePriorityClass\>('priorityClass').constructor
 
 #### Defined in
 
-[lib/k8s/priorityClass.ts:12](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L12)
+[lib/k8s/priorityClass.ts:12](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L12)
 
 ___
 
@@ -65,7 +65,7 @@ makeKubeObject<KubePriorityClass\>('priorityClass').className
 
 #### Defined in
 
-[lib/k8s/cluster.ts:319](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L319)
+[lib/k8s/cluster.ts:319](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L319)
 
 ## Accessors
 
@@ -79,7 +79,7 @@ makeKubeObject<KubePriorityClass\>('priorityClass').className
 
 #### Defined in
 
-[lib/k8s/priorityClass.ts:30](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L30)
+[lib/k8s/priorityClass.ts:30](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L30)
 
 ___
 
@@ -93,7 +93,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/priorityClass.ts:26](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L26)
+[lib/k8s/priorityClass.ts:26](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L26)
 
 ___
 
@@ -107,7 +107,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/priorityClass.ts:34](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L34)
+[lib/k8s/priorityClass.ts:34](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L34)
 
 ___
 
@@ -121,7 +121,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/priorityClass.ts:22](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L22)
+[lib/k8s/priorityClass.ts:22](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L22)
 
 ___
 
@@ -135,7 +135,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/priorityClass.ts:18](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L18)
+[lib/k8s/priorityClass.ts:18](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L18)
 
 ___
 
@@ -149,7 +149,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/priorityClass.ts:14](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L14)
+[lib/k8s/priorityClass.ts:14](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L14)
 
 ## Methods
 
@@ -175,7 +175,7 @@ makeKubeObject<KubePriorityClass\>('priorityClass').apiList
 
 #### Defined in
 
-[lib/k8s/cluster.ts:294](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L294)
+[lib/k8s/cluster.ts:294](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L294)
 
 ___
 
@@ -200,7 +200,7 @@ makeKubeObject<KubePriorityClass\>('priorityClass').getAuthorization
 
 #### Defined in
 
-[lib/k8s/cluster.ts:321](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L321)
+[lib/k8s/cluster.ts:321](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L321)
 
 ___
 
@@ -224,7 +224,7 @@ makeKubeObject<KubePriorityClass\>('priorityClass').getErrorMessage
 
 #### Defined in
 
-[lib/k8s/cluster.ts:317](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L317)
+[lib/k8s/cluster.ts:317](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L317)
 
 ___
 
@@ -251,7 +251,7 @@ makeKubeObject<KubePriorityClass\>('priorityClass').useApiGet
 
 #### Defined in
 
-[lib/k8s/cluster.ts:304](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L304)
+[lib/k8s/cluster.ts:304](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L304)
 
 ___
 
@@ -277,7 +277,7 @@ makeKubeObject<KubePriorityClass\>('priorityClass').useApiList
 
 #### Defined in
 
-[lib/k8s/cluster.ts:299](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L299)
+[lib/k8s/cluster.ts:299](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L299)
 
 ___
 
@@ -302,7 +302,7 @@ makeKubeObject<KubePriorityClass\>('priorityClass').useGet
 
 #### Defined in
 
-[lib/k8s/cluster.ts:313](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L313)
+[lib/k8s/cluster.ts:313](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L313)
 
 ___
 
@@ -326,4 +326,4 @@ makeKubeObject<KubePriorityClass\>('priorityClass').useList
 
 #### Defined in
 
-[lib/k8s/cluster.ts:310](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L310)
+[lib/k8s/cluster.ts:310](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L310)

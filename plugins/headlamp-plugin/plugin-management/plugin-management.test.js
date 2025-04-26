@@ -108,7 +108,7 @@ describe('PluginManager Test Cases', () => {
 
 describe('validateArchiveURL', () => {
   test('valid GitHub release URL', () => {
-    expect(validateArchiveURL('https://github.com/headlamp-k8s/headlamp/releases/download/v0.24.1/Headlamp-0.24.1-win-x64.exe')).toBe(true);
+    expect(validateArchiveURL('https://github.com/kubernetes-sigs/headlamp/releases/download/v0.24.1/Headlamp-0.24.1-win-x64.exe')).toBe(true);
   });
 
   test('valid GitHub archive URL', () => {

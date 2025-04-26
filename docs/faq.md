@@ -27,11 +27,11 @@ Yes, and it's encouraged. Headlamp is developed under the permissive Apache 2.0 
 
 ### Where can I find the source code for Headlamp?
 
-The source code for Headlamp is publicly available on [GitHub](https://github.com/headlamp-k8s/headlamp). You are welcome to explore, fork, and contribute to the codebase.
+The source code for Headlamp is publicly available on [GitHub](https://github.com/kubernetes-sigs/headlamp). You are welcome to explore, fork, and contribute to the codebase.
 
 ### Who maintains Headlamp?
 
-You can find the list of Headlamp's maintainers in its [MAINTAINERS.md](https://github.com/headlamp-k8s/headlamp/blob/main/MAINTAINERS.md) file in the repository. As a 100% open source project and a CNCF Sandbox project, Headlamp encourages any users/developers to participate in it.
+You can find the list of Headlamp's maintainers in its [MAINTAINERS.md](https://github.com/kubernetes-sigs/headlamp/blob/main/MAINTAINERS.md) file in the repository. As a 100% open source project and a CNCF Sandbox project, Headlamp encourages any users/developers to participate in it.
 
 ### What capabilities / credentials does Headlamp require to access my Kubernetes cluster?
 
@@ -87,6 +87,6 @@ Absolutely! As an open source project, Headlamp thrives on community contributio
 
 ### How can I get help or assistance for Headlamp?
 
-For support, refer to the [Headlamp documentation](./development/index.md). For further assistance, join the [Headlamp community on Slack](https://kubernetes.slack.com/messages/headlamp) or file an issue on the [GitHub issues page](https://github.com/headlamp-k8s/headlamp/issues).
+For support, refer to the [Headlamp documentation](./development/index.md). For further assistance, join the [Headlamp community on Slack](https://kubernetes.slack.com/messages/headlamp) or file an issue on the [GitHub issues page](https://github.com/kubernetes-sigs/headlamp/issues).
 
 Join our [monthly community meeting](https://zoom-lfx.platform.linuxfoundation.org/meetings/headlamp) if you want to chat in a zoom call.

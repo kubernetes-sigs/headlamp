@@ -22,7 +22,7 @@
 
 #### Defined in
 
-[lib/k8s/cluster.ts:56](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L56)
+[lib/k8s/cluster.ts:56](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L56)
 
 ___
 
@@ -32,7 +32,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/priorityClass.ts:8](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L8)
+[lib/k8s/priorityClass.ts:8](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L8)
 
 ___
 
@@ -42,7 +42,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/priorityClass.ts:7](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L7)
+[lib/k8s/priorityClass.ts:7](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L7)
 
 ___
 
@@ -65,7 +65,7 @@ Cannot be updated.
 
 #### Defined in
 
-[lib/k8s/cluster.ts:55](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L55)
+[lib/k8s/cluster.ts:55](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L55)
 
 ___
 
@@ -79,7 +79,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/cluster.ts:57](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L57)
+[lib/k8s/cluster.ts:57](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L57)
 
 ___
 
@@ -89,7 +89,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/priorityClass.ts:6](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L6)
+[lib/k8s/priorityClass.ts:6](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L6)
 
 ___
 
@@ -99,4 +99,4 @@ ___
 
 #### Defined in
 
-[lib/k8s/priorityClass.ts:5](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L5)
+[lib/k8s/priorityClass.ts:5](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/priorityClass.ts#L5)

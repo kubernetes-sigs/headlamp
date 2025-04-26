@@ -40,7 +40,8 @@ const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
   predicate(fromNode, toNode) {
     const fromObject = fromNode.kubeObject as InstanceType<From>;
     const toObject = toNode.kubeObject as InstanceType<To>;
-    return Boolean(selector(fromObject, toObject));
+
+    return fromObject.cluster === toObject.cluster && Boolean(selector(fromObject, toObject));
   },
 });
 

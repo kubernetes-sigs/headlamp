@@ -14,7 +14,7 @@ import React, { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
-import helpers from '../../helpers';
+import { getProductName, getVersion } from '../../helpers/getProductInfo';
 import { getToken, setToken } from '../../lib/auth';
 import { useCluster, useClustersConf } from '../../lib/k8s';
 import { createRouteURL } from '../../lib/router';
@@ -296,7 +296,7 @@ export const PureTopBar = memo(
             <Icon icon="mdi:information-outline" />
           </ListItemIcon>
           <ListItemText>
-            {helpers.getProductName()} {helpers.getVersion()['VERSION']}
+            {getProductName()} {getVersion()['VERSION']}
           </ListItemText>
         </MenuItem>
       </Menu>
@@ -368,11 +368,7 @@ export const PureTopBar = memo(
       {
         id: DefaultAppBarAction.CLUSTER,
         action: (
-          <Box
-            sx={theme => ({
-              paddingRight: theme.spacing(10),
-            })}
-          >
+          <Box>
             <ClusterTitle cluster={cluster} clusters={clusters} onClick={handleMobileMenuClose} />
           </Box>
         ),
@@ -413,11 +409,15 @@ export const PureTopBar = memo(
         <AppBar
           position="static"
           sx={theme => ({
+            backgroundImage: 'none',
             zIndex: theme.zIndex.drawer + 1,
-            '& > *': {
-              color: theme.palette.text.primary,
-            },
-            backgroundColor: theme.palette.background.default,
+            color:
+              theme.palette.navbar.color ??
+              theme.palette.getContrastText(theme.palette.navbar.background),
+            backgroundColor: theme.palette.navbar.background,
+            boxShadow: 'none',
+            borderBottom: '1px solid #eee',
+            borderColor: theme.palette.divider,
           })}
           elevation={1}
           component="nav"

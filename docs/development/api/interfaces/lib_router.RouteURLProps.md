@@ -16,4 +16,4 @@
 
 #### Defined in
 
-[lib/router.tsx:815](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L815)
+[lib/router.tsx:815](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/router.tsx#L815)

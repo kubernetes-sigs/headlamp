@@ -12,7 +12,7 @@
 
 #### Defined in
 
-[lib/k8s/pod.ts:18](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L18)
+[lib/k8s/pod.ts:18](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L18)
 
 ___
 
@@ -22,7 +22,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/pod.ts:24](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L24)
+[lib/k8s/pod.ts:24](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L24)
 
 ___
 
@@ -32,7 +32,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/pod.ts:23](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L23)
+[lib/k8s/pod.ts:23](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L23)
 
 ___
 
@@ -42,7 +42,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/pod.ts:19](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L19)
+[lib/k8s/pod.ts:19](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L19)
 
 ___
 
@@ -56,7 +56,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/pod.ts:20](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L20)
+[lib/k8s/pod.ts:20](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L20)
 
 ___
 
@@ -66,7 +66,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/pod.ts:25](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L25)
+[lib/k8s/pod.ts:25](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L25)
 
 ___
 
@@ -76,4 +76,4 @@ ___
 
 #### Defined in
 
-[lib/k8s/pod.ts:28](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L28)
+[lib/k8s/pod.ts:28](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L28)

@@ -35,9 +35,9 @@ function NodeConditionsLabel(props: { node: Node }) {
   );
 }
 
-export default function NodeDetails(props: { name?: string }) {
+export default function NodeDetails(props: { name?: string; cluster?: string }) {
   const params = useParams<{ name: string }>();
-  const { name = params.name } = props;
+  const { name = params.name, cluster } = props;
   const { t } = useTranslation(['glossary']);
   const dispatch: AppDispatch = useDispatch();
 
@@ -186,6 +186,7 @@ export default function NodeDetails(props: { name?: string }) {
       <DetailsGrid
         resourceType={Node}
         name={name}
+        cluster={cluster}
         error={nodeError}
         headerSection={item => (
           <ChartsSection node={item} metrics={nodeMetrics} noMetrics={noMetrics} />
@@ -261,7 +262,7 @@ export default function NodeDetails(props: { name?: string }) {
             },
             {
               id: 'headlamp.node-owned-pods',
-              section: <OwnedPodsSection resource={item?.jsonData} />,
+              section: <OwnedPodsSection resource={item} />,
             },
           ]
         }
@@ -305,8 +306,9 @@ function ChartsSection(props: ChartsSectionProps) {
       >
         <Grid item xs={4}>
           <Paper
+            variant="outlined"
             sx={theme => ({
-              background: theme.palette.squareButton.background,
+              background: theme.palette.background.muted,
               padding: theme.spacing(2),
               height: '100%',
               maxWidth: '300px',

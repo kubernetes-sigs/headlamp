@@ -1,4 +1,4 @@
-import helpers from '../../../../helpers';
+import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { getToken } from '../../../auth';
 import { JSON_HEADERS } from './constants';
 
@@ -18,7 +18,7 @@ import { JSON_HEADERS } from './constants';
  * to get the status of the drain node process.
  */
 export function drainNode(cluster: string, nodeName: string) {
-  return fetch(`${helpers.getAppUrl()}drain-node`, {
+  return fetch(`${getAppUrl()}drain-node`, {
     method: 'POST',
     headers: new Headers({
       Authorization: `Bearer ${getToken(cluster)}`,
@@ -60,7 +60,7 @@ interface DrainNodeStatus {
  * @throws {Error} if the response is not ok
  */
 export function drainNodeStatus(cluster: string, nodeName: string): Promise<DrainNodeStatus> {
-  return fetch(`${helpers.getAppUrl()}drain-node-status?cluster=${cluster}&nodeName=${nodeName}`, {
+  return fetch(`${getAppUrl()}drain-node-status?cluster=${cluster}&nodeName=${nodeName}`, {
     method: 'GET',
     headers: new Headers({
       Authorization: `Bearer ${getToken(cluster)}`,

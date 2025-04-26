@@ -144,7 +144,7 @@ npx playwright test -g "404 page is present" --headed
      ```
    - Clone the Headlamp repository:
      ```
-     git clone https://github.com/headlamp-k8s/headlamp
+     git clone https://github.com/kubernetes-sigs/headlamp
      ```
 
 ### Build and Push Docker Image

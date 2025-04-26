@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"k8s.io/utils/strings/slices"
 )
 
 const watchInterval = 10 * time.Second
 
 // LoadAndWatchFiles loads kubeconfig files and watches them for changes.
-func LoadAndWatchFiles(kubeConfigStore ContextStore, paths string, source int) {
+func LoadAndWatchFiles(kubeConfigStore ContextStore, paths string, source int, ignoreFunc shouldBeSkippedFunc) {
 	// create ticker
 	ticker := time.NewTicker(watchInterval)
 
@@ -40,7 +40,7 @@ func LoadAndWatchFiles(kubeConfigStore ContextStore, paths string, source int) {
 				logger.Log(logger.LevelInfo, nil, nil, "watcher: re-adding missing files")
 				addFilesToWatcher(watcher, kubeConfigPaths)
 
-				err := LoadAndStoreKubeConfigs(kubeConfigStore, paths, source)
+				err := LoadAndStoreKubeConfigs(kubeConfigStore, paths, source, ignoreFunc)
 				if err != nil {
 					logger.Log(logger.LevelError, nil, err, "watcher: error loading kubeconfig files")
 				}
@@ -53,7 +53,7 @@ func LoadAndWatchFiles(kubeConfigStore ContextStore, paths string, source int) {
 					logger.Log(logger.LevelInfo, map[string]string{"event": event.Name},
 						nil, "watcher: kubeconfig file changed, reloading contexts")
 
-					err := syncContexts(kubeConfigStore, paths, source)
+					err := syncContexts(kubeConfigStore, paths, source, ignoreFunc)
 					if err != nil {
 						logger.Log(logger.LevelError, nil, err, "watcher: error synchronizing contexts")
 					}
@@ -108,7 +108,7 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 }
 
 // syncContexts synchronizes the contexts in the store with the ones in the kubeconfig files.
-func syncContexts(kubeConfigStore ContextStore, paths string, source int) error {
+func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignoreFunc shouldBeSkippedFunc) error {
 	// First read all kubeconfig files to get new contexts
 	newContexts, _, err := LoadContextsFromMultipleFiles(paths, source)
 	if err != nil {
@@ -148,7 +148,7 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int) error 
 	}
 
 	// Now load and store the new configurations
-	err = LoadAndStoreKubeConfigs(kubeConfigStore, paths, source)
+	err = LoadAndStoreKubeConfigs(kubeConfigStore, paths, source, ignoreFunc)
 	if err != nil {
 		return fmt.Errorf("error loading kubeconfig files: %v", err)
 	}

@@ -14,7 +14,7 @@ Whether to follow the log stream
 
 #### Defined in
 
-[lib/k8s/pod.ts:60](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L60)
+[lib/k8s/pod.ts:60](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L60)
 
 ___
 
@@ -26,7 +26,7 @@ Whether to show the logs from previous runs of the container (only for restarted
 
 #### Defined in
 
-[lib/k8s/pod.ts:56](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L56)
+[lib/k8s/pod.ts:56](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L56)
 
 ___
 
@@ -38,7 +38,7 @@ Whether to show the timestamps in the logs
 
 #### Defined in
 
-[lib/k8s/pod.ts:58](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L58)
+[lib/k8s/pod.ts:58](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L58)
 
 ___
 
@@ -50,7 +50,7 @@ The number of lines to display from the end side of the log
 
 #### Defined in
 
-[lib/k8s/pod.ts:54](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L54)
+[lib/k8s/pod.ts:54](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L54)
 
 ## Methods
 
@@ -66,4 +66,4 @@ Callback to be called when the reconnection attempts stop
 
 #### Defined in
 
-[lib/k8s/pod.ts:62](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L62)
+[lib/k8s/pod.ts:62](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/pod.ts#L62)

@@ -89,7 +89,7 @@ Here's an example of using date formatting:
 ## Adding a new language
 
 Create a folder using the locale code in:
-`frontend/src/i18n/locales/` and `app/electron/locales`
+`frontend/src/i18n/locales/`
 
 Then run `make i18n`. This command parses the translatable strings in
 the project and creates the corresponding catalog files.

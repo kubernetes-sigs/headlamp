@@ -1,7 +1,7 @@
 <body>
   <div>
     <div
-      class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation1 css-cmkit5-MuiPaper-root"
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
     >
       <div
         class="MuiBox-root css-qrw4x1"
@@ -64,18 +64,33 @@
                   tabindex="0"
                 >
                   <g
-                    class="recharts-layer"
+                    class="recharts-layer recharts-pie-sector"
+                    tabindex="-1"
+                  />
+                  <g
+                    class="recharts-layer recharts-pie-sector"
+                    tabindex="-1"
+                  />
+                  <g
+                    class="recharts-layer recharts-pie-sector"
+                    tabindex="-1"
                   >
-                    <g
-                      class="recharts-layer recharts-pie-sector"
-                      tabindex="-1"
-                    />
-                    <g
-                      class="recharts-layer recharts-pie-sector"
-                      tabindex="-1"
-                    />
-                    <g
-                      class="recharts-layer recharts-pie-sector"
+                    <path
+                      class="recharts-sector"
+                      cx="61"
+                      cy="61"
+                      d="M 61,16.199999999999996
+    A 44.800000000000004,44.800000000000004,0,
+    1,1,
+    60.99921809249515,16.20000000682343
+  L 60.999410078712856,27.200000005148027
+            A 33.800000000000004,33.800000000000004,0,
+            1,0,
+            61,27.199999999999996 Z"
+                      fill="#e0e0e0"
+                      name="total"
+                      role="img"
+                      stroke="#e0e0e0"
                       tabindex="-1"
                     />
                   </g>

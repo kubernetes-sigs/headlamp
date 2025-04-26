@@ -18,7 +18,6 @@ export function NetworkPolicyList() {
           gridTemplate: 'auto',
           label: t('translation|Type'),
           getValue: networkpolicy => {
-            console.log(networkpolicy);
             const isIngressAvailable =
               networkpolicy.jsonData.spec.ingress && networkpolicy.jsonData.spec.ingress.length > 0;
             const isEgressAvailable =

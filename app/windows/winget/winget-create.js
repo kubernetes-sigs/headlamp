@@ -124,7 +124,7 @@ async function updateReleaseInfo(response, tag) {
   const checksum = await getChecksums(checksumsUrl, browserDownloadName);
   const dateYYYYMMDDLength = 10;
   const releaseDateInfo = response.published_at.slice(0, dateYYYYMMDDLength);
-  const releaseNotesUrlInfo = `https://github.com/headlamp-k8s/headlamp/releases/tag/v${tag}`;
+  const releaseNotesUrlInfo = `https://github.com/kubernetes-sigs/headlamp/releases/tag/v${tag}`;
   const versionInfo = response.name;
 
   await createYAMLFiles(

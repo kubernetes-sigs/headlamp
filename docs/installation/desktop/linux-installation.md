@@ -47,7 +47,7 @@ sudo flatpak override --talk-name=org.freedesktop.Flatpak io.kinvolk.Headlamp
 
 Headlamp can be used as an [AppImage](https://appimage.org/) by downloading and running it directly.
 
-To download, choose the AppImage file from the [latest release page](https://github.com/headlamp-k8s/headlamp/releases/latest).
+To download, choose the AppImage file from the [latest release page](https://github.com/kubernetes-sigs/headlamp/releases/latest).
 You can then run it with the following command (exemplified for the AMD64, 0.16.0 version):
 
 ```bash
@@ -56,7 +56,7 @@ You can then run it with the following command (exemplified for the AMD64, 0.16.
 
 ## Tarballs
 
-To run Headlamp from one of the tarballs, first download the tarball for the [latest release](https://github.com/headlamp-k8s/headlamp/releases/latest). Then, extract the contents from it and run
+To run Headlamp from one of the tarballs, first download the tarball for the [latest release](https://github.com/kubernetes-sigs/headlamp/releases/latest). Then, extract the contents from it and run
 the `headlamp` binary in the resulting folder (exemplified below for the AMD64, 0.16.0 version):
 
 ```bash

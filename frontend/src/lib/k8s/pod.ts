@@ -92,8 +92,8 @@ class Pod extends KubeObject<KubePod> {
 
   protected detailedStatusCache: Partial<{ resourceVersion: string; details: PodDetailedStatus }>;
 
-  constructor(jsonData: KubePod) {
-    super(jsonData);
+  constructor(jsonData: KubePod, cluster?: string) {
+    super(jsonData, cluster);
     this.detailedStatusCache = {};
   }
 

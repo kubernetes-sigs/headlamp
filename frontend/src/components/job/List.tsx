@@ -46,8 +46,8 @@ export function makeJobStatusLabel(job: Job) {
     <LightTooltip title={tooltip} interactive>
       <Box display="inline">
         <StatusLabel status={conditionInfo.status as StatusLabelProps['status']}>
-          {condition.type}
           <Icon aria-label="hidden" icon={conditionInfo.icon} width="1.2rem" height="1.2rem" />
+          {condition.type}
         </StatusLabel>
       </Box>
     </LightTooltip>

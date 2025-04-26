@@ -59,7 +59,7 @@
 
 #### Defined in
 
-[redux/actionButtonsSlice.ts:59](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/redux/actionButtonsSlice.ts#L59)
+[redux/actionButtonsSlice.ts:59](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/actionButtonsSlice.ts#L59)
 
 ___
 
@@ -69,7 +69,7 @@ ___
 
 #### Defined in
 
-[components/App/AppLogo.tsx:25](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/components/App/AppLogo.tsx#L25)
+[components/App/AppLogo.tsx:25](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/App/AppLogo.tsx#L25)
 
 ___
 
@@ -79,7 +79,7 @@ ___
 
 #### Defined in
 
-[components/cluster/ClusterChooser.tsx:10](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/components/cluster/ClusterChooser.tsx#L10)
+[components/cluster/ClusterChooser.tsx:10](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/cluster/ClusterChooser.tsx#L10)
 
 ___
 
@@ -89,7 +89,7 @@ ___
 
 #### Defined in
 
-[plugin/registry.tsx:115](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L115)
+[plugin/registry.tsx:115](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L115)
 
 ___
 
@@ -99,7 +99,7 @@ ___
 
 #### Defined in
 
-[plugin/registry.tsx:116](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L116)
+[plugin/registry.tsx:116](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L116)
 
 ___
 
@@ -109,7 +109,7 @@ ___
 
 #### Defined in
 
-[components/DetailsViewSection/DetailsViewSection.tsx:10](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/components/DetailsViewSection/DetailsViewSection.tsx#L10)
+[components/DetailsViewSection/DetailsViewSection.tsx:10](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/DetailsViewSection/DetailsViewSection.tsx#L10)
 
 ___
 
@@ -133,7 +133,7 @@ ___
 
 #### Defined in
 
-[redux/headlampEventSlice.ts:278](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L278)
+[redux/headlampEventSlice.ts:278](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L278)
 
 ___
 
@@ -145,7 +145,7 @@ PluginSettingsComponentType is the type of the component associated with the plu
 
 #### Defined in
 
-[plugin/pluginsSlice.ts:24](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/pluginsSlice.ts#L24)
+[plugin/pluginsSlice.ts:24](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/pluginsSlice.ts#L24)
 
 ___
 
@@ -171,7 +171,7 @@ ___
 
 #### Defined in
 
-[plugin/registry.tsx:107](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L107)
+[plugin/registry.tsx:107](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L107)
 
 ## Variables
 
@@ -181,7 +181,7 @@ ___
 
 #### Defined in
 
-[plugin/registry.tsx:101](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L101)
+[plugin/registry.tsx:101](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L101)
 
 ___
 
@@ -191,7 +191,7 @@ ___
 
 #### Defined in
 
-[plugin/registry.tsx:102](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L102)
+[plugin/registry.tsx:102](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L102)
 
 ## Functions
 
@@ -207,7 +207,7 @@ Returns headers for making API calls to the headlamp-server backend.
 
 #### Defined in
 
-[helpers/index.ts:369](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/helpers/index.ts#L369)
+[helpers/index.ts:369](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/helpers/index.ts#L369)
 
 ___
 
@@ -250,7 +250,7 @@ registerAppBarAction(ConsoleLogger);
 
 #### Defined in
 
-[plugin/registry.tsx:450](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L450)
+[plugin/registry.tsx:450](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L450)
 
 ___
 
@@ -284,7 +284,7 @@ More complete logo example in plugins/examples/change-logo:
 
 #### Defined in
 
-[plugin/registry.tsx:550](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L550)
+[plugin/registry.tsx:550](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L550)
 
 ___
 
@@ -318,7 +318,7 @@ registerClusterChooser(({ clickHandler, cluster }: ClusterChooserProps) => {
 
 #### Defined in
 
-[plugin/registry.tsx:573](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L573)
+[plugin/registry.tsx:573](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L573)
 
 ___
 
@@ -359,7 +359,7 @@ registerDetailsViewHeaderAction(IconAction);
 
 #### Defined in
 
-[plugin/registry.tsx:351](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L351)
+[plugin/registry.tsx:351](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L351)
 
 ___
 
@@ -394,7 +394,7 @@ More complete detail view example in plugins/examples/details-view:
 
 #### Defined in
 
-[plugin/registry.tsx:374](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L374)
+[plugin/registry.tsx:374](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L374)
 
 ___
 
@@ -436,7 +436,7 @@ registerDetailsViewSection(({ resource }: DetailsViewSectionProps) => {
 
 #### Defined in
 
-[plugin/registry.tsx:484](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L484)
+[plugin/registry.tsx:484](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L484)
 
 ___
 
@@ -487,7 +487,7 @@ registerDetailsViewSectionsProcessor(function addTopSection( resource, sections 
 
 #### Defined in
 
-[plugin/registry.tsx:522](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L522)
+[plugin/registry.tsx:522](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L522)
 
 ___
 
@@ -517,7 +517,7 @@ registerGetTokenFunction(() => {
 
 #### Defined in
 
-[plugin/registry.tsx:607](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L607)
+[plugin/registry.tsx:607](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L607)
 
 ___
 
@@ -557,7 +557,7 @@ registerHeadlampEventCallback((event: HeadlampEvent) => {
 
 #### Defined in
 
-[plugin/registry.tsx:633](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L633)
+[plugin/registry.tsx:633](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L633)
 
 ___
 
@@ -600,7 +600,7 @@ registerPluginSettings('my-plugin', MyPluginSettingsComponent, displaySaveButton
 
 More complete plugin settings example in plugins/examples/change-logo:
 
-**`see`** [Change Logo Example](https://github.com/headlamp-k8s/headlamp/tree/main/plugins/examples/change-logo)
+**`see`** [Change Logo Example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/change-logo)
 
 #### Parameters
 
@@ -618,7 +618,7 @@ void
 
 #### Defined in
 
-[plugin/registry.tsx:679](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L679)
+[plugin/registry.tsx:679](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L679)
 
 ___
 
@@ -663,7 +663,7 @@ registerResourceTableColumnsProcessor(function ageRemover({ id, columns }) {
 
 #### Defined in
 
-[plugin/registry.tsx:408](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L408)
+[plugin/registry.tsx:408](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L408)
 
 ___
 
@@ -703,7 +703,7 @@ registerRoute({
 
 #### Defined in
 
-[plugin/registry.tsx:323](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L323)
+[plugin/registry.tsx:323](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L323)
 
 ___
 
@@ -733,7 +733,7 @@ registerRouteFilter(route => (route.path === '/workloads' ? null : route));
 
 #### Defined in
 
-[plugin/registry.tsx:296](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L296)
+[plugin/registry.tsx:296](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L296)
 
 ___
 
@@ -763,7 +763,7 @@ registerSetTokenFunction((cluster: string, token: string | null) => {
 
 #### Defined in
 
-[plugin/registry.tsx:589](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L589)
+[plugin/registry.tsx:589](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L589)
 
 ___
 
@@ -795,7 +795,7 @@ registerSidebarEntry({ parent: 'cluster', name: 'traces', label: 'Traces', url: 
 
 #### Defined in
 
-[plugin/registry.tsx:242](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L242)
+[plugin/registry.tsx:242](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L242)
 
 ___
 
@@ -825,7 +825,7 @@ registerSidebarEntryFilter(entry => (entry.name === 'workloads' ? null : entry))
 
 #### Defined in
 
-[plugin/registry.tsx:277](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L277)
+[plugin/registry.tsx:277](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L277)
 
 ___
 
@@ -880,4 +880,4 @@ An object with `stdout`, `stderr`, and `on` properties. You can listen for 'data
 
 #### Defined in
 
-[components/App/runCommand.ts:27](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/components/App/runCommand.ts#L27)
+[components/App/runCommand.ts:27](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/App/runCommand.ts#L27)

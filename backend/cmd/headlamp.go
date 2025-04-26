@@ -26,12 +26,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/cache"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/helm"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/kubeconfig"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/plugins"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/portforward"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/portforward"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -47,8 +47,10 @@ type HeadlampConfig struct {
 	insecure              bool
 	enableHelm            bool
 	enableDynamicClusters bool
+	watchPluginsChanges   bool
 	port                  uint
 	kubeConfigPath        string
+	skippedKubeContexts   string
 	staticDir             string
 	pluginDir             string
 	staticPluginDir       string
@@ -69,7 +71,7 @@ const isWindows = runtime.GOOS == "windows"
 
 const ContextCacheTTL = 5 * time.Minute // minutes
 
-const ContextUpdateChacheTTL = 20 * time.Second // seconds
+const ContextUpdateCacheTTL = 20 * time.Second // seconds
 
 const JWTExpirationTTL = 10 * time.Second // seconds
 
@@ -82,7 +84,7 @@ const (
 
 type clientConfig struct {
 	Clusters                []Cluster `json:"clusters"`
-	IsDyanmicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
+	IsDynamicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
 }
 
 type spaHandler struct {
@@ -355,13 +357,15 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 	plugins.PopulatePluginsCache(config.staticPluginDir, config.pluginDir, config.cache)
 
-	if !config.useInCluster {
+	skipFunc := kubeconfig.SkipKubeContextInCommaSeparatedString(config.skippedKubeContexts)
+
+	if !config.useInCluster || config.watchPluginsChanges {
 		// in-cluster mode is unlikely to want reloading plugins.
 		pluginEventChan := make(chan string)
 		go plugins.Watch(config.pluginDir, pluginEventChan)
 		go plugins.HandlePluginEvents(config.staticPluginDir, config.pluginDir, pluginEventChan, config.cache)
 		// in-cluster mode is unlikely to want reloading kubeconfig.
-		go kubeconfig.LoadAndWatchFiles(config.kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig)
+		go kubeconfig.LoadAndWatchFiles(config.kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	}
 
 	// In-cluster
@@ -403,7 +407,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	fmt.Println("  API Routers:")
 
 	// load kubeConfig clusters
-	err := kubeconfig.LoadAndStoreKubeConfigs(config.kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig)
+	err := kubeconfig.LoadAndStoreKubeConfigs(config.kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "loading kubeconfig")
 	}
@@ -414,7 +418,8 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		logger.Log(logger.LevelError, nil, err, "getting default kubeconfig persistence file")
 	}
 
-	err = kubeconfig.LoadAndStoreKubeConfigs(config.kubeConfigStore, kubeConfigPersistenceFile, kubeconfig.DynamicCluster)
+	err = kubeconfig.LoadAndStoreKubeConfigs(config.kubeConfigStore, kubeConfigPersistenceFile,
+		kubeconfig.DynamicCluster, skipFunc)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "loading dynamic kubeconfig")
 	}
@@ -1132,9 +1137,13 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 
 		r.Host = clusterURL.Host
 		r.Header.Set("X-Forwarded-Host", r.Host)
+		r.Header.Del("User-Agent")
 		r.URL.Host = clusterURL.Host
 		r.URL.Path = mux.Vars(r)["api"]
 		r.URL.Scheme = clusterURL.Scheme
+
+		// Process WebSocket protocol headers if present
+		processWebSocketProtocolHeader(r)
 
 		plugins.HandlePluginReload(c.cache, w)
 
@@ -1147,6 +1156,71 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 			return
 		}
 	})
+}
+
+// Handle WebSocket connections that include token in Sec-WebSocket-Protocol
+// Some cluster setups don't support tokens via Sec-Websocket-Protocol value
+// Authorization header is more commonly supported and it also used by kubectl.
+func processWebSocketProtocolHeader(r *http.Request) {
+	secWebSocketProtocol := r.Header.Get("Sec-Websocket-Protocol")
+	if secWebSocketProtocol == "" {
+		return
+	}
+
+	// Split by comma and trim spaces to get all protocols
+	protocols := strings.Split(secWebSocketProtocol, ",")
+
+	var validProtocols []string
+
+	// This prefix is used to identify bearer tokens in the WebSocket protocol
+	const bearerTokenPrefix = "base64url.bearer.authorization.k8s.io." // #nosec G101
+
+	for _, protocol := range protocols {
+		protocol = strings.TrimSpace(protocol)
+
+		// Process protocols that contain tokens
+		if strings.HasPrefix(protocol, bearerTokenPrefix) {
+			processTokenProtocol(r, protocol, bearerTokenPrefix)
+		} else {
+			// Keep non-token protocols
+			validProtocols = append(validProtocols, protocol)
+		}
+	}
+
+	// Update the header with remaining valid protocols or remove it entirely
+	if len(validProtocols) > 0 {
+		r.Header.Set("Sec-WebSocket-Protocol", strings.Join(validProtocols, ", "))
+	} else {
+		r.Header.Del("Sec-WebSocket-Protocol")
+	}
+}
+
+// processTokenProtocol extracts a bearer token from a WebSocket protocol string
+// and sets it as an Authorization header if one doesn't already exist.
+func processTokenProtocol(r *http.Request, protocol, tokenPrefix string) {
+	// Only process if Authorization header is empty
+	if r.Header.Get("Authorization") != "" {
+		return
+	}
+
+	token := strings.TrimPrefix(protocol, tokenPrefix)
+	if token == "" {
+		return
+	}
+
+	// Try to decode token from base64
+	decodedBytes, err := base64.URLEncoding.DecodeString(token)
+	if err == nil {
+		token = string(decodedBytes)
+	} else {
+		// Account for the possibility of tokens without base64 padding
+		decodedBytes, err := base64.RawStdEncoding.DecodeString(token)
+		if err == nil {
+			token = string(decodedBytes)
+		}
+	}
+
+	r.Header.Set("Authorization", "Bearer "+token)
 }
 
 func (c *HeadlampConfig) handleClusterRequests(router *mux.Router) {

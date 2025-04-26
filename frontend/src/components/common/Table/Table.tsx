@@ -23,7 +23,7 @@ import { MRT_Localization_IT } from 'material-react-table/locales/it';
 import { MRT_Localization_PT } from 'material-react-table/locales/pt';
 import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import helpers from '../../../helpers';
+import { getTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { useURLState } from '../../../lib/util';
 import { useSettings } from '../../App/Settings/hook';
 import Empty from '../EmptyContent';
@@ -136,7 +136,7 @@ const tableLocalizationMap: Record<string, MRT_Localization> = {
 
 const StyledHeadRow = styled('tr')(({ theme }) => ({
   display: 'contents',
-  background: theme.palette.tables.head.background,
+  background: theme.palette.background.muted,
 }));
 const StyledRow = styled('tr')(({ theme }) => ({
   display: 'contents',
@@ -167,7 +167,7 @@ export default function Table<RowItem extends Record<string, any>>({
 
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = rowsPerPage || storeRowsPerPageOptions;
-  const defaultRowsPerPage = useMemo(() => helpers.getTablesRowsPerPage(rowsPerPageOptions[0]), []);
+  const defaultRowsPerPage = useMemo(() => getTablesRowsPerPage(rowsPerPageOptions[0]), []);
   const [pageSize, setPageSize] = useURLState(shouldReflectInURL ? 'perPage' : '', {
     defaultValue: defaultRowsPerPage,
     prefix,
@@ -298,7 +298,6 @@ export default function Table<RowItem extends Record<string, any>>({
       sx: {
         width: 'unset',
         minWidth: 'unset',
-        paddingTop: '0.5rem',
         '.MuiTableSortLabel-icon': {
           margin: 0,
           width: '14px',
@@ -382,7 +381,8 @@ export default function Table<RowItem extends Record<string, any>>({
           borderColor: theme.palette.tables.head.borderColor,
           borderRadius: 1,
           borderBottom: 'none',
-          overflow: 'hidden',
+          overflowX: 'auto',
+          width: '100%',
           gridTemplateColumns,
         }}
       >
@@ -391,8 +391,8 @@ export default function Table<RowItem extends Record<string, any>>({
             {headerGroups[0].headers.map(header => (
               <MemoHeadCell
                 key={header.id}
-                header={header}
-                table={table}
+                header={header as MRT_Header<Record<string, any>>}
+                table={table as MRT_TableInstance<Record<string, any>>}
                 isFiltered={header.column.getIsFiltered()}
                 sorting={header.column.getIsSorted()}
                 showColumnFilters={table.getState().showColumnFilters}
@@ -405,8 +405,8 @@ export default function Table<RowItem extends Record<string, any>>({
           {rows.map(row => (
             <Row
               key={row.id}
-              cells={row.getVisibleCells()}
-              table={table}
+              cells={row.getVisibleCells() as MRT_Cell<Record<string, any>, unknown>[]}
+              table={table as MRT_TableInstance<Record<string, any>>}
               isSelected={row.getIsSelected()}
             />
           ))}
@@ -418,19 +418,25 @@ export default function Table<RowItem extends Record<string, any>>({
 }
 
 const MemoHeadCell = memo(
-  ({
+  <RowItem extends Record<string, any>>({
     header,
     table,
   }: {
-    table: MRT_TableInstance<any | null>;
-    header: MRT_Header<any>;
+    table: MRT_TableInstance<RowItem>;
+    header: MRT_Header<RowItem>;
     sorting: string | false;
     isFiltered: boolean;
     selected: number;
     showColumnFilters: boolean;
   }) => {
     return (
-      <MRT_TableHeadCell header={header} key={header.id} staticColumnIndex={-1} table={table} />
+      <MRT_TableHeadCell
+        header={header}
+        key={header.id}
+        staticColumnIndex={-1}
+        table={table}
+        sx={theme => ({ borderColor: theme.palette.divider })}
+      />
     );
   },
   (a, b) =>
@@ -442,22 +448,23 @@ const MemoHeadCell = memo(
 );
 
 const Row = memo(
-  ({
+  <RowItem extends Record<string, any>>({
     cells,
     table,
     isSelected,
   }: {
-    table: MRT_TableInstance<any>;
-    cells: MRT_Cell<any, unknown>[];
+    table: MRT_TableInstance<RowItem>;
+    cells: MRT_Cell<RowItem, unknown>[];
     isSelected: boolean;
   }) => (
     <StyledRow data-selected={isSelected}>
       {cells.map(cell => (
         <MemoCell
-          cell={cell}
-          table={table}
+          cell={cell as MRT_Cell<Record<string, any>, unknown>}
+          table={table as MRT_TableInstance<Record<string, any>>}
           key={cell.id}
           isRowSelected={cell.row.getIsSelected()}
+          canSelect={cell.row.getCanSelect()}
         />
       ))}
     </StyledRow>
@@ -465,7 +472,15 @@ const Row = memo(
 );
 
 const MemoCell = memo(
-  ({ cell, table }: { cell: MRT_Cell<any, unknown>; table: any; isRowSelected: boolean }) => {
+  <RowItem extends Record<string, any>>({
+    cell,
+    table,
+  }: {
+    cell: MRT_Cell<RowItem, unknown>;
+    table: MRT_TableInstance<RowItem>;
+    isRowSelected: boolean;
+    canSelect?: boolean;
+  }) => {
     const column = cell.column.columnDef as TableColumn<any, unknown>;
     return (
       <MRT_TableBodyCell
@@ -473,19 +488,22 @@ const MemoCell = memo(
         cell={cell}
         table={table}
         rowRef={{ current: null }}
-        sx={{
-          whiteSpace: 'normal',
-          width: 'unset',
-          minWidth: 'unset',
-          wordBreak: column.gridTemplate === 'min-content' ? 'normal' : 'break-word',
-          ...(column.muiTableBodyCellProps as TableCellProps)?.sx,
-        }}
+        sx={theme =>
+          ({
+            whiteSpace: 'normal',
+            width: 'unset',
+            minWidth: 'unset',
+            wordBreak: column.gridTemplate === 'min-content' ? 'normal' : 'break-word',
+            borderColor: theme.palette.divider,
+            ...(column.muiTableBodyCellProps as TableCellProps)?.sx,
+          } as any)
+        }
       />
     );
   },
   (a, b) =>
     a.cell.getValue() === b.cell.getValue() &&
     (a.cell.column.id === 'mrt-row-select' && b.cell.column.id === 'mrt-row-select'
-      ? a.isRowSelected === b.isRowSelected
+      ? a.canSelect === b.canSelect && a.isRowSelected === b.isRowSelected
       : true)
 );

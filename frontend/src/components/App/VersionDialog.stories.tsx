@@ -1,7 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import { Provider } from 'react-redux';
-import helpers from '../../helpers';
 import VersionDialogComponent from './VersionDialog';
 
 const store = configureStore({
@@ -29,13 +28,13 @@ export default {
 } as Meta;
 
 // Let's override this function so we don't have to change the snapshot at every version change.
-helpers.getVersion = () => ({
+const getVersion = () => ({
   VERSION: '0.0.1',
   GIT_VERSION: 'abc123abc123abc123abc123abc123abc123abc123abc123abc123',
 });
 
 const Template: StoryFn = () => {
-  return <VersionDialogComponent />;
+  return <VersionDialogComponent getVersion={getVersion} />;
 };
 
 export const VersionDialog = Template.bind({});

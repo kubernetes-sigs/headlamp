@@ -18,7 +18,7 @@
  */
 
 // Uncomment the following lines to enable verbose debug logging in this module.
-// import { debugVerbose } from '../../helpers';
+// import { debugVerbose } from '../../helpers/debugVerbose';
 // debugVerbose('k8s/apiProxy');
 
 export type { QueryParameters } from '../api/v1/queryParameters';
