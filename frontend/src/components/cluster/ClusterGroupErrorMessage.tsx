@@ -1,7 +1,7 @@
 import { Alert, AlertTitle, Box, Button } from '@mui/material';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useClusterGroup } from '../../lib/k8s';
+import { useSelectedClusters } from '../../lib/k8s';
 import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 
 export interface ClusterGroupErrorMessageProps {
@@ -21,7 +21,7 @@ export function ClusterGroupErrorMessage({ errors }: ClusterGroupErrorMessagePro
 
 function ErrorMessage({ error }: { error: ApiError }) {
   const { t } = useTranslation();
-  const showClusterName = useClusterGroup().length > 1;
+  const showClusterName = useSelectedClusters().length > 1;
   const [showMessage, setShowMessage] = useState(false);
 
   const defaultTitle = t('Failed to load resources');

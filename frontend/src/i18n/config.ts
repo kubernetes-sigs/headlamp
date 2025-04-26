@@ -12,6 +12,8 @@ export const supportedLanguages: { [langCode: string]: string } = {
   pt: 'Português',
   de: 'Deutsch',
   it: 'Italiano',
+  'zh-TW': '繁體中文',
+  zh: '简体中文',
 };
 
 i18next
@@ -28,7 +30,7 @@ i18next
       namespace: Namespace,
       callback: (errorValue: unknown, translations: null | (typeof en)[Namespace]) => void
     ) {
-      import(`./locales/${language}/${namespace}.json?import=default`)
+      import(`./locales/${language.toLowerCase()}/${namespace}.json?import=default`)
         .then(resources => {
           callback(null, resources.default);
         })
@@ -40,8 +42,8 @@ i18next
   // i18next options: https://www.i18next.com/overview/configuration-options
   .init({
     debug: import.meta.env.DEV && !import.meta.env.UNDER_TEST,
-    ns: ['translation', 'glossary'],
-    defaultNS: 'translation',
+    ns: sharedConfig.namespaces,
+    defaultNS: sharedConfig.defaultNamespace,
     fallbackLng: 'en',
     contextSeparator: sharedConfig.contextSeparator,
     supportedLngs: Object.keys(supportedLanguages),

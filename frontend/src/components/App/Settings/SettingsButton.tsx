@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router-dom';
+import { getCluster } from '../../../lib/cluster';
 import { createRouteURL } from '../../../lib/router';
-import { getCluster } from '../../../lib/util';
 import { ActionButton } from '../../common';
 
 export default function SettingsButton(props: { onClickExtra?: () => void }) {
@@ -18,6 +18,9 @@ export default function SettingsButton(props: { onClickExtra?: () => void }) {
     <ActionButton
       icon="mdi:cog"
       description={t('translation|Settings')}
+      iconButtonProps={{
+        color: 'inherit',
+      }}
       onClick={() => {
         history.push(createRouteURL('settingsCluster', { cluster: clusterName }));
         onClickExtra && onClickExtra();

@@ -34,6 +34,9 @@ tools/golangci-lint: backend/go.mod backend/go.sum
 backend-lint: tools/golangci-lint
 	cd backend && ./tools/golangci-lint run
 
+backend-lint-fix: tools/golangci-lint
+	cd backend && ./tools/golangci-lint run --fix
+
 frontend/build:
 	make frontend
 
@@ -98,7 +101,7 @@ ifeq ($(UNIXSHELL),true)
 	HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
 else
 	@echo "**** Running on Windows without bash or zsh. ****"
-	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp && set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true && backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
+	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
 endif
 
 run-frontend:

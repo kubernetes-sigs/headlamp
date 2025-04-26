@@ -98,9 +98,9 @@ export default function NameValueTable(props: NameValueTableProps) {
               sx={theme => {
                 const extra = withHighlightStyle
                   ? {
-                      color: theme.palette.tables.head.color,
+                      color: theme.palette.text.primary,
                       fontWeight: 'bold',
-                      background: theme.palette.tables.head.background,
+                      background: theme.palette.background.muted,
                     }
                   : {};
                 return {
@@ -140,9 +140,9 @@ export default function NameValueTable(props: NameValueTableProps) {
                 sx={theme => {
                   const extra = withHighlightStyle
                     ? {
-                        color: theme.palette.tables.head.color,
+                        color: theme.palette.text.primary,
                         fontWeight: 'bold',
-                        background: theme.palette.tables.head.background,
+                        background: theme.palette.background.muted,
                       }
                     : {};
                   return {

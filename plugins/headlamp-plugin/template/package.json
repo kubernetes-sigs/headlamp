@@ -25,7 +25,7 @@
   "prettier": "@headlamp-k8s/eslint-config/prettier-config",
   "eslintConfig": {
     "extends": [
-      "@kinvolk",
+      "@headlamp-k8s",
       "prettier",
       "plugin:jsx-a11y/recommended"
     ]
@@ -34,7 +34,6 @@
     "typescript": "5.6.2"
   },
   "devDependencies": {
-    "@kinvolk/headlamp-plugin": "^$${headlamp-plugin-version}",
-    "@headlamp-k8s/eslint-config": "$${eslint-config-version}"
+    "@kinvolk/headlamp-plugin": "^$${headlamp-plugin-version}"
   }
 }

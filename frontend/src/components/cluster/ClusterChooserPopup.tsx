@@ -17,8 +17,9 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath } from 'react-router';
 import { useHistory } from 'react-router-dom';
-import helpers from '../../helpers';
-import { useCluster, useClustersConf } from '../../lib/k8s';
+import { isElectron } from '../../helpers/isElectron';
+import { getRecentClusters, setRecentCluster } from '../../helpers/recentClusters';
+import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { Cluster } from '../../lib/k8s/cluster';
 import { createRouteURL } from '../../lib/router';
 import { getCluster, getClusterPrefixedPath } from '../../lib/util';
@@ -34,6 +35,9 @@ function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selecte
       key={`recent_cluster_${cluster.name}`}
       onClick={onClick}
       id={cluster.name}
+      sx={theme => ({
+        borderRadius: theme.shape.borderRadius + 'px',
+      })}
     >
       <ListItemIcon>
         <Icon icon="mdi:kubernetes" width={26} color={theme.palette.text.primary} />
@@ -72,7 +76,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
       node.focus();
     }
   }, []);
-  const currentCluster = useCluster();
+  const selectedClusters = useSelectedClusters();
 
   function handleClose() {
     setFilter('');
@@ -88,14 +92,14 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
       allClusters = allClusters.filter(cluster => cluster.name.includes(filter));
     }
 
-    const recentClustersNames = !!filter ? [] : helpers.getRecentClusters();
+    const recentClustersNames = !!filter ? [] : getRecentClusters();
 
     const clustersToShow: Cluster[] = [];
     const recentClusters: Cluster[] = [];
 
     allClusters.forEach(c => {
       const cluster = { ...c };
-      if (c.name === currentCluster) {
+      if (selectedClusters.includes(c.name)) {
         cluster.isCurrent = true;
       }
 
@@ -127,7 +131,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
     });
 
     return [recentClusters, clustersToShow];
-  }, [clusters, currentCluster, filter]);
+  }, [clusters, selectedClusters.join(','), filter]);
 
   React.useEffect(() => {
     setActiveDescendantIndex(-1);
@@ -137,7 +141,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
     handleClose();
 
     if (cluster.name !== getCluster()) {
-      helpers.setRecentCluster(cluster);
+      setRecentCluster(cluster);
       history.push({
         pathname: generatePath(getClusterPrefixedPath(), {
           cluster: cluster.name,
@@ -215,11 +219,12 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
       }}
       {...otherProps}
     >
-      <Box p={2}>
+      <Box p={2} pb={1}>
         <TextField
           label={t('Choose cluster')}
           id="filled-size-small"
           placeholder={t('translation|Name')}
+          variant="outlined"
           size="small"
           fullWidth
           InputLabelProps={{ shrink: true }}
@@ -288,7 +293,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
           ))}
         </MenuList>
       </Box>
-      {helpers.isElectron() && (
+      {isElectron() && (
         <>
           <Button
             sx={theme => ({

@@ -161,10 +161,10 @@
     "../app/**/*.{js,jsx,ts,tsx,json,css,scss,md}": [
       "prettier --config package.json --write"
     ],
-    "../plugins/headlamp-plugin/{bin,lib,template}/**/*.{ts,tsx}": [
+    "../plugins/headlamp-plugin/{bin,lib}/**/*.{ts,tsx}": [
       "eslint -c package.json --fix"
     ],
-    "../plugins/headlamp-plugin/{bin,lib,template}/**/*.{js,jsx,ts,tsx,json,css,scss,md}": [
+    "../plugins/headlamp-plugin/{bin,lib}/**/*.{js,jsx,ts,tsx,json,css,scss,md}": [
       "prettier --config package.json --write"
     ],
     "../plugins/examples/**/*.{ts,tsx}": [

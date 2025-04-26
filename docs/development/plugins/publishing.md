@@ -10,11 +10,10 @@ This section of the docs is a guide for how to publish a Headlamp plugin to Arti
 ## Prerequisites
 
 * A GitHub repository containing your Headlamp plugin code. See the [building](./building.md) section to learn how to implement a Headlamp plugin.
-* The [headlamp-plugin](https://www.npmjs.com/package/@kinvolk/headlamp-plugin) NPM package version 0.10.0 (or higher) installed: you can do this by running `npm install -g @kinvolk/headlamp-plugin@^0.10`.
 
 ## Step 1: Create an ArtifactHub repository file
 
-ArtifactHub will need to know that you own the repository you set up for your plugins (this is done in a later step in this guide). So start by creating a file called `artifacthub-repo.yaml` at the root of your GitHub repository with the following content:
+ArtifactHub will need to know that you own the repository you set up for your plugins (this is done in a later step in this guide). So start by creating a file called `artifacthub-repo.yml` at the root of your GitHub repository with the following content:
 
 ```yaml
 owners:
@@ -30,7 +29,7 @@ Replace `<Your Name>` and `<your-email@example.com>` with your name and email, r
   ```bash
   npm install
   npm run build
-  healdamp-plugin package
+  npm run package
   ```
   It will create a tarball of the plugin in a Headlamp-accepted format and also print the checksum of the tarball that we will use in the next step.
 
@@ -43,14 +42,14 @@ Replace `<Your Name>` and `<your-email@example.com>` with your name and email, r
 For detailed instructions on creating a new release, refer to the [GitHub documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository).
 
 :::info
-For security reasons, Headlamp allows the download of plugins exclusively from GitHub, GitLab, and BitBucket. While this may change in the future, if you need your plugins to be downloaded from somewhere else, please [let us know](https://github.com/headlamp-k8s/headlamp/issues).
+For security reasons, Headlamp allows the download of plugins exclusively from GitHub, GitLab, and BitBucket. While this may change in the future, if you need your plugins to be downloaded from somewhere else, please [let us know](https://github.com/kubernetes-sigs/headlamp/issues).
 
 Also, by default the Plugin Catalog only shows plugins marked as official in ArtifactHub, or allow-listed by Headlamp. Users can override this behavior and make Headlamp show all the plugins by switching off the "Only official plugins" setting for the Plugin Catalog. Read more at the [Plugin Catalog README](https://github.com/headlamp-k8s/plugins/tree/main/plugin-catalog#readme).
 :::
 
 ## Step 3: Create an ArtifactHub package for the plugin
 
-ArtifactHub needs to detect that you have a Headlamp plugin in your repository, and read the data about it. For that, we need an ArtifactHub package file in the repo for each plugin we have. For that, create an `artifacthub-pkg.yaml` file in the root of your repository  with the following content:
+ArtifactHub needs to detect that you have a Headlamp plugin in your repository, and read the data about it. For that, we need an ArtifactHub package file in the repo for each plugin we have. For that, create an `artifacthub-pkg.yml` file in the root of your repository  with the following content:
 
 ```yaml
 version: 0.1.0
@@ -70,10 +69,10 @@ Replace the placeholders with appropriate values. For more information, refer to
 
 ## Step 4: Push Changes to GitHub
 
-Commit and push the `artifacthub-repo.yaml` and `artifacthub-pkg.yaml` files to your GitHub repository:
+Commit and push the `artifacthub-repo.yml` and `artifacthub-pkg.yml` files to your GitHub repository:
 
 ```sh
-git add artifacthub-repo.yaml artifacthub-pkg.yaml
+git add artifacthub-repo.yml artifacthub-pkg.yml
 git commit -m "Add Artifact Hub configuration"
 git push origin main
 ```

@@ -8,16 +8,18 @@ import { MatchExpressions } from '../common/Resource/MatchExpressions';
 export interface WebhookConfigurationDetailsProps {
   resourceClass: typeof ValidatingWebhookConfiguration | typeof MutatingWebhookConfiguration;
   name: string;
+  cluster?: string;
 }
 
 export default function WebhookConfigurationDetails(props: WebhookConfigurationDetailsProps) {
-  const { resourceClass, name } = props;
+  const { resourceClass, name, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   return (
     <DetailsGrid
       resourceType={resourceClass}
       name={name}
+      cluster={cluster}
       withEvents
       extraInfo={item =>
         item && [

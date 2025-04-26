@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
 var capturedLogs []string

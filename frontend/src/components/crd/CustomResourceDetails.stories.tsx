@@ -13,6 +13,14 @@ export default {
       handlers: {
         storyBase: [
           http.get(
+            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
+            () => HttpResponse.error()
+          ),
+          http.get(
+            'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions',
+            () => HttpResponse.json({})
+          ),
+          http.get(
             'http://localhost:4466/apis/my.phonyresources.io/v1/namespaces/mynamespace/mycustomresources/mycustomresource',
             () => HttpResponse.json(mockCRList[0])
           ),

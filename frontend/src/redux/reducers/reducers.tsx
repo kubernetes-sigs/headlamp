@@ -6,6 +6,7 @@ import { graphViewSlice } from '../../components/resourceMap/graphViewSlice';
 import pluginsReducer from '../../plugin/pluginsSlice';
 import actionButtons from '../actionButtonsSlice';
 import clusterAction from '../clusterActionSlice';
+import clusterProviderReducer from '../clusterProviderSlice';
 import configReducer from '../configSlice';
 import drawerModeSlice from '../drawerModeSlice';
 import filterReducer from '../filterSlice';
@@ -37,6 +38,7 @@ const reducers = combineReducers({
   overviewCharts: overviewChartsReducer,
   drawerMode: drawerModeSlice,
   graphView: graphViewSlice.reducer,
+  clusterProvider: clusterProviderReducer,
 });
 
 export type RootState = ReturnType<typeof reducers>;

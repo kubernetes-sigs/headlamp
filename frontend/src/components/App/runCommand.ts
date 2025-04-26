@@ -37,10 +37,6 @@ export function runCommand(
     throw new Error('runCommand only works in Headlamp app mode.');
   }
 
-  if (import.meta.env.REACT_APP_ENABLE_RUN_CMD !== 'true') {
-    throw new Error('Running commands is disabled.');
-  }
-
   // Generate a unique ID for the command, so that we can distinguish between
   // multiple commands running at the same time.
   const id = `${new Date().getTime()}-${Math.random().toString(36)}`;

@@ -28,7 +28,7 @@ makeKubeObject<KubePDB\>('podDisruptionBudget').constructor
 
 #### Defined in
 
-[lib/k8s/cluster.ts:318](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L318)
+[lib/k8s/cluster.ts:318](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L318)
 
 ## Properties
 
@@ -51,7 +51,7 @@ makeKubeObject<KubePDB\>('podDisruptionBudget').constructor
 
 #### Defined in
 
-[lib/k8s/podDisruptionBudget.ts:40](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/podDisruptionBudget.ts#L40)
+[lib/k8s/podDisruptionBudget.ts:40](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/podDisruptionBudget.ts#L40)
 
 ___
 
@@ -65,7 +65,7 @@ makeKubeObject<KubePDB\>('podDisruptionBudget').className
 
 #### Defined in
 
-[lib/k8s/cluster.ts:319](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L319)
+[lib/k8s/cluster.ts:319](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L319)
 
 ## Accessors
 
@@ -79,7 +79,7 @@ makeKubeObject<KubePDB\>('podDisruptionBudget').className
 
 #### Defined in
 
-[lib/k8s/podDisruptionBudget.ts:50](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/podDisruptionBudget.ts#L50)
+[lib/k8s/podDisruptionBudget.ts:50](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/podDisruptionBudget.ts#L50)
 
 ___
 
@@ -104,7 +104,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/podDisruptionBudget.ts:42](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/podDisruptionBudget.ts#L42)
+[lib/k8s/podDisruptionBudget.ts:42](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/podDisruptionBudget.ts#L42)
 
 ___
 
@@ -128,7 +128,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/podDisruptionBudget.ts:46](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/podDisruptionBudget.ts#L46)
+[lib/k8s/podDisruptionBudget.ts:46](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/podDisruptionBudget.ts#L46)
 
 ## Methods
 
@@ -154,7 +154,7 @@ makeKubeObject<KubePDB\>('podDisruptionBudget').apiList
 
 #### Defined in
 
-[lib/k8s/cluster.ts:294](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L294)
+[lib/k8s/cluster.ts:294](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L294)
 
 ___
 
@@ -179,7 +179,7 @@ makeKubeObject<KubePDB\>('podDisruptionBudget').getAuthorization
 
 #### Defined in
 
-[lib/k8s/cluster.ts:321](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L321)
+[lib/k8s/cluster.ts:321](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L321)
 
 ___
 
@@ -203,7 +203,7 @@ makeKubeObject<KubePDB\>('podDisruptionBudget').getErrorMessage
 
 #### Defined in
 
-[lib/k8s/cluster.ts:317](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L317)
+[lib/k8s/cluster.ts:317](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L317)
 
 ___
 
@@ -230,7 +230,7 @@ makeKubeObject<KubePDB\>('podDisruptionBudget').useApiGet
 
 #### Defined in
 
-[lib/k8s/cluster.ts:304](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L304)
+[lib/k8s/cluster.ts:304](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L304)
 
 ___
 
@@ -256,7 +256,7 @@ makeKubeObject<KubePDB\>('podDisruptionBudget').useApiList
 
 #### Defined in
 
-[lib/k8s/cluster.ts:299](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L299)
+[lib/k8s/cluster.ts:299](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L299)
 
 ___
 
@@ -281,7 +281,7 @@ makeKubeObject<KubePDB\>('podDisruptionBudget').useGet
 
 #### Defined in
 
-[lib/k8s/cluster.ts:313](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L313)
+[lib/k8s/cluster.ts:313](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L313)
 
 ___
 
@@ -305,4 +305,4 @@ makeKubeObject<KubePDB\>('podDisruptionBudget').useList
 
 #### Defined in
 
-[lib/k8s/cluster.ts:310](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L310)
+[lib/k8s/cluster.ts:310](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L310)

@@ -113,8 +113,6 @@ export function handleRunCommand(
   eventData: CommandData,
   mainWindow: BrowserWindow | null
 ): void {
-  return; // Disable this until we figure out a better way to do this
-
   if (mainWindow === null) {
     console.error('Main window is null, cannot show dialog');
     return;

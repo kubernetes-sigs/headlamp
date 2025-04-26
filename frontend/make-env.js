@@ -10,6 +10,7 @@ const envContents = {
   REACT_APP_HEADLAMP_VERSION: appInfo.version,
   REACT_APP_HEADLAMP_GIT_VERSION: gitVersion,
   REACT_APP_HEADLAMP_PRODUCT_NAME: appInfo.productName,
+  REACT_APP_ENABLE_REACT_QUERY_DEVTOOLS: 'false'
 };
 
 function createEnvText() {

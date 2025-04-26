@@ -1,4 +1,4 @@
-import { isDebugVerbose } from '../../../../helpers';
+import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
 import { getToken } from '../../../auth';
 import { getCluster } from '../../../cluster';

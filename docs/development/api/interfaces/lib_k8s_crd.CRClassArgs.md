@@ -12,7 +12,7 @@
 
 #### Defined in
 
-[lib/k8s/crd.ts:120](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/crd.ts#L120)
+[lib/k8s/crd.ts:120](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/crd.ts#L120)
 
 ___
 
@@ -22,7 +22,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/crd.ts:126](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/crd.ts#L126)
+[lib/k8s/crd.ts:126](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/crd.ts#L126)
 
 ___
 
@@ -32,7 +32,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/crd.ts:124](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/crd.ts#L124)
+[lib/k8s/crd.ts:124](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/crd.ts#L124)
 
 ___
 
@@ -42,4 +42,4 @@ ___
 
 #### Defined in
 
-[lib/k8s/crd.ts:125](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/crd.ts#L125)
+[lib/k8s/crd.ts:125](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/crd.ts#L125)

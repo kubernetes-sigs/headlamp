@@ -1,4 +1,4 @@
-import { FormControlLabel, Switch } from '@mui/material';
+import { FormControlLabel, Switch, Theme } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -121,7 +121,7 @@ function EventsSection() {
     return (
       <StatusLabel
         status={event.type === 'Normal' ? '' : 'warning'}
-        sx={theme => ({
+        sx={(theme: Theme) => ({
           [theme.breakpoints.up('md')]: {
             display: 'unset',
           },
@@ -155,6 +155,7 @@ function EventsSection() {
               localStorage.setItem(EVENT_WARNING_SWITCH_FILTER_STORAGE_KEY, checked.toString());
               setIsWarningEventSwitchChecked(checked);
             }}
+            key="warning-toggle"
           />,
         ],
       }}

@@ -18,6 +18,10 @@ const PaddedChip = styled(Chip)({
   paddingBottom: '2px',
 });
 
+export function formatTaint(taint: { key: string; value?: string; effect: string }) {
+  return `${taint.key}${taint.value ? '=' + taint.value : ''}:${taint.effect}`;
+}
+
 export function NodeTaintsLabel(props: { node: Node }) {
   const { node } = props;
   const { t } = useTranslation(['glossary', 'translation']);
@@ -26,9 +30,10 @@ export function NodeTaintsLabel(props: { node: Node }) {
   }
   const limits: ReactNode[] = [];
   node.spec.taints.forEach(taint => {
+    const format = formatTaint(taint);
     limits.push(
-      <Tooltip title={`${taint.key}:${taint.effect}`} key={taint.key}>
-        <PaddedChip label={`${taint.key}:${taint.effect}`} variant="outlined" size="small" />
+      <Tooltip title={format} key={taint.key}>
+        <PaddedChip label={format} variant="outlined" size="small" />
       </Tooltip>
     );
   });

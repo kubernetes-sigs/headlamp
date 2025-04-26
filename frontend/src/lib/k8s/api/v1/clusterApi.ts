@@ -1,4 +1,5 @@
-import helpers, { getHeadlampAPIHeaders } from '../../../../helpers';
+import { loadClusterSettings } from '../../../../helpers/clusterSettings';
+import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import { ConfigState } from '../../../../redux/configSlice';
 import store from '../../../../redux/stores/store';
 import {
@@ -6,7 +7,7 @@ import {
   findKubeconfigByClusterName,
   storeStatelessClusterKubeconfig,
 } from '../../../../stateless';
-import { getCluster, getClusterGroup } from '../../../util';
+import { getCluster, getSelectedClusters } from '../../../cluster';
 import { ClusterRequest, clusterRequest, post, request } from './clusterRequests';
 import { JSON_HEADERS } from './constants';
 
@@ -29,7 +30,7 @@ export async function testAuth(cluster = '', namespace = 'default') {
  * Will throw an error if the cluster is not healthy.
  */
 export async function testClusterHealth(cluster?: string) {
-  const clusterNames = cluster ? [cluster] : getClusterGroup();
+  const clusterNames = cluster ? [cluster] : getSelectedClusters();
 
   const healthChecks = clusterNames.map(clusterName => {
     return clusterRequest('/healthz', { isJSON: false, cluster: clusterName }).catch(error => {
@@ -115,7 +116,7 @@ export function getClusterDefaultNamespace(cluster: string, checkSettings?: bool
 
   if (!!cluster) {
     if (includeSettings) {
-      const clusterSettings = helpers.loadClusterSettings(cluster);
+      const clusterSettings = loadClusterSettings(cluster);
       defaultNamespace = clusterSettings?.defaultNamespace || '';
     }
 

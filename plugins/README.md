@@ -28,6 +28,7 @@ Folder                                         | Description
 [examples/app-menus](examples/app-menus)       | Add app window menus.
 [examples/change-logo](examples/change-logo)   | Change the logo.
 [examples/cluster-chooser](examples/cluster-chooser)   | Override default chooser button.
+[examples/custom-theme](examples/custom-theme)   | Add new custom theme.
 [examples/details-view](examples/details-view)         | Custom sections and actions for detail views.
 [examples/dynamic-clusters](examples/dynamic-clusters) | Update cluster configuration dynamically.
 [examples/pod-counter](examples/pod-counter)   | Display number of Pods in the title bar.

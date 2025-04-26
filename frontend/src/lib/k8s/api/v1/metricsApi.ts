@@ -1,4 +1,4 @@
-import { isDebugVerbose } from '../../../../helpers';
+import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getCluster } from '../../../cluster';
 import { KubeMetrics } from '../../cluster';
 import { ApiError } from '../v2/ApiError';

@@ -1,8 +1,8 @@
 import _ from 'lodash';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import helpers from '../../helpers';
-import { useCluster } from '../../lib/k8s';
+import { isElectron } from '../../helpers/isElectron';
+import { useSelectedClusters } from '../../lib/k8s';
 import { createRouteURL } from '../../lib/router';
 import { useTypedSelector } from '../../redux/reducers/reducers';
 import { DefaultSidebars, SidebarItemProps } from '.';
@@ -17,12 +17,28 @@ const forEachEntry = (items: SidebarItemProps[], cb: (item: SidebarItemProps) =>
   });
 };
 
+const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
+  const homeItems = items.filter(({ name }) => name === 'home');
+  const otherItems = items
+    .filter(({ name }) => name !== 'home')
+    .sort((a, b) => {
+      const aLabel = ((a.label ?? a.name) + '').toLowerCase();
+      const bLabel = ((b.label ?? b.name) + '').toLowerCase();
+      return aLabel.localeCompare(bLabel);
+    });
+  return [...homeItems, ...otherItems].map(item => ({
+    ...item,
+    subList: item.subList ? sortSidebarItems(item.subList) : undefined,
+  }));
+};
+
 export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER) => {
   const clusters = useTypedSelector(state => state.config.clusters) ?? {};
+  const settings = useTypedSelector(state => state.config.settings);
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
-  const shouldShowHomeItem = helpers.isElectron() || Object.keys(clusters).length !== 1;
-  const cluster = useCluster();
+  const shouldShowHomeItem = isElectron() || Object.keys(clusters).length !== 1;
+  const selectedClusters = useSelectedClusters();
   const { t } = useTranslation();
 
   const sidebars = useMemo(() => {
@@ -77,8 +93,8 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
       },
       {
         name: 'cluster',
-        label: t('glossary|Cluster'),
-        subtitle: cluster || undefined,
+        label: selectedClusters.length ? t('Clusters') : t('glossary|Cluster'),
+        subtitle: selectedClusters.join('\n') || undefined,
         icon: 'mdi:hexagon-multiple-outline',
         subList: [
           {
@@ -90,6 +106,11 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             label: t('glossary|Nodes'),
           },
         ],
+      },
+      {
+        name: 'map',
+        icon: 'mdi:map',
+        label: t('glossary|Map'),
       },
       {
         name: 'workloads',
@@ -169,7 +190,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
           {
             name: 'portforwards',
             label: t('glossary|Port Forwarding'),
-            hide: !helpers.isElectron(),
+            hide: !isElectron(),
           },
           {
             name: 'NetworkPolicies',
@@ -285,11 +306,6 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
           },
         ],
       },
-      {
-        name: 'map',
-        icon: 'mdi:map',
-        label: t('glossary|Map (beta)'),
-      },
     ];
 
     // List of sidebars, they act as roots for the sidebar tree
@@ -353,7 +369,22 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     }
 
     return sidebars;
-  }, [customSidebarEntries, shouldShowHomeItem, Object.keys(clusters).join(','), cluster]);
+  }, [
+    customSidebarEntries,
+    shouldShowHomeItem,
+    Object.keys(clusters).join(','),
+    selectedClusters.join(','),
+    t,
+  ]);
 
-  return sidebars[sidebarName === '' ? DefaultSidebars.IN_CLUSTER : sidebarName] ?? [];
+  const unsortedItems =
+    sidebars[sidebarName === '' ? DefaultSidebars.IN_CLUSTER : sidebarName] ?? [];
+
+  const sortedItems = useMemo(() => {
+    // Make a deep copy so that we always start from the original (unsorted) order.
+    const itemsCopy = _.cloneDeep(unsortedItems);
+    return settings?.sidebarSortAlphabetically ? sortSidebarItems(itemsCopy) : itemsCopy;
+  }, [unsortedItems, settings.sidebarSortAlphabetically]);
+
+  return sortedItems;
 };

@@ -4,6 +4,7 @@ import {
   Chip,
   FormControl,
   IconButton,
+  InputLabel,
   MenuItem,
   Select,
   TextField,
@@ -14,7 +15,12 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
-import helpers, { ClusterSettings } from '../../../helpers';
+import {
+  ClusterSettings,
+  loadClusterSettings,
+  storeClusterSettings,
+} from '../../../helpers/clusterSettings';
+import { isElectron } from '../../../helpers/isElectron';
 import { useCluster, useClustersConf } from '../../../lib/k8s';
 import { deleteCluster, parseKubeConfig, renameCluster } from '../../../lib/k8s/apiProxy';
 import { setConfig, setStatelessConfig } from '../../../redux/configSlice';
@@ -58,7 +64,8 @@ function ClusterSelector(props: ClusterSelectorProps) {
   const { t } = useTranslation('glossary');
 
   return (
-    <FormControl variant="outlined" margin="normal" sx={{ minWidth: 250 }}>
+    <FormControl variant="outlined" margin="normal" size="small" sx={{ minWidth: 250 }}>
+      <InputLabel id="settings--cluster-selector">{t('glossary|Cluster')}</InputLabel>
       <Select
         labelId="settings--cluster-selector"
         value={currentCluster}
@@ -158,7 +165,7 @@ export default function SettingsCluster() {
   }, [cluster, clusterConf]);
 
   React.useEffect(() => {
-    setClusterSettings(!!cluster ? helpers.loadClusterSettings(cluster || '') : null);
+    setClusterSettings(!!cluster ? loadClusterSettings(cluster || '') : null);
   }, [cluster]);
 
   React.useEffect(() => {
@@ -180,7 +187,7 @@ export default function SettingsCluster() {
 
     // Avoid re-initializing settings as {} just because the cluster is not yet set.
     if (clusterSettings !== null) {
-      helpers.storeClusterSettings(cluster || '', clusterSettings);
+      storeClusterSettings(cluster || '', clusterSettings);
     }
   }, [cluster, clusterSettings]);
 
@@ -332,7 +339,7 @@ export default function SettingsCluster() {
             {t('translation|Go to cluster')}
           </Link>
         </Box>
-        {helpers.isElectron() && (
+        {isElectron() && (
           <NameValueTable
             rows={[
               {
@@ -350,7 +357,7 @@ export default function SettingsCluster() {
                     helperText={
                       isValidCurrentName
                         ? t(
-                            'translation|The current name of cluster. You can define custom modified name.'
+                            'translation|The current name of the cluster. You can define a custom name.'
                           )
                         : invalidClusterNameMessage
                     }
@@ -409,6 +416,8 @@ export default function SettingsCluster() {
                         )
                       : invalidNamespaceMessage
                   }
+                  variant="outlined"
+                  size="small"
                   InputProps={{
                     endAdornment: isEditingDefaultNamespace() ? (
                       <Icon
@@ -450,6 +459,8 @@ export default function SettingsCluster() {
                         autocomplete: 'off',
                       },
                     }}
+                    variant="outlined"
+                    size="small"
                     InputProps={{
                       endAdornment: (
                         <IconButton
@@ -507,7 +518,7 @@ export default function SettingsCluster() {
           ]}
         />
       </SectionBox>
-      {removableCluster && helpers.isElectron() && (
+      {removableCluster && isElectron() && (
         <Box pt={2} textAlign="right">
           <ConfirmButton
             color="secondary"

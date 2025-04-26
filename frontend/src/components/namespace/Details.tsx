@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { LimitRange } from '../../lib/k8s/limitRange';
-import Namespace, { KubeNamespace } from '../../lib/k8s/namespace';
+import Namespace from '../../lib/k8s/namespace';
 import ResourceQuota from '../../lib/k8s/resourceQuota';
 import { StatusLabel } from '../common/Label';
 import { ConditionsSection, DetailsGrid, OwnedPodsSection } from '../common/Resource';
@@ -9,9 +9,9 @@ import DetailsViewSection from '../DetailsViewSection';
 import { LimitRangeRenderer } from '../limitRange/List';
 import { ResourceQuotaRenderer } from '../resourceQuota/List';
 
-export default function NamespaceDetails(props: { name?: string }) {
+export default function NamespaceDetails(props: { name?: string; cluster?: string }) {
   const params = useParams<{ name: string }>();
-  const { name = params.name } = props;
+  const { name = params.name, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   function makeStatusLabel(namespace: Namespace | null) {
@@ -23,6 +23,7 @@ export default function NamespaceDetails(props: { name?: string }) {
     <DetailsGrid
       resourceType={Namespace}
       name={name}
+      cluster={cluster}
       withEvents
       extraInfo={item =>
         item && [
@@ -40,17 +41,15 @@ export default function NamespaceDetails(props: { name?: string }) {
           },
           {
             id: 'headlamp.namespace-owned-resourcequotas',
-            section: <NamespacedResourceQuotasSection resource={item?.jsonData} />,
+            section: <NamespacedResourceQuotasSection resource={item} />,
           },
           {
             id: 'headlamp.namespace-owned-limitranges',
-            section: <NamespacedLimitRangesSection resource={item?.jsonData} />,
+            section: <NamespacedLimitRangesSection resource={item} />,
           },
           {
             id: 'headlamp.namespace-owned-pods',
-            section: (
-              <OwnedPodsSection hideColumns={['namespace']} resource={item?.jsonData} noSearch />
-            ),
+            section: <OwnedPodsSection hideColumns={['namespace']} resource={item} noSearch />,
           },
           {
             id: 'headlamp.namespace-details-view',
@@ -63,7 +62,7 @@ export default function NamespaceDetails(props: { name?: string }) {
 }
 
 export interface NamespacedLimitRangesSectionProps {
-  resource: KubeNamespace;
+  resource: Namespace;
 }
 
 export function NamespacedLimitRangesSection(props: NamespacedLimitRangesSectionProps) {
@@ -71,6 +70,7 @@ export function NamespacedLimitRangesSection(props: NamespacedLimitRangesSection
 
   const { items: limitRanges, errors } = LimitRange.useList({
     namespace: resource.metadata.name,
+    cluster: resource.cluster,
   });
 
   return (
@@ -84,7 +84,7 @@ export function NamespacedLimitRangesSection(props: NamespacedLimitRangesSection
 }
 
 export interface NamespacedResourceQuotasSectionProps {
-  resource: KubeNamespace;
+  resource: Namespace;
 }
 
 export function NamespacedResourceQuotasSection(props: NamespacedResourceQuotasSectionProps) {
@@ -92,6 +92,7 @@ export function NamespacedResourceQuotasSection(props: NamespacedResourceQuotasS
 
   const { items: resourceQuotas, errors } = ResourceQuota.useList({
     namespace: resource.metadata.name,
+    cluster: resource.cluster,
   });
 
   return (

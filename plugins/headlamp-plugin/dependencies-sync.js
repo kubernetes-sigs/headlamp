@@ -15,71 +15,28 @@
 // Some packages are used by headlamp-plugin that are not used by the frontend.
 // These won't be removed from headlamp-plugin/package.json
 const dependenciesFrontDoesNotHave = new Set([
-  '@babel/cli',
-  '@babel/core',
-  '@babel/plugin-proposal-class-properties',
-  '@babel/plugin-transform-react-jsx',
-  '@babel/preset-env',
-  '@babel/preset-react',
-  '@babel/preset-typescript',
-  '@remix-run/router',
-  '@svgr/webpack',
-  '@storybook/react-webpack5',
-  'babel-loader',
-  'css-loader',
   'env-paths',
-  'eslint-plugin-jsx-a11y',
-  'file-loader',
-  'filemanager-webpack-plugin',
-  'fs-extra',
-  'imports-loader',
   'shx',
-  'style-loader',
-  'url-loader',
+  'fs-extra',
   'validate-npm-package-name',
-  'webpack-cli',
   'yargs',
-  'is-plain-object',
-  'tsconfig-paths-webpack-plugin',
   'vm-browserify',
-  '@storybook/addon-storyshots',
-  '@storybook/preset-create-react-app',
-  'jest-canvas-mock',
-  'jest-html-reporter',
-  'jest-websocket-mock',
-  'react-scripts',
-  'ws',
-  '@babel/plugin-proposal-private-property-in-object',
-  '@types/webpack-env',
-  'monaco-editor-webpack-plugin',
-  'webpack',
   'table',
   'tar',
-  'patch-package',
+  'tmp',
+  'vite-plugin-css-injected-by-js',
+  'vite-plugin-static-copy',
 ]);
 
 // Dependencies from frontend/package.json that aren't wanted by headlamp-plugin.
 // These won't be added to headlamp-plugin/package.json
 const dependenciesToNotCopy = [
+  '@storybook/test',
   'husky',
   'typedoc',
   'typedoc-hugo-theme',
   'typedoc-plugin-markdown',
   'typedoc-plugin-rename-defaults',
-  '@storybook/builder-vite',
-  '@storybook/react-vite',
-  '@vitejs/plugin-react',
-  '@vitest/coverage-istanbul',
-  'vite',
-  'vite-plugin-svgr',
-  'vite-plugin-env-compatible',
-  'vite-plugin-node-polyfills',
-  'vitest',
-  'vitest-canvas-mock',
-  'vitest-websocket-mock',
-  'jsdom',
-  'glob',
-  '@axe-core/react',
 ];
 
 const yargs = require('yargs/yargs');
@@ -121,6 +78,22 @@ function updateDependencies(packageJsonPath, checkOnly) {
   // Some dependencies from frontend/ aren't wanted.
   for (const packageName of dependenciesToNotCopy) {
     delete headlampPluginPkg.dependencies[packageName];
+  }
+
+  // Check if dependenciesFrontDoesNotHave are also present here
+  {
+    const staleDeps = [];
+    for (const packageName of dependenciesFrontDoesNotHave) {
+      if (headlampPluginPkg.dependencies[packageName] === undefined) {
+        staleDeps.push(packageName);
+      }
+    }
+    if (staleDeps.length > 0) {
+      console.log(
+        `\nSTALE Dependencies. Both headlamp-plugin and front doesn't have them.\nRemove them from dependenciesFrontDoesNotHave in dedendencies-sync.js:\n`,
+        staleDeps
+      );
+    }
   }
 
   // We want to find if packages are removed from frontend/package.json too.

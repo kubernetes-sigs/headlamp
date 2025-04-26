@@ -110,8 +110,6 @@ jobs:
 
   testplugins:
     name: test plugins
-    # TODO: This is currently broken. Reenable after #2549 #2560 is fixed
-    if: false
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

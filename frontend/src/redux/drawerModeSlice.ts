@@ -2,7 +2,16 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 export interface DrawerModeState {
   isDetailDrawerEnabled: boolean;
-  selectedResource: { kind: string; metadata: { name: string; namespace?: string } } | undefined;
+  selectedResource?: {
+    kind: string;
+    metadata: { name: string; namespace?: string };
+    /**
+     * If the selected resource is a custom resource you should provide
+     * the name of the custom resource definition
+     */
+    customResourceDefinition?: string;
+    cluster: string;
+  };
 }
 
 const getLocalDrawerStatus = (key: string) => localStorage.getItem(key) === 'true';

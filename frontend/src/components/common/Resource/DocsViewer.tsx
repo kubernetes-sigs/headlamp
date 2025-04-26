@@ -10,9 +10,6 @@ import getDocDefinitions from '../../../lib/docs';
 import Empty from '../EmptyContent';
 import Loader from '../Loader';
 
-// Buffer class is not polyffiled with CRA(v5) so we manually do it here
-// window.Buffer = buffer.Buffer;
-
 export interface DocsViewerProps {
   // @todo: Declare strict types.
   docSpecs: any;

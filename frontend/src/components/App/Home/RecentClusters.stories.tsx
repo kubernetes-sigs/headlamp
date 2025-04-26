@@ -1,6 +1,6 @@
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import helpers from '../../../helpers';
+import { getRecentClusters, setRecentCluster } from '../../../helpers/recentClusters';
 import { Cluster } from '../../../lib/k8s/cluster';
 import RecentClusters, { RecentClustersProps } from './RecentClusters';
 
@@ -30,7 +30,7 @@ export default {
 } as Meta;
 
 interface RecentClusterStoryProps extends RecentClustersProps {
-  getRecentClusters: typeof helpers.getRecentClusters;
+  getRecentClusters: typeof getRecentClusters;
 }
 
 const Template: StoryFn<RecentClusterStoryProps> = args => {
@@ -40,7 +40,7 @@ const Template: StoryFn<RecentClusterStoryProps> = args => {
     const clusters = getRecentClusters();
     localStorage.setItem('recent_clusters', '[]');
     for (const clusterName of clusters) {
-      helpers.setRecentCluster(clusterName);
+      setRecentCluster(clusterName);
     }
   });
 

@@ -1,5 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { initialState as CLUSTER_ACTIONS_INITIAL_STATE } from '../clusterActionSlice';
+import { initialState as CLUSTER_PROVIDER_INITIAL_STATE } from '../clusterProviderSlice';
 import { initialState as CONFIG_INITIAL_STATE } from '../configSlice';
 import { initialState as FILTER_INITIAL_STATE } from '../filterSlice';
 import { listenerMiddleware } from '../headlampEventSlice';
@@ -13,6 +14,7 @@ const store = configureStore({
     ui: UI_INITIAL_STATE,
     config: CONFIG_INITIAL_STATE,
     clusterAction: CLUSTER_ACTIONS_INITIAL_STATE,
+    clusterProvider: CLUSTER_PROVIDER_INITIAL_STATE,
   },
   middleware: getDefaultMiddleware =>
     getDefaultMiddleware({

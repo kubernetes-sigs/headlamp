@@ -28,9 +28,9 @@
   "author": "Headlamp developers <security@headlamp.dev>",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/headlamp-k8s/headlamp/issues"
+    "url": "https://github.com/kubernetes-sigs/headlamp/issues"
   },
-  "homepage": "https://github.com/headlamp-k8s/headlamp/eslint-config/README.md",
+  "homepage": "https://github.com/kubernetes-sigs/headlamp/blob/main/eslint-config/README.md",
   "peerDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.3.0",
     "eslint": "^8.57.0",

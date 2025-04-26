@@ -1,6 +1,5 @@
 import { IconProps } from '@iconify/react';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import themesConf from '../../lib/themes';
 
 export enum DefaultSidebars {
   HOME = 'HOME',
@@ -86,9 +85,7 @@ export function setInitialSidebarOpen() {
   if (openUserSelected !== undefined) {
     defaultOpen = openUserSelected;
   } else {
-    defaultOpen = window?.innerWidth
-      ? window.innerWidth > themesConf.light.breakpoints.values.md
-      : true;
+    defaultOpen = window?.innerWidth ? window.innerWidth > 960 : true;
   }
 
   return {

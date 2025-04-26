@@ -16,7 +16,7 @@
 
 #### Defined in
 
-[lib/auth.ts:41](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/auth.ts#L41)
+[lib/auth.ts:41](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/auth.ts#L41)
 
 ___
 
@@ -36,7 +36,7 @@ ___
 
 #### Defined in
 
-[lib/auth.ts:7](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/auth.ts#L7)
+[lib/auth.ts:7](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/auth.ts#L7)
 
 ___
 
@@ -56,7 +56,7 @@ ___
 
 #### Defined in
 
-[lib/auth.ts:17](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/auth.ts#L17)
+[lib/auth.ts:17](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/auth.ts#L17)
 
 ___
 
@@ -76,7 +76,7 @@ ___
 
 #### Defined in
 
-[lib/auth.ts:22](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/auth.ts#L22)
+[lib/auth.ts:22](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/auth.ts#L22)
 
 ___
 
@@ -90,7 +90,7 @@ ___
 
 #### Defined in
 
-[lib/auth.ts:45](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/auth.ts#L45)
+[lib/auth.ts:45](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/auth.ts#L45)
 
 ___
 
@@ -111,4 +111,4 @@ ___
 
 #### Defined in
 
-[lib/auth.ts:30](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/auth.ts#L30)
+[lib/auth.ts:30](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/auth.ts#L30)

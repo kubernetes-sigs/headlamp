@@ -1,5 +1,6 @@
+import { Icon } from '@iconify/react';
 import Button from '@mui/material/Button';
-import { styled } from '@mui/system';
+import { alpha, styled } from '@mui/system';
 import React, { ReactElement } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
@@ -28,13 +29,14 @@ const ClusterChooser = React.forwardRef(function ClusterChooser(
   return (
     <Button
       size="large"
-      variant="contained"
+      color="secondary"
       onClick={clickHandler}
+      startIcon={<Icon icon="mdi:hexagon-multiple-outline" />}
       sx={theme => ({
-        color: theme.palette.clusterChooser.button.color,
-        background: theme.palette.clusterChooser.button.background,
-        '&:hover': {
-          background: theme.palette.clusterChooser.button.hover.background,
+        background: theme.palette.navbar.background,
+        color: theme.palette.navbar.color,
+        ':hover': {
+          background: alpha(theme.palette.navbar.color, 0.07),
         },
         maxWidth: '20em',
         textTransform: 'none',

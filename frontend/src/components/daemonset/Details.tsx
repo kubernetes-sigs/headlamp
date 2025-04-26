@@ -65,9 +65,13 @@ function TolerationsSection(props: TolerationsSection) {
   );
 }
 
-export default function DaemonSetDetails(props: { name?: string; namespace?: string }) {
+export default function DaemonSetDetails(props: {
+  name?: string;
+  namespace?: string;
+  cluster?: string;
+}) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   return (
@@ -75,6 +79,7 @@ export default function DaemonSetDetails(props: { name?: string; namespace?: str
       resourceType={DaemonSet}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       extraInfo={item =>
         item && [
@@ -95,7 +100,7 @@ export default function DaemonSetDetails(props: { name?: string; namespace?: str
       extraSections={item => [
         {
           id: 'headlamp.daemonset-owned-pods',
-          section: <OwnedPodsSection resource={item?.jsonData} />,
+          section: <OwnedPodsSection resource={item} />,
         },
         {
           id: 'headlamp.daemonset-tolerations',

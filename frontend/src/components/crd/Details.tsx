@@ -1,7 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { ApiError } from '../../lib/k8s/apiProxy';
 import CRD from '../../lib/k8s/crd';
 import { Link, ObjectEventList } from '../common';
 import Loader from '../common/Loader';
@@ -11,13 +10,11 @@ import SimpleTable from '../common/SimpleTable';
 import DetailsViewSection from '../DetailsViewSection';
 import { CustomResourceListTable } from './CustomResourceList';
 
-export default function CustomResourceDefinitionDetails() {
-  const { name } = useParams<{ name: string }>();
-  const [item, setItem] = React.useState<CRD | null>(null);
-  const [error, setError] = React.useState<ApiError | null>(null);
+export default function CustomResourceDefinitionDetails(props: { name?: string }) {
+  const params = useParams<{ name: string }>();
+  const { name = params.name } = props;
+  const [item, error] = CRD.useGet(name);
   const { t } = useTranslation(['glossary', 'translation']);
-
-  CRD.useApiGet(setItem, name, undefined, setError);
 
   return !item ? (
     <Loader title={t('translation|Loading resource definition details')} />

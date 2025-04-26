@@ -3,9 +3,9 @@ import { useParams } from 'react-router';
 import { Lease } from '../../lib/k8s/lease';
 import { DateLabel, DetailsGrid } from '../common';
 
-export function LeaseDetails(props: { name?: string; namespace?: string }) {
+export function LeaseDetails(props: { name?: string; namespace?: string; cluster?: string }) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation();
 
   return (
@@ -13,6 +13,7 @@ export function LeaseDetails(props: { name?: string; namespace?: string }) {
       resourceType={Lease}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       extraInfo={item =>
         item && [

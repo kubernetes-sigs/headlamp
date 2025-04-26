@@ -16,8 +16,10 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useDispatch } from 'react-redux';
 import Namespace from '../../lib/k8s/namespace';
 import K8sNode from '../../lib/k8s/node';
+import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/reducers/reducers';
 import { NamespacesAutocomplete } from '../common';
 import { GraphNodeDetails } from './details/GraphNodeDetails';
@@ -101,9 +103,17 @@ function GraphViewContent({
   defaultFilters = defaultFiltersValue,
 }: GraphViewContentProps) {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
 
   // List of selected namespaces
   const namespaces = useTypedSelector(state => state.filter).namespaces;
+
+  // Sync namespace and URL
+  const [namespacesParam] = useQueryParamsState<string>('namespace', '');
+  useEffect(() => {
+    const list = namespacesParam?.split(' ') ?? [];
+    dispatch(setNamespaceFilter(list));
+  }, [namespacesParam, dispatch]);
 
   // Filters
   const [hasErrorsFilter, setHasErrorsFilter] = useState(false);

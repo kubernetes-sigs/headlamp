@@ -3,15 +3,16 @@ import { useParams } from 'react-router-dom';
 import PriorityClass from '../../lib/k8s/priorityClass';
 import { DetailsGrid } from '../common';
 
-export default function PriorityClassDetails(props: { name?: string }) {
+export default function PriorityClassDetails(props: { name?: string; cluster?: string }) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name } = props;
+  const { name = params.name, cluster } = props;
   const { t } = useTranslation(['translation']);
 
   return (
     <DetailsGrid
       resourceType={PriorityClass}
       name={name}
+      cluster={cluster}
       withEvents
       extraInfo={item =>
         item && [

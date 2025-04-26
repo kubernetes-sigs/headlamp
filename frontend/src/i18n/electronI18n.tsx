@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import helpers from '../helpers';
+import { isElectron } from '../helpers/isElectron';
 
 declare global {
   interface Window {
@@ -9,7 +9,7 @@ declare global {
 }
 
 // If we're running under electron, we need to communicate any language changes.
-const ipcRenderer = helpers.isElectron() ? window.desktopApi : null;
+const ipcRenderer = isElectron() ? window.desktopApi : null;
 
 function tellAppAboutLanguage(lang: string) {
   if (ipcRenderer) {

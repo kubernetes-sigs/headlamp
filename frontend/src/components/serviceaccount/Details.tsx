@@ -5,9 +5,13 @@ import ServiceAccount from '../../lib/k8s/serviceAccount';
 import { Link } from '../common';
 import { DetailsGrid } from '../common/Resource';
 
-export default function ServiceAccountDetails(props: { name?: string; namespace?: string }) {
+export default function ServiceAccountDetails(props: {
+  name?: string;
+  namespace?: string;
+  cluster?: string;
+}) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation('glossary');
 
   return (
@@ -15,6 +19,7 @@ export default function ServiceAccountDetails(props: { name?: string; namespace?
       resourceType={ServiceAccount}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       extraInfo={item =>
         item && [

@@ -8,9 +8,13 @@ import { DetailsGrid } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
 
-export default function EndpointDetails(props: { name?: string; namespace?: string }) {
+export default function EndpointDetails(props: {
+  name?: string;
+  namespace?: string;
+  cluster?: string;
+}) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const location = useLocation();
   const { t } = useTranslation(['glossary', 'translation']);
 
@@ -19,6 +23,7 @@ export default function EndpointDetails(props: { name?: string; namespace?: stri
       resourceType={Endpoints}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       title={t('Endpoint')}
       withEvents
       extraSections={(item: KubeEndpoint) =>

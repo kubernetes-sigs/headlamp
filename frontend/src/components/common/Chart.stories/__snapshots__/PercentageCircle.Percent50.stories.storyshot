@@ -42,21 +42,55 @@
             tabindex="0"
           >
             <g
-              class="recharts-layer"
+              class="recharts-layer recharts-pie-sector"
+              tabindex="-1"
             >
-              <g
-                class="recharts-layer recharts-pie-sector"
-                tabindex="-1"
-              />
-              <g
-                class="recharts-layer recharts-pie-sector"
-                tabindex="-1"
-              />
-              <g
-                class="recharts-layer recharts-pie-sector"
+              <path
+                class="recharts-sector"
+                cx="85"
+                cy="85"
+                d="M 85,21
+    A 64,64,0,
+    0,1,
+    85,149
+  L 85,133
+            A 48,48,0,
+            0,0,
+            85,37 Z"
+                fill="#000"
+                name="ready"
+                role="img"
+                stroke="#e0e0e0"
                 tabindex="-1"
               />
             </g>
+            <g
+              class="recharts-layer recharts-pie-sector"
+              tabindex="-1"
+            >
+              <path
+                class="recharts-sector"
+                cx="85"
+                cy="85"
+                d="M 85,149
+    A 64,64,0,
+    0,1,
+    84.99999999999999,21
+  L 84.99999999999999,37
+            A 48,48,0,
+            0,0,
+            85,133 Z"
+                fill="#f44336"
+                name="notReady"
+                role="img"
+                stroke="#e0e0e0"
+                tabindex="-1"
+              />
+            </g>
+            <g
+              class="recharts-layer recharts-pie-sector"
+              tabindex="-1"
+            />
             <text
               class="recharts-text recharts-label"
               fill="#808080"

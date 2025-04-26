@@ -5,7 +5,7 @@ import { HoverInfoLabel } from '../common';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { UsageBarChart } from './Charts';
 import { NodeReadyLabel } from './Details';
-import { NodeTaintsLabel } from './utils';
+import { formatTaint, NodeTaintsLabel } from './utils';
 
 export default function NodeList() {
   const [nodeMetrics, metricsError] = Node.useMetrics();
@@ -70,8 +70,7 @@ export default function NodeList() {
         {
           id: 'taints',
           label: t('translation|Taints'),
-          getValue: node =>
-            node.spec?.taints?.map(taint => `${taint.key}:${taint.effect}`)?.join(', '),
+          getValue: node => node.spec?.taints?.map(taint => formatTaint(taint))?.join(', '),
           render: (item: Node) => <NodeTaintsLabel node={item} />,
         },
         {

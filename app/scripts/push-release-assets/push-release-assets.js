@@ -189,7 +189,7 @@ async function pushFiles(release, files) {
         repo,
         release_id: release.id,
         name: baseFileName,
-        data: `@${filePath}`,
+        data,
         headers,
       });
     } catch (e) {
@@ -282,7 +282,8 @@ async function main() {
     process.exit(1);
   }
 
-  pushFiles(release, [args.asset1].concat(args.asset2));
+  await pushFiles(release, [args.asset1].concat(args.asset2));
+  console.log('Files pushed successfully.');
 }
 
 main();

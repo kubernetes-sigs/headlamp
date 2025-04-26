@@ -5,7 +5,9 @@ import { grey } from '@mui/material/colors';
 import MuiLink from '@mui/material/Link';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import helpers from '../../../helpers';
+import { isDockerDesktop } from '../../../helpers/isDockerDesktop';
+import { isElectron } from '../../../helpers/isElectron';
+import { getCluster } from '../../../lib/cluster';
 import { PortForward as PortForwardState } from '../../../lib/k8s/api/v1/portForward';
 import {
   listPortForward,
@@ -16,7 +18,6 @@ import { KubeContainer } from '../../../lib/k8s/cluster';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';
 import Service from '../../../lib/k8s/service';
-import { getCluster } from '../../../lib/util';
 import ActionButton from '../ActionButton';
 export { type PortForward as PortForwardState } from '../../../lib/k8s/api/v1/portForward';
 
@@ -137,7 +138,7 @@ function PortForwardContent(props: PortForwardProps) {
     });
   }, []);
 
-  if (!helpers.isElectron()) {
+  if (!isElectron()) {
     return null;
   }
 
@@ -167,7 +168,7 @@ function PortForwardContent(props: PortForwardProps) {
     // In case of docker desktop only a range of ports are open
     // so we need to generate a random port from that range
     // while making sure that it is not already in use
-    if (helpers.isDockerDesktop()) {
+    if (isDockerDesktop()) {
       const validMinPort = 30000;
       const validMaxPort = 32000;
 
@@ -360,7 +361,7 @@ function PortForwardContent(props: PortForwardProps) {
 }
 
 export default function PortForward(props: PortForwardProps) {
-  if (!helpers.isElectron()) return null;
+  if (!isElectron()) return null;
 
   return <PortForwardContent {...props} />;
 }

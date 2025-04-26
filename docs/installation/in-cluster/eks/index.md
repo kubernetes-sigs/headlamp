@@ -140,7 +140,7 @@ Replace `<YOUR-CLIENT-ID>`,`<YOUR-CLIENT-SECRET>`,`<YOUR_REGION_HERE`, `<USER_PO
 6. Save the `values.yaml` file and Install Headlamp using helm with the following commands:
 
 ```shell
-helm repo add headlamp https://headlamp-k8s.github.io/headlamp/
+helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/
 helm install headlamp-oidc headlamp/headlamp -f values.yaml --namespace=headlamp --create-namespace
 ```
 

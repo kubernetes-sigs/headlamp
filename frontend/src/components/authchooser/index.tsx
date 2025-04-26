@@ -6,11 +6,11 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation } from 'react-router-dom';
-import helpers from '../../helpers';
+import { getAppUrl } from '../../helpers/getAppUrl';
+import { getCluster, getClusterPrefixedPath } from '../../lib/cluster';
 import { useClustersConf } from '../../lib/k8s';
 import { testAuth } from '../../lib/k8s/apiProxy';
 import { createRouteURL, getRoute, getRoutePath } from '../../lib/router';
-import { getCluster, getClusterPrefixedPath } from '../../lib/util';
 import { setConfig } from '../../redux/configSlice';
 import { ClusterDialog } from '../cluster/Chooser';
 import { Link, Loader } from '../common';
@@ -187,7 +187,7 @@ function AuthChooser({ children }: AuthChooserProps) {
           : t('Authentication')
       }
       error={error}
-      oauthUrl={`${helpers.getAppUrl()}oidc?dt=${Date()}&cluster=${getCluster()}`}
+      oauthUrl={`${getAppUrl()}oidc?dt=${Date()}&cluster=${getCluster()}`}
       clusterAuthType={clusterAuthType}
       handleTryAgain={runTestAuthAgain}
       handleOidcAuth={() => {
@@ -302,7 +302,9 @@ export function PureAuthChooser({
                   {t('translation|Cluster settings')}
                 </Link>
               </Box>
-              <ColorButton onClick={handleTryAgain}>{t('translation|Try Again')}</ColorButton>
+              <Button variant="contained" color="primary" onClick={handleTryAgain}>
+                {t('translation|Try Again')}
+              </Button>
             </Box>
           )}
         </Box>

@@ -3,17 +3,17 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>headlamp</id>
-    <version>0.29.0</version>
-    <packageSourceUrl>https://github.com/headlamp-k8s/headlamp/tree/main/app/windows/chocolatey</packageSourceUrl>
+    <version>0.30.0</version>
+    <packageSourceUrl>https://github.com/kubernetes-sigs/headlamp/tree/main/app/windows/chocolatey</packageSourceUrl>
     <title>Headlamp</title>
     <authors>Kinvolk</authors>
-    <projectUrl>https://github.com/headlamp-k8s/headlamp/</projectUrl>
+    <projectUrl>https://github.com/kubernetes-sigs/headlamp/</projectUrl>
     <iconUrl>http://rawcdn.githack.com/headlamp-k8s/headlamp/main/frontend/public/apple-touch-icon.png</iconUrl>
-    <licenseUrl>https://github.com/headlamp-k8s/headlamp/blob/main/LICENSE</licenseUrl>
+    <licenseUrl>https://github.com/kubernetes-sigs/headlamp/blob/main/LICENSE</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <projectSourceUrl>https://github.com/headlamp-k8s/headlamp/</projectSourceUrl>
+    <projectSourceUrl>https://github.com/kubernetes-sigs/headlamp/</projectSourceUrl>
     <docsUrl>https://headlamp.dev/docs/latest/</docsUrl>
-    <bugTrackerUrl>https://github.com/headlamp-k8s/headlamp/issues</bugTrackerUrl>
+    <bugTrackerUrl>https://github.com/kubernetes-sigs/headlamp/issues</bugTrackerUrl>
     <tags>headlamp kubernetes ui gui dashboard devops</tags>
     <summary>An easy-to-use and extensible graphical UI for Kubernetes.</summary>
     <description><![CDATA[
@@ -44,7 +44,7 @@ permissions, you may not be able to view your cluster resources correctly.
 
 See the documentation on [how to easily get a Service Account token](https://headlamp.dev/docs/latest/installation#create-a-service-account-token) for your cluster.
 ]]></description>
-    <releaseNotes>See release notes at the [Github releases page](https://github.com/headlamp-k8s/headlamp/releases)</releaseNotes>
+    <releaseNotes>See release notes at the [Github releases page](https://github.com/kubernetes-sigs/headlamp/releases)</releaseNotes>
   </metadata>
   <files>
     <file src="tools\**" target="tools" />

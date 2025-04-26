@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import { useHistory } from 'react-router-dom';
-import helpers from '../../../helpers';
+import { isElectron } from '../../../helpers/isElectron';
 import { getCluster } from '../../../lib/cluster';
 import { deletePlugin } from '../../../lib/k8s/apiProxy';
 import { ConfigStore } from '../../../plugin/configStore';
@@ -214,7 +214,7 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
               </>
             )}
           </Stack>
-          {helpers.isElectron() ? (
+          {isElectron() ? (
             <Button variant="text" color="error" onClick={handleDelete}>
               {t('translation|Delete Plugin')}
             </Button>

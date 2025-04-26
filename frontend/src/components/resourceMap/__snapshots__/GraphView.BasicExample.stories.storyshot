@@ -28,7 +28,7 @@
                   Namespaces
                 </label>
                 <div
-                  class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1mx3gp-MuiInputBase-root-MuiOutlinedInput-root"
+                  class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-b1xigt-MuiInputBase-root-MuiOutlinedInput-root"
                 >
                   <input
                     aria-autocomplete="both"
@@ -87,7 +87,7 @@
             </div>
           </div>
           <div
-            class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorPrimary MuiChip-clickable MuiChip-clickableColorPrimary MuiChip-filledPrimary css-1373t7a-MuiButtonBase-root-MuiChip-root"
+            class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorPrimary MuiChip-clickable MuiChip-clickableColorPrimary MuiChip-filledPrimary css-qsy4j-MuiButtonBase-root-MuiChip-root"
             role="button"
             tabindex="0"
           >
@@ -115,7 +115,7 @@
             class="MuiBox-root css-esugir"
           >
             <div
-              class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorPrimary MuiChip-clickable MuiChip-clickableColorPrimary MuiChip-filledPrimary css-1373t7a-MuiButtonBase-root-MuiChip-root"
+              class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorPrimary MuiChip-clickable MuiChip-clickableColorPrimary MuiChip-filledPrimary css-qsy4j-MuiButtonBase-root-MuiChip-root"
               role="button"
               tabindex="0"
             >
@@ -129,7 +129,7 @@
               />
             </div>
             <div
-              class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-i1f1ux-MuiButtonBase-root-MuiChip-root"
+              class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-o4yg6p-MuiButtonBase-root-MuiChip-root"
               role="button"
               tabindex="0"
             >
@@ -143,7 +143,7 @@
               />
             </div>
             <div
-              class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-i1f1ux-MuiButtonBase-root-MuiChip-root"
+              class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-o4yg6p-MuiButtonBase-root-MuiChip-root"
               role="button"
               tabindex="0"
             >
@@ -158,7 +158,7 @@
             </div>
           </div>
           <div
-            class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-i1f1ux-MuiButtonBase-root-MuiChip-root"
+            class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-o4yg6p-MuiButtonBase-root-MuiChip-root"
             role="button"
             tabindex="0"
           >
@@ -172,7 +172,7 @@
             />
           </div>
           <div
-            class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-i1f1ux-MuiButtonBase-root-MuiChip-root"
+            class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-o4yg6p-MuiButtonBase-root-MuiChip-root"
             role="button"
             tabindex="0"
           >
@@ -224,7 +224,7 @@
                       style="z-index: 0; transform: translate(24px,24px); pointer-events: all; visibility: visible; width: 220px; height: 70px;"
                     >
                       <div
-                        class="css-1bjk883"
+                        class="css-1dpk5ph"
                         role="button"
                         tabindex="0"
                       >
@@ -243,7 +243,7 @@
                           style="opacity: 0;"
                         />
                         <div
-                          class="css-140wc1y"
+                          class="css-1svjhx1"
                         >
                           2
                         </div>
@@ -278,7 +278,7 @@
                         tabindex="0"
                       >
                         <div
-                          class="css-1aepht8"
+                          class="css-1g5rcnn"
                           title="default"
                         >
                           <div
@@ -422,7 +422,7 @@
                       style="z-index: 0; transform: translate(48px,138px); pointer-events: all; visibility: visible; width: 220px; height: 70px;"
                     >
                       <div
-                        class="css-9y15hx"
+                        class="css-1ky7h91"
                         role="button"
                         tabindex="0"
                       >
@@ -441,7 +441,7 @@
                           style="opacity: 0;"
                         />
                         <div
-                          class="css-140wc1y"
+                          class="css-1svjhx1"
                         />
                         <div
                           class="css-1irety8"
@@ -591,7 +591,7 @@
                       style="z-index: 0; transform: translate(24px,252px); pointer-events: all; visibility: visible; width: 220px; height: 70px;"
                     >
                       <div
-                        class="css-9y15hx"
+                        class="css-1ky7h91"
                         role="button"
                         tabindex="0"
                       >
@@ -637,7 +637,7 @@
                       style="z-index: 0; transform: translate(264px,252px); pointer-events: all; visibility: visible; width: 220px; height: 70px;"
                     >
                       <div
-                        class="css-9y15hx"
+                        class="css-1ky7h91"
                         role="button"
                         tabindex="0"
                       >
@@ -683,7 +683,7 @@
                       style="z-index: 0; transform: translate(24px,342px); pointer-events: all; visibility: visible; width: 220px; height: 70px;"
                     >
                       <div
-                        class="css-9y15hx"
+                        class="css-1ky7h91"
                         role="button"
                         tabindex="0"
                       >
@@ -768,11 +768,11 @@
               >
                 <div
                   aria-label="Vertical button group"
-                  class="MuiButtonGroup-root MuiButtonGroup-contained MuiButtonGroup-vertical css-xpud2-MuiButtonGroup-root"
+                  class="MuiButtonGroup-root MuiButtonGroup-contained MuiButtonGroup-vertical css-126jwi2-MuiButtonGroup-root"
                   role="group"
                 >
                   <button
-                    class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButtonGroup-firstButton css-1fy1sdk-MuiButtonBase-root-MuiButton-root"
+                    class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButtonGroup-firstButton css-14951ov-MuiButtonBase-root-MuiButton-root"
                     tabindex="0"
                     title="Zoom in"
                     type="button"
@@ -782,7 +782,7 @@
                     />
                   </button>
                   <button
-                    class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButtonGroup-lastButton css-1fy1sdk-MuiButtonBase-root-MuiButton-root"
+                    class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButtonGroup-lastButton css-14951ov-MuiButtonBase-root-MuiButton-root"
                     tabindex="0"
                     title="Zoom out"
                     type="button"
@@ -793,7 +793,7 @@
                   </button>
                 </div>
                 <button
-                  class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary css-1fy1sdk-MuiButtonBase-root-MuiButton-root"
+                  class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary css-14951ov-MuiButtonBase-root-MuiButton-root"
                   tabindex="0"
                   title="Fit to screen"
                   type="button"
@@ -803,7 +803,7 @@
                   />
                 </button>
                 <button
-                  class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary css-1fy1sdk-MuiButtonBase-root-MuiButton-root"
+                  class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary css-14951ov-MuiButtonBase-root-MuiButton-root"
                   tabindex="0"
                   title="Zoom to 100%"
                   type="button"

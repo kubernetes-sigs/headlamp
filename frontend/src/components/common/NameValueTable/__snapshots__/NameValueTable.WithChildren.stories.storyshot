@@ -1,10 +1,10 @@
 <body>
   <div>
     <dl
-      class="MuiGrid-root MuiGrid-container css-uximdg-MuiGrid-root"
+      class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
     >
       <dt
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-trrd7p-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
       >
         MyName0
       </dt>
@@ -12,13 +12,13 @@
         class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
       >
         <span
-          class="MuiTypography-root MuiTypography-body1 css-1qti38g-MuiTypography-root"
+          class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
         >
           MyValue0
         </span>
       </dd>
       <dt
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-trrd7p-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
       >
         MyName1
       </dt>
@@ -26,13 +26,13 @@
         class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
       >
         <span
-          class="MuiTypography-root MuiTypography-body1 css-1qti38g-MuiTypography-root"
+          class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
         >
           MyValue1
         </span>
       </dd>
       <dt
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-16fae59-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
       >
         MyName2
       </dt>
@@ -40,7 +40,7 @@
         class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
       >
         <span
-          class="MuiTypography-root MuiTypography-body1 css-1qti38g-MuiTypography-root"
+          class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
         >
           MyValue2
         </span>

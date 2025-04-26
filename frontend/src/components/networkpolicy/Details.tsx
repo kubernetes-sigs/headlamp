@@ -10,9 +10,13 @@ import NetworkPolicy, {
 } from '../../lib/k8s/networkpolicy';
 import { DetailsGrid, metadataStyles, NameValueTable, SectionBox } from '../common';
 
-export function NetworkPolicyDetails(props: { name?: string; namespace?: string }) {
+export function NetworkPolicyDetails(props: {
+  name?: string;
+  namespace?: string;
+  cluster?: string;
+}) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   function prepareMatchLabelsAndExpressions(
@@ -169,6 +173,7 @@ export function NetworkPolicyDetails(props: { name?: string; namespace?: string 
       resourceType={NetworkPolicy}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       extraInfo={item =>
         item && [

@@ -1,4 +1,4 @@
-import { getHeadlampAPIHeaders } from '../../../../helpers';
+import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import { request } from './clusterRequests';
 
 //@todo: what is DELETE /plugins/name response type? It's not used by headlamp in PLuginSettingsDetail.

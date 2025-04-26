@@ -1,4 +1,5 @@
-import { Box } from '@mui/material';
+import { Box, MenuItem, Select, Switch } from '@mui/material';
+import { capitalize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -6,22 +7,28 @@ import LocaleSelect from '../../../i18n/LocaleSelect/LocaleSelect';
 import { setVersionDialogOpen } from '../../../redux/actions/actions';
 import { setAppSettings } from '../../../redux/configSlice';
 import { defaultTableRowsPerPageOptions } from '../../../redux/configSlice';
+import { useTypedSelector } from '../../../redux/reducers/reducers';
 import { ActionButton, NameValueTable, SectionBox } from '../../common';
 import TimezoneSelect from '../../common/TimezoneSelect';
+import { setTheme, useAppThemes } from '../themeSlice';
 import DrawerModeSettings from './DrawerModeSettings';
 import { useSettings } from './hook';
 import NumRowsInput from './NumRowsInput';
-import ThemeChangeButton from './ThemeChangeButton';
+import { ThemePreview } from './ThemePreview';
 
 export default function Settings() {
   const { t } = useTranslation(['translation']);
   const settingsObj = useSettings();
   const storedTimezone = settingsObj.timezone;
   const storedRowsPerPageOptions = settingsObj.tableRowsPerPageOptions;
+  const storedSortSidebar = settingsObj.sidebarSortAlphabetically;
   const [selectedTimezone, setSelectedTimezone] = useState<string>(
     storedTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   );
+  const [sortSidebar, setSortSidebar] = useState<boolean>(storedSortSidebar);
   const dispatch = useDispatch();
+  const themeName = useTypedSelector(state => state.theme.name);
+  const appThemes = useAppThemes();
 
   useEffect(() => {
     dispatch(
@@ -30,6 +37,14 @@ export default function Settings() {
       })
     );
   }, [selectedTimezone]);
+
+  useEffect(() => {
+    dispatch(
+      setAppSettings({
+        sidebarSortAlphabetically: sortSidebar,
+      })
+    );
+  }, [sortSidebar]);
 
   return (
     <SectionBox
@@ -56,7 +71,26 @@ export default function Settings() {
           },
           {
             name: t('translation|Theme'),
-            value: <ThemeChangeButton showBothIcons />,
+            value: (
+              <Select
+                variant="outlined"
+                size="small"
+                defaultValue={themeName}
+                onChange={e => {
+                  dispatch(setTheme(e.target.value as string));
+                  console.log(e, e.target.value);
+                }}
+              >
+                {appThemes.map(it => (
+                  <MenuItem key={it.name} value={it.name}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <ThemePreview theme={it} />
+                      {capitalize(it.name)}
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            ),
           },
           {
             name: t('translation|Resource details view'),
@@ -79,6 +113,16 @@ export default function Settings() {
                   onChange={name => setSelectedTimezone(name)}
                 />
               </Box>
+            ),
+          },
+          {
+            name: t('translation|Sort sidebar items alphabetically'),
+            value: (
+              <Switch
+                color="primary"
+                checked={sortSidebar}
+                onChange={e => setSortSidebar(e.target.checked)}
+              />
             ),
           },
         ]}

@@ -152,9 +152,13 @@ export function BackendFormat({ backend }: BackendFormatProps) {
   );
 }
 
-export default function IngressDetails(props: { name?: string; namespace?: string }) {
+export default function IngressDetails(props: {
+  name?: string;
+  namespace?: string;
+  cluster?: string;
+}) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
 
@@ -193,6 +197,7 @@ export default function IngressDetails(props: { name?: string; namespace?: strin
       resourceType={Ingress}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       extraInfo={ingress =>
         ingress && [

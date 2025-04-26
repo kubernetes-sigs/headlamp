@@ -11,10 +11,10 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/providers/basicflag"
 	"github.com/knadh/koanf/providers/env"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
 const defaultPort = 4466
@@ -26,8 +26,10 @@ type Config struct {
 	EnableHelm            bool   `koanf:"enable-helm"`
 	EnableDynamicClusters bool   `koanf:"enable-dynamic-clusters"`
 	ListenAddr            string `koanf:"listen-addr"`
+	WatchPluginsChanges   bool   `koanf:"watch-plugins-changes"`
 	Port                  uint   `koanf:"port"`
 	KubeConfigPath        string `koanf:"kubeconfig"`
+	SkippedKubeContexts   string `koanf:"skipped-kube-contexts"`
 	StaticDir             string `koanf:"html-static-dir"`
 	PluginsDir            string `koanf:"plugins-dir"`
 	BaseURL               string `koanf:"base-url"`
@@ -87,6 +89,13 @@ func Parse(args []string) (*Config, error) {
 		return nil, fmt.Errorf("error parsing flags: %w", err)
 	}
 
+	explicitFlags := make(map[string]bool)
+
+	// Record which flags were explicitly set by the user
+	f.Visit(func(f *flag.Flag) {
+		explicitFlags[f.Name] = true
+	})
+
 	// Load config from env
 	if err := k.Load(env.Provider("HEADLAMP_CONFIG_", ".", func(s string) string {
 		return strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(s, "HEADLAMP_CONFIG_")), "_", "-")
@@ -118,6 +127,12 @@ func Parse(args []string) (*Config, error) {
 		logger.Log(logger.LevelError, nil, err, "unmarshalling config")
 
 		return nil, fmt.Errorf("error unmarshal config: %w", err)
+	}
+
+	// If running in-cluster and the user did not explicitly set the watch flag,
+	// then force WatchPluginsChanges to false.
+	if config.InCluster && !explicitFlags["watch-plugins-changes"] {
+		config.WatchPluginsChanges = false
 	}
 
 	// Validate parsed config
@@ -154,8 +169,11 @@ func flagset() *flag.FlagSet {
 	f.Bool("dev", false, "Allow connections from other origins")
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
 	f.Bool("enable-dynamic-clusters", false, "Enable dynamic clusters, which stores stateless clusters in the frontend.")
+	// Note: When running in-cluster and if not explicitly set, this flag defaults to false.
+	f.Bool("watch-plugins-changes", true, "Reloads plugins when there are changes to them or their directory")
 
 	f.String("kubeconfig", "", "Absolute path to the kubeconfig file")
+	f.String("skipped-kube-contexts", "", "Context name which should be ignored in kubeconfig file")
 	f.String("html-static-dir", "", "Static HTML directory to serve")
 	f.String("plugins-dir", defaultPluginDir(), "Specify the plugins directory to build the backend with")
 	f.String("base-url", "", "Base URL path. eg. /headlamp")

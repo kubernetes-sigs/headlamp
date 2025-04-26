@@ -1,5 +1,6 @@
 import { Icon } from '@iconify/react';
 import {
+  alpha,
   Box,
   CircularProgress,
   IconButton,
@@ -71,6 +72,9 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
       variant="outlined"
       placeholder={t('Search')}
       InputProps={{
+        sx: theme => ({
+          background: alpha(theme.palette.background.default, 0.7),
+        }),
         startAdornment: (
           <InputAdornment position="start" sx={{ pointerEvents: 'none' }}>
             <Icon icon="mdi:search" width={18} height={18} />

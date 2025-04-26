@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
-import helpers from '../helpers';
+import { isElectron } from '../helpers/isElectron';
 import { UI_INITIALIZE_PLUGIN_VIEWS } from '../redux/actions/actions';
 import { useTypedSelector } from '../redux/reducers/reducers';
 import { fetchAndExecutePlugins } from './index';
@@ -47,7 +47,7 @@ export default function Plugins() {
         );
         console.warn(message);
 
-        if (helpers.isElectron()) {
+        if (isElectron()) {
           enqueueSnackbar(message, {
             action: (snackbarId: SnackbarKey) => (
               <>

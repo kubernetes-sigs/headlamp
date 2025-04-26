@@ -22,7 +22,7 @@ Event fired when a list view is loaded for a resource.
 
 #### Defined in
 
-[redux/headlampEventSlice.ts:255](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L255)
+[redux/headlampEventSlice.ts:255](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L255)
 
 ___
 
@@ -32,4 +32,4 @@ ___
 
 #### Defined in
 
-[redux/headlampEventSlice.ts:254](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L254)
+[redux/headlampEventSlice.ts:254](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L254)

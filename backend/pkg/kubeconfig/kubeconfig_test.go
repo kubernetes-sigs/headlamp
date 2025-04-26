@@ -8,8 +8,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/config"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +24,7 @@ func TestLoadAndStoreKubeConfigs(t *testing.T) {
 	t.Run("valid_file", func(t *testing.T) {
 		kubeConfigFile := kubeConfigFilePath
 
-		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig)
+		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
 		require.NoError(t, err)
 
 		contexts, err := contextStore.GetContexts()
@@ -41,7 +41,7 @@ func TestLoadAndStoreKubeConfigs(t *testing.T) {
 	t.Run("invalid_file", func(t *testing.T) {
 		kubeConfigFile := "invalid_kubeconfig"
 
-		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig)
+		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
 		require.Error(t, err)
 	})
 }
@@ -91,7 +91,7 @@ func TestContext(t *testing.T) {
 
 	configStore := kubeconfig.NewContextStore()
 
-	err := kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig)
+	err := kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
 	require.NoError(t, err)
 
 	testContext, err := configStore.GetContext("minikube")

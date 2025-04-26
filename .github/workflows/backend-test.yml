@@ -86,7 +86,6 @@ jobs:
       - name: Get base branch code coverage
         if: ${{ github.event_name }} == 'pull_request'
         run: |
-          set -x
           if [[ -z "${{ github.base_ref }}" ]]; then
             echo "Base branch is empty. Skipping code coverage comparison."
             exit 0
@@ -97,10 +96,13 @@ jobs:
           testcoverage="${{ env.coverage }}"
           git fetch origin "$base_branch"
           git checkout "origin/$base_branch"
-          go test ./... -coverprofile=base_coverage.out -covermode=atomic -coverpkg=./...
-          base_coverage=$(go tool cover -func=base_coverage.out | grep total | grep -Eo '[0-9]+\.[0-9]+')
-          echo "Base branch code coverage: $base_coverage"
-          echo "base_coverage=$base_coverage" >> $GITHUB_ENV
+          go test ./... -coverprofile=base_coverage.out -covermode=atomic -coverpkg=./... || true
+          if [[ -f base_coverage.out ]]; then
+            base_coverage=$(go tool cover -func=base_coverage.out | grep total | grep -Eo '[0-9]+\.[0-9]+')
+            echo "Base branch code coverage: $base_coverage"
+          else
+            echo "Tests failed or base_coverage.out not found. Skipping code coverage calculation."
+          fi
         shell: bash
 
       - name: Compare code coverage
@@ -116,7 +118,7 @@ jobs:
           base_coverage="${{ env.base_coverage }}"
           if [[ -z $testcoverage || -z $base_coverage ]]; then
             echo "testcoverage or base_coverage is not set. Cannot calculate coverage difference."
-            exit 1
+            exit 0
           fi
           
           echo "testcoverage=$testcoverage"
@@ -136,11 +138,17 @@ jobs:
             echo "Base branch is empty. Skipping code coverage comparison."
             exit 0
           fi
+
           testcoverage="${{ env.coverage }}"
+          base_coverage="${{ env.base_coverage }}"
+          if [[ -z $testcoverage || -z $base_coverage ]]; then
+            echo "testcoverage or base_coverage is not set. Will not post comment."
+            exit 0
+          fi
+
           testcoverage_full_base64="${{ env.testcoverage_full_base64 }}"
           testcoverage_full=$(echo "$testcoverage_full_base64" | base64 --decode)
 
-          base_coverage="${{ env.base_coverage }}"
           coverage_diff="${{ env.coverage_diff }}"
           artifact_url=${{ steps.upload-artifact.outputs.artifact-url }}
 

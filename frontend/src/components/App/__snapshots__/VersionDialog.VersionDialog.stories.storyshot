@@ -24,7 +24,7 @@
     >
       <div
         aria-labelledby=":mock-test-id:"
-        class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation24 MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm MuiDialog-paperFullWidth css-tlc64q-MuiPaper-root-MuiDialog-paper"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm MuiDialog-paperFullWidth css-1ehm288-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
         <h2
@@ -70,10 +70,10 @@
           class="MuiDialogContent-root css-ypiqx9-MuiDialogContent-root"
         >
           <dl
-            class="MuiGrid-root MuiGrid-container css-uximdg-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
           >
             <dt
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-trrd7p-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
             >
               Version
             </dt>
@@ -81,13 +81,13 @@
               class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
             >
               <span
-                class="MuiTypography-root MuiTypography-body1 css-1qti38g-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
               >
                 0.0.1
               </span>
             </dd>
             <dt
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-16fae59-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
             >
               Git Commit
             </dt>
@@ -95,7 +95,7 @@
               class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
             >
               <span
-                class="MuiTypography-root MuiTypography-body1 css-1qti38g-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
               >
                 abc123abc123abc123abc123abc123abc123abc123abc123abc123
               </span>

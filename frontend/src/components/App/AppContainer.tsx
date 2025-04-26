@@ -2,7 +2,9 @@ import { GlobalStyles } from '@mui/material';
 import { SnackbarProvider } from 'notistack';
 import React from 'react';
 import { BrowserRouter, HashRouter } from 'react-router-dom';
-import helpers, { setBackendToken } from '../../helpers';
+import { getBaseUrl } from '../../helpers/getBaseUrl';
+import { setBackendToken } from '../../helpers/getHeadlampAPIHeaders';
+import { isElectron } from '../../helpers/isElectron';
 import Plugins from '../../plugin/Plugins';
 import ReleaseNotes from '../common/ReleaseNotes/ReleaseNotes';
 import Layout from './Layout';
@@ -15,10 +17,10 @@ window.desktopApi?.receive('backend-token', (token: string) => {
 
 export default function AppContainer() {
   const Router = ({ children }: React.PropsWithChildren<{}>) =>
-    helpers.isElectron() ? (
+    isElectron() ? (
       <HashRouter>{children}</HashRouter>
     ) : (
-      <BrowserRouter basename={helpers.getBaseUrl()}>{children}</BrowserRouter>
+      <BrowserRouter basename={getBaseUrl()}>{children}</BrowserRouter>
     );
 
   return (

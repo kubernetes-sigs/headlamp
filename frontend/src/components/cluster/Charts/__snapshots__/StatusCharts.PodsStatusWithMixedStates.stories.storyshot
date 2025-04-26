@@ -1,7 +1,7 @@
 <body>
   <div>
     <div
-      class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation1 css-cmkit5-MuiPaper-root"
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
     >
       <div
         class="MuiBox-root css-qrw4x1"
@@ -64,21 +64,55 @@
                   tabindex="0"
                 >
                   <g
-                    class="recharts-layer"
+                    class="recharts-layer recharts-pie-sector"
+                    tabindex="-1"
                   >
-                    <g
-                      class="recharts-layer recharts-pie-sector"
-                      tabindex="-1"
-                    />
-                    <g
-                      class="recharts-layer recharts-pie-sector"
-                      tabindex="-1"
-                    />
-                    <g
-                      class="recharts-layer recharts-pie-sector"
+                    <path
+                      class="recharts-sector"
+                      cx="61"
+                      cy="61"
+                      d="M 61,16.199999999999996
+    A 44.800000000000004,44.800000000000004,0,
+    1,1,
+    22.20206191045714,83.4
+  L 31.72834135208597,77.9
+            A 33.800000000000004,33.800000000000004,0,
+            1,0,
+            61,27.199999999999996 Z"
+                      fill="#000"
+                      name="ready"
+                      role="img"
+                      stroke="#e0e0e0"
                       tabindex="-1"
                     />
                   </g>
+                  <g
+                    class="recharts-layer recharts-pie-sector"
+                    tabindex="-1"
+                  >
+                    <path
+                      class="recharts-sector"
+                      cx="61"
+                      cy="61"
+                      d="M 22.20206191045714,83.4
+    A 44.800000000000004,44.800000000000004,0,
+    0,1,
+    60.99999999999999,16.199999999999996
+  L 60.99999999999999,27.199999999999996
+            A 33.800000000000004,33.800000000000004,0,
+            0,0,
+            31.72834135208597,77.9 Z"
+                      fill="#c62828"
+                      name="notReady"
+                      role="img"
+                      stroke="#e0e0e0"
+                      tabindex="-1"
+                    />
+                  </g>
+                  <g
+                    class="recharts-layer recharts-pie-sector"
+                    tabindex="-1"
+                  />
                   <text
                     class="recharts-text recharts-label"
                     fill="#808080"

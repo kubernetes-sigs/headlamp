@@ -1,6 +1,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import { SnackbarProvider } from 'notistack';
+import { initialState as THEME_INITIAL_STATE } from '../../components/App/themeSlice';
 import { initialState as CONFIG_INITIAL_STATE } from '../../redux/configSlice';
 import { initialState as FILTER_INITIAL_STATE } from '../../redux/filterSlice';
 import { INITIAL_STATE as UI_INITIAL_STATE } from '../../redux/reducers/ui';
@@ -28,6 +29,9 @@ const Template: StoryFn<StoryProps> = args => {
     preloadedState: {
       plugins: {
         loaded: true,
+      },
+      theme: {
+        ...THEME_INITIAL_STATE,
       },
       config: {
         ...CONFIG_INITIAL_STATE,

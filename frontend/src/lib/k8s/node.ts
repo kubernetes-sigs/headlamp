@@ -47,6 +47,7 @@ export interface KubeNode extends KubeObjectInterface {
     podCIDR: string;
     taints: {
       key: string;
+      value?: string;
       effect: string;
     }[];
     [otherProps: string]: any;

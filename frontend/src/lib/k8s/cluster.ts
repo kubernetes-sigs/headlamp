@@ -1,5 +1,5 @@
-import helpers from '../../helpers';
-import { getCluster } from '../util';
+import { loadClusterSettings } from '../../helpers/clusterSettings';
+import { getCluster } from '../cluster';
 import { KubeMetadata } from './KubeMetadata';
 export {
   KubeObject,
@@ -37,7 +37,7 @@ export function getAllowedNamespaces(cluster: string | null = getCluster()): str
     return [];
   }
 
-  const clusterSettings = helpers.loadClusterSettings(cluster);
+  const clusterSettings = loadClusterSettings(cluster);
   return clusterSettings.allowedNamespaces || [];
 }
 

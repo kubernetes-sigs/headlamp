@@ -14,11 +14,11 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import helpers from '../../../helpers';
+import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { defaultTableRowsPerPageOptions, setAppSettings } from '../../../redux/configSlice';
 
 export default function NumRowsInput(props: { defaultValue: number[] }) {
-  const { t } = useTranslation(['frequent', 'settings']);
+  const { t } = useTranslation(['frequent']);
   const { defaultValue } = props;
   const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [options, setOptions] = useState(defaultValue);
@@ -28,7 +28,7 @@ export default function NumRowsInput(props: { defaultValue: number[] }) {
     }
   }, []);
   const defaultRowsPerPageValue = useMemo(() => {
-    const val = helpers.getTablesRowsPerPage();
+    const val = getTablesRowsPerPage();
     if (options.includes(val)) {
       return val;
     }
@@ -54,7 +54,7 @@ export default function NumRowsInput(props: { defaultValue: number[] }) {
   // Make sure we update the value in the localStorage when the user selects a new value.
   useEffect(() => {
     if (selectedValue !== -1) {
-      helpers.setTablesRowsPerPage(selectedValue);
+      setTablesRowsPerPage(selectedValue);
     }
   }, [selectedValue]);
 
@@ -141,6 +141,8 @@ export default function NumRowsInput(props: { defaultValue: number[] }) {
           onOpen={handleOpen}
           onChange={handleChange}
           renderValue={value => `${value}`}
+          size="small"
+          variant="outlined"
         >
           {options.map(option => {
             const isCustom = !defaultTableRowsPerPageOptions.includes(option);

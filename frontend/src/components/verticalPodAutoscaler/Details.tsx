@@ -3,9 +3,9 @@ import { useParams } from 'react-router-dom';
 import VPA from '../../lib/k8s/vpa';
 import { DateLabel, DetailsGrid, Link, SectionBox, SimpleTable } from '../common';
 
-export default function VpaDetails(props: { name?: string; namespace?: string }) {
+export default function VpaDetails(props: { name?: string; namespace?: string; cluster?: string }) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation(['translation', 'glossary']);
   const formatRecommendation = (data: Record<string, string>): string => {
     let result = '';
@@ -23,6 +23,7 @@ export default function VpaDetails(props: { name?: string; namespace?: string })
       resourceType={VPA}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       extraInfo={item =>
         item && [

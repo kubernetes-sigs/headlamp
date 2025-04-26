@@ -6,7 +6,7 @@
       <p
         class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-9ldkza-MuiTypography-root"
       >
-        Error getting custom resource nonexistentcustomresource: Unreachable
+        Error getting custom resource nonexistentcustomresource: Failed to fetch
       </p>
     </div>
   </div>

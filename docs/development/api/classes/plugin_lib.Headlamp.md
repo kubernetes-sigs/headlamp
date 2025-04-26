@@ -29,7 +29,7 @@ the name of the product.
 
 #### Defined in
 
-[plugin/lib.ts:172](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/lib.ts#L172)
+[plugin/lib.ts:172](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/lib.ts#L172)
 
 ___
 
@@ -54,7 +54,7 @@ the version of Headlamp.
 
 #### Defined in
 
-[plugin/lib.ts:162](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/lib.ts#L162)
+[plugin/lib.ts:162](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/lib.ts#L162)
 
 ___
 
@@ -72,7 +72,7 @@ true if Headlamp is running as a desktop app.
 
 #### Defined in
 
-[plugin/lib.ts:151](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/lib.ts#L151)
+[plugin/lib.ts:151](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/lib.ts#L151)
 
 ___
 
@@ -109,7 +109,7 @@ Headlamp.registerPlugin("aPluginIdString", myPlugin)
 
 #### Defined in
 
-[plugin/lib.ts:106](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/lib.ts#L106)
+[plugin/lib.ts:106](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/lib.ts#L106)
 
 ___
 
@@ -132,7 +132,7 @@ If Headlamp is not running as a desktop app, then this method prints an error an
 
 #### Defined in
 
-[plugin/lib.ts:135](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/lib.ts#L135)
+[plugin/lib.ts:135](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/lib.ts#L135)
 
 ___
 
@@ -161,4 +161,4 @@ a promise which completes to Headlamp's configuration (showing the list of confi
 
 #### Defined in
 
-[plugin/lib.ts:123](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/lib.ts#L123)
+[plugin/lib.ts:123](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/lib.ts#L123)

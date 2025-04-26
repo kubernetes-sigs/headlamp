@@ -9,7 +9,7 @@ import React, { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
-import helpers from '../../helpers';
+import { isElectron } from '../../helpers/isElectron';
 import { createRouteURL } from '../../lib/router';
 import { useTypedSelector } from '../../redux/reducers/reducers';
 import { ActionButton } from '../common';
@@ -61,14 +61,15 @@ function AddClusterButton() {
     <Box pb={2}>
       {isOpen ? (
         <Button
-          onClick={() => history.push(createRouteURL('loadKubeConfig'))}
+          onClick={() => history.push(createRouteURL('addCluster'))}
           startIcon={<InlineIcon icon="mdi:plus-box-outline" />}
+          sx={{ color: theme => theme.palette.sidebar.color }}
         >
           {t('translation|Add Cluster')}
         </Button>
       ) : (
         <ActionButton
-          onClick={() => history.push(createRouteURL('loadKubeConfig'))}
+          onClick={() => history.push(createRouteURL('addCluster'))}
           icon="mdi:plus-box-outline"
           description={t('translation|Add Cluster')}
           color="#adadad"
@@ -95,6 +96,9 @@ function SidebarToggleButton() {
       <ActionButton
         iconButtonProps={{
           size: 'small',
+          sx: theme => ({
+            color: theme.palette.sidebar.color,
+          }),
         }}
         onClick={() => {
           dispatch(setWhetherSidebarOpen(!isOpen));
@@ -118,7 +122,7 @@ const DefaultLinkArea = memo((props: { sidebarName: string; isOpen: boolean }) =
         flexDirection={isOpen ? 'row' : 'column'}
         p={1}
       >
-        <Box>{helpers.isElectron() && <AddClusterButton />}</Box>
+        <Box>{isElectron() && <AddClusterButton />}</Box>
         <Box>
           <SidebarToggleButton />
         </Box>
@@ -319,29 +323,7 @@ export const PureSidebar = memo(
             </List>
           </Grid>
           <Grid item>
-            <Box
-              textAlign="center"
-              p={0}
-              sx={theme => ({
-                '&, & *, & svg': {
-                  color: theme.palette.sidebarLink.color,
-                },
-                '& .MuiButton-root': {
-                  color: theme.palette.sidebarButtonInLinkArea.color,
-                  '&:hover': {
-                    background: theme.palette.sidebarButtonInLinkArea.hover.background,
-                  },
-                },
-                '& .MuiButton-containedPrimary': {
-                  background: theme.palette.sidebarButtonInLinkArea.primary.background,
-                  '&:hover': {
-                    background: theme.palette.sidebarButtonInLinkArea.hover.background,
-                  },
-                },
-              })}
-            >
-              {linkArea}
-            </Box>
+            <Box textAlign="center">{linkArea}</Box>
           </Grid>
         </Grid>
       </>
@@ -385,7 +367,8 @@ export const PureSidebar = memo(
             const drawer = {
               width: drawerWidth,
               flexShrink: 0,
-              background: theme.palette.sidebarBg,
+              background: theme.palette.sidebar.background,
+              color: theme.palette.sidebar.color,
             };
 
             const drawerOpen = {
@@ -394,7 +377,7 @@ export const PureSidebar = memo(
                 easing: theme.transitions.easing.sharp,
                 duration: theme.transitions.duration.enteringScreen,
               }),
-              background: theme.palette.sidebarBg,
+              background: theme.palette.sidebar.background,
             };
 
             const drawerClose = {
@@ -404,7 +387,7 @@ export const PureSidebar = memo(
               }),
               overflowX: 'hidden',
               width: adjustedDrawerWidth,
-              background: theme.palette.sidebarBg,
+              background: theme.palette.sidebar.background,
             };
 
             if (

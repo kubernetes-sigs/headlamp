@@ -25,11 +25,12 @@ export default function SquareButton(props: SquareButtonProps) {
   return (
     <ButtonBase focusRipple {...otherProps}>
       <Card
+        variant="outlined"
         sx={{
           width: 140,
           height: 140,
           paddingTop: '24px',
-          backgroundColor: primary ? 'text.primary' : 'squareButton.background',
+          backgroundColor: primary ? 'text.primary' : theme.palette.background.muted,
         }}
       >
         <CardContent sx={{ textAlign: 'center', paddingTop: 0 }}>

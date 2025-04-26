@@ -4,9 +4,10 @@ import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
+import { alpha } from '@mui/system';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useClusterGroup } from '../../../lib/k8s';
+import { useSelectedClusters } from '../../../lib/k8s';
 import ActionButton from '../ActionButton';
 import EditorDialog from './EditorDialog';
 
@@ -20,7 +21,7 @@ export default function CreateButton(props: CreateButtonProps) {
   const [openDialog, setOpenDialog] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('');
   const { t } = useTranslation(['translation']);
-  const clusters = useClusterGroup();
+  const clusters = useSelectedClusters();
   const [targetCluster, setTargetCluster] = React.useState(clusters[0] || '');
 
   // We want to avoid resetting the dialog state on close.
@@ -46,6 +47,9 @@ export default function CreateButton(props: CreateButtonProps) {
           width="48"
           iconButtonProps={{
             color: 'primary',
+            sx: theme => ({
+              color: theme.palette.sidebar.color,
+            }),
           }}
         />
       ) : (
@@ -54,8 +58,15 @@ export default function CreateButton(props: CreateButtonProps) {
             setOpenDialog(true);
           }}
           startIcon={<InlineIcon icon="mdi:plus" />}
-          color="primary"
-          variant="contained"
+          color="secondary"
+          size="large"
+          sx={theme => ({
+            background: theme.palette.sidebar.actionBackground,
+            color: theme.palette.getContrastText(theme.palette.sidebar.actionBackground),
+            ':hover': {
+              background: alpha(theme.palette.sidebar.actionBackground, 0.6),
+            },
+          })}
         >
           {t('translation|Create')}
         </Button>

@@ -47,10 +47,10 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose} color="primary">
+          <Button onClick={handleClose} color="secondary" variant="contained">
             {cancelLabel || t('No')}
           </Button>
-          <Button onClick={onConfirmationClicked} color="primary">
+          <Button onClick={onConfirmationClicked} color="primary" variant="contained">
             {confirmLabel || t('Yes')}
           </Button>
         </DialogActions>
