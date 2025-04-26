@@ -1,4 +1,4 @@
-import { Box, Switch } from '@mui/material';
+import { Box, Switch, Typography } from '@mui/material';
 import { capitalize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -70,41 +70,6 @@ export default function Settings() {
             value: <LocaleSelect showFullNames formControlProps={{ className: '' }} />,
           },
           {
-            name: t('translation|Theme'),
-            value: (
-              <Box
-                sx={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-                  gap: 2,
-                }}
-              >
-                {appThemes.map(it => (
-                  <Box
-                    key={it.name}
-                    sx={{
-                      cursor: 'pointer',
-                      border: themeName === it.name ? '2px solid' : '1px solid #ccc',
-                      borderRadius: 2,
-                      p: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      transition: '0.2 ease',
-                      '&:hover': {
-                        boxShadow: '0 0 8px rgba(0,0,0,0.2)',
-                      },
-                    }}
-                    onClick={() => dispatch(setTheme(it.name))}
-                  >
-                    <ThemePreview theme={it} />
-                    <Box sx={{ mt: 1 }}>{capitalize(it.name)}</Box>
-                  </Box>
-                ))}
-              </Box>
-            ),
-          },
-          {
             name: t('translation|Resource details view'),
             value: <DrawerModeSettings />,
           },
@@ -139,6 +104,83 @@ export default function Settings() {
           },
         ]}
       />
+      <Box
+        sx={{
+          mt: '2',
+          borderTop: '1px solid',
+          borderTopColor: 'divider',
+          pt: '2',
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'baseline',
+            px: 1.5,
+            py: 1,
+          }}
+        >
+          <Typography
+            variant="body1"
+            sx={theme => ({
+              textAlign: 'left',
+              color: theme.palette.text.secondary,
+              fontSize: '1rem',
+              [theme.breakpoints.down('sm')]: {
+                fontSize: '1.5rem',
+                color: theme.palette.text.primary,
+              },
+            })}
+          >
+            {t('translation|Theme')}
+          </Typography>
+        </Box>
+        <Box
+          sx={{
+            width: '100%',
+            margin: 'auto',
+            pb: 5,
+          }}
+        >
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+              gap: 2,
+              justifyContent: 'center',
+            }}
+          >
+            {appThemes.map(it => (
+              <Box
+                key={it.name}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') dispatch(setTheme(it.name));
+                }}
+                sx={{
+                  cursor: 'pointer',
+                  border: themeName === it.name ? '3px solid' : '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 2,
+                  p: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  transition: '0.2 ease',
+                  '&:hover': {
+                    backgroundColor: 'divider',
+                  },
+                }}
+                onClick={() => dispatch(setTheme(it.name))}
+              >
+                <ThemePreview theme={it} size={110} />
+                <Box sx={{ mt: 1 }}>{capitalize(it.name)}</Box>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      </Box>
     </SectionBox>
   );
 }
