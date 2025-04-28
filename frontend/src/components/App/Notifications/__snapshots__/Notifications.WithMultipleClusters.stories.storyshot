@@ -4,20 +4,17 @@
       aria-controls=""
       aria-haspopup="true"
       aria-label="Show notifications"
-      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-le4ea9-MuiButtonBase-root-MuiIconButton-root"
       tabindex="0"
       type="button"
     >
       <span
-        class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+        class="MuiBadge-root css-63ezxx-MuiBadge-root"
       >
         <span
-          class="MuiBadge-badge MuiBadge-dot MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightRectangular MuiBadge-overlapRectangular MuiBadge-colorError css-jco5a1-MuiBadge-badge"
+          class="MuiBadge-badge MuiBadge-dot MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightRectangular MuiBadge-overlapRectangular MuiBadge-colorError css-12tvtdc-MuiBadge-badge"
         />
       </span>
-      <span
-        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-      />
     </button>
   </div>
 </body>

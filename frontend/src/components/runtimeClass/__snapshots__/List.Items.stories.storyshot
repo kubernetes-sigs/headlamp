@@ -4,16 +4,16 @@
       class="MuiBox-root css-j1fy4m"
     >
       <div
-        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row MuiGrid-spacing-xs-2 css-lv5247-MuiGrid-root"
       >
         <div
-          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+          class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
         >
           <div
             class="MuiBox-root css-70qvj9"
           >
             <h1
-              class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+              class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-v9zn59-MuiTypography-root"
             >
               RuntimeClass
             </h1>
@@ -22,15 +22,11 @@
             >
               <button
                 aria-label="Create RuntimeClass"
-                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-le4ea9-MuiButtonBase-root-MuiIconButton-root"
                 data-mui-internal-clone-element="true"
                 tabindex="0"
                 type="button"
-              >
-                <span
-                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                />
-              </button>
+              />
             </div>
           </div>
         </div>
@@ -42,21 +38,22 @@
           class="MuiBox-root css-1ipmh7v"
         >
           <div
-            class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-bz4dnt-MuiCollapse-root"
+            class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-cwrbtg-MuiCollapse-root"
             style="min-height: 0px;"
           >
             <div
-              class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
+              class="MuiCollapse-wrapper MuiCollapse-vertical css-1x6hinx-MuiCollapse-wrapper"
             >
               <div
-                class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
+                class="MuiCollapse-wrapperInner MuiCollapse-vertical css-1i4ywhz-MuiCollapse-wrapperInner"
               >
                 <div
-                  class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorInfo MuiAlert-standardInfo MuiAlert-standard css-s0ueq2-MuiPaper-root-MuiAlert-root"
+                  class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation0 MuiAlert-root MuiAlert-colorInfo MuiAlert-standardInfo MuiAlert-standard css-1uh84kv-MuiPaper-root-MuiAlert-root"
                   role="alert"
+                  style="--Paper-shadow: none;"
                 >
                   <div
-                    class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
+                    class="MuiAlert-message css-zioonp-MuiAlert-message"
                   >
                     <div
                       class="MuiStack-root css-5kul5x-MuiStack-root"
@@ -77,7 +74,7 @@
             style="opacity: 0; visibility: hidden;"
           >
             <p
-              class="MuiTypography-root MuiTypography-body1 css-18b7jph-MuiTypography-root"
+              class="MuiTypography-root MuiTypography-body1 css-jk7cbr-MuiTypography-root"
             >
               Drop to group by 
             </p>
@@ -94,14 +91,14 @@
               >
                 <button
                   aria-label="Show/Hide search"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-le4ea9-MuiButtonBase-root-MuiIconButton-root"
                   data-mui-internal-clone-element="true"
                   tabindex="0"
                   type="button"
                 >
                   <svg
                     aria-hidden="true"
-                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-1umw9bq-MuiSvgIcon-root"
                     data-testid="SearchIcon"
                     focusable="false"
                     viewBox="0 0 24 24"
@@ -110,20 +107,17 @@
                       d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14"
                     />
                   </svg>
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
                 </button>
                 <button
                   aria-label="Show/Hide filters"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-le4ea9-MuiButtonBase-root-MuiIconButton-root"
                   data-mui-internal-clone-element="true"
                   tabindex="0"
                   type="button"
                 >
                   <svg
                     aria-hidden="true"
-                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-1umw9bq-MuiSvgIcon-root"
                     data-testid="FilterListIcon"
                     focusable="false"
                     viewBox="0 0 24 24"
@@ -132,20 +126,17 @@
                       d="M10 18h4v-2h-4zM3 6v2h18V6zm3 7h12v-2H6z"
                     />
                   </svg>
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
                 </button>
                 <button
                   aria-label="Show/Hide columns"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-le4ea9-MuiButtonBase-root-MuiIconButton-root"
                   data-mui-internal-clone-element="true"
                   tabindex="0"
                   type="button"
                 >
                   <svg
                     aria-hidden="true"
-                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-1umw9bq-MuiSvgIcon-root"
                     data-testid="ViewColumnIcon"
                     focusable="false"
                     viewBox="0 0 24 24"
@@ -154,29 +145,26 @@
                       d="M14.67 5v14H9.33V5zm1 14H21V5h-5.33zm-7.34 0V5H3v14z"
                     />
                   </svg>
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
                 </button>
               </div>
             </div>
           </div>
         </div>
         <table
-          class="MuiTable-root css-1fjavuh-MuiTable-root"
+          class="MuiTable-root css-1xvn6qb-MuiTable-root"
         >
           <thead
-            class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
+            class="MuiTableHead-root css-lt8ym2-MuiTableHead-root"
           >
             <tr
               class="css-1lqh5un"
             >
-              <th
+              <td
                 aria-sort="none"
-                class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-199xzek-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1kn9brn-MuiTableCell-root"
                 colspan="1"
                 data-index="-1"
-                scope="col"
+                tabindex="0"
               >
                 <div
                   class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
@@ -189,18 +177,18 @@
                     >
                       <span
                         aria-label="Toggle select all"
-                        class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                        class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1z0uvyk-MuiButtonBase-root-MuiCheckbox-root"
                         data-mui-internal-clone-element="true"
                       >
                         <input
                           aria-label="Toggle select all"
-                          class="PrivateSwitchBase-input css-1m9pwf3"
+                          class="PrivateSwitchBase-input css-j8yymo"
                           data-indeterminate="false"
                           type="checkbox"
                         />
                         <svg
                           aria-hidden="true"
-                          class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                          class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-120dh41-MuiSvgIcon-root"
                           data-testid="CheckBoxOutlineBlankIcon"
                           focusable="false"
                           viewBox="0 0 24 24"
@@ -209,9 +197,6 @@
                             d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
                           />
                         </svg>
-                        <span
-                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                        />
                       </span>
                     </div>
                   </div>
@@ -219,14 +204,14 @@
                     class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
                   />
                 </div>
-              </th>
-              <th
+              </td>
+              <td
                 aria-sort="none"
-                class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-pksupb-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-d4wab8-MuiTableCell-root"
                 colspan="1"
                 data-can-sort="true"
                 data-index="-1"
-                scope="col"
+                tabindex="0"
               >
                 <div
                   class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
@@ -241,18 +226,18 @@
                     </div>
                     <span
                       aria-label="Sort by Name ascending"
-                      class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                      class="MuiBadge-root css-63ezxx-MuiBadge-root"
                       data-mui-internal-clone-element="true"
                     >
                       <span
                         aria-label="Sort by Name ascending"
-                        class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                        class="MuiButtonBase-root MuiTableSortLabel-root Mui-active MuiTableSortLabel-directionAsc css-1r0rtz1-MuiButtonBase-root-MuiTableSortLabel-root"
                         role="button"
                         tabindex="0"
                       >
                         <svg
                           aria-hidden="true"
-                          class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
+                          class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-7ojauk-MuiSvgIcon-root-MuiTableSortLabel-icon"
                           data-testid="SyncAltIcon"
                           focusable="false"
                           style="transform: rotate(-90deg) scaleX(0.9) translateX(-1px);"
@@ -264,7 +249,7 @@
                         </svg>
                       </span>
                       <span
-                        class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                        class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-hybta0-MuiBadge-badge"
                       >
                         0
                       </span>
@@ -274,14 +259,14 @@
                     class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
                   />
                 </div>
-              </th>
-              <th
+              </td>
+              <td
                 aria-sort="none"
-                class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16ohm6q-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-r91jvd-MuiTableCell-root"
                 colspan="1"
                 data-can-sort="true"
                 data-index="-1"
-                scope="col"
+                tabindex="0"
               >
                 <div
                   class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
@@ -296,18 +281,18 @@
                     </div>
                     <span
                       aria-label="Sort by Handler ascending"
-                      class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                      class="MuiBadge-root css-63ezxx-MuiBadge-root"
                       data-mui-internal-clone-element="true"
                     >
                       <span
                         aria-label="Sort by Handler ascending"
-                        class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                        class="MuiButtonBase-root MuiTableSortLabel-root Mui-active MuiTableSortLabel-directionAsc css-1r0rtz1-MuiButtonBase-root-MuiTableSortLabel-root"
                         role="button"
                         tabindex="0"
                       >
                         <svg
                           aria-hidden="true"
-                          class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
+                          class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-7ojauk-MuiSvgIcon-root-MuiTableSortLabel-icon"
                           data-testid="SyncAltIcon"
                           focusable="false"
                           style="transform: rotate(-90deg) scaleX(0.9) translateX(-1px);"
@@ -319,7 +304,7 @@
                         </svg>
                       </span>
                       <span
-                        class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                        class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-hybta0-MuiBadge-badge"
                       >
                         0
                       </span>
@@ -329,15 +314,15 @@
                     class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
                   />
                 </div>
-              </th>
-              <th
+              </td>
+              <td
                 aria-sort="ascending"
-                class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-7mz8xn-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1o2cyn3-MuiTableCell-root"
                 colspan="1"
                 data-can-sort="true"
                 data-index="-1"
                 data-sort="asc"
-                scope="col"
+                tabindex="0"
               >
                 <div
                   class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
@@ -352,18 +337,18 @@
                     </div>
                     <span
                       aria-label="Sorted by Age ascending"
-                      class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                      class="MuiBadge-root css-63ezxx-MuiBadge-root"
                       data-mui-internal-clone-element="true"
                     >
                       <span
                         aria-label="Sorted by Age ascending"
-                        class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-kfi25q-MuiButtonBase-root-MuiTableSortLabel-root"
+                        class="MuiButtonBase-root MuiTableSortLabel-root Mui-active MuiTableSortLabel-directionAsc css-1dz8p48-MuiButtonBase-root-MuiTableSortLabel-root"
                         role="button"
                         tabindex="0"
                       >
                         <svg
                           aria-hidden="true"
-                          class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
+                          class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-7ojauk-MuiSvgIcon-root-MuiTableSortLabel-icon"
                           data-testid="ArrowDownwardIcon"
                           focusable="false"
                           viewBox="0 0 24 24"
@@ -374,7 +359,7 @@
                         </svg>
                       </span>
                       <span
-                        class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                        class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-hybta0-MuiBadge-badge"
                       >
                         0
                       </span>
@@ -384,13 +369,13 @@
                     class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
                   />
                 </div>
-              </th>
-              <th
+              </td>
+              <td
                 aria-sort="none"
-                class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-nv4ey6-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-r5v3n8-MuiTableCell-root"
                 colspan="1"
                 data-index="-1"
-                scope="col"
+                tabindex="0"
               >
                 <div
                   class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
@@ -408,33 +393,34 @@
                     class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
                   />
                 </div>
-              </th>
+              </td>
             </tr>
           </thead>
           <tbody
-            class="css-1obf64m"
+            class="css-1v6uq46"
           >
             <tr
               class="css-1ospngb"
               data-selected="false"
             >
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-pd6i0s-MuiTableCell-root"
+                tabindex="0"
               >
                 <span
                   aria-label="Toggle select row"
-                  class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                  class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1z0uvyk-MuiButtonBase-root-MuiCheckbox-root"
                   data-mui-internal-clone-element="true"
                 >
                   <input
                     aria-label="Toggle select row"
-                    class="PrivateSwitchBase-input css-1m9pwf3"
+                    class="PrivateSwitchBase-input css-j8yymo"
                     data-indeterminate="false"
                     type="checkbox"
                   />
                   <svg
                     aria-hidden="true"
-                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-120dh41-MuiSvgIcon-root"
                     data-testid="CheckBoxOutlineBlankIcon"
                     focusable="false"
                     viewBox="0 0 24 24"
@@ -443,50 +429,51 @@
                       d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
                     />
                   </svg>
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
                 </span>
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-10gq5a0-MuiTableCell-root"
+                tabindex="0"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1ov93i1-MuiTypography-root-MuiLink-root"
                   href="/"
                 >
                   runtime-class
                 </a>
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1orsbk2-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-uyd1a6-MuiTableCell-root"
+                tabindex="0"
               >
                 handler
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-1sbr4ws-MuiTableCell-root"
+                tabindex="0"
               >
                 <p
                   aria-label="2022-01-01T00:00:00.000Z"
-                  class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-1mkm9t0-MuiTypography-root"
                   data-mui-internal-clone-element="true"
                 >
                   3mo
                 </p>
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-hq12h3-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-eamepq-MuiTableCell-root"
+                tabindex="0"
               >
                 <button
                   aria-label="Row Actions"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-1cxdeyj-MuiButtonBase-root-MuiIconButton-root"
+                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-1ituu1j-MuiButtonBase-root-MuiIconButton-root"
                   data-mui-internal-clone-element="true"
                   tabindex="0"
                   type="button"
                 >
                   <svg
                     aria-hidden="true"
-                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-1umw9bq-MuiSvgIcon-root"
                     data-testid="MoreHorizIcon"
                     focusable="false"
                     viewBox="0 0 24 24"
@@ -495,9 +482,6 @@
                       d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2"
                     />
                   </svg>
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
                 </button>
               </td>
             </tr>

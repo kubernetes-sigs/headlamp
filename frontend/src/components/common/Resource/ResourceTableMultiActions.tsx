@@ -25,11 +25,11 @@ export default function ResourceTableMultiActions<RowItem extends Record<string,
   return (
     <Grid container spacing={2}>
       {restartableItems.length > 0 && (
-        <Grid item>
+        <Grid>
           <RestartMultipleButton items={restartableItems} afterConfirm={afterConfirm} />
         </Grid>
       )}
-      <Grid item>
+      <Grid>
         <DeleteMultipleButton items={items} afterConfirm={afterConfirm} />
       </Grid>
     </Grid>

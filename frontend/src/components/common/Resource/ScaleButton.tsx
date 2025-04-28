@@ -146,7 +146,7 @@ function ScaleDialog(props: ScaleDialogProps) {
         }}
       >
         <Grid container spacing={2}>
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <DialogContentText>
               {t('translation|Current number of replicas: {{ numReplicas }}', {
                 numReplicas:
@@ -154,13 +154,13 @@ function ScaleDialog(props: ScaleDialogProps) {
               })}
             </DialogContentText>
           </Grid>
-          <Grid item container alignItems="center" spacing={1}>
-            <Grid item sm="auto" xs={12}>
+          <Grid container alignItems="center" spacing={1}>
+            <Grid size={{ xs: 12, sm: 'auto' }}>
               <DialogContentText id={desiredNumReplicasLabel}>
                 {t('translation|Desired number of replicas:')}
               </DialogContentText>
             </Grid>
-            <Grid item spacing={2} sm="auto" sx={{ padding: '6px', textAlign: 'left' }}>
+            <Grid spacing={2} sx={{ padding: '6px', textAlign: 'left', sm: 'auto' }}>
               <Fab
                 size="small"
                 color="secondary"
@@ -194,7 +194,7 @@ function ScaleDialog(props: ScaleDialogProps) {
                 <Icon icon="mdi:plus" width="22px" />
               </Fab>
             </Grid>
-            <Grid item xs="auto">
+            <Grid size="auto">
               {numReplicas >= numReplicasForWarning && (
                 <LightTooltip
                   title={t(

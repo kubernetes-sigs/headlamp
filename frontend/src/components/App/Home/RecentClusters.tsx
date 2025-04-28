@@ -113,14 +113,13 @@ export default function RecentClusters(props: RecentClustersProps) {
   return (
     <Grid
       aria-labelledby={`#${recentClustersLabelId}`}
-      item
       container
       alignItems="flex-start"
       spacing={2}
     >
       {!doMulti &&
         recentClusters.map((cluster, i) => (
-          <Grid item key={cluster.name}>
+          <Grid key={cluster.name}>
             <ClusterButton
               focusedRef={i === 0 ? focusedRef : undefined}
               cluster={cluster}
@@ -129,7 +128,7 @@ export default function RecentClusters(props: RecentClustersProps) {
           </Grid>
         ))}
       {doMulti && (
-        <Grid container item alignItems="center">
+        <Grid container alignItems="center">
           <ToggleButtonGroup
             value={selectedClusters}
             onChange={(event, clusters) => setSelectedClusters(clusters)}
@@ -142,7 +141,7 @@ export default function RecentClusters(props: RecentClustersProps) {
               </ToggleButton>
             ))}
           </ToggleButtonGroup>
-          <Grid item pl={2}>
+          <Grid pl={2}>
             <Button
               variant="contained"
               disabled={selectedClusters.length < 1}
@@ -155,7 +154,7 @@ export default function RecentClusters(props: RecentClustersProps) {
         </Grid>
       )}
       {isElectron() && (
-        <Grid item>
+        <Grid>
           <SquareButton
             onClick={() => {
               history.push(createRouteURL('addCluster'));

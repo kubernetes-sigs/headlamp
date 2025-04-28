@@ -6,7 +6,7 @@ import {
   Button,
   Grid,
   IconButton,
-  ListItem,
+  ListItemButton,
   Popover,
   Tooltip,
   Typography,
@@ -67,8 +67,7 @@ function NotificationsList(props: {
     }
 
     return (
-      <ListItem
-        button
+      <ListItemButton
         key={`${notification}__${index}`}
         sx={{
           '&.MuiMenuItem-root': {
@@ -84,7 +83,7 @@ function NotificationsList(props: {
           spacing={1}
           onClick={() => notificationItemClickHandler(notification)}
         >
-          <Grid item md={notification.seen ? 11 : 10}>
+          <Grid size={{ md: notification.seen ? 11 : 10 }}>
             <Tooltip title={notification.message || t('translation|No message')}>
               <Typography style={{ fontWeight: notification.seen ? 'normal' : 'bold' }} noWrap>
                 {`${notification.message || t('translation|No message')}`}
@@ -92,7 +91,7 @@ function NotificationsList(props: {
             </Tooltip>
           </Grid>
           {!notification.seen && (
-            <Grid item md={1}>
+            <Grid size={{ md: 1 }}>
               <Tooltip title={t('translation|Mark as read')}>
                 <IconButton
                   onClick={e => notificationSeenUnseenHandler(e, notification)}
@@ -104,7 +103,7 @@ function NotificationsList(props: {
               </Tooltip>
             </Grid>
           )}
-          <Grid item md={12}>
+          <Grid size={{ md: 12 }}>
             <Box display={'flex'} alignItems="center">
               {Object.entries(config?.clusters || {}).length > 1 && notification.cluster && (
                 <Box
@@ -122,7 +121,7 @@ function NotificationsList(props: {
             </Box>
           </Grid>
         </Grid>
-      </ListItem>
+      </ListItemButton>
     );
   }
 
@@ -296,14 +295,14 @@ export default function Notifications() {
           })}
         >
           <Grid container direction="row" justifyContent="space-between" alignItems="center">
-            <Grid item>
+            <Grid>
               <Box mx={1}>
                 <Typography style={{ fontWeight: 'bold' }}>
                   {t('translation|Notifications')}
                 </Typography>
               </Box>
             </Grid>
-            <Grid item>
+            <Grid>
               <Button
                 sx={{
                   textTransform: 'none',

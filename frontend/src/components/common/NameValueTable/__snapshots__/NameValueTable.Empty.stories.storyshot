@@ -1,7 +1,7 @@
 <body>
   <div>
-    <dl
-      class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+    <div
+      class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row css-kdl-MuiGrid-root"
     />
   </div>
 </body>

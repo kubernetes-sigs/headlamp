@@ -61,7 +61,6 @@ export default function NameValueTable(props: NameValueTableProps) {
   return (
     <Grid
       container
-      component="dl" // mount a Definition List
       sx={theme => ({
         border: '1px solid',
         borderColor: theme.palette.tables.head.borderColor,
@@ -89,11 +88,8 @@ export default function NameValueTable(props: NameValueTableProps) {
 
           const items = [
             <Grid
-              item
               key={i}
-              xs={12}
-              sm={hideValueGridItem ? 12 : 4}
-              component="dt"
+              size={{ xs: 12, sm: hideValueGridItem ? 12 : 4 }}
               className={className}
               sx={theme => {
                 const extra = withHighlightStyle
@@ -132,11 +128,8 @@ export default function NameValueTable(props: NameValueTableProps) {
           if (!hideValueGridItem) {
             items.push(
               <Grid
-                item
+                size={{ xs: 12, sm: 8 }}
                 key={i + 10000}
-                xs={12}
-                sm={8}
-                component="dd"
                 sx={theme => {
                   const extra = withHighlightStyle
                     ? {

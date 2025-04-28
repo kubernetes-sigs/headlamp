@@ -90,9 +90,7 @@ export default function SectionFilterHeader(props: SectionFilterHeaderProps) {
                 <Box>
                   <Grid container spacing={1} alignItems="center">
                     {actions.map((action, i) => (
-                      <Grid item key={i}>
-                        {action}
-                      </Grid>
+                      <Grid key={i}>{action}</Grid>
                     ))}
                   </Grid>
                 </Box>,

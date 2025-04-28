@@ -370,7 +370,7 @@ export function PageGrid(props: PageGridProps) {
   return (
     <Grid container spacing={1} justifyContent="flex-start" alignItems="stretch" {...other}>
       {childrenArray.map((section, i) => (
-        <Grid item key={i} xs={12}>
+        <Grid key={i} size={{ xs: 12 }}>
           <Box mt={[4, 0, 0]}>{section}</Box>
         </Grid>
       ))}
@@ -389,7 +389,7 @@ export function SectionGrid(props: SectionGridProps) {
     <Grid container justifyContent="space-between">
       {items.map((item, i) => {
         return (
-          <Grid item md={12} xs={12} key={i}>
+          <Grid size={{ xs: 12, md: 12 }} key={i}>
             {item}
           </Grid>
         );
@@ -476,7 +476,7 @@ export function SecretField(props: InputProps) {
 
   return (
     <Grid container alignItems="stretch" spacing={2}>
-      <Grid item>
+      <Grid>
         <IconButton
           edge="end"
           aria-label={t('toggle field visibility')}
@@ -487,7 +487,7 @@ export function SecretField(props: InputProps) {
           <Icon icon={showPassword ? 'mdi:eye-off' : 'mdi:eye'} />
         </IconButton>
       </Grid>
-      <Grid item xs>
+      <Grid size="grow">
         <Input
           readOnly
           type="password"
@@ -762,12 +762,12 @@ export function ContainerInfo(props: ContainerInfoProps) {
           const rowId = `${id}-${idx}`;
           return (
             <Grid container spacing={2} direction="row" key={rowId}>
-              <Grid item>
+              <Grid>
                 <Typography id={rowId} color="textSecondary">
                   {name}
                 </Typography>
               </Grid>
-              <Grid item>
+              <Grid>
                 <Typography aria-labelledby={rowId}>{value}</Typography>
               </Grid>
             </Grid>
@@ -829,10 +829,10 @@ export function ContainerInfo(props: ContainerInfoProps) {
         name: t('translation|Last State'),
         value: (
           <Grid container direction="column" spacing={1}>
-            <Grid item>
+            <Grid>
               <ContainerStatusLabel state={status?.lastState} container={container} />
             </Grid>
-            <Grid item>
+            <Grid>
               <StatusValue
                 rows={[
                   {
@@ -915,7 +915,7 @@ export function ContainerInfo(props: ContainerInfoProps) {
           <Grid container>
             {container.ports?.map(({ containerPort, protocol }, index) => (
               <>
-                <Grid item xs={12} key={`port_line_${index}`}>
+                <Grid size={{ xs: 12 }} key={`port_line_${index}`}>
                   <Box display="flex" alignItems={'center'}>
                     <Box px={0.5} minWidth={120}>
                       <ValueLabel>{`${protocol}:`}</ValueLabel>
@@ -927,7 +927,7 @@ export function ContainerInfo(props: ContainerInfoProps) {
                   </Box>
                 </Grid>
                 {index < container.ports!.length - 1 && (
-                  <Grid item xs={12}>
+                  <Grid size={{ xs: 12 }}>
                     <Box mt={2} mb={2}>
                       <Divider />
                     </Box>

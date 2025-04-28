@@ -4,42 +4,44 @@
       class="MuiBox-root css-19midj6"
     >
       <p
-        class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+        class="MuiTypography-root MuiTypography-body1 css-hc4pl5-MuiTypography-root"
       >
         Showing documentation for: Pod
       </p>
       <ul
         aria-multiselectable="false"
-        class="MuiTreeView-root css-16c5dhn-MuiTreeView-root"
-        id=":mock-test-id:"
+        class="MuiSimpleTreeView-root css-117wl1b-MuiSimpleTreeView-root"
+        id="mui-tree-view-1"
         role="tree"
-        tabindex="0"
+        style="--TreeView-itemChildrenIndentation: 12px;"
       >
         <li
           aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
-          id=":mock-test-id:"
+          aria-selected="false"
+          class="MuiTreeItem-root MuiSimpleTreeView-root css-jq3mgl-MuiTreeItem-root"
+          id="mui-tree-view-1-0"
           role="treeitem"
-          tabindex="-1"
+          style="--TreeView-itemDepth: 0;"
+          tabindex="0"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiTreeItem-content MuiSimpleTreeView-itemContent css-1jx8htg-MuiTreeItem-content"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiTreeItem-iconContainer MuiSimpleTreeView-itemIconContainer css-ppatc2-MuiTreeItem-iconContainer"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiTreeItem-label MuiSimpleTreeView-itemLabel css-6830up-MuiTreeItem-label"
             >
               <div>
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-1pl9z6p-MuiTypography-root"
                 >
                   apiVersion
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-caption css-1d0x1xx-MuiTypography-root"
                 >
                   (
                   string
@@ -51,29 +53,31 @@
         </li>
         <li
           aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
-          id=":mock-test-id:"
+          aria-selected="false"
+          class="MuiTreeItem-root MuiSimpleTreeView-root css-jq3mgl-MuiTreeItem-root"
+          id="mui-tree-view-1-1"
           role="treeitem"
+          style="--TreeView-itemDepth: 0;"
           tabindex="-1"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiTreeItem-content MuiSimpleTreeView-itemContent css-1jx8htg-MuiTreeItem-content"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiTreeItem-iconContainer MuiSimpleTreeView-itemIconContainer css-ppatc2-MuiTreeItem-iconContainer"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiTreeItem-label MuiSimpleTreeView-itemLabel css-6830up-MuiTreeItem-label"
             >
               <div>
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-1pl9z6p-MuiTypography-root"
                 >
                   kind
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-caption css-1d0x1xx-MuiTypography-root"
                 >
                   (
                   string
@@ -85,29 +89,31 @@
         </li>
         <li
           aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
-          id=":mock-test-id:"
+          aria-selected="false"
+          class="MuiTreeItem-root MuiSimpleTreeView-root css-jq3mgl-MuiTreeItem-root"
+          id="mui-tree-view-1-2"
           role="treeitem"
+          style="--TreeView-itemDepth: 0;"
           tabindex="-1"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiTreeItem-content MuiSimpleTreeView-itemContent css-1jx8htg-MuiTreeItem-content"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiTreeItem-iconContainer MuiSimpleTreeView-itemIconContainer css-ppatc2-MuiTreeItem-iconContainer"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiTreeItem-label MuiSimpleTreeView-itemLabel css-6830up-MuiTreeItem-label"
             >
               <div>
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-1pl9z6p-MuiTypography-root"
                 >
                   metadata
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-caption css-1d0x1xx-MuiTypography-root"
                 >
                   (
                   object
@@ -119,29 +125,31 @@
         </li>
         <li
           aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
-          id=":mock-test-id:"
+          aria-selected="false"
+          class="MuiTreeItem-root MuiSimpleTreeView-root css-jq3mgl-MuiTreeItem-root"
+          id="mui-tree-view-1-3"
           role="treeitem"
+          style="--TreeView-itemDepth: 0;"
           tabindex="-1"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiTreeItem-content MuiSimpleTreeView-itemContent css-1jx8htg-MuiTreeItem-content"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiTreeItem-iconContainer MuiSimpleTreeView-itemIconContainer css-ppatc2-MuiTreeItem-iconContainer"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiTreeItem-label MuiSimpleTreeView-itemLabel css-6830up-MuiTreeItem-label"
             >
               <div>
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-1pl9z6p-MuiTypography-root"
                 >
                   spec
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-caption css-1d0x1xx-MuiTypography-root"
                 >
                   (
                   object

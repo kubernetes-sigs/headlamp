@@ -1,8 +1,8 @@
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import { TreeView } from '@mui/x-tree-view/TreeView';
 // import * as buffer from 'buffer';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +13,14 @@ import Loader from '../Loader';
 export interface DocsViewerProps {
   // @todo: Declare strict types.
   docSpecs: any;
+}
+
+function IconCollapse() {
+  return <Icon icon="mdi:chevron-down" />;
+}
+
+function IconExpand() {
+  return <Icon icon="mdi:chevron-right" />;
 }
 
 function DocsViewer(props: DocsViewerProps) {
@@ -71,7 +79,7 @@ function DocsViewer(props: DocsViewerProps) {
     return (
       <TreeItem
         key={key}
-        nodeId={`${key}`}
+        itemId={key}
         label={
           <div>
             <Typography display="inline">{name}</Typography>&nbsp;
@@ -121,15 +129,14 @@ function DocsViewer(props: DocsViewerProps) {
                     docsType: docSpec.kind.trim(),
                   })}
                 </Typography>
-                <TreeView
+                <SimpleTreeView
                   sx={{ flexGrow: 1, maxWidth: 400 }}
-                  defaultCollapseIcon={<Icon icon="mdi:chevron-down" />}
-                  defaultExpandIcon={<Icon icon="mdi:chevron-right" />}
+                  slots={{ collapseIcon: IconCollapse, expandIcon: IconExpand }}
                 >
                   {Object.entries(docSpec.data.properties || {}).map(([name, value], i) =>
                     makeItems(name, value, i.toString())
                   )}
-                </TreeView>
+                </SimpleTreeView>
               </Box>
             );
           }

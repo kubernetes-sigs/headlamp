@@ -16,10 +16,9 @@ export function InfoLabel(props: React.PropsWithChildren<InfoLabelProps>) {
   const { name, value = null } = props;
 
   return (
-    <Grid container item spacing={2} justifyContent="flex-start" alignItems="flex-start">
+    <Grid container spacing={2} justifyContent="flex-start" alignItems="flex-start">
       <Grid
-        item
-        xs
+        size="grow"
         sx={{
           textAlign: 'right',
           flex: '0 0 200px',
@@ -27,9 +26,7 @@ export function InfoLabel(props: React.PropsWithChildren<InfoLabelProps>) {
       >
         <NameLabel>{name}</NameLabel>{' '}
       </Grid>
-      <Grid item xs>
-        {value !== null ? <ValueLabel>{value}</ValueLabel> : props.children}
-      </Grid>
+      <Grid size="grow">{value !== null ? <ValueLabel>{value}</ValueLabel> : props.children}</Grid>
     </Grid>
   );
 }
@@ -142,7 +139,7 @@ export function HeaderLabel(props: HeaderLabelProps) {
 
   return (
     <Grid container alignItems="center" direction="column">
-      <Grid item>
+      <Grid>
         <Typography
           sx={{
             textAlign: 'center',
@@ -156,8 +153,8 @@ export function HeaderLabel(props: HeaderLabelProps) {
         </Typography>
         {!!tooltip && <TooltipIcon>{tooltip}</TooltipIcon>}
       </Grid>
-      <Grid item container alignItems="center" justifyContent="center">
-        <Grid item>
+      <Grid container alignItems="center" justifyContent="center">
+        <Grid>
           <Typography
             sx={{
               fontSize: '3rem;',

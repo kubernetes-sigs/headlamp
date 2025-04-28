@@ -1,36 +1,36 @@
 <body>
   <div>
-    <dl
-      class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+    <div
+      class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row css-kdl-MuiGrid-root"
     >
-      <dt
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+      <div
+        class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
       >
         MyName0
-      </dt>
-      <dd
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+      </div>
+      <div
+        class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
       >
         <span
-          class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+          class="MuiTypography-root MuiTypography-body1 css-1nh71x2-MuiTypography-root"
         >
           MyValue0
         </span>
-      </dd>
-      <dt
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
+      </div>
+      <div
+        class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-y4s4kj-MuiGrid-root"
       >
         MyName1
-      </dt>
-      <dd
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
+      </div>
+      <div
+        class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-ebxzjc-MuiGrid-root"
       >
         <span
-          class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+          class="MuiTypography-root MuiTypography-body1 css-1nh71x2-MuiTypography-root"
         >
           MyValue1
         </span>
-      </dd>
-    </dl>
+      </div>
+    </div>
   </div>
 </body>

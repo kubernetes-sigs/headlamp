@@ -49,7 +49,7 @@ export default function ErrorComponent(props: ErrorComponentProps) {
       justifyContent="center"
       sx={{ textAlign: 'center' }}
     >
-      <Grid item xs={12}>
+      <Grid size={{ xs: 12 }}>
         {typeof graphic === 'string' ? <WidthImg src={graphic} alt="" /> : graphic}
         {withTypography ? (
           <Typography variant="h1" sx={{ fontSize: '2.125rem', lineHeight: 1.2, fontWeight: 400 }}>
@@ -73,7 +73,7 @@ export default function ErrorComponent(props: ErrorComponentProps) {
         )}
       </Grid>
       {!!error?.stack && (
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Box
             sx={{
               width: '100%',

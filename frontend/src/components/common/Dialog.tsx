@@ -41,8 +41,8 @@ export function DialogTitle(props: OurDialogTitleProps) {
 
   return (
     <MuiDialogTitle style={{ display: 'flex' }} {...other}>
-      <Grid container justifyContent="space-between" alignItems="center">
-        <Grid item>
+      <Grid container justifyContent="space-between" alignItems="center" sx={{ width: '100%' }}>
+        <Grid>
           {disableTypography ? (
             children
           ) : (
@@ -60,7 +60,7 @@ export function DialogTitle(props: OurDialogTitleProps) {
           )}
         </Grid>
         {buttons && buttons.length > 0 && (
-          <Grid item>
+          <Grid>
             <Box>
               {buttons.map((button, index) => {
                 return <React.Fragment key={index}>{button}</React.Fragment>;

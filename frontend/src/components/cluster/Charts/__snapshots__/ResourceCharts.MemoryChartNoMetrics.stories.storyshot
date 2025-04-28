@@ -1,7 +1,7 @@
 <body>
   <div>
     <div
-      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u4mjo4-MuiPaper-root"
     >
       <div
         class="MuiBox-root css-qrw4x1"
@@ -13,16 +13,16 @@
             class="MuiBox-root css-0"
           >
             <p
-              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-1dst9i2-MuiTypography-root"
             >
               Memory
             </p>
             <div
-              class="MuiContainer-root MuiContainer-maxWidthLg css-64uahr-MuiContainer-root"
+              class="MuiContainer-root MuiContainer-maxWidthLg css-19f8ppa-MuiContainer-root"
             />
           </div>
           <p
-            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-ci7lxv-MuiTypography-root"
           >
             8.00 GB
           </p>
