@@ -1,28 +1,28 @@
 <body>
   <div>
     <div
-      class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column css-t0zib5-MuiGrid-root"
+      class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column css-1bkjq21-MuiGrid-root"
     >
       <div
-        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
       >
         <p
-          class="MuiTypography-root MuiTypography-body1 css-1vtvfmb-MuiTypography-root"
+          class="MuiTypography-root MuiTypography-body1 css-er294s-MuiTypography-root"
         >
           name
         </p>
         <div
-          class="MuiContainer-root MuiContainer-maxWidthLg css-64uahr-MuiContainer-root"
+          class="MuiContainer-root MuiContainer-maxWidthLg css-19f8ppa-MuiContainer-root"
         />
       </div>
       <div
-        class="MuiGrid-root MuiGrid-container MuiGrid-item css-dcx4qa-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row css-n2h3d1-MuiGrid-root"
       >
         <div
-          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+          class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
         >
           <p
-            class="MuiTypography-root MuiTypography-body1 css-l0k1rq-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-body1 css-3k7v-MuiTypography-root"
           >
             value
           </p>

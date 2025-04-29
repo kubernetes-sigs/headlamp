@@ -36,7 +36,7 @@ export default function SectionHeader(props: SectionHeaderProps) {
       })}
       spacing={2}
     >
-      <Grid item>
+      <Grid>
         {(!!props.title || titleSideActions.length > 0) && (
           <Box display="flex" alignItems="center">
             {!!props.title && (
@@ -65,18 +65,10 @@ export default function SectionHeader(props: SectionHeaderProps) {
         )}
       </Grid>
       {actions.length > 0 && (
-        <Grid item>
-          <Grid
-            item
-            container
-            alignItems="center"
-            justifyContent="flex-end"
-            sx={{ minHeight: '40px' }}
-          >
+        <Grid>
+          <Grid container alignItems="center" justifyContent="flex-end" sx={{ minHeight: '40px' }}>
             {actions.map((action, i) => (
-              <Grid item key={i}>
-                {action}
-              </Grid>
+              <Grid key={i}>{action}</Grid>
             ))}
           </Grid>
         </Grid>

@@ -306,7 +306,7 @@ export const PureSidebar = memo(
           justifyContent="space-between"
           wrap="nowrap"
         >
-          <Grid item>
+          <Grid>
             <List
               onClick={isTemporaryDrawer ? toggleDrawer : undefined}
               onKeyDown={isTemporaryDrawer ? toggleDrawer : undefined}
@@ -322,7 +322,7 @@ export const PureSidebar = memo(
               ))}
             </List>
           </Grid>
-          <Grid item>
+          <Grid>
             <Box textAlign="center">{linkArea}</Box>
           </Grid>
         </Grid>

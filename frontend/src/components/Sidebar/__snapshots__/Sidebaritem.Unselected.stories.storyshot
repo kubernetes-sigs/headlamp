@@ -1,36 +1,33 @@
 <body>
   <div>
     <div
-      class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+      class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
       style="background-color: rgba(0, 0, 0, 0.87);"
     >
       <ul
-        class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
+        class="MuiList-root MuiList-padding css-b7dj7n-MuiList-root"
       >
         <li
           class="css-3knmzx"
         >
           <a
-            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-8cwk2d-MuiButtonBase-root-MuiListItemButton-root"
             href="/"
             role="button"
             tabindex="0"
           >
             <div
-              class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+              class="MuiListItemIcon-root css-1wl8c2e-MuiListItemIcon-root"
             />
             <div
-              class="MuiListItemText-root css-tlelie-MuiListItemText-root"
+              class="MuiListItemText-root css-cfq8qh-MuiListItemText-root"
             >
               <span
-                class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-hc4pl5-MuiTypography-root"
               >
                 Cluster
               </span>
             </div>
-            <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-            />
           </a>
         </li>
       </ul>

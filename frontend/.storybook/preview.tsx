@@ -5,7 +5,7 @@ import { Title, Subtitle, Description, Primary, Controls } from '@storybook/bloc
 import { baseMocks } from './baseMocks';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from '../src/App';
-import { darkTheme, lightTheme, useAppThemes } from '../src/components/App/themeSlice';
+import { darkTheme, lightTheme } from '../src/components/App/themeSlice';
 import { createMuiTheme } from '../src/lib/themes';
 
 // App import will load the whole app dependency tree

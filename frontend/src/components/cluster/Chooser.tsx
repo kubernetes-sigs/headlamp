@@ -197,7 +197,7 @@ function ClusterList(props: ClusterListProps) {
         spacing={4}
       >
         {recentClusters.length !== clusters.length && (
-          <Grid item>
+          <Grid>
             <Typography align="center" id={recentClustersLabelId}>
               {t('translation|Recent clusters')}
             </Typography>
@@ -205,14 +205,13 @@ function ClusterList(props: ClusterListProps) {
         )}
         <Grid
           aria-labelledby={`#${recentClustersLabelId}`}
-          item
           container
           alignItems="center"
           justifyContent={clusters.length > maxRecentClusters ? 'space-between' : 'center'}
           spacing={2}
         >
           {recentClusters.map((cluster, i) => (
-            <Grid item key={cluster.name}>
+            <Grid key={cluster.name}>
               <ClusterButton
                 focusedRef={i === 0 ? focusedRef : undefined}
                 cluster={cluster}
@@ -222,7 +221,7 @@ function ClusterList(props: ClusterListProps) {
           ))}
         </Grid>
         {clusters.length > 3 && (
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Autocomplete
               id="cluster-selector-autocomplete"
               options={clusters}
@@ -452,9 +451,7 @@ function Chooser(props: ClusterDialogProps) {
           <DialogActions>
             <Grid container direction="row" justifyContent="space-between" alignItems="center">
               {React.Children.toArray(children).map((child, index) => (
-                <Grid item key={index}>
-                  {child}
-                </Grid>
+                <Grid key={index}>{child}</Grid>
               ))}
             </Grid>
           </DialogActions>

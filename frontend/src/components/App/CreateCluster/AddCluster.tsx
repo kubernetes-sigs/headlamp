@@ -41,12 +41,12 @@ export default function AddCluster(props: DialogProps & { onChoice: () => void }
     <PageGrid>
       <SectionBox backLink title={t('translation|Add Cluster')} py={2} mt={[4, 0, 0]}>
         <Grid container justifyContent="flex-start" alignItems="stretch" spacing={4}>
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Typography>
               {t('Proceed to select your preferred method for cluster creation and addition')}
             </Typography>
           </Grid>
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Card variant="outlined">
               <CardContent>
                 <Button
@@ -59,12 +59,12 @@ export default function AddCluster(props: DialogProps & { onChoice: () => void }
             </Card>
           </Grid>
           {addClusterProviders.length > 0 && (
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Typography variant="h4">{t('translation|Providers')}</Typography>
             </Grid>
           )}
           {addClusterProviders.length > 0 && (
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               {addClusterProviders.map(addClusterProviderInfo => (
                 <AddClusterProvider {...addClusterProviderInfo} />
               ))}

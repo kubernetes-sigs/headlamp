@@ -16,14 +16,10 @@
           <button
             aria-controls="label-id"
             arial-label="Expand"
-            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-z81te2-MuiButtonBase-root-MuiIconButton-root"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-16x7x5d-MuiButtonBase-root-MuiIconButton-root"
             tabindex="0"
             type="button"
-          >
-            <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-            />
-          </button>
+          />
         </label>
       </div>
     </div>

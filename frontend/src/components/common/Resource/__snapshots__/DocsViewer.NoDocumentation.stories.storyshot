@@ -4,7 +4,8 @@
       class="MuiBox-root css-19midj6"
     >
       <p
-        class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+        class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-762h3z-MuiTypography-root"
+        style="--Typography-textAlign: center;"
       >
         No documentation available.
       </p>

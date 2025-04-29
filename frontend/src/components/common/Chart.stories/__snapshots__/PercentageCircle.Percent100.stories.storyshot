@@ -6,7 +6,7 @@
       class="MuiBox-root css-2esbmj"
     >
       <p
-        class="MuiTypography-root MuiTypography-body1 css-b7twky-MuiTypography-root"
+        class="MuiTypography-root MuiTypography-body1 css-jm9z6p-MuiTypography-root"
       >
         Pods
       </p>
@@ -92,7 +92,7 @@
         </svg>
       </div>
       <p
-        class="MuiTypography-root MuiTypography-body1 css-1linoo0-MuiTypography-root"
+        class="MuiTypography-root MuiTypography-body1 css-6rxqfm-MuiTypography-root"
       >
         9 / 9 Requested
       </p>

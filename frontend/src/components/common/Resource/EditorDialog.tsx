@@ -417,16 +417,12 @@ export default function EditorDialog(props: EditorDialogProps) {
               <Grid container spacing={2} justifyContent="space-between">
                 {
                   actions.length > 0 ? (
-                    actions.map((action, i) => (
-                      <Grid item key={`editor_action_${i}`}>
-                        {action}
-                      </Grid>
-                    ))
+                    actions.map((action, i) => <Grid key={`editor_action_${i}`}>{action}</Grid>)
                   ) : (
-                    <Grid item></Grid>
+                    <Grid></Grid>
                   ) // Just to keep the layout consistent.
                 }
-                <Grid item>
+                <Grid>
                   <FormGroup row>
                     <FormControlLabel
                       control={

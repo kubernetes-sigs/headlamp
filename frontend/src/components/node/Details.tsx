@@ -304,7 +304,7 @@ function ChartsSection(props: ChartsSectionProps) {
         alignItems="stretch"
         spacing={2}
       >
-        <Grid item xs={4}>
+        <Grid size={{ xs: 4 }}>
           <Paper
             variant="outlined"
             sx={theme => ({
@@ -318,10 +318,10 @@ function ChartsSection(props: ChartsSectionProps) {
             <HeaderLabel value={getUptime()} label={t('Uptime')} />
           </Paper>
         </Grid>
-        <Grid item xs={4}>
+        <Grid size={{ xs: 4 }}>
           <CpuCircularChart items={node && [node]} itemsMetrics={metrics} noMetrics={noMetrics} />
         </Grid>
-        <Grid item xs={4}>
+        <Grid size={{ xs: 4 }}>
           <MemoryCircularChart
             items={node && [node]}
             itemsMetrics={metrics}

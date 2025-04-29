@@ -1,51 +1,48 @@
 <body>
   <div>
     <div
-      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-1 css-bsyb48-MuiGrid-root"
+      class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row MuiGrid-spacing-xs-1 css-b1jdgc-MuiGrid-root"
     >
       <div
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 css-yqiqnf-MuiGrid-root"
       >
         <div
           class="MuiBox-root css-p0cik4"
         >
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-9oc23p-MuiButtonBase-root-MuiButton-root"
             tabindex="0"
             type="button"
           >
             <span
-              class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+              class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-d8i980-MuiButton-startIcon"
             />
             <p
-              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+              class="MuiTypography-root MuiTypography-body1 css-hc4pl5-MuiTypography-root"
               style="padding-top: 3px;"
             >
               Back
             </p>
-            <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-            />
           </button>
         </div>
       </div>
       <div
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 css-yqiqnf-MuiGrid-root"
       >
         <div
           class="MuiBox-root css-p0cik4"
         >
           <div
-            class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row MuiGrid-spacing-xs-2 css-lv5247-MuiGrid-root"
           >
             <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
             >
               <div
                 class="MuiBox-root css-70qvj9"
               >
                 <h1
-                  class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-v9zn59-MuiTypography-root"
                 >
                   MutatingWebhookConfiguration: webhook-admission-controller
                 </h1>
@@ -55,46 +52,38 @@
               </div>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
             >
               <div
-                class="MuiGrid-root MuiGrid-container MuiGrid-item css-ztq4zc-MuiGrid-root"
+                class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row css-4uni1h-MuiGrid-root"
               >
                 <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                  class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
                 />
                 <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                  class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
                 />
                 <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                  class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
                 >
                   <button
                     aria-label="Edit"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-le4ea9-MuiButtonBase-root-MuiIconButton-root"
                     data-mui-internal-clone-element="true"
                     tabindex="0"
                     type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
+                  />
                 </div>
                 <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                  class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
                 >
                   <button
                     aria-label="Delete"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-le4ea9-MuiButtonBase-root-MuiIconButton-root"
                     data-mui-internal-clone-element="true"
                     tabindex="0"
                     type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
+                  />
                   <div />
                 </div>
               </div>
@@ -103,7 +92,7 @@
         </div>
       </div>
       <div
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 css-yqiqnf-MuiGrid-root"
       >
         <div
           class="MuiBox-root css-p0cik4"
@@ -119,81 +108,81 @@
               <div
                 class="MuiBox-root css-0"
               >
-                <dl
-                  class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+                <div
+                  class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row css-kdl-MuiGrid-root"
                 >
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                  <div
+                    class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
                   >
                     Name
-                  </dt>
-                  <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                  </div>
+                  <div
+                    class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
                   >
                     <span
-                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 css-1nh71x2-MuiTypography-root"
                     >
                       webhook-admission-controller
                     </span>
-                  </dd>
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                  </div>
+                  <div
+                    class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
                   >
                     Creation
-                  </dt>
-                  <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                  </div>
+                  <div
+                    class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
                   >
                     <span
-                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 css-1nh71x2-MuiTypography-root"
                     >
                       2022-10-14T11:25:22.000Z
                     </span>
-                  </dd>
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                  </div>
+                  <div
+                    class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
                   >
                     Labels
-                  </dt>
-                  <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                  </div>
+                  <div
+                    class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
                   >
                     <div
                       class="MuiBox-root css-yi3mkw"
                     >
                       <p
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        class="MuiTypography-root MuiTypography-body1 css-1pghcf6-MuiTypography-root"
                       >
                         admissions.enforcer/disabled: true
                       </p>
                     </div>
-                  </dd>
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                  </div>
+                  <div
+                    class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
                   >
                     API Version
-                  </dt>
-                  <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                  </div>
+                  <div
+                    class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
                   />
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
+                  <div
+                    class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-y4s4kj-MuiGrid-root"
                   >
                     Webhooks
-                  </dt>
-                  <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
+                  </div>
+                  <div
+                    class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-ebxzjc-MuiGrid-root"
                   >
                     1
-                  </dd>
-                </dl>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
       <div
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 css-yqiqnf-MuiGrid-root"
       >
         <div
           class="MuiBox-root css-p0cik4"
@@ -202,16 +191,16 @@
             class="MuiBox-root css-j1fy4m"
           >
             <div
-              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row MuiGrid-spacing-xs-2 css-lv5247-MuiGrid-root"
             >
               <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
               >
                 <div
                   class="MuiBox-root css-70qvj9"
                 >
                   <h2
-                    class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-1efyuk-MuiTypography-root"
                   >
                     Webhooks
                   </h2>
@@ -224,84 +213,80 @@
             <div
               class="MuiBox-root css-1txv3mw"
             >
-              <dl
-                class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+              <div
+                class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row css-kdl-MuiGrid-root"
               >
-                <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
                 >
                   Name
-                </dt>
-                <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body1 css-1nh71x2-MuiTypography-root"
                   >
                     webhook-admission-controller.example.com
                   </span>
-                </dd>
-                <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
                 >
                   Admission Review Versions
-                </dt>
-                <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body1 css-1nh71x2-MuiTypography-root"
                   >
                     v1beta1
                   </span>
-                </dd>
-                <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
                 >
                   Client Config: URL
-                </dt>
-                <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body1 css-1nh71x2-MuiTypography-root"
                   >
                     https://localhost:8443/mutate-nodes
                   </span>
-                </dd>
-                <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
                 >
                   Client Config: Ca Bundle
-                </dt>
-                <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
                 >
                   <div
-                    class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1fwwhll-MuiGrid-root"
+                    class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row MuiGrid-spacing-xs-2 css-1lkentr-MuiGrid-root"
                   >
                     <div
-                      class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                      class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
                     >
                       <button
                         aria-label="toggle field visibility"
-                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-edgeEnd MuiIconButton-sizeMedium css-1d2b2o6-MuiButtonBase-root-MuiIconButton-root"
+                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-edgeEnd MuiIconButton-sizeMedium css-1rayppb-MuiButtonBase-root-MuiIconButton-root"
                         tabindex="0"
                         type="button"
-                      >
-                        <span
-                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                        />
-                      </button>
+                      />
                     </div>
                     <div
-                      class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1z0dvx8-MuiGrid-root"
+                      class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-grow css-1ynczkt-MuiGrid-root"
                     >
                       <div
-                        class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary MuiInputBase-fullWidth Mui-readOnly MuiInputBase-readOnly css-zam05p-MuiInputBase-root-MuiInput-root"
+                        class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary MuiInputBase-fullWidth Mui-readOnly MuiInputBase-readOnly css-1qp9xpu-MuiInputBase-root-MuiInput-root"
                       >
                         <input
-                          class="MuiInputBase-input MuiInput-input Mui-readOnly MuiInputBase-readOnly css-1x51dt5-MuiInputBase-input-MuiInput-input"
+                          class="MuiInputBase-input MuiInput-input Mui-readOnly MuiInputBase-readOnly css-1yrc8ca-MuiInputBase-input-MuiInput-input"
                           readonly=""
                           type="password"
                           value="******"
@@ -309,161 +294,161 @@
                       </div>
                     </div>
                   </div>
-                </dd>
-                <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
                 >
                   Failure Policy
-                </dt>
-                <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body1 css-1nh71x2-MuiTypography-root"
                   >
                     Fail
                   </span>
-                </dd>
-                <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
                 >
                   Match Policy
-                </dt>
-                <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body1 css-1nh71x2-MuiTypography-root"
                   >
                     Exact
                   </span>
-                </dd>
-                <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
                 >
                   Side Effects
-                </dt>
-                <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body1 css-1nh71x2-MuiTypography-root"
                   >
                     NoneOnDryRun
                   </span>
-                </dd>
-                <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
                 >
                   Timeout Seconds
-                </dt>
-                <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body1 css-1nh71x2-MuiTypography-root"
                   >
                     10
                   </span>
-                </dd>
-                <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
                 >
                   Namespace Selector
-                </dt>
-                <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
                 >
                   <p
-                    class="MuiTypography-root MuiTypography-body1 css-cwic1g-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body1 css-1cfzx7j-MuiTypography-root"
                   >
                     validating-webhook: true
                   </p>
                   <p
-                    class="MuiTypography-root MuiTypography-body1 css-cwic1g-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body1 css-1cfzx7j-MuiTypography-root"
                   >
                     validating-webhook in (true)
                   </p>
-                </dd>
-                <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
                 >
                   Object Selector
-                </dt>
-                <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
                 >
                   <p
-                    class="MuiTypography-root MuiTypography-body1 css-cwic1g-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body1 css-1cfzx7j-MuiTypography-root"
                   >
                     validating-webhook: true
                   </p>
                   <p
-                    class="MuiTypography-root MuiTypography-body1 css-cwic1g-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body1 css-1cfzx7j-MuiTypography-root"
                   >
                     validating-webhook in (true)
                   </p>
-                </dd>
-                <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-hlkfxf-MuiGrid-root"
                 >
                   Reinvocation Policy
-                </dt>
-                <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-tsj9pt-MuiGrid-root"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body1 css-1nh71x2-MuiTypography-root"
                   >
                     Never
                   </span>
-                </dd>
-                <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-y4s4kj-MuiGrid-root"
                 >
                   Rules
-                </dt>
-                <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-ebxzjc-MuiGrid-root"
                 >
                   <div
-                    class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-onzayo-MuiPaper-root-MuiTableContainer-root"
+                    class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-1nsutnr-MuiPaper-root-MuiTableContainer-root"
                   >
                     <table
-                      class="MuiTable-root css-r7i92b-MuiTable-root"
+                      class="MuiTable-root css-10l0tdg-MuiTable-root"
                     >
                       <thead
-                        class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
+                        class="MuiTableHead-root css-1a7iywq-MuiTableHead-root"
                       >
                         <tr
-                          class="MuiTableRow-root MuiTableRow-head css-13jktim-MuiTableRow-root"
+                          class="MuiTableRow-root MuiTableRow-head css-11xwhdx-MuiTableRow-root"
                         >
                           <th
-                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-u2nors-MuiTableCell-root"
                             scope="col"
                           >
                             API Groups
                           </th>
                           <th
-                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-u2nors-MuiTableCell-root"
                             scope="col"
                           >
                             API Versions
                           </th>
                           <th
-                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-u2nors-MuiTableCell-root"
                             scope="col"
                           >
                             Operations
                           </th>
                           <th
-                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-u2nors-MuiTableCell-root"
                             scope="col"
                           >
                             Resources
                           </th>
                           <th
-                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-u2nors-MuiTableCell-root"
                             scope="col"
                           >
                             Scope
@@ -471,31 +456,31 @@
                         </tr>
                       </thead>
                       <tbody
-                        class="MuiTableBody-root css-apqrd9-MuiTableBody-root"
+                        class="MuiTableBody-root css-gmh7jj-MuiTableBody-root"
                       >
                         <tr
-                          class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                          class="MuiTableRow-root css-11xwhdx-MuiTableRow-root"
                         >
                           <td
-                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-xknfhb-MuiTableCell-root"
                           />
                           <td
-                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-xknfhb-MuiTableCell-root"
                           >
                             v1
                           </td>
                           <td
-                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-xknfhb-MuiTableCell-root"
                           >
                             CREATE
                           </td>
                           <td
-                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-xknfhb-MuiTableCell-root"
                           >
                             pods
                           </td>
                           <td
-                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-xknfhb-MuiTableCell-root"
                           >
                             *
                           </td>
@@ -503,14 +488,14 @@
                       </tbody>
                     </table>
                   </div>
-                </dd>
-              </dl>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
       <div
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 css-yqiqnf-MuiGrid-root"
       >
         <div
           class="MuiBox-root css-p0cik4"
@@ -519,16 +504,16 @@
             class="MuiBox-root css-j1fy4m"
           >
             <div
-              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row MuiGrid-spacing-xs-2 css-lv5247-MuiGrid-root"
             >
               <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
               >
                 <div
                   class="MuiBox-root css-70qvj9"
                 >
                   <h2
-                    class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-1efyuk-MuiTypography-root"
                   >
                     Events
                   </h2>
@@ -542,13 +527,14 @@
               class="MuiBox-root css-1txv3mw"
             >
               <div
-                class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
+                class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-11paa4j-MuiPaper-root"
               >
                 <div
                   class="MuiBox-root css-19midj6"
                 >
                   <p
-                    class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-762h3z-MuiTypography-root"
+                    style="--Typography-textAlign: center;"
                   >
                     No data to be shown.
                   </p>

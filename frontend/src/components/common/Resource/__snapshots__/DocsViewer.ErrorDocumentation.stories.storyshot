@@ -4,7 +4,8 @@
       class="MuiBox-root css-19midj6"
     >
       <p
-        class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-9ldkza-MuiTypography-root"
+        class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-7epm0o-MuiTypography-root"
+        style="--Typography-textAlign: center;"
       >
         Internal Server Error
       </p>

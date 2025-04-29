@@ -8,12 +8,12 @@
   </div>
   <div
     aria-busy="false"
-    class="MuiDialog-root MuiModal-root css-zw3mfo-MuiModal-root-MuiDialog-root"
+    class="MuiDialog-root MuiModal-root css-1424xw8-MuiModal-root-MuiDialog-root"
     role="presentation"
   >
     <div
       aria-hidden="true"
-      class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
+      class="MuiBackdrop-root MuiModal-backdrop css-1cennmq-MuiBackdrop-root-MuiDialog-backdrop"
       style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
     />
     <div
@@ -21,29 +21,30 @@
       tabindex="0"
     />
     <div
-      class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
+      class="MuiDialog-container MuiDialog-scrollPaper css-19do60a-MuiDialog-container"
       role="presentation"
       style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
       tabindex="-1"
     >
       <div
         aria-labelledby="chooser-dialog-title"
-        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm css-1708vl9-MuiPaper-root-MuiDialog-paper"
+        aria-modal="true"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm css-1wdhkni-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
         <h2
-          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-wlr4ab-MuiTypography-root-MuiDialogTitle-root"
+          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8rykve-MuiTypography-root-MuiDialogTitle-root"
           id="chooser-dialog-title"
           style="display: flex;"
         >
           <div
-            class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row css-943e7d-MuiGrid-root"
           >
             <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
             >
               <h1
-                class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-h1 css-1out0bm-MuiTypography-root"
                 style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
               >
                 <svg
@@ -100,41 +101,37 @@
               </h1>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
             >
               <div
                 class="MuiBox-root css-0"
               >
                 <button
                   aria-label="Show build information"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-966mwf-MuiButtonBase-root-MuiIconButton-root"
                   tabindex="0"
                   type="button"
-                >
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
-                </button>
+                />
               </div>
             </div>
           </div>
         </h2>
         <div
-          class="MuiDialogContent-root MuiDialogContent-dividers css-gl9hfx-MuiDialogContent-root"
+          class="MuiDialogContent-root MuiDialogContent-dividers css-4x2mtj-MuiDialogContent-root"
         >
           <h2
-            class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
+            class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-i1rr8m-MuiTypography-root-MuiDialogTitle-root"
             id="chooser-dialog-title"
             style="display: flex;"
           >
             <div
-              class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row css-943e7d-MuiGrid-root"
             >
               <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
               >
                 <h1
-                  class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-h1 css-1out0bm-MuiTypography-root"
                   style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
                   tabindex="-1"
                 >
@@ -144,120 +141,112 @@
             </div>
           </h2>
           <div
-            class="MuiContainer-root MuiContainer-maxWidthLg css-cnms5y-MuiContainer-root"
+            class="MuiContainer-root MuiContainer-maxWidthLg css-1p9ehzn-MuiContainer-root"
             style="max-width: 500px; padding-bottom: 16px;"
           >
             <div
-              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-4 MuiGrid-direction-xs-column css-1w41v25-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column MuiGrid-spacing-xs-4 css-1f3ba7n-MuiGrid-root"
             >
               <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
               >
                 <p
-                  class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-e6ghke-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-1svbpb2-MuiTypography-root"
                   id="recent-clusters-label"
+                  style="--Typography-textAlign: center;"
                 >
                   Recent clusters
                 </p>
               </div>
               <div
                 aria-labelledby="#recent-clusters-label"
-                class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-2 css-e7s3o7-MuiGrid-root"
+                class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row MuiGrid-spacing-xs-2 css-44sonl-MuiGrid-root"
               >
                 <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                  class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
                 >
                   <button
-                    class="MuiButtonBase-root css-10d1a0h-MuiButtonBase-root"
+                    class="MuiButtonBase-root css-1i1o7bi-MuiButtonBase-root"
                     tabindex="0"
                     type="button"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-jxx1xv-MuiPaper-root-MuiCard-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-1j4oea7-MuiPaper-root-MuiCard-root"
                     >
                       <div
-                        class="MuiCardContent-root css-d64700-MuiCardContent-root"
+                        class="MuiCardContent-root css-lfo0vx-MuiCardContent-root"
                       >
                         <p
-                          class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7jfsit-MuiTypography-root"
                           title="cluster1"
                         >
                           cluster1
                         </p>
                       </div>
                     </div>
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
                   </button>
                 </div>
                 <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                  class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
                 >
                   <button
-                    class="MuiButtonBase-root css-10d1a0h-MuiButtonBase-root"
+                    class="MuiButtonBase-root css-1i1o7bi-MuiButtonBase-root"
                     tabindex="0"
                     type="button"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-jxx1xv-MuiPaper-root-MuiCard-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-1j4oea7-MuiPaper-root-MuiCard-root"
                     >
                       <div
-                        class="MuiCardContent-root css-d64700-MuiCardContent-root"
+                        class="MuiCardContent-root css-lfo0vx-MuiCardContent-root"
                       >
                         <p
-                          class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7jfsit-MuiTypography-root"
                           title="cluster2"
                         >
                           cluster2
                         </p>
                       </div>
                     </div>
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
                   </button>
                 </div>
                 <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                  class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
                 >
                   <button
-                    class="MuiButtonBase-root css-10d1a0h-MuiButtonBase-root"
+                    class="MuiButtonBase-root css-1i1o7bi-MuiButtonBase-root"
                     tabindex="0"
                     type="button"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-jxx1xv-MuiPaper-root-MuiCard-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-1j4oea7-MuiPaper-root-MuiCard-root"
                     >
                       <div
-                        class="MuiCardContent-root css-d64700-MuiCardContent-root"
+                        class="MuiCardContent-root css-lfo0vx-MuiCardContent-root"
                       >
                         <p
-                          class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7jfsit-MuiTypography-root"
                           title="cluster3"
                         >
                           cluster3
                         </p>
                       </div>
                     </div>
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
                   </button>
                 </div>
               </div>
               <div
-                class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+                class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 css-yqiqnf-MuiGrid-root"
               >
                 <div
-                  class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-ka7ti6-MuiAutocomplete-root"
+                  class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-1tlcqt-MuiAutocomplete-root"
                   style="width: 100%;"
                 >
                   <div
-                    class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                    class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-cmpglg-MuiFormControl-root-MuiTextField-root"
                   >
                     <label
-                      class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeMedium MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeMedium MuiInputLabel-outlined css-1213p86-MuiFormLabel-root-MuiInputLabel-root"
+                      class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-outlined css-fyxeha-MuiFormLabel-root-MuiInputLabel-root"
                       data-shrink="false"
                       for="cluster-selector-autocomplete"
                       id="cluster-selector-autocomplete-label"
@@ -265,7 +254,7 @@
                       All clusters
                     </label>
                     <div
-                      class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
+                      class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-azgajx-MuiInputBase-root-MuiOutlinedInput-root"
                     >
                       <input
                         aria-autocomplete="both"
@@ -273,7 +262,7 @@
                         aria-invalid="false"
                         autocapitalize="none"
                         autocomplete="off"
-                        class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-nxo287-MuiInputBase-input-MuiOutlinedInput-input"
+                        class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1dune0f-MuiInputBase-input-MuiOutlinedInput-input"
                         id="cluster-selector-autocomplete"
                         role="combobox"
                         spellcheck="false"
@@ -281,18 +270,18 @@
                         value=""
                       />
                       <div
-                        class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
+                        class="MuiAutocomplete-endAdornment css-1uhhrmm-MuiAutocomplete-endAdornment"
                       >
                         <button
                           aria-label="Open"
-                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-1aav1nn-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
+                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-emq53u-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
                           tabindex="-1"
                           title="Open"
                           type="button"
                         >
                           <svg
                             aria-hidden="true"
-                            class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                            class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-1umw9bq-MuiSvgIcon-root"
                             data-testid="ArrowDropDownIcon"
                             focusable="false"
                             viewBox="0 0 24 24"
@@ -301,17 +290,14 @@
                               d="M7 10l5 5 5-5z"
                             />
                           </svg>
-                          <span
-                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                          />
                         </button>
                       </div>
                       <fieldset
                         aria-hidden="true"
-                        class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                        class="MuiOutlinedInput-notchedOutline css-1ll44ll-MuiOutlinedInput-notchedOutline"
                       >
                         <legend
-                          class="css-yjsfm1"
+                          class="css-81qg8w"
                         >
                           <span>
                             All clusters

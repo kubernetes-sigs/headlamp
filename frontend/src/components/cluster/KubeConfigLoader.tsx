@@ -311,7 +311,7 @@ function KubeConfigLoader() {
                     justifyContent="center"
                     alignItems="stretch"
                   >
-                    <Grid item>
+                    <Grid>
                       <WideButton
                         variant="contained"
                         color="primary"
@@ -323,7 +323,7 @@ function KubeConfigLoader() {
                         {t('translation|Next')}
                       </WideButton>
                     </Grid>
-                    <Grid item>
+                    <Grid>
                       <WideButton
                         onClick={() => {
                           setError('');

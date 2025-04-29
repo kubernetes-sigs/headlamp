@@ -1,75 +1,69 @@
 <body>
   <div>
     <div
-      class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+      class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
       style="background-color: rgba(0, 0, 0, 0.87);"
     >
       <ul
-        class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
+        class="MuiList-root MuiList-padding css-b7dj7n-MuiList-root"
       >
         <li
           class="css-3knmzx"
         >
           <a
-            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-8cwk2d-MuiButtonBase-root-MuiListItemButton-root"
             href="/"
             role="button"
             tabindex="0"
           >
             <div
-              class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+              class="MuiListItemIcon-root css-1wl8c2e-MuiListItemIcon-root"
             />
             <div
-              class="MuiListItemText-root css-tlelie-MuiListItemText-root"
+              class="MuiListItemText-root css-cfq8qh-MuiListItemText-root"
             >
               <span
-                class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-hc4pl5-MuiTypography-root"
               >
                 Cluster
               </span>
             </div>
-            <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-            />
           </a>
         </li>
         <li
-          class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
+          class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-b9nkh6-MuiListItem-root"
         >
           <div
-            class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-entered css-1mhwl66-MuiCollapse-root"
+            class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-entered css-1s0e2po-MuiCollapse-root"
             style="min-height: 0px;"
           >
             <div
-              class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
+              class="MuiCollapse-wrapper MuiCollapse-vertical css-1x6hinx-MuiCollapse-wrapper"
             >
               <div
-                class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
+                class="MuiCollapse-wrapperInner MuiCollapse-vertical css-1i4ywhz-MuiCollapse-wrapperInner"
               >
                 <ul
-                  class="MuiList-root css-2l483y-MuiList-root"
+                  class="MuiList-root css-28id13-MuiList-root"
                 >
                   <li
                     class="css-1gktw5r"
                   >
                     <a
-                      class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
+                      class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-bpsxjx-MuiButtonBase-root-MuiListItemButton-root"
                       href="/"
                       role="button"
                       tabindex="0"
                     >
                       <div
-                        class="MuiListItemText-root css-tlelie-MuiListItemText-root"
+                        class="MuiListItemText-root css-cfq8qh-MuiListItemText-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-hc4pl5-MuiTypography-root"
                         >
                           Namespaces
                         </span>
                       </div>
-                      <span
-                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                      />
                     </a>
                   </li>
                 </ul>

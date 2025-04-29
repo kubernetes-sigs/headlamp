@@ -1,26 +1,26 @@
 <body>
   <div>
     <div
-      class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column css-1b95sop-MuiGrid-root"
+      class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column css-1yx727p-MuiGrid-root"
     >
       <div
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 css-yqiqnf-MuiGrid-root"
       >
         <img
           alt=""
-          class="css-8atqhb"
+          class="css-qsaw8"
           src="/src/assets/headlamp-broken.svg"
         />
         <h1
-          class="MuiTypography-root MuiTypography-h1 css-5ewpze-MuiTypography-root"
+          class="MuiTypography-root MuiTypography-h1 css-99wafi-MuiTypography-root"
         >
           Uh-oh! Something went wrong.
         </h1>
         <h2
-          class="MuiTypography-root MuiTypography-h2 css-15otqr2-MuiTypography-root"
+          class="MuiTypography-root MuiTypography-h2 css-1tq1b2g-MuiTypography-root"
         >
           <h3
-            class="MuiTypography-root MuiTypography-h3 css-3hjpok-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-h3 css-tntgxl-MuiTypography-root"
           >
             Not sure what to do!
           </h3>

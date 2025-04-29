@@ -162,29 +162,33 @@ export function LogViewer(props: LogViewerProps) {
           },
         })}
       >
-        <Grid container justifyContent="space-between" alignItems="center" wrap="nowrap">
-          <Grid item container spacing={1}>
+        <Grid
+          container
+          justifyContent="space-between"
+          alignItems="center"
+          wrap="nowrap"
+          sx={{ width: '100%' }}
+        >
+          <Grid container spacing={1} size="grow">
             {topActions.map((component, i) => (
-              <Grid item key={i}>
-                {component}
-              </Grid>
+              <Grid key={i}>{component}</Grid>
             ))}
           </Grid>
-          <Grid item xs>
+          <Grid>
             <ActionButton
               description={t('translation|Find')}
               onClick={() => setShowSearch(show => !show)}
               icon="mdi:magnify"
             />
           </Grid>
-          <Grid item xs>
+          <Grid>
             <ActionButton
               description={t('translation|Clear')}
               onClick={() => clearPodLogs(xtermRef)}
               icon="mdi:broom"
             />
           </Grid>
-          <Grid item xs>
+          <Grid>
             <ActionButton
               description={t('Download')}
               onClick={downloadLog}

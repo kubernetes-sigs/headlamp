@@ -1,23 +1,23 @@
 <body>
   <div>
     <div
-      class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-2 css-4lm93d-MuiGrid-root"
+      class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row MuiGrid-spacing-xs-2 css-i7dmas-MuiGrid-root"
     >
       <div
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-lc33jo-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-grow css-1cjdo9u-MuiGrid-root"
       >
         <span
-          class="MuiTypography-root MuiTypography-body1 css-1ukuq4j-MuiTypography-root"
+          class="MuiTypography-root MuiTypography-body1 css-10ier5r-MuiTypography-root"
         >
           name
         </span>
          
       </div>
       <div
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1z0dvx8-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-grow css-1ynczkt-MuiGrid-root"
       >
         <span
-          class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+          class="MuiTypography-root MuiTypography-body1 css-1nh71x2-MuiTypography-root"
         >
           value
         </span>

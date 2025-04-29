@@ -2,33 +2,30 @@
   <div>
     <div
       aria-labelledby="#recent-clusters-label"
-      class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-2 css-1vj4bu4-MuiGrid-root"
+      class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row MuiGrid-spacing-xs-2 css-x40ulv-MuiGrid-root"
     >
       <div
-        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
       >
         <button
-          class="MuiButtonBase-root css-10d1a0h-MuiButtonBase-root"
+          class="MuiButtonBase-root css-1i1o7bi-MuiButtonBase-root"
           tabindex="0"
           type="button"
         >
           <div
-            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-18nhd06-MuiPaper-root-MuiCard-root"
+            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-1a16lbo-MuiPaper-root-MuiCard-root"
           >
             <div
-              class="MuiCardContent-root css-d64700-MuiCardContent-root"
+              class="MuiCardContent-root css-lfo0vx-MuiCardContent-root"
             >
               <p
-                class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-qscjxq-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-1cvnxbl-MuiTypography-root"
                 title="cluster0"
               >
                 cluster0
               </p>
             </div>
           </div>
-          <span
-            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-          />
         </button>
       </div>
     </div>

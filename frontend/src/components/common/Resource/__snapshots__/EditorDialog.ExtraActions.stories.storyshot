@@ -4,12 +4,12 @@
   />
   <div
     aria-busy="false"
-    class="MuiDialog-root MuiModal-root css-zw3mfo-MuiModal-root-MuiDialog-root"
+    class="MuiDialog-root MuiModal-root css-1424xw8-MuiModal-root-MuiDialog-root"
     role="presentation"
   >
     <div
       aria-hidden="true"
-      class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
+      class="MuiBackdrop-root MuiModal-backdrop css-1cennmq-MuiBackdrop-root-MuiDialog-backdrop"
       style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
     />
     <div
@@ -17,108 +17,98 @@
       tabindex="0"
     />
     <div
-      class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
+      class="MuiDialog-container MuiDialog-scrollPaper css-19do60a-MuiDialog-container"
       role="presentation"
       style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
       tabindex="-1"
     >
       <div
         aria-labelledby="editor-dialog-title-id"
-        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthLg MuiDialog-paperFullWidth css-kl791l-MuiPaper-root-MuiDialog-paper"
+        aria-modal="true"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthLg MuiDialog-paperFullWidth css-lrs762-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
         <h2
-          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
+          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-i1rr8m-MuiTypography-root-MuiDialogTitle-root"
           id="editor-dialog-title-id"
           style="display: flex;"
         >
           <div
-            class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row css-943e7d-MuiGrid-root"
           >
             <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
             >
               <h1
-                class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-h1 css-1out0bm-MuiTypography-root"
                 style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
               >
                 Edit: Dummy_Name
               </h1>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
             >
               <div
                 class="MuiBox-root css-0"
               >
                 <button
                   aria-label="Toggle fullscreen"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-le4ea9-MuiButtonBase-root-MuiIconButton-root"
                   data-mui-internal-clone-element="true"
                   tabindex="0"
                   type="button"
-                >
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
-                </button>
+                />
                 <button
                   aria-label="Close"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-le4ea9-MuiButtonBase-root-MuiIconButton-root"
                   data-mui-internal-clone-element="true"
                   tabindex="0"
                   type="button"
-                >
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
-                </button>
+                />
               </div>
             </div>
           </div>
         </h2>
         <div
-          class="MuiDialogContent-root css-erhy6c-MuiDialogContent-root"
+          class="MuiDialogContent-root css-eb527j-MuiDialogContent-root"
         >
           <div
             class="MuiBox-root css-1jpm9pd"
           >
             <div
-              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1xu1mzw-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row MuiGrid-spacing-xs-2 css-h4hk0c-MuiGrid-root"
             >
               <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
               >
                 <div
-                  class="MuiFormGroup-root MuiFormGroup-row css-qfz70r-MuiFormGroup-root"
+                  class="MuiFormGroup-root MuiFormGroup-row css-cis11t-MuiFormGroup-root"
                 >
                   <label
-                    class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
+                    class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-19opgx6-MuiFormControlLabel-root"
                   >
                     <span
-                      class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
+                      class="MuiSwitch-root MuiSwitch-sizeMedium css-rehya9-MuiSwitch-root"
                     >
                       <span
-                        class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
+                        class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1ncbi5v-MuiButtonBase-root-MuiSwitch-switchBase"
                       >
                         <input
                           checked=""
-                          class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
+                          class="PrivateSwitchBase-input MuiSwitch-input css-j8yymo"
                           type="checkbox"
                         />
                         <span
-                          class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
-                        />
-                        <span
-                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          class="MuiSwitch-thumb css-17jyosd-MuiSwitch-thumb"
                         />
                       </span>
                       <span
-                        class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
+                        class="MuiSwitch-track css-tj8d99-MuiSwitch-track"
                       />
                     </span>
                     <span
-                      class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-hc4pl5-MuiTypography-root"
                     >
                       Extra Action Switch
                     </span>
@@ -126,38 +116,35 @@
                 </div>
               </div>
               <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                class="MuiGrid-root MuiGrid-direction-xs-row css-17fpwt7-MuiGrid-root"
               >
                 <div
-                  class="MuiFormGroup-root MuiFormGroup-row css-qfz70r-MuiFormGroup-root"
+                  class="MuiFormGroup-root MuiFormGroup-row css-cis11t-MuiFormGroup-root"
                 >
                   <label
-                    class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
+                    class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-19opgx6-MuiFormControlLabel-root"
                   >
                     <span
-                      class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
+                      class="MuiSwitch-root MuiSwitch-sizeMedium css-rehya9-MuiSwitch-root"
                     >
                       <span
-                        class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
+                        class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-1ncbi5v-MuiButtonBase-root-MuiSwitch-switchBase"
                       >
                         <input
-                          class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
+                          class="PrivateSwitchBase-input MuiSwitch-input css-j8yymo"
                           name="useSimpleEditor"
                           type="checkbox"
                         />
                         <span
-                          class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
-                        />
-                        <span
-                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          class="MuiSwitch-thumb css-17jyosd-MuiSwitch-thumb"
                         />
                       </span>
                       <span
-                        class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
+                        class="MuiSwitch-track css-tj8d99-MuiSwitch-track"
                       />
                     </span>
                     <span
-                      class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-hc4pl5-MuiTypography-root"
                     >
                       Use minimal editor
                     </span>
@@ -167,59 +154,53 @@
             </div>
           </div>
           <div
-            class="MuiTabs-root css-1ujnqem-MuiTabs-root"
+            class="MuiTabs-root css-jhczcq-MuiTabs-root"
           >
             <div
-              class="MuiTabs-scrollableX MuiTabs-hideScrollbar css-oqr85h"
+              class="MuiTabs-scrollableX MuiTabs-hideScrollbar css-i8yde5"
               style="width: 99px; height: 99px; position: absolute; top: -9999px; overflow: scroll;"
             />
             <div
-              class="MuiTabs-scroller MuiTabs-hideScrollbar MuiTabs-scrollableX css-69z67c-MuiTabs-scroller"
+              class="MuiTabs-scroller MuiTabs-hideScrollbar MuiTabs-scrollableX css-1fr578y-MuiTabs-scroller"
               style="margin-bottom: 0px;"
             >
               <div
                 aria-label="Editor"
-                class="MuiTabs-flexContainer css-heg063-MuiTabs-flexContainer"
+                class="MuiTabs-list MuiTabs-flexContainer css-hzcega-MuiTabs-list"
                 role="tablist"
               >
                 <button
                   aria-controls="full-width-tabpanel-0-Editor-tabs-id"
                   aria-selected="true"
-                  class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-f00lt7-MuiButtonBase-root-MuiTab-root"
+                  class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-uoc10j-MuiButtonBase-root-MuiTab-root"
                   id="full-width-tab-0-Editor-tabs-id"
                   role="tab"
                   tabindex="0"
                   type="button"
                 >
                   Editor
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
                 </button>
                 <button
                   aria-controls="full-width-tabpanel-1-Editor-tabs-id"
                   aria-selected="false"
-                  class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
+                  class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-uoc10j-MuiButtonBase-root-MuiTab-root"
                   id="full-width-tab-1-Editor-tabs-id"
                   role="tab"
                   tabindex="-1"
                   type="button"
                 >
                   Documentation
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
                 </button>
               </div>
               <span
-                class="MuiTabs-indicator css-1s2zz1g-MuiTabs-indicator"
+                class="MuiTabs-indicator css-1nmb1y8-MuiTabs-indicator"
                 style="left: 0px; width: 0px;"
               />
             </div>
           </div>
           <div
             aria-labelledby="full-width-tab-0-Editor-tabs-id"
-            class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-body1 css-hc4pl5-MuiTypography-root"
             id="full-width-tabpanel-0-Editor-tabs-id"
             role="tabpanel"
           >
@@ -233,7 +214,7 @@
           </div>
           <div
             aria-labelledby="full-width-tab-1-Editor-tabs-id"
-            class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-body1 css-hc4pl5-MuiTypography-root"
             hidden=""
             id="full-width-tabpanel-1-Editor-tabs-id"
             role="tabpanel"
@@ -245,7 +226,8 @@
                 class="MuiBox-root css-19midj6"
               >
                 <p
-                  class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-762h3z-MuiTypography-root"
+                  style="--Typography-textAlign: center;"
                 >
                   No documentation available.
                 </p>
@@ -254,11 +236,11 @@
           </div>
         </div>
         <div
-          class="MuiDialogActions-root MuiDialogActions-spacing css-knqc4i-MuiDialogActions-root"
+          class="MuiDialogActions-root MuiDialogActions-spacing css-15fu35s-MuiDialogActions-root"
         >
           <button
             aria-label="Undo"
-            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-14f6w6s-MuiButtonBase-root-MuiButton-root"
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-k8sgrz-MuiButtonBase-root-MuiButton-root"
             disabled=""
             tabindex="-1"
             type="button"
@@ -273,17 +255,14 @@
             style="flex: 1 0 0px;"
           />
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-14f6w6s-MuiButtonBase-root-MuiButton-root"
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-k8sgrz-MuiButtonBase-root-MuiButton-root"
             tabindex="0"
             type="button"
           >
             Close
-            <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-            />
           </button>
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-15cdcet-MuiButtonBase-root-MuiButton-root"
             disabled=""
             tabindex="-1"
             type="button"
