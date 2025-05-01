@@ -42,8 +42,8 @@ Here's the typical workflow:
     ```bash
     # Navigate into your plugin directory first
     cd <your-plugin-name>
-    npx --yes @kinvolk/headlamp-plugin lint
-    npx --yes @kinvolk/headlamp-plugin format
+   npm run format
+   npm run lint
     ```
 
 ## Example Prompts
