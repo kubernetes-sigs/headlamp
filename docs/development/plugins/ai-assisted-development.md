@@ -36,6 +36,7 @@ Here's the typical workflow:
 2.  **Locate the Context File:** Find `headlamp-plugins-context.txt` in the root of the Headlamp repository.
 3.  **Load into Context:** Copy the *entire contents* of this file and paste it into the chat interface or context-loading mechanism of your AI assistant.
     *   **Cursor:** You can often directly add files to the chat context using `@` symbol or specific commands.
+    *   **Github Copilot for VSCode:** Use the _Add context_ button or type `#file` to select the mentioned files.
     *   **Other Chat Interfaces:** Paste the content directly into the chat prompt, usually preceding your specific request.
 4.  **Provide Instructions:** Once the context is loaded, ask the AI assistant to help you with plugin development tasks. Be specific! See the examples below.
 5.  **Verify Generated Code:** After the AI generates code, use the built-in tools to check and format it:
