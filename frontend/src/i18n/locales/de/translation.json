@@ -448,6 +448,7 @@
   "Collapse Sidebar": "Seitenleiste einklappen",
   "Navigation": "Navigation",
   "General": "",
+  "Clusters": "",
   "Instances": "",
   "Cluster version upgraded to {{ gitVersion }}": "Cluster-Version auf {{ gitVersion }} aktualisiert",
   "Cluster version downgraded to {{ gitVersion }}": "Cluster-Version auf {{ gitVersion }} heruntergestuft",

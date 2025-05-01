@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Icon } from '@iconify/react';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
@@ -269,7 +285,6 @@ export const PureTopBar = memo(
             <Icon icon="mdi:logout" />
           </ListItemIcon>
           <ListItemText
-            data-testid="logout-menu-item"
             primary={t('Log out')}
             secondary={hasToken ? null : t('(No token set up)')}
           />
@@ -329,7 +344,6 @@ export const PureTopBar = memo(
         action: !!isClusterContext && (
           <MenuItem>
             <IconButton
-              data-testid="user-account-button"
               aria-label={t('Account of current user')}
               aria-controls={userMenuId}
               aria-haspopup="true"
@@ -388,7 +402,6 @@ export const PureTopBar = memo(
         id: DefaultAppBarAction.USER,
         action: !!isClusterContext && (
           <IconButton
-            data-testid="user-account-button"
             aria-label={t('Account of current user')}
             aria-controls={userMenuId}
             aria-haspopup="true"

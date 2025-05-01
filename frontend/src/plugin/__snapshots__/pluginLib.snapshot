@@ -379,10 +379,10 @@
       "default": [Function],
     },
     "useCluster": [Function],
-    "useClusterGroup": [Function],
     "useClustersConf": [Function],
     "useClustersVersion": [Function],
     "useConnectApi": [Function],
+    "useSelectedClusters": [Function],
   },
   "Lodash": Function {
     "default": [Function],

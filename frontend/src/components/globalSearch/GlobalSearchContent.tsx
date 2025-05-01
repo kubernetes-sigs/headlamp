@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Icon } from '@iconify/react';
 import {
   Box,
@@ -16,7 +32,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
 import { FixedSizeList } from 'react-window';
-import { useClusterGroup, useClustersConf } from '../../lib/k8s';
+import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import ConfigMap from '../../lib/k8s/configMap';
 import CronJob from '../../lib/k8s/cronJob';
 import Deployment from '../../lib/k8s/deployment';
@@ -81,7 +97,7 @@ const classes: KubeObjectClass[] = [
  * Loads lists of Kubernetes objects for searching
  */
 function useSearchResources() {
-  const inACluster = useClusterGroup().length > 0;
+  const inACluster = useSelectedClusters().length > 0;
   const results = classes.map(cls => cls.useList({ clusters: inACluster ? undefined : [] }));
 
   return useMemo(() => {
@@ -141,7 +157,7 @@ export function GlobalSearchContent({
   const history = useHistory();
   const [query, setQuery] = useState(defaultValue ?? '');
   const clusters = useClustersConf() ?? {};
-  const selectedClusters = useClusterGroup();
+  const selectedClusters = useSelectedClusters();
 
   const [recent, bump] = useRecent('search-recent-items');
 

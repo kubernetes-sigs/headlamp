@@ -447,6 +447,7 @@
   "Collapse Sidebar": "折疊側邊欄",
   "Navigation": "導航",
   "General": "一般",
+  "Clusters": "",
   "Instances": "實例",
   "Cluster version upgraded to {{ gitVersion }}": "叢集版本升級到 {{ gitVersion }}",
   "Cluster version downgraded to {{ gitVersion }}": "叢集版本降級到 {{ gitVersion }}",

@@ -1,13 +1,13 @@
 const os = require('os');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const { readFileSync } = require('fs');
 
 const envFile = path.join(os.tmpdir(), 'tmpEnv');
 
 test('Create & verify', () => {
   const execFile = path.resolve(path.join(__dirname, '..', 'make-env.js'));
-  execSync(`node ${execFile} ${envFile}`);
+  execFileSync('node', [execFile, envFile]);
 
   const envContents = readFileSync(envFile).toString();
 

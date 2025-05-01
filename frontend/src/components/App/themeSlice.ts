@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { AppTheme } from '../../lib/AppTheme';
 import { getThemeName, setTheme as setAppTheme } from '../../lib/themes';
@@ -38,14 +54,14 @@ const headlampClassicLightTheme: AppTheme = {
 export const darkTheme: AppTheme = {
   name: 'dark',
   base: 'dark',
-  primary: '#1b1a19',
-  secondary: '#333333',
+  primary: '#ffffff',
+  secondary: '#1b1a19',
   text: {
     primary: '#faf9f8',
   },
   background: {
-    default: '#414141',
-    surface: '#414141',
+    default: '#292827',
+    surface: '#313131',
     muted: '#333333',
   },
   navbar: {
@@ -53,7 +69,7 @@ export const darkTheme: AppTheme = {
     color: '#faf9f8',
   },
   sidebar: {
-    background: '#313131',
+    background: '#252423',
     color: '#cdcdcd',
     selectedBackground: '#f2e600',
     selectedColor: '#f2e600',
