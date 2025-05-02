@@ -33,6 +33,25 @@ then add them all to the option:
 used by Dex and other services, but since it's not part of the default spec,
 it was removed in the mentioned version.
 
+### Impersonation
+
+Headlamp's default OIDC authentication flow involves sending the OIDC token
+directly to the Kubernetes API for evaluation. However, in environments where
+Kubernetes is unable to directly verify OIDC tokens (e.g., due to configuration
+constraints), Headlamp offers an impersonation feature. This allows Headlamp to
+validate the OIDC token itself and then use a pre-configured service account to
+impersonate the user identified in the token's `preferred_username` claim.
+
+To enable this impersonation behavior, set the `-oidc-impersonate` flag to `true`:
+
+`-oidc-impersonate=true`
+
+The username is extracted from the OIDC JWT token, by default from the
+`preferred_username` field. If you want to use another claim, it can be changed
+with:
+
+`-oidc-impersonate-claim=email`
+
 ### Example: OIDC with Keycloak in Minikube
 
 If you are interested in a comprehensive example of using OIDC and Headlamp,

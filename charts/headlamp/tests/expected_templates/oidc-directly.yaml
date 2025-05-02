@@ -102,6 +102,12 @@ spec:
               value: testIssuerURL
             - name: OIDC_SCOPES
               value: testScope
+            - name: OIDC_IMPERSONATE
+              value: "true"
+            - name: OIDC_USER_CLAIM
+              value: preferred_username
+            - name: OIDC_GROUPS_CLAIM
+              value: groups
           args:
             - "-in-cluster"
             - "-plugins-dir=/headlamp/plugins"
@@ -114,6 +120,12 @@ spec:
             - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
             # Check if scopes are non empty either from env or oidc.config
             - "-oidc-scopes=$(OIDC_SCOPES)"
+            # Check if impersonate is enabled either from env or oidc.config
+            - "-oidc-impersonate=$(OIDC_IMPERSONATE)"
+            # Check if user claim is non empty either from env or oidc.config
+            - "-oidc-user-claim=$(OIDC_USER_CLAIM)"
+            # Check if groups claim is non empty either from env or oidc.config
+            - "-oidc-groups-claim=$(OIDC_GROUPS_CLAIM)"
           ports:
             - name: http
               containerPort: 4466

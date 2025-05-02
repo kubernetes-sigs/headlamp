@@ -12,3 +12,6 @@ config:
     clientSecret: "testClientSecret"
     issuerURL: "testIssuerURL"
     scopes: "testScope"
+    impersonate: true
+    userClaim: "preferred_username"
+    groupsClaim: "groups"

@@ -38,6 +38,9 @@ type Config struct {
 	OidcClientSecret      string `koanf:"oidc-client-secret"`
 	OidcIdpIssuerURL      string `koanf:"oidc-idp-issuer-url"`
 	OidcScopes            string `koanf:"oidc-scopes"`
+	OidcImpersonate       bool   `koanf:"oidc-impersonate"`
+	OidcUserClaim         string `koanf:"oidc-user-claim"`
+	OidcGroupsClaim       string `koanf:"oidc-groups-claim"`
 }
 
 func (c *Config) Validate() error {
@@ -186,6 +189,11 @@ func flagset() *flag.FlagSet {
 	f.String("oidc-idp-issuer-url", "", "Identity provider issuer URL for OIDC")
 	f.String("oidc-scopes", "profile,email",
 		"A comma separated list of scopes needed from the OIDC provider")
+	f.Bool("oidc-impersonate", false,
+		"Kubernetes API calls are done with the service account and impersonated as the user in the OIDC token")
+	f.String("oidc-user-claim", "preferred_username",
+		"The username claim of the OIDC token to be used when -oidc-impersonate=true")
+	f.String("oidc-groups-claim", "", "The groups claim of the OIDC token to be used when -oidc-impersonate=true")
 
 	return f
 }
