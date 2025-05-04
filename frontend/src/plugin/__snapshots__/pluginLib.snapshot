@@ -379,10 +379,10 @@
       "default": [Function],
     },
     "useCluster": [Function],
-    "useClusterGroup": [Function],
     "useClustersConf": [Function],
     "useClustersVersion": [Function],
     "useConnectApi": [Function],
+    "useSelectedClusters": [Function],
   },
   "Lodash": Function {
     "default": [Function],
@@ -2224,12 +2224,12 @@
           },
         },
         "fontFamily": EditorStringOption {
-          "defaultValue": "Consolas, 'Courier New', monospace",
+          "defaultValue": "'Droid Sans Mono', 'monospace', monospace",
           "id": 49,
           "name": "fontFamily",
           "schema": {
-            "default": "Consolas, 'Courier New', monospace",
-            "defaultDefaultValue": "Consolas, 'Courier New', monospace",
+            "default": "'Droid Sans Mono', 'monospace', monospace",
+            "defaultDefaultValue": "'Droid Sans Mono', 'monospace', monospace",
             "defaultValueSource": undefined,
             "description": "Controls the font family.",
             "restricted": false,
@@ -3754,12 +3754,12 @@
             "on",
             "dimmed",
           ],
-          "defaultValue": "on",
+          "defaultValue": "dimmed",
           "id": 96,
           "name": "renderFinalNewline",
           "schema": {
-            "default": "on",
-            "defaultDefaultValue": "on",
+            "default": "dimmed",
+            "defaultDefaultValue": "dimmed",
             "defaultValueSource": undefined,
             "description": "Render last line number when the file ends with a newline.",
             "enum": [
@@ -4114,7 +4114,7 @@
             "defaultDefaultValue": true,
             "defaultValueSource": undefined,
             "description": "Controls whether the Linux primary clipboard should be supported.",
-            "included": false,
+            "included": true,
             "restricted": false,
             "scope": 5,
             "source": undefined,
@@ -5279,7 +5279,7 @@
           "id": 134,
           "name": "wordWrapBreakAfterCharacters",
           "schema": undefined,
-        },
+          },
         "wordWrapBreakBeforeCharacters": EditorStringOption {
           "defaultValue": "([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋",
           "id": 135,
@@ -16134,5 +16134,6 @@
   "registerSetTokenFunction": [Function],
   "registerSidebarEntry": [Function],
   "registerSidebarEntryFilter": [Function],
+  "registerUIPanel": [Function],
   "runCommand": [Function],
 }

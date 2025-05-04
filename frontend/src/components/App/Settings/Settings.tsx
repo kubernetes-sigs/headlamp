@@ -10,6 +10,7 @@ import { defaultTableRowsPerPageOptions } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/reducers/reducers';
 import { ActionButton, NameValueTable, SectionBox } from '../../common';
 import TimezoneSelect from '../../common/TimezoneSelect';
+import { theme } from '../../TestHelpers/theme';
 import { setTheme, useAppThemes } from '../themeSlice';
 import DrawerModeSettings from './DrawerModeSettings';
 import { useSettings } from './hook';
@@ -145,9 +146,13 @@ export default function Settings() {
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
               gap: 2,
               justifyContent: 'center',
+              [theme.breakpoints.down('sm')]: {
+                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                gap: 2,
+              },
             }}
           >
             {appThemes.map(it => (
@@ -160,8 +165,8 @@ export default function Settings() {
                 }}
                 sx={{
                   cursor: 'pointer',
-                  border: themeName === it.name ? '3px solid' : '1px solid',
-                  borderColor: 'divider',
+                  border: themeName === it.name ? '2px solid' : '1px solid',
+                  borderColor: themeName === it.name ? 'primary' : 'divider',
                   borderRadius: 2,
                   p: 1,
                   display: 'flex',

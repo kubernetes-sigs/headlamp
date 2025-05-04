@@ -134,115 +134,6 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-<<<<<<< HEAD
-            Theme
-          </dt>
-          <dd
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
-          >
-            <div
-              class="MuiBox-root css-c8v7ee"
-            >
-              <div
-                class="MuiBox-root css-57y83x"
-              >
-                <div
-                  class="MuiBox-root css-1ii52co"
-                >
-                  <div
-                    class="MuiBox-root css-1f1uc6a"
-                  />
-                  <div
-                    class="MuiBox-root css-1z0uf79"
-                  />
-                  <div
-                    class="MuiBox-root css-5zxu0k"
-                  />
-                  <div
-                    class="MuiBox-root css-1oxk0si"
-                  />
-                  <div
-                    class="MuiBox-root css-jkymop"
-                  />
-                  <div
-                    class="MuiBox-root css-n01h7b"
-                  />
-                </div>
-                <div
-                  class="MuiBox-root css-164r41r"
-                >
-                  Light
-                </div>
-              </div>
-              <div
-                class="MuiBox-root css-sq68dl"
-              >
-                <div
-                  class="MuiBox-root css-11gsf11"
-                >
-                  <div
-                    class="MuiBox-root css-il3h2l"
-                  />
-                  <div
-                    class="MuiBox-root css-1z0uf79"
-                  />
-                  <div
-                    class="MuiBox-root css-3dcp9m"
-                  />
-                  <div
-                    class="MuiBox-root css-1coq5wc"
-                  />
-                  <div
-                    class="MuiBox-root css-ew82rx"
-                  />
-                  <div
-                    class="MuiBox-root css-1ep3rs4"
-                  />
-                </div>
-                <div
-                  class="MuiBox-root css-164r41r"
-                >
-                  Dark
-                </div>
-              </div>
-              <div
-                class="MuiBox-root css-sq68dl"
-              >
-                <div
-                  class="MuiBox-root css-1ii52co"
-                >
-                  <div
-                    class="MuiBox-root css-1aoxae"
-                  />
-                  <div
-                    class="MuiBox-root css-1xqumfe"
-                  />
-                  <div
-                    class="MuiBox-root css-19czym2"
-                  />
-                  <div
-                    class="MuiBox-root css-1swhc7p"
-                  />
-                  <div
-                    class="MuiBox-root css-c8sfqn"
-                  />
-                  <div
-                    class="MuiBox-root css-8jmga1"
-                  />
-                </div>
-                <div
-                  class="MuiBox-root css-164r41r"
-                >
-                  Headlamp classic
-                </div>
-              </div>
-            </div>
-          </dd>
-          <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
-          >
-=======
->>>>>>> e6b7105c (frontend: Settings: Replace theme dropdown menu with grid-based selector)
             Resource details view
           </dt>
           <dd
@@ -475,38 +366,34 @@
             class="MuiBox-root css-exrnj3"
           >
             <div
-              class="MuiBox-root css-fnrp1c"
+              class="MuiBox-root css-1a2ne5x"
             >
               <div
-                class="MuiBox-root css-zbgkct"
+                class="MuiBox-root css-1yhz2ch"
                 role="button"
                 tabindex="0"
               >
                 <div
-                  class="MuiBox-root css-0"
+                  class="MuiBox-root css-h3uu27"
                 >
                   <div
-                    class="MuiBox-root css-h3uu27"
-                  >
-                    <div
-                      class="MuiBox-root css-1f1uc6a"
-                    />
-                    <div
-                      class="MuiBox-root css-1z0uf79"
-                    />
-                    <div
-                      class="MuiBox-root css-5zxu0k"
-                    />
-                    <div
-                      class="MuiBox-root css-1oxk0si"
-                    />
-                    <div
-                      class="MuiBox-root css-jkymop"
-                    />
-                    <div
-                      class="MuiBox-root css-n01h7b"
-                    />
-                  </div>
+                    class="MuiBox-root css-1f1uc6a"
+                  />
+                  <div
+                    class="MuiBox-root css-1z0uf79"
+                  />
+                  <div
+                    class="MuiBox-root css-5zxu0k"
+                  />
+                  <div
+                    class="MuiBox-root css-1oxk0si"
+                  />
+                  <div
+                    class="MuiBox-root css-jkymop"
+                  />
+                  <div
+                    class="MuiBox-root css-n01h7b"
+                  />
                 </div>
                 <div
                   class="MuiBox-root css-164r41r"
@@ -520,30 +407,26 @@
                 tabindex="0"
               >
                 <div
-                  class="MuiBox-root css-0"
+                  class="MuiBox-root css-o0lce"
                 >
                   <div
-                    class="MuiBox-root css-1giqewv"
-                  >
-                    <div
-                      class="MuiBox-root css-ni9bm1"
-                    />
-                    <div
-                      class="MuiBox-root css-1z0uf79"
-                    />
-                    <div
-                      class="MuiBox-root css-3dcp9m"
-                    />
-                    <div
-                      class="MuiBox-root css-1coq5wc"
-                    />
-                    <div
-                      class="MuiBox-root css-ew82rx"
-                    />
-                    <div
-                      class="MuiBox-root css-1ep3rs4"
-                    />
-                  </div>
+                    class="MuiBox-root css-il3h2l"
+                  />
+                  <div
+                    class="MuiBox-root css-1z0uf79"
+                  />
+                  <div
+                    class="MuiBox-root css-3dcp9m"
+                  />
+                  <div
+                    class="MuiBox-root css-1coq5wc"
+                  />
+                  <div
+                    class="MuiBox-root css-ew82rx"
+                  />
+                  <div
+                    class="MuiBox-root css-1ep3rs4"
+                  />
                 </div>
                 <div
                   class="MuiBox-root css-164r41r"
@@ -557,30 +440,26 @@
                 tabindex="0"
               >
                 <div
-                  class="MuiBox-root css-0"
+                  class="MuiBox-root css-h3uu27"
                 >
                   <div
-                    class="MuiBox-root css-h3uu27"
-                  >
-                    <div
-                      class="MuiBox-root css-1aoxae"
-                    />
-                    <div
-                      class="MuiBox-root css-1xqumfe"
-                    />
-                    <div
-                      class="MuiBox-root css-19czym2"
-                    />
-                    <div
-                      class="MuiBox-root css-1swhc7p"
-                    />
-                    <div
-                      class="MuiBox-root css-c8sfqn"
-                    />
-                    <div
-                      class="MuiBox-root css-8jmga1"
-                    />
-                  </div>
+                    class="MuiBox-root css-1aoxae"
+                  />
+                  <div
+                    class="MuiBox-root css-1xqumfe"
+                  />
+                  <div
+                    class="MuiBox-root css-19czym2"
+                  />
+                  <div
+                    class="MuiBox-root css-1swhc7p"
+                  />
+                  <div
+                    class="MuiBox-root css-c8sfqn"
+                  />
+                  <div
+                    class="MuiBox-root css-8jmga1"
+                  />
                 </div>
                 <div
                   class="MuiBox-root css-164r41r"
