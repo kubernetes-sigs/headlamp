@@ -43,11 +43,18 @@ Append `--base-url /headlamp` to the docker run command. Note the extra "-".
 ### Kubernetes
 
 You can modify your kubernetes deployment file to add `-base-url /headlamp`
-to the containers args.
-
+to the containers args. Additionally, update the livenessProbe and readinessProbe paths accordingly to match the base-url.
 ```yaml
 args:
   - "-in-cluster"
   - "-plugins-dir=/headlamp/plugins"
   - "-base-url=/headlamp"
+
+livenessProbe:
+  httpGet:
+    path: /headlamp/   # note the trailing slash
+
+readinessProbe:
+  httpGet:
+    path: /headlamp/  
 ```

@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import LocaleSelect from '../../../i18n/LocaleSelect/LocaleSelect';
-import { setVersionDialogOpen } from '../../../redux/actions/actions';
 import { setAppSettings } from '../../../redux/configSlice';
 import { defaultTableRowsPerPageOptions } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/reducers/reducers';
+import { uiSlice } from '../../../redux/uiSlice';
 import { ActionButton, NameValueTable, SectionBox } from '../../common';
 import TimezoneSelect from '../../common/TimezoneSelect';
 import { theme } from '../../TestHelpers/theme';
@@ -57,7 +57,7 @@ export default function Settings() {
             icon="mdi:information-outline"
             description={t('translation|Version')}
             onClick={() => {
-              dispatch(setVersionDialogOpen(true));
+              dispatch(uiSlice.actions.setVersionDialogOpen(true));
             }}
           />,
         ],

@@ -184,3 +184,13 @@ Check the full [AppTheme](../../api/lib/AppTheme/interfaces/AppTheme.md) definit
 After registering your theme it will be available in the General Settings, under 'Theme' dropdown.
 
 ![screenshot of the theme dropdown](./images/settings-theme-dropdown.png)
+
+### UI Panels
+
+Register a side panel using [reigsterUIPanel](../../api/plugin/registry/function/registeruipanel).
+Side panel is a UI element that renders on one side of the application, you can define more than panel per side.
+Each panel should have a unique ID, a side (top, left, right, bottom) and a React component to render.
+
+![screenshot of the side panels](./images/side-panels-example.png)
+
+Check the [example plugin](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/ui-panels) for full code.

@@ -449,6 +449,7 @@
   "Collapse Sidebar": "Réduire la barre latérale",
   "Navigation": "Navigation",
   "General": "",
+  "Clusters": "",
   "Instances": "",
   "Cluster version upgraded to {{ gitVersion }}": "Version du cluster mise à jour vers {{ gitVersion }}",
   "Cluster version downgraded to {{ gitVersion }}": "Version du cluster déclassée vers {{ gitVersion }}",

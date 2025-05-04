@@ -1,6 +1,22 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Icon } from '@iconify/react';
 import Editor from '@monaco-editor/react';
-import { InputLabel } from '@mui/material';
+import { Button, InputLabel } from '@mui/material';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Grid, { GridProps, GridSize } from '@mui/material/Grid';
@@ -11,13 +27,12 @@ import { BaseTextFieldProps } from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/system';
 import { Location } from 'history';
-import { Base64 } from 'js-base64';
 import _, { has } from 'lodash';
 import React, { PropsWithChildren, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath, NavLinkProps, useLocation } from 'react-router-dom';
 import YAML from 'yaml';
-import { labelSelectorToQuery, ResourceClasses } from '../../../lib/k8s';
+import { labelSelectorToQuery, ResourceClasses, useCluster } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/apiProxy';
 import { KubeCondition, KubeContainer, KubeContainerStatus } from '../../../lib/k8s/cluster';
 import { KubeEvent } from '../../../lib/k8s/event';
@@ -90,6 +105,8 @@ export interface DetailsGridProps<T extends KubeObjectClass>
   name: string;
   /** Namespace of the resource. If not provided, it's assumed the resource is not namespaced. */
   namespace?: string;
+  /** Name of the cluster of the resource */
+  cluster?: string;
   /** Sections to show in the details grid (besides the default ones). */
   extraSections?:
     | ((item: InstanceType<T>) => boolean | DetailsViewSection[] | ReactNode[])
@@ -112,12 +129,14 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
     resourceType,
     name,
     namespace,
+    cluster,
     children,
     withEvents,
     extraSections,
     onResourceUpdate,
     ...otherMainInfoSectionProps
   } = props;
+  const selectedCluster = useCluster();
   const { t } = useTranslation();
   const location = useLocation<{ backLink: NavLinkProps['location'] }>();
   const hasPreviousRoute = useHasPreviousRoute();
@@ -132,10 +151,9 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
   const { extraInfo, actions, noDefaultActions, headerStyle, backLink, title, headerSection } =
     otherMainInfoSectionProps;
 
-  const [item, error] = resourceType.useGet(name, namespace) as [
-    InstanceType<T> | null,
-    ApiError | null
-  ];
+  const [item, error] = resourceType.useGet(name, namespace, {
+    cluster: cluster ?? selectedCluster ?? undefined,
+  }) as [InstanceType<T> | null, ApiError | null];
   const prevItemRef = React.useRef<{ uid?: string; version?: string; error?: ApiError | null }>({});
 
   React.useEffect(() => {
@@ -397,13 +415,24 @@ export function SectionGrid(props: SectionGridProps) {
 
 export interface DataFieldProps extends BaseTextFieldProps {
   disableLabel?: boolean;
+  onSave?: (newValue: string) => void;
+  onChange?: (newValue: string) => void;
 }
 
 export function DataField(props: DataFieldProps) {
-  const { disableLabel, label, value } = props;
+  const { disableLabel, label, value, onSave, onChange } = props;
   // Make sure we reload after a theme change
   useTheme();
   const themeName = getThemeName();
+
+  const [data, setData] = React.useState(value as string);
+
+  const handleChange = (newValue: string | undefined) => {
+    if (newValue !== undefined) {
+      setData(newValue);
+      onChange?.(newValue);
+    }
+  };
 
   function handleEditorDidMount(editor: any) {
     const editorElement: HTMLElement | null = editor.getDomNode();
@@ -425,22 +454,21 @@ export function DataField(props: DataFieldProps) {
   if (language !== 'json') {
     language = 'yaml';
   }
-  if (disableLabel === true) {
-    return (
-      <Box borderTop={0} border={1}>
-        <Editor
-          value={value as string}
-          language={language}
-          onMount={handleEditorDidMount}
-          options={{ readOnly: true, lineNumbers: 'off', automaticLayout: true }}
-          theme={themeName === 'dark' ? 'vs-dark' : 'light'}
-        />
-      </Box>
-    );
-  }
-  return (
-    <>
-      <Box borderTop={0} border={1}>
+
+  const editorComponent = (
+    <Editor
+      value={data}
+      language={language}
+      onChange={handleChange}
+      onMount={handleEditorDidMount}
+      options={{ lineNumbers: 'off', automaticLayout: true }}
+      theme={themeName === 'dark' ? 'vs-dark' : 'light'}
+    />
+  );
+
+  const content = (
+    <Box borderTop={0} border={1}>
+      {!disableLabel && (
         <Box display="flex">
           <Box width="10%" borderTop={1} height={'1px'}></Box>
           <Box pb={1} mt={-1} px={0.5}>
@@ -448,17 +476,24 @@ export function DataField(props: DataFieldProps) {
           </Box>
           <Box width="100%" borderTop={1} height={'1px'}></Box>
         </Box>
-        <Box mt={1} px={1} pb={1}>
-          <Editor
-            value={value as string}
-            language={language}
-            onMount={handleEditorDidMount}
-            options={{ readOnly: true, lineNumbers: 'off', automaticLayout: true }}
-            theme={themeName === 'dark' ? 'vs-dark' : 'light'}
-          />
-        </Box>
+      )}
+      <Box mt={1} px={1} pb={1}>
+        {editorComponent}
       </Box>
-    </>
+    </Box>
+  );
+
+  return (
+    <Box>
+      {content}
+      {onSave && (
+        <Box mt={1} display="flex" justifyContent="flex-end">
+          <Button variant="contained" color="primary" onClick={() => onSave && onSave(data)}>
+            Save
+          </Button>
+        </Box>
+      )}
+    </Box>
   );
 }
 
@@ -486,12 +521,12 @@ export function SecretField(props: InputProps) {
       </Grid>
       <Grid item xs>
         <Input
-          readOnly
+          readOnly={!showPassword}
           type="password"
           fullWidth
           multiline={showPassword}
           maxRows="20"
-          value={showPassword ? Base64.decode(value as string) : '******'}
+          value={showPassword ? (value as string) : '******'}
           {...other}
         />
       </Grid>
@@ -953,7 +988,7 @@ export function ContainerInfo(props: ContainerInfoProps) {
 }
 
 export interface OwnedPodsSectionProps {
-  resource: KubeObjectInterface;
+  resource: KubeObject;
   hideColumns?: PodListProps['hideColumns'];
   /**
    * Hides the namespace selector
@@ -972,8 +1007,11 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
   }
   const queryData = {
     namespace,
-    labelSelector: resource?.spec?.selector ? labelSelectorToQuery(resource?.spec?.selector) : '',
+    labelSelector: resource?.jsonData?.spec?.selector
+      ? labelSelectorToQuery(resource?.jsonData?.spec?.selector)
+      : '',
     fieldSelector: resource.kind === 'Node' ? `spec.nodeName=${resource.metadata.name}` : undefined,
+    cluster: resource.cluster,
   };
 
   const { items: pods, errors } = Pod.useList(queryData);

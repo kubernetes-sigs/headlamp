@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { ChildProcessWithoutNullStreams, exec, execSync, spawn } from 'child_process';
 import { randomBytes } from 'crypto';
 import dotenv from 'dotenv';
@@ -88,6 +104,10 @@ const args = yargs(hideBin(process.argv))
     },
     'disable-gpu': {
       describe: 'Disable use of GPU. For people who may have buggy graphics drivers',
+      type: 'boolean',
+    },
+    'watch-plugins-changes': {
+      describe: 'Reloads plugins when there are changes to them or their directory',
       type: 'boolean',
     },
   })
@@ -561,6 +581,9 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   const proxyUrls = !!buildManifest && buildManifest['proxy-urls'];
   if (!!proxyUrls && proxyUrls.length > 0) {
     serverArgs = serverArgs.concat(['--proxy-urls', proxyUrls.join(',')]);
+  }
+  if (args.watchPluginsChanges !== undefined) {
+    serverArgs.push(`--watch-plugins-changes=${args.watchPluginsChanges}`);
   }
 
   const bundledPlugins = path.join(process.resourcesPath, '.plugins');

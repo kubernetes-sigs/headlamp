@@ -48,7 +48,7 @@ for plugin in $PLUGINS_TO_UPDATE; do
     sed -i -E "s|(\"$HEADLAMP_PLUGIN\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")|\\1^$LATEST_VERSION\\2|" package.json
 
     if ! git diff --quiet; then
-      npm install
+      npm ci
       git add -u .
       git commit -s -m "plugins/examples/$plugin: Update $HEADLAMP_PLUGIN to version $LATEST_VERSION"
       echo "Updated $HEADLAMP_PLUGIN to version $LATEST_VERSION in $plugin"

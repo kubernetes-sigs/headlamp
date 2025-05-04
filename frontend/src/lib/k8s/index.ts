@@ -1,9 +1,25 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import _ from 'lodash';
 import React, { useMemo } from 'react';
-import { matchPath, useHistory } from 'react-router-dom';
+import { useHistory } from 'react-router-dom';
 import { ConfigState } from '../../redux/configSlice';
 import { useTypedSelector } from '../../redux/reducers/reducers';
-import { getCluster, getClusterGroup, getClusterPrefixedPath } from '../cluster';
+import { getCluster, getSelectedClusters } from '../cluster';
 import { ApiError, clusterRequest } from './apiProxy';
 import { Cluster, LabelSelector, StringDict } from './cluster';
 import ClusterRole from './clusterRole';
@@ -105,26 +121,26 @@ export function useClustersConf(): ConfigState['allClusters'] {
   return useMemo(() => allClusters, [Object.keys(allClusters).join(',')]);
 }
 
+/**
+ * Get the currently selected cluster name.
+ *
+ * If more than one cluster is selected it will return:
+ *  - On details pages: the cluster of the currently viewed resource
+ *  - On any other page: one of the selected clusters
+ *
+ * To get all currently selected clusters please use {@link useSelectedClusters}
+ *
+ * @returns currently selected cluster
+ */
 export function useCluster() {
   const history = useHistory();
 
-  // This function is similar to the getCluster() but uses the location
-  // meaning it will return the URL from whatever the router used it (which
-  // is more accurate than getting it from window.location like the former).
-  function getClusterFromLocation(): string | null {
-    const urlPath = history.location?.pathname;
-    const clusterURLMatch = matchPath<{ cluster?: string }>(urlPath, {
-      path: getClusterPrefixedPath(),
-    });
-    return (!!clusterURLMatch && clusterURLMatch.params.cluster) || null;
-  }
-
-  const [cluster, setCluster] = React.useState<string | null>(getClusterFromLocation());
+  const [cluster, setCluster] = React.useState(getCluster());
 
   React.useEffect(() => {
     // Listen to route changes
     return history.listen(() => {
-      const newCluster = getClusterFromLocation();
+      const newCluster = getCluster(history.location.pathname);
       // Update the state only when the cluster changes
       setCluster(currentCluster => (newCluster !== currentCluster ? newCluster : currentCluster));
     });
@@ -134,15 +150,16 @@ export function useCluster() {
 }
 
 /**
- * Get the group of clusters as defined in the URL. Updates when the cluster changes.
+ * Get a list of selected clusters. Updates when the cluster changes.
  *
- * @returns the cluster group from the URL. If no cluster is defined in the URL, an empty list is returned.
+ * @returns list of selected clusters. if no clusters are selected, an empty list is returned.
  */
-export function useClusterGroup(): string[] {
+export function useSelectedClusters(): string[] {
   const clusterInURL = useCluster();
+  const history = useHistory();
 
   const clusterGroup = React.useMemo(() => {
-    return getClusterGroup();
+    return getSelectedClusters([], history.location.pathname);
   }, [clusterInURL]);
 
   return clusterGroup;

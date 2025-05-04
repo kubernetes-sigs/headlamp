@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Box } from '@mui/system';
 import { memo, ReactElement, useEffect } from 'react';
 import Deployment from '../../../lib/k8s/deployment';
@@ -38,7 +54,7 @@ import WorkloadDetails from '../../workload/Details';
 
 const kindComponentMap: Record<
   string,
-  (props: { name?: string; namespace?: string }) => ReactElement
+  (props: { name?: string; namespace?: string; cluster?: string }) => ReactElement
 > = {
   Pod: PodDetails,
   Deployment: props => <WorkloadDetails {...props} workloadKind={Deployment} />,
@@ -97,11 +113,12 @@ export const KubeObjectDetails = memo(
   }: {
     resource: {
       kind: string;
+      cluster?: string;
       metadata: { name: string; namespace?: string };
     };
     customResourceDefinition?: string;
   }) => {
-    const kind = resource.kind;
+    const { cluster, kind } = resource;
     const { name, namespace } = resource.metadata;
 
     const Component =
@@ -110,9 +127,14 @@ export const KubeObjectDetails = memo(
       )?.[1] ?? DetailsNotFound;
 
     const content = customResourceDefinition ? (
-      <CustomResourceDetails crName={name} crd={customResourceDefinition} namespace={namespace!} />
+      <CustomResourceDetails
+        crName={name}
+        crd={customResourceDefinition}
+        namespace={namespace!}
+        cluster={cluster}
+      />
     ) : (
-      <Component name={name} namespace={namespace} />
+      <Component name={name} namespace={namespace} cluster={cluster} />
     );
 
     useEffect(() => {

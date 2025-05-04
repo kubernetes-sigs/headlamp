@@ -448,6 +448,7 @@
   "Collapse Sidebar": "Collapse Sidebar",
   "Navigation": "Navigation",
   "General": "General",
+  "Clusters": "Clusters",
   "Instances": "Instances",
   "Cluster version upgraded to {{ gitVersion }}": "Cluster version upgraded to {{ gitVersion }}",
   "Cluster version downgraded to {{ gitVersion }}": "Cluster version downgraded to {{ gitVersion }}",

@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import {
   Box,
   Button,
@@ -121,15 +137,19 @@ function SpawnJobDialog(props: { cronJob: CronJob; onClose: () => void }) {
   );
 }
 
-export default function CronJobDetails(props: { name?: string; namespace?: string }) {
+export default function CronJobDetails(props: {
+  name?: string;
+  namespace?: string;
+  cluster?: string;
+}) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
 
   const { t, i18n } = useTranslation('glossary');
   const dispatch: AppDispatch = useDispatch();
 
-  const { items: jobs, errors } = Job.useList({ namespace });
   const [cronJob] = CronJob.useGet(name, namespace);
+  const { items: jobs, errors } = Job.useList({ namespace, cluster: cronJob?.cluster });
   const [isSpawnDialogOpen, setIsSpawnDialogOpen] = useState(false);
   const [isPendingSuspend, setIsPendingSuspend] = useState(false);
   const isCronSuspended = cronJob?.spec.suspend;
@@ -210,6 +230,7 @@ export default function CronJobDetails(props: { name?: string; namespace?: strin
       resourceType={CronJob}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       actions={actions}
       extraInfo={item =>

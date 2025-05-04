@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { JSONPath } from 'jsonpath-plus';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -20,15 +36,17 @@ export interface CustomResourceDetailsProps {
   crd: string;
   crName: string;
   namespace: string;
+  cluster?: string;
 }
 
 export function CustomResourceDetails({
   crd: crdName,
   crName,
   namespace: ns,
+  cluster,
 }: CustomResourceDetailsProps) {
   const { t } = useTranslation('glossary');
-  const [crd, error] = CustomResourceDefinition.useGet(crdName);
+  const [crd, error] = CustomResourceDefinition.useGet(crdName, undefined, { cluster });
 
   const namespace = ns === '-' ? undefined : ns;
 
@@ -47,7 +65,12 @@ export function CustomResourceDetails({
       <Loader title={t('translation|Loading custom resource details')} />
     )
   ) : (
-    <CustomResourceDetailsRenderer crd={crd} crName={crName} namespace={namespace} />
+    <CustomResourceDetailsRenderer
+      crd={crd}
+      crName={crName}
+      namespace={namespace}
+      cluster={cluster}
+    />
   );
 }
 
@@ -101,15 +124,16 @@ export interface CustomResourceDetailsRendererProps {
   crd: CustomResourceDefinition;
   crName: string;
   namespace?: string;
+  cluster?: string;
 }
 
 function CustomResourceDetailsRenderer(props: CustomResourceDetailsRendererProps) {
-  const { crd, crName, namespace } = props;
+  const { crd, crName, namespace, cluster } = props;
 
   const { t } = useTranslation('glossary');
 
   const CRClass = React.useMemo(() => crd.makeCRClass(), [crd]);
-  const [item, error] = CRClass.useGet(crName, namespace);
+  const [item, error] = CRClass.useGet(crName, namespace, { cluster });
 
   const apiVersion = item?.jsonData.apiVersion?.split('/')[1] || '';
   const extraColumns: AdditionalPrinterColumns = getExtraColumns(crd, apiVersion) || [];

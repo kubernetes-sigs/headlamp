@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import InputLabel from '@mui/material/InputLabel';
@@ -381,12 +397,13 @@ export interface PodDetailsProps {
   showLogsDefault?: boolean;
   name?: string;
   namespace?: string;
+  cluster?: string;
 }
 
 export default function PodDetails(props: PodDetailsProps) {
   const { showLogsDefault } = props;
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const [showLogs, setShowLogs] = React.useState(!!showLogsDefault);
   const [showTerminal, setShowTerminal] = React.useState(false);
   const { t } = useTranslation('glossary');
@@ -398,6 +415,7 @@ export default function PodDetails(props: PodDetailsProps) {
       resourceType={Pod}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       actions={item =>
         item && [
