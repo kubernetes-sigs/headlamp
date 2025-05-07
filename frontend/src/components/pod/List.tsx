@@ -228,8 +228,9 @@ export function PodListRenderer(props: PodListProps) {
         {
           id: 'status',
           gridTemplate: 'min-content',
+          filterVariant: 'multi-select',
           label: t('translation|Status'),
-          getValue: pod => getPodStatus(pod) + '' + pod.getDetailedStatus().reason,
+          getValue: pod => getPodStatus(pod) + '/' + pod.getDetailedStatus().reason,
           render: makePodStatusLabel,
         },
         ...(metrics?.length
@@ -273,6 +274,7 @@ export function PodListRenderer(props: PodListProps) {
           id: 'node',
           label: t('glossary|Node'),
           gridTemplate: 'auto',
+          filterVariant: 'multi-select',
           getValue: pod => pod?.spec?.nodeName,
           render: pod =>
             pod?.spec?.nodeName && (

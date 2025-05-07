@@ -100,6 +100,7 @@ export default function NamespacesList() {
           id: 'status',
           gridTemplate: 'auto',
           label: t('translation|Status'),
+          filterVariant: 'multi-select',
           getValue: ns => ns.status.phase,
           render: makeStatusLabel,
         },
