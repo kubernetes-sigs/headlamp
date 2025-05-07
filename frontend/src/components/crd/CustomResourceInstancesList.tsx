@@ -119,9 +119,8 @@ function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
           },
           {
             label: 'CRD',
-            getValue: cr => {
-              return cr.kind;
-            },
+            filterVariant: 'multi-select',
+            getValue: cr => cr.kind,
             render: cr => {
               return (
                 <Link
