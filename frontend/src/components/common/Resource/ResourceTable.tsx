@@ -561,6 +561,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     initialState.globalFilter = defaultGlobalFilter;
     initialState.showGlobalFilter = true;
   }
+  initialState.showColumnFilters = true;
 
   const filterFunc = filterFunction ?? defaultFilterFunc;
 
@@ -582,6 +583,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
         state={{
           columnVisibility,
         }}
+        columnFilterDisplayMode="popover"
         reflectInURL={reflectInURL}
         onColumnVisibilityChange={onColumnsVisibilityChange as any}
         enableRowActions={enableRowActions}
