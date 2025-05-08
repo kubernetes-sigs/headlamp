@@ -30,10 +30,28 @@ export interface ConfirmDialogProps extends MuiDialogProps {
   handleClose: () => void;
   cancelLabel?: string;
   confirmLabel?: string;
+  /**
+   * Disables the Yes button, defaults to false
+   */
+  hideYesButton?: boolean;
+  /**
+   * Disables the No button, defaults to false
+   */
+  hideNoButton?: boolean;
 }
 
 export function ConfirmDialog(props: ConfirmDialogProps) {
-  const { onConfirm, open, handleClose, title, description, cancelLabel, confirmLabel } = props;
+  const {
+    onConfirm,
+    open,
+    handleClose,
+    title,
+    description,
+    cancelLabel,
+    confirmLabel,
+    hideNoButton = false,
+    hideYesButton = false,
+  } = props;
   const { t } = useTranslation();
 
   function onConfirmationClicked() {
@@ -63,12 +81,16 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose} color="secondary" variant="contained">
-            {cancelLabel || t('No')}
-          </Button>
-          <Button onClick={onConfirmationClicked} color="primary" variant="contained">
-            {confirmLabel || t('Yes')}
-          </Button>
+          {!hideNoButton && (
+            <Button onClick={handleClose} color="primary">
+              {cancelLabel || t('No')}
+            </Button>
+          )}
+          {!hideYesButton && (
+            <Button onClick={onConfirmationClicked} color="primary">
+              {confirmLabel || t('Yes')}
+            </Button>
+          )}
         </DialogActions>
       </MuiDialog>
     </div>
