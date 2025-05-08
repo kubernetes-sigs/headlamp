@@ -75,6 +75,7 @@ export default function NodeList() {
         {
           id: 'ready',
           label: t('translation|Ready'),
+          filterVariant: 'multi-select',
           getValue: node => {
             const isReady = !!node.status.conditions?.find(
               condition => condition.type === 'Ready' && condition.status === 'True'

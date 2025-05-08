@@ -44,6 +44,7 @@ export default function IngressClassList() {
         {
           id: 'controller',
           label: t('Controller'),
+          filterVariant: 'multi-select',
           getValue: (ingressClass: IngressClass) => ingressClass.spec?.controller,
         },
         'age',
