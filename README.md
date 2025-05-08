@@ -88,6 +88,33 @@ Check out our:
 - [#headlamp](https://kubernetes.slack.com/messages/headlamp) slack channel in the Kubernetes Slack 
 - [Monthly Community Meeting](https://zoom-lfx.platform.linuxfoundation.org/meetings/headlamp)
 
+## AI Development Assistance (llms.txt)
+
+This repository includes source `llms.txt` files (`/llms.txt` for core, `plugins/llms.txt` for plugins) which act as manifests, listing key files and directories relevant for AI-assisted development.
+
+To generate combined context files useful for feeding directly to an AI, you first need the `gitingest` Python tool:
+
+```bash
+uv pip install gitingest
+```
+
+Then, run the following command from the repository root:
+
+```bash
+make llms-context
+```
+
+This command uses `gitingest` to create digests of the important files and directories guided by the source `llms.txt` files and concatenates them into two main context files:
+
+- `headlamp-core-context.txt`: Combined context for core development.
+- `headlamp-plugins-context.txt`: Combined context for plugin development.
+
+**Note:** These generated files (`headlamp-*.txt`) contain concatenated, unstructured text digests. They are **committed to the repository** for convenience, allowing developers to use them immediately as context for AI assistants without needing to generate them first. However, they do not currently follow the structured format specified by the `llms-ctx-full.txt` standard.
+
+The goal is to eventually align these generated files with the official `llms.txt` standard using tools like `llms_txt2ctx`, but the current `gitingest`-based approach is used due to tool limitations encountered.
+
+If you make significant changes to the files/directories referenced by the source `llms.txt` files, you should re-run `make llms-context` and commit the updated context files.
+
 ## Roadmap / Release Planning
 
 If you are interested in the direction of the project, we maintain a
