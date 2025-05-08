@@ -36,15 +36,17 @@ const (
 
 // Context contains all information related to a kubernetes context.
 type Context struct {
-	Name        string                 `json:"name"`
-	KubeContext *api.Context           `json:"kubeContext"`
-	Cluster     *api.Cluster           `json:"cluster"`
-	AuthInfo    *api.AuthInfo          `json:"authInfo"`
-	Source      int                    `json:"source"`
-	OidcConf    *OidcConfig            `json:"oidcConfig"`
-	proxy       *httputil.ReverseProxy `json:"-"`
-	Internal    bool                   `json:"internal"`
-	Error       string                 `json:"error"`
+	Name           string                 `json:"name"`
+	KubeContext    *api.Context           `json:"kubeContext"`
+	Cluster        *api.Cluster           `json:"cluster"`
+	AuthInfo       *api.AuthInfo          `json:"authInfo"`
+	Source         int                    `json:"source"`
+	OidcConf       *OidcConfig            `json:"oidcConfig"`
+	proxy          *httputil.ReverseProxy `json:"-"`
+	Internal       bool                   `json:"internal"`
+	Error          string                 `json:"error"`
+	KubeConfigPath string                 `json:"kubeConfigPath"`
+	ClusterID      string                 `json:"clusterID"`
 }
 
 type OidcConfig struct {
@@ -345,7 +347,23 @@ func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []Conte
 
 	skipProxySetup := source != KubeConfig
 
-	return loadContextsFromData(data, source, skipProxySetup)
+	contexts, contextErrors, err := loadContextsFromData(data, source, skipProxySetup)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error loading contexts from file: %v", err)
+	}
+
+	// add the KubeConfigPath to each context
+	for i := range contexts {
+		pathName := kubeConfigPath
+
+		contexts[i].KubeConfigPath = pathName
+
+		// create the clusterID string using a pipe as the delimiter
+		clusterID := fmt.Sprintf("%s:%s", pathName, contexts[i].Name)
+		contexts[i].ClusterID = clusterID
+	}
+
+	return contexts, contextErrors, nil
 }
 
 // LoadContextsFromBase64String loads contexts from a base64 encoded kubeconfig string.

@@ -224,11 +224,15 @@ export function getStatelessClusterKubeConfigs(): Promise<string[]> {
 /**
  * Finds a kubeconfig by cluster name.
  * @param clusterName
+ * @param clusterID
  * @returns A promise that resolves with the kubeconfig, or null if not found.
  * @throws Error if IndexedDB is not supported.
  * @throws Error if the kubeconfig is invalid.
  */
-export function findKubeconfigByClusterName(clusterName: string): Promise<string | null> {
+export function findKubeconfigByClusterName(
+  clusterName: string,
+  clusterID?: string
+): Promise<string | null> {
   return new Promise<string | null>(async (resolve, reject) => {
     try {
       const request = indexedDB.open('kubeconfigs', 1) as any;
@@ -257,15 +261,28 @@ export function findKubeconfigByClusterName(clusterName: string): Promise<string
 
             const parsedKubeconfig = jsyaml.load(atob(kubeconfig)) as KubeconfigObject;
             // Check for "headlamp_info" in extensions
-            const matchingContext = parsedKubeconfig.contexts.find(
-              context =>
-                context.context.extensions?.find(extension => extension.name === 'headlamp_info')
-                  ?.extension.customName === clusterName
-            );
 
-            const matchingKubeconfig = parsedKubeconfig.contexts.find(
-              context => context.name === clusterName
-            );
+            let matchingContext;
+            let matchingKubeconfig;
+
+            if (clusterID) {
+              // Find the context with the matching clusterID
+              matchingContext = parsedKubeconfig.contexts.find(
+                context => context.context.clusterID === clusterID
+              );
+            } else {
+              // Find the context with the matching cluster name or custom name in headlamp_info
+              matchingContext = parsedKubeconfig.contexts.find(
+                context =>
+                  context.name === clusterName ||
+                  context.context.extensions?.find(extension => extension.name === 'headlamp_info')
+                    ?.extension.customName === clusterName
+              );
+
+              matchingKubeconfig = parsedKubeconfig.contexts.find(
+                context => context.name === clusterName
+              );
+            }
 
             if (matchingKubeconfig || matchingContext) {
               resolve(kubeconfig);

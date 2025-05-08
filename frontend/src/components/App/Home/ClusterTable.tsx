@@ -110,8 +110,8 @@ export default function ClusterTable({
    */
   function getOrigin(cluster: Cluster): string {
     if (cluster.meta_data?.source === 'kubeconfig') {
-      const kubeconfigPath = process.env.KUBECONFIG ?? '~/.kube/config';
-      return `Kubeconfig: ${kubeconfigPath}`;
+      const sourcePath = cluster.meta_data?.origin?.kubeconfig;
+      return `Kubeconfig: ${sourcePath}`;
     } else if (cluster.meta_data?.source === 'dynamic_cluster') {
       return t('translation|Plugin');
     } else if (cluster.meta_data?.source === 'in_cluster') {
