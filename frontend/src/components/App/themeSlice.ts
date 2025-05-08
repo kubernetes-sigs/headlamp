@@ -104,7 +104,75 @@ export const lightTheme: AppTheme = {
   radius: 6,
 };
 
-const defaultAppThemes = [lightTheme, darkTheme, headlampClassicLightTheme];
+export const lightsOutTheme: AppTheme = {
+  name: 'Lights Out',
+  base: 'dark',
+  primary: '#1f6feb',
+  secondary: '#212830',
+  text: {
+    primary: '#f0f6fc',
+  },
+  link: {
+    color: '#4493f8',
+  },
+  background: {
+    default: '#010409',
+    surface: '#0d1117',
+    muted: '#151b23',
+  },
+  sidebar: {
+    background: '#010409',
+    color: '#f0f6fc',
+    selectedBackground: '#484f57',
+    selectedColor: '#fff',
+    actionBackground: '#1f6feb',
+  },
+  navbar: {
+    background: '#010409',
+    color: '#bdc3c9',
+  },
+  radius: 6,
+  buttonTextTransform: 'none',
+};
+
+export const monochromeLightTheme: AppTheme = {
+  name: 'Monochrome Light',
+  base: 'light',
+  primary: '#25292e',
+  secondary: '#f6f8fa',
+  text: {
+    primary: '#1f2328',
+  },
+  link: {
+    color: '#0969da',
+  },
+  background: {
+    default: '#ffffff',
+    surface: '#ffffff',
+    muted: '#f6f8fa',
+  },
+  sidebar: {
+    background: '#fff',
+    color: '#59636e',
+    selectedBackground: '#333',
+    selectedColor: '#1f2328',
+    actionBackground: '#333436',
+  },
+  navbar: {
+    background: '#ffffff',
+    color: '#1f2328',
+  },
+  radius: 6,
+  buttonTextTransform: 'none',
+};
+
+const defaultAppThemes = [
+  lightTheme,
+  darkTheme,
+  headlampClassicLightTheme,
+  lightsOutTheme,
+  monochromeLightTheme,
+];
 
 export const initialState: ThemeState = {
   logo: null,
