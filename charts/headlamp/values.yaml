@@ -118,6 +118,9 @@ clusterRoleBinding:
   # -- Annotations to add to the cluster role binding
   annotations: {}
 
+# -- Annotations to add to the deployment
+deploymentAnnotations: {}
+
 # -- Annotations to add to the pod
 podAnnotations: {}
 
