@@ -41,6 +41,10 @@ metadata:
   name: {{ include "headlamp.fullname" . }}
   labels:
     {{- include "headlamp.labels" . | nindent 4 }}
+  {{- with .Values.deploymentAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
