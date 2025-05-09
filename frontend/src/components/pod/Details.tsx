@@ -20,7 +20,7 @@ import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Switch from '@mui/material/Switch';
-import { styled } from '@mui/system';
+import { Box, styled } from '@mui/system';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
 import React from 'react';
@@ -64,6 +64,9 @@ export function PodLogViewer(props: PodLogViewerProps) {
     logs: [],
     lastLineShown: -1,
   });
+
+  const [isTextWrappedEnabled, setIsTextWrappedEnabled] = React.useState(false);
+
   const [showReconnectButton, setShowReconnectButton] = React.useState(false);
   const [cancelLogsStream, setCancelLogsStream] = React.useState<(() => void) | null>(null);
   const xtermRef = React.useRef<XTerminal | null>(null);
@@ -202,6 +205,10 @@ export function PodLogViewer(props: PodLogViewerProps) {
     setShowReconnectButton(false);
   }
 
+  function handleWrapText() {
+    setIsTextWrappedEnabled(!isTextWrappedEnabled);
+  }
+
   return (
     <LogViewer
       title={t('glossary|Logs: {{ itemName }}', { itemName: item.getName() })}
@@ -212,114 +219,169 @@ export function PodLogViewer(props: PodLogViewerProps) {
       xtermRef={xtermRef}
       handleReconnect={handleReconnect}
       showReconnectButton={showReconnectButton}
+      isWrappedTextEnabled={isTextWrappedEnabled}
       topActions={[
-        <FormControl sx={{ minWidth: '11rem' }}>
-          <InputLabel shrink id="container-name-chooser-label">
-            {t('glossary|Container')}
-          </InputLabel>
-          <Select
-            labelId="container-name-chooser-label"
-            id="container-name-chooser"
-            value={container}
-            onChange={handleContainerChange}
-          >
-            {item?.spec?.containers && (
-              <MenuItem disabled value="">
-                {t('glossary|Containers')}
-              </MenuItem>
-            )}
-            {item?.spec?.containers.map(({ name }) => (
-              <MenuItem value={name} key={name}>
-                {name}
-              </MenuItem>
-            ))}
-            {item?.spec?.initContainers && (
-              <MenuItem disabled value="">
-                {t('translation|Init Containers')}
-              </MenuItem>
-            )}
-            {item.spec.initContainers?.map(({ name }) => (
-              <MenuItem value={name} key={`init_container_${name}`}>
-                {name}
-              </MenuItem>
-            ))}
-            {item?.spec?.ephemeralContainers && (
-              <MenuItem disabled value="">
-                {t('glossary|Ephemeral Containers')}
-              </MenuItem>
-            )}
-            {item.spec.ephemeralContainers?.map(({ name }) => (
-              <MenuItem value={name} key={`eph_container_${name}`}>
-                {name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>,
-        <FormControl sx={{ minWidth: '6rem' }}>
-          <InputLabel shrink id="container-lines-chooser-label">
-            {t('translation|Lines')}
-          </InputLabel>
-          <Select
-            labelId="container-lines-chooser-label"
-            id="container-lines-chooser"
-            value={lines}
-            onChange={handleLinesChange}
-          >
-            {[100, 1000, 2500].map(i => (
-              <MenuItem value={i} key={i}>
-                {i}
-              </MenuItem>
-            ))}
-            <MenuItem value={-1}>All</MenuItem>
-          </Select>
-        </FormControl>,
-        <LightTooltip
-          title={
-            hasContainerRestarted()
-              ? t('translation|Show logs for previous instances of this container.')
-              : t(
-                  'translation|You can only select this option for containers that have been restarted.'
-                )
-          }
+        <Box
+          key="container-controls"
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+            alignItems: 'center',
+            width: '100%',
+          }}
         >
-          <PaddedFormControlLabel
-            label={t('translation|Show previous')}
-            disabled={!hasContainerRestarted()}
-            control={
-              <Switch
-                checked={showPrevious}
-                onChange={handlePreviousChange}
-                name="checkPrevious"
-                color="primary"
-                size="small"
+          {/* Upper actions box */}
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'row',
+              gap: 2,
+              width: '100%',
+            }}
+          >
+            <FormControl sx={{ minWidth: '11rem' }}>
+              <InputLabel shrink id="container-name-chooser-label">
+                {t('glossary|Container')}
+              </InputLabel>
+              <Select
+                labelId="container-name-chooser-label"
+                id="container-name-chooser"
+                value={container}
+                onChange={handleContainerChange}
+              >
+                {item?.spec?.containers && (
+                  <MenuItem disabled value="">
+                    {t('glossary|Containers')}
+                  </MenuItem>
+                )}
+                {item?.spec?.containers.map(({ name }) => (
+                  <MenuItem value={name} key={name}>
+                    {name}
+                  </MenuItem>
+                ))}
+                {item?.spec?.initContainers && (
+                  <MenuItem disabled value="">
+                    {t('translation|Init Containers')}
+                  </MenuItem>
+                )}
+                {item.spec.initContainers?.map(({ name }) => (
+                  <MenuItem value={name} key={`init_container_${name}`}>
+                    {name}
+                  </MenuItem>
+                ))}
+                {item?.spec?.ephemeralContainers && (
+                  <MenuItem disabled value="">
+                    {t('glossary|Ephemeral Containers')}
+                  </MenuItem>
+                )}
+                {item.spec.ephemeralContainers?.map(({ name }) => (
+                  <MenuItem value={name} key={`eph_container_${name}`}>
+                    {name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl sx={{ minWidth: '6rem' }}>
+              <InputLabel shrink id="container-lines-chooser-label">
+                {t('translation|Lines')}
+              </InputLabel>
+              <Select
+                labelId="container-lines-chooser-label"
+                id="container-lines-chooser"
+                value={lines}
+                onChange={handleLinesChange}
+              >
+                {[100, 1000, 2500].map(i => (
+                  <MenuItem value={i} key={i}>
+                    {i}
+                  </MenuItem>
+                ))}
+                <MenuItem value={-1}>All</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+
+          {/* Lower actions box */}
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', sm: 'row' },
+              width: '100%',
+            }}
+          >
+            <LightTooltip
+              title={
+                hasContainerRestarted()
+                  ? t('translation|Show logs for previous instances of this container.')
+                  : t(
+                      'translation|You can only select this option for containers that have been restarted.'
+                    )
+              }
+            >
+              <PaddedFormControlLabel
+                label={t('translation|Show previous')}
+                disabled={!hasContainerRestarted()}
+                control={
+                  <Switch
+                    checked={showPrevious}
+                    onChange={handlePreviousChange}
+                    name="checkPrevious"
+                    color="primary"
+                    size="small"
+                  />
+                }
               />
-            }
-          />
-        </LightTooltip>,
-        <PaddedFormControlLabel
-          label={t('translation|Timestamps')}
-          control={
-            <Switch
-              checked={showTimestamps}
-              onChange={handleTimestampsChange}
-              name="checkTimestamps"
-              color="primary"
-              size="small"
-            />
-          }
-        />,
-        <PaddedFormControlLabel
-          label={t('translation|Follow')}
-          control={
-            <Switch
-              checked={follow}
-              onChange={handleFollowChange}
-              name="follow"
-              color="primary"
-              size="small"
-            />
-          }
-        />,
+            </LightTooltip>
+
+            {/* Timestamps switch */}
+            <LightTooltip title={t('translation|Show timestamps in the logs.')}>
+              <PaddedFormControlLabel
+                label={t('translation|Timestamps')}
+                control={
+                  <Switch
+                    checked={showTimestamps}
+                    onChange={handleTimestampsChange}
+                    name="checkTimestamps"
+                    color="primary"
+                    size="small"
+                  />
+                }
+              />
+            </LightTooltip>
+
+            {/* Follow logs switch */}
+            <LightTooltip
+              title={t(
+                'translation|Follow logs in real-time. New log lines will be appended as they arrive.'
+              )}
+            >
+              <PaddedFormControlLabel
+                label={t('translation|Follow')}
+                control={
+                  <Switch
+                    checked={follow}
+                    onChange={handleFollowChange}
+                    name="follow"
+                    color="primary"
+                    size="small"
+                  />
+                }
+              />
+            </LightTooltip>
+
+            {/* Wrap text switch */}
+            <LightTooltip title={t('translation|Wrap text in the terminal.')}>
+              <PaddedFormControlLabel
+                control={
+                  <Switch checked={isTextWrappedEnabled} onChange={handleWrapText} size="small" />
+                }
+                label={t('translation|Wrap')}
+                disabled={false}
+              />
+            </LightTooltip>
+          </Box>
+        </Box>,
       ]}
       {...other}
     />

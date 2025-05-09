@@ -148,6 +148,7 @@
     "ViewButton": [Function],
     "ViewDialog": [Function],
     "addResourceTableColumnsProcessor": [Function],
+    "findLongestLine": [Function],
     "isRestartableResource": [Function],
     "makeStatusLabel": [Function],
     "metadataStyles": [Function],
