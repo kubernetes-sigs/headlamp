@@ -15,7 +15,7 @@
  */
 
 import { isEqual } from 'lodash';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
@@ -23,6 +23,7 @@ import { useClustersConf, useClustersVersion } from '../../../lib/k8s';
 import { Cluster } from '../../../lib/k8s/cluster';
 import Event from '../../../lib/k8s/event';
 import { createRouteURL } from '../../../lib/router';
+import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import { PageGrid, SectionBox, SectionFilterHeader } from '../../common';
 import ClusterTable from './ClusterTable';
 import { ENABLE_RECENT_CLUSTERS } from './config';
@@ -89,7 +90,7 @@ function HomeComponent(props: HomeComponentProps) {
   const warningLabels = useWarningSettingsPerCluster(
     Object.values(customNameClusters).map(c => c.name)
   );
-
+  const dispatchHomePageLoadedEvent = useEventCallback(HeadlampEventType.HOME_PAGE_LOADED);
   React.useEffect(() => {
     setCustomNameClusters(currentNames => {
       if (isEqual(currentNames, getCustomClusterNames(clusters))) {
@@ -98,6 +99,10 @@ function HomeComponent(props: HomeComponentProps) {
       return getCustomClusterNames(clusters);
     });
   }, [customNameClusters]);
+
+  useEffect(() => {
+    dispatchHomePageLoadedEvent(clusters, errors);
+  }, [customNameClusters, errors]);
 
   const memoizedComponent = React.useMemo(
     () => (
