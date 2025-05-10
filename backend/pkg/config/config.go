@@ -41,6 +41,16 @@ type Config struct {
 	OidcValidatorIdpIssuerURL string `koanf:"oidc-validator-idp-issuer-url"`
 	OidcScopes                string `koanf:"oidc-scopes"`
 	OidcUseAccessToken        bool   `koanf:"oidc-use-access-token"`
+	// telemetry configs
+	ServiceName        string   `koanf:"service-name"`
+	ServiceVersion     *string  `koanf:"service-version"`
+	TracingEnabled     *bool    `koanf:"tracing-enabled"`
+	MetricsEnabled     *bool    `koanf:"metrics-enabled"`
+	JaegerEndpoint     *string  `koanf:"jaeger-endpoint"`
+	OTLPEndpoint       *string  `koanf:"otlp-endpoint"`
+	UseOTLPHTTP        *bool    `koanf:"use-otlp-http"`
+	StdoutTraceEnabled *bool    `koanf:"stdout-trace-enabled"`
+	SamplingRate       *float64 `koanf:"sampling-rate"`
 }
 
 func (c *Config) Validate() error {
@@ -52,6 +62,23 @@ func (c *Config) Validate() error {
 
 	if c.BaseURL != "" && !strings.HasPrefix(c.BaseURL, "/") {
 		return errors.New("base-url needs to start with a '/' or be empty")
+	}
+
+	if c.TracingEnabled != nil && *c.TracingEnabled {
+		if c.ServiceName == "" {
+			return errors.New("service-name is required when tracing is enabled")
+		}
+
+		if (c.JaegerEndpoint != nil && *c.JaegerEndpoint == "") &&
+			(c.OTLPEndpoint != nil && *c.OTLPEndpoint == "") &&
+			(c.StdoutTraceEnabled != nil && *c.StdoutTraceEnabled) {
+			return errors.New("at least one tracing exporter (jaeger, otlp, or stdout) must be configured")
+		}
+
+		if (c.UseOTLPHTTP != nil && *c.UseOTLPHTTP) &&
+			(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
+			return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
+		}
 	}
 
 	return nil
@@ -193,6 +220,15 @@ func flagset() *flag.FlagSet {
 	f.String("oidc-scopes", "profile,email",
 		"A comma separated list of scopes needed from the OIDC provider")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
+	// Telemetry flags.
+	f.String("service-name", "headlamp", "Service name for telemetry")
+	f.String("service-version", "0.30.0", "Service version for telemetry")
+	f.Bool("tracing-enabled", false, "Enable distributed tracing")
+	f.Bool("metrics-enabled", true, "Enable metrics collection")
+	f.String("otlp-endpoint", "http://localhost:4317", "OTLP collector endpoint")
+	f.Bool("use-otlp-http", false, "Use HTTP instead of gRPC for OTLP export")
+	f.Bool("stdout-trace-enabled", false, "Enable tracing output to stdout")
+	f.Float64("sampling-rate", 1.0, "Sampling rate for traces")
 
 	return f
 }
