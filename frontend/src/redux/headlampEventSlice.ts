@@ -21,6 +21,7 @@ import {
   PayloadAction,
 } from '@reduxjs/toolkit';
 import { useDispatch } from 'react-redux';
+import { Cluster } from '../lib/k8s/cluster';
 import Event from '../lib/k8s/event';
 import { KubeObject } from '../lib/k8s/KubeObject';
 import Pod from '../lib/k8s/pod';
@@ -63,6 +64,8 @@ export enum HeadlampEventType {
   LIST_VIEW = 'headlamp.list-view',
   /** Events related to loading events for a resource. */
   OBJECT_EVENTS = 'headlamp.object-events',
+  /** Events related to home view loading */
+  HOME_PAGE_LOADED = 'headlamp.home-page-loaded',
 }
 
 /**
@@ -322,6 +325,16 @@ export interface EventListEvent {
   };
 }
 
+/**
+ * Event fired when a home page is loaded
+ */
+export interface HomePageLoadedEvent {
+  type: HeadlampEventType.HOME_PAGE_LOADED;
+  data: {
+    clusters: { [name: string]: Cluster };
+    errors: { [cluster: string]: Error | null };
+  };
+}
 export type HeadlampEventCallback = (data: HeadlampEvent) => void;
 
 const initialState: {
@@ -367,6 +380,7 @@ export default headlampEventSlice.reducer;
 type EventDataType<T extends HeadlampEvent> = T['data'];
 
 export function useEventCallback(): (eventInfo: HeadlampEvent | HeadlampEvent['type']) => void;
+
 export function useEventCallback(
   eventType: HeadlampEventType.ERROR_BOUNDARY
 ): (error: Error) => void;
@@ -415,6 +429,9 @@ export function useEventCallback(
 export function useEventCallback(
   eventInfo: HeadlampEventType.OBJECT_EVENTS
 ): (events: Event[], resource?: KubeObject) => void;
+export function useEventCallback(
+  eventType: HeadlampEventType.HOME_PAGE_LOADED
+): (clusters: { [name: string]: Cluster }, errors: { [cluster: string]: Error | null }) => void;
 export function useEventCallback(eventType?: HeadlampEventType | string) {
   const dispatch = useDispatch();
 
@@ -488,6 +505,18 @@ export function useEventCallback(eventType?: HeadlampEventType | string) {
               resource,
               events,
             },
+          })
+        );
+      };
+    case HeadlampEventType.HOME_PAGE_LOADED:
+      return (
+        clusters: { [name: string]: Cluster },
+        errors: { [cluster: string]: Error | null }
+      ) => {
+        dispatch(
+          eventAction({
+            type: HeadlampEventType.HOME_PAGE_LOADED,
+            data: { clusters, errors },
           })
         );
       };
