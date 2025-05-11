@@ -226,6 +226,7 @@
   "View: {{ itemName }}": "보기: {{ itemName }}",
   "Edit: {{ itemName }}": "편집: {{ itemName }}",
   "Loading editor": "에디터 로딩 중",
+  "Hide Managed Fields": "",
   "Use minimal editor": "간단한 에디터 사용",
   "Editor": "에디터",
   "Documentation": "문서",
