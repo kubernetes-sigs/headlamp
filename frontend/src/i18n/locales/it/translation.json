@@ -228,6 +228,7 @@
   "View: {{ itemName }}": "Visualizza: {{ itemName }}",
   "Edit: {{ itemName }}": "Modifica: {{ itemName }}",
   "Loading editor": "Caricamento editor",
+  "Hide Managed Fields": "",
   "Use minimal editor": "Usa editor minimale",
   "Editor": "Editor",
   "Documentation": "Documentazione",
