@@ -45,6 +45,7 @@ function ViewButton({ item, buttonStyle, initialToggle = false }: ViewButtonProp
       <EditorDialog
         item={item.jsonData}
         open={toggle}
+        allowToHideManagedFields
         onClose={() => setToggle(toggle => !toggle)}
         onSave={null}
       />

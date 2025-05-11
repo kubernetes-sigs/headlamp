@@ -227,6 +227,7 @@
   "View: {{ itemName }}": "View: {{ itemName }}",
   "Edit: {{ itemName }}": "Edit: {{ itemName }}",
   "Loading editor": "Loading editor",
+  "Hide Managed Fields": "Hide Managed Fields",
   "Use minimal editor": "Use minimal editor",
   "Editor": "Editor",
   "Documentation": "Documentation",

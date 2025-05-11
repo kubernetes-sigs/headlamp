@@ -226,6 +226,7 @@
   "View: {{ itemName }}": "檢視：{{ itemName }}",
   "Edit: {{ itemName }}": "編輯：{{ itemName }}",
   "Loading editor": "讀取編輯器",
+  "Hide Managed Fields": "",
   "Use minimal editor": "使用簡約編輯器",
   "Editor": "編輯器",
   "Documentation": "檔案",
