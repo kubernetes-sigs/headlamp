@@ -38,10 +38,12 @@ export default function Settings() {
   const storedTimezone = settingsObj.timezone;
   const storedRowsPerPageOptions = settingsObj.tableRowsPerPageOptions;
   const storedSortSidebar = settingsObj.sidebarSortAlphabetically;
+  const storedUseEvict = settingsObj.useEvict;
   const [selectedTimezone, setSelectedTimezone] = useState<string>(
     storedTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   );
   const [sortSidebar, setSortSidebar] = useState<boolean>(storedSortSidebar);
+  const [useEvict, setUseEvict] = useState<boolean>(storedUseEvict);
   const dispatch = useDispatch();
   const themeName = useTypedSelector(state => state.theme.name);
   const appThemes = useAppThemes();
@@ -61,6 +63,14 @@ export default function Settings() {
       })
     );
   }, [sortSidebar]);
+
+  useEffect(() => {
+    dispatch(
+      setAppSettings({
+        useEvict: useEvict,
+      })
+    );
+  }, [useEvict]);
 
   return (
     <SectionBox
@@ -138,6 +148,16 @@ export default function Settings() {
                 color="primary"
                 checked={sortSidebar}
                 onChange={e => setSortSidebar(e.target.checked)}
+              />
+            ),
+          },
+          {
+            name: t('translation|Use evict for pod deletion'),
+            value: (
+              <Switch
+                color="primary"
+                checked={useEvict}
+                onChange={e => setUseEvict(e.target.checked)}
               />
             ),
           },

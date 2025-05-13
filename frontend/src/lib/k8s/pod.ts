@@ -15,7 +15,7 @@
  */
 
 import { Base64 } from 'js-base64';
-import { stream, StreamArgs, StreamResultsCb } from './apiProxy';
+import { post, stream, StreamArgs, StreamResultsCb } from './apiProxy';
 import { KubeCondition, KubeContainer, KubeContainerStatus, Time } from './cluster';
 import { KubeObject, KubeObjectInterface } from './KubeObject';
 
@@ -119,6 +119,16 @@ class Pod extends KubeObject<KubePod> {
 
   get status(): KubePod['status'] {
     return this.jsonData.status;
+  }
+
+  evict() {
+    const url = `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/eviction`;
+    return post(url, {
+      metadata: {
+        name: this.getName(),
+        namespace: this.getNamespace(),
+      },
+    });
   }
 
   getLogs(...args: Parameters<oldGetLogs | newGetLogs>): () => void {
