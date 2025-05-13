@@ -45,6 +45,10 @@ type Context struct {
 	proxy       *httputil.ReverseProxy `json:"-"`
 	Internal    bool                   `json:"internal"`
 	Error       string                 `json:"error"`
+	// KubeConfigPath is the file path for the kubeconfig file.
+	KubeConfigPath string `json:"kubeConfigPath"`
+	// ClusterID is the unique identifier for the cluster, consisting of the filepath and context name.
+	ClusterID string `json:"clusterID"`
 }
 
 type OidcConfig struct {
@@ -345,7 +349,23 @@ func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []Conte
 
 	skipProxySetup := source != KubeConfig
 
-	return loadContextsFromData(data, source, skipProxySetup)
+	contexts, contextErrors, err := loadContextsFromData(data, source, skipProxySetup)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error loading contexts from file: %v", err)
+	}
+
+	// add the KubeConfigPath to each context
+	for i := range contexts {
+		pathName := kubeConfigPath
+
+		contexts[i].KubeConfigPath = pathName
+
+		// create the clusterID from the path and context name
+		clusterID := fmt.Sprintf("%s:%s", pathName, contexts[i].Name)
+		contexts[i].ClusterID = clusterID
+	}
+
+	return contexts, contextErrors, nil
 }
 
 // LoadContextsFromBase64String loads contexts from a base64 encoded kubeconfig string.
