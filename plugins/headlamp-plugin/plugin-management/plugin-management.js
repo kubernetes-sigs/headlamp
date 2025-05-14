@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 /**
  * plugin-management-utils.js has the core logic for managing plugins in Headlamp.
  *
@@ -49,6 +65,7 @@ class PluginManager {
    * @param {string} [headlampVersion=""] - The version of Headlamp for compatibility checking.
    * @param {function} [progressCallback=null] - Optional callback for progress updates.
    * @param {AbortSignal} [signal=null] - Optional AbortSignal for cancellation.
+   * @param {string} [pluginVersion=""] - The version of the plugin to install.
    * @returns {Promise<void>} A promise that resolves when the installation is complete.
    */
   static async install(
@@ -56,14 +73,16 @@ class PluginManager {
     destinationFolder = defaultPluginsDir(),
     headlampVersion = '',
     progressCallback = null,
-    signal = null
+    signal = null,
+    pluginVersion = ''
   ) {
     try {
       const [name, tempFolder] = await downloadExtractPlugin(
         URL,
         headlampVersion,
         progressCallback,
-        signal
+        signal,
+        pluginVersion
       );
 
       // sleep(2000);  // comment out for testing
@@ -297,14 +316,21 @@ function validateArchiveURL(archiveURL) {
  * @param {string} headlampVersion - The version of Headlamp for compatibility checking.
  * @param {function} progressCallback - A callback function for reporting progress.
  * @param {AbortSignal} signal - An optional AbortSignal for cancellation.
+ * @param {string} [pluginVersion=""] - The version of the plugin to install.
  * @returns {Promise<[string, string]>} A promise that resolves to an array containing the plugin name and temporary folder path.
  */
-async function downloadExtractPlugin(URL, headlampVersion, progressCallback, signal) {
+async function downloadExtractPlugin(
+  URL,
+  headlampVersion,
+  progressCallback,
+  signal,
+  pluginVersion
+) {
   // fetch plugin metadata
   if (signal && signal.aborted) {
     throw new Error('Download cancelled');
   }
-  const pluginInfo = await fetchPluginInfo(URL, progressCallback, signal);
+  const pluginInfo = await fetchPluginInfo(URL, progressCallback, signal, pluginVersion);
   // await sleep(4000);  // comment out for testing
 
   if (signal && signal.aborted) {
@@ -312,6 +338,9 @@ async function downloadExtractPlugin(URL, headlampVersion, progressCallback, sig
   }
   if (progressCallback) {
     progressCallback({ type: 'info', message: 'Plugin Metadata Fetched' });
+  }
+  if (!pluginInfo || pluginInfo.message === '') {
+    throw new Error('Unable to fetch plugin metadata. Please check the plugin details.');
   }
   const pluginName = pluginInfo.name;
   if (!validatePluginName(pluginName)) {
@@ -444,9 +473,10 @@ async function downloadExtractPlugin(URL, headlampVersion, progressCallback, sig
  * @param {string} URL - The URL to fetch plugin metadata from.
  * @param {function} progressCallback - A callback function for reporting progress.
  * @param {AbortSignal} signal - An optional AbortSignal for cancellation.
+ * @param {string} [pluginVersion=""] - The version of the plugin to install.
  * @returns {Promise<object>} A promise that resolves to the fetched plugin metadata.
  */
-async function fetchPluginInfo(URL, progressCallback, signal) {
+async function fetchPluginInfo(URL, progressCallback, signal, pluginVersion) {
   try {
     if (!URL.startsWith('https://artifacthub.io/packages/headlamp/')) {
       throw new Error('Invalid URL. Please provide a valid URL from ArtifactHub.');
@@ -460,11 +490,30 @@ async function fetchPluginInfo(URL, progressCallback, signal) {
     if (progressCallback) {
       progressCallback({ type: 'info', message: 'Fetching Plugin Metadata' });
     }
-    const response = await fetch(apiURL, { redirect: 'follow', follow: 10 }, { signal });
+    let response = await fetch(apiURL, { redirect: 'follow', follow: 10 }, { signal });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    return await response.json();
+    let pluginInfo = await response.json();
+    if (pluginVersion && pluginVersion !== pluginInfo.version) {
+      if (!pluginInfo.available_versions.map(v => v.version).includes(pluginVersion)) {
+        throw new Error(
+          `Plugin version ${pluginVersion} not found. Please check the plugin details.`
+        );
+      }
+      // Remove trailing slash if present to avoid double slashes
+      const baseURL = apiURL.endsWith('/') ? apiURL.slice(0, -1) : apiURL;
+      response = await fetch(
+        `${baseURL}/${pluginVersion}`,
+        { redirect: 'follow', follow: 10 },
+        { signal }
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      pluginInfo = await response.json();
+    }
+    return pluginInfo;
   } catch (e) {
     if (progressCallback) {
       progressCallback({ type: 'error', message: e.message });

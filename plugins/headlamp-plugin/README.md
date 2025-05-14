@@ -52,10 +52,33 @@ headlamp-plugin --help
                                             working directory. Can also be a
                                             folder of packages.
   headlamp-plugin.js list                   List installed plugins.
-  headlamp-plugin.js install [URL]          Install a plugin from the specified
-                                            Artifact Hub URL.
+  headlamp-plugin.js install [URL]          Install plugin(s) from a configuration
+                                            file or a plugin Artifact Hub URL.
+                                            Options:
+                                            -c, --config: Path to config file
+                                            --folderName: Install folder name
+                                            --headlampVersion: Target version
+                                            -q, --quiet: Suppress logs
   headlamp-plugin.js update [pluginName]    Update the plugin to the latest version.
   headlamp-plugin.js uninstall [pluginName] Uninstall the plugin.
+```
+
+## Template for installing plugins from a configuration file
+
+plugins.yaml:
+
+```yaml
+plugins:
+  - name: my-plugin
+    source: https://artifacthub.io/packages/headlamp/test-123/my-plugin
+    version: 1.0.0
+  - name: another-plugin
+    source: https://artifacthub.io/packages/headlamp/test-123/another-plugin
+    dependencies:
+      - my-plugin
+installOptions:
+  parallel: true
+  maxConcurrent: 3
 ```
 
 ## Development notes
@@ -113,7 +136,6 @@ Run `npm run check-dependencies` to see if frontend/package.json and
 headlamp-plugin/package.json are synced. This is run in CI to make sure when dependencies
 are changed, they are synced appropriately.
 
-
 ### Upgrading to an alpha release
 
 You can try an alpha release for testing with the following command.
@@ -125,6 +147,7 @@ npx @kinvolk/headlamp-plugin@alpha upgrade --headlamp-plugin-version=alpha your-
 ### Making an alpha release of headlamp-plugin
 
 You can bump the version to do a new alpha release like so:
+
 ```bash
 cd plugins/headlamp-plugin
 npm version preminor --preid=alpha

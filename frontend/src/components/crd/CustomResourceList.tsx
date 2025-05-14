@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Box } from '@mui/material';
 import { JSONPath } from 'jsonpath-plus';
 import React from 'react';
@@ -54,6 +70,7 @@ function CustomResourceLink(props: {
         crd: crd.metadata.name,
         namespace: resource.metadata.namespace || '-',
       }}
+      activeCluster={resource.cluster}
       {...otherProps}
     >
       {resource.metadata.name}
@@ -81,7 +98,7 @@ function CustomResourceListRenderer(props: CustomResourceListProps) {
         ]}
         actions={[
           <Box mr={2}>
-            <Link routeName="crd" params={{ name: crd.metadata.name }}>
+            <Link routeName="crd" params={{ name: crd.metadata.name }} activeCluster={crd.cluster}>
               {t('glossary|CRD: {{ crdName }}', { crdName: crd.metadata.name })}
             </Link>
           </Box>,

@@ -1,4 +1,21 @@
 #!/usr/bin/env node
+
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 // @ts-check
 'use strict';
 
@@ -15,6 +32,7 @@ const headlampPluginPkg = require('../package.json');
 const PluginManager = require('../plugin-management/plugin-management').PluginManager;
 const { table } = require('table');
 const tar = require('tar');
+const MultiPluginManager = require('../plugin-management/multi-plugin-management');
 
 // ES imports
 const viteCopyPluginPromise = import('vite-plugin-static-copy');
@@ -549,8 +567,10 @@ function runScriptOnPackages(packageFolder, scriptName, cmdLine, env) {
 
     console.log(`"${folder}": ${scriptName}-ing, :${cmdLineToUse}:...`);
 
+    const [cmd, ...args] = cmdLineToUse.split(' ');
+
     try {
-      child_process.execSync(cmdLineToUse, {
+      child_process.execFileSync(cmd, args, {
         stdio: 'inherit',
         encoding: 'utf8',
         env: { ...process.env, ...(env || {}) },
@@ -1401,12 +1421,17 @@ yargs(process.argv.slice(2))
     }
   )
   .command(
-    'install <URL>',
-    'Install a plugin from the Artiface Hub URL',
+    'install [URL]',
+    'Install plugin(s) from a configuration file or a plugin artifact Hub URL',
     yargs => {
-      yargs
+      return yargs
         .positional('URL', {
           describe: 'URL of the plugin to install',
+          type: 'string',
+        })
+        .option('config', {
+          alias: 'c',
+          describe: 'Path to plugin configuration file',
           type: 'string',
         })
         .option('folderName', {
@@ -1421,22 +1446,66 @@ yargs(process.argv.slice(2))
           alias: 'q',
           describe: 'Do not print logs',
           type: 'boolean',
+        })
+        .check(argv => {
+          if (!argv.URL && !argv.config) {
+            throw new Error('Either URL or --config must be specified');
+          }
+          if (argv.URL && argv.config) {
+            throw new Error('Cannot specify both URL and --config');
+          }
+          return true;
         });
     },
     async argv => {
-      const { URL, folderName, headlampVersion, quiet } = argv;
-      const progressCallback = quiet
-        ? null
-        : data => {
-            if (data.type === 'error' || data.type === 'success') {
-              console.error(data.type, ':', data.message);
-            }
-          }; // Use console.log for logs if not in quiet mode
       try {
-        await PluginManager.install(URL, folderName, headlampVersion, progressCallback);
-      } catch (e) {
-        console.error(e.message);
-        process.exit(1); // Exit with error status
+        const { URL, config, folderName, headlampVersion, quiet } = argv;
+        const progressCallback = quiet
+          ? () => {}
+          : data => {
+              const { type = 'info', message, raise = true } = data;
+              if (config && !URL) {
+                // bulk installation
+                let prefix = '';
+                if (data.current || data.total || data.plugin) {
+                  prefix = `${data.current} of ${data.total} (${data.plugin}): `;
+                }
+                if (type === 'info' || type === 'success') {
+                  console.log(`${prefix}${type}: ${message}`);
+                } else if (type === 'error' && raise) {
+                  throw new Error(message);
+                } else {
+                  console.error(`${prefix}${type}: ${message}`);
+                }
+              } else {
+                if (type === 'error' || type === 'success') {
+                  console.error(`${type}: ${message}`);
+                }
+              }
+            };
+        if (URL) {
+          // Single plugin installation
+          try {
+            await PluginManager.install(URL, folderName, headlampVersion, progressCallback);
+          } catch (e) {
+            console.error(e.message);
+            process.exit(1); // Exit with error status
+          }
+        } else if (config) {
+          const installer = new MultiPluginManager(folderName, headlampVersion, progressCallback);
+          // Bulk installation from config
+          const result = await installer.installFromConfig(config);
+          // Exit with error if any plugins failed to install
+          if (result.failed > 0) {
+            process.exit(1);
+          }
+        }
+      } catch (error) {
+        console.error('Installation failed', {
+          error: error.message,
+          stack: error.stack,
+        });
+        process.exit(1);
       }
     }
   )

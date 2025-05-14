@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import ClusterRoleBinding from '../../lib/k8s/clusterRoleBinding';
@@ -7,19 +23,19 @@ import { Link } from '../common';
 import LabelListItem from '../common/LabelListItem';
 import ResourceListView from '../common/Resource/ResourceListView';
 
-function RoleLink(props: { role: string; namespace?: string }) {
-  const { role, namespace } = props;
+function RoleLink(props: { role: string; namespace?: string; cluster: string }) {
+  const { role, namespace, cluster } = props;
 
   if (namespace) {
     return (
-      <Link routeName="role" params={{ name: role, namespace }} tooltip>
+      <Link routeName="role" params={{ name: role, namespace }} activeCluster={cluster} tooltip>
         {role}
       </Link>
     );
   }
 
   return (
-    <Link routeName="clusterrole" params={{ name: role }} tooltip>
+    <Link routeName="clusterrole" params={{ name: role }} activeCluster={cluster} tooltip>
       {role}
     </Link>
   );
@@ -81,7 +97,11 @@ export default function RoleBindingList() {
           getValue: item => item.getNamespace() ?? t('translation|All namespaces'),
           render: item =>
             item.getNamespace() ? (
-              <Link routeName="namespace" params={{ name: item.getNamespace() }}>
+              <Link
+                routeName="namespace"
+                params={{ name: item.getNamespace() }}
+                activeCluster={item.cluster}
+              >
                 {item.getNamespace()}
               </Link>
             ) : (
@@ -93,7 +113,13 @@ export default function RoleBindingList() {
           id: 'role',
           label: t('glossary|Role'),
           getValue: item => item.roleRef.name,
-          render: item => <RoleLink role={item.roleRef.name} namespace={item.getNamespace()} />,
+          render: item => (
+            <RoleLink
+              role={item.roleRef.name}
+              namespace={item.getNamespace()}
+              cluster={item.cluster}
+            />
+          ),
         },
         {
           id: 'users',

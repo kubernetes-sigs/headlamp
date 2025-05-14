@@ -5,14 +5,11 @@
       class="MuiBox-root css-0"
     >
       <div
-        class="MuiDrawer-root MuiDrawer-docked css-13pew8z-MuiDrawer-docked"
+        class="MuiDrawer-root MuiDrawer-docked css-ptnx-MuiDrawer-docked"
       >
         <div
-          class="MuiPaper-root MuiPaper-outlined MuiDrawer-paper MuiDrawer-paperAnchorLeft MuiDrawer-paperAnchorDockedLeft css-u8pgxa-MuiPaper-root-MuiDrawer-paper"
+          class="MuiPaper-root MuiPaper-outlined MuiDrawer-paper MuiDrawer-paperAnchorLeft MuiDrawer-paperAnchorDockedLeft css-r16dox-MuiPaper-root-MuiDrawer-paper"
         >
-          <div
-            class="MuiBox-root css-dak3i4"
-          />
           <div
             class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column MuiGrid-wrap-xs-nowrap css-opqjvv-MuiGrid-root"
           >

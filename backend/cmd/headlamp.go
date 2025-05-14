@@ -1,3 +1,19 @@
+/*
+Copyright 2025 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package main
 
 import (
@@ -41,28 +57,31 @@ import (
 )
 
 type HeadlampConfig struct {
-	useInCluster          bool
-	listenAddr            string
-	devMode               bool
-	insecure              bool
-	enableHelm            bool
-	enableDynamicClusters bool
-	watchPluginsChanges   bool
-	port                  uint
-	kubeConfigPath        string
-	skippedKubeContexts   string
-	staticDir             string
-	pluginDir             string
-	staticPluginDir       string
-	oidcClientID          string
-	oidcClientSecret      string
-	oidcIdpIssuerURL      string
-	baseURL               string
-	oidcScopes            []string
-	proxyURLs             []string
-	cache                 cache.Cache[interface{}]
-	kubeConfigStore       kubeconfig.ContextStore
-	multiplexer           *Multiplexer
+	useInCluster              bool
+	listenAddr                string
+	devMode                   bool
+	insecure                  bool
+	enableHelm                bool
+	enableDynamicClusters     bool
+	watchPluginsChanges       bool
+	port                      uint
+	kubeConfigPath            string
+	skippedKubeContexts       string
+	staticDir                 string
+	pluginDir                 string
+	staticPluginDir           string
+	oidcClientID              string
+	oidcValidatorClientID     string
+	oidcClientSecret          string
+	oidcIdpIssuerURL          string
+	oidcValidatorIdpIssuerURL string
+	oidcUseAccessToken        bool
+	baseURL                   string
+	oidcScopes                []string
+	proxyURLs                 []string
+	cache                     cache.Cache[interface{}]
+	kubeConfigStore           kubeconfig.ContextStore
+	multiplexer               *Multiplexer
 }
 
 const DrainNodeCacheTTL = 20 // seconds
@@ -576,6 +595,11 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		if config.oidcValidatorIdpIssuerURL != "" {
+			ctx = oidc.InsecureIssuerURLContext(ctx, config.oidcValidatorIdpIssuerURL)
+		}
+
 		provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
 		if err != nil {
 			logger.Log(logger.LevelError, map[string]string{"idpIssuerURL": oidcAuthConfig.IdpIssuerURL},
@@ -585,8 +609,12 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			return
 		}
 
+		validatorClientID := oidcAuthConfig.ClientID
+		if config.oidcValidatorClientID != "" {
+			validatorClientID = config.oidcValidatorClientID
+		}
 		oidcConfig := &oidc.Config{
-			ClientID: oidcAuthConfig.ClientID,
+			ClientID: validatorClientID,
 		}
 
 		verifier := provider.Verifier(oidcConfig)
@@ -652,23 +680,28 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 				return
 			}
 
-			rawIDToken, ok := oauth2Token.Extra("id_token").(string)
+			tokenType := "id_token"
+			if config.oidcUseAccessToken {
+				tokenType = "access_token"
+			}
+
+			rawUserToken, ok := oauth2Token.Extra(tokenType).(string)
 			if !ok {
-				logger.Log(logger.LevelError, nil, err, "no id_token field in oauth2 token")
-				http.Error(w, "No id_token field in oauth2 token.", http.StatusInternalServerError)
+				logger.Log(logger.LevelError, nil, err, fmt.Sprintf("no %s field in oauth2 token", tokenType))
+				http.Error(w, fmt.Sprintf("No %s field in oauth2 token.", tokenType), http.StatusInternalServerError)
 
 				return
 			}
 
 			if err := config.cache.Set(context.Background(),
-				fmt.Sprintf("oidc-token-%s", rawIDToken), oauth2Token.RefreshToken); err != nil {
+				fmt.Sprintf("oidc-token-%s", rawUserToken), oauth2Token.RefreshToken); err != nil {
 				logger.Log(logger.LevelError, nil, err, "failed to cache refresh token")
 				http.Error(w, "Failed to cache refresh token: "+err.Error(), http.StatusInternalServerError)
 
 				return
 			}
 
-			idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawIDToken)
+			idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawUserToken)
 			if err != nil {
 				logger.Log(logger.LevelError, nil, err, "failed to verify ID Token")
 				http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
@@ -700,7 +733,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 				redirectURL += baseURL + "/"
 			}
 
-			redirectURL += fmt.Sprintf("auth?cluster=%1s&token=%2s", decodedState, rawIDToken)
+			redirectURL += fmt.Sprintf("auth?cluster=%1s&token=%2s", decodedState, rawUserToken)
 			http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 		} else {
 			http.Error(w, "invalid request", http.StatusBadRequest)

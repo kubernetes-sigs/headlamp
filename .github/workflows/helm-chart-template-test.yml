@@ -5,6 +5,9 @@ on:
     paths:
       - charts/**
       - '!charts/**/README.md'
+      - Makefile
+      - .github/workflows/helm-chart-template-test.yml
+      - charts/headlamp/tests/**
   push:
     branches:
       - main

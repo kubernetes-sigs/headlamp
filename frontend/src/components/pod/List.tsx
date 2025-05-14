@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Icon } from '@iconify/react';
 import { Box } from '@mui/material';
 import React from 'react';
@@ -98,6 +114,9 @@ function getContainerDisplayStatus(container: KubeContainerStatus) {
   } else if (state.terminated) {
     color = 'green';
     label = 'Terminated';
+    if (state.terminated.reason === 'Error') {
+      color = 'red';
+    }
     if (state.terminated.reason) {
       tooltipLines.push(`Reason: ${state.terminated.reason}`);
     }
@@ -257,7 +276,12 @@ export function PodListRenderer(props: PodListProps) {
           getValue: pod => pod?.spec?.nodeName,
           render: pod =>
             pod?.spec?.nodeName && (
-              <Link routeName="node" params={{ name: pod.spec.nodeName }} tooltip>
+              <Link
+                routeName="node"
+                params={{ name: pod.spec.nodeName }}
+                activeCluster={pod.cluster}
+                tooltip
+              >
                 {pod.spec.nodeName}
               </Link>
             ),
@@ -268,7 +292,12 @@ export function PodListRenderer(props: PodListProps) {
           getValue: pod => pod?.status?.nominatedNodeName,
           render: pod =>
             !!pod?.status?.nominatedNodeName && (
-              <Link routeName="node" params={{ name: pod?.status?.nominatedNodeName }} tooltip>
+              <Link
+                routeName="node"
+                params={{ name: pod?.status?.nominatedNodeName }}
+                activeCluster={pod.cluster}
+                tooltip
+              >
                 {pod?.status?.nominatedNodeName}
               </Link>
             ),
