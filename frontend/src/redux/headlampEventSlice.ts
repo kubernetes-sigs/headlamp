@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import {
   createAction,
   createListenerMiddleware,
@@ -19,6 +35,8 @@ export enum HeadlampEventType {
   ERROR_BOUNDARY = 'headlamp.error-boundary',
   /** Events related to deleting a resource. */
   DELETE_RESOURCE = 'headlamp.delete-resource',
+  /** Events related to deleting multiple resources. */
+  DELETE_RESOURCES = 'headlamp.delete-resources',
   /** Events related to creating a resource. */
   CREATE_RESOURCE = 'headlamp.create-resource',
   /** Events related to editing a resource. */
@@ -27,6 +45,8 @@ export enum HeadlampEventType {
   SCALE_RESOURCE = 'headlamp.scale-resource',
   /** Events related to restarting a resource. */
   RESTART_RESOURCE = 'headlamp.restart-resource',
+  /** Events related to restarting multiple resources. */
+  RESTART_RESOURCES = 'headlamp.restart-resources',
   /** Events related to viewing logs. */
   LOGS = 'headlamp.logs',
   /** Events related to opening a terminal. */
@@ -93,6 +113,20 @@ export interface DeleteResourceEvent extends HeadlampEvent<HeadlampEventType.DEL
 }
 
 /**
+ * Event fired when resources is to be deleted.
+ */
+export interface DeleteResourcesEvent extends HeadlampEvent<HeadlampEventType.DELETE_RESOURCES> {
+  data: {
+    /** Resources for which the deletion was called. */
+    resources: KubeObject[];
+    /** What exactly this event represents. 'CONFIRMED' when the user confirms the deletion of resources.
+     * For now only 'CONFIRMED' is sent.
+     */
+    status: EventStatus.CONFIRMED;
+  };
+}
+
+/**
  * Event fired when editing a resource.
  */
 export interface EditResourceEvent {
@@ -125,12 +159,25 @@ export interface ScaleResourceEvent {
 /**
  * Event fired when restarting a resource.
  */
-export interface RestartResourceEvent {
-  type: HeadlampEventType.RESTART_RESOURCE;
+export interface RestartResourceEvent extends HeadlampEvent<HeadlampEventType.RESTART_RESOURCE> {
   data: {
-    /** The resource for which the deletion was called. */
+    /** The resource for which restart was called. */
     resource: KubeObject;
-    /** What exactly this event represents. 'CONFIRMED' when the restart is selected by the user.
+    /** What exactly this event represents. 'CONFIRMED' when restart is selected by the user.
+     * For now only 'CONFIRMED' is sent.
+     */
+    status: EventStatus.CONFIRMED;
+  };
+}
+
+/**
+ * Event fired when restarting multiple resources.
+ */
+export interface RestartResourcesEvent extends HeadlampEvent<HeadlampEventType.RESTART_RESOURCES> {
+  data: {
+    /** Resources for which restart was called. */
+    resources: KubeObject[];
+    /** What exactly this event represents. 'CONFIRMED' when the user confirms restart of resources.
      * For now only 'CONFIRMED' is sent.
      */
     status: EventStatus.CONFIRMED;
@@ -327,6 +374,9 @@ export function useEventCallback(
   eventType: HeadlampEventType.DELETE_RESOURCE
 ): (data: EventDataType<DeleteResourceEvent>) => void;
 export function useEventCallback(
+  eventType: HeadlampEventType.DELETE_RESOURCES
+): (data: EventDataType<DeleteResourcesEvent>) => void;
+export function useEventCallback(
   eventType: HeadlampEventType.EDIT_RESOURCE
 ): (data: EventDataType<EditResourceEvent>) => void;
 export function useEventCallback(
@@ -335,6 +385,9 @@ export function useEventCallback(
 export function useEventCallback(
   eventType: HeadlampEventType.RESTART_RESOURCE
 ): (data: EventDataType<RestartResourceEvent>) => void;
+export function useEventCallback(
+  eventType: HeadlampEventType.RESTART_RESOURCES
+): (data: EventDataType<RestartResourcesEvent>) => void;
 export function useEventCallback(
   eventType: HeadlampEventType.LOGS
 ): (data: EventDataType<LogsEvent>) => void;
@@ -388,6 +441,8 @@ export function useEventCallback(eventType?: HeadlampEventType | string) {
       };
     case HeadlampEventType.DELETE_RESOURCE:
       return dispatchDataEventFunc<DeleteResourceEvent>(HeadlampEventType.DELETE_RESOURCE);
+    case HeadlampEventType.DELETE_RESOURCES:
+      return dispatchDataEventFunc<DeleteResourcesEvent>(HeadlampEventType.DELETE_RESOURCES);
     case HeadlampEventType.EDIT_RESOURCE:
       return dispatchDataEventFunc<EditResourceEvent>(HeadlampEventType.EDIT_RESOURCE);
     case HeadlampEventType.SCALE_RESOURCE:

@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Box } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { KubeContainer } from '../../lib/k8s/cluster';
@@ -70,19 +86,20 @@ export default function DeploymentsList() {
           getValue: deployment => deployment.status.availableReplicas,
           render: deployment => renderPods(deployment),
           sort: sortByPods,
-          gridTemplate: 0.5,
+          gridTemplate: 'min-content',
         },
         {
           id: 'replicas',
           label: t('Replicas'),
           getValue: deployment => deployment.spec.replicas || 0,
-          gridTemplate: 0.6,
+          gridTemplate: 'min-content',
         },
         {
           id: 'conditions',
           label: t('translation|Conditions'),
           getValue: deployment => deployment.status?.conditions?.map((c: any) => c.type)?.join(''),
           render: deployment => renderConditions(deployment),
+          gridTemplate: 'auto',
           cellProps: {
             sx: {
               flexWrap: 'wrap',
@@ -93,6 +110,7 @@ export default function DeploymentsList() {
         {
           id: 'containers',
           label: t('Containers'),
+          gridTemplate: 'auto',
           getValue: deployment =>
             deployment
               .getContainers()
@@ -112,6 +130,7 @@ export default function DeploymentsList() {
         {
           id: 'images',
           label: t('Images'),
+          gridTemplate: 'auto',
           getValue: deployment =>
             deployment
               .getContainers()

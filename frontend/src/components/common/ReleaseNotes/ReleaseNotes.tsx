@@ -1,8 +1,31 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import React from 'react';
 import semver from 'semver';
-import helpers from '../../../helpers';
 import ReleaseNotesModal from './ReleaseNotesModal';
 import UpdatePopup from './UpdatePopup';
+
+function getAppVersion() {
+  return localStorage.getItem('app_version');
+}
+
+function setAppVersion(value: string) {
+  localStorage.setItem('app_version', value);
+}
 
 export default function ReleaseNotes() {
   const { desktopApi } = window;
@@ -82,7 +105,7 @@ export default function ReleaseNotes() {
 
               // check if there is already a version in store, if it exists don't store the current version
               // this check will help us later in determining whether we are on the latest release or not.
-              const storedAppVersion = helpers.getAppVersion();
+              const storedAppVersion = getAppVersion();
               let releaseNotes = '';
 
               if (storedAppVersion && semver.lt(storedAppVersion, currentBuildAppVersion)) {
@@ -122,7 +145,7 @@ export default function ReleaseNotes() {
 
               // set the store version to the current so that we don't show release notes on
               // every start of the app
-              helpers.setAppVersion(currentBuildAppVersion);
+              setAppVersion(currentBuildAppVersion);
 
               // Calling this after setting the version above, so the release notes have the right version
               // set when they show it.
@@ -168,7 +191,7 @@ export default function ReleaseNotes() {
         />
       }
       {releaseNotes && (
-        <ReleaseNotesModal releaseNotes={releaseNotes} appVersion={helpers.getAppVersion()} />
+        <ReleaseNotesModal releaseNotes={releaseNotes} appVersion={getAppVersion()} />
       )}
     </>
   );

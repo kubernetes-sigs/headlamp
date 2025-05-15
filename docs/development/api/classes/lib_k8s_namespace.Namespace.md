@@ -28,7 +28,7 @@ makeKubeObject<KubeNamespace\>('namespace').constructor
 
 #### Defined in
 
-[lib/k8s/cluster.ts:318](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L318)
+[lib/k8s/cluster.ts:318](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L318)
 
 ## Properties
 
@@ -51,7 +51,7 @@ makeKubeObject<KubeNamespace\>('namespace').constructor
 
 #### Defined in
 
-[lib/k8s/namespace.ts:11](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/namespace.ts#L11)
+[lib/k8s/namespace.ts:11](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/namespace.ts#L11)
 
 ___
 
@@ -65,7 +65,7 @@ makeKubeObject<KubeNamespace\>('namespace').className
 
 #### Defined in
 
-[lib/k8s/cluster.ts:319](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L319)
+[lib/k8s/cluster.ts:319](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L319)
 
 ## Accessors
 
@@ -79,7 +79,7 @@ makeKubeObject<KubeNamespace\>('namespace').className
 
 #### Defined in
 
-[lib/k8s/namespace.ts:13](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/namespace.ts#L13)
+[lib/k8s/namespace.ts:13](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/namespace.ts#L13)
 
 ## Methods
 
@@ -105,7 +105,7 @@ makeKubeObject<KubeNamespace\>('namespace').apiList
 
 #### Defined in
 
-[lib/k8s/cluster.ts:294](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L294)
+[lib/k8s/cluster.ts:294](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L294)
 
 ___
 
@@ -130,7 +130,7 @@ makeKubeObject<KubeNamespace\>('namespace').getAuthorization
 
 #### Defined in
 
-[lib/k8s/cluster.ts:321](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L321)
+[lib/k8s/cluster.ts:321](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L321)
 
 ___
 
@@ -154,7 +154,7 @@ makeKubeObject<KubeNamespace\>('namespace').getErrorMessage
 
 #### Defined in
 
-[lib/k8s/cluster.ts:317](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L317)
+[lib/k8s/cluster.ts:317](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L317)
 
 ___
 
@@ -182,7 +182,7 @@ true if the namespace is valid, false otherwise.
 
 #### Defined in
 
-[lib/k8s/namespace.ts:23](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/namespace.ts#L23)
+[lib/k8s/namespace.ts:23](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/namespace.ts#L23)
 
 ___
 
@@ -209,7 +209,7 @@ makeKubeObject<KubeNamespace\>('namespace').useApiGet
 
 #### Defined in
 
-[lib/k8s/cluster.ts:304](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L304)
+[lib/k8s/cluster.ts:304](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L304)
 
 ___
 
@@ -235,7 +235,7 @@ makeKubeObject<KubeNamespace\>('namespace').useApiList
 
 #### Defined in
 
-[lib/k8s/cluster.ts:299](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L299)
+[lib/k8s/cluster.ts:299](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L299)
 
 ___
 
@@ -260,7 +260,7 @@ makeKubeObject<KubeNamespace\>('namespace').useGet
 
 #### Defined in
 
-[lib/k8s/cluster.ts:313](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L313)
+[lib/k8s/cluster.ts:313](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L313)
 
 ___
 
@@ -284,4 +284,4 @@ makeKubeObject<KubeNamespace\>('namespace').useList
 
 #### Defined in
 
-[lib/k8s/cluster.ts:310](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L310)
+[lib/k8s/cluster.ts:310](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L310)

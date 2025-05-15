@@ -12,7 +12,7 @@
 
 #### Defined in
 
-[lib/k8s/endpoints.ts:12](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/endpoints.ts#L12)
+[lib/k8s/endpoints.ts:12](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/endpoints.ts#L12)
 
 ___
 
@@ -22,7 +22,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/endpoints.ts:13](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/endpoints.ts#L13)
+[lib/k8s/endpoints.ts:13](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/endpoints.ts#L13)
 
 ___
 
@@ -32,7 +32,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/endpoints.ts:14](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/endpoints.ts#L14)
+[lib/k8s/endpoints.ts:14](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/endpoints.ts#L14)
 
 ___
 
@@ -42,4 +42,4 @@ ___
 
 #### Defined in
 
-[lib/k8s/endpoints.ts:15](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/endpoints.ts#L15)
+[lib/k8s/endpoints.ts:15](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/endpoints.ts#L15)

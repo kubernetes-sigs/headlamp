@@ -12,7 +12,7 @@
 
 #### Defined in
 
-[components/Sidebar/sidebarSlice.ts:6](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/components/Sidebar/sidebarSlice.ts#L6)
+[components/Sidebar/sidebarSlice.ts:6](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/Sidebar/sidebarSlice.ts#L6)
 
 ___
 
@@ -22,4 +22,4 @@ ___
 
 #### Defined in
 
-[components/Sidebar/sidebarSlice.ts:7](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/components/Sidebar/sidebarSlice.ts#L7)
+[components/Sidebar/sidebarSlice.ts:7](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/Sidebar/sidebarSlice.ts#L7)

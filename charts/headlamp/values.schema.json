@@ -296,6 +296,25 @@
         "port": {
           "type": "integer",
           "description": "Kubernetes Service port"
+        },
+        "clusterIP": {
+          "type": "string",
+          "description": "Kubernetes Service clusterIP"
+        },
+        "loadBalancerIP": {
+          "type": "string",
+          "description": "Kubernetes Service loadBalancerIP"
+        },
+        "loadBalancerSourceRanges": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Kubernetes Service loadBalancerSourceRanges"
+        },
+        "nodePort": {
+          "type": ["integer", "null"],
+          "description": "Kubernetes Service Nodeport"
         }
       }
     },
@@ -404,6 +423,13 @@
             }
           }
         }
+      }
+    },
+    "extraManifests": {
+      "type": "array",
+      "description": "Extra manifests to apply to the deployment",
+      "items": {
+        "type": "string"
       }
     }
   }

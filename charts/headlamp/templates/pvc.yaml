@@ -17,11 +17,11 @@ spec:
   {{- end}}
   resources:
     requests:
-      storage: {{ .Values.persistentVolumeClaim.size }}
+      storage: {{ required "A valid .Values.persistentVolumeClaim.size entry required!" .Values.persistentVolumeClaim.size }}
   {{- with .Values.persistentVolumeClaim.volumeMode }}
   volumeMode: {{ . }}
   {{- end }}
-  {{- with .Values.persistentVolumeClaim.storageClass }}
+  {{- with .Values.persistentVolumeClaim.storageClassName }}
   storageClassName: {{ . }}
   {{- end }}
   {{- with .Values.persistentVolumeClaim.selector }}

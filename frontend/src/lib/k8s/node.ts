@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import React from 'react';
 import { useErrorState } from '../util';
 import { useConnectApi } from '.';
@@ -7,11 +23,11 @@ import { KubeObject, KubeObjectInterface } from './KubeObject';
 
 export interface KubeNode extends KubeObjectInterface {
   status: {
-    addresses: {
+    addresses?: {
       address: string;
       type: string;
     }[];
-    allocatable: {
+    allocatable?: {
       cpu: any;
       memory: any;
       ephemeralStorage: any;
@@ -19,7 +35,7 @@ export interface KubeNode extends KubeObjectInterface {
       hugepages_2Mi: any;
       pods: any;
     };
-    capacity: {
+    capacity?: {
       cpu: any;
       memory: any;
       ephemeralStorage: any;
@@ -27,10 +43,10 @@ export interface KubeNode extends KubeObjectInterface {
       hugepages_2Mi: any;
       pods: any;
     };
-    conditions: (Omit<KubeCondition, 'lastProbeTime' | 'lastUpdateTime'> & {
+    conditions?: (Omit<KubeCondition, 'lastProbeTime' | 'lastUpdateTime'> & {
       lastHeartbeatTime: string;
     })[];
-    nodeInfo: {
+    nodeInfo?: {
       architecture: string;
       bootID: string;
       containerRuntimeVersion: string;
@@ -47,6 +63,7 @@ export interface KubeNode extends KubeObjectInterface {
     podCIDR: string;
     taints: {
       key: string;
+      value?: string;
       effect: string;
     }[];
     [otherProps: string]: any;
@@ -85,11 +102,11 @@ class Node extends KubeObject<KubeNode> {
   }
 
   getExternalIP(): string {
-    return this.status.addresses.find(address => address.type === 'ExternalIP')?.address || '';
+    return this.status.addresses?.find(address => address.type === 'ExternalIP')?.address || '';
   }
 
   getInternalIP(): string {
-    return this.status.addresses.find(address => address.type === 'InternalIP')?.address || '';
+    return this.status.addresses?.find(address => address.type === 'InternalIP')?.address || '';
   }
 }
 

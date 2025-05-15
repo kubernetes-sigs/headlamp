@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import {
   Box,
   Button,
@@ -10,14 +26,13 @@ import {
   InputLabel,
 } from '@mui/material';
 import _ from 'lodash';
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import { apply } from '../../lib/k8s/apiProxy';
 import CronJob from '../../lib/k8s/cronJob';
 import Job from '../../lib/k8s/job';
-import { KubeObjectInterface } from '../../lib/k8s/KubeObject';
 import { clusterAction } from '../../redux/clusterActionSlice';
 import { AppDispatch } from '../../redux/stores/store';
 import { ActionButton } from '../common';
@@ -26,68 +41,74 @@ import AuthVisible from '../common/Resource/AuthVisible';
 import { JobsListRenderer } from '../job/List';
 import { getLastScheduleTime, getSchedule } from './List';
 
-function SpawnJobDialog(props: {
-  cronJob: CronJob;
-  applyFunc: (newItem: KubeObjectInterface) => Promise<KubeObjectInterface>;
-  openJobDialog: boolean;
-  setOpenJobDialog: (open: boolean) => void;
-}) {
-  const { cronJob, openJobDialog, setOpenJobDialog, applyFunc } = props;
+// method to generate a unique string
+const uniqueString = () => {
+  const timestamp = Date.now().toString(36);
+  const randomNum = Math.random().toString(36).substr(2, 5);
+  return `${timestamp}-${randomNum}`;
+};
+
+const maxNameLength = 63;
+
+function SpawnJobDialog(props: { cronJob: CronJob; onClose: () => void }) {
+  const { cronJob, onClose } = props;
   const { namespace } = useParams<{ namespace: string }>();
   const { t } = useTranslation(['translation']);
   const dispatch: AppDispatch = useDispatch();
 
-  // method to generate a unique string
-  const uniqueString = () => {
-    const timestamp = Date.now().toString(36);
-    const randomNum = Math.random().toString(36).substr(2, 5);
-    return `${timestamp}-${randomNum}`;
-  };
+  const suffix = `-manual-spawn-${uniqueString()}`;
 
-  const job = _.cloneDeep(cronJob.spec.jobTemplate);
   const [jobName, setJobName] = useState(
-    `${cronJob?.metadata?.name}-manual-spawn-${uniqueString()}`
+    () => `${cronJob?.metadata?.name.substring(0, maxNameLength - suffix.length)}${suffix}`
   );
 
-  // set all the fields that are assumed on the jobTemplate
-  job.kind = 'Job';
-  job.metadata = _.cloneDeep(job.metadata) || {};
-  job.metadata.namespace = namespace;
-  job.apiVersion = 'batch/v1';
-  job.metadata.name = jobName;
-  job.metadata.annotations = {
-    ...job.metadata.annotations,
-    'cronjob.kubernetes.io/instantiate': 'manual',
-  };
-  if (!!cronJob.jsonData) {
-    job.metadata.ownerReferences = [
-      {
-        apiVersion: cronJob.jsonData.apiVersion,
-        blockOwnerDeletion: true,
-        controller: true,
-        kind: cronJob.jsonData.kind,
-        name: cronJob.metadata.name,
-        uid: cronJob.metadata.uid,
-      },
-    ];
-  }
-
-  function handleClose() {
-    setOpenJobDialog(false);
+  function handleSpawn() {
+    const job = _.cloneDeep(cronJob.spec.jobTemplate);
+    // set all the fields that are assumed on the jobTemplate
+    job.kind = 'Job';
+    job.metadata = _.cloneDeep(job.metadata) || {};
+    job.metadata.namespace = namespace;
+    job.apiVersion = 'batch/v1';
+    job.metadata.name = jobName;
+    job.metadata.annotations = {
+      ...job.metadata.annotations,
+      'cronjob.kubernetes.io/instantiate': 'manual',
+    };
+    if (!!cronJob.jsonData) {
+      job.metadata.ownerReferences = [
+        {
+          apiVersion: cronJob.jsonData.apiVersion,
+          blockOwnerDeletion: true,
+          controller: true,
+          kind: cronJob.jsonData.kind,
+          name: cronJob.metadata.name,
+          uid: cronJob.metadata.uid,
+        },
+      ];
+    }
+    onClose();
+    dispatch(
+      clusterAction(() => apply(job), {
+        startMessage: t('translation|Spawning Job {{ newItemName }}…', {
+          newItemName: jobName,
+        }),
+        successMessage: t('translation|Job {{ newItemName }} spawned', {
+          newItemName: jobName,
+        }),
+        errorMessage: t('translation|Failed to spawn Job {{ newItemName }}', {
+          newItemName: jobName,
+        }),
+      })
+    );
   }
 
   return (
-    <Dialog
-      open={openJobDialog}
-      onClose={handleClose}
-      aria-labelledby="form-dialog-title"
-      maxWidth="sm"
-    >
+    <Dialog open onClose={onClose} aria-labelledby="form-dialog-title" maxWidth="sm">
       <DialogTitle id="form-dialog-title">{t('translation|Spawn Job')}</DialogTitle>
       <DialogContent>
         <DialogContentText>
           {t('translation|This will trigger a new Job based on the CronJob {{ name }}', {
-            name,
+            name: cronJob.getName(),
           })}
         </DialogContentText>
         <Box mb={1}>
@@ -105,28 +126,10 @@ function SpawnJobDialog(props: {
         />
       </DialogContent>
       <DialogActions>
-        <Button onClick={handleClose} color="primary">
+        <Button onClick={onClose} color="primary">
           {t('translation|Cancel')}
         </Button>
-        <Button
-          onClick={() => {
-            handleClose();
-            dispatch(
-              clusterAction(() => applyFunc(job), {
-                startMessage: t('translation|Spawning Job {{ newItemName }}…', {
-                  newItemName: job.metadata.name,
-                }),
-                successMessage: t('translation|Job {{ newItemName }} spawned', {
-                  newItemName: job.metadata.name,
-                }),
-                errorMessage: t('translation|Failed to spawn Job {{ newItemName }}', {
-                  newItemName: job.metadata.name,
-                }),
-              })
-            );
-          }}
-          color="primary"
-        >
+        <Button onClick={handleSpawn} color="primary">
           {t('translation|Spawn')}
         </Button>
       </DialogActions>
@@ -134,149 +137,102 @@ function SpawnJobDialog(props: {
   );
 }
 
-export default function CronJobDetails() {
-  const { namespace, name } = useParams<{ namespace: string; name: string }>();
-  const { t, i18n } = useTranslation('glossary');
+export default function CronJobDetails(props: {
+  name?: string;
+  namespace?: string;
+  cluster?: string;
+}) {
+  const params = useParams<{ namespace: string; name: string }>();
+  const { name = params.name, namespace = params.namespace, cluster } = props;
 
-  const [jobs, jobsError] = Job.useList({ namespace });
-  const [cronJob, setCronJob] = useState<CronJob | null>(null);
-  const [isCronSuspended, setIsCronSuspended] = useState(false);
-  const [isCheckingCronSuspendStatus, setIsCheckingCronSuspendStatus] = useState(true);
-  const [openJobDialog, setOpenJobDialog] = useState(false);
+  const { t, i18n } = useTranslation('glossary');
   const dispatch: AppDispatch = useDispatch();
 
-  useEffect(() => {
-    if (cronJob) {
-      setIsCronSuspended(cronJob.spec.suspend);
-      setIsCheckingCronSuspendStatus(false);
-    }
-  }, [cronJob]);
+  const [cronJob] = CronJob.useGet(name, namespace);
+  const { items: jobs, errors } = Job.useList({ namespace, cluster: cronJob?.cluster });
+  const [isSpawnDialogOpen, setIsSpawnDialogOpen] = useState(false);
+  const [isPendingSuspend, setIsPendingSuspend] = useState(false);
+  const isCronSuspended = cronJob?.spec.suspend;
 
-  function filterOwnedJobs(jobs?: Job[] | null) {
-    if (!jobs) {
-      return null;
-    }
+  const ownedJobs = useMemo(
+    () =>
+      jobs?.filter(job =>
+        job.metadata.ownerReferences?.find(ref => ref.kind === 'CronJob' && ref.name === name)
+      ) ?? [],
+    [jobs, name]
+  );
 
-    return jobs.filter(job => {
-      type OwnerRef = {
-        name: string;
-        kind: string;
-      };
-      return !!job.metadata?.ownerReferences?.find(
-        (ownerRef: OwnerRef) => ownerRef.kind === 'CronJob' && ownerRef.name === name
-      );
-    });
-  }
-
-  const ownedJobs = filterOwnedJobs(jobs);
-
-  function applyFunc(newItem: KubeObjectInterface): Promise<KubeObjectInterface> {
-    if (newItem.kind === 'CronJob') {
-      setIsCheckingCronSuspendStatus(true);
-    } else if (newItem.kind === 'Job') {
-      setOpenJobDialog(false);
-    }
-    const result = apply(newItem).finally(() => {
-      setIsCheckingCronSuspendStatus(false);
-    }) as unknown;
-
-    return result as Promise<KubeObjectInterface>;
-  }
-
-  function PauseResumeAction() {
-    if (!cronJob) {
-      return null;
-    }
-    return (
-      <ActionButton
-        description={isCronSuspended ? t('translation|Resume') : t('translation|Suspend')}
-        onClick={() => {
-          handleCron(cronJob, !isCronSuspended);
-        }}
-        icon={isCronSuspended ? 'mdi:play-circle' : 'mdi:pause-circle'}
-        iconButtonProps={{
-          disabled: isCheckingCronSuspendStatus,
-        }}
-      />
-    );
-  }
-
-  function handleCron(cronJob: CronJob, suspend: boolean) {
-    const clonedCronJob = _.cloneDeep(cronJob);
-    clonedCronJob.spec.suspend = suspend;
-    setIsCheckingCronSuspendStatus(true);
+  function applySuspend(cronJob: CronJob, suspend: boolean) {
+    setIsPendingSuspend(true);
     dispatch(
-      clusterAction(() => applyFunc(clonedCronJob.jsonData), {
-        startMessage: suspend
-          ? t('translation|Suspending CronJob {{ newItemName }}…', {
-              newItemName: clonedCronJob.metadata.name,
-            })
-          : t('translation|Resuming CronJob {{ newItemName }}…', {
-              newItemName: clonedCronJob.metadata.name,
-            }),
-        cancelledMessage: suspend
-          ? t('translation|Cancelled suspending CronJob {{ newItemName }}.', {
-              newItemName: clonedCronJob.metadata.name,
-            })
-          : t('translation|Cancelled resuming CronJob {{ newItemName }}.', {
-              newItemName: clonedCronJob.metadata.name,
-            }),
-        successMessage: suspend
-          ? t('translation|Suspended CronJob {{ newItemName }}.', {
-              newItemName: clonedCronJob.metadata.name,
-            })
-          : t('translation|Resumed CronJob {{ newItemName }}.', {
-              newItemName: clonedCronJob.metadata.name,
-            }),
-        errorMessage: suspend
-          ? t('translation|Failed to suspend CronJob {{ newItemName }}.', {
-              newItemName: clonedCronJob.metadata.name,
-            })
-          : t('translation|Failed to resume CronJob {{ newItemName }}.', {
-              newItemName: clonedCronJob.metadata.name,
-            }),
-      })
+      clusterAction(
+        () => cronJob.patch({ spec: { suspend } }).finally(() => setIsPendingSuspend(false)),
+        {
+          cancelCallback: () => setIsPendingSuspend(false),
+          startMessage: suspend
+            ? t('translation|Suspending CronJob {{ newItemName }}…', {
+                newItemName: cronJob.metadata.name,
+              })
+            : t('translation|Resuming CronJob {{ newItemName }}…', {
+                newItemName: cronJob.metadata.name,
+              }),
+          cancelledMessage: suspend
+            ? t('translation|Cancelled suspending CronJob {{ newItemName }}.', {
+                newItemName: cronJob.metadata.name,
+              })
+            : t('translation|Cancelled resuming CronJob {{ newItemName }}.', {
+                newItemName: cronJob.metadata.name,
+              }),
+          successMessage: suspend
+            ? t('translation|Suspended CronJob {{ newItemName }}.', {
+                newItemName: cronJob.metadata.name,
+              })
+            : t('translation|Resumed CronJob {{ newItemName }}.', {
+                newItemName: cronJob.metadata.name,
+              }),
+          errorMessage: suspend
+            ? t('translation|Failed to suspend CronJob {{ newItemName }}.', {
+                newItemName: cronJob.metadata.name,
+              })
+            : t('translation|Failed to resume CronJob {{ newItemName }}.', {
+                newItemName: cronJob.metadata.name,
+              }),
+        }
+      )
     );
   }
 
-  const actions = [];
-
-  actions.push(
-    cronJob && (
-      <AuthVisible authVerb="create" item={Job} namespace={cronJob.getNamespace()}>
-        <ActionButton
-          description={t('translation|Spawn Job')}
-          onClick={() => {
-            setOpenJobDialog(true);
-          }}
-          icon="mdi:lightning-bolt-circle"
-        />
-        {openJobDialog && (
-          <SpawnJobDialog
-            cronJob={cronJob}
-            openJobDialog={openJobDialog}
-            setOpenJobDialog={setOpenJobDialog}
-            applyFunc={applyFunc}
+  const actions = cronJob
+    ? [
+        <AuthVisible authVerb="create" item={Job} namespace={cronJob.getNamespace()}>
+          <ActionButton
+            description={t('translation|Spawn Job')}
+            onClick={() => setIsSpawnDialogOpen(true)}
+            icon="mdi:lightning-bolt-circle"
           />
-        )}
-      </AuthVisible>
-    )
-  );
-
-  actions.push(
-    <AuthVisible authVerb="update" item={cronJob}>
-      <PauseResumeAction />
-    </AuthVisible>
-  );
+          {isSpawnDialogOpen && (
+            <SpawnJobDialog cronJob={cronJob} onClose={() => setIsSpawnDialogOpen(false)} />
+          )}
+        </AuthVisible>,
+        <AuthVisible authVerb="update" item={cronJob}>
+          <ActionButton
+            description={isCronSuspended ? t('translation|Resume') : t('translation|Suspend')}
+            onClick={() => applySuspend(cronJob, !isCronSuspended)}
+            icon={isCronSuspended ? 'mdi:play-circle' : 'mdi:pause-circle'}
+            iconButtonProps={{ disabled: isPendingSuspend }}
+          />
+        </AuthVisible>,
+      ]
+    : [];
 
   return (
     <DetailsGrid
       resourceType={CronJob}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       actions={actions}
-      onResourceUpdate={cronJob => setCronJob(cronJob)}
       extraInfo={item =>
         item && [
           {
@@ -302,7 +258,7 @@ export default function CronJobDetails() {
         cronJob && [
           <JobsListRenderer
             jobs={ownedJobs}
-            error={CronJob.getErrorMessage(jobsError)}
+            errors={errors}
             hideColumns={['namespace']}
             noNamespaceFilter
           />,

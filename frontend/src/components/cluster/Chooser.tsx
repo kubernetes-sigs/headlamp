@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Icon, InlineIcon } from '@iconify/react';
 import { DialogActions, IconButton } from '@mui/material';
 import Autocomplete from '@mui/material/Autocomplete';
@@ -21,13 +37,14 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath } from 'react-router';
 import { useHistory } from 'react-router-dom';
-import helpers from '../../helpers';
+import { isElectron } from '../../helpers/isElectron';
+import { getRecentClusters, setRecentCluster } from '../../helpers/recentClusters';
 import { useClustersConf } from '../../lib/k8s';
 import { Cluster } from '../../lib/k8s/cluster';
 import { createRouteURL } from '../../lib/router';
 import { getCluster, getClusterPrefixedPath } from '../../lib/util';
-import { setVersionDialogOpen } from '../../redux/actions/actions';
 import { useTypedSelector } from '../../redux/reducers/reducers';
+import { uiSlice } from '../../redux/uiSlice';
 import { AppLogo } from '../App/AppLogo';
 import ActionButton from '../common/ActionButton';
 import { DialogTitle } from '../common/Dialog';
@@ -163,7 +180,7 @@ function ClusterList(props: ClusterListProps) {
   const maxRecentClusters = 3;
   // We slice it here for the maximum recent clusters just for extra safety, since this
   // is an entry point to the rest of the functionality
-  const recentClusterNames = helpers.getRecentClusters().slice(0, maxRecentClusters);
+  const recentClusterNames = getRecentClusters().slice(0, maxRecentClusters);
 
   let recentClusters: Cluster[] = [];
 
@@ -304,7 +321,7 @@ export function ClusterDialog(props: ClusterDialogProps) {
               aria-label={t('Show build information')}
               onClick={() => {
                 handleClose();
-                dispatch(setVersionDialogOpen(true));
+                dispatch(uiSlice.actions.setVersionDialogOpen(true));
               }}
               size="small"
             >
@@ -369,7 +386,7 @@ function Chooser(props: ClusterDialogProps) {
 
   function handleButtonClick(cluster: Cluster) {
     if (cluster.name !== getCluster()) {
-      helpers.setRecentCluster(cluster);
+      setRecentCluster(cluster);
       history.push({
         pathname: generatePath(getClusterPrefixedPath(), {
           cluster: cluster.name,
@@ -427,7 +444,7 @@ function Chooser(props: ClusterDialogProps) {
                 <DialogContentText>
                   {t('Please make sure you have at least one cluster configured.')}
                 </DialogContentText>
-                {helpers.isElectron() && (
+                {isElectron() && (
                   <DialogContentText>
                     {t('Or try running Headlamp with a different kube config.')}
                   </DialogContentText>
@@ -438,7 +455,7 @@ function Chooser(props: ClusterDialogProps) {
         ) : (
           <ClusterList clusters={clusterList} onButtonClick={handleButtonClick} />
         )}
-        {helpers.isElectron() ? (
+        {isElectron() ? (
           <Box style={{ justifyContent: 'center', display: 'flex' }}>
             <ActionButton
               description={t('Load from a file')}

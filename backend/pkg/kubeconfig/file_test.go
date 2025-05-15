@@ -4,11 +4,31 @@ import (
 	"os"
 	"testing"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+const clusterConf = `apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: dGVzdA==
+    server: https://kubernetes.docker.internal:6443
+  name: random-cluster-4
+contexts:
+- context:
+    cluster: random-cluster-4
+    user: random-cluster-4
+  name: random-cluster-4
+current-context: random-cluster-4
+kind: Config
+preferences: {}
+users:
+- name: random-cluster-4
+  user:
+  client-certificate-data: dGVzdA==
+  client-key-data: dGVzdA==`
 
 func TestWriteToFile(t *testing.T) {
 	// create kubeconfig3 file that doesn't exist

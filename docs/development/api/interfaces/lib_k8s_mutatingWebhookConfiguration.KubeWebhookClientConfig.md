@@ -12,7 +12,7 @@
 
 #### Defined in
 
-[lib/k8s/mutatingWebhookConfiguration.ts:13](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/mutatingWebhookConfiguration.ts#L13)
+[lib/k8s/mutatingWebhookConfiguration.ts:13](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/mutatingWebhookConfiguration.ts#L13)
 
 ___
 
@@ -31,7 +31,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/mutatingWebhookConfiguration.ts:15](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/mutatingWebhookConfiguration.ts#L15)
+[lib/k8s/mutatingWebhookConfiguration.ts:15](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/mutatingWebhookConfiguration.ts#L15)
 
 ___
 
@@ -41,4 +41,4 @@ ___
 
 #### Defined in
 
-[lib/k8s/mutatingWebhookConfiguration.ts:14](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/mutatingWebhookConfiguration.ts#L14)
+[lib/k8s/mutatingWebhookConfiguration.ts:14](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/mutatingWebhookConfiguration.ts#L14)

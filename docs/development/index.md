@@ -15,7 +15,7 @@ See [platforms](../platforms.md) to find out which browsers, OS and flavors of K
 These are the required dependencies to get started. Other dependencies are pulled in by the golang or node package managers (see frontend/package.json, app/package.json, backend/go.mod and Dockerfile).
 
 - [Node.js](https://nodejs.org/en/download/) Latest LTS (20.11.1 at time of writing). Many of us use [nvm](https://github.com/nvm-sh/nvm) for installing multiple versions of Node.
-- [Go](https://go.dev/doc/install), (1.22 at time of writing)
+- [Go](https://go.dev/doc/install), (1.24 at time of writing)
 - [Make](https://www.gnu.org/software/make/) (GNU). Often installed by default. On Windows this can be installed with the "chocolatey" package manager that is installed with node.
 - [Kubernetes](https://kubernetes.io/), we suggest [minikube](https://minikube.sigs.k8s.io/docs/) as one good K8s installation for testing locally. Other k8s installations are supported (see [platforms](../platforms.md).
 
@@ -63,13 +63,7 @@ You can build the app for Linux, Windows, or Mac.
 Do so on the platform you are building for. That is build the mac app on a Mac,
 and the linux app on a linux box.
 
-First, we need to
-
-```bash
-make backend frontend
-```
-
-Then choose the relevant command.
+Choose the relevant command:
 
 ```bash
 make app-linux
@@ -100,6 +94,23 @@ make app-win-msi
 ```
 
 See the generated app files in app/dist/ .
+
+### Running the app
+
+If you already have **BOTH** the `backend` and `frontend` up and running, the quickest way to 
+get the `app` running for development is the following:
+
+```bash
+make run-only-app
+```
+
+or else you can simply do
+
+```bash
+make run-app
+```
+
+which runs everything including the `backend`, `frontend` and `app` in parallel.
 
 ### Running the app on Ubuntu WSL
 
@@ -187,7 +198,7 @@ DOCKER_IMAGE_VERSION=development make image
 #### Create a deployment yaml
 
 ```bash
-kubectl create deployment headlamp -n kube-system --image=headlamp-k8s/headlamp:development -o yaml --dry-run -- /headlamp/headlamp-server -html-static-dir /headlamp/frontend -in-cluster -plugins-dir=/headlamp/plugins > minikube-headlamp.yaml
+kubectl create deployment headlamp -n kube-system --image=headlamp-k8s/headlamp:development -o yaml --dry-run -- /headlamp/headlamp-server -html-static-dir /headlamp/frontend -in-cluster -watch-plugins-changes false -plugins-dir=/headlamp/plugins > minikube-headlamp.yaml
 ```
 
 To use the local container image we change the `imagePullPolicy` to Never.

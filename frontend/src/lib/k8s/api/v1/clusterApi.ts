@@ -1,4 +1,21 @@
-import helpers, { getHeadlampAPIHeaders } from '../../../../helpers';
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { loadClusterSettings } from '../../../../helpers/clusterSettings';
+import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import { ConfigState } from '../../../../redux/configSlice';
 import store from '../../../../redux/stores/store';
 import {
@@ -6,7 +23,7 @@ import {
   findKubeconfigByClusterName,
   storeStatelessClusterKubeconfig,
 } from '../../../../stateless';
-import { getCluster } from '../../../util';
+import { getCluster, getSelectedClusters } from '../../../cluster';
 import { ClusterRequest, clusterRequest, post, request } from './clusterRequests';
 import { JSON_HEADERS } from './constants';
 
@@ -29,8 +46,15 @@ export async function testAuth(cluster = '', namespace = 'default') {
  * Will throw an error if the cluster is not healthy.
  */
 export async function testClusterHealth(cluster?: string) {
-  const clusterName = cluster || getCluster() || '';
-  return clusterRequest('/healthz', { isJSON: false, cluster: clusterName });
+  const clusterNames = cluster ? [cluster] : getSelectedClusters();
+
+  const healthChecks = clusterNames.map(clusterName => {
+    return clusterRequest('/healthz', { isJSON: false, cluster: clusterName }).catch(error => {
+      throw new Error(`Cluster ${clusterName} is not healthy: ${error.message}`);
+    });
+  });
+
+  return Promise.all(healthChecks);
 }
 
 export async function setCluster(clusterReq: ClusterRequest) {
@@ -108,7 +132,7 @@ export function getClusterDefaultNamespace(cluster: string, checkSettings?: bool
 
   if (!!cluster) {
     if (includeSettings) {
-      const clusterSettings = helpers.loadClusterSettings(cluster);
+      const clusterSettings = loadClusterSettings(cluster);
       defaultNamespace = clusterSettings?.defaultNamespace || '';
     }
 

@@ -1,9 +1,25 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import _ from 'lodash';
-import React from 'react';
-import { matchPath, useLocation } from 'react-router-dom';
+import React, { useMemo } from 'react';
+import { useHistory } from 'react-router-dom';
 import { ConfigState } from '../../redux/configSlice';
 import { useTypedSelector } from '../../redux/reducers/reducers';
-import { getCluster, getClusterGroup, getClusterPrefixedPath } from '../util';
+import { getCluster, getSelectedClusters } from '../cluster';
 import { ApiError, clusterRequest } from './apiProxy';
 import { Cluster, LabelSelector, StringDict } from './cluster';
 import ClusterRole from './clusterRole';
@@ -14,7 +30,11 @@ import CronJob from './cronJob';
 import DaemonSet from './daemonSet';
 import Deployment from './deployment';
 import Endpoints from './endpoints';
+import Gateway from './gateway';
+import GatewayClass from './gatewayClass';
+import GRPCRoute from './grpcRoute';
 import HPA from './hpa';
+import HTTPRoute from './httpRoute';
 import Ingress from './ingress';
 import IngressClass from './ingressClass';
 import Job from './job';
@@ -73,6 +93,10 @@ export const ResourceClasses = {
   ServiceAccount,
   StatefulSet,
   StorageClass,
+  Gateway,
+  GatewayClass,
+  HTTPRoute,
+  GRPCRoute,
 };
 
 /** Hook for getting or fetching the clusters configuration.
@@ -94,47 +118,48 @@ export function useClustersConf(): ConfigState['allClusters'] {
     Object.assign(allClusters, statelessClusters);
   }
 
-  return allClusters;
+  return useMemo(() => allClusters, [Object.keys(allClusters).join(',')]);
 }
 
+/**
+ * Get the currently selected cluster name.
+ *
+ * If more than one cluster is selected it will return:
+ *  - On details pages: the cluster of the currently viewed resource
+ *  - On any other page: one of the selected clusters
+ *
+ * To get all currently selected clusters please use {@link useSelectedClusters}
+ *
+ * @returns currently selected cluster
+ */
 export function useCluster() {
-  // Make sure we update when changing clusters.
-  // @todo: We need a better way to do this.
-  const location = useLocation();
+  const history = useHistory();
 
-  // This function is similar to the getCluster() but uses the location
-  // meaning it will return the URL from whatever the router used it (which
-  // is more accurate than getting it from window.location like the former).
-  function getClusterFromLocation(): string | null {
-    const urlPath = location?.pathname;
-    const clusterURLMatch = matchPath<{ cluster?: string }>(urlPath, {
-      path: getClusterPrefixedPath(),
-    });
-    return (!!clusterURLMatch && clusterURLMatch.params.cluster) || null;
-  }
-
-  const [cluster, setCluster] = React.useState<string | null>(getClusterFromLocation());
+  const [cluster, setCluster] = React.useState(getCluster());
 
   React.useEffect(() => {
-    const currentCluster = getClusterFromLocation();
-    if (cluster !== currentCluster) {
-      setCluster(currentCluster);
-    }
-  }, [cluster, location]);
+    // Listen to route changes
+    return history.listen(() => {
+      const newCluster = getCluster(history.location.pathname);
+      // Update the state only when the cluster changes
+      setCluster(currentCluster => (newCluster !== currentCluster ? newCluster : currentCluster));
+    });
+  }, [history]);
 
   return cluster;
 }
 
 /**
- * Get the group of clusters as defined in the URL. Updates when the cluster changes.
+ * Get a list of selected clusters. Updates when the cluster changes.
  *
- * @returns the cluster group from the URL. If no cluster is defined in the URL, an empty list is returned.
+ * @returns list of selected clusters. if no clusters are selected, an empty list is returned.
  */
-export function useClusterGroup(): string[] {
+export function useSelectedClusters(): string[] {
   const clusterInURL = useCluster();
+  const history = useHistory();
 
   const clusterGroup = React.useMemo(() => {
-    return getClusterGroup();
+    return getSelectedClusters([], history.location.pathname);
   }, [clusterInURL]);
 
   return clusterGroup;
@@ -287,18 +312,27 @@ export function matchExpressionSimplifier(
  * @returns a map with cluster -> version-info, and a map with cluster -> error.
  */
 export function useClustersVersion(clusters: Cluster[]) {
+  type VersionInfo = {
+    version: StringDict | null;
+    error: ApiError | null;
+  };
+
   const [clusterNames, setClusterNames] = React.useState<string[]>(
     Object.values(clusters).map(c => c.name)
   );
-  const [versions, setVersions] = React.useState<{ [cluster: string]: StringDict }>({});
-  const [errors, setErrors] = React.useState<{ [cluster: string]: ApiError | null }>({});
+  const [versions, setVersions] = React.useState<{ [cluster: string]: VersionInfo }>({});
   const versionFetchInterval = 10000; // ms
   const cancelledRef = React.useRef(false);
   const lastUpdateRef = React.useRef(0);
 
   React.useEffect(() => {
-    const newClusterNames = Object.values(clusters).map(c => c.name);
-    if (_.isEqual(newClusterNames, clusterNames)) {
+    // We sort the lists so the order of clusters doesn't influence our comparison. We only
+    // care for presence, not for order.
+    const newClusterNames = Object.values(clusters)
+      .map(c => c.name)
+      .sort();
+    const sortedClusterNames = [...clusterNames].sort();
+    if (_.isEqual(sortedClusterNames, clusterNames)) {
       return;
     }
 
@@ -308,38 +342,34 @@ export function useClustersVersion(clusters: Cluster[]) {
 
   React.useEffect(() => {
     const newVersions: typeof versions = {};
-    const newErrors: typeof errors = {};
 
     function updateValues() {
       if (cancelledRef.current) {
         return;
       }
 
+      let needsUpdate = false;
+
       setVersions(currentVersions => {
         const newVersionsToSet = { ...currentVersions };
-        Object.keys(newErrors).forEach(clusterName => {
-          if (!!newErrors[clusterName]) {
-            delete newVersionsToSet[clusterName];
+        for (const clusterName in newVersions) {
+          if (!_.isEqual(newVersionsToSet[clusterName], newVersions[clusterName])) {
+            needsUpdate = true;
+            newVersionsToSet[clusterName] = newVersions[clusterName];
           }
-        });
-        return { ...newVersionsToSet, ...newVersions };
-      });
-      setErrors(currentErrors => {
-        const newErrorsToSet = { ...currentErrors };
-        Object.keys(newVersions).forEach(clusterName => {
-          newErrorsToSet[clusterName] = null;
-        });
-        return { ...newErrorsToSet, ...newErrors };
+        }
+
+        return needsUpdate ? newVersionsToSet : currentVersions;
       });
     }
 
     clusterNames.forEach(clusterName => {
       getVersion(clusterName)
         .then(version => {
-          newVersions[clusterName] = version;
+          newVersions[clusterName] = { version, error: null };
         })
         .catch(err => {
-          newErrors[clusterName] = err;
+          newVersions[clusterName] = { version: null, error: err };
         })
         .finally(() => {
           updateValues();
@@ -356,7 +386,10 @@ export function useClustersVersion(clusters: Cluster[]) {
       }
 
       if (Date.now() - lastUpdateRef.current > versionFetchInterval - 1) {
-        setClusterNames(clusterNames);
+        // Refreshes the list of clusters
+        // Creating a new array will trigger the useEffect above
+        // effectively refreshing the versions/errors/statuses
+        setClusterNames([...clusterNames]);
       }
     }, versionFetchInterval);
 
@@ -366,7 +399,21 @@ export function useClustersVersion(clusters: Cluster[]) {
     };
   }, []);
 
-  return [versions, errors] as const;
+  return React.useMemo<
+    [{ [clusterName: string]: StringDict }, { [clusterName: string]: VersionInfo['error'] }]
+  >(() => {
+    const versionsInfo: { [clusterName: string]: StringDict } = {};
+    const errorsInfo: { [clusterName: string]: VersionInfo['error'] } = {};
+
+    Object.entries(versions).forEach(([clusterName, versionInfo]) => {
+      if (!!versionInfo.version) {
+        versionsInfo[clusterName] = versionInfo.version;
+      }
+      errorsInfo[clusterName] = versionInfo.error;
+    });
+
+    return [versionsInfo, errorsInfo];
+  }, [versions]);
 }
 
 // Other exports that can be used by plugins:

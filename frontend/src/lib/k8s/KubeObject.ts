@@ -1,24 +1,47 @@
-import { OpPatch } from 'json-patch';
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { JSONPath } from 'jsonpath-plus';
 import { cloneDeep, unset } from 'lodash';
-import React from 'react';
-import helpers from '../../helpers';
-import { getCluster } from '../cluster';
+import React, { useMemo } from 'react';
+import { loadClusterSettings } from '../../helpers/clusterSettings';
+import { formatClusterPathParam, getCluster, getSelectedClusters } from '../cluster';
 import { createRouteURL } from '../router';
 import { timeAgo } from '../util';
-import { useClusterGroup, useConnectApi } from '.';
-import { useKubeObject, useKubeObjectList } from './api/v2/hooks';
-import { ApiError, apiFactory, apiFactoryWithNamespace, post, QueryParameters } from './apiProxy';
+import { useConnectApi, useSelectedClusters } from '.';
+import { RecursivePartial } from './api/v1/factories';
+import { useKubeObject } from './api/v2/hooks';
+import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
+import {
+  ApiError,
+  apiFactory,
+  apiFactoryWithNamespace,
+  DeleteParameters,
+  post,
+  QueryParameters,
+} from './apiProxy';
 import { KubeEvent } from './event';
 import { KubeMetadata } from './KubeMetadata';
 
-function getAllowedNamespaces() {
-  const cluster = getCluster();
+function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
   if (!cluster) {
     return [];
   }
 
-  const clusterSettings = helpers.loadClusterSettings(cluster);
+  const clusterSettings = loadClusterSettings(cluster);
   return clusterSettings.allowedNamespaces || [];
 }
 
@@ -48,14 +71,23 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     const factory = this.isNamespaced ? apiFactoryWithNamespace : apiFactory;
     const versions = Array.isArray(this.apiVersion) ? this.apiVersion : [this.apiVersion];
 
-    const factoryArguments = versions.map(apiVersion => {
+    // Create factory arguments per API version, usually just one
+    const factoryArgumentsArray = versions.map(apiVersion => {
       const [group, version] = apiVersion.includes('/') ? apiVersion.split('/') : ['', apiVersion];
       const includeScaleApi = ['Deployment', 'ReplicaSet', 'StatefulSet'].includes(this.kind);
 
       return [group, version, this.apiName, includeScaleApi];
     });
 
-    const endpoint = factory(...(factoryArguments as any));
+    // Extract the first argument list if we only have one version
+    // Because for resources with only one API version
+    // the factory expects flat arguments instead of an array
+    const factoryArguments =
+      factoryArgumentsArray.length === 1
+        ? factoryArgumentsArray[0]
+        : (factoryArgumentsArray as any);
+
+    const endpoint = factory(...factoryArguments);
     this._internalApiEndpoint = endpoint;
 
     return endpoint;
@@ -113,9 +145,14 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
   }
 
   getDetailsLink() {
+    const selectedClusters = getSelectedClusters();
+
+    const cluster = formatClusterPathParam(selectedClusters, this.cluster);
+
     const params = {
       namespace: this.getNamespace(),
       name: this.getName(),
+      cluster,
     };
     const link = createRouteURL(this.detailsRoute, params);
     return link;
@@ -286,24 +323,52 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
   }
 
   static useList<K extends KubeObject>(
-    this: new (...args: any) => K,
+    this: (new (...args: any) => K) & typeof KubeObject<any>,
     {
       cluster,
       clusters,
       namespace,
+      refetchInterval,
       ...queryParams
-    }: { cluster?: string; namespace?: string; clusters?: string[] } & QueryParameters = {}
+    }: {
+      cluster?: string;
+      clusters?: string[];
+      namespace?: string | string[];
+      /** How often to refetch the list. Won't refetch by default. Disables watching if set. */
+      refetchInterval?: number;
+    } & QueryParameters = {}
   ) {
-    const clusterGroup = useClusterGroup();
-    const theClusters = clusters || clusterGroup;
+    const fallbackClusters = useSelectedClusters();
 
-    return useKubeObjectList<K>({
+    // Create requests for each cluster and namespace
+    const requests = useMemo(() => {
+      const clusterList = cluster
+        ? [cluster]
+        : clusters || (fallbackClusters.length === 0 ? [''] : fallbackClusters);
+
+      const namespacesFromParams =
+        typeof namespace === 'string'
+          ? [namespace]
+          : Array.isArray(namespace)
+          ? namespace
+          : undefined;
+
+      return makeListRequests(
+        clusterList,
+        getAllowedNamespaces,
+        this.isNamespaced,
+        namespacesFromParams
+      );
+    }, [cluster, clusters, fallbackClusters, namespace, this.isNamespaced]);
+
+    const result = useKubeObjectList<K>({
       queryParams: queryParams,
-      kubeObjectClass: this as (new (...args: any) => K) & typeof KubeObject<any>,
-      clusters: theClusters,
-      cluster: cluster,
-      namespace: namespace,
+      kubeObjectClass: this,
+      requests,
+      refetchInterval,
     });
+
+    return result;
   }
 
   static useGet<K extends KubeObject>(
@@ -377,14 +442,21 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     return this.constructor as KubeObjectClass;
   }
 
-  delete() {
+  delete(force?: boolean) {
     const args: string[] = [this.getName()];
     if (this.isNamespaced) {
       args.unshift(this.getNamespace()!);
     }
+    const params: DeleteParameters = {};
+
+    console.log(force);
+    if (force) {
+      params.gracePeriodSeconds = 0;
+      console.log(params);
+    }
 
     // @ts-ignore
-    return this._class().apiEndpoint.delete(...args, {}, this._clusterName);
+    return this._class().apiEndpoint.delete(...args, params, this._clusterName);
   }
 
   update(data: KubeObjectInterface) {
@@ -424,7 +496,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     );
   }
 
-  patch(body: OpPatch[]) {
+  patch(body: RecursivePartial<T>) {
     const args: any[] = [body];
 
     if (this.isNamespaced) {
@@ -441,7 +513,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
    * @param reResourceAttrs The attributes describing this access request. See https://kubernetes.io/docs/reference/kubernetes-api/authorization-resources/self-subject-access-review-v1/#SelfSubjectAccessReviewSpec .
    * @returns The result of the access request.
    */
-  static async fetchAuthorization(reqResourseAttrs?: AuthRequestResourceAttrs) {
+  static async fetchAuthorization(reqResourseAttrs?: AuthRequestResourceAttrs, cluster?: string) {
     // @todo: We should get the API info from the API endpoint.
     const authApiVersions = ['v1', 'v1beta1'];
     for (let j = 0; j < authApiVersions.length; j++) {
@@ -457,7 +529,8 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
               resourceAttributes: reqResourseAttrs,
             },
           },
-          false
+          false,
+          { cluster }
         );
       } catch (err) {
         // If this is the last attempt or the error is not 404, let it throw.
@@ -468,48 +541,40 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     }
   }
 
-  static async getAuthorization(verb: string, reqResourseAttrs?: AuthRequestResourceAttrs) {
+  static async getAuthorization(
+    verb: string,
+    reqResourseAttrs?: AuthRequestResourceAttrs,
+    cluster?: string
+  ) {
     const resourceAttrs: AuthRequestResourceAttrs = {
       verb,
       ...reqResourseAttrs,
     };
 
     if (!resourceAttrs.resource) {
-      resourceAttrs['resource'] = this.pluralName;
+      resourceAttrs['resource'] = this.apiName;
     }
 
     // @todo: We should get the API info from the API endpoint.
 
-    // If we already have the group, version, and resource, then we can make the request
-    // without trying the API info, which may have several versions and thus be less optimal.
+    // If we already have the group and version, then we can make the request without
+    // trying the API info, which may have several versions and thus be less optimal.
     if (!!resourceAttrs.group && !!resourceAttrs.version && !!resourceAttrs.resource) {
-      return this.fetchAuthorization(resourceAttrs);
+      return this.fetchAuthorization(resourceAttrs, cluster);
     }
 
-    // If we don't have the group, version, and resource, then we have to try all of the
+    // If we don't have the group or version, then we have to try all of the
     // API info versions until we find one that works.
     const apiInfo = this.apiEndpoint.apiInfo;
     for (let i = 0; i < apiInfo.length; i++) {
-      const { group, version, resource } = apiInfo[i];
-      // We only take from the details from the apiInfo if they're missing from the resourceAttrs.
-      // The idea is that, since this function may also be called from the instance's getAuthorization,
-      // it may already have the details from the instance's API version.
-      const attrs = { ...resourceAttrs };
-
-      if (!!attrs.resource) {
-        attrs.resource = resource;
-      }
-      if (!!attrs.group) {
-        attrs.group = group;
-      }
-      if (!!attrs.version) {
-        attrs.version = version;
-      }
+      const { group, version } = apiInfo[i];
+      // The group and version are tied, so we take both if one is missing.
+      const attrs = { ...resourceAttrs, group: group, version: version };
 
       let authResult;
 
       try {
-        authResult = await this.fetchAuthorization(attrs);
+        authResult = await this.fetchAuthorization(attrs, cluster);
       } catch (err) {
         // If this is the last attempt or the error is not 404, let it throw.
         if ((err as ApiError).status !== 404 || i === apiInfo.length - 1) {
@@ -549,7 +614,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       resourceAttrs['version'] = version;
     }
 
-    return this._class().getAuthorization(verb, resourceAttrs);
+    return this._class().getAuthorization(verb, resourceAttrs, this.cluster);
   }
 
   static getErrorMessage(err: ApiError | null) {
@@ -565,6 +630,18 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       default:
         return 'Error';
     }
+  }
+
+  static getBaseObject(): Omit<KubeObjectInterface, 'metadata'> & {
+    metadata: Partial<KubeMetadata>;
+  } {
+    return {
+      apiVersion: Array.isArray(this.apiVersion) ? this.apiVersion[0] : this.apiVersion,
+      kind: this.kind,
+      metadata: {
+        name: '',
+      },
+    };
   }
 }
 

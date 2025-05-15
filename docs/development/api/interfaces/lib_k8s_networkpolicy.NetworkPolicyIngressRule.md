@@ -12,7 +12,7 @@
 
 #### Defined in
 
-[lib/k8s/networkpolicy.tsx:28](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/networkpolicy.tsx#L28)
+[lib/k8s/networkpolicy.tsx:28](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/networkpolicy.tsx#L28)
 
 ___
 
@@ -22,4 +22,4 @@ ___
 
 #### Defined in
 
-[lib/k8s/networkpolicy.tsx:27](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/networkpolicy.tsx#L27)
+[lib/k8s/networkpolicy.tsx:27](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/networkpolicy.tsx#L27)

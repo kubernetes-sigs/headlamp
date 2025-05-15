@@ -1,7 +1,22 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import Grid from '@mui/material/Grid';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation } from 'react-router-dom';
 import CronJob from '../../lib/k8s/cronJob';
 import DaemonSet from '../../lib/k8s/daemonSet';
 import Deployment from '../../lib/k8s/deployment';
@@ -13,7 +28,7 @@ import { WorkloadClass } from '../../lib/k8s/Workload';
 import { Workload } from '../../lib/k8s/Workload';
 import { getReadyReplicas, getTotalReplicas } from '../../lib/util';
 import Link from '../common/Link';
-import { PageGrid, ResourceLink } from '../common/Resource';
+import { PageGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { SectionBox } from '../common/SectionBox';
 import { WorkloadCircleChart } from './Charts';
@@ -44,7 +59,6 @@ export default function Overview() {
     [pods, deployments, statefulSets, daemonSets, replicaSets, jobs, cronJobs]
   );
 
-  const location = useLocation();
   const { t } = useTranslation('glossary');
 
   function getPods(item: Workload) {
@@ -75,7 +89,7 @@ export default function Overview() {
     joint = joint.filter(Boolean);
 
     // Return null if no items are yet loaded, so we show the spinner in the table.
-    if (joint.length === 0) {
+    if (joint.some(it => it === undefined)) {
       return null;
     }
 
@@ -129,13 +143,16 @@ export default function Overview() {
           {
             id: 'name',
             label: t('translation|Name'),
+            gridTemplate: 'auto',
             getValue: item => item.metadata.name,
-            render: item => <ResourceLink resource={item} state={{ backLink: { ...location } }} />,
+            render: item => <Link kubeObject={item} />,
           },
           'namespace',
+          'cluster',
           {
             id: 'pods',
             label: t('Pods'),
+            gridTemplate: 'min-content',
             getValue: item => item && getPods(item),
             sort: sortByReplicas,
           },

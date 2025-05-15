@@ -1,8 +1,25 @@
-import React from 'react';
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import React, { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { Redirect, Route, RouteProps, Switch, useHistory } from 'react-router-dom';
 import { getToken } from '../../lib/auth';
+import { getCluster, getSelectedClusters } from '../../lib/cluster';
 import { useClustersConf } from '../../lib/k8s';
 import {
   createRouteURL,
@@ -12,9 +29,8 @@ import {
   NotFoundRoute,
   Route as RouteType,
 } from '../../lib/router';
-import { getCluster, getClusterGroup } from '../../lib/util';
-import { setHideAppBar } from '../../redux/actions/actions';
 import { useTypedSelector } from '../../redux/reducers/reducers';
+import { uiSlice } from '../../redux/uiSlice';
 import ErrorBoundary from '../common/ErrorBoundary';
 import ErrorComponent from '../common/ErrorPage';
 import { useSidebarItem } from '../Sidebar';
@@ -36,25 +52,31 @@ export default function RouteSwitcher(props: { requiresToken: () => boolean }) {
     );
 
   return (
-    <Switch>
-      {filteredRoutes.map((route, index) =>
-        route.name === 'OidcAuth' ? (
-          <Route path={route.path} component={() => <RouteComponent route={route} />} key={index} />
-        ) : (
-          <AuthRoute
-            path={getRoutePath(route)}
-            sidebar={route.sidebar}
-            requiresAuth={!route.noAuthRequired}
-            requiresCluster={getRouteUseClusterURL(route)}
-            exact={!!route.exact}
-            clusters={clusters}
-            requiresToken={props.requiresToken}
-            children={<RouteComponent route={route} key={getCluster()} />}
-            key={`${getCluster()}`}
-          />
-        )
-      )}
-    </Switch>
+    <Suspense fallback={null}>
+      <Switch>
+        {filteredRoutes.map((route, index) =>
+          route.name === 'OidcAuth' ? (
+            <Route
+              path={route.path}
+              component={() => <RouteComponent route={route} />}
+              key={index}
+            />
+          ) : (
+            <AuthRoute
+              path={getRoutePath(route)}
+              sidebar={route.sidebar}
+              requiresAuth={!route.noAuthRequired}
+              requiresCluster={getRouteUseClusterURL(route)}
+              exact={!!route.exact}
+              clusters={clusters}
+              requiresToken={props.requiresToken}
+              children={<RouteComponent route={route} key={getCluster()} />}
+              key={`${getCluster()}`}
+            />
+          )
+        )}
+      </Switch>
+    </Suspense>
   );
 }
 
@@ -74,8 +96,12 @@ function RouteComponent({ route }: { route: RouteType }) {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   React.useEffect(() => {
-    dispatch(setHideAppBar(route.hideAppBar));
+    dispatch(uiSlice.actions.setHideAppBar(route.hideAppBar));
   }, [route.hideAppBar]);
+
+  React.useEffect(() => {
+    dispatch(uiSlice.actions.setIsFullWidth(route.isFullWidth));
+  }, [route.isFullWidth]);
 
   return (
     <PageTitle
@@ -139,7 +165,7 @@ function AuthRoute(props: AuthRouteProps) {
     }
 
     if (requiresCluster) {
-      if (getClusterGroup().length > 1) {
+      if (getSelectedClusters().length > 1) {
         // In multi-cluster mode, we do not know if one of them requires a token.
         return children;
       }

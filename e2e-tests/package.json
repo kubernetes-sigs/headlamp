@@ -12,6 +12,7 @@
     "@types/node": "^20.12.2"
   },
   "dependencies": {
+    "@axe-core/playwright": "^4.10.1",
     "yaml": "^2.3.4"
   }
 }

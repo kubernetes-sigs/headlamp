@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { InlineIcon } from '@iconify/react';
 import { Box, Button, CircularProgress, Tooltip, Typography } from '@mui/material';
 import { Alert } from '@mui/material';
@@ -5,7 +21,9 @@ import { grey } from '@mui/material/colors';
 import MuiLink from '@mui/material/Link';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import helpers from '../../../helpers';
+import { isDockerDesktop } from '../../../helpers/isDockerDesktop';
+import { isElectron } from '../../../helpers/isElectron';
+import { getCluster } from '../../../lib/cluster';
 import { PortForward as PortForwardState } from '../../../lib/k8s/api/v1/portForward';
 import {
   listPortForward,
@@ -16,7 +34,6 @@ import { KubeContainer } from '../../../lib/k8s/cluster';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';
 import Service from '../../../lib/k8s/service';
-import { getCluster } from '../../../lib/util';
 import ActionButton from '../ActionButton';
 export { type PortForward as PortForwardState } from '../../../lib/k8s/api/v1/portForward';
 
@@ -137,7 +154,7 @@ function PortForwardContent(props: PortForwardProps) {
     });
   }, []);
 
-  if (!helpers.isElectron()) {
+  if (!isElectron()) {
     return null;
   }
 
@@ -167,7 +184,7 @@ function PortForwardContent(props: PortForwardProps) {
     // In case of docker desktop only a range of ports are open
     // so we need to generate a random port from that range
     // while making sure that it is not already in use
-    if (helpers.isDockerDesktop()) {
+    if (isDockerDesktop()) {
       const validMinPort = 30000;
       const validMaxPort = 32000;
 
@@ -360,7 +377,7 @@ function PortForwardContent(props: PortForwardProps) {
 }
 
 export default function PortForward(props: PortForwardProps) {
-  if (!helpers.isElectron()) return null;
+  if (!isElectron()) return null;
 
   return <PortForwardContent {...props} />;
 }

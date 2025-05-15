@@ -1,4 +1,20 @@
-import helpers from '../../../../helpers';
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { getToken } from '../../../auth';
 import { JSON_HEADERS } from './constants';
 
@@ -18,7 +34,7 @@ import { JSON_HEADERS } from './constants';
  * to get the status of the drain node process.
  */
 export function drainNode(cluster: string, nodeName: string) {
-  return fetch(`${helpers.getAppUrl()}drain-node`, {
+  return fetch(`${getAppUrl()}drain-node`, {
     method: 'POST',
     headers: new Headers({
       Authorization: `Bearer ${getToken(cluster)}`,
@@ -60,7 +76,7 @@ interface DrainNodeStatus {
  * @throws {Error} if the response is not ok
  */
 export function drainNodeStatus(cluster: string, nodeName: string): Promise<DrainNodeStatus> {
-  return fetch(`${helpers.getAppUrl()}drain-node-status?cluster=${cluster}&nodeName=${nodeName}`, {
+  return fetch(`${getAppUrl()}drain-node-status?cluster=${cluster}&nodeName=${nodeName}`, {
     method: 'GET',
     headers: new Headers({
       Authorization: `Bearer ${getToken(cluster)}`,

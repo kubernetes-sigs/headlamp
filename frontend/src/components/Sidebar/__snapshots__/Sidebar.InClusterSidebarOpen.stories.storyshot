@@ -5,16 +5,13 @@
       class="MuiBox-root css-0"
     >
       <div
-        class="MuiDrawer-root MuiDrawer-docked css-1hap3a5-MuiDrawer-docked"
+        class="MuiDrawer-root MuiDrawer-docked css-ptnx-MuiDrawer-docked"
       >
         <div
-          class="MuiPaper-root MuiPaper-elevation MuiPaper-elevation0 MuiDrawer-paper MuiDrawer-paperAnchorLeft MuiDrawer-paperAnchorDockedLeft css-12i7wg6-MuiPaper-root-MuiDrawer-paper"
+          class="MuiPaper-root MuiPaper-outlined MuiDrawer-paper MuiDrawer-paperAnchorLeft MuiDrawer-paperAnchorDockedLeft css-r16dox-MuiPaper-root-MuiDrawer-paper"
         >
           <div
-            class="MuiBox-root css-6r4z7i"
-          />
-          <div
-            class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column MuiGrid-wrap-xs-nowrap css-tf9pd2-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column MuiGrid-wrap-xs-nowrap css-opqjvv-MuiGrid-root"
           >
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
@@ -23,10 +20,10 @@
                 class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
               >
                 <li
-                  class="css-1icvoo8"
+                  class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-divider MuiListItem-button css-1ym0qsb-MuiButtonBase-root-MuiListItem-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-divider MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-divider css-1vdslsx-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -49,10 +46,10 @@
                   </a>
                 </li>
                 <li
-                  class="css-1jcp995"
+                  class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button Mui-selected css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -75,7 +72,7 @@
                   </a>
                 </li>
                 <li
-                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-75xxte-MuiListItem-root"
+                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
                 >
                   <div
                     class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-entered css-1mhwl66-MuiCollapse-root"
@@ -91,10 +88,10 @@
                           class="MuiList-root css-2l483y-MuiList-root"
                         >
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -114,10 +111,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -142,10 +139,36 @@
                   </div>
                 </li>
                 <li
-                  class="css-1icvoo8"
+                  class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+                    href="/"
+                    role="button"
+                    tabindex="0"
+                  >
+                    <div
+                      class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+                    />
+                    <div
+                      class="MuiListItemText-root css-tlelie-MuiListItemText-root"
+                    >
+                      <span
+                        class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                      >
+                        Map
+                      </span>
+                    </div>
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </a>
+                </li>
+                <li
+                  class="css-3knmzx"
+                >
+                  <a
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -168,7 +191,7 @@
                   </a>
                 </li>
                 <li
-                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-75xxte-MuiListItem-root"
+                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
                 >
                   <div
                     class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-11uq76c-MuiCollapse-root"
@@ -184,10 +207,10 @@
                           class="MuiList-root css-2l483y-MuiList-root"
                         >
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -207,10 +230,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -230,10 +253,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -253,10 +276,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -276,10 +299,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -299,10 +322,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -322,10 +345,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -350,10 +373,10 @@
                   </div>
                 </li>
                 <li
-                  class="css-1icvoo8"
+                  class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -376,7 +399,7 @@
                   </a>
                 </li>
                 <li
-                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-75xxte-MuiListItem-root"
+                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
                 >
                   <div
                     class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-11uq76c-MuiCollapse-root"
@@ -392,10 +415,10 @@
                           class="MuiList-root css-2l483y-MuiList-root"
                         >
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -415,10 +438,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -438,10 +461,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -466,10 +489,10 @@
                   </div>
                 </li>
                 <li
-                  class="css-1icvoo8"
+                  class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -492,7 +515,7 @@
                   </a>
                 </li>
                 <li
-                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-75xxte-MuiListItem-root"
+                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
                 >
                   <div
                     class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-11uq76c-MuiCollapse-root"
@@ -508,10 +531,10 @@
                           class="MuiList-root css-2l483y-MuiList-root"
                         >
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -531,10 +554,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -554,10 +577,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -577,10 +600,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -600,10 +623,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -628,10 +651,149 @@
                   </div>
                 </li>
                 <li
-                  class="css-1icvoo8"
+                  class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+                    href="/"
+                    role="button"
+                    tabindex="0"
+                  >
+                    <div
+                      class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+                    />
+                    <div
+                      class="MuiListItemText-root css-tlelie-MuiListItemText-root"
+                    >
+                      <span
+                        class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                      >
+                        Gateway (beta)
+                      </span>
+                    </div>
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </a>
+                </li>
+                <li
+                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
+                >
+                  <div
+                    class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-11uq76c-MuiCollapse-root"
+                    style="min-height: 0px;"
+                  >
+                    <div
+                      class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
+                    >
+                      <div
+                        class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
+                      >
+                        <ul
+                          class="MuiList-root css-2l483y-MuiList-root"
+                        >
+                          <li
+                            class="css-1gktw5r"
+                          >
+                            <a
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
+                              href="/"
+                              role="button"
+                              tabindex="0"
+                            >
+                              <div
+                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
+                              >
+                                <span
+                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                                >
+                                  Gateways
+                                </span>
+                              </div>
+                              <span
+                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              />
+                            </a>
+                          </li>
+                          <li
+                            class="css-1gktw5r"
+                          >
+                            <a
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
+                              href="/"
+                              role="button"
+                              tabindex="0"
+                            >
+                              <div
+                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
+                              >
+                                <span
+                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                                >
+                                  Gateway Classes
+                                </span>
+                              </div>
+                              <span
+                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              />
+                            </a>
+                          </li>
+                          <li
+                            class="css-1gktw5r"
+                          >
+                            <a
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
+                              href="/"
+                              role="button"
+                              tabindex="0"
+                            >
+                              <div
+                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
+                              >
+                                <span
+                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                                >
+                                  HTTP Routes
+                                </span>
+                              </div>
+                              <span
+                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              />
+                            </a>
+                          </li>
+                          <li
+                            class="css-1gktw5r"
+                          >
+                            <a
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
+                              href="/"
+                              role="button"
+                              tabindex="0"
+                            >
+                              <div
+                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
+                              >
+                                <span
+                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                                >
+                                  GRPC Routes
+                                </span>
+                              </div>
+                              <span
+                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              />
+                            </a>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+                <li
+                  class="css-3knmzx"
+                >
+                  <a
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -654,7 +816,7 @@
                   </a>
                 </li>
                 <li
-                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-75xxte-MuiListItem-root"
+                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
                 >
                   <div
                     class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-11uq76c-MuiCollapse-root"
@@ -670,10 +832,10 @@
                           class="MuiList-root css-2l483y-MuiList-root"
                         >
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -693,10 +855,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -716,10 +878,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -744,10 +906,10 @@
                   </div>
                 </li>
                 <li
-                  class="css-1icvoo8"
+                  class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -770,7 +932,7 @@
                   </a>
                 </li>
                 <li
-                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-75xxte-MuiListItem-root"
+                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
                 >
                   <div
                     class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-11uq76c-MuiCollapse-root"
@@ -786,10 +948,10 @@
                           class="MuiList-root css-2l483y-MuiList-root"
                         >
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -809,10 +971,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -832,10 +994,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -855,10 +1017,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -878,10 +1040,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -901,10 +1063,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -924,10 +1086,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -947,10 +1109,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -970,10 +1132,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -993,10 +1155,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -1016,10 +1178,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -1039,10 +1201,10 @@
                             </a>
                           </li>
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -1067,10 +1229,10 @@
                   </div>
                 </li>
                 <li
-                  class="css-1icvoo8"
+                  class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -1093,7 +1255,7 @@
                   </a>
                 </li>
                 <li
-                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-75xxte-MuiListItem-root"
+                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
                 >
                   <div
                     class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-11uq76c-MuiCollapse-root"
@@ -1109,10 +1271,10 @@
                           class="MuiList-root css-2l483y-MuiList-root"
                         >
                           <li
-                            class="css-b4fdej"
+                            class="css-1gktw5r"
                           >
                             <a
-                              class="MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button css-sayhe9-MuiButtonBase-root-MuiListItem-root"
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
                               tabindex="0"
@@ -1142,18 +1304,18 @@
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
               <div
-                class="MuiBox-root css-uskbpj"
+                class="MuiBox-root css-xi606m"
               >
                 <div
                   class="MuiBox-root css-xi606m"
                 >
                   <button
-                    class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary css-19g3xkx-MuiButtonBase-root-MuiButton-root"
+                    class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textSecondary MuiButton-sizeLarge MuiButton-textSizeLarge MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textSecondary MuiButton-sizeLarge MuiButton-textSizeLarge MuiButton-colorSecondary MuiButton-disableElevation css-1n3iyy9-MuiButtonBase-root-MuiButton-root"
                     tabindex="0"
                     type="button"
                   >
                     <span
-                      class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeMedium css-1d6wzja-MuiButton-startIcon"
+                      class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeLarge css-htszrh-MuiButton-startIcon"
                     />
                     Create
                     <span
@@ -1167,11 +1329,10 @@
                       class="MuiBox-root css-0"
                     >
                       <div
-                        class="MuiBox-root css-1pkv35m"
+                        class="MuiBox-root css-yncjbp"
                       >
                         <button
-                          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary css-1gp6czg-MuiButtonBase-root-MuiButton-root"
-                          style="text-transform: none; padding-bottom: 0px; padding-top: 0px;"
+                          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-751h87-MuiButtonBase-root-MuiButton-root"
                           tabindex="0"
                           type="button"
                         >
@@ -1199,7 +1360,7 @@
                       >
                         <button
                           aria-label="Collapse Sidebar"
-                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-lr7sro-MuiButtonBase-root-MuiIconButton-root"
                           data-mui-internal-clone-element="true"
                           tabindex="0"
                           type="button"
@@ -1218,256 +1379,5 @@
         </div>
       </div>
     </nav>
-  </div>
-  <div
-    aria-busy="false"
-    aria-hidden="true"
-    class="MuiDialog-root MuiModal-root MuiModal-hidden css-ew73zq-MuiModal-root-MuiDialog-root"
-    role="presentation"
-  >
-    <div
-      aria-hidden="true"
-      class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
-      style="opacity: 0; visibility: hidden;"
-    />
-    <div
-      data-testid="sentinelStart"
-      tabindex="-1"
-    />
-    <div
-      class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
-      role="presentation"
-      style="opacity: 0; visibility: hidden;"
-      tabindex="-1"
-    >
-      <div
-        aria-labelledby="editor-dialog-title-id"
-        class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation24 MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthLg MuiDialog-paperFullWidth css-1iou21e-MuiPaper-root-MuiDialog-paper"
-        role="dialog"
-      >
-        <h2
-          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
-          id="editor-dialog-title-id"
-          style="display: flex;"
-        >
-          <div
-            class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
-          >
-            <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-            >
-              <h1
-                class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
-                style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
-              >
-                Create / Apply
-              </h1>
-            </div>
-            <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-            >
-              <div
-                class="MuiBox-root css-0"
-              >
-                <button
-                  aria-label="Toggle fullscreen"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                  data-mui-internal-clone-element="true"
-                  tabindex="0"
-                  type="button"
-                >
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
-                </button>
-                <button
-                  aria-label="Close"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                  data-mui-internal-clone-element="true"
-                  tabindex="0"
-                  type="button"
-                >
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
-                </button>
-              </div>
-            </div>
-          </div>
-        </h2>
-        <div
-          class="MuiDialogContent-root css-erhy6c-MuiDialogContent-root"
-        >
-          <div
-            class="MuiBox-root css-1jpm9pd"
-          >
-            <div
-              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1xu1mzw-MuiGrid-root"
-            >
-              <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-              />
-              <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-              >
-                <div
-                  class="MuiFormGroup-root MuiFormGroup-row css-qfz70r-MuiFormGroup-root"
-                >
-                  <label
-                    class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
-                  >
-                    <span
-                      class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
-                    >
-                      <span
-                        class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-1nsozxe-MuiButtonBase-root-MuiSwitch-switchBase"
-                      >
-                        <input
-                          class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
-                          name="useSimpleEditor"
-                          type="checkbox"
-                        />
-                        <span
-                          class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
-                        />
-                        <span
-                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                        />
-                      </span>
-                      <span
-                        class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
-                      />
-                    </span>
-                    <span
-                      class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
-                    >
-                      Use minimal editor
-                    </span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div
-            class="MuiTabs-root css-1ujnqem-MuiTabs-root"
-          >
-            <div
-              class="MuiTabs-scrollableX MuiTabs-hideScrollbar css-oqr85h"
-              style="width: 99px; height: 99px; position: absolute; top: -9999px; overflow: scroll;"
-            />
-            <div
-              class="MuiTabs-scroller MuiTabs-hideScrollbar MuiTabs-scrollableX css-69z67c-MuiTabs-scroller"
-              style="margin-bottom: 0px;"
-            >
-              <div
-                aria-label="Editor"
-                class="MuiTabs-flexContainer css-heg063-MuiTabs-flexContainer"
-                role="tablist"
-              >
-                <button
-                  aria-controls="full-width-tabpanel-0-Editor-tabs-id"
-                  aria-selected="true"
-                  class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-1qhanmh-MuiButtonBase-root-MuiTab-root"
-                  id="full-width-tab-0-Editor-tabs-id"
-                  role="tab"
-                  tabindex="0"
-                  type="button"
-                >
-                  Editor
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
-                </button>
-                <button
-                  aria-controls="full-width-tabpanel-1-Editor-tabs-id"
-                  aria-selected="false"
-                  class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1qhanmh-MuiButtonBase-root-MuiTab-root"
-                  id="full-width-tab-1-Editor-tabs-id"
-                  role="tab"
-                  tabindex="-1"
-                  type="button"
-                >
-                  Documentation
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
-                </button>
-              </div>
-              <span
-                class="MuiTabs-indicator css-fgn50m-MuiTabs-indicator"
-                style="left: 0px; width: 0px;"
-              />
-            </div>
-          </div>
-          <div
-            aria-labelledby="full-width-tab-0-Editor-tabs-id"
-            class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
-            id="full-width-tabpanel-0-Editor-tabs-id"
-            role="tabpanel"
-          >
-            <div
-              class="MuiBox-root css-189avu9"
-            >
-              <div
-                class="mock-monaco-editor"
-              />
-            </div>
-          </div>
-          <div
-            aria-labelledby="full-width-tab-1-Editor-tabs-id"
-            class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
-            hidden=""
-            id="full-width-tabpanel-1-Editor-tabs-id"
-            role="tabpanel"
-          >
-            <div
-              class="MuiBox-root css-94bk7g"
-            />
-          </div>
-        </div>
-        <div
-          class="MuiDialogActions-root MuiDialogActions-spacing css-knqc4i-MuiDialogActions-root"
-        >
-          <button
-            aria-label="Undo"
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textSecondary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorSecondary Mui-disabled MuiButton-root MuiButton-text MuiButton-textSecondary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorSecondary css-h2z0wl-MuiButtonBase-root-MuiButton-root"
-            disabled=""
-            tabindex="-1"
-            type="button"
-          >
-            Undo Changes
-          </button>
-          <div />
-          <div
-            style="flex: 1 0 0px;"
-          />
-          <div
-            style="flex: 1 0 0px;"
-          />
-          <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary css-1gp6czg-MuiButtonBase-root-MuiButton-root"
-            tabindex="0"
-            type="button"
-          >
-            Close
-            <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-            />
-          </button>
-          <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary Mui-disabled MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary css-1gp6czg-MuiButtonBase-root-MuiButton-root"
-            disabled=""
-            tabindex="-1"
-            type="button"
-          >
-            Apply
-          </button>
-        </div>
-      </div>
-    </div>
-    <div
-      data-testid="sentinelEnd"
-      tabindex="-1"
-    />
   </div>
 </body>

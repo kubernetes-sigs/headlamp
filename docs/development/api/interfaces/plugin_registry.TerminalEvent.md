@@ -21,7 +21,7 @@ Event fired when using the terminal.
 
 #### Defined in
 
-[redux/headlampEventSlice.ts:163](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L163)
+[redux/headlampEventSlice.ts:163](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L163)
 
 ___
 
@@ -31,4 +31,4 @@ ___
 
 #### Defined in
 
-[redux/headlampEventSlice.ts:162](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L162)
+[redux/headlampEventSlice.ts:162](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L162)

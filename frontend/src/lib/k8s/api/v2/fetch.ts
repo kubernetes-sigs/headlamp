@@ -1,11 +1,28 @@
-import helpers from '../../../../helpers';
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
 import { getToken, setToken } from '../../../auth';
 import { getClusterAuthType } from '../v1/clusterRequests';
 import { refreshToken } from '../v1/tokenApi';
+import { ApiError } from './ApiError';
 import { makeUrl } from './makeUrl';
 
-export const BASE_HTTP_URL = helpers.getAppUrl();
+export const BASE_HTTP_URL = getAppUrl();
 
 /**
  * Simple wrapper around Fetch function
@@ -27,7 +44,14 @@ async function backendFetch(url: string | URL, init: RequestInit) {
   }
 
   if (!response.ok) {
-    throw new Error('Error: Unreachable');
+    // Try to parse error message from response
+    let maybeErrorMessage: string | undefined;
+    try {
+      const body = await response.json();
+      maybeErrorMessage = body.message;
+    } catch (e) {}
+
+    throw new ApiError(maybeErrorMessage ?? 'Unreachable', { status: response.status });
   }
 
   return response;
@@ -78,7 +102,9 @@ export async function clusterFetch(url: string | URL, init: RequestInit & { clus
 
     return response;
   } catch (e) {
-    console.error(e);
-    throw new Error('Unreachable');
+    if (e instanceof ApiError) {
+      e.cluster = init.cluster;
+    }
+    throw e;
   }
 }

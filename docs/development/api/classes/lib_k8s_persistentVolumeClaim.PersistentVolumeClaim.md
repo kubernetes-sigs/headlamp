@@ -30,7 +30,7 @@ makeKubeObject<KubePersistentVolumeClaim\>(
 
 #### Defined in
 
-[lib/k8s/cluster.ts:318](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L318)
+[lib/k8s/cluster.ts:318](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L318)
 
 ## Properties
 
@@ -53,7 +53,7 @@ makeKubeObject<KubePersistentVolumeClaim\>(
 
 #### Defined in
 
-[lib/k8s/persistentVolumeClaim.ts:32](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/persistentVolumeClaim.ts#L32)
+[lib/k8s/persistentVolumeClaim.ts:32](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/persistentVolumeClaim.ts#L32)
 
 ___
 
@@ -69,7 +69,7 @@ makeKubeObject<KubePersistentVolumeClaim\>(
 
 #### Defined in
 
-[lib/k8s/cluster.ts:319](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L319)
+[lib/k8s/cluster.ts:319](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L319)
 
 ## Accessors
 
@@ -83,7 +83,7 @@ makeKubeObject<KubePersistentVolumeClaim\>(
 
 #### Defined in
 
-[lib/k8s/persistentVolumeClaim.ts:34](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/persistentVolumeClaim.ts#L34)
+[lib/k8s/persistentVolumeClaim.ts:34](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/persistentVolumeClaim.ts#L34)
 
 ___
 
@@ -97,7 +97,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/persistentVolumeClaim.ts:38](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/persistentVolumeClaim.ts#L38)
+[lib/k8s/persistentVolumeClaim.ts:38](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/persistentVolumeClaim.ts#L38)
 
 ## Methods
 
@@ -125,7 +125,7 @@ makeKubeObject<KubePersistentVolumeClaim\>(
 
 #### Defined in
 
-[lib/k8s/cluster.ts:294](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L294)
+[lib/k8s/cluster.ts:294](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L294)
 
 ___
 
@@ -152,7 +152,7 @@ makeKubeObject<KubePersistentVolumeClaim\>(
 
 #### Defined in
 
-[lib/k8s/cluster.ts:321](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L321)
+[lib/k8s/cluster.ts:321](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L321)
 
 ___
 
@@ -178,7 +178,7 @@ makeKubeObject<KubePersistentVolumeClaim\>(
 
 #### Defined in
 
-[lib/k8s/cluster.ts:317](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L317)
+[lib/k8s/cluster.ts:317](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L317)
 
 ___
 
@@ -207,7 +207,7 @@ makeKubeObject<KubePersistentVolumeClaim\>(
 
 #### Defined in
 
-[lib/k8s/cluster.ts:304](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L304)
+[lib/k8s/cluster.ts:304](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L304)
 
 ___
 
@@ -235,7 +235,7 @@ makeKubeObject<KubePersistentVolumeClaim\>(
 
 #### Defined in
 
-[lib/k8s/cluster.ts:299](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L299)
+[lib/k8s/cluster.ts:299](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L299)
 
 ___
 
@@ -262,7 +262,7 @@ makeKubeObject<KubePersistentVolumeClaim\>(
 
 #### Defined in
 
-[lib/k8s/cluster.ts:313](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L313)
+[lib/k8s/cluster.ts:313](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L313)
 
 ___
 
@@ -288,4 +288,4 @@ makeKubeObject<KubePersistentVolumeClaim\>(
 
 #### Defined in
 
-[lib/k8s/cluster.ts:310](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L310)
+[lib/k8s/cluster.ts:310](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L310)

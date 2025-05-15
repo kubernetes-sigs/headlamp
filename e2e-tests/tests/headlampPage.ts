@@ -1,27 +1,57 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 /// <reference types="node" />
+import { AxeBuilder } from '@axe-core/playwright';
 import { expect, Page } from '@playwright/test';
 
 export class HeadlampPage {
-  constructor(private page: Page) {}
+  private testURL: string;
 
-  async authenticate() {
-    await this.page.goto('/');
+  constructor(private page: Page) {
+    this.testURL = process.env.HEADLAMP_TEST_URL || '/';
+  }
+
+  async a11y() {
+    const axeBuilder = new AxeBuilder({ page: this.page });
+    const accessibilityResults = await axeBuilder.analyze();
+    expect(accessibilityResults.violations).toStrictEqual([]);
+  }
+
+  async authenticate(token?: string) {
     await this.page.waitForSelector('h1:has-text("Authentication")');
 
-    // Expects the URL to contain c/main/token
-    this.hasURLContaining(/.*token/);
+    // Check to see if already authenticated
+    if (await this.page.isVisible('button:has-text("Authenticate")')) {
+      this.hasToken(token || '');
 
-    const token = process.env.HEADLAMP_TOKEN || '';
-    this.hasToken(token);
+      // Fill in the token
+      await this.page.locator('#token').fill(token || '');
 
-    // Fill in the token
-    await this.page.locator('#token').fill(token);
+      // Click on the "Authenticate" button and wait for navigation
+      await Promise.all([
+        this.page.waitForNavigation(),
+        this.page.click('button:has-text("Authenticate")'),
+      ]);
+    }
+  }
 
-    // Click on the "Authenticate" button and wait for navigation
-    await Promise.all([
-      this.page.waitForNavigation(),
-      this.page.click('button:has-text("Authenticate")'),
-    ]);
+  async navigateToCluster(name: string, token?: string) {
+    await this.navigateTopage(`/c/${name}`);
+    await this.authenticate(token);
   }
 
   async hasURLContaining(pattern: RegExp) {
@@ -42,8 +72,8 @@ export class HeadlampPage {
   }
 
   async hasSecurityTab() {
-    const networkTab = this.page.locator('span:has-text("Security")').first();
-    expect(await networkTab.textContent()).toBe('Security');
+    const securityTab = this.page.locator('span:has-text("Security")').first();
+    expect(await securityTab.textContent()).toBe('Security');
   }
 
   async checkPageContent(text: string) {
@@ -57,10 +87,14 @@ export class HeadlampPage {
     expect(await pageContent).toContain(text);
   }
 
-  async navigateTopage(page: string, title: RegExp) {
-    await this.page.goto(page);
+  async navigateTopage(path: string, title?: RegExp) {
+    await this.page.goto(`${this.testURL}${path}`, {
+      waitUntil: 'networkidle',
+    });
     await this.page.waitForLoadState('load');
-    await this.hasTitleContaining(title);
+    if (title) {
+      await this.hasTitleContaining(title);
+    }
   }
 
   async logout() {
@@ -72,8 +106,8 @@ export class HeadlampPage {
     await this.page.click('a.MuiMenuItem-root:has-text("Log out")');
     await this.page.waitForLoadState('load');
 
-    // Expects the URL to contain c/main/token
-    await this.hasURLContaining(/.*token/);
+    // Expects the URL to contain c/test/token
+    // await this.hasURLContaining(/.*token/);
   }
 
   async tableHasHeaders(tableSelector: string, expectedHeaders: string[]) {

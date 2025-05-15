@@ -1,3 +1,19 @@
+/*
+Copyright 2025 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package portforward
 
 import (
@@ -15,9 +31,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/cache"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/kubeconfig"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -140,7 +156,16 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		p.Port = strconv.Itoa(freePort)
 	}
 
-	kContext, err := kubeConfigStore.GetContext(p.Cluster)
+	// Get user ID from header if present
+	userID := r.Header.Get("X-HEADLAMP-USER-ID")
+
+	// If user ID is present, append it to cluster name
+	clusterName := p.Cluster
+	if userID != "" {
+		clusterName = p.Cluster + userID
+	}
+
+	kContext, err := kubeConfigStore.GetContext(clusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": p.Cluster},
 			err, "getting kubeconfig context")
@@ -203,7 +228,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 	stopChan, readyChan := make(chan struct{}), make(chan struct{}, 1)
 	out, errOut := new(bytes.Buffer), new(bytes.Buffer)
 
-	forwarder, err := portforward.New(dialer, []string{fmt.Sprintf(p.Port + ":" + p.TargetPort)},
+	forwarder, err := portforward.New(dialer, []string{p.Port + ":" + p.TargetPort},
 		stopChan, readyChan, out, errOut)
 	if err != nil {
 		return fmt.Errorf("portforward request: failed to create portforward: %v", err)
@@ -319,7 +344,16 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], w http.ResponseWrit
 		return
 	}
 
-	err = stopOrDeletePortForward(cache, p.Cluster, p.ID, p.StopOrDelete)
+	// Get user ID from header if present
+	userID := r.Header.Get("X-HEADLAMP-USER-ID")
+
+	// If user ID is present, append it to cluster name
+	clusterName := p.Cluster
+	if userID != "" {
+		clusterName = p.Cluster + userID
+	}
+
+	err = stopOrDeletePortForward(cache, clusterName, p.ID, p.StopOrDelete)
 	if err == nil {
 		if _, err := w.Write([]byte("stopped")); err != nil {
 			logger.Log(logger.LevelError, nil, err, "writing response")
@@ -342,7 +376,16 @@ func GetPortForwards(cache cache.Cache[interface{}], w http.ResponseWriter, r *h
 		return
 	}
 
-	ports := getPortForwardList(cache, cluster)
+	// Get user ID from header if present
+	userID := r.Header.Get("X-HEADLAMP-USER-ID")
+
+	// If user ID is present, append it to cluster name
+	clusterName := cluster
+	if userID != "" {
+		clusterName = cluster + userID
+	}
+
+	ports := getPortForwardList(cache, clusterName)
 
 	w.Header().Set("Content-Type", "application/json")
 
@@ -372,7 +415,16 @@ func GetPortForwardByID(cache cache.Cache[interface{}], w http.ResponseWriter, r
 		return
 	}
 
-	p, err := getPortForwardByID(cache, cluster, id)
+	// Get user ID from header if present
+	userID := r.Header.Get("X-HEADLAMP-USER-ID")
+
+	// If user ID is present, append it to cluster name
+	clusterName := cluster
+	if userID != "" {
+		clusterName = cluster + userID
+	}
+
+	p, err := getPortForwardByID(cache, clusterName, id)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "getting portforward by id")
 		http.Error(w, "no portforward running with id "+id, http.StatusNotFound)

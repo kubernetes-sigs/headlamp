@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { contextBridge, ipcRenderer } from 'electron';
 
 // Expose protected methods that allow the renderer process to use
@@ -12,6 +28,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'pluginsLoaded',
       'run-command',
       'plugin-manager',
+      'request-backend-token',
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
@@ -27,6 +44,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'command-stderr',
       'command-exit',
       'plugin-manager',
+      'backend-token',
     ];
     if (validChannels.includes(channel)) {
       // Deliberately strip event as it includes `sender`

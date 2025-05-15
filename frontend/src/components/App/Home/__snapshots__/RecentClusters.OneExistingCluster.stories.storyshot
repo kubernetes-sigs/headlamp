@@ -13,7 +13,7 @@
           type="button"
         >
           <div
-            class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation1 MuiCard-root css-1o0qjyj-MuiPaper-root-MuiCard-root"
+            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-18nhd06-MuiPaper-root-MuiCard-root"
           >
             <div
               class="MuiCardContent-root css-d64700-MuiCardContent-root"

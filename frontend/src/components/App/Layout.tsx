@@ -1,23 +1,41 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Box, Button } from '@mui/material';
 import Container from '@mui/material/Container';
 import CssBaseline from '@mui/material/CssBaseline';
 import Link from '@mui/material/Link';
-import { useTheme } from '@mui/material/styles';
 import { styled } from '@mui/material/styles';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
+import { getCluster } from '../../lib/cluster';
+import { getSelectedClusters } from '../../lib/cluster';
 import { useClustersConf } from '../../lib/k8s';
 import { request } from '../../lib/k8s/apiProxy';
 import { Cluster } from '../../lib/k8s/cluster';
-import { getCluster } from '../../lib/util';
 import { setConfig } from '../../redux/configSlice';
 import { ConfigState } from '../../redux/configSlice';
 import { useTypedSelector } from '../../redux/reducers/reducers';
 import store from '../../redux/stores/store';
+import { useUIPanelsGroupedBySide } from '../../redux/uiSlice';
 import { fetchStatelessClusterKubeConfigs, isEqualClusterConfigs } from '../../stateless/';
 import ActionsNotifier from '../common/ActionsNotifier';
 import AlertNotification from '../common/AlertNotification';
+import DetailsDrawer from '../common/Resource/DetailsDrawer';
 import Sidebar, { NavigationTabs } from '../Sidebar';
 import RouteSwitcher from './RouteSwitcher';
 import TopBar from './TopBar';
@@ -27,8 +45,8 @@ export interface LayoutProps {}
 
 const CLUSTER_FETCH_INTERVAL = 10 * 1000; // ms
 
-function ClusterNotFoundPopup() {
-  const cluster = getCluster();
+function ClusterNotFoundPopup({ cluster }: { cluster?: string }) {
+  const problemCluster = cluster || getCluster();
   const { t } = useTranslation();
 
   return (
@@ -46,7 +64,9 @@ function ClusterNotFoundPopup() {
       p={0.5}
       alignItems="center"
     >
-      <Box p={0.5}>{t(`Something went wrong with cluster {{ cluster }}`, { cluster })}</Box>
+      <Box p={0.5}>
+        {t(`Something went wrong with cluster {{ cluster }}`, { cluster: problemCluster })}
+      </Box>
       <Button variant="contained" size="small" href={window.desktopApi ? '#' : '/'}>
         {t('Choose another cluster')}
       </Button>
@@ -94,14 +114,19 @@ function mergeClusterConfigs(
   return mergedClusters;
 }
 
+declare global {
+  interface Window {
+    clusterConfigFetchHandler: number;
+  }
+}
+
 export default function Layout({}: LayoutProps) {
   const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
   const dispatch = useDispatch();
   const clusters = useTypedSelector(state => state.config.clusters);
+  const isFullWidth = useTypedSelector(state => state.ui.isFullWidth);
   const { t } = useTranslation();
   const allClusters = useClustersConf();
-  const clusterInURL = getCluster();
-  const theme = useTheme();
 
   /** This fetches the cluster config from the backend and updates the redux store on an interval.
    * When stateless clusters are enabled, it also fetches the stateless cluster config from the
@@ -179,6 +204,18 @@ export default function Layout({}: LayoutProps) {
       });
   };
 
+  const urlClusters = getSelectedClusters();
+  const clustersNotInURL =
+    allClusters && urlClusters.length !== 0
+      ? urlClusters.filter(clusterName => !Object.keys(allClusters).includes(clusterName))
+      : [];
+  const containerProps = isFullWidth
+    ? ({ maxWidth: false, disableGutters: true } as const)
+    : ({ maxWidth: 'xl' } as const);
+  const MAXIMUM_NUM_ALERTS = 2;
+
+  const panels = useUIPanelsGroupedBySide();
+
   return (
     <>
       <Link
@@ -197,37 +234,71 @@ export default function Layout({}: LayoutProps) {
       >
         {t('Skip to main content')}
       </Link>
-      <Box sx={{ display: 'flex', [theme.breakpoints.down('sm')]: { display: 'block' } }}>
-        <VersionDialog />
-        <CssBaseline />
-        <TopBar />
-        <Sidebar />
-        <Main id="main" sx={{ flexGrow: 1, marginLeft: 'initial' }}>
-          {allClusters &&
-          !!clusterInURL &&
-          !Object.keys(allClusters).includes(getCluster() || '') ? (
-            <ClusterNotFoundPopup />
-          ) : (
-            ''
-          )}
-          <AlertNotification />
-          <Box>
-            <Div sx={theme.mixins.toolbar} />
-            <Container maxWidth="xl">
-              <NavigationTabs />
-              {arePluginsLoaded && (
-                <RouteSwitcher
-                  requiresToken={() => {
-                    const clusterName = getCluster() || '';
-                    const cluster = clusters ? clusters[clusterName] : undefined;
-                    return cluster?.useToken === undefined || cluster?.useToken;
-                  }}
-                />
-              )}
-            </Container>
+      <VersionDialog />
+      <CssBaseline enableColorScheme />
+      <ActionsNotifier />
+      <Box sx={{ display: 'flex', height: '100dvh' }}>
+        {panels.left.map(it => (
+          <it.component key={it.id} />
+        ))}
+        <Box
+          sx={{
+            display: 'flex',
+            overflow: 'auto',
+            flexDirection: 'column',
+            flexGrow: 1,
+          }}
+        >
+          {panels.top.map(it => (
+            <it.component key={it.id} />
+          ))}
+          <TopBar />
+          <Box
+            sx={{
+              display: 'flex',
+              overflow: 'hidden',
+              flexGrow: 1,
+              position: 'relative',
+            }}
+          >
+            <Sidebar />
+            <Main
+              id="main"
+              sx={{
+                flexGrow: 1,
+                marginLeft: 'initial',
+                overflow: 'auto',
+              }}
+            >
+              {clustersNotInURL.slice(0, MAXIMUM_NUM_ALERTS).map(clusterName => (
+                <ClusterNotFoundPopup key={clusterName} cluster={clusterName} />
+              ))}
+              <AlertNotification />
+              <Box>
+                <Div />
+                <Container {...containerProps}>
+                  <NavigationTabs />
+                  {arePluginsLoaded && (
+                    <RouteSwitcher
+                      requiresToken={() => {
+                        const clusterName = getCluster() || '';
+                        const cluster = clusters ? clusters[clusterName] : undefined;
+                        return cluster?.useToken === undefined || cluster?.useToken;
+                      }}
+                    />
+                  )}
+                </Container>
+              </Box>
+            </Main>
+            <DetailsDrawer />
           </Box>
-        </Main>
-        <ActionsNotifier />
+          {panels.bottom.map(it => (
+            <it.component key={it.id} />
+          ))}
+        </Box>
+        {panels.right.map(it => (
+          <it.component key={it.id} />
+        ))}
       </Box>
     </>
   );

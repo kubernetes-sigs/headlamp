@@ -1,11 +1,26 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import Button from '@mui/material/Button';
 import { SnackbarKey, useSnackbar } from 'notistack';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
-import helpers from '../helpers';
-import { UI_INITIALIZE_PLUGIN_VIEWS } from '../redux/actions/actions';
+import { isElectron } from '../helpers/isElectron';
 import { useTypedSelector } from '../redux/reducers/reducers';
 import { fetchAndExecutePlugins } from './index';
 import { pluginsLoaded, setPluginSettings } from './pluginsSlice';
@@ -30,8 +45,6 @@ export default function Plugins() {
 
   // only run on first load
   useEffect(() => {
-    dispatch({ type: UI_INITIALIZE_PLUGIN_VIEWS });
-
     fetchAndExecutePlugins(
       settingsPlugins,
       updatedSettingsPackages => {
@@ -47,7 +60,7 @@ export default function Plugins() {
         );
         console.warn(message);
 
-        if (helpers.isElectron()) {
+        if (isElectron()) {
           enqueueSnackbar(message, {
             action: (snackbarId: SnackbarKey) => (
               <>

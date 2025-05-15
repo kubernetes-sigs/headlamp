@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Icon, InlineIcon } from '@iconify/react';
 import { Button, IconButton, Paper, SxProps, TableContainer, Theme } from '@mui/material';
 import Box from '@mui/material/Box';
@@ -9,7 +25,7 @@ import TablePagination from '@mui/material/TablePagination';
 import TableRow from '@mui/material/TableRow';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import helpers from '../../helpers';
+import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../helpers/tablesRowsPerPage';
 import { useURLState } from '../../lib/util';
 import { useSettings } from '../App/Settings/hook';
 import Empty from './EmptyContent';
@@ -143,10 +159,7 @@ export default function SimpleTable(props: SimpleTableProps) {
   const [displayData, setDisplayData] = React.useState(data);
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = props.rowsPerPage || storeRowsPerPageOptions;
-  const defaultRowsPerPage = React.useMemo(
-    () => helpers.getTablesRowsPerPage(rowsPerPageOptions[0]),
-    []
-  );
+  const defaultRowsPerPage = React.useMemo(() => getTablesRowsPerPage(rowsPerPageOptions[0]), []);
   const [rowsPerPage, setRowsPerPage] = useURLState(shouldReflectInURL ? 'perPage' : '', {
     defaultValue: defaultRowsPerPage,
     prefix,
@@ -193,7 +206,7 @@ export default function SimpleTable(props: SimpleTableProps) {
     event: React.ChangeEvent<HTMLTextAreaElement> | React.ChangeEvent<HTMLInputElement>
   ) {
     const numRows = +event.target.value;
-    helpers.setTablesRowsPerPage(numRows);
+    setTablesRowsPerPage(numRows);
     setRowsPerPage(numRows);
     setPage(0);
   }
@@ -329,7 +342,7 @@ export default function SimpleTable(props: SimpleTableProps) {
       {
         // Show a refresh button if the data is not up to date, so we allow the user to keep
         // reading the current data without "losing" it or being sent to the first page
-        currentData !== data && (
+        currentData !== data && page !== 0 && (
           <Box textAlign="center" p={2}>
             <Button
               variant="contained"
@@ -350,10 +363,12 @@ export default function SimpleTable(props: SimpleTableProps) {
           width: 'auto',
           display: 'grid',
           gridTemplateColumns: gridTemplateColumns || '1fr',
+          background: theme.palette.background.default,
           [theme.breakpoints.down('sm')]: {
             overflowX: 'auto', // make it responsive
           },
           '& .MuiTableCell-root': {
+            borderColor: theme.palette.divider,
             padding: '8px 16px 7px 16px',
             [theme.breakpoints.down('sm')]: {
               padding: '15px 24px 15px 16px',
@@ -363,8 +378,6 @@ export default function SimpleTable(props: SimpleTableProps) {
             wordWrap: 'break-word',
           },
           '& .MuiTableBody-root': {
-            background: theme.palette.tables.body.background,
-
             '& .MuiTableRow-root:last-child': {
               '& .MuiTableCell-root': {
                 borderBottom: 'none',
@@ -376,7 +389,7 @@ export default function SimpleTable(props: SimpleTableProps) {
             textOverflow: 'unset',
             whiteSpace: 'nowrap',
             color: theme.palette.tables.head.text,
-            background: theme.palette.tables.head.background,
+            background: theme.palette.background.muted,
             width: '100%',
             minWidth: 'max-content',
           },

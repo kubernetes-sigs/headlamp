@@ -1,5 +1,21 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Icon } from '@iconify/react';
-import { DialogContentText } from '@mui/material';
+import { DialogContentText, OutlinedInput } from '@mui/material';
 import Button from '@mui/material/Button';
 import Dialog, { DialogProps } from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
@@ -7,7 +23,6 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Fab from '@mui/material/Fab';
 import Grid from '@mui/material/Grid';
-import MuiInput from '@mui/material/Input';
 import { styled, useTheme } from '@mui/material/styles';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -108,7 +123,7 @@ interface ScaleDialogProps extends Omit<DialogProps, 'resource'> {
   errorMessage?: string;
 }
 
-const Input = styled(MuiInput)({
+const Input = styled(OutlinedInput)({
   '& input[type=number]': {
     MozAppearance: 'textfield',
     textAlign: 'center',
@@ -146,7 +161,7 @@ function ScaleDialog(props: ScaleDialogProps) {
           paddingBottom: '30px', // Prevent the content from overflowing
         }}
       >
-        <Grid container spacing={5}>
+        <Grid container spacing={2}>
           <Grid item xs={12}>
             <DialogContentText>
               {t('translation|Current number of replicas: {{ numReplicas }}', {
@@ -157,21 +172,23 @@ function ScaleDialog(props: ScaleDialogProps) {
           </Grid>
           <Grid item container alignItems="center" spacing={1}>
             <Grid item sm="auto" xs={12}>
-              <DialogContentText id={desiredNumReplicasLabel} sx={{ minWidth: '250px' }}>
+              <DialogContentText id={desiredNumReplicasLabel}>
                 {t('translation|Desired number of replicas:')}
               </DialogContentText>
             </Grid>
             <Grid item spacing={2} sm="auto" sx={{ padding: '6px', textAlign: 'left' }}>
               <Fab
                 size="small"
-                color="primary"
+                color="secondary"
                 onClick={() => setNumReplicas(numReplicas => Math.max(0, numReplicas - 1))}
                 aria-label={t('translation|Decrement')}
                 disabled={numReplicas <= 0}
+                sx={{ boxShadow: 'none' }}
               >
                 <Icon icon="mdi:minus" width="22px" />
               </Fab>
               <Input
+                size="small"
                 type="number"
                 value={numReplicas}
                 sx={{ marginLeft: '6px', marginRight: '6px' }}
@@ -182,11 +199,13 @@ function ScaleDialog(props: ScaleDialogProps) {
                   step: 1,
                 }}
               />
+
               <Fab
                 size="small"
-                color="primary"
+                color="secondary"
                 onClick={() => setNumReplicas(numReplicas => numReplicas + 1)}
                 aria-label={t('translation|Increment')}
+                sx={{ boxShadow: 'none' }}
               >
                 <Icon icon="mdi:plus" width="22px" />
               </Fab>
@@ -206,7 +225,7 @@ function ScaleDialog(props: ScaleDialogProps) {
         </Grid>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} color="primary">
+        <Button onClick={onClose} color="secondary" variant="contained">
           {t('translation|Cancel')}
         </Button>
         <Button
@@ -217,6 +236,7 @@ function ScaleDialog(props: ScaleDialogProps) {
               status: EventStatus.CONFIRMED,
             });
           }}
+          variant="contained"
           color="primary"
         >
           {t('translation|Apply')}

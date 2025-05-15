@@ -1,9 +1,27 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Icon } from '@iconify/react';
 import { Box } from '@mui/material';
 import { useTranslation } from 'react-i18next';
+import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { KubeContainer } from '../../lib/k8s/cluster';
 import Job from '../../lib/k8s/job';
 import { formatDuration } from '../../lib/util';
+import { useNamespaces } from '../../redux/filterSlice';
 import { LightTooltip, SimpleTableProps, StatusLabel, StatusLabelProps } from '../common';
 import ResourceListView from '../common/Resource/ResourceListView';
 
@@ -44,8 +62,8 @@ export function makeJobStatusLabel(job: Job) {
     <LightTooltip title={tooltip} interactive>
       <Box display="inline">
         <StatusLabel status={conditionInfo.status as StatusLabelProps['status']}>
-          {condition.type}
           <Icon aria-label="hidden" icon={conditionInfo.icon} width="1.2rem" height="1.2rem" />
+          {condition.type}
         </StatusLabel>
       </Box>
     </LightTooltip>
@@ -53,20 +71,20 @@ export function makeJobStatusLabel(job: Job) {
 }
 
 export default function JobsList() {
-  const [jobs, error] = Job.useList();
-  return <JobsListRenderer jobs={jobs} error={Job.getErrorMessage(error)} reflectTableInURL />;
+  const { items: jobs, errors } = Job.useList({ namespace: useNamespaces() });
+  return <JobsListRenderer jobs={jobs} errors={errors} reflectTableInURL />;
 }
 
 export interface JobsListRendererProps {
   jobs: Job[] | null;
-  error: string | null;
+  errors?: ApiError[] | null;
   hideColumns?: 'namespace'[];
   reflectTableInURL?: SimpleTableProps['reflectInURL'];
   noNamespaceFilter?: boolean;
 }
 
 export function JobsListRenderer(props: JobsListRendererProps) {
-  const { jobs, error, hideColumns = [], reflectTableInURL = 'jobs', noNamespaceFilter } = props;
+  const { jobs, errors, hideColumns = [], reflectTableInURL = 'jobs', noNamespaceFilter } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   function getCompletions(job: Job) {
@@ -88,7 +106,7 @@ export function JobsListRenderer(props: JobsListRendererProps) {
         noNamespaceFilter,
       }}
       hideColumns={hideColumns}
-      errorMessage={error}
+      errors={errors}
       columns={[
         'name',
         'namespace',
@@ -96,12 +114,14 @@ export function JobsListRenderer(props: JobsListRendererProps) {
         {
           id: 'completions',
           label: t('Completions'),
+          gridTemplate: 'min-content',
           getValue: job => getCompletions(job),
           sort: sortByCompletions,
         },
         {
           id: 'conditions',
           label: t('translation|Conditions'),
+          gridTemplate: 'min-content',
           getValue: job =>
             job.status?.conditions?.find(({ status }: { status: string }) => status === 'True') ??
             null,
@@ -110,16 +130,15 @@ export function JobsListRenderer(props: JobsListRendererProps) {
         {
           id: 'duration',
           label: t('translation|Duration'),
+          gridTemplate: 'min-content',
           getValue: job => {
-            const startTime = job.status?.startTime;
-            const completionTime = job.status?.completionTime;
-            if (!!startTime && !!completionTime) {
-              const duration = new Date(completionTime).getTime() - new Date(startTime).getTime();
+            const duration = job.getDuration();
+            if (duration > 0) {
               return formatDuration(duration, { format: 'mini' });
             }
             return '-';
           },
-          gridTemplate: 0.6,
+          sort: (job1, job2) => job1.getDuration() - job2.getDuration(),
         },
         {
           id: 'containers',
@@ -143,6 +162,7 @@ export function JobsListRenderer(props: JobsListRendererProps) {
         {
           id: 'images',
           label: t('Images'),
+          gridTemplate: 'auto',
           getValue: job =>
             job
               .getContainers()

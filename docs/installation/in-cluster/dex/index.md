@@ -168,7 +168,7 @@ Replace `<YOUR-CLIENT-ID>`,`<YOUR-CLIENT-SECRET>`,`<YOUR-DEX-URL>` with your spe
 3. Save the `values.yaml` file and Install Headlamp using helm with the following commands:
 
 ```shell
-helm repo add headlamp https://headlamp-k8s.github.io/headlamp/
+helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/
 helm install headlamp-oidc headlamp/headlamp -f values.yaml --namespace=headlamp --create-namespace
 ```
 

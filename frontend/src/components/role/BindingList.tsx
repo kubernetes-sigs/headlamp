@@ -1,77 +1,68 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import ClusterRoleBinding from '../../lib/k8s/clusterRoleBinding';
 import RoleBinding from '../../lib/k8s/roleBinding';
-import { useErrorState } from '../../lib/util';
+import { useNamespaces } from '../../redux/filterSlice';
 import { Link } from '../common';
 import LabelListItem from '../common/LabelListItem';
 import ResourceListView from '../common/Resource/ResourceListView';
 
-interface RoleBindingDict {
-  [kind: string]: RoleBinding[] | null;
-}
-
-function RoleLink(props: { role: string; namespace?: string }) {
-  const { role, namespace } = props;
+function RoleLink(props: { role: string; namespace?: string; cluster: string }) {
+  const { role, namespace, cluster } = props;
 
   if (namespace) {
     return (
-      <Link routeName="role" params={{ name: role, namespace }} tooltip>
+      <Link routeName="role" params={{ name: role, namespace }} activeCluster={cluster} tooltip>
         {role}
       </Link>
     );
   }
 
   return (
-    <Link routeName="clusterrole" params={{ name: role }} tooltip>
+    <Link routeName="clusterrole" params={{ name: role }} activeCluster={cluster} tooltip>
       {role}
     </Link>
   );
 }
 
 export default function RoleBindingList() {
-  const [bindings, setBindings] = React.useState<RoleBindingDict | null>(null);
-  const [roleBindingError, onRoleBindingError] = useErrorState(setupRoleBindings);
-  const [clusterRoleBindingError, onClusterRoleBindingError] =
-    useErrorState(setupClusterRoleBindings);
   const { t } = useTranslation(['glossary', 'translation']);
+  const { items: roles, errors: roleErrors } = RoleBinding.useList({
+    namespace: useNamespaces(),
+  });
+  const { items: clusterRoles, errors: clusterRoleErrors } = ClusterRoleBinding.useList();
 
-  function setRoleBindings(newBindings: RoleBinding[] | null, kind: string) {
-    setBindings(currentBindings => ({ ...currentBindings, [kind]: newBindings }));
-  }
-
-  function setupRoleBindings(newBindings: RoleBinding[] | null) {
-    setRoleBindings(newBindings, 'RoleBinding');
-  }
-
-  function setupClusterRoleBindings(newBindings: RoleBinding[] | null) {
-    setRoleBindings(newBindings, 'ClusterRoleBinding');
-  }
-
-  function getJointItems() {
-    if (!bindings) {
+  const allRoles = React.useMemo(() => {
+    if (roles === null && clusterRoles === null) {
       return null;
     }
 
-    let joint: RoleBinding[] = [];
-    let hasItems = false;
-    for (const items of Object.values(bindings as object)) {
-      if (items !== null) {
-        joint = joint.concat(items);
-        hasItems = true;
-      }
+    return roles ? roles.concat(clusterRoles || []) : clusterRoles;
+  }, [roles, clusterRoles]);
+
+  const allErrors = React.useMemo(() => {
+    if (roleErrors === null && clusterRoleErrors === null) {
+      return null;
     }
 
-    return hasItems ? joint : null;
-  }
-
-  function getErrorMessage() {
-    if (getJointItems() === null) {
-      return RoleBinding.getErrorMessage(roleBindingError || clusterRoleBindingError);
-    }
-
-    return null;
-  }
+    return [...(roleErrors ?? []), ...(clusterRoleErrors ?? [])];
+  }, [roleErrors, clusterRoleErrors]);
 
   function sortBindings(kind: string) {
     return function (r1: RoleBinding, r2: RoleBinding) {
@@ -93,13 +84,10 @@ export default function RoleBindingList() {
     };
   }
 
-  RoleBinding.useApiList(setupRoleBindings, onRoleBindingError);
-  ClusterRoleBinding.useApiList(setupClusterRoleBindings, onClusterRoleBindingError);
-
   return (
     <ResourceListView
       title={t('glossary|Role Bindings')}
-      errorMessage={getErrorMessage()}
+      errors={allErrors}
       columns={[
         'type',
         'name',
@@ -109,18 +97,29 @@ export default function RoleBindingList() {
           getValue: item => item.getNamespace() ?? t('translation|All namespaces'),
           render: item =>
             item.getNamespace() ? (
-              <Link routeName="namespace" params={{ name: item.getNamespace() }}>
+              <Link
+                routeName="namespace"
+                params={{ name: item.getNamespace() }}
+                activeCluster={item.cluster}
+              >
                 {item.getNamespace()}
               </Link>
             ) : (
               t('translation|All namespaces')
             ),
         },
+        'cluster',
         {
           id: 'role',
           label: t('glossary|Role'),
           getValue: item => item.roleRef.name,
-          render: item => <RoleLink role={item.roleRef.name} namespace={item.getNamespace()} />,
+          render: item => (
+            <RoleLink
+              role={item.roleRef.name}
+              namespace={item.getNamespace()}
+              cluster={item.cluster}
+            />
+          ),
         },
         {
           id: 'users',
@@ -181,7 +180,7 @@ export default function RoleBindingList() {
         },
         'age',
       ]}
-      data={getJointItems()}
+      data={allRoles}
       id="headlamp-rolebindings"
     />
   );

@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { useTranslation } from 'react-i18next';
 import MutatingWebhookConfiguration from '../../lib/k8s/mutatingWebhookConfiguration';
 import ValidatingWebhookConfiguration from '../../lib/k8s/validatingWebhookConfiguration';
@@ -8,16 +24,18 @@ import { MatchExpressions } from '../common/Resource/MatchExpressions';
 export interface WebhookConfigurationDetailsProps {
   resourceClass: typeof ValidatingWebhookConfiguration | typeof MutatingWebhookConfiguration;
   name: string;
+  cluster?: string;
 }
 
 export default function WebhookConfigurationDetails(props: WebhookConfigurationDetailsProps) {
-  const { resourceClass, name } = props;
+  const { resourceClass, name, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   return (
     <DetailsGrid
       resourceType={resourceClass}
       name={name}
+      cluster={cluster}
       withEvents
       extraInfo={item =>
         item && [
@@ -68,6 +86,7 @@ export default function WebhookConfigurationDetails(props: WebhookConfigurationD
                                   name: webhook.clientConfig?.service?.name,
                                   namespace: webhook.clientConfig?.service?.namespace,
                                 }}
+                                activeCluster={item.cluster}
                               >
                                 {t('translation|Service: {{namespace}}/{{name}}', {
                                   namespace: webhook.clientConfig?.service?.namespace,

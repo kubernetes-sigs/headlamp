@@ -1,19 +1,32 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 // @todo: Params is a confusing name for options, because params are also query params.
 
-import { isDebugVerbose } from '../../../../helpers';
+import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import store from '../../../../redux/stores/store';
 import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
 import { getToken, logout, setToken } from '../../../auth';
 import { getCluster } from '../../../cluster';
 import { KubeObjectInterface } from '../../KubeObject';
+import { ApiError } from '../v2/ApiError';
 import { BASE_HTTP_URL, CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
 import { asQuery, combinePath } from './formatUrl';
 import { QueryParameters } from './queryParameters';
 import { refreshToken } from './tokenApi';
-
-export interface ApiError extends Error {
-  status: number;
-}
 
 /**
  * Options for the request.
@@ -275,6 +288,7 @@ export function put(
 }
 
 export function remove(url: string, requestOptions: ClusterRequestParams = {}) {
+  console.log(url, requestOptions);
   const { cluster: clusterName, ...restOptions } = requestOptions;
   const cluster = clusterName || getCluster() || '';
   const opts = { method: 'DELETE', headers: JSON_HEADERS, cluster, ...restOptions };

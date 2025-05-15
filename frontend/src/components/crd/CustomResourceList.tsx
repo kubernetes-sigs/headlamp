@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Box } from '@mui/material';
 import { JSONPath } from 'jsonpath-plus';
 import React from 'react';
@@ -6,7 +22,7 @@ import { useParams } from 'react-router-dom';
 import CRD, { KubeCRD } from '../../lib/k8s/crd';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { localeDate } from '../../lib/util';
-import { Link, Loader, PageGrid, SectionHeader } from '../common';
+import { CreateResourceButton, Link, Loader, PageGrid, SectionHeader } from '../common';
 import BackLink from '../common/BackLink';
 import Empty from '../common/EmptyContent';
 import ResourceListView from '../common/Resource/ResourceListView';
@@ -54,6 +70,7 @@ function CustomResourceLink(props: {
         crd: crd.metadata.name,
         namespace: resource.metadata.namespace || '-',
       }}
+      activeCluster={resource.cluster}
       {...otherProps}
     >
       {resource.metadata.name}
@@ -69,14 +86,19 @@ function CustomResourceListRenderer(props: CustomResourceListProps) {
   const { crd } = props;
   const { t } = useTranslation('glossary');
 
+  const CRClass = crd.makeCRClass();
+
   return (
     <PageGrid>
       <BackLink />
       <SectionHeader
         title={crd.spec.names.kind}
+        titleSideActions={[
+          <CreateResourceButton resourceClass={CRClass} resourceName={crd.spec.names.kind} />,
+        ]}
         actions={[
           <Box mr={2}>
-            <Link routeName="crd" params={{ name: crd.metadata.name }}>
+            <Link routeName="crd" params={{ name: crd.metadata.name }} activeCluster={crd.cluster}>
               {t('glossary|CRD: {{ crdName }}', { crdName: crd.metadata.name })}
             </Link>
           </Box>,
@@ -176,6 +198,7 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
       title={title}
       headerProps={{
         noNamespaceFilter: !crd.isNamespaced,
+        titleSideActions: [],
       }}
       resourceClass={CRClass}
       columns={cols}

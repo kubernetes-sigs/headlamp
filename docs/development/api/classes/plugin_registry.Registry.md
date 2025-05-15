@@ -31,7 +31,7 @@
 
 #### Defined in
 
-[plugin/registry.tsx:164](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L164)
+[plugin/registry.tsx:164](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L164)
 
 ___
 
@@ -53,7 +53,7 @@ ___
 
 #### Defined in
 
-[plugin/registry.tsx:213](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L213)
+[plugin/registry.tsx:213](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L213)
 
 ___
 
@@ -75,7 +75,7 @@ ___
 
 #### Defined in
 
-[plugin/registry.tsx:221](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L221)
+[plugin/registry.tsx:221](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L221)
 
 ___
 
@@ -98,7 +98,7 @@ ___
 
 #### Defined in
 
-[plugin/registry.tsx:154](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L154)
+[plugin/registry.tsx:154](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L154)
 
 ___
 
@@ -135,7 +135,7 @@ register.registerDetailsViewSection('biolatency', resource => {
 
 #### Defined in
 
-[plugin/registry.tsx:186](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L186)
+[plugin/registry.tsx:186](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L186)
 
 ___
 
@@ -157,7 +157,7 @@ ___
 
 #### Defined in
 
-[plugin/registry.tsx:146](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L146)
+[plugin/registry.tsx:146](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L146)
 
 ___
 
@@ -183,4 +183,4 @@ ___
 
 #### Defined in
 
-[plugin/registry.tsx:122](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L122)
+[plugin/registry.tsx:122](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L122)

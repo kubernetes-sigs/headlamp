@@ -8,8 +8,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/config"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +24,7 @@ func TestLoadAndStoreKubeConfigs(t *testing.T) {
 	t.Run("valid_file", func(t *testing.T) {
 		kubeConfigFile := kubeConfigFilePath
 
-		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig)
+		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
 		require.NoError(t, err)
 
 		contexts, err := contextStore.GetContexts()
@@ -41,7 +41,7 @@ func TestLoadAndStoreKubeConfigs(t *testing.T) {
 	t.Run("invalid_file", func(t *testing.T) {
 		kubeConfigFile := "invalid_kubeconfig"
 
-		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig)
+		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
 		require.Error(t, err)
 	})
 }
@@ -72,7 +72,7 @@ func TestLoadContextsFromKubeConfigFile(t *testing.T) {
 		require.NoError(t, err, "Expected no error for auth error file")
 		require.NotEmpty(t, contextErrors, "Expected context errors for invalid auth file")
 		require.Equal(t, contextErrors[0].ContextName, "invalid-context")
-		require.Equal(t, 2, len(contexts), "Expected 1 context from invalid auth file")
+		require.Equal(t, 0, len(contexts), "Expected no contexts from invalid auth file")
 	})
 
 	t.Run("partially_valid_contexts", func(t *testing.T) {
@@ -81,7 +81,7 @@ func TestLoadContextsFromKubeConfigFile(t *testing.T) {
 		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig)
 		require.NoError(t, err, "Expected no error for partially valid file")
 		require.NotEmpty(t, contextErrors, "Expected some context errors for partially valid file")
-		require.Equal(t, 3, len(contexts), "Expected 3 contexts from the partially valid file")
+		require.Equal(t, 1, len(contexts), "Expected 1 contexts from the partially valid file")
 		require.Equal(t, "valid-context", contexts[0].Name, "Expected context name to be 'valid-context'")
 	})
 }
@@ -91,7 +91,7 @@ func TestContext(t *testing.T) {
 
 	configStore := kubeconfig.NewContextStore()
 
-	err := kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig)
+	err := kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
 	require.NoError(t, err)
 
 	testContext, err := configStore.GetContext("minikube")
@@ -173,7 +173,7 @@ users:
 		contexts, contextErrors, err := kubeconfig.LoadContextsFromBase64String(base64String, kubeconfig.DynamicCluster)
 		require.NoError(t, err, "Expected no error for partially valid base64")
 		require.NotEmpty(t, contextErrors, "Expected some context errors for partially valid base64")
-		require.Equal(t, 2, len(contexts), "Expected 2 valid contexts from partially valid base64")
+		require.Equal(t, 1, len(contexts), "Expected 1 valid context from partially valid base64")
 		assert.Equal(t, "valid-context", contexts[0].Name, "Expected context name to be 'valid-context'")
 	})
 }

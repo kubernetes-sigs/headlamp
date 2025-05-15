@@ -14,10 +14,11 @@ kubeconfig).
 
 ## Get involved
 
-Check out our [contributing](./contributing.md) section and join the
-discussion on the
-[#headlamp](https://kubernetes.slack.com/messages/headlamp) channel
-in the Kubernetes Slack.
+Check out our: 
+- [Guidelines](https://headlamp.dev/docs/latest/contributing/)
+- [Code of Conduct](./CODE_OF_CONDUCT.md),
+- [#headlamp](https://kubernetes.slack.com/messages/headlamp) slack channel in the Kubernetes Slack 
+- [Monthly Community Meeting](https://zoom-lfx.platform.linuxfoundation.org/meetings/headlamp)
 
 ## Frequently Asked Questions
 

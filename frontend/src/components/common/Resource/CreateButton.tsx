@@ -1,23 +1,29 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { InlineIcon } from '@iconify/react';
 import Button from '@mui/material/Button';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
+import { alpha } from '@mui/system';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useDispatch } from 'react-redux';
-import { useLocation } from 'react-router-dom';
-import { useClusterGroup } from '../../../lib/k8s';
-import { apply } from '../../../lib/k8s/apiProxy';
-import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
-import { clusterAction } from '../../../redux/clusterActionSlice';
-import {
-  EventStatus,
-  HeadlampEventType,
-  useEventCallback,
-} from '../../../redux/headlampEventSlice';
-import { AppDispatch } from '../../../redux/stores/store';
+import { useSelectedClusters } from '../../../lib/k8s';
 import ActionButton from '../ActionButton';
 import EditorDialog from './EditorDialog';
 
@@ -27,15 +33,15 @@ interface CreateButtonProps {
 
 export default function CreateButton(props: CreateButtonProps) {
   const { isNarrow } = props;
-  const dispatch: AppDispatch = useDispatch();
 
   const [openDialog, setOpenDialog] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('');
-  const location = useLocation();
   const { t } = useTranslation(['translation']);
-  const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
-  const clusters = useClusterGroup();
+  const clusters = useSelectedClusters();
   const [targetCluster, setTargetCluster] = React.useState(clusters[0] || '');
+
+  // We want to avoid resetting the dialog state on close.
+  const itemRef = React.useRef({});
 
   // When the clusters in the group change, we want to reset the target cluster
   // if it's not in the new list of clusters.
@@ -47,82 +53,6 @@ export default function CreateButton(props: CreateButtonProps) {
     }
   }, [clusters]);
 
-  const applyFunc = async (newItems: KubeObjectInterface[], clusterName: string) => {
-    await Promise.allSettled(newItems.map(newItem => apply(newItem, clusterName))).then(
-      (values: any) => {
-        values.forEach((value: any, index: number) => {
-          if (value.status === 'rejected') {
-            let msg;
-            const kind = newItems[index].kind;
-            const name = newItems[index].metadata.name;
-            const apiVersion = newItems[index].apiVersion;
-            if (newItems.length === 1) {
-              msg = t('translation|Failed to create {{ kind }} {{ name }}.', { kind, name });
-            } else {
-              msg = t('translation|Failed to create {{ kind }} {{ name }} in {{ apiVersion }}.', {
-                kind,
-                name,
-                apiVersion,
-              });
-            }
-            setErrorMessage(msg);
-            setOpenDialog(true);
-            throw msg;
-          }
-        });
-      }
-    );
-  };
-
-  function handleSave(newItemDefs: KubeObjectInterface[]) {
-    let massagedNewItemDefs = newItemDefs;
-    const cancelUrl = location.pathname;
-
-    // check if all yaml objects are valid
-    for (let i = 0; i < massagedNewItemDefs.length; i++) {
-      if (massagedNewItemDefs[i].kind === 'List') {
-        // flatten this List kind with the items that it has which is a list of valid k8s resources
-        const deletedItem = massagedNewItemDefs.splice(i, 1);
-        massagedNewItemDefs = massagedNewItemDefs.concat(deletedItem[0].items!);
-      }
-      if (!massagedNewItemDefs[i].metadata?.name) {
-        setErrorMessage(
-          t(`translation|Invalid: One or more of resources doesn't have a name property`)
-        );
-        return;
-      }
-      if (!massagedNewItemDefs[i].kind) {
-        setErrorMessage(t('translation|Invalid: Please set a kind to the resource'));
-        return;
-      }
-    }
-    // all resources name
-    const resourceNames = massagedNewItemDefs.map(newItemDef => newItemDef.metadata.name);
-    setOpenDialog(false);
-
-    dispatch(
-      clusterAction(() => applyFunc(massagedNewItemDefs, targetCluster), {
-        startMessage: t('translation|Applying {{ newItemName }}…', {
-          newItemName: resourceNames.join(','),
-        }),
-        cancelledMessage: t('translation|Cancelled applying {{ newItemName }}.', {
-          newItemName: resourceNames.join(','),
-        }),
-        successMessage: t('translation|Applied {{ newItemName }}.', {
-          newItemName: resourceNames.join(','),
-        }),
-        errorMessage: t('translation|Failed to apply {{ newItemName }}.', {
-          newItemName: resourceNames.join(','),
-        }),
-        cancelUrl,
-      })
-    );
-
-    dispatchCreateEvent({
-      status: EventStatus.CONFIRMED,
-    });
-  }
-
   return (
     <React.Fragment>
       {isNarrow ? (
@@ -133,6 +63,9 @@ export default function CreateButton(props: CreateButtonProps) {
           width="48"
           iconButtonProps={{
             color: 'primary',
+            sx: theme => ({
+              color: theme.palette.sidebar.color,
+            }),
           }}
         />
       ) : (
@@ -141,17 +74,24 @@ export default function CreateButton(props: CreateButtonProps) {
             setOpenDialog(true);
           }}
           startIcon={<InlineIcon icon="mdi:plus" />}
-          color="primary"
-          variant="contained"
+          color="secondary"
+          size="large"
+          sx={theme => ({
+            background: theme.palette.sidebar.actionBackground,
+            color: theme.palette.getContrastText(theme.palette.sidebar.actionBackground),
+            ':hover': {
+              background: alpha(theme.palette.sidebar.actionBackground, 0.6),
+            },
+          })}
         >
           {t('translation|Create')}
         </Button>
       )}
       <EditorDialog
-        item={{}}
+        item={itemRef.current}
         open={openDialog}
         onClose={() => setOpenDialog(false)}
-        onSave={handleSave}
+        setOpen={setOpenDialog}
         saveLabel={t('translation|Apply')}
         errorMessage={errorMessage}
         onEditorChanged={() => setErrorMessage('')}
