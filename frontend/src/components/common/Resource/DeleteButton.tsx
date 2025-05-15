@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
+import { FormControlLabel, Grid, Switch } from '@mui/material';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
+import Pod from '../../../lib/k8s/pod';
 import { CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
 import {
   EventStatus,
@@ -26,6 +28,7 @@ import {
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
 import { AppDispatch } from '../../../redux/stores/store';
+import { useSettings } from '../../App/Settings/hook';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 import { ConfirmDialog } from '../Dialog';
 import AuthVisible from './AuthVisible';
@@ -39,9 +42,11 @@ interface DeleteButtonProps {
 
 export default function DeleteButton(props: DeleteButtonProps) {
   const dispatch: AppDispatch = useDispatch();
+  const settingsObj = useSettings();
 
   const { item, options, buttonStyle, afterConfirm } = props;
   const [openAlert, setOpenAlert] = React.useState(false);
+  const [forceDelete, setForceDelete] = React.useState(false);
   const location = useLocation();
   const { t } = useTranslation(['translation']);
   const dispatchDeleteEvent = useEventCallback(HeadlampEventType.DELETE_RESOURCE);
@@ -52,13 +57,18 @@ export default function DeleteButton(props: DeleteButtonProps) {
         return;
       }
 
-      const callback = item!.delete;
+      let callback = item!.delete;
+      if (settingsObj.useEvict && item.kind === 'Pod') {
+        const pod = item as Pod;
+        callback = pod.evict;
+      }
 
       const itemName = item!.metadata.name;
 
       callback &&
         dispatch(
           clusterAction(callback.bind(item), {
+            callbackArgs: [forceDelete],
             startMessage: t('Deleting item {{ itemName }}…', { itemName }),
             cancelledMessage: t('Cancelled deletion of {{ itemName }}.', { itemName }),
             successMessage: t('Deleted item {{ itemName }}.', { itemName }),
@@ -71,7 +81,7 @@ export default function DeleteButton(props: DeleteButtonProps) {
         );
     },
     // eslint-disable-next-line
-    [item]
+    [item, forceDelete]
   );
 
   if (!item) {
@@ -87,7 +97,11 @@ export default function DeleteButton(props: DeleteButtonProps) {
       }}
     >
       <ActionButton
-        description={t('translation|Delete')}
+        description={
+          settingsObj.useEvict && item.kind === 'Pod'
+            ? t('translation|Evict')
+            : t('translation|Delete')
+        }
         buttonStyle={buttonStyle}
         onClick={() => {
           setOpenAlert(true);
@@ -97,10 +111,38 @@ export default function DeleteButton(props: DeleteButtonProps) {
 
       <ConfirmDialog
         open={openAlert}
-        title={t('translation|Delete item')}
-        description={t('translation|Are you sure you want to delete item {{ itemName }}?', {
-          itemName: item.metadata.name,
-        })}
+        title={
+          settingsObj.useEvict && item.kind === 'Pod'
+            ? t('translation|Evict Pod')
+            : t('translation|Delete item')
+        }
+        description={
+          <Grid container direction="column">
+            <Grid item>
+              {settingsObj.useEvict && item.kind === 'Pod'
+                ? t('translation|Are you sure you want to evict pod {{ itemName }}?', {
+                    itemName: item.metadata.name,
+                  })
+                : t('translation|Are you sure you want to delete item {{ itemName }}?', {
+                    itemName: item.metadata.name,
+                  })}
+            </Grid>
+            {(!settingsObj.useEvict || item.kind !== 'Pod') && (
+              <Grid item>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={forceDelete}
+                      onChange={() => setForceDelete(!forceDelete)}
+                      name="forceDelete"
+                    />
+                  }
+                  label={t('Force Delete')}
+                />
+              </Grid>
+            )}
+          </Grid>
+        }
         handleClose={() => setOpenAlert(false)}
         onConfirm={() => {
           deleteFunc();

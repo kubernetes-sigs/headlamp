@@ -288,6 +288,7 @@ export function put(
 }
 
 export function remove(url: string, requestOptions: ClusterRequestParams = {}) {
+  console.log(url, requestOptions);
   const { cluster: clusterName, ...restOptions } = requestOptions;
   const cluster = clusterName || getCluster() || '';
   const opts = { method: 'DELETE', headers: JSON_HEADERS, cluster, ...restOptions };

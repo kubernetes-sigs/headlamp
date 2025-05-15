@@ -25,7 +25,14 @@ import { useConnectApi, useSelectedClusters } from '.';
 import { RecursivePartial } from './api/v1/factories';
 import { useKubeObject } from './api/v2/hooks';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
-import { ApiError, apiFactory, apiFactoryWithNamespace, post, QueryParameters } from './apiProxy';
+import {
+  ApiError,
+  apiFactory,
+  apiFactoryWithNamespace,
+  DeleteParameters,
+  post,
+  QueryParameters,
+} from './apiProxy';
 import { KubeEvent } from './event';
 import { KubeMetadata } from './KubeMetadata';
 
@@ -435,14 +442,21 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     return this.constructor as KubeObjectClass;
   }
 
-  delete() {
+  delete(force?: boolean) {
     const args: string[] = [this.getName()];
     if (this.isNamespaced) {
       args.unshift(this.getNamespace()!);
     }
+    const params: DeleteParameters = {};
+
+    console.log(force);
+    if (force) {
+      params.gracePeriodSeconds = 0;
+      console.log(params);
+    }
 
     // @ts-ignore
-    return this._class().apiEndpoint.delete(...args, {}, this._clusterName);
+    return this._class().apiEndpoint.delete(...args, params, this._clusterName);
   }
 
   update(data: KubeObjectInterface) {

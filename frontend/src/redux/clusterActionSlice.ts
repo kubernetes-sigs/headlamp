@@ -82,6 +82,7 @@ export interface CallbackAction extends CallbackActionOptions {
 }
 
 export interface CallbackActionOptions {
+  callbackArgs?: any[];
   /**
    * The url to navigate to when the action has started.
    */
@@ -179,6 +180,7 @@ export const executeClusterAction = createAsyncThunk(
       errorMessage,
       errorUrl,
       successMessage,
+      callbackArgs,
       cancelCallback,
       startOptions = {},
       cancelledOptions = {},
@@ -268,7 +270,11 @@ export const executeClusterAction = createAsyncThunk(
         if (controller.signal.aborted) {
           return rejectWithValue('Action cancelled');
         }
-        await Promise.resolve(callback());
+        if (callbackArgs === undefined) {
+          await Promise.resolve(callback());
+        } else {
+          await Promise.resolve(callback(...callbackArgs));
+        }
         dispatchSuccess();
       } catch (err) {
         if ((err as Error).message === 'Action cancelled' || controller.signal.aborted) {

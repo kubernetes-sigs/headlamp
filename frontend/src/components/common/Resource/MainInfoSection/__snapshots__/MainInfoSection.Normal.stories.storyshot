@@ -71,7 +71,7 @@
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
               <button
-                aria-label="Delete"
+                aria-label="Evict"
                 class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
                 data-mui-internal-clone-element="true"
                 tabindex="0"

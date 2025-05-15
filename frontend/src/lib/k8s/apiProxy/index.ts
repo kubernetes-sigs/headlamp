@@ -38,6 +38,7 @@
 // debugVerbose('k8s/apiProxy');
 
 export type { QueryParameters } from '../api/v1/queryParameters';
+export type { DeleteParameters } from '../api/v1/deleteParameters';
 
 // Basic cluster API functions
 export {

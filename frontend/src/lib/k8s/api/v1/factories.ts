@@ -23,6 +23,7 @@ import { getCluster } from '../../../cluster';
 import { KubeObjectInterface } from '../../KubeObject';
 import { ApiError } from '../v2/ApiError';
 import { clusterRequest, patch, post, put, remove } from './clusterRequests';
+import { DeleteParameters } from './deleteParameters';
 import { asQuery, getApiRoot } from './formatUrl';
 import { QueryParameters } from './queryParameters';
 import { apiScaleFactory, ScaleApi } from './scaleApi';
@@ -87,7 +88,7 @@ export interface ApiClient<ResourceType extends KubeObjectInterface> {
     queryParams?: QueryParameters,
     cluster?: string
   ) => Promise<ResourceType>;
-  delete: (name: string, queryParams?: QueryParameters, cluster?: string) => Promise<any>;
+  delete: (name: string, deleteParams?: DeleteParameters, cluster?: string) => Promise<any>;
   isNamespaced: boolean;
   apiInfo: {
     group: string;
@@ -132,7 +133,7 @@ export interface ApiWithNamespaceClient<ResourceType extends KubeObjectInterface
   delete: (
     namespace: string,
     name: string,
-    queryParams?: QueryParameters,
+    deleteParams?: DeleteParameters,
     cluster?: string
   ) => Promise<any>;
   isNamespaced: boolean;
@@ -379,8 +380,8 @@ export function singleApiFactory<T extends KubeObjectInterface>(
       patch(`${url}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }), body, true, {
         cluster,
       }),
-    delete: (name, queryParams, cluster) =>
-      remove(`${url}/${name}` + asQuery(queryParams), { cluster }),
+    delete: (name, deleteParams, cluster) =>
+      remove(`${url}/${name}` + asQuery(deleteParams), { cluster }),
     isNamespaced: false,
     apiInfo: [{ group, version, resource }],
   };
@@ -464,8 +465,8 @@ function simpleApiFactoryWithNamespace<T extends KubeObjectInterface>(
         true,
         { cluster }
       ),
-    delete: (namespace, name, queryParams, cluster) =>
-      remove(`${url(namespace)}/${name}` + asQuery(queryParams), { cluster }),
+    delete: (namespace, name, deleteParams, cluster) =>
+      remove(`${url(namespace)}/${name}` + asQuery(deleteParams), { cluster }),
     isNamespaced: true,
     apiInfo: [{ group, version, resource }],
   };
