@@ -29,10 +29,13 @@ endif
 all: backend frontend
 
 tools/golangci-lint: backend/go.mod backend/go.sum
-	GOBIN=`pwd`/backend/tools go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54
+	GOBIN=`pwd`/backend/tools go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64
 
 backend-lint: tools/golangci-lint
 	cd backend && ./tools/golangci-lint run
+
+backend-lint-fix: tools/golangci-lint
+	cd backend && ./tools/golangci-lint run --fix
 
 frontend/build:
 	make frontend
@@ -91,15 +94,14 @@ frontend-build:
 frontend-build-storybook:
 	cd frontend && npm run build-storybook
 
-
 run-backend:
 	@echo "**** Warning: Running with Helm and dynamic-clusters endpoints enabled. ****"
 
 ifeq ($(UNIXSHELL),true)
-	HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -enable-dynamic-clusters
+	HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
 else
 	@echo "**** Running on Windows without bash or zsh. ****"
-	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/*" -enable-dynamic-clusters
+	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
 endif
 
 run-frontend:
@@ -108,6 +110,12 @@ ifeq ($(UNIXSHELL),true)
 else
 	cd frontend && npm start
 endif
+
+run-app:
+	cd app && npm install && node ./scripts/setup-plugins.js && npm run start
+
+run-only-app:
+	cd app && npm install && node ./scripts/setup-plugins.js && npm run dev-only-app
 
 frontend-lint:
 	cd frontend && npm run lint -- --max-warnings 0 && npm run format-check
@@ -183,3 +191,7 @@ i18n:
 .PHONY: helm-template-test
 helm-template-test:
 	charts/headlamp/tests/test.sh
+
+.PHONY: helm-update-template-version
+helm-update-template-version:
+	charts/headlamp/tests/update-version.sh

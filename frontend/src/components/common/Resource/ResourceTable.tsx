@@ -1,15 +1,31 @@
-import { MenuItem, TableCellProps } from '@mui/material';
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { Box, MenuItem, TableCellProps } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { MRT_FilterFns, MRT_Row, MRT_SortingFn } from 'material-react-table';
+import { MRT_FilterFns, MRT_Row, MRT_SortingFn, MRT_TableInstance } from 'material-react-table';
 import { ComponentProps, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import helpers from '../../../helpers';
-import { useClusterGroup } from '../../../lib/k8s';
+import { useSelectedClusters } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/apiProxy';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 import { useFilterFunc } from '../../../lib/util';
 import { DefaultHeaderAction, RowAction } from '../../../redux/actionButtonsSlice';
+import { useNamespaces } from '../../../redux/filterSlice';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../../redux/reducers/reducers';
 import { useSettings } from '../../App/Settings/hook';
@@ -19,6 +35,7 @@ import Link from '../Link';
 import Table, { TableColumn } from '../Table';
 import DeleteButton from './DeleteButton';
 import EditButton from './EditButton';
+import ResourceTableMultiActions from './ResourceTableMultiActions';
 import { RestartButton } from './RestartButton';
 import ScaleButton from './ScaleButton';
 import ViewButton from './ViewButton';
@@ -76,13 +93,15 @@ export type ResourceTableColumn<RowItem> = {
     }
 );
 
-type ColumnType = 'age' | 'name' | 'namespace' | 'type' | 'kind' | 'cluster';
+export type ColumnType = 'age' | 'name' | 'namespace' | 'type' | 'kind' | 'cluster';
 
 export interface ResourceTableProps<RowItem> {
   /** The columns to be rendered, like used in Table, or by name. */
   columns: (ResourceTableColumn<RowItem> | ColumnType)[];
   /** Show or hide row actions @default false*/
   enableRowActions?: boolean;
+  /** Show or hide row selections and actions @default false*/
+  enableRowSelection?: boolean;
   actions?: null | RowAction[];
   /** Provide a list of columns that won't be shown and cannot be turned on */
   hideColumns?: string[] | null;
@@ -105,10 +124,10 @@ export interface ResourceTableProps<RowItem> {
   filterFunction?: (item: RowItem) => boolean;
   /** Display an error message. Table will be hidden even if data is present */
   errorMessage?: string | null;
+  /** Display an errors */
+  errors?: ApiError[] | null;
   /** State of the Table (page, rows per page) is reflected in the url */
   reflectInURL?: string | boolean;
-  /** Any errors per cluster (useful when using the table a in a multi-cluster listing) */
-  clusterErrors?: { [cluster: string]: ApiError | null } | null;
 }
 
 export interface ResourceTableFromResourceClassProps<KubeClass extends KubeObjectClass>
@@ -121,27 +140,20 @@ export default function ResourceTable<KubeClass extends KubeObjectClass>(
     | ResourceTableFromResourceClassProps<KubeClass>
     | ResourceTableProps<InstanceType<KubeClass>>
 ) {
-  const { clusterErrors } = props;
-
   if (!!(props as ResourceTableFromResourceClassProps<KubeClass>).resourceClass) {
     const { resourceClass, ...otherProps } =
       props as ResourceTableFromResourceClassProps<KubeClass>;
     return <TableFromResourceClass resourceClass={resourceClass!} {...otherProps} />;
   }
 
-  return (
-    <>
-      <ClusterGroupErrorMessage clusterErrors={clusterErrors ? clusterErrors : undefined} />
-      <ResourceTableContent {...(props as ResourceTableProps<InstanceType<KubeClass>>)} />
-    </>
-  );
+  return <ResourceTableContent {...(props as ResourceTableProps<InstanceType<KubeClass>>)} />;
 }
 
 function TableFromResourceClass<KubeClass extends KubeObjectClass>(
   props: ResourceTableFromResourceClassProps<KubeClass>
 ) {
   const { resourceClass, id, ...otherProps } = props;
-  const { items, error, clusterErrors } = resourceClass.useList();
+  const { items, errors } = resourceClass.useList({ namespace: useNamespaces() });
 
   // throttle the update of the table to once per second
   const throttledItems = useThrottle(items, 1000);
@@ -151,19 +163,56 @@ function TableFromResourceClass<KubeClass extends KubeObjectClass>(
     dispatchHeadlampEvent({
       resources: items!,
       resourceKind: resourceClass.className,
-      error: error || undefined,
+      error: errors?.[0] || undefined,
     });
-  }, [items, error]);
+  }, [items, errors]);
 
   return (
     <ResourceTableContent
-      errorMessage={resourceClass.getErrorMessage(error)}
+      errors={errors}
       id={id || `headlamp-${resourceClass.pluralName}`}
       {...otherProps}
       data={throttledItems}
-      clusterErrors={clusterErrors}
     />
   );
+}
+
+/**
+ * Store the table settings in local storage.
+ *
+ * @param tableId - The ID of the table.
+ * @param columns - The columns to store.
+ * @returns void
+ */
+function storeTableSettings(tableId: string, columns: { id?: string; show: boolean }[]) {
+  if (!tableId) {
+    console.debug('storeTableSettings: tableId is empty!', new Error().stack);
+    return;
+  }
+
+  const columnsWithIds = columns.map((c, i) => ({ id: i.toString(), ...c }));
+  // Delete the entry if there are no settings to store.
+  if (columnsWithIds.length === 0) {
+    localStorage.removeItem(`table_settings.${tableId}`);
+    return;
+  }
+  localStorage.setItem(`table_settings.${tableId}`, JSON.stringify(columnsWithIds));
+}
+
+/**
+ * Load the table settings from local storage for a given table ID.
+ *
+ * @param tableId - The ID of the table.
+ * @returns The table settings for the given table ID.
+ */
+function loadTableSettings(tableId: string): { id: string; show: boolean }[] {
+  if (!tableId) {
+    console.debug('loadTableSettings: tableId is empty!', new Error().stack);
+    return [];
+  }
+
+  const settings = JSON.parse(localStorage.getItem(`table_settings.${tableId}`) || '[]');
+  return settings;
 }
 
 /**
@@ -185,7 +234,7 @@ function initColumnVisibilityState(columns: ResourceTableProps<any>['columns'], 
 
   // Load and apply persisted settings from local storage
   if (tableId) {
-    const localTableSettins = helpers.loadTableSettings(tableId);
+    const localTableSettins = loadTableSettings(tableId);
     localTableSettins.forEach(({ id, show }) => (visibility[id] = show));
   }
 
@@ -252,11 +301,13 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     defaultGlobalFilter,
     actions,
     enableRowActions = false,
+    enableRowSelection = false,
+    errors,
   } = props;
   const { t } = useTranslation(['glossary', 'translation']);
   const theme = useTheme();
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
-  const clusters = useClusterGroup();
+  const clusters = useSelectedClusters();
   const tableProcessors = useTypedSelector(state => state.resourceTable.tableColumnsProcessors);
   const defaultFilterFunc = useFilterFunc();
   const [columnVisibility, setColumnVisibility] = useState(() =>
@@ -264,7 +315,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
   );
 
   const [tableSettings] = useState<{ id: string; show: boolean }[]>(
-    !!id ? helpers.loadTableSettings(id) : []
+    !!id ? loadTableSettings(id) : []
   );
 
   const [allColumns, sort] = useMemo(() => {
@@ -315,7 +366,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
             mrtColumn.accessorFn = (item: RowItem) => item[column.datum];
           }
           if ('render' in column) {
-            mrtColumn.Cell = ({ row }: { row: MRT_Row<any> }) =>
+            mrtColumn.Cell = ({ row }: { row: MRT_Row<RowItem> }) =>
               column.render?.(row.original) ?? null;
           }
           if (sort && typeof sort === 'function') {
@@ -330,9 +381,9 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
             return {
               id: 'name',
               header: t('translation|Name'),
-              gridTemplate: 1.5,
+              gridTemplate: 'auto',
               accessorFn: (item: RowItem) => item.metadata.name,
-              Cell: ({ row }: { row: MRT_Row<any> }) =>
+              Cell: ({ row }: { row: MRT_Row<RowItem> }) =>
                 row.original && <Link kubeObject={row.original} />,
             };
           case 'age':
@@ -358,11 +409,18 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
             return {
               id: 'namespace',
               header: t('glossary|Namespace'),
-              accessorFn: (item: RowItem) => item.getNamespace(),
+              gridTemplate: 'auto',
+              accessorFn: (item: RowItem) => item.getNamespace() ?? '',
               filterVariant: 'multi-select',
               Cell: ({ row }: { row: MRT_Row<RowItem> }) =>
                 row.original?.getNamespace() ? (
-                  <Link routeName="namespace" params={{ name: row.original.getNamespace() }}>
+                  <Link
+                    routeName="namespace"
+                    params={{
+                      name: row.original.getNamespace(),
+                    }}
+                    activeCluster={row.original.cluster}
+                  >
                     {row.original.getNamespace()}
                   </Link>
                 ) : (
@@ -373,6 +431,10 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
             return {
               id: 'cluster',
               header: t('glossary|Cluster'),
+              gridTemplate: 'min-content',
+              Cell: ({ row }: { row: MRT_Row<RowItem> }) => (
+                <Box sx={{ whiteSpace: 'nowrap' }}>{row.original.cluster}</Box>
+              ),
               accessorFn: (resource: KubeObject) => resource.cluster,
             };
           case 'type':
@@ -382,6 +444,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               header: t('translation|Type'),
               accessorFn: (resource: RowItem) => String(resource?.kind),
               filterVariant: 'multi-select',
+              gridTemplate: 'min-content',
             };
           default:
             throw new Error(`Unknown column: ${col}`);
@@ -414,26 +477,26 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
   const defaultActions: RowAction[] = [
     {
       id: DefaultHeaderAction.RESTART,
-      action: ({ item }) => <RestartButton item={item} buttonStyle="menu" />,
+      action: ({ item }) => <RestartButton item={item} buttonStyle="menu" key="restart" />,
     },
     {
       id: DefaultHeaderAction.SCALE,
-      action: ({ item }) => <ScaleButton item={item} buttonStyle="menu" />,
+      action: ({ item }) => <ScaleButton item={item} buttonStyle="menu" key="scale" />,
     },
     {
       id: DefaultHeaderAction.EDIT,
       action: ({ item, closeMenu }) => (
-        <EditButton item={item} buttonStyle="menu" afterConfirm={closeMenu} />
+        <EditButton item={item} buttonStyle="menu" afterConfirm={closeMenu} key="edit" />
       ),
     },
     {
       id: DefaultHeaderAction.VIEW,
-      action: ({ item }) => <ViewButton item={item} buttonStyle="menu" />,
+      action: ({ item }) => <ViewButton item={item} buttonStyle="menu" key="view" />,
     },
     {
       id: DefaultHeaderAction.DELETE,
       action: ({ item, closeMenu }) => (
-        <DeleteButton item={item} buttonStyle="menu" afterConfirm={closeMenu} />
+        <DeleteButton item={item} buttonStyle="menu" afterConfirm={closeMenu} key="delete" />
       ),
     },
   ];
@@ -458,6 +521,22 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     };
   }, [actionsProcessed]);
 
+  const wrappedEnableRowSelection = useMemo(() => {
+    if (import.meta.env.REACT_APP_HEADLAMP_ENABLE_ROW_SELECTION === 'false') {
+      return false;
+    }
+    return enableRowSelection;
+  }, [enableRowSelection]);
+
+  const renderRowSelectionToolbar = useMemo(() => {
+    if (!wrappedEnableRowSelection) {
+      return undefined;
+    }
+    return ({ table }: { table: MRT_TableInstance<Record<string, any>> }) => (
+      <ResourceTableMultiActions table={table} />
+    );
+  }, [wrappedEnableRowSelection]);
+
   function onColumnsVisibilityChange(updater: any): void {
     setColumnVisibility(oldCols => {
       const newCols = updater(oldCols);
@@ -467,7 +546,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
           id,
           show: (show ?? true) as boolean,
         }));
-        helpers.storeTableSettings(id, colsToStore);
+        storeTableSettings(id, colsToStore);
       }
 
       return newCols;
@@ -487,9 +566,12 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
 
   return (
     <>
+      <ClusterGroupErrorMessage errors={errors} />
       <Table
         enableFullScreenToggle={false}
         enableFacetedValues
+        enableRowSelection={wrappedEnableRowSelection}
+        renderRowSelectionToolbar={renderRowSelectionToolbar}
         errorMessage={errorMessage}
         // @todo: once KubeObject is not any we can remove this casting
         columns={allColumns as TableColumn<Record<string, any>>[]}
@@ -513,6 +595,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
         }}
         globalFilterFn="kubeObjectSearch"
         filterFunction={filterFunc as any}
+        getRowId={item => item?.metadata?.uid}
       />
     </>
   );

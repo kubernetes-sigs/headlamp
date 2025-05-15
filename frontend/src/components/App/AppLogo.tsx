@@ -1,7 +1,23 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Theme } from '@mui/material';
 import { SxProps } from '@mui/system';
 import React, { isValidElement, ReactElement } from 'react';
-import { getThemeName } from '../../lib/themes';
+import { getThemeName, useNavBarMode } from '../../lib/themes';
 import { useTypedSelector } from '../../redux/reducers/reducers';
 import LogoDark from '../../resources/icon-dark.svg?react';
 import LogoLight from '../../resources/icon-light.svg?react';
@@ -14,7 +30,7 @@ export interface AppLogoProps {
   /** The size of the logo. 'small' for in mobile view, and 'large' for tablet and desktop sizes. By default the 'large' is used. */
   logoType?: 'small' | 'large';
   /** User selected theme. By default it checks which is is active. */
-  themeName?: 'dark' | 'light';
+  themeName?: string;
   /** A class to use on your SVG. */
   className?: string;
   /** SxProps to use on your SVG. */
@@ -48,6 +64,7 @@ export function AppLogo(props: AppLogoProps) {
   const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
   const PluginAppLogoComponent = useTypedSelector(state => state.theme.logo);
   const PluginAppLogoComp = PluginAppLogoComponent as typeof React.Component;
+  const mode = useNavBarMode();
 
   // Till all plugins are not loaded show empty content for logo as we might have logo coming from a plugin
   if (!arePluginsLoaded) {
@@ -69,6 +86,6 @@ export function AppLogo(props: AppLogoProps) {
       )}
     </ErrorBoundary>
   ) : (
-    <OriginalAppLogo logoType={logoType} themeName={themeName} />
+    <OriginalAppLogo logoType={logoType} themeName={mode} />
   );
 }

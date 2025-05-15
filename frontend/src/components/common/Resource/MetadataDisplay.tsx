@@ -1,14 +1,28 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Icon } from '@iconify/react';
-import { Box } from '@mui/material';
-import Grid from '@mui/material/Grid';
+import { Box, Theme } from '@mui/material';
 import IconButton from '@mui/material/IconButton';
 import Typography, { TypographyProps } from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ResourceClasses } from '../../../lib/k8s';
+import { ResourceClasses, useSelectedClusters } from '../../../lib/k8s';
 import { KubeOwnerReference } from '../../../lib/k8s/cluster';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-import Theme from '../../../lib/themes';
 import { localeDate } from '../../../lib/util';
 import { NameValueTable, NameValueTableRow } from '../../common/SimpleTable';
 import Link from '../Link';
@@ -16,7 +30,7 @@ import { LightTooltip } from '../Tooltip';
 
 type ExtraRowsFunc<T extends KubeObject> = (resource: T) => NameValueTableRow[] | null;
 
-export const metadataStyles = (theme: typeof Theme.light) => ({
+export const metadataStyles = (theme: Theme) => ({
   color: theme.palette.text.primary,
   backgroundColor: theme.palette.metadataBgColor,
   fontSize: theme.typography.pxToRem(16),
@@ -38,6 +52,8 @@ export interface MetadataDisplayProps<T extends KubeObject = KubeObject> {
 export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProps<T>) {
   const { resource, extraRows } = props;
   const { t } = useTranslation();
+  const shouldShowCluster = useSelectedClusters().length > 1;
+
   let makeExtraRows: ExtraRowsFunc<T>;
 
   function makeOwnerReferences(ownerReferences: KubeOwnerReference[]) {
@@ -105,6 +121,10 @@ export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProp
         ),
         hide: !resource.metadata.namespace,
       },
+      shouldShowCluster && {
+        name: t('glossary|Cluster'),
+        value: resource.cluster,
+      },
       {
         name: t('Creation'),
         value: localeDate(resource.metadata.creationTimestamp),
@@ -129,7 +149,7 @@ export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProp
         value: makeOwnerReferences(resource.metadata.ownerReferences || []),
         hide: !resource.metadata.ownerReferences || resource.metadata.ownerReferences.length === 0,
       },
-    ] as NameValueTableRow[]
+    ].filter(Boolean) as NameValueTableRow[]
   ).concat(makeExtraRows(resource) || []);
 
   return (
@@ -163,11 +183,16 @@ export function MetadataDictGrid(props: MetadataDictGridProps) {
         {...props}
         sx={theme => ({
           color: theme.palette.text.primary,
-          backgroundColor: theme.palette.metadataBgColor,
-          fontSize: theme.typography.pxToRem(16),
+          borderRadius: theme.shape.borderRadius + 'px',
+          backgroundColor: theme.palette.background.muted,
+          border: '1px solid',
+          borderColor: theme.palette.divider,
+          fontSize: theme.typography.pxToRem(14),
           wordBreak: 'break-word',
-          paddingLeft: theme.spacing(1),
-          paddingRight: theme.spacing(1),
+          paddingTop: 0.5,
+          paddingBottom: 0.5,
+          paddingLeft: 1,
+          paddingRight: 1,
           marginRight: theme.spacing(1),
           overflow: 'hidden',
           whiteSpace: 'nowrap',
@@ -206,31 +231,21 @@ export function MetadataDictGrid(props: MetadataDictGridProps) {
   }
 
   return (
-    <Grid container spacing={1} justifyContent="flex-start">
+    <Box
+      sx={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 0.5,
+      }}
+      {...gridProps}
+    >
       {keys.length > defaultNumShown && (
-        <Grid item>
-          <IconButton onClick={() => setExpanded(!expanded)} size="small">
-            <Icon icon={expanded ? 'mdi:menu-up' : 'mdi:menu-down'} />
-          </IconButton>
-        </Grid>
+        <IconButton onClick={() => setExpanded(!expanded)} size="small">
+          <Icon icon={expanded ? 'mdi:menu-up' : 'mdi:menu-down'} />
+        </IconButton>
       )}
-      <Grid
-        container
-        item
-        justifyContent="flex-start"
-        spacing={1}
-        style={{
-          maxWidth: '80%',
-        }}
-        {...gridProps}
-      >
-        {/* Limit the size to two entries until the user chooses to expand the whole section */}
-        {keys.slice(0, expanded ? keys.length : defaultNumShown).map((key, i) => (
-          <Grid key={i} item zeroMinWidth>
-            {makeLabel(key)}
-          </Grid>
-        ))}
-      </Grid>
-    </Grid>
+      {/* Limit the size to two entries until the user chooses to expand the whole section */}
+      {keys.slice(0, expanded ? keys.length : defaultNumShown).map(key => makeLabel(key))}
+    </Box>
   );
 }

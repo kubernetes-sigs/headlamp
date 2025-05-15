@@ -1,7 +1,24 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import React, { ReactNode } from 'react';
 import { generatePath, useHistory } from 'react-router';
 import NotFoundComponent from '../components/404';
 import AuthToken from '../components/account/Auth';
+import AddCluster from '../components/App/CreateCluster/AddCluster';
 import Home from '../components/App/Home';
 import NotificationList from '../components/App/Notifications/List';
 import PluginSettings from '../components/App/PluginSettings';
@@ -22,11 +39,18 @@ import CustomResourceDefinitionDetails from '../components/crd/Details';
 import CustomResourceDefinitionList from '../components/crd/List';
 import CronJobDetails from '../components/cronjob/Details';
 import CronJobList from '../components/cronjob/List';
-import DaemonSetDetails from '../components/daemonset/Details';
 import DaemonSetList from '../components/daemonset/List';
 import DeploymentsList from '../components/deployments/List';
 import EndpointDetails from '../components/endpoints/Details';
 import EndpointList from '../components/endpoints/List';
+import GatewayClassDetails from '../components/gateway/ClassDetails';
+import GatewayClassList from '../components/gateway/ClassList';
+import GatewayDetails from '../components/gateway/GatewayDetails';
+import GatewayList from '../components/gateway/GatewayList';
+import GRPCRouteDetails from '../components/gateway/GRPCRouteDetails';
+import GRPCRouteList from '../components/gateway/GRPCRouteList';
+import HTTPRouteDetails from '../components/gateway/HTTPRouteDetails';
+import HTTPRouteList from '../components/gateway/HTTPRouteList';
 import HpaDetails from '../components/horizontalPodAutoscaler/Details';
 import HpaList from '../components/horizontalPodAutoscaler/List';
 import IngressClassDetails from '../components/ingress/ClassDetails';
@@ -68,7 +92,6 @@ import ServiceList from '../components/service/List';
 import ServiceAccountDetails from '../components/serviceaccount/Details';
 import ServiceAccountList from '../components/serviceaccount/List';
 import { DefaultSidebars } from '../components/Sidebar';
-import StatefulSetDetails from '../components/statefulset/Details';
 import StatefulSetList from '../components/statefulset/List';
 import PersistentVolumeClaimDetails from '../components/storage/ClaimDetails';
 import PersistentVolumeClaimList from '../components/storage/ClaimList';
@@ -84,14 +107,17 @@ import ValidatingWebhookConfigurationDetails from '../components/webhookconfigur
 import ValidatingWebhookConfigurationList from '../components/webhookconfiguration/ValidatingWebhookConfigList';
 import WorkloadDetails from '../components/workload/Details';
 import WorkloadOverview from '../components/workload/Overview';
-import helpers from '../helpers';
+import { isElectron } from '../helpers/isElectron';
 import LocaleSelect from '../i18n/LocaleSelect/LocaleSelect';
 import store from '../redux/stores/store';
+import { getClusterPathParam } from './cluster';
 import { useCluster } from './k8s';
+import DaemonSet from './k8s/daemonSet';
 import Deployment from './k8s/deployment';
 import Job from './k8s/job';
 import ReplicaSet from './k8s/replicaSet';
-import { getCluster, getClusterPrefixedPath } from './util';
+import StatefulSet from './k8s/statefulSet';
+import { getClusterPrefixedPath } from './util';
 
 export interface Route {
   /** Any valid URL path or array of paths that path-to-regexp@^1.7.0 understands. */
@@ -119,7 +145,13 @@ export interface Route {
   hideAppBar?: boolean;
   /** Whether the route should be disabled (not registered). */
   disabled?: boolean;
+  /** Render route for full width */
+  isFullWidth?: boolean;
 }
+
+const LazyGraphView = React.lazy(() =>
+  import('../components/resourceMap/GraphView').then(it => ({ default: it.GraphView }))
+);
 
 const defaultRoutes: {
   [routeName: string]: Route;
@@ -218,13 +250,13 @@ const defaultRoutes: {
     path: '/daemonsets/:namespace/:name',
     exact: true,
     sidebar: 'DaemonSets',
-    component: () => <DaemonSetDetails />,
+    component: () => <WorkloadDetails workloadKind={DaemonSet} />,
   },
   StatefulSet: {
     path: '/statefulsets/:namespace/:name',
     exact: true,
     sidebar: 'StatefulSets',
-    component: () => <StatefulSetDetails />,
+    component: () => <WorkloadDetails workloadKind={StatefulSet} />,
   },
   Deployment: {
     path: '/deployments/:namespace/:name',
@@ -320,6 +352,63 @@ const defaultRoutes: {
     exact: true,
     sidebar: 'NetworkPolicies',
     component: () => <NetworkPolicyDetails />,
+  },
+  gateways: {
+    // fix magic name gateway
+    path: '/gateways',
+    exact: true,
+    name: 'Gateways',
+    sidebar: 'gateways',
+    component: () => <GatewayList />,
+  },
+  gateway: {
+    // fix magic name gateway
+    path: '/gateways/:namespace/:name',
+    exact: true,
+    name: 'Gateways',
+    sidebar: 'gateways',
+    component: () => <GatewayDetails />,
+  },
+  httproutes: {
+    path: '/httproutes',
+    exact: true,
+    name: 'HttpRoutes',
+    sidebar: 'httproutes',
+    component: () => <HTTPRouteList />,
+  },
+  httproute: {
+    path: '/httproutes/:namespace/:name',
+    exact: true,
+    name: 'HttpRoutes',
+    sidebar: 'httproutes',
+    component: () => <HTTPRouteDetails />,
+  },
+  grpcroutes: {
+    path: '/grpcroutes',
+    exact: true,
+    name: 'GRPCRoutes',
+    sidebar: 'grpcroutes',
+    component: () => <GRPCRouteList />,
+  },
+  grpcroute: {
+    path: '/grpcroutes/:namespace/:name',
+    exact: true,
+    name: 'GRPCRoutes',
+    sidebar: 'grpcroutes',
+    component: () => <GRPCRouteDetails />,
+  },
+  gatewayclasses: {
+    path: '/gatewayclasses',
+    exact: true,
+    name: 'GatewayClasses',
+    sidebar: 'gatewayclasses',
+    component: () => <GatewayClassList />,
+  },
+  gatewayclass: {
+    path: '/gatewayclasses/:name',
+    exact: true,
+    sidebar: 'gatewayclasses',
+    component: () => <GatewayClassDetails />,
   },
   DaemonSets: {
     path: '/daemonsets',
@@ -774,7 +863,7 @@ const defaultRoutes: {
     exact: true,
     name: 'PortForwards',
     sidebar: 'portforwards',
-    disabled: !helpers.isElectron(),
+    disabled: !isElectron(),
     component: () => <PortForwardingList />,
   },
   loadKubeConfig: {
@@ -784,8 +873,29 @@ const defaultRoutes: {
     sidebar: null,
     useClusterURL: false,
     noAuthRequired: true,
-    disabled: !helpers.isElectron(),
+    disabled: !isElectron(),
     component: () => <KubeConfigLoader />,
+  },
+  addCluster: {
+    path: '/add-cluster',
+    exact: true,
+    name: 'Add Cluster',
+    sidebar: {
+      item: 'addCluster',
+      sidebar: DefaultSidebars.HOME,
+    },
+    useClusterURL: false,
+    noAuthRequired: true,
+    disabled: !isElectron(),
+    component: () => <AddCluster open onChoice={() => {}} />,
+  },
+  map: {
+    path: '/map',
+    exact: true,
+    name: 'Map',
+    sidebar: 'map',
+    isFullWidth: true,
+    component: () => <LazyGraphView height="calc(100vh - 64px)" />,
   },
 };
 
@@ -846,26 +956,53 @@ export function getRoutePath(route: Route) {
 }
 
 export interface RouteURLProps {
+  /**
+   * Selected clusters path parameter
+   *
+   * Check out {@link getClusterPathParam} and {@link formatClusterPathParam} function
+   * for working with this parameter
+   */
   cluster?: string;
   [prop: string]: any;
 }
 
 export function createRouteURL(routeName: string, params: RouteURLProps = {}) {
   const storeRoutes = store.getState().routes.routes;
-  const route = (storeRoutes && storeRoutes[routeName]) || getRoute(routeName);
+
+  // First try to find by name
+  const matchingStoredRouteByName =
+    storeRoutes &&
+    Object.entries(storeRoutes).find(
+      ([, route]) => route.name?.toLowerCase() === routeName.toLowerCase()
+    )?.[1];
+
+  // Then try to find by path
+  const matchingStoredRouteByPath =
+    storeRoutes &&
+    Object.entries(storeRoutes).find(([key]) => key.toLowerCase() === routeName.toLowerCase())?.[1];
+
+  if (matchingStoredRouteByPath && !matchingStoredRouteByName) {
+    console.warn(
+      `[Deprecation] Route "${routeName}" was found by path instead of name. ` +
+        'Please use route names instead of paths when calling createRouteURL.'
+    );
+  }
+
+  const route = matchingStoredRouteByName || matchingStoredRouteByPath || getRoute(routeName);
 
   if (!route) {
     return '';
   }
 
-  let cluster: string | null = params.cluster || null;
+  let cluster = params.cluster;
   if (!cluster && getRouteUseClusterURL(route)) {
-    cluster = getCluster();
+    cluster = getClusterPathParam();
     if (!cluster) {
       return '/';
     }
   }
   const fullParams = {
+    selected: undefined,
     ...params,
   };
 

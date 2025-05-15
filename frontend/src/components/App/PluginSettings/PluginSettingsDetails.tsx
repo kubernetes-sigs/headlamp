@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import Box, { BoxProps } from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
@@ -7,7 +23,8 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import { useHistory } from 'react-router-dom';
-import helpers from '../../../helpers';
+import { isElectron } from '../../../helpers/isElectron';
+import { getCluster } from '../../../lib/cluster';
 import { deletePlugin } from '../../../lib/k8s/apiProxy';
 import { ConfigStore } from '../../../plugin/configStore';
 import { PluginInfo, reloadPage } from '../../../plugin/pluginsSlice';
@@ -16,6 +33,7 @@ import NotFoundComponent from '../../404';
 import { SectionBox } from '../../common';
 import { ConfirmDialog } from '../../common/Dialog';
 import ErrorBoundary from '../../common/ErrorBoundary';
+import { setNotifications } from '../Notifications/notificationsSlice';
 
 const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   const { plugin } = props;
@@ -28,14 +46,24 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   }
 
   function handleDeleteConfirm() {
+    const dispatch = useDispatch();
     const name = plugin.name.split('/').splice(-1)[0];
     deletePlugin(name)
       .then(() => {
         // update the plugin list
-        const dispatch = useDispatch();
         dispatch(reloadPage());
-
-        // @todo error is not handled here.
+      })
+      .catch(error => {
+        dispatch(
+          setNotifications({
+            cluster: getCluster(),
+            date: new Date().toISOString(),
+            deleted: false,
+            id: Math.random().toString(36).substring(2),
+            message: `Failed to delete plugin: ${error.message || 'Unknown error'}`,
+            seen: false,
+          })
+        );
       })
       .finally(() => {
         // redirect /plugins page
@@ -107,6 +135,9 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
   const [enableSaveButton, setEnableSaveButton] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const history = useHistory();
+  const [author, name] = plugin.name.includes('@')
+    ? plugin.name.substring(1).split(/\/(.+)/)
+    : [null, plugin.name];
 
   useEffect(() => {
     if (!_.isEqual(config, data)) {
@@ -156,7 +187,12 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
 
   return (
     <>
-      <SectionBox aria-live="polite" title={plugin.name} backLink={'/settings/plugins'}>
+      <SectionBox
+        aria-live="polite"
+        title={name}
+        subtitle={author ? `${t('translation|By')}: ${author}` : undefined}
+        backLink={'/settings/plugins'}
+      >
         {plugin.description}
         <ScrollableBox style={{ height: '70vh' }} py={0}>
           <ConfirmDialog
@@ -194,7 +230,7 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
               </>
             )}
           </Stack>
-          {helpers.isElectron() ? (
+          {isElectron() ? (
             <Button variant="text" color="error" onClick={handleDelete}>
               {t('translation|Delete Plugin')}
             </Button>

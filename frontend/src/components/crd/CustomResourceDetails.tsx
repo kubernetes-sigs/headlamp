@@ -1,11 +1,24 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { JSONPath } from 'jsonpath-plus';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { ResourceClasses } from '../../lib/k8s';
-import { ApiError } from '../../lib/k8s/apiProxy';
 import CustomResourceDefinition, { KubeCRD } from '../../lib/k8s/crd';
-import { KubeObject } from '../../lib/k8s/KubeObject';
 import { localeDate } from '../../lib/util';
 import { HoverInfoLabel, Link, NameValueTableRow, ObjectEventList, SectionBox } from '../common';
 import Empty from '../common/EmptyContent';
@@ -23,19 +36,19 @@ export interface CustomResourceDetailsProps {
   crd: string;
   crName: string;
   namespace: string;
+  cluster?: string;
 }
 
-export function CustomResourceDetails(props: CustomResourceDetailsProps) {
-  const { crd: crdName, crName, namespace: ns } = props;
-  const [crd, setCRD] = React.useState<CustomResourceDefinition | null>(null);
-  const [error, setError] = React.useState<ApiError | null>(null);
-
+export function CustomResourceDetails({
+  crd: crdName,
+  crName,
+  namespace: ns,
+  cluster,
+}: CustomResourceDetailsProps) {
   const { t } = useTranslation('glossary');
+  const [crd, error] = CustomResourceDefinition.useGet(crdName, undefined, { cluster });
 
   const namespace = ns === '-' ? undefined : ns;
-  const CRD = ResourceClasses.CustomResourceDefinition;
-
-  CRD.useApiGet(setCRD, crdName, undefined, setError);
 
   return !crd ? (
     !!error ? (
@@ -52,7 +65,12 @@ export function CustomResourceDetails(props: CustomResourceDetailsProps) {
       <Loader title={t('translation|Loading custom resource details')} />
     )
   ) : (
-    <CustomResourceDetailsRenderer crd={crd} crName={crName} namespace={namespace} />
+    <CustomResourceDetailsRenderer
+      crd={crd}
+      crName={crName}
+      namespace={namespace}
+      cluster={cluster}
+    />
   );
 }
 
@@ -106,20 +124,16 @@ export interface CustomResourceDetailsRendererProps {
   crd: CustomResourceDefinition;
   crName: string;
   namespace?: string;
+  cluster?: string;
 }
 
 function CustomResourceDetailsRenderer(props: CustomResourceDetailsRendererProps) {
-  const { crd, crName, namespace } = props;
-  const [item, setItem] = React.useState<KubeObject | null>(null);
-  const [error, setError] = React.useState<ApiError | null>(null);
+  const { crd, crName, namespace, cluster } = props;
 
   const { t } = useTranslation('glossary');
 
-  const CRClass = React.useMemo(() => {
-    return crd.makeCRClass();
-  }, [crd]);
-
-  CRClass.useApiGet(setItem, crName, namespace, setError);
+  const CRClass = React.useMemo(() => crd.makeCRClass(), [crd]);
+  const [item, error] = CRClass.useGet(crName, namespace, { cluster });
 
   const apiVersion = item?.jsonData.apiVersion?.split('/')[1] || '';
   const extraColumns: AdditionalPrinterColumns = getExtraColumns(crd, apiVersion) || [];
@@ -148,6 +162,7 @@ function CustomResourceDetailsRenderer(props: CustomResourceDetailsRendererProps
                 params={{
                   name: crd.metadata.name,
                 }}
+                activeCluster={crd.cluster}
               >
                 {crd.metadata.name}
               </Link>

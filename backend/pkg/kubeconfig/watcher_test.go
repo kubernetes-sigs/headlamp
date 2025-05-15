@@ -1,39 +1,20 @@
 package kubeconfig_test
 
 import (
-	"os"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-const clusterConf = `apiVersion: v1
-clusters:
-- cluster:
-    certificate-authority-data: dGVzdA==
-    server: https://kubernetes.docker.internal:6443
-  name: random-cluster-4
-contexts:
-- context:
-    cluster: random-cluster-4
-    user: random-cluster-4
-  name: random-cluster-4
-current-context: random-cluster-4
-kind: Config
-preferences: {}
-users:
-- name: random-cluster-4
-  user:
-  client-certificate-data: dGVzdA==
-  client-key-data: dGVzdA==`
-
+//nolint:funlen
 func TestWatchAndLoadFiles(t *testing.T) {
-	paths := []string{"./test_data/kubeconfig1", "./test_data/kubeconfig2", "./test_data/kubeconfig3"}
+	paths := []string{"./test_data/kubeconfig1", "./test_data/kubeconfig2"}
 
 	var path string
 	if runtime.GOOS == "windows" {
@@ -44,39 +25,85 @@ func TestWatchAndLoadFiles(t *testing.T) {
 
 	kubeConfigStore := kubeconfig.NewContextStore()
 
-	go kubeconfig.LoadAndWatchFiles(kubeConfigStore, path, kubeconfig.KubeConfig)
+	go kubeconfig.LoadAndWatchFiles(kubeConfigStore, path, kubeconfig.KubeConfig, nil)
 
-	// SLeep so the config file has a different time stamp.
-	time.Sleep(5 * time.Second)
+	// Test adding a context
+	t.Run("Add context", func(t *testing.T) {
+		// Sleep to ensure watcher is ready
+		time.Sleep(2 * time.Second)
 
-	// create kubeconfig3 file that doesn't exist
-	conf, err := clientcmd.Load([]byte(clusterConf))
-	require.NoError(t, err)
-	require.NotNil(t, conf)
+		// Read existing config
+		config, err := clientcmd.LoadFromFile("./test_data/kubeconfig1")
+		require.NoError(t, err)
 
-	err = clientcmd.WriteToFile(*conf, "./test_data/kubeconfig3")
-	require.NoError(t, err)
-
-	t.Log("created kubeconfig3 file")
-
-	// check if kubeconfig3 is loaded
-	context, err := kubeConfigStore.GetContext("random-cluster-4")
-
-	// loop for until GetContext returns "random-cluster-4" or 30 seconds has past
-	for i := 0; i < 30; i++ {
-		if err == nil && context.Name == "random-cluster-4" {
-			break
+		// Add new context
+		config.Contexts["random-cluster-4"] = &clientcmdapi.Context{
+			Cluster:  "docker-desktop", // reuse existing cluster
+			AuthInfo: "docker-desktop", // reuse existing auth
 		}
 
-		time.Sleep(1 * time.Second)
+		// Write back to file
+		err = clientcmd.WriteToFile(*config, "./test_data/kubeconfig1")
+		require.NoError(t, err)
 
-		context, err = kubeConfigStore.GetContext("random-cluster-4")
-	}
+		// Wait for context to be added
+		found := false
 
-	require.NoError(t, err)
-	require.Equal(t, "random-cluster-4", context.Name)
+		for i := 0; i < 20; i++ {
+			context, err := kubeConfigStore.GetContext("random-cluster-4")
+			if err == nil && context != nil {
+				found = true
+				break
+			}
 
-	// delete kubeconfig3 file
-	err = os.Remove("./test_data/kubeconfig3")
-	require.NoError(t, err)
+			time.Sleep(500 * time.Millisecond)
+		}
+
+		require.True(t, found, "Context should have been added")
+	})
+
+	// Test removing a context
+	t.Run("Remove context", func(t *testing.T) {
+		// Verify context exists before removal
+		context, err := kubeConfigStore.GetContext("random-cluster-4")
+		require.NoError(t, err)
+		require.NotNil(t, context)
+
+		// Read existing config
+		config, err := clientcmd.LoadFromFile("./test_data/kubeconfig1")
+		require.NoError(t, err)
+
+		// Remove context
+		delete(config.Contexts, "random-cluster-4")
+
+		// Write back to file
+		err = clientcmd.WriteToFile(*config, "./test_data/kubeconfig1")
+		require.NoError(t, err)
+
+		// Wait for context to be removed
+		removed := false
+
+		for i := 0; i < 20; i++ {
+			_, err = kubeConfigStore.GetContext("random-cluster-4")
+			if err != nil {
+				removed = true
+				break
+			}
+
+			time.Sleep(500 * time.Millisecond)
+		}
+
+		require.True(t, removed, "Context should have been removed")
+	})
+
+	// Cleanup in case test fails
+	defer func() {
+		config, err := clientcmd.LoadFromFile("./test_data/kubeconfig1")
+		if err == nil {
+			delete(config.Contexts, "random-cluster-4")
+
+			err = clientcmd.WriteToFile(*config, "./test_data/kubeconfig1")
+			require.NoError(t, err)
+		}
+	}()
 }

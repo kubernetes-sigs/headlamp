@@ -1,8 +1,31 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import MuiLink from '@mui/material/Link';
+import { useQueryClient } from '@tanstack/react-query';
 import React from 'react';
+import { useDispatch } from 'react-redux';
 import { Link as RouterLink } from 'react-router-dom';
+import { formatClusterPathParam, getCluster, getSelectedClusters } from '../../lib/cluster';
+import { kubeObjectQueryKey, useEndpoints } from '../../lib/k8s/api/v2/hooks';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { createRouteURL, RouteURLProps } from '../../lib/router';
+import { setSelectedResource } from '../../redux/drawerModeSlice';
+import { useTypedSelector } from '../../redux/reducers/reducers';
+import { canRenderDetails } from '../resourceMap/details/KubeNodeDetails';
 import { LightTooltip } from './Tooltip';
 
 export interface LinkBaseProps {
@@ -17,6 +40,8 @@ export interface LinkProps extends LinkBaseProps {
   params?: RouteURLProps;
   /** A string representation of query parameters. */
   search?: string;
+  /** Cluster name of the resource. Set this parameter to not override selected clusters param */
+  activeCluster?: string;
   /** State to persist to the location. */
   state?: {
     [prop: string]: any;
@@ -28,17 +53,72 @@ export interface LinkObjectProps extends LinkBaseProps {
   [prop: string]: any;
 }
 
-function PureLink(props: React.PropsWithChildren<LinkProps | LinkObjectProps>) {
+function KubeObjectLink(props: {
+  kubeObject: KubeObject;
+  /** if onClick callback is provided navigation is disabled */
+  onClick?: () => void;
+  [prop: string]: any;
+}) {
+  const { kubeObject, onClick, ...otherProps } = props;
+
+  const client = useQueryClient();
+  const { namespace, name } = kubeObject.metadata;
+  const { endpoint } = useEndpoints(kubeObject._class().apiEndpoint.apiInfo, kubeObject.cluster);
+
+  return (
+    <MuiLink
+      onClick={e => {
+        const key = kubeObjectQueryKey({
+          cluster: kubeObject.cluster,
+          endpoint,
+          namespace,
+          name,
+        });
+        // prepopulate the query cache with existing object
+        client.setQueryData(key, kubeObject);
+        // and invalidate it (mark as stale)
+        // so that the latest version will be downloaded in the background
+        client.invalidateQueries({ queryKey: key });
+
+        if (onClick) {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      component={RouterLink}
+      to={kubeObject.getDetailsLink()}
+      {...otherProps}
+    >
+      {props.children || kubeObject!.getName()}
+    </MuiLink>
+  );
+}
+
+function PureLink(
+  props: React.PropsWithChildren<LinkProps | LinkObjectProps> & {
+    /** if onClick callback is provided navigation is disabled */
+    onClick?: () => void;
+  }
+) {
   if ((props as LinkObjectProps).kubeObject) {
     const { kubeObject, ...otherProps } = props as LinkObjectProps;
-    return (
-      <MuiLink component={RouterLink} to={kubeObject!.getDetailsLink()} {...otherProps}>
-        {props.children || kubeObject!.getName()}
-      </MuiLink>
-    );
+    return <KubeObjectLink kubeObject={kubeObject!} {...otherProps} />;
+  }
+  const {
+    routeName,
+    params = {},
+    search,
+    state,
+    // eslint-disable-next-line no-unused-vars -- make sure not to pass it to the link
+    kubeObject,
+    activeCluster,
+    ...otherProps
+  } = props as LinkObjectProps;
+
+  if (activeCluster) {
+    params.cluster = formatClusterPathParam(getSelectedClusters(), activeCluster);
   }
 
-  const { routeName, params = {}, search, state, ...otherProps } = props as LinkProps;
   return (
     <MuiLink
       component={RouterLink}
@@ -48,6 +128,12 @@ function PureLink(props: React.PropsWithChildren<LinkProps | LinkObjectProps>) {
         state,
       }}
       {...otherProps}
+      onClick={e => {
+        if (otherProps.onClick) {
+          e.preventDefault();
+          otherProps.onClick();
+        }
+      }}
     >
       {props.children}
     </MuiLink>
@@ -55,7 +141,46 @@ function PureLink(props: React.PropsWithChildren<LinkProps | LinkObjectProps>) {
 }
 
 export default function Link(props: React.PropsWithChildren<LinkProps | LinkObjectProps>) {
-  const { tooltip, ...otherProps } = props;
+  const drawerEnabled = useTypedSelector(state => state.drawerMode.isDetailDrawerEnabled);
+  const dispatch = useDispatch();
+
+  const { tooltip, ...propsRest } = props as LinkObjectProps;
+
+  const kind = 'kubeObject' in props ? props.kubeObject?._class().kind : props?.routeName;
+  const cluster =
+    'kubeObject' in props && props.kubeObject?.cluster
+      ? props.kubeObject?.cluster
+      : props.activeCluster ?? getCluster() ?? '';
+
+  const openDrawer =
+    drawerEnabled && canRenderDetails(kind)
+      ? () => {
+          // Object information can be provided throught kubeObject or route parameters
+          const name = 'kubeObject' in props ? props.kubeObject?.getName() : props.params?.name;
+          const namespace =
+            'kubeObject' in props ? props.kubeObject?.getNamespace() : props.params?.namespace;
+
+          const selectedResource =
+            kind === 'customresource'
+              ? {
+                  // Custom resource links don't follow the same convention
+                  // so we need to create a different object
+                  kind,
+                  metadata: {
+                    name: props.params?.crName,
+                    namespace,
+                  },
+                  cluster,
+                  customResourceDefinition: props.params?.crd,
+                }
+              : { kind, metadata: { name, namespace }, cluster };
+
+          dispatch(setSelectedResource(selectedResource));
+        }
+      : undefined;
+
+  const link = <PureLink {...propsRest} onClick={openDrawer} />;
+
   if (tooltip) {
     let tooltipText = '';
     if (typeof tooltip === 'string') {
@@ -69,13 +194,11 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
     if (!!tooltipText) {
       return (
         <LightTooltip title={tooltipText} interactive>
-          <span>
-            <PureLink {...otherProps} />
-          </span>
+          {link}
         </LightTooltip>
       );
     }
   }
 
-  return <PureLink {...otherProps} />;
+  return link;
 }

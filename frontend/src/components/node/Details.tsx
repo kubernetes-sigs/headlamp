@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { InlineIcon } from '@iconify/react';
 import { Paper } from '@mui/material';
 import Box from '@mui/material/Box';
@@ -22,6 +38,7 @@ import { ConditionsSection, DetailsGrid, OwnedPodsSection } from '../common/Reso
 import AuthVisible from '../common/Resource/AuthVisible';
 import { SectionBox } from '../common/SectionBox';
 import { NameValueTable } from '../common/SimpleTable';
+import { NodeShellAction } from './NodeShellAction';
 import { NodeTaintsLabel } from './utils';
 
 function NodeConditionsLabel(props: { node: Node }) {
@@ -35,8 +52,9 @@ function NodeConditionsLabel(props: { node: Node }) {
   );
 }
 
-export default function NodeDetails() {
-  const { name } = useParams<{ name: string }>();
+export default function NodeDetails(props: { name?: string; cluster?: string }) {
+  const params = useParams<{ name: string }>();
+  const { name = params.name, cluster } = props;
   const { t } = useTranslation(['glossary']);
   const dispatch: AppDispatch = useDispatch();
 
@@ -54,12 +72,14 @@ export default function NodeDetails() {
   }, [nodeFromAPI]);
 
   function getAddresses(item: Node) {
-    return item.status.addresses.map(({ type, address }) => {
-      return {
-        name: type,
-        value: address,
-      };
-    });
+    return (
+      item.status.addresses?.map(({ type, address }) => {
+        return {
+          name: type,
+          value: address,
+        };
+      }) || []
+    );
   }
 
   function handleNodeScheduleState(node: Node, cordon: boolean) {
@@ -183,6 +203,7 @@ export default function NodeDetails() {
       <DetailsGrid
         resourceType={Node}
         name={name}
+        cluster={cluster}
         error={nodeError}
         headerSection={item => (
           <ChartsSection node={item} metrics={nodeMetrics} noMetrics={noMetrics} />
@@ -223,6 +244,10 @@ export default function NodeDetails() {
                 </AuthVisible>
               ),
             },
+            {
+              id: DefaultHeaderAction.NODE_SHELL,
+              action: <NodeShellAction item={item} />,
+            },
           ];
         }}
         extraInfo={item =>
@@ -258,7 +283,7 @@ export default function NodeDetails() {
             },
             {
               id: 'headlamp.node-owned-pods',
-              section: <OwnedPodsSection resource={item?.jsonData} />,
+              section: <OwnedPodsSection resource={item} />,
             },
           ]
         }
@@ -282,7 +307,7 @@ function ChartsSection(props: ChartsSectionProps) {
       return '…';
     }
 
-    const readyInfo = node.status.conditions.find(({ type }) => type === 'Ready');
+    const readyInfo = node.status.conditions?.find(({ type }) => type === 'Ready');
     if (readyInfo) {
       return timeAgo(readyInfo.lastTransitionTime as string);
     }
@@ -302,8 +327,9 @@ function ChartsSection(props: ChartsSectionProps) {
       >
         <Grid item xs={4}>
           <Paper
+            variant="outlined"
             sx={theme => ({
-              background: theme.palette.squareButton.background,
+              background: theme.palette.background.muted,
               padding: theme.spacing(2),
               height: '100%',
               maxWidth: '300px',
@@ -351,7 +377,7 @@ function SystemInfoSection(props: SystemInfoSectionProps) {
     );
   }
 
-  if (!node) {
+  if (!node || !node.status.nodeInfo) {
     return null;
   }
 
@@ -411,7 +437,7 @@ interface NodeReadyLabelProps {
 
 export function NodeReadyLabel(props: NodeReadyLabelProps) {
   const { node } = props;
-  const isReady = !!node.status.conditions.find(
+  const isReady = !!node.status.conditions?.find(
     condition => condition.type === 'Ready' && condition.status === 'True'
   );
   const { t } = useTranslation();

@@ -9,17 +9,17 @@ set up an ingress server for having it available to users.
 ## Using Helm
 
 The easiest way to install headlamp in your existing cluster is to
-use [helm](https://helm.sh/docs/intro/quickstart/) with our [helm chart](https://github.com/headlamp-k8s/headlamp/tree/main/charts/headlamp).
+use [helm](https://helm.sh/docs/intro/quickstart/) with our [helm chart](https://github.com/kubernetes-sigs/headlamp/tree/main/charts/headlamp).
 
 ```bash
 # first add our custom repo to your local helm repositories
-helm repo add headlamp https://headlamp-k8s.github.io/headlamp/
+helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/
 
 # now you should be able to install headlamp via helm
 helm install my-headlamp headlamp/headlamp --namespace kube-system
 ```
 
-As usual, it is possible to configure the helm release via the [values file](https://github.com/headlamp-k8s/headlamp/blob/main/charts/headlamp/values.yaml) or setting your preferred values directly.
+As usual, it is possible to configure the helm release via the [values file](https://github.com/kubernetes-sigs/headlamp/blob/main/charts/headlamp/values.yaml) or setting your preferred values directly.
 
 ```bash
 # install headlamp with your own values.yaml
@@ -31,7 +31,7 @@ helm install my-headlamp headlamp/headlamp --namespace kube-system --set replica
 
 ## Using simple yaml
 
-We also maintain a simple/vanilla [file](https://github.com/headlamp-k8s/headlamp/blob/main/kubernetes-headlamp.yaml)
+We also maintain a simple/vanilla [file](https://github.com/kubernetes-sigs/headlamp/blob/main/kubernetes-headlamp.yaml)
 for setting up a Headlamp deployment and service. Be sure to review it and change
 anything you need.
 
@@ -42,6 +42,18 @@ you can run:
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/kinvolk/headlamp/main/kubernetes-headlamp.yaml
 ```
+
+## Use a non-default kube config file
+
+By default, Headlamp uses the default service account from the namespace it is deployed to, and generates a kubeconfig from it named `main`.
+
+If you wish to use another specific non-default kubeconfig file, then you can do it by mounting it to the default location at `/home/headlamp/.config/Headlamp/kubeconfigs/config`, or 
+providing a custom path Headlamp with the ` -kubeconfig` argument or the KUBECONFIG env (through helm values.env)
+
+### Use several kubeconfig files
+
+If you need to use more than one kubeconfig file at the same time, you can list
+each config file path with a ":" separator in the KUBECONFIG env.
 
 ## Exposing Headlamp with an ingress server
 

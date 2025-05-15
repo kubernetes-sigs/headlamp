@@ -1,4 +1,20 @@
-import { FormControlLabel, Switch } from '@mui/material';
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { FormControlLabel, Switch, Theme } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -7,8 +23,9 @@ import Event from '../../lib/k8s/event';
 import Node from '../../lib/k8s/node';
 import Pod from '../../lib/k8s/pod';
 import { useFilterFunc } from '../../lib/util';
+import { OverviewChart } from '../../redux/overviewChartsSlice';
+import { useTypedSelector } from '../../redux/reducers/reducers';
 import { DateLabel, Link, PageGrid, StatusLabel } from '../common';
-import Empty from '../common/EmptyContent';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { SectionBox } from '../common/SectionBox';
 import ShowHideLabel from '../common/ShowHideLabel';
@@ -19,37 +36,58 @@ import {
   NodesStatusCircleChart,
   PodsStatusCircleChart,
 } from './Charts';
+import { ClusterGroupErrorMessage } from './ClusterGroupErrorMessage';
 
 export default function Overview() {
   const { t } = useTranslation(['translation']);
-
   const [pods] = Pod.useList();
   const [nodes] = Node.useList();
-
   const [nodeMetrics, metricsError] = Node.useMetrics();
+  const chartProcessors = useTypedSelector(state => state.overviewCharts.processors);
 
   const noMetrics = metricsError?.status === 404;
   const noPermissions = metricsError?.status === 403;
+
+  // Process the default charts through any registered processors
+  const defaultCharts: OverviewChart[] = [
+    {
+      id: 'cpu',
+      component: () => (
+        <CpuCircularChart items={nodes} itemsMetrics={nodeMetrics} noMetrics={noMetrics} />
+      ),
+    },
+    {
+      id: 'memory',
+      component: () => (
+        <MemoryCircularChart items={nodes} itemsMetrics={nodeMetrics} noMetrics={noMetrics} />
+      ),
+    },
+    {
+      id: 'pods',
+      component: () => <PodsStatusCircleChart items={pods} />,
+    },
+    {
+      id: 'nodes',
+      component: () => <NodesStatusCircleChart items={nodes} />,
+    },
+  ];
+  const charts = chartProcessors.reduce(
+    (currentCharts, p) => p.processor(currentCharts),
+    defaultCharts
+  );
 
   return (
     <PageGrid>
       <SectionBox title={t('translation|Overview')} py={2} mt={[4, 0, 0]}>
         {noPermissions ? (
-          <Empty color="error">{t('translation|No permissions to list pods.')}</Empty>
+          <ClusterGroupErrorMessage errors={[metricsError]} />
         ) : (
           <Grid container justifyContent="flex-start" alignItems="stretch" spacing={4}>
-            <Grid item xs sx={{ maxWidth: '300px' }}>
-              <CpuCircularChart items={nodes} itemsMetrics={nodeMetrics} noMetrics={noMetrics} />
-            </Grid>
-            <Grid item xs sx={{ maxWidth: '300px' }}>
-              <MemoryCircularChart items={nodes} itemsMetrics={nodeMetrics} noMetrics={noMetrics} />
-            </Grid>
-            <Grid item xs sx={{ maxWidth: '300px' }}>
-              <PodsStatusCircleChart items={pods} />
-            </Grid>
-            <Grid item xs sx={{ maxWidth: '300px' }}>
-              <NodesStatusCircleChart items={nodes} />
-            </Grid>
+            {charts.map(chart => (
+              <Grid key={chart.id} item xs sx={{ maxWidth: '300px' }}>
+                <chart.component />
+              </Grid>
+            ))}
           </Grid>
         )}
       </SectionBox>
@@ -74,7 +112,7 @@ function EventsSection() {
       )
     )
   );
-  const [events, eventsError] = Event.useList({ limit: Event.maxLimit });
+  const { items: events, errors: eventsErrors } = Event.useList({ limit: Event.maxLimit });
 
   const warningActionFilterFunc = (event: Event, search?: string) => {
     if (!filterFunc(event, search)) {
@@ -99,7 +137,7 @@ function EventsSection() {
     return (
       <StatusLabel
         status={event.type === 'Normal' ? '' : 'warning'}
-        sx={theme => ({
+        sx={(theme: Theme) => ({
           [theme.breakpoints.up('md')]: {
             display: 'unset',
           },
@@ -133,26 +171,30 @@ function EventsSection() {
               localStorage.setItem(EVENT_WARNING_SWITCH_FILTER_STORAGE_KEY, checked.toString());
               setIsWarningEventSwitchChecked(checked);
             }}
+            key="warning-toggle"
           />,
         ],
       }}
       defaultGlobalFilter={eventsFilter ?? undefined}
       data={events}
-      errorMessage={Event.getErrorMessage(eventsError)}
+      errors={eventsErrors}
       columns={[
         {
           label: t('Type'),
+          gridTemplate: 'min-content',
           getValue: event => event.involvedObject.kind,
         },
         {
           label: t('Name'),
           getValue: event => event.involvedObjectInstance?.getName() ?? event.involvedObject.name,
           render: event => makeObjectLink(event),
-          gridTemplate: 1.5,
+          gridTemplate: 'auto',
         },
         'namespace',
+        'cluster',
         {
           label: t('Reason'),
+          gridTemplate: 'min-content',
           getValue: event => event.reason,
           render: event => (
             <LightTooltip title={event.reason} interactive>
@@ -166,7 +208,7 @@ function EventsSection() {
           render: event => (
             <ShowHideLabel labelId={event.metadata?.uid || ''}>{event.message || ''}</ShowHideLabel>
           ),
-          gridTemplate: 1.5,
+          gridTemplate: 'auto',
         },
         {
           id: 'last-seen',

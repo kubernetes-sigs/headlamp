@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import i18next from 'i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { initReactI18next } from 'react-i18next';
@@ -11,6 +27,11 @@ export const supportedLanguages: { [langCode: string]: string } = {
   fr: 'Français',
   pt: 'Português',
   de: 'Deutsch',
+  it: 'Italiano',
+  'zh-TW': '繁體中文',
+  zh: '简体中文',
+  ko: '한국어',
+  ja: '日本語',
 };
 
 i18next
@@ -27,7 +48,7 @@ i18next
       namespace: Namespace,
       callback: (errorValue: unknown, translations: null | (typeof en)[Namespace]) => void
     ) {
-      import(`./locales/${language}/${namespace}.json?import=default`)
+      import(`./locales/${language.toLowerCase()}/${namespace}.json?import=default`)
         .then(resources => {
           callback(null, resources.default);
         })
@@ -39,8 +60,8 @@ i18next
   // i18next options: https://www.i18next.com/overview/configuration-options
   .init({
     debug: import.meta.env.DEV && !import.meta.env.UNDER_TEST,
-    ns: ['translation', 'glossary'],
-    defaultNS: 'translation',
+    ns: sharedConfig.namespaces,
+    defaultNS: sharedConfig.defaultNamespace,
     fallbackLng: 'en',
     contextSeparator: sharedConfig.contextSeparator,
     supportedLngs: Object.keys(supportedLanguages),

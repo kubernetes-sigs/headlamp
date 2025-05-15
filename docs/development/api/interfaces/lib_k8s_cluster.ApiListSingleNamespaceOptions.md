@@ -14,7 +14,7 @@ The cluster to get the object from. By default uses the current cluster being vi
 
 #### Defined in
 
-[lib/k8s/cluster.ts:235](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L235)
+[lib/k8s/cluster.ts:235](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L235)
 
 ___
 
@@ -26,7 +26,7 @@ The namespace to get the object from.
 
 #### Defined in
 
-[lib/k8s/cluster.ts:231](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L231)
+[lib/k8s/cluster.ts:231](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L231)
 
 ___
 
@@ -38,4 +38,4 @@ The parameters to be passed to the API endpoint.
 
 #### Defined in
 
-[lib/k8s/cluster.ts:233](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L233)
+[lib/k8s/cluster.ts:233](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L233)

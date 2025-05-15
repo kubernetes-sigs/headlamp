@@ -1,4 +1,21 @@
-import { useMemo } from 'react';
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import _ from 'lodash';
+import React, { useMemo } from 'react';
 import { ResourceClasses } from '.';
 import { ApiError, QueryParameters } from './apiProxy';
 import { request } from './apiProxy';
@@ -124,6 +141,7 @@ class Event extends KubeObject<KubeEvent> {
     const namespace = object.metadata.namespace;
     const name = object.metadata.name;
     const objectKind = object.kind;
+    const cluster = object.cluster;
 
     let path = '/api/v1/events';
     const fieldSelector: { [key: string]: string } = {
@@ -145,7 +163,7 @@ class Event extends KubeObject<KubeEvent> {
       limit: this.maxLimit,
     };
 
-    const response = await request(path, {}, true, true, queryParams);
+    const response = await request(path, { cluster }, true, true, queryParams);
 
     return response.items;
   }
@@ -160,13 +178,18 @@ class Event extends KubeObject<KubeEvent> {
     ];
     let objInstance: KubeObject | null = null;
     if (!!InvolvedObjectClass) {
-      objInstance = new InvolvedObjectClass({
-        kind: this.involvedObject.kind,
-        metadata: {
-          name: this.involvedObject.name,
-          namespace: this.involvedObject.namespace,
-        } as KubeMetadata,
-      });
+      objInstance = new InvolvedObjectClass(
+        {
+          kind: this.involvedObject.kind,
+          metadata: {
+            name: this.involvedObject.name,
+            namespace: InvolvedObjectClass.isNamespaced
+              ? this.involvedObject.namespace ?? this.getNamespace()
+              : undefined,
+          } as KubeMetadata,
+        },
+        this.cluster
+      );
     }
 
     return objInstance;
@@ -185,8 +208,9 @@ class Event extends KubeObject<KubeEvent> {
   ) {
     // Calling hooks in a loop is usually forbidden
     // But if we make sure that clusters don't change between renders it's fine
-    const queries = clusterNames.map(cluster => {
-      return Event.useList({ cluster, ...options.queryParams });
+    const queries = Event.useList({
+      clusters: clusterNames,
+      ...options.queryParams,
     });
 
     type EventsPerCluster = {
@@ -199,12 +223,19 @@ class Event extends KubeObject<KubeEvent> {
     const result = useMemo(() => {
       const res: EventsPerCluster = {};
 
-      queries.forEach((query, index) => {
-        const cluster = clusterNames[index];
-        res[cluster] = {
-          warnings: query.data?.items ?? [],
-          error: query.error as ApiError,
-        };
+      queries.errors?.forEach(error => {
+        if (error.cluster) {
+          res[error.cluster] ??= { warnings: [] };
+          res[error.cluster].error = error;
+        }
+      });
+
+      Object.entries(queries.clusterResults ?? {}).forEach(([cluster, result]) => {
+        if (!res[cluster]) {
+          res[cluster] = { warnings: [] };
+        }
+
+        res[cluster].warnings = result.items ?? [];
       });
 
       return res;
@@ -230,7 +261,19 @@ class Event extends KubeObject<KubeEvent> {
       options?.queryParams ?? {}
     );
 
-    return this.useListForClusters(clusters, { queryParams: queryParameters });
+    const newWarningsList = this.useListForClusters(clusters, { queryParams: queryParameters });
+    const [warningList, setWarningList] = React.useState<typeof newWarningsList>(newWarningsList);
+
+    // Only update the warnings if they actually differ
+    React.useEffect(() => {
+      if (_.isEqual(warningList, newWarningsList)) {
+        return;
+      }
+
+      setWarningList(newWarningsList);
+    }, [newWarningsList]);
+
+    return warningList;
   }
 }
 

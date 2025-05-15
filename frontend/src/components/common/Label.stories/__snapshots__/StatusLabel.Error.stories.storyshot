@@ -1,8 +1,7 @@
 <body>
   <div>
     <span
-      class="MuiTypography-root MuiTypography-body1 css-1q14vbw-MuiTypography-root"
-      style="background-color: rgb(255, 235, 238); color: rgb(198, 40, 40);"
+      class="MuiTypography-root MuiTypography-body1 css-1y9cgfq-MuiTypography-root"
     >
       error
     </span>

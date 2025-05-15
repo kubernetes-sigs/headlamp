@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { InlineIcon } from '@iconify/react';
 import { Box, Button } from '@mui/material';
 import { styled } from '@mui/system';
@@ -6,11 +22,11 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation } from 'react-router-dom';
-import helpers from '../../helpers';
+import { getAppUrl } from '../../helpers/getAppUrl';
+import { getCluster, getClusterPrefixedPath } from '../../lib/cluster';
 import { useClustersConf } from '../../lib/k8s';
 import { testAuth } from '../../lib/k8s/apiProxy';
 import { createRouteURL, getRoute, getRoutePath } from '../../lib/router';
-import { getCluster, getClusterPrefixedPath } from '../../lib/util';
 import { setConfig } from '../../redux/configSlice';
 import { ClusterDialog } from '../cluster/Chooser';
 import { Link, Loader } from '../common';
@@ -42,7 +58,7 @@ function AuthChooser({ children }: AuthChooserProps) {
   const location = useLocation();
   const clusters = useClustersConf();
   const dispatch = useDispatch();
-  const [testingAuth, setTestingAuth] = React.useState(false);
+  const [testingAuth, setTestingAuth] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
   const { from = { pathname: createRouteURL('cluster') } } = (location.state ||
     {}) as ReactRouterLocationStateIface;
@@ -70,6 +86,10 @@ function AuthChooser({ children }: AuthChooserProps) {
         clustersRef.current = clusters;
       }
       const clusterName = getCluster();
+
+      // Reset the testing auth state just to prevent the early return from this function
+      // without actually testing auth, which would cause the auth chooser to never show up.
+      setTestingAuth(false);
 
       if (!clusterName || !clusters || sameClusters || error || numClusters === 0) {
         return;
@@ -182,9 +202,8 @@ function AuthChooser({ children }: AuthChooserProps) {
           ? t('Authentication: {{ clusterName }}', { clusterName })
           : t('Authentication')
       }
-      haveClusters={!!clusters && Object.keys(clusters).length > 1}
       error={error}
-      oauthUrl={`${helpers.getAppUrl()}oidc?dt=${Date()}&cluster=${getCluster()}`}
+      oauthUrl={`${getAppUrl()}oidc?dt=${Date()}&cluster=${getCluster()}`}
       clusterAuthType={clusterAuthType}
       handleTryAgain={runTestAuthAgain}
       handleOidcAuth={() => {
@@ -195,7 +214,7 @@ function AuthChooser({ children }: AuthChooserProps) {
         });
       }}
       handleBackButtonPress={() => {
-        history.goBack();
+        numClusters > 1 ? history.goBack() : history.push('/');
       }}
       handleTokenAuth={() => {
         history.push({
@@ -217,7 +236,6 @@ export interface PureAuthChooserProps {
   error: Error | null;
   oauthUrl: string;
   clusterAuthType: string;
-  haveClusters: boolean;
   handleOidcAuth: () => void;
   handleTokenAuth: () => void;
   handleTryAgain: () => void;
@@ -233,7 +251,6 @@ export function PureAuthChooser({
   error,
   oauthUrl,
   clusterAuthType,
-  haveClusters,
   handleOidcAuth,
   handleTokenAuth,
   handleTryAgain,
@@ -301,30 +318,30 @@ export function PureAuthChooser({
                   {t('translation|Cluster settings')}
                 </Link>
               </Box>
-              <ColorButton onClick={handleTryAgain}>{t('translation|Try Again')}</ColorButton>
+              <Button variant="contained" color="primary" onClick={handleTryAgain}>
+                {t('translation|Try Again')}
+              </Button>
             </Box>
           )}
         </Box>
       )}
-      {haveClusters && (
-        <Box display="flex" flexDirection="column" alignItems="center">
-          <Box
-            m={2}
-            display="flex"
-            alignItems="center"
-            style={{ cursor: 'pointer' }}
-            onClick={handleBackButtonPress}
-            role="button"
-          >
-            <Box pt={0.5}>
-              <InlineIcon icon="mdi:chevron-left" height={20} width={20} />
-            </Box>
-            <Box fontSize={14} style={{ textTransform: 'uppercase' }}>
-              {t('translation|Back')}
-            </Box>
+      <Box display="flex" flexDirection="column" alignItems="center">
+        <Box
+          m={2}
+          display="flex"
+          alignItems="center"
+          style={{ cursor: 'pointer' }}
+          onClick={handleBackButtonPress}
+          role="button"
+        >
+          <Box pt={0.5}>
+            <InlineIcon icon="mdi:chevron-left" height={20} width={20} />
+          </Box>
+          <Box fontSize={14} style={{ textTransform: 'uppercase' }}>
+            {t('translation|Back')}
           </Box>
         </Box>
-      )}
+      </Box>
       {children}
     </ClusterDialog>
   );

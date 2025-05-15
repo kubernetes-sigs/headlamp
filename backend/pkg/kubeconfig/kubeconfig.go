@@ -17,9 +17,12 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/exec"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	"k8s.io/client-go/pkg/apis/clientauthentication"
+	rest "k8s.io/client-go/rest"
+	"k8s.io/client-go/transport"
 )
 
 // TODO: Use a different way to avoid name clashes with other clusters.
@@ -185,6 +188,51 @@ func (c *Context) RESTConfig() (*rest.Config, error) {
 	return clientConfig.ClientConfig()
 }
 
+// makeTransportFor creates an HTTP transport configuration with special handling for
+// Windows systems to prevent terminal window flashing during exec-based authentication.
+func makeTransportFor(conf *rest.Config) (http.RoundTripper, error) {
+	if conf == nil {
+		return nil, fmt.Errorf("configuration cannot be nil")
+	}
+
+	// Use standard transport for non-Windows systems or when ExecProvider is not configured
+	if conf.ExecProvider == nil || runtime.GOOS != "windows" {
+		return rest.TransportFor(conf)
+	}
+
+	confNoExec := *conf
+	confNoExec.ExecProvider = nil
+	// Get the Transport Config but without the ExecProvider because we will set
+	// it up with our version.
+	cfg, err := confNoExec.TransportConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transport config: %w", err)
+	}
+
+	var cluster *clientauthentication.Cluster
+
+	if conf.ExecProvider.ProvideClusterInfo {
+		var err error
+
+		cluster, err = rest.ConfigToExecCluster(conf)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get cluster info: %w", err)
+		}
+	}
+
+	// Configure authentication provider using custom authenticator
+	provider, err := exec.GetAuthenticator(conf.ExecProvider, cluster)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get authenticator: %w", err)
+	}
+
+	if err := provider.UpdateTransportConfig(cfg); err != nil {
+		return nil, fmt.Errorf("failed to update transport config: %w", err)
+	}
+
+	return transport.New(cfg)
+}
+
 // OidcConfig returns the oidc config for the context.
 func (c *Context) OidcConfig() (*OidcConfig, error) {
 	if c.OidcConf != nil {
@@ -256,7 +304,7 @@ func (c *Context) SetupProxy() error {
 
 	restConf, err := c.RESTConfig()
 	if err == nil {
-		roundTripper, err := rest.TransportFor(restConf)
+		roundTripper, err := makeTransportFor(restConf)
 		if err == nil {
 			proxy.Transport = roundTripper
 		}
@@ -337,8 +385,7 @@ func LoadContextsFromMultipleFiles(kubeConfigs string, source int) ([]Context, [
 
 // loadContextsFromData loads contexts from a kubeconfig data.
 // It unmarshals the kubeconfig data, extracts the contexts, and processes each context.
-// It returns all contexts, contextLoadErrors and any errors that occurred during the process.
-// It does not matter if a context has errors, it will be returned.
+// It returns valid contexts, contextLoadErrors and any errors that occurred during the process.
 func loadContextsFromData(data []byte, source int, skipProxySetup bool) ([]Context, []ContextLoadError, error) {
 	var contexts []Context //nolint:prealloc
 
@@ -364,6 +411,10 @@ func loadContextsFromData(data []byte, source int, skipProxySetup bool) ([]Conte
 				ContextName: context.Name,
 				Error:       err,
 			})
+
+			// Do not include any contexts with errors, else they may be
+			// processed as valid and make things fail.
+			continue
 		}
 
 		contexts = append(contexts, context)
@@ -862,12 +913,40 @@ func GetInClusterContext(oidcIssuerURL string,
 	}, nil
 }
 
+// Func type for context filter, if the func return true,
+// the context will be skipped otherwise the context will be used.
+type shouldBeSkippedFunc = func(kubeContext Context) bool
+
+// AllowAllKubeContext will keep all contexts.
+func AllowAllKubeContext(_ Context) bool {
+	return false
+}
+
+// SkipKubeContextInCommaSeparatedString will skip the contexts
+// whose names are in the given comma-separated string.
+// For example, if pass the "a,b" for blackKubeContextNameStr,
+// the contexts named "a" and "b" will be skipped.
+func SkipKubeContextInCommaSeparatedString(blackKubeContextNameStr string) shouldBeSkippedFunc {
+	blackKubeContextNameList := strings.Split(blackKubeContextNameStr, ",")
+	blackKubeContextNameMap := map[string]bool{}
+
+	for _, blackKubeContextName := range blackKubeContextNameList {
+		blackKubeContextNameMap[blackKubeContextName] = true
+	}
+
+	return func(kubeContext Context) bool {
+		return blackKubeContextNameMap[kubeContext.Name]
+	}
+}
+
 // LoadAndStoreKubeConfigs loads contexts from the given kubeconfig files and
 // stores them in the given context store.
 // It stores the valid contexts and returns the errors if any.
 // Note: No need to remove contexts from the store, since
 // adding a context with the same name will overwrite the old one.
-func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, source int) error {
+func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, source int,
+	ignoreFunc shouldBeSkippedFunc,
+) error {
 	var errs []error //nolint:prealloc
 
 	kubeConfigContexts, contextErrors, err := LoadContextsFromMultipleFiles(kubeConfigs, source)
@@ -875,7 +954,17 @@ func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, s
 		return fmt.Errorf("error loading kubeconfig files: %v", err)
 	}
 
+	// if pass the shouldBeSkippedFunc=nil, it works like before
+	_ignoreFunc := ignoreFunc
+	if _ignoreFunc == nil {
+		_ignoreFunc = AllowAllKubeContext
+	}
+
 	for _, kubeConfigContext := range kubeConfigContexts {
+		if _ignoreFunc(kubeConfigContext) {
+			continue
+		}
+
 		kubeConfigContext := kubeConfigContext
 
 		err := kubeConfigStore.AddContext(&kubeConfigContext)

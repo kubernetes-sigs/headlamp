@@ -3,10 +3,6 @@ name: PR to update minikube
 # This action will run after the "Publish container" is succesfully completed
 # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#workflow_run
 on:
-  workflow_run:
-    workflows: ["Publish container"]
-    types:
-      - completed
   workflow_dispatch:
 
 permissions:

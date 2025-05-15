@@ -17,14 +17,11 @@ linters:
     - gofmt
     - gofumpt
     - goimports
-    - golint
-    - gomnd
     - goprintffuncname
     - gosec
     - gosimple
     - govet
     - ineffassign
-    - interfacer
     - lll
     - govet
     - misspell
@@ -45,11 +42,10 @@ linters:
     - whitespace
     - wsl
   disable:
-    - exportloopref
     - gci
     - gochecknoglobals
     - godox
-    - goerr113
+    - err113
     - goheader
     - gomodguard
     - nlreturn

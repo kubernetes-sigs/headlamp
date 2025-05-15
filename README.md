@@ -1,6 +1,15 @@
-# Headlamp <img align="right" width=384 src="docs/headlamp_light.svg"> [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/7551/badge)](https://www.bestpractices.dev/projects/7551) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/headlamp-k8s/headlamp/badge)](https://scorecard.dev/viewer/?uri=github.com/headlamp-k8s/headlamp)
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fheadlamp-k8s%2Fheadlamp.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fheadlamp-k8s%2Fheadlamp?ref=badge_shield)
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="frontend/src/resources/logo-light.svg">
+    <img src="frontend/src/resources/logo-dark.svg" alt="Headlamp">
+  </picture>
+</h1>
 
+> **NOTICE:** We have recently moved the project under the Kubernetes SIG UI (and the repo under the _kubernetes-sigs_ org). Container images are still at [ghcr.io](https://github.com/orgs/headlamp-k8s/packages). Please bear with us while we may experience some broken links.
+
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/7551/badge)](https://www.bestpractices.dev/projects/7551)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/kubernetes-sigs/headlamp/badge)](https://scorecard.dev/viewer/?uri=github.com/kubernetes-sigs/headlamp)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fheadlamp-k8s%2Fheadlamp.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fheadlamp-k8s%2Fheadlamp?ref=badge_shield)
 
 Headlamp is an easy-to-use and extensible Kubernetes web UI.
 
@@ -8,7 +17,7 @@ Headlamp was created to blend the traditional feature set of other web UIs/dashb
 (i.e., to list and view resources) with added functionality.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/headlamp-k8s/headlamp/screenshots/videos/headlamp_quick_run.gif" width="80%">
+  <img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/videos/headlamp_quick_run.gif" width="80%">
 </div>
 
 ## Features
@@ -27,16 +36,16 @@ Headlamp was created to blend the traditional feature set of other web UIs/dashb
 
 <table>
     <tr>
-        <td width="33%"><img src="https://raw.githubusercontent.com/headlamp-k8s/headlamp/screenshots/screenshots/home.png"></td>
-        <td width="33%"><img src="https://raw.githubusercontent.com/headlamp-k8s/headlamp/screenshots/screenshots/cluster_chooser.png"></td>
+        <td width="33%"><img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/screenshots/home.png"></td>
+        <td width="33%"><img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/screenshots/cluster_chooser.png"></td>
     </tr>
     <tr>
-        <td width="33%"><img src="https://raw.githubusercontent.com/headlamp-k8s/headlamp/screenshots/screenshots/workloads.png"></td>
-        <td width="33%"><img src="https://raw.githubusercontent.com/headlamp-k8s/headlamp/screenshots/screenshots/resource_edition.png"></td>
+        <td width="33%"><img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/screenshots/workloads.png"></td>
+        <td width="33%"><img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/screenshots/resource_edition.png"></td>
     </tr>
     <tr>
-        <td width="33%"><img src="https://raw.githubusercontent.com/headlamp-k8s/headlamp/screenshots/screenshots/logs.png"></td>
-        <td width="33%"><img src="https://raw.githubusercontent.com/headlamp-k8s/headlamp/screenshots/screenshots/terminal.png"></td>
+        <td width="33%"><img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/screenshots/logs.png"></td>
+        <td width="33%"><img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/screenshots/terminal.png"></td>
     </tr>
 </table>
 
@@ -73,10 +82,11 @@ our [plugin development guide](https://headlamp.dev/docs/latest/development/plug
 
 ## Get involved
 
-Check out our [guidelines](https://headlamp.dev/docs/latest/contributing/), including our [Code of Conduct](./CODE_OF_CONDUCT.md),
-and join the discussion on the
-[#headlamp](https://kubernetes.slack.com/messages/headlamp) channel
-in the Kubernetes Slack.
+Check out our: 
+- [Guidelines](https://headlamp.dev/docs/latest/contributing/)
+- [Code of Conduct](./code-of-conduct.md),
+- [#headlamp](https://kubernetes.slack.com/messages/headlamp) slack channel in the Kubernetes Slack 
+- [Monthly Community Meeting](https://zoom-lfx.platform.linuxfoundation.org/meetings/headlamp)
 
 ## Roadmap / Release Planning
 
@@ -87,7 +97,6 @@ biggest changes planned so far, as well as a [board](https://github.com/orgs/hea
 ## License
 
 Headlamp is released under the terms of the [Apache 2.0](./LICENSE) license.
-
 
 ## Frequently Asked Questions
 

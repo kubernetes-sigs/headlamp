@@ -1,7 +1,22 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { ApiError } from '../../lib/k8s/apiProxy';
 import CRD from '../../lib/k8s/crd';
 import { Link, ObjectEventList } from '../common';
 import Loader from '../common/Loader';
@@ -11,13 +26,11 @@ import SimpleTable from '../common/SimpleTable';
 import DetailsViewSection from '../DetailsViewSection';
 import { CustomResourceListTable } from './CustomResourceList';
 
-export default function CustomResourceDefinitionDetails() {
-  const { name } = useParams<{ name: string }>();
-  const [item, setItem] = React.useState<CRD | null>(null);
-  const [error, setError] = React.useState<ApiError | null>(null);
+export default function CustomResourceDefinitionDetails(props: { name?: string }) {
+  const params = useParams<{ name: string }>();
+  const { name = params.name } = props;
+  const [item, error] = CRD.useGet(name);
   const { t } = useTranslation(['glossary', 'translation']);
-
-  CRD.useApiGet(setItem, name, undefined, setError);
 
   return !item ? (
     <Loader title={t('translation|Loading resource definition details')} />
@@ -53,6 +66,7 @@ export default function CustomResourceDefinitionDetails() {
                   params={{
                     crd: item.metadata.name,
                   }}
+                  activeCluster={item.cluster}
                 >
                   {item.spec.names.kind}
                 </Link>

@@ -33,11 +33,42 @@ then add them all to the option:
 used by Dex and other services, but since it's not part of the default spec,
 it was removed in the mentioned version.
 
+### Token Validation Overrides
+
+In the event your OIDC Provider issues `access_tokens` from a different Issuer URL or clientID audience than its `id_tokens` (i.e. Azure Entra ID) you may have need of the following parameters to configure what is used in validation of tokens.
+
+- `-oidc-validator-client-id=<clientID audience to validate in token>` or env var `HEADLAMP_CONFIG_OIDC_VALIDATOR_CLIENT_ID` which is the clientID headlamp should be verifying in the `aud` field of the token provided back from the OIDC provider.
+- `-oidc-validator-idp-issuer-url=<issuerURL to use in validation>` or env var `HEADLAMP_CONFIG_OIDC_VALIDATOR_IDP_ISSUER_URL` which is the IssuerURL headlamp should be verifying in the `iss` field of the token provided back from the OIDC Provider
+
+### Use Access Tokens instead of ID Tokens
+
+Be default, headlamp leverages the `id_token` provided back from the OIDC Provider after authentication returned to the `/oidc-callback` endpoint. For some Identity Providers like Azure Entra ID, the `access_token` is what is used for authorization to Kubernetes clusters. To instruct headlamp to use the `access_token` instead of the `id_token`, the following flag can be used.
+
+- `-oidc-use-access-token=true` or env var `HEADLAMP_CONFIG_OIDC_USE_ACCESS_TOKEN`
+
 ### Example: OIDC with Keycloak in Minikube
 
 If you are interested in a comprehensive example of using OIDC and Headlamp,
 you can check the
 [tutorial on setting up OIDC with Keycloack in Minikube](./keycloak/).
+
+### Example: OIDC with Entra ID in AKS
+
+If you are interested in a comprehensive tutorial of using OIDC and Headlamp in AKS,
+you can check the
+[tutorial on setting up OIDC with Entra ID in AKS](./azure-entra-id/).
+
+For quick reference if you are already familiar with setting up Entra ID,
+
+- Add the callback URL (e.g. `https://YOUR_URL/oidc-callback`) to your Azure App Registration's `redirectURIs`
+- Set `-oidc-client-id` to your Azure App Registration's clientID
+- Set `-oidc-client-secret` to your Azure App Registration's clientSecret
+- Set `-oidc-idp-issuer-url` to `https://login.microsoftonline.com/<Your Azure Directory (tenant) ID>/v2.0`
+- Set `-oidc-scopes` to `6dae42f8-4368-4678-94ff-3960e28e3630/user.read openid email profile`
+- Set `--oidc-validator-idp-issuer-url` to `https://sts.windows.net/<Your Directory (tenant) ID>/`
+- Set `-oidc-validator-client-id` to `6dae42f8-4368-4678-94ff-3960e28e3630`
+- Set `-oidc-use-access-token=true`
+
 
 ### Example: OIDC with Dex
 

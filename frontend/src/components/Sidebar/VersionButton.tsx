@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -117,11 +133,12 @@ export default function VersionButton() {
     >
       <Button
         onClick={() => setOpen(true)}
-        style={{ textTransform: 'none', paddingBottom: 0, paddingTop: 0 }}
+        size="small"
+        sx={theme => ({ textTransform: 'none', color: theme.palette.sidebar.color })}
       >
         <Box display={isSidebarOpen ? 'flex' : 'block'} alignItems="center">
           <Box>
-            <VersionIcon color={theme.palette.text.secondary} icon="mdi:kubernetes" />
+            <VersionIcon color={theme.palette.sidebar.color} icon="mdi:kubernetes" />
           </Box>
           <Box>{clusterVersion.gitVersion}</Box>
         </Box>
@@ -132,7 +149,7 @@ export default function VersionButton() {
           <NameValueTable rows={getVersionRows()} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose} color="primary">
+          <Button onClick={handleClose} color="primary" variant="contained">
             {t('translation|Close')}
           </Button>
         </DialogActions>

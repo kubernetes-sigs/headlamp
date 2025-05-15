@@ -1,3 +1,19 @@
+/*
+Copyright 2025 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package main
 
 import (
@@ -18,9 +34,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/cache"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/config"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -243,6 +259,7 @@ func TestDynamicClusters(t *testing.T) {
 			handler := createHeadlampHandler(&c)
 
 			var resp *httptest.ResponseRecorder
+
 			for _, clusterReq := range tc.clusters {
 				r, err := getResponseFromRestrictedEndpoint(handler, "POST", "/cluster", clusterReq)
 				if err != nil {
@@ -261,6 +278,7 @@ func TestDynamicClusters(t *testing.T) {
 					}
 
 					configuredClusters := c.getClusters()
+
 					var cluster *Cluster
 
 					// Get cluster we created
@@ -287,11 +305,14 @@ func TestDynamicClusters(t *testing.T) {
 
 			if resp.Code == http.StatusCreated {
 				var clusterConfig clientConfig
+
 				err = json.Unmarshal(resp.Body.Bytes(), &clusterConfig)
 				if err != nil {
 					t.Fatal(err)
 				}
+
 				var config clientConfig
+
 				err = json.Unmarshal(configResp.Body.Bytes(), &config)
 				if err != nil {
 					t.Fatal(err)
@@ -356,11 +377,35 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 	assert.Equal(t, "default", minikubeCluster.Metadata["namespace"])
 }
 
+func TestInvalidKubeConfig(t *testing.T) {
+	cache := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	absPath, err := filepath.Abs("./headlamp_testdata/kubeconfig_partialcontextvalid")
+	assert.NoError(t, err)
+
+	c := HeadlampConfig{
+		useInCluster:          false,
+		kubeConfigPath:        absPath,
+		enableDynamicClusters: true,
+		cache:                 cache,
+		kubeConfigStore:       kubeConfigStore,
+	}
+
+	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, absPath, kubeconfig.KubeConfig, nil)
+	assert.Error(t, err)
+
+	clusters := c.getClusters()
+
+	assert.Equal(t, 1, len(clusters))
+}
+
 //nolint:funlen
 func TestExternalProxy(t *testing.T) {
 	// Create a new server for testing
 	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
+
 		_, err := w.Write([]byte("OK"))
 		if err != nil {
 			t.Fatal(err)
@@ -854,10 +899,19 @@ func TestParseClusterAndToken(t *testing.T) {
 
 func TestIsTokenAboutToExpire(t *testing.T) {
 	// Token that expires in 4 minutes
-	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MTIzNjE2MDB9.7vl9iBWGDQdXUTbEsqFHiHoaNWxKn4UwLhO9QDhXrpM" //nolint:gosec,lll
+	header := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+	originalPayload := "eyJleHAiOjE2MTIzNjE2MDB9"
+	signature := ".7vl9iBWGDQdXUTbEsqFHiHoaNWxKn4UwLhO9QDhXrpM"
 
+	token := header + originalPayload + signature
 	result := isTokenAboutToExpire(token)
 	assert.True(t, result)
+
+	modifiedPayload := strings.Replace(originalPayload, "J", "-", 1)
+
+	token = header + modifiedPayload + signature
+	result = isTokenAboutToExpire(token)
+	assert.False(t, result, "Expected to return false when payload decoding fails due to URL-safe characters")
 }
 
 func TestOIDCTokenRefreshMiddleware(t *testing.T) {
@@ -1022,6 +1076,125 @@ func TestHandleClusterHelm(t *testing.T) {
 			router.ServeHTTP(w, req)
 
 			assert.Equal(t, tc.expectedStatus, w.Code)
+		})
+	}
+}
+
+//nolint:funlen
+func TestProcessWebSocketProtocolHeader(t *testing.T) {
+	tests := []struct {
+		name                   string
+		initialHeader          http.Header
+		expectedAuthHeader     string
+		expectedProtocolHeader string
+	}{
+		{
+			name:                   "No Sec-Websocket-Protocol header",
+			initialHeader:          http.Header{},
+			expectedAuthHeader:     "",
+			expectedProtocolHeader: "",
+		},
+		{
+			name: "Header with non-token protocols",
+			initialHeader: http.Header{
+				"Sec-Websocket-Protocol": []string{"test"},
+			},
+			expectedAuthHeader:     "",
+			expectedProtocolHeader: "test",
+		},
+		{
+			name: "Header with single token protocol",
+			initialHeader: http.Header{
+				"Sec-Websocket-Protocol": []string{"base64url.bearer.authorization.k8s.io.dGVzdC10b2tlbg=="}, // "test-token"
+			},
+			expectedAuthHeader:     "Bearer test-token",
+			expectedProtocolHeader: "",
+		},
+		{
+			name: "Header with single token protocol and raw base64 encoding",
+			initialHeader: http.Header{
+				"Sec-Websocket-Protocol": []string{"base64url.bearer.authorization.k8s.io.dGVzdC10b2tlbg"}, // "test-token"
+			},
+			expectedAuthHeader:     "Bearer test-token",
+			expectedProtocolHeader: "",
+		},
+		{
+			name: "Header with multiple protocols including token",
+			initialHeader: http.Header{
+				"Sec-Websocket-Protocol": []string{"test1, base64url.bearer.authorization.k8s.io.dGVzdC10b2tlbg==, test2"},
+			},
+			expectedAuthHeader:     "Bearer test-token",
+			expectedProtocolHeader: "test1, test2",
+		},
+		{
+			name: "Header with token protocol but Authorization already exists",
+			initialHeader: http.Header{
+				"Sec-Websocket-Protocol": []string{"base64url.bearer.authorization.k8s.io.dGVzdC10b2tlbg=="},
+				"Authorization":          []string{"Bearer existing-token"},
+			},
+			expectedAuthHeader:     "Bearer existing-token",
+			expectedProtocolHeader: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header = tt.initialHeader
+
+			processWebSocketProtocolHeader(req)
+
+			assert.Equal(t, tt.expectedAuthHeader, req.Header.Get("Authorization"))
+			assert.Equal(t, tt.expectedProtocolHeader, req.Header.Get("Sec-Websocket-Protocol"))
+		})
+	}
+}
+
+func TestProcessTokenProtocol(t *testing.T) {
+	const tokenPrefix = "base64url.bearer.authorization.k8s.io." // #nosec G101
+
+	tests := []struct {
+		name               string
+		protocol           string
+		initialAuthHeader  string
+		expectedAuthHeader string
+	}{
+		{
+			name:               "Valid token, no existing Auth header",
+			protocol:           tokenPrefix + "dGVzdC10b2tlbg==", // "test-token"
+			initialAuthHeader:  "",
+			expectedAuthHeader: "Bearer test-token",
+		},
+		{
+			name:               "Valid token, existing Auth header",
+			protocol:           tokenPrefix + "dGVzdC10b2tlbg==",
+			initialAuthHeader:  "Bearer existing-token",
+			expectedAuthHeader: "Bearer existing-token", // Should not overwrite
+		},
+		{
+			name:               "Empty token in protocol",
+			protocol:           tokenPrefix,
+			initialAuthHeader:  "",
+			expectedAuthHeader: "", // Should not set Auth header
+		},
+		{
+			name:               "Invalid base64 token",
+			protocol:           tokenPrefix + "invalid-base64",
+			initialAuthHeader:  "",
+			expectedAuthHeader: "Bearer invalid-base64", // Uses raw string if decode fails
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.initialAuthHeader != "" {
+				req.Header.Set("Authorization", tt.initialAuthHeader)
+			}
+
+			processTokenProtocol(req, tt.protocol, tokenPrefix)
+
+			assert.Equal(t, tt.expectedAuthHeader, req.Header.Get("Authorization"))
 		})
 	}
 }

@@ -68,7 +68,7 @@ jobs:
             echo "deleting old branch from remote to avoid conflict"
             git push origin --delete "update_headlamp_$HEADLAMP_VERSION"
           fi
-          wget "https://github.com/headlamp-k8s/headlamp/releases/download/$LATEST_HEADLAMP_TAG/checksums.txt"
+          wget "https://github.com/kubernetes-sigs/headlamp/releases/download/$LATEST_HEADLAMP_TAG/checksums.txt"
           ARM_SHA=$(cat checksums.txt | grep .arm64.dmg | awk -F" " '{print $1}')
           INTEL_SHA=$(cat checksums.txt | grep .x64.dmg | awk -F" " '{print $1}')
           git checkout -b "update_headlamp_$HEADLAMP_VERSION"

@@ -1,3 +1,19 @@
+/*
+Copyright 2025 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package helm
 
 import (
@@ -8,7 +24,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/schema"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
@@ -137,8 +153,8 @@ func (h *Handler) ListRelease(w http.ResponseWriter, r *http.Request) {
 	res := ListReleaseResponse{
 		Releases: releases,
 	}
-	err = json.NewEncoder(w).Encode(res)
 
+	err = json.NewEncoder(w).Encode(res)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"request": "list_releases"},
 			err, "encoding response")
@@ -257,7 +273,6 @@ func (h *Handler) GetReleaseHistory(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	err = json.NewEncoder(w).Encode(resp)
-
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"request": "get_release_history", "releaseName": req.Name},
 			err, "encoding response")
@@ -319,7 +334,6 @@ func (h *Handler) UninstallRelease(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 
 	err = json.NewEncoder(w).Encode(response)
-
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release", "releaseName": req.Name},
 			err, "encoding response")
@@ -592,7 +606,6 @@ func (h *Handler) installRelease(req InstallRequest) {
 	}
 
 	err = yaml.Unmarshal(decodedBytes, &values)
-
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
 			err, "unmarshalling values")

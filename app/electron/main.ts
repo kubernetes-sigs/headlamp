@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { ChildProcessWithoutNullStreams, exec, execSync, spawn } from 'child_process';
 import { randomBytes } from 'crypto';
 import dotenv from 'dotenv';
@@ -24,7 +40,15 @@ import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import i18n from './i18next.config';
-import { PluginManager } from './plugin-management';
+import {
+  addToPath,
+  ArtifactHubHeadlampPkg,
+  defaultPluginsDir,
+  getMatchingExtraFiles,
+  getPluginBinDirectories,
+  PluginManager,
+} from './plugin-management';
+import { handleRunCommand } from './runCmd';
 import windowSize from './windowSize';
 
 dotenv.config({ path: path.join(process.resourcesPath, '.env') });
@@ -48,9 +72,6 @@ const startUrl = (
     pathname: frontendPath,
     protocol: 'file:',
     slashes: true,
-    query: {
-      backendToken: backendToken,
-    },
   })
 )
   // Windows paths use backslashes and for consistency we want to use forward slashes.
@@ -83,6 +104,10 @@ const args = yargs(hideBin(process.argv))
     },
     'disable-gpu': {
       describe: 'Disable use of GPU. For people who may have buggy graphics drivers',
+      type: 'boolean',
+    },
+    'watch-plugins-changes': {
+      describe: 'Reloads plugins when there are changes to them or their directory',
       type: 'boolean',
     },
   })
@@ -188,10 +213,9 @@ class PluginManagerEventListeners {
    * @name setupEventHandlers
    */
   setupEventHandlers() {
-    ipcMain.on('plugin-manager', (event, data) => {
+    ipcMain.on('plugin-manager', async (event, data) => {
       const eventData = JSON.parse(data) as Action;
       const { identifier, action } = eventData;
-
       const updateCache = (progress: ProgressResp) => {
         const percentage = this.convertProgressToPercentage(progress);
         this.cache[identifier].progress = progress;
@@ -230,26 +254,19 @@ class PluginManagerEventListeners {
    * @name handleInstall
    * @private
    */
-  private handleInstall(eventData: Action, updateCache: (progress: ProgressResp) => void) {
+  private async handleInstall(eventData: Action, updateCache: (progress: ProgressResp) => void) {
     const { identifier, URL, destinationFolder, headlampVersion, pluginName } = eventData;
 
     if (!mainWindow) {
-      return Promise.resolve({ type: 'error', message: 'Main window is not available' });
+      return { type: 'error', message: 'Main window is not available' };
     }
 
     if (!URL) {
-      return Promise.resolve({ type: 'error', message: 'URL is required' });
+      return { type: 'error', message: 'URL is required' };
     }
 
-    const dialogOptions: MessageBoxOptions = {
-      type: 'question',
-      buttons: ['Yes', 'No'],
-      defaultId: 1,
-      title: 'Plugin Installation',
-      message: 'Do you want to install this plugin?',
-      detail: `You are about to install ${pluginName} plugin from: ${URL}\nDo you want to proceed?`,
-    };
     const controller = new AbortController();
+
     this.cache[identifier] = {
       action: 'INSTALL',
       progress: { type: 'info', message: 'waiting for user consent' },
@@ -257,45 +274,75 @@ class PluginManagerEventListeners {
       controller,
     };
 
-    return dialog
-      .showMessageBox(mainWindow, dialogOptions)
-      .then(({ response }) => {
-        console.log('User response:', response);
-        if (response === 1) {
-          // User clicked "No"
-          this.cache[identifier] = {
-            action: 'INSTALL',
-            progress: { type: 'error', message: 'installation cancelled due to user consent' },
-            percentage: 0,
-            controller,
-          };
-          return { type: 'error', message: 'Installation cancelled due to user consent' };
-        }
+    let pluginInfo: ArtifactHubHeadlampPkg | undefined = undefined;
+    try {
+      pluginInfo = await PluginManager.fetchPluginInfo(URL, { signal: controller.signal });
+    } catch (error) {
+      console.error('Error fetching plugin info:', error);
+      dialog.showErrorBox(
+        i18n.t('Failed to fetch plugin info'),
+        i18n.t('An error occurred while fetching plugin info from {{  URL }}.', { URL })
+      );
+      return { type: 'error', message: 'Failed to fetch plugin info' };
+    }
 
-        // User clicked "Yes", proceed with installation
-        this.cache[identifier] = {
-          action: 'INSTALL',
-          progress: { type: 'info', message: 'installing plugin' },
-          percentage: 10,
-          controller,
-        };
+    const { matchingExtraFiles } = getMatchingExtraFiles(
+      pluginInfo?.extraFiles ? pluginInfo?.extraFiles : {}
+    );
+    const extraUrls = matchingExtraFiles.map(file => file.url);
+    const allUrls = [pluginInfo.archiveURL, ...extraUrls].join(', ');
 
-        PluginManager.install(
-          URL,
-          destinationFolder,
-          headlampVersion,
-          progress => {
-            updateCache(progress);
-          },
-          controller.signal
-        );
+    const dialogOptions: MessageBoxOptions = {
+      type: 'question',
+      buttons: [i18n.t('Yes'), i18n.t('No')],
+      defaultId: 1,
+      title: i18n.t('Plugin Installation'),
+      message: i18n.t('Do you want to install the plugin "{{ pluginName }}"?', { pluginName }),
+      detail: i18n.t('You are about to install a plugin from: {{ url }}\nDo you want to proceed?', {
+        url: allUrls,
+      }),
+    };
 
-        return { type: 'info', message: 'Installation started' };
-      })
-      .catch(error => {
-        console.error('Error during installation process:', error);
-        return { type: 'error', message: 'An error occurred during the installation process' };
-      });
+    let userChoice: number;
+    try {
+      const answer = await dialog.showMessageBox(mainWindow, dialogOptions);
+      userChoice = answer.response;
+    } catch (error) {
+      console.error('Error during installation process:', error);
+      return { type: 'error', message: 'An error occurred during the installation process' };
+    }
+
+    console.log('User response:', userChoice);
+    if (userChoice === 1) {
+      // User clicked "No"
+      this.cache[identifier] = {
+        action: 'INSTALL',
+        progress: { type: 'error', message: 'installation cancelled due to user consent' },
+        percentage: 0,
+        controller,
+      };
+      return { type: 'error', message: 'Installation cancelled due to user consent' };
+    }
+
+    // User clicked "Yes", proceed with installation
+    this.cache[identifier] = {
+      action: 'INSTALL',
+      progress: { type: 'info', message: 'installing plugin' },
+      percentage: 10,
+      controller,
+    };
+
+    PluginManager.installFromPluginPkg(
+      pluginInfo,
+      destinationFolder,
+      headlampVersion,
+      progress => {
+        updateCache(progress);
+      },
+      controller.signal
+    );
+
+    return { type: 'info', message: 'Installation started' };
   }
   /**
    * Handles the update process.
@@ -514,7 +561,6 @@ async function getShellEnv(): Promise<NodeJS.ProcessEnv> {
     };
 
     const envVars = isEnvNull ? processLines('\0') : processLines('\n');
-
     const mergedEnv = { ...process.env, ...envVars };
     return mergedEnv;
   } catch (error) {
@@ -528,13 +574,16 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
     ? path.resolve('../backend/headlamp-server')
     : path.join(process.resourcesPath, './headlamp-server');
 
-  let serverArgs: string[] = [];
+  let serverArgs: string[] = ['--listen-addr=localhost'];
   if (!!args.kubeconfig) {
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);
   }
   const proxyUrls = !!buildManifest && buildManifest['proxy-urls'];
   if (!!proxyUrls && proxyUrls.length > 0) {
     serverArgs = serverArgs.concat(['--proxy-urls', proxyUrls.join(',')]);
+  }
+  if (args.watchPluginsChanges !== undefined) {
+    serverArgs.push(`--watch-plugins-changes=${args.watchPluginsChanges}`);
   }
 
   const bundledPlugins = path.join(process.resourcesPath, '.plugins');
@@ -568,6 +617,7 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
 
   const options = {
     detached: true,
+    windowsHide: true,
     env: {
       ...extendedEnv,
     },
@@ -767,18 +817,21 @@ function getDefaultAppMenu(): AppMenu[] {
         sep,
         {
           label: i18n.t('Reset Zoom'),
-          role: 'resetzoom',
           id: 'original-reset-zoom',
+          accelerator: 'CmdOrCtrl+0',
+          click: () => setZoom(1.0),
         },
         {
           label: i18n.t('Zoom In'),
-          role: 'zoomin',
           id: 'original-zoom-in',
+          accelerator: 'CmdOrCtrl+Plus',
+          click: () => adjustZoom(0.1),
         },
         {
           label: i18n.t('Zoom Out'),
-          role: 'zoomout',
           id: 'original-zoom-out',
+          accelerator: 'CmdOrCtrl+-',
+          click: () => adjustZoom(-0.1),
         },
         sep,
         {
@@ -875,12 +928,12 @@ function getDefaultAppMenu(): AppMenu[] {
         {
           label: i18n.t('Open an Issue'),
           id: 'original-open-issue',
-          url: 'https://github.com/headlamp-k8s/headlamp/issues',
+          url: 'https://github.com/kubernetes-sigs/headlamp/issues',
         },
         {
           label: i18n.t('About'),
           id: 'original-about',
-          url: 'https://github.com/headlamp-k8s/headlamp',
+          url: 'https://github.com/kubernetes-sigs/headlamp',
         },
       ],
     },
@@ -1014,6 +1067,42 @@ function killProcess(pid: number) {
   }
 }
 
+const ZOOM_FILE_PATH = path.join(app.getPath('userData'), 'headlamp-config.json');
+let cachedZoom: number = 1.0;
+
+function saveZoomFactor(factor: number) {
+  try {
+    fs.writeFileSync(ZOOM_FILE_PATH, JSON.stringify({ zoomFactor: factor }), 'utf-8');
+  } catch (err) {
+    console.error('Failed to save zoom factor:', err);
+  }
+}
+
+function loadZoomFactor() {
+  try {
+    const { zoomFactor = 1.0 } = JSON.parse(fs.readFileSync(ZOOM_FILE_PATH, 'utf-8'));
+    return zoomFactor;
+  } catch (err) {
+    console.error('Failed to load zoom factor, defaulting to 1.0:', err);
+    return 1.0;
+  }
+}
+
+// The zoom factor should respect the fixed limits set by Electron.
+function clampZoom(factor: number) {
+  return Math.min(5.0, Math.max(0.25, factor));
+}
+
+function setZoom(factor: number) {
+  cachedZoom = factor;
+  mainWindow?.webContents.setZoomFactor(cachedZoom);
+}
+
+function adjustZoom(delta: number) {
+  const newZoom = clampZoom(cachedZoom + delta);
+  setZoom(newZoom);
+}
+
 function startElecron() {
   console.info('App starting...');
 
@@ -1065,6 +1154,11 @@ function startElecron() {
       if (!!goForwardMenu) {
         goForwardMenu.enabled = mainWindow?.webContents.canGoForward() || false;
       }
+    });
+
+    mainWindow.webContents.on('did-finish-load', () => {
+      const startZoom = loadZoomFactor();
+      setZoom(startZoom);
     });
 
     mainWindow.webContents.on('dom-ready', () => {
@@ -1182,65 +1276,11 @@ function startElecron() {
       }
     });
 
-    /**
-     * Data sent from the renderer process when a 'run-command' event is emitted.
-     */
-    interface CommandData {
-      /** The unique ID of the command. */
-      id: string;
-      /** The command to run. */
-      command: string;
-      /** The arguments to pass to the command. */
-      args: string[];
-      /**
-       * Options to pass to the command.
-       * See https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options
-       */
-      options: {};
-    }
+    ipcMain.on('request-backend-token', () => {
+      mainWindow?.webContents.send('backend-token', backendToken);
+    });
 
-    /**
-     * Handles 'run-command' events from the renderer process.
-     *
-     * Spawns the requested command and sends 'command-stdout',
-     * 'command-stderr', and 'command-exit' events back to the renderer
-     * process with the command's output and exit code.
-     *
-     * @param event - The event object.
-     * @param eventData - The data sent from the renderer process.
-     */
-    function handleRunCommand(event: IpcMainEvent, eventData: CommandData): void {
-      // Only allow "minikube", and "az" commands
-      const validCommands = ['minikube', 'az'];
-      if (!validCommands.includes(eventData.command)) {
-        console.error(
-          `Invalid command: ${eventData.command}, only valid commands are: ${JSON.stringify(
-            validCommands
-          )}`
-        );
-        return;
-      }
-
-      const child: ChildProcessWithoutNullStreams = spawn(
-        eventData.command,
-        eventData.args,
-        eventData.options
-      );
-
-      child.stdout.on('data', (data: string | Buffer) => {
-        event.sender.send('command-stdout', eventData.id, data.toString());
-      });
-
-      child.stderr.on('data', (data: string | Buffer) => {
-        event.sender.send('command-stderr', eventData.id, data.toString());
-      });
-
-      child.on('exit', (code: number | null) => {
-        event.sender.send('command-exit', eventData.id, code);
-      });
-    }
-
-    ipcMain.on('run-command', handleRunCommand);
+    ipcMain.on('run-command', (event, eventData) => handleRunCommand(event, eventData, mainWindow));
 
     new PluginManagerEventListeners().setupEventHandlers();
 
@@ -1318,6 +1358,19 @@ function startElecron() {
       attachServerEventHandlers(serverProcess);
     }
 
+    // Also add bundled plugin bin directories to PATH
+    const bundledPlugins = path.join(process.resourcesPath, '.plugins');
+    const bundledPluginBinDirs = getPluginBinDirectories(bundledPlugins);
+    if (bundledPluginBinDirs.length > 0) {
+      addToPath(bundledPluginBinDirs, 'bundled plugin');
+    }
+
+    // Add the installed plugins as well
+    const userPluginBinDirs = getPluginBinDirectories(defaultPluginsDir());
+    if (userPluginBinDirs.length > 0) {
+      addToPath(userPluginBinDirs, 'userPluginBinDirs plugin');
+    }
+
     // Finally load the frontend
     mainWindow.loadURL(startUrl);
   }
@@ -1349,6 +1402,7 @@ function startElecron() {
   app.once('window-all-closed', app.quit);
 
   app.once('before-quit', () => {
+    saveZoomFactor(cachedZoom);
     i18n.off('languageChanged');
     if (mainWindow) {
       mainWindow.removeAllListeners('close');
@@ -1391,9 +1445,14 @@ function attachServerEventHandlers(serverProcess: ChildProcessWithoutNullStreams
 }
 
 if (isHeadlessMode) {
-  serverProcess = startServer(['-html-static-dir', path.join(process.resourcesPath, './frontend')]);
-  attachServerEventHandlers(serverProcess);
-  shell.openExternal(`http://localhost:${defaultPort}`);
+  startServer(['-html-static-dir', path.join(process.resourcesPath, './frontend')]).then(
+    serverProcess => {
+      attachServerEventHandlers(serverProcess);
+
+      // Give 1s for backend to start
+      setTimeout(() => shell.openExternal(`http://localhost:${defaultPort}`), 1000);
+    }
+  );
 } else {
   startElecron();
 }

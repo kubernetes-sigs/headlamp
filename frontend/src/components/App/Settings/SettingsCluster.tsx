@@ -1,9 +1,26 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Icon, InlineIcon } from '@iconify/react';
 import {
   Box,
   Chip,
   FormControl,
   IconButton,
+  InputLabel,
   MenuItem,
   Select,
   TextField,
@@ -14,7 +31,12 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
-import helpers, { ClusterSettings } from '../../../helpers';
+import {
+  ClusterSettings,
+  loadClusterSettings,
+  storeClusterSettings,
+} from '../../../helpers/clusterSettings';
+import { isElectron } from '../../../helpers/isElectron';
 import { useCluster, useClustersConf } from '../../../lib/k8s';
 import { deleteCluster, parseKubeConfig, renameCluster } from '../../../lib/k8s/apiProxy';
 import { setConfig, setStatelessConfig } from '../../../redux/configSlice';
@@ -22,18 +44,8 @@ import { findKubeconfigByClusterName, updateStatelessClusterKubeconfig } from '.
 import { Link, Loader, NameValueTable, SectionBox } from '../../common';
 import ConfirmButton from '../../common/ConfirmButton';
 import Empty from '../../common/EmptyContent';
-
-function isValidNamespaceFormat(namespace: string) {
-  // We allow empty strings just because that's the default value in our case.
-  if (!namespace) {
-    return true;
-  }
-
-  // Validates that the namespace is a valid DNS-1123 label and returns a boolean.
-  // https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-label-names
-  const regex = new RegExp('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$');
-  return regex.test(namespace);
-}
+import NodeShellSettings from './NodeShellSettings';
+import { isValidNamespaceFormat } from './util';
 
 function isValidClusterNameFormat(name: string) {
   // We allow empty isValidClusterNameFormat just because that's the default value in our case.
@@ -58,7 +70,8 @@ function ClusterSelector(props: ClusterSelectorProps) {
   const { t } = useTranslation('glossary');
 
   return (
-    <FormControl variant="outlined" margin="normal" sx={{ minWidth: 250 }}>
+    <FormControl variant="outlined" margin="normal" size="small" sx={{ minWidth: 250 }}>
+      <InputLabel id="settings--cluster-selector">{t('glossary|Cluster')}</InputLabel>
       <Select
         labelId="settings--cluster-selector"
         value={currentCluster}
@@ -158,7 +171,7 @@ export default function SettingsCluster() {
   }, [cluster, clusterConf]);
 
   React.useEffect(() => {
-    setClusterSettings(!!cluster ? helpers.loadClusterSettings(cluster || '') : null);
+    setClusterSettings(!!cluster ? loadClusterSettings(cluster || '') : null);
   }, [cluster]);
 
   React.useEffect(() => {
@@ -180,7 +193,7 @@ export default function SettingsCluster() {
 
     // Avoid re-initializing settings as {} just because the cluster is not yet set.
     if (clusterSettings !== null) {
-      helpers.storeClusterSettings(cluster || '', clusterSettings);
+      storeClusterSettings(cluster || '', clusterSettings);
     }
   }, [cluster, clusterSettings]);
 
@@ -316,12 +329,7 @@ export default function SettingsCluster() {
 
   return (
     <>
-      <SectionBox
-        title={t('translation|Cluster Settings ({{ clusterName }})', {
-          clusterName: cluster,
-        })}
-        backLink
-      >
+      <SectionBox title={t('translation|Cluster Settings')} backLink>
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <ClusterSelector clusters={clusters} currentCluster={cluster} />
           <Link
@@ -332,7 +340,7 @@ export default function SettingsCluster() {
             {t('translation|Go to cluster')}
           </Link>
         </Box>
-        {helpers.isElectron() && (
+        {isElectron() && (
           <NameValueTable
             rows={[
               {
@@ -350,7 +358,7 @@ export default function SettingsCluster() {
                     helperText={
                       isValidCurrentName
                         ? t(
-                            'translation|The current name of cluster. You can define custom modified name.'
+                            'translation|The current name of the cluster. You can define a custom name.'
                           )
                         : invalidClusterNameMessage
                     }
@@ -409,6 +417,8 @@ export default function SettingsCluster() {
                         )
                       : invalidNamespaceMessage
                   }
+                  variant="outlined"
+                  size="small"
                   InputProps={{
                     endAdornment: isEditingDefaultNamespace() ? (
                       <Icon
@@ -450,6 +460,8 @@ export default function SettingsCluster() {
                         autocomplete: 'off',
                       },
                     }}
+                    variant="outlined"
+                    size="small"
                     InputProps={{
                       endAdornment: (
                         <IconButton
@@ -507,7 +519,8 @@ export default function SettingsCluster() {
           ]}
         />
       </SectionBox>
-      {removableCluster && helpers.isElectron() && (
+      <NodeShellSettings cluster={cluster} />
+      {removableCluster && isElectron() && (
         <Box pt={2} textAlign="right">
           <ConfirmButton
             color="secondary"

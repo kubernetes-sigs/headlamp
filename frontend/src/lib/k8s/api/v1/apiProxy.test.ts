@@ -1,4 +1,20 @@
 /*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
  * Documentation for testing with nock:
  * https://github.com/nock/nock
  */
@@ -6,12 +22,12 @@
 import nock from 'nock';
 import { Mock, MockedFunction } from 'vitest';
 import WS from 'vitest-websocket-mock';
-import exportFunctions from '../../../../helpers';
+import { getAppUrl } from '../../../../helpers/getAppUrl';
 import * as auth from '../../../auth';
 import * as cluster from '../../../cluster';
 import * as apiProxy from '../../apiProxy';
 
-const baseApiUrl = exportFunctions.getAppUrl();
+const baseApiUrl = getAppUrl();
 const wsUrl = baseApiUrl.replace('http', 'ws');
 const testPath = '/test/url';
 const mockResponse = { message: 'mock response' };
@@ -857,10 +873,8 @@ describe('apiProxy', () => {
       nock.cleanAll();
     });
 
-    it('Successfully checks cluster health', async () => {
-      const response = await apiProxy.testClusterHealth(clusterName);
-      const body = await response.text();
-      expect(body).toEqual('ok');
+    it('Should not raise an error on success', async () => {
+      await apiProxy.testClusterHealth(clusterName);
     });
 
     it.each([

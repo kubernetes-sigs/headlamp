@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 /**
  * The index.ts should have the functions that Headlamp itself needs for
  * loading the plugins.
@@ -19,8 +35,10 @@ import * as ReactRedux from 'react-redux';
 import * as ReactRouter from 'react-router-dom';
 import * as Recharts from 'recharts';
 import semver from 'semver';
+import { themeSlice } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
-import helpers from '../helpers';
+import { getAppUrl } from '../helpers/getAppUrl';
+import { isElectron } from '../helpers/isElectron';
 import * as K8s from '../lib/k8s';
 import * as ApiProxy from '../lib/k8s/apiProxy';
 import * as Crd from '../lib/k8s/crd';
@@ -221,7 +239,10 @@ export function updateSettingsPackages(
         isEnabled: true,
       };
     }
-    return settingsPlugins[index];
+    return {
+      ...settingsPlugins[index],
+      ...plugin,
+    };
   });
 }
 
@@ -242,19 +263,15 @@ export async function fetchAndExecutePlugins(
   onSettingsChange: (plugins: PluginInfo[]) => void,
   onIncompatible: (plugins: Record<string, PluginInfo>) => void
 ) {
-  const pluginPaths = (await fetch(`${helpers.getAppUrl()}plugins`).then(resp =>
-    resp.json()
-  )) as string[];
+  const pluginPaths = (await fetch(`${getAppUrl()}plugins`).then(resp => resp.json())) as string[];
 
   const sourcesPromise = Promise.all(
-    pluginPaths.map(path =>
-      fetch(`${helpers.getAppUrl()}${path}/main.js`).then(resp => resp.text())
-    )
+    pluginPaths.map(path => fetch(`${getAppUrl()}${path}/main.js`).then(resp => resp.text()))
   );
 
   const packageInfosPromise = await Promise.all<PluginInfo>(
     pluginPaths.map(path =>
-      fetch(`${helpers.getAppUrl()}${path}/package.json`).then(resp => {
+      fetch(`${getAppUrl()}${path}/package.json`).then(resp => {
         if (!resp.ok) {
           if (resp.status !== 404) {
             return Promise.reject(resp);
@@ -295,7 +312,7 @@ export async function fetchAndExecutePlugins(
   const { sourcesToExecute, incompatiblePlugins } = filterSources(
     sources,
     packageInfos,
-    helpers.isElectron(),
+    isElectron(),
     compatibleHeadlampPluginVersion,
     updatedSettingsPackages
   );
@@ -318,7 +335,10 @@ export async function fetchAndExecutePlugins(
     // Execute plugins inside a context (not in global/window)
     (function (str: string) {
       try {
-        const result = eval(str);
+        const pluginName = packageInfos[index].name.split('/').slice(-1)[0];
+        // Giving an evaled code a filename will make it easier to use source maps
+        const sourceMapPath = `\n//# sourceURL=//${pluginName}/dist/main.js`;
+        const result = eval(str + sourceMapPath);
         return result;
       } catch (e) {
         // We just continue if there is an error.
@@ -349,4 +369,7 @@ export async function fetchAndExecutePlugins(
       data: { plugins: pluginsLoaded },
     })
   );
+
+  // Refresh theme name if the theme that was used from a plugin was deleted
+  store.dispatch(themeSlice.actions.ensureValidThemeName());
 }

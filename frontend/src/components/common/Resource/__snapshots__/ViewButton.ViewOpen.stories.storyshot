@@ -36,7 +36,7 @@
     >
       <div
         aria-labelledby="editor-dialog-title-id"
-        class="MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation24 MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthLg MuiDialog-paperFullWidth css-1iou21e-MuiPaper-root-MuiDialog-paper"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthLg MuiDialog-paperFullWidth css-kl791l-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
         <h2
@@ -114,7 +114,7 @@
                       class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
                     >
                       <span
-                        class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-1nsozxe-MuiButtonBase-root-MuiSwitch-switchBase"
+                        class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
                       >
                         <input
                           class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
@@ -143,7 +143,7 @@
             </div>
           </div>
           <div
-            class="MuiBox-root css-189avu9"
+            class="MuiBox-root css-10klw3m"
           >
             <div
               class="mock-monaco-editor"
@@ -160,7 +160,7 @@
             style="flex: 1 0 0px;"
           />
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary css-1gp6czg-MuiButtonBase-root-MuiButton-root"
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-14f6w6s-MuiButtonBase-root-MuiButton-root"
             tabindex="0"
             type="button"
           >

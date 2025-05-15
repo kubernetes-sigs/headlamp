@@ -81,7 +81,7 @@ jobs:
       - name: Run frontend-i18n-check
         run: |
           make frontend-i18n-check
-  
+
   build:
     name: build
     runs-on: ${{ matrix.os }}

@@ -6,7 +6,7 @@ set -o xtrace
 for i in * ; do
   if [ -d "$i" ]; then
     cd "$i"
-    npm install
+    npm ci
     cd ..
   fi
 done

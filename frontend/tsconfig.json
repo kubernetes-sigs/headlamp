@@ -27,6 +27,7 @@
       "src/lib/k8s/cluster.ts",
       "src/lib/router.tsx",
       "src/lib/util.ts",
+      "src/lib/AppTheme.ts",
       "src/plugin/lib.ts",
       "src/plugin/registry.tsx"
     ],

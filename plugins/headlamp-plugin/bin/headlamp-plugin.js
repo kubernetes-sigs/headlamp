@@ -1,12 +1,26 @@
 #!/usr/bin/env node
+
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 // @ts-check
 'use strict';
 
-const webpack = require('webpack');
-const config = require('../config/webpack.config');
 const crypto = require('crypto');
 const fs = require('fs-extra');
-const FileManagerPlugin = require('filemanager-webpack-plugin');
 const envPaths = require('env-paths');
 const os = require('os');
 const path = require('path');
@@ -18,6 +32,12 @@ const headlampPluginPkg = require('../package.json');
 const PluginManager = require('../plugin-management/plugin-management').PluginManager;
 const { table } = require('table');
 const tar = require('tar');
+const MultiPluginManager = require('../plugin-management/multi-plugin-management');
+
+// ES imports
+const viteCopyPluginPromise = import('vite-plugin-static-copy');
+const viteConfigPromise = import('../config/vite.config.mjs');
+const vitePromise = import('vite');
 
 /**
  * Creates a new plugin folder.
@@ -116,42 +136,6 @@ function create(name, link) {
 }
 
 /**
- * Compile callback for webpack to show any warnings + errors.
- */
-function compileMessages(err, stats) {
-  if (err && err.message) {
-    console.log(err);
-    // This should be a failure.
-    return 1;
-  }
-  if (stats && stats.compilation) {
-    const printList = {
-      Warnings: stats.compilation.warnings,
-      Errors: stats.compilation.errors,
-    };
-
-    Object.entries(printList).forEach(([key, value]) => {
-      if (value.length === 0) {
-        return;
-      }
-
-      console.log(`${key}:\n`);
-      for (const item of value) {
-        console.log(item);
-        console.log('\n');
-      }
-    });
-
-    if (stats.hasErrors()) {
-      // This should be a failure.
-      return 1;
-    }
-  }
-
-  return 0;
-}
-
-/**
  * extract copies folders of packages in the form:
  *   packageName/dist/main.js to packageName/main.js
  *   packageName/package.json to packageName/package.json
@@ -173,25 +157,12 @@ function extract(pluginPackagesPath, outputPlugins, logSteps = true) {
     fs.mkdirSync(outputPlugins);
   }
 
-  function copyFiles(plugName, inputMainJs, mainjs) {
-    if (!fs.existsSync(plugName)) {
-      if (logSteps) {
-        console.log(`Making output folder "${plugName}".`);
-      }
-      fs.mkdirSync(plugName);
-    }
-
-    if (logSteps) {
-      console.log(`Copying "${inputMainJs}" to "${mainjs}".`);
-    }
-    fs.copyFileSync(inputMainJs, mainjs);
-  }
-
   /**
    * pluginPackagesPath is a package folder, not a folder of packages.
    */
   function extractPackage() {
     if (fs.existsSync(path.join(pluginPackagesPath, 'dist', 'main.js'))) {
+      const distPath = path.join(pluginPackagesPath, 'dist');
       const trimmedPath =
         pluginPackagesPath.slice(-1) === path.sep
           ? pluginPackagesPath.slice(0, -1)
@@ -199,9 +170,15 @@ function extract(pluginPackagesPath, outputPlugins, logSteps = true) {
       const folderName = trimmedPath.split(path.sep).splice(-1)[0];
       const plugName = path.join(outputPlugins, folderName);
 
-      const inputMainJs = path.join(pluginPackagesPath, 'dist', 'main.js');
-      const outputMainjs = path.join(plugName, 'main.js');
-      copyFiles(plugName, inputMainJs, outputMainjs);
+      fs.ensureDirSync(plugName);
+
+      const files = fs.readdirSync(distPath);
+      files.forEach(file => {
+        const srcFile = path.join(distPath, file);
+        const destFile = path.join(plugName, file);
+        console.log(`Copying "${srcFile}" to "${destFile}".`);
+        fs.copyFileSync(srcFile, destFile);
+      });
 
       const inputPackageJson = path.join(pluginPackagesPath, 'package.json');
       const outputPackageJson = path.join(plugName, 'package.json');
@@ -222,11 +199,18 @@ function extract(pluginPackagesPath, outputPlugins, logSteps = true) {
     });
 
     folders.forEach(folder => {
+      const distPath = path.join(pluginPackagesPath, folder.name, 'dist');
       const plugName = path.join(outputPlugins, folder.name);
 
-      const inputMainJs = path.join(pluginPackagesPath, folder.name, 'dist', 'main.js');
-      const outputMainjs = path.join(plugName, 'main.js');
-      copyFiles(plugName, inputMainJs, outputMainjs);
+      fs.ensureDirSync(plugName);
+
+      const files = fs.readdirSync(distPath);
+      files.forEach(file => {
+        const srcFile = path.join(distPath, file);
+        const destFile = path.join(plugName, file);
+        console.log(`Copying "${srcFile}" to "${destFile}".`);
+        fs.copyFileSync(srcFile, destFile);
+      });
 
       const inputPackageJson = path.join(pluginPackagesPath, folder.name, 'package.json');
       const outputPackageJson = path.join(plugName, 'package.json');
@@ -260,6 +244,63 @@ async function calculateChecksum(filePath) {
   } catch (error) {
     console.error('Error calculating checksum:', error);
     throw error; // Rethrow the error if you want to handle it further up the call stack
+  }
+}
+
+/**
+ * Copy extra files specified in package.json to the dist folder
+ *
+ * @param {string} [packagePath='.'] - Path to the package root containing package.json
+ * @returns {Promise<void>}
+ */
+async function copyExtraDistFiles(packagePath = '.') {
+  try {
+    const packageJsonPath = path.join(packagePath, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) {
+      return; // No package.json, nothing to do
+    }
+
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    if (!packageJson.headlamp || !packageJson.headlamp.extraDist) {
+      return; // No extra files to copy
+    }
+
+    const extraDist = packageJson.headlamp.extraDist;
+    const distFolder = path.resolve(packagePath, 'dist');
+
+    // Create dist folder if it doesn't exist (although it should by this point)
+    if (!fs.existsSync(distFolder)) {
+      fs.mkdirSync(distFolder, { recursive: true });
+    }
+
+    // Process all entries in extraDist
+    for (const [target, source] of Object.entries(extraDist)) {
+      const targetPath = path.join(distFolder, target);
+      const sourcePath = path.resolve(packagePath, source);
+
+      // Skip if source doesn't exist
+      if (!fs.existsSync(sourcePath)) {
+        console.warn(`Warning: extraDist source "${sourcePath}" does not exist, skipping.`);
+        continue;
+      }
+
+      // Create target directory if needed
+      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+
+      // Copy based on whether it's a directory or file
+      const sourceStats = fs.statSync(sourcePath);
+      if (sourceStats.isDirectory()) {
+        console.log(`Copying extra directory "${sourcePath}" to "${targetPath}"`);
+        fs.copySync(sourcePath, targetPath);
+      } else {
+        console.log(`Copying extra file "${sourcePath}" to "${targetPath}"`);
+        fs.copyFileSync(sourcePath, targetPath);
+      }
+    }
+
+    console.log('Successfully copied extra dist files');
+  } catch (error) {
+    console.error('Error copying extra dist files:', error);
   }
 }
 
@@ -308,6 +349,10 @@ async function createArchive(pluginDir, outputDir) {
 
   // Create temporary folder
   const tempFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-'));
+
+  // Make sure any extraDist files are in the dist folder before extraction
+  await copyExtraDistFiles(pluginPath);
+
   if (extract(pluginPath, tempFolder, false) !== 0) {
     console.error(
       `Error: Failed to extract plugin package to "${tempFolder}". Not creating archive.`
@@ -341,15 +386,15 @@ async function createArchive(pluginDir, outputDir) {
 
 /**
  * Start watching for changes, and build again if there are changes.
- * @returns {number} - Exit code, where 0 is success.
+ * @returns {Promise<number>} Exit code, where 0 is success.
  */
-function start() {
+async function start() {
   /**
    * Copies the built plugin to the app config folder ~/.config/Headlamp/plugins/
    *
    * Adds a webpack config plugin for copying the folder.
    */
-  function copyToPluginsFolder(webpackConfig) {
+  async function copyToPluginsFolder(viteConfig) {
     const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 
     // @todo: should the whole package name be used here,
@@ -358,24 +403,22 @@ function start() {
     const paths = envPaths('Headlamp', { suffix: '' });
     const configDir = fs.existsSync(paths.data) ? paths.data : paths.config;
 
-    webpackConfig.plugins = [
-      new FileManagerPlugin({
-        events: {
-          onEnd: {
-            copy: [
-              {
-                source: './dist/*',
-                destination: path.join(configDir, 'plugins', packageName),
-              },
-              {
-                source: './package.json',
-                destination: path.join(configDir, 'plugins', packageName, 'package.json'),
-              },
-            ],
+    const { viteStaticCopy } = await viteCopyPluginPromise;
+
+    viteConfig.plugins.push(
+      viteStaticCopy({
+        targets: [
+          {
+            src: './dist/*',
+            dest: path.join(configDir, 'plugins', packageName),
           },
-        },
-      }),
-    ];
+          {
+            src: './package.json',
+            dest: path.join(configDir, 'plugins', packageName),
+          },
+        ],
+      })
+    );
   }
 
   /**
@@ -389,7 +432,7 @@ function start() {
         const result = stdout.toString();
         const outdated = JSON.parse(result);
         if ('@kinvolk/headlamp-plugin' in outdated) {
-          const url = `https://github.com/headlamp-k8s/headlamp/releases`;
+          const url = `https://github.com/kubernetes-sigs/headlamp/releases`;
           console.warn(
             '    @kinvolk/headlamp-plugin is out of date. Run the following command to upgrade \n' +
               `    See release notes here: ${url}` +
@@ -407,23 +450,36 @@ function start() {
     });
   }, 500);
 
-  config.watch = true;
-  config.mode = 'development';
-  process.env['BABEL_ENV'] = 'development';
-  copyToPluginsFolder(config);
-  let exitCode = 0;
-  webpack(config, (err, stats) => {
-    // We are checking the exit code of the compileMessages function.
-    // It should be 0 if there are no errors, and 1 if there are errors.
-    exitCode = compileMessages(err, stats);
-    if (exitCode !== 0) {
-      console.error('Failed to start watching for changes.');
-    } else {
-      console.log('Watching for changes to plugin...');
-    }
-  });
+  const config = (await viteConfigPromise).default;
+  const vite = await vitePromise;
 
-  return exitCode;
+  if (config.build) {
+    config.build.watch = {};
+    config.build.sourcemap = 'inline';
+  }
+
+  // Add file copy hook to be executed after each build
+  if (config.plugins) {
+    config.plugins.push({
+      name: 'headlamp-copy-extra-dist',
+      buildEnd: async () => {
+        await copyExtraDistFiles();
+      },
+    });
+  }
+
+  // Then add the plugins from copyToPluginsFolder which includes ViteStaticCopy
+  await copyToPluginsFolder(config);
+
+  try {
+    await vite.build(config);
+  } catch (e) {
+    console.error(e);
+    console.error('Failed to start watching for changes.');
+    return 1;
+  }
+
+  return 0;
 }
 
 /**
@@ -511,8 +567,10 @@ function runScriptOnPackages(packageFolder, scriptName, cmdLine, env) {
 
     console.log(`"${folder}": ${scriptName}-ing, :${cmdLineToUse}:...`);
 
+    const [cmd, ...args] = cmdLineToUse.split(' ');
+
     try {
-      child_process.execSync(cmdLineToUse, {
+      child_process.execFileSync(cmd, args, {
         stdio: 'inherit',
         encoding: 'utf8',
         env: { ...process.env, ...(env || {}) },
@@ -566,9 +624,9 @@ function runScriptOnPackages(packageFolder, scriptName, cmdLine, env) {
     };
   }
 
-  const err = runOnPackage(packageFolder);
+  const exitCode = runOnPackage(packageFolder);
 
-  if (err === runOnPackageReturn.notThere) {
+  if (exitCode === runOnPackageReturn.notThere) {
     const folderErr = runOnFolderOfPackages(packageFolder);
     if (folderErr.error === runOnPackageReturn.notThere) {
       console.error(
@@ -585,43 +643,45 @@ function runScriptOnPackages(packageFolder, scriptName, cmdLine, env) {
     }
   }
 
-  return 0; // success
+  return exitCode > 0 ? 1 : 0;
 }
 
 /**
  * Build the plugin package or folder of packages for production.
  *
  * @param packageFolder {string} - folder where the package, or folder of packages is.
- * @returns {0 | 1} Exit code, where 0 is success, 1 is failure.
+ * @returns {Promise<0 | 1>} Exit code, where 0 is success, 1 is failure.
  */
-function build(packageFolder) {
+async function build(packageFolder) {
   if (!fs.existsSync(packageFolder)) {
     console.error(`"${packageFolder}" does not exist. Not building.`);
     return 1;
   }
 
   const oldCwd = process.cwd();
-  const oldBabelEnv = process.env['BABEL_ENV'];
-  process.env['BABEL_ENV'] = 'production';
 
-  function buildPackage(folder) {
+  async function buildPackage(folder) {
     if (!fs.existsSync(path.join(folder, 'package.json'))) {
       return false;
     }
 
     process.chdir(folder);
     console.log(`Building "${folder}" for production...`);
-    webpack(config, (err, stats) => {
-      // We are checking the exit code of the compileMessages function.
-      // It should be 0 if there are no errors, and 1 if there are errors.
-      const exitCode = compileMessages(err, stats);
-      if (exitCode !== 0) {
-        console.error(`Failed to build "${folder}" for production.`);
-      } else {
-        console.log(`Finished building "${folder}" for production.`);
-      }
-      process.exit(exitCode);
-    });
+    const config = await viteConfigPromise;
+    const vite = await vitePromise;
+    try {
+      await vite.build(config.default);
+
+      // Copy extra dist files after successful build
+      await copyExtraDistFiles('.');
+
+      console.log(`Finished building "${folder}" for production.`);
+    } catch (e) {
+      console.error(e);
+      console.error(`Failed to build "${folder}" for production.`);
+      process.exit(1);
+    }
+
     process.chdir(oldCwd);
     return true;
   }
@@ -646,8 +706,6 @@ function build(packageFolder) {
   if (!(buildPackage(packageFolder) || buildFolderOfPackages())) {
     console.error(`"${packageFolder}" does not contain a package or packages. Not building.`);
   }
-
-  process.env['BABEL_ENV'] = oldBabelEnv;
 
   return 0;
 }
@@ -876,7 +934,13 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
   function resetPackageLock() {
     if (fs.existsSync('node_modules')) {
       console.log(`Resetting node_modules folder for more robust package upgrade...`);
-      fs.rm('node_modules', { recursive: true });
+      // Remove the node_modules folder
+      fs.rmSync('node_modules', { recursive: true });
+
+      if (fs.existsSync('node_modules')) {
+        console.error(`Failed to remove node_modules folder.`);
+        return false;
+      }
     }
     if (fs.existsSync('package-lock.json')) {
       console.log(`Resetting package-lock.json file for more robust package upgrade...`);
@@ -909,12 +973,14 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
   }
 
   /**
-   * Upgrades "@headlamp-k8s/eslint-config" dependency to latest or given version.
+   * Removes "@headlamp-k8s/eslint-config" dependency if it is there.
+   *
+   * It is a transitive dependency of "@kinvolk/headlamp-plugin", and
+   * does not need to be there anymore.
    *
    * @returns true unless there is a problem with the upgrade.
    */
-  function upgradeEslintConfig() {
-    const theTag = 'latest';
+  function removeEslintConfig() {
     const packageJsonPath = path.join('.', 'package.json');
     let packageJson = {};
     try {
@@ -924,12 +990,9 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
       return false;
     }
     const oldVersion = packageJson.devDependencies['@headlamp-k8s/eslint-config'];
-    if (
-      oldVersion === undefined ||
-      '@headlamp-k8s/eslint-config' in getNpmOutdated() ||
-      !fs.existsSync('node_modules')
-    ) {
-      const cmd = `npm install -D @headlamp-k8s/eslint-config@${theTag} --save`;
+    // remove @headlamp-k8s/eslint-config if it is there
+    if (oldVersion) {
+      const cmd = `npm remove @headlamp-k8s/eslint-config --save`;
       if (runCmd(cmd, '.')) {
         return false;
       }
@@ -958,6 +1021,10 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
     let failed = false;
     let reason = '';
     if (skipPackageUpdates !== true) {
+      if (!failed && !removeEslintConfig()) {
+        failed = true;
+        reason = 'removing @headlamp-k8s/eslint-config failed.';
+      }
       if (!failed && !resetPackageLock()) {
         failed = true;
         reason = 'resetting package-lock.json and node_modules failed.';
@@ -965,10 +1032,6 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
       if (!failed && !upgradeHeadlampPlugin()) {
         failed = true;
         reason = 'upgrading @kinvolk/headlamp-plugin failed.';
-      }
-      if (!failed && !upgradeEslintConfig()) {
-        failed = true;
-        reason = 'upgrading @headlamp-k8s/eslint-config failed.';
       }
       if (!failed && !upgradeMui()) {
         failed = true;
@@ -1123,7 +1186,7 @@ function storybook_build(packageFolder) {
  * @returns {0 | 1} Exit code, where 0 is success, 1 is failure.
  */
 function test(packageFolder) {
-  const script = `react-scripts test --transformIgnorePatterns "/node_modules/(?!monaco-editor|spacetime|d3|internmap|react-markdown|xterm|github-markdown-css|vfile|unist-.+|unified|bail|is-plain-obj|trough|remark-.+|mdast-util-.+|micromark|parse-entities|character-entities|property-information|comma-separated-tokens|hast-util-whitespace|remark-.+|space-separated-tokens|decode-named-character-reference|@kinvolk/headlamp-plugin)"`;
+  const script = `vitest -c node_modules/@kinvolk/headlamp-plugin/config/vite.config.mjs`;
   return runScriptOnPackages(packageFolder, 'test', script, { UNDER_TEST: 'true' });
 }
 
@@ -1141,12 +1204,13 @@ yargs(process.argv.slice(2))
         default: '.',
       });
     },
-    argv => {
-      process.exitCode = build(argv.package);
+    async argv => {
+      // @ts-ignore
+      process.exitCode = await build(argv.package);
     }
   )
-  .command('start', 'Watch for changes and build plugin.', {}, () => {
-    process.exitCode = start();
+  .command('start', 'Watch for changes and build plugin.', {}, async () => {
+    process.exitCode = await start();
   })
   .command(
     'create <name>',
@@ -1164,6 +1228,7 @@ yargs(process.argv.slice(2))
         });
     },
     argv => {
+      // @ts-ignore
       process.exitCode = create(argv.name, argv.link);
     }
   )
@@ -1187,6 +1252,7 @@ yargs(process.argv.slice(2))
       });
     },
     argv => {
+      // @ts-ignore
       process.exitCode = extract(argv.pluginPackages, argv.outputPlugins);
     }
   )
@@ -1238,6 +1304,7 @@ yargs(process.argv.slice(2))
         });
     },
     argv => {
+      // @ts-ignore
       process.exitCode = format(argv.package, argv.check);
     }
   )
@@ -1259,6 +1326,7 @@ yargs(process.argv.slice(2))
         });
     },
     argv => {
+      // @ts-ignore
       process.exitCode = lint(argv.package, argv.fix);
     }
   )
@@ -1275,6 +1343,7 @@ yargs(process.argv.slice(2))
       });
     },
     argv => {
+      // @ts-ignore
       process.exitCode = tsc(argv.package);
     }
   )
@@ -1289,6 +1358,7 @@ yargs(process.argv.slice(2))
       });
     },
     argv => {
+      // @ts-ignore
       process.exitCode = storybook(argv.package);
     }
   )
@@ -1304,6 +1374,7 @@ yargs(process.argv.slice(2))
       });
     },
     argv => {
+      // @ts-ignore
       process.exitCode = storybook_build(argv.package);
     }
   )
@@ -1330,6 +1401,7 @@ yargs(process.argv.slice(2))
         });
     },
     argv => {
+      // @ts-ignore
       process.exitCode = upgrade(argv.package, argv.skipPackageUpdates, argv.headlampPluginVersion);
     }
   )
@@ -1344,16 +1416,22 @@ yargs(process.argv.slice(2))
       });
     },
     argv => {
+      // @ts-ignore
       process.exitCode = test(argv.package);
     }
   )
   .command(
-    'install <URL>',
-    'Install a plugin from the Artiface Hub URL',
+    'install [URL]',
+    'Install plugin(s) from a configuration file or a plugin artifact Hub URL',
     yargs => {
-      yargs
+      return yargs
         .positional('URL', {
           describe: 'URL of the plugin to install',
+          type: 'string',
+        })
+        .option('config', {
+          alias: 'c',
+          describe: 'Path to plugin configuration file',
           type: 'string',
         })
         .option('folderName', {
@@ -1368,22 +1446,66 @@ yargs(process.argv.slice(2))
           alias: 'q',
           describe: 'Do not print logs',
           type: 'boolean',
+        })
+        .check(argv => {
+          if (!argv.URL && !argv.config) {
+            throw new Error('Either URL or --config must be specified');
+          }
+          if (argv.URL && argv.config) {
+            throw new Error('Cannot specify both URL and --config');
+          }
+          return true;
         });
     },
     async argv => {
-      const { URL, folderName, headlampVersion, quiet } = argv;
-      const progressCallback = quiet
-        ? null
-        : data => {
-            if (data.type === 'error' || data.type === 'success') {
-              console.error(data.type, ':', data.message);
-            }
-          }; // Use console.log for logs if not in quiet mode
       try {
-        await PluginManager.install(URL, folderName, headlampVersion, progressCallback);
-      } catch (e) {
-        console.error(e.message);
-        process.exit(1); // Exit with error status
+        const { URL, config, folderName, headlampVersion, quiet } = argv;
+        const progressCallback = quiet
+          ? () => {}
+          : data => {
+              const { type = 'info', message, raise = true } = data;
+              if (config && !URL) {
+                // bulk installation
+                let prefix = '';
+                if (data.current || data.total || data.plugin) {
+                  prefix = `${data.current} of ${data.total} (${data.plugin}): `;
+                }
+                if (type === 'info' || type === 'success') {
+                  console.log(`${prefix}${type}: ${message}`);
+                } else if (type === 'error' && raise) {
+                  throw new Error(message);
+                } else {
+                  console.error(`${prefix}${type}: ${message}`);
+                }
+              } else {
+                if (type === 'error' || type === 'success') {
+                  console.error(`${type}: ${message}`);
+                }
+              }
+            };
+        if (URL) {
+          // Single plugin installation
+          try {
+            await PluginManager.install(URL, folderName, headlampVersion, progressCallback);
+          } catch (e) {
+            console.error(e.message);
+            process.exit(1); // Exit with error status
+          }
+        } else if (config) {
+          const installer = new MultiPluginManager(folderName, headlampVersion, progressCallback);
+          // Bulk installation from config
+          const result = await installer.installFromConfig(config);
+          // Exit with error if any plugins failed to install
+          if (result.failed > 0) {
+            process.exit(1);
+          }
+        }
+      } catch (error) {
+        console.error('Installation failed', {
+          error: error.message,
+          stack: error.stack,
+        });
+        process.exit(1);
       }
     }
   )

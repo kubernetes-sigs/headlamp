@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { expect, test } from '@playwright/test';
 import { HeadlampPage } from './headlampPage';
 const yaml = require('yaml');
@@ -5,22 +21,23 @@ const fs = require('fs').promises;
 const util = require('util');
 const exec = util.promisify(require('child_process').exec);
 
-test('There is cluster choose button and main cluster is selected', async ({ page }) => {
-  const headlampPage = new HeadlampPage(page);
-  await headlampPage.authenticate();
+let headlampPage: HeadlampPage;
+
+test.beforeEach(async ({ page }) => {
+  headlampPage = new HeadlampPage(page);
+
+  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+});
+
+test('There is cluster choose button and test cluster is selected', async () => {
   await headlampPage.pageLocatorContent(
-    'button:has-text("Our Cluster Chooser button. Cluster: main")',
-    'Our Cluster Chooser button. Cluster: main'
+    'button:has-text("Our Cluster Chooser button. Cluster: test")',
+    'Our Cluster Chooser button. Cluster: test'
   );
 });
 
 test('Store modified kubeconfig to IndexDB and check if present', async ({ page }) => {
-  const headlampPage = new HeadlampPage(page);
-
-  await headlampPage.authenticate();
-  await page.waitForLoadState('load');
-
-  const base64EncodedKubeconfig = await getBase64EncodedKubeconfig(page);
+  const base64EncodedKubeconfig = await getBase64EncodedKubeconfig();
   await saveKubeconfigToIndexDB(page, base64EncodedKubeconfig);
   await page.waitForLoadState('load');
 
@@ -30,13 +47,8 @@ test('Store modified kubeconfig to IndexDB and check if present', async ({ page 
   expect(storedKubeconfig).not.toBeNull();
 });
 
-test('check test is present in cluster and working', async ({ page }) => {
-  const headlampPage = new HeadlampPage(page);
-
-  await headlampPage.authenticate();
-  await page.waitForLoadState('load');
-
-  const base64EncodedKubeconfig = await getBase64EncodedKubeconfig(page);
+test('check dummy is present in cluster and working', async ({ page }) => {
+  const base64EncodedKubeconfig = await getBase64EncodedKubeconfig();
   await saveKubeconfigToIndexDB(page, base64EncodedKubeconfig);
   await page.waitForLoadState('load');
 
@@ -45,7 +57,7 @@ test('check test is present in cluster and working', async ({ page }) => {
 
   expect(storedKubeconfig).not.toBeNull();
 
-  await headlampPage.navigateTopage('/c/test', /Cluster/);
+  await headlampPage.navigateTopage('/c/dummy', /Cluster/);
   await headlampPage.pageLocatorContent('h2:has-text("Overview")', 'Overview');
 });
 
@@ -59,16 +71,16 @@ const getBase64EncodedKubeconfig = async () => {
 
   // Parse the kubeconfig JSON
   const kubeconfig = JSON.parse(stdout);
-  // Update the existing cluster and context names to "test"
-  kubeconfig.clusters[0].name = 'test';
+  // Update the existing cluster and context names to "dummy"
+  kubeconfig.clusters[0].name = 'dummy';
   // The 10.96.0.0/12: is the CIDR used by service cluster IP’s
   // and the first service that is created is that of minikube when it bootstraps the cluster.
   // It will always get 10.96.0.1 IP assigned. For more context please check https://minikube.sigs.k8s.io/docs/handbook/vpn_and_proxy/.
   kubeconfig.clusters[0].cluster.server = 'https://10.96.0.1:443';
-  kubeconfig.contexts[0].name = 'test';
-  kubeconfig.users[0].name = 'test';
-  kubeconfig.contexts[0].context.user = 'test';
-  kubeconfig.contexts[0].context.cluster = 'test';
+  kubeconfig.contexts[0].name = 'dummy';
+  kubeconfig.users[0].name = 'dummy';
+  kubeconfig.contexts[0].context.user = 'dummy';
+  kubeconfig.contexts[0].context.cluster = 'dummy';
 
   // Get the contents of certificate-authority file and convert to base64
   const caFilePath = kubeconfig.clusters[0].cluster['certificate-authority'];
@@ -93,8 +105,8 @@ const getBase64EncodedKubeconfig = async () => {
   delete kubeconfig.users[0].user['client-certificate'];
   delete kubeconfig.clusters[0].cluster['certificate-authority'];
 
-  // Set the current context to "minikubetest"
-  kubeconfig['current-context'] = 'test';
+  // Set the current context to "minikubedummy"
+  kubeconfig['current-context'] = 'dummy';
 
   // Convert JSON back to YAML
   const kubeconfigYaml = yaml.stringify(kubeconfig);
@@ -112,7 +124,10 @@ const saveKubeconfigToIndexDB = async (page, base64EncodedKubeconfig) => {
       const db = event.target ? event.target.result : null;
       // Create the object store if it doesn't exist
       if (!db.objectStoreNames.contains('kubeconfigStore')) {
-        db.createObjectStore('kubeconfigStore', { keyPath: 'id', autoIncrement: true });
+        db.createObjectStore('kubeconfigStore', {
+          keyPath: 'id',
+          autoIncrement: true,
+        });
       }
     };
 

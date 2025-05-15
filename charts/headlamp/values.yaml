@@ -26,6 +26,7 @@ fullnameOverride: ""
 initContainers: []
 
 config:
+  inCluster: true
   # -- base url path at which headlamp should run
   baseURL: ""
   oidc:
@@ -65,6 +66,13 @@ config:
     issuerURL: ""
     # -- OIDC scopes to be used
     scopes: ""
+
+    # -- OIDC client to be used during token validation
+    validatorClientID: ""
+    # -- OIDC Issuer URL to be used during token validation
+    validatorIssuerURL: ""
+    # -- Use 'access_token' instead of 'id_token' when authenticating using OIDC
+    useAccessToken: false
 
     # Option 3:
     # @param config.oidc - External OIDC secret configuration
@@ -134,6 +142,14 @@ service:
   type: ClusterIP
   # -- Kubernetes Service port
   port: 80
+  # -- Kubernetes Service clusterIP
+  clusterIP: ""
+  # -- Kubernetes Service loadBalancerIP
+  loadBalancerIP: ""
+  # -- Kubernetes Service loadBalancerSourceRanges
+  loadBalancerSourceRanges: []
+  # -- Kubernetes Service Nodeport
+  nodePort: null
 
 # -- Headlamp containers volume mounts
 volumeMounts: []
@@ -165,6 +181,11 @@ ingress:
   annotations:
     {}
     # kubernetes.io/tls-acme: "true"
+
+  # -- Additional labels to add to the Ingress resource
+  labels: {}
+    # app.kubernetes.io/part-of: traefik
+    # environment: prod
 
   # -- Ingress class name. replacement for the deprecated "kubernetes.io/ingress.class" annotation
   ingressClassName: ""
@@ -205,3 +226,18 @@ tolerations: []
 
 # -- Affinity settings for pod assignment
 affinity: {}
+
+# -- Additional Kubernetes manifests to be deployed. Include the manifest as nested YAML.
+extraManifests: []
+# - apiVersion: v1
+#   kind: ConfigMap
+#   metadata:
+#     name: my-config
+#   data:
+#     key: value
+# - apiVersion: v1
+#   kind: ConfigMap
+#   metadata:
+#     name: my-config-too
+#   data:
+#     key: value

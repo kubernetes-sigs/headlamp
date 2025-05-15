@@ -22,7 +22,7 @@
 
 #### Defined in
 
-[lib/k8s/cluster.ts:56](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L56)
+[lib/k8s/cluster.ts:56](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L56)
 
 ___
 
@@ -32,7 +32,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/networkpolicy.tsx:32](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/networkpolicy.tsx#L32)
+[lib/k8s/networkpolicy.tsx:32](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/networkpolicy.tsx#L32)
 
 ___
 
@@ -42,7 +42,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/networkpolicy.tsx:33](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/networkpolicy.tsx#L33)
+[lib/k8s/networkpolicy.tsx:33](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/networkpolicy.tsx#L33)
 
 ___
 
@@ -65,7 +65,7 @@ Cannot be updated.
 
 #### Defined in
 
-[lib/k8s/cluster.ts:55](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L55)
+[lib/k8s/cluster.ts:55](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L55)
 
 ___
 
@@ -79,7 +79,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/cluster.ts:57](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L57)
+[lib/k8s/cluster.ts:57](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L57)
 
 ___
 
@@ -89,7 +89,7 @@ ___
 
 #### Defined in
 
-[lib/k8s/networkpolicy.tsx:34](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/networkpolicy.tsx#L34)
+[lib/k8s/networkpolicy.tsx:34](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/networkpolicy.tsx#L34)
 
 ___
 
@@ -99,4 +99,4 @@ ___
 
 #### Defined in
 
-[lib/k8s/networkpolicy.tsx:35](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/lib/k8s/networkpolicy.tsx#L35)
+[lib/k8s/networkpolicy.tsx:35](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/networkpolicy.tsx#L35)

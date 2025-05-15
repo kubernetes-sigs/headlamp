@@ -1,16 +1,12 @@
 <body>
   <div>
-    <span
+    <a
       aria-label="A tooltip"
-      class=""
+      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
       data-mui-internal-clone-element="true"
+      href="/"
     >
-      <a
-        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-srrjpp-MuiTypography-root-MuiLink-root"
-        href="/"
-      >
-        a link
-      </a>
-    </span>
+      a link
+    </a>
   </div>
 </body>

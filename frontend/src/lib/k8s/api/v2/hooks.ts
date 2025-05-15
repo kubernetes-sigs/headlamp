@@ -1,10 +1,26 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { getCluster } from '../../../cluster';
 import { ApiError, QueryParameters } from '../../apiProxy';
 import { KubeObject, KubeObjectInterface } from '../../KubeObject';
 import { clusterFetch } from './fetch';
-import { KubeList, KubeListUpdateEvent } from './KubeList';
+import { KubeListUpdateEvent } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { useWebSocket } from './webSocket';
@@ -59,11 +75,22 @@ export interface QueryListResponse<DataType, ItemType, ErrorType>
    * Results from individual clusters. Keyed by cluster name.
    */
   clusterResults?: Record<string, QueryListResponse<DataType, ItemType, ErrorType>>;
-  /**
-   * Errors from individual clusters. Keyed by cluster name.
-   */
-  clusterErrors?: Record<string, ApiError | null> | null;
+  errors: ApiError[] | null;
 }
+
+export const kubeObjectQueryKey = ({
+  cluster,
+  endpoint,
+  namespace,
+  name,
+  queryParams,
+}: {
+  cluster: string;
+  endpoint?: KubeObjectEndpoint | null;
+  namespace?: string;
+  name: string;
+  queryParams?: QueryParameters;
+}) => ['object', cluster, endpoint, namespace ?? '', name, queryParams ?? {}];
 
 /**
  * Returns a single KubeObject.
@@ -72,7 +99,7 @@ export function useKubeObject<K extends KubeObject>({
   kubeObjectClass,
   namespace,
   name,
-  cluster: maybeCluster,
+  cluster = getCluster() ?? '',
   queryParams,
 }: {
   /** Class to instantiate the object with */
@@ -86,15 +113,18 @@ export function useKubeObject<K extends KubeObject>({
   queryParams?: QueryParameters;
 }): [K | null, ApiError | null] & QueryResponse<K, ApiError> {
   type Instance = K;
-  const cluster = maybeCluster ?? getCluster() ?? '';
-  const endpoint = useEndpoints(kubeObjectClass.apiEndpoint.apiInfo, cluster);
+  const { endpoint, error: endpointError } = useEndpoints(
+    kubeObjectClass.apiEndpoint.apiInfo,
+    cluster
+  );
 
   const cleanedUpQueryParams = Object.fromEntries(
     Object.entries(queryParams ?? {}).filter(([, value]) => value !== undefined && value !== '')
   );
 
   const queryKey = useMemo(
-    () => ['object', cluster, endpoint, namespace, name, cleanedUpQueryParams],
+    () =>
+      kubeObjectQueryKey({ cluster, name, namespace, endpoint, queryParams: cleanedUpQueryParams }),
     [endpoint, namespace, name]
   );
 
@@ -112,13 +142,13 @@ export function useKubeObject<K extends KubeObject>({
       const obj: KubeObjectInterface = await clusterFetch(url, {
         cluster,
       }).then(it => it.json());
-      return new kubeObjectClass(obj) as Instance;
+      return new kubeObjectClass(obj, cluster) as Instance;
     },
   });
 
   const data: Instance | null = query.error ? null : query.data ?? null;
 
-  useWebSocket<KubeListUpdateEvent<Instance>>({
+  useWebSocket<KubeListUpdateEvent<K>>({
     url: () =>
       makeUrl([KubeObjectEndpoint.toUrl(endpoint!)], {
         ...cleanedUpQueryParams,
@@ -127,7 +157,7 @@ export function useKubeObject<K extends KubeObject>({
       }),
     enabled: !!endpoint && !!data,
     cluster,
-    onMessage(update) {
+    onMessage(update: KubeListUpdateEvent<K>) {
       if (update.type !== 'ADDED' && update.object) {
         client.setQueryData(queryKey, new kubeObjectClass(update.object));
       }
@@ -137,7 +167,7 @@ export function useKubeObject<K extends KubeObject>({
   // @ts-ignore
   return {
     data,
-    error: query.error,
+    error: endpointError ?? query.error,
     isError: query.isError,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
@@ -145,7 +175,7 @@ export function useKubeObject<K extends KubeObject>({
     status: query.status,
     *[Symbol.iterator](): ArrayIterator<ApiError | K | null> {
       yield data;
-      yield query.error;
+      yield endpointError ?? query.error;
     },
   };
 }
@@ -159,19 +189,21 @@ export function useKubeObject<K extends KubeObject>({
  * @throws Error
  * When no endpoints are working
  */
-const getWorkingEndpoint = async (endpoints: KubeObjectEndpoint[], cluster: string) => {
+const getWorkingEndpoint = async (
+  endpoints: KubeObjectEndpoint[],
+  cluster: string,
+  namespace?: string
+) => {
   const promises = endpoints.map(endpoint => {
-    return clusterFetch(KubeObjectEndpoint.toUrl(endpoint), {
+    return clusterFetch(KubeObjectEndpoint.toUrl(endpoint, namespace), {
       method: 'GET',
       cluster: cluster ?? getCluster() ?? '',
-    }).then(it => {
-      if (!it.ok) {
-        throw new Error('error');
-      }
-      return endpoint;
-    });
+    }).then(() => endpoint);
   });
-  return Promise.any(promises);
+  return Promise.any(promises).catch((aggregateError: AggregateError) => {
+    // when no endpoint is available, throw an error
+    throw aggregateError.errors[0];
+  });
 };
 
 /**
@@ -179,225 +211,17 @@ const getWorkingEndpoint = async (endpoints: KubeObjectEndpoint[], cluster: stri
  *
  * @params endpoints - List of possible endpoints
  */
-const useEndpoints = (endpoints: KubeObjectEndpoint[], cluster: string) => {
-  const { data: endpoint } = useQuery({
+export const useEndpoints = (
+  endpoints: KubeObjectEndpoint[],
+  cluster: string,
+  namespace?: string
+) => {
+  const { data: endpoint, error } = useQuery<KubeObjectEndpoint, ApiError>({
     enabled: endpoints.length > 1,
     queryKey: ['endpoints', endpoints],
-    queryFn: () =>
-      getWorkingEndpoint(endpoints, cluster)
-        .then(endpoints => endpoints)
-        .catch(() => null),
+    queryFn: () => getWorkingEndpoint(endpoints, cluster!, namespace),
   });
+  if (endpoints.length === 1) return { endpoint: endpoints[0], error: null };
 
-  if (endpoints.length === 1) return endpoints[0];
-
-  return endpoint;
+  return { endpoint, error };
 };
-
-/**
- * Returns a list of Kubernetes objects and watches for changes
- *
- * @private please use useKubeObjectList.
- */
-function _useKubeObjectList<K extends KubeObject>({
-  kubeObjectClass,
-  namespace,
-  cluster: maybeCluster,
-  queryParams,
-}: {
-  /** Class to instantiate the object with */
-  kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
-  /** Object list namespace */
-  namespace?: string;
-  /** Object list cluster */
-  cluster?: string;
-  queryParams?: QueryParameters;
-}): [Array<K> | null, ApiError | null] & QueryListResponse<KubeList<K>, K, ApiError> {
-  const cluster = maybeCluster ?? getCluster() ?? '';
-  const endpoint = useEndpoints(kubeObjectClass.apiEndpoint.apiInfo, cluster);
-
-  const cleanedUpQueryParams = Object.fromEntries(
-    Object.entries(queryParams ?? {}).filter(([, value]) => value !== undefined && value !== '')
-  );
-
-  const queryKey = useMemo(
-    () => ['list', cluster, endpoint, namespace, cleanedUpQueryParams],
-    [endpoint, namespace, cleanedUpQueryParams]
-  );
-
-  const client = useQueryClient();
-  const query = useQuery<KubeList<any> | null | undefined, ApiError>({
-    enabled: !!endpoint,
-    placeholderData: null,
-    queryKey,
-    queryFn: async () => {
-      if (!endpoint) return;
-      const list: KubeList<any> = await clusterFetch(
-        makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], cleanedUpQueryParams),
-        {
-          cluster,
-        }
-      ).then(it => it.json());
-      list.items = list.items.map(item => {
-        const itm = new kubeObjectClass({ ...item, kind: list.kind.replace('List', '') });
-        itm.cluster = cluster;
-        return itm;
-      });
-
-      return list;
-    },
-  });
-
-  const items: Array<K> | null = query.error ? null : query.data?.items ?? null;
-  const data: KubeList<K> | null = query.error ? null : query.data ?? null;
-
-  useWebSocket<KubeListUpdateEvent<K>>({
-    url: () =>
-      makeUrl([KubeObjectEndpoint.toUrl(endpoint!)], {
-        ...cleanedUpQueryParams,
-        watch: 1,
-        resourceVersion: data!.metadata.resourceVersion,
-      }),
-    cluster,
-    enabled: !!endpoint && !!data,
-    onMessage(update) {
-      client.setQueryData(queryKey, (oldList: any) => {
-        const newList = KubeList.applyUpdate(oldList, update, kubeObjectClass);
-        return newList;
-      });
-    },
-  });
-
-  // @ts-ignore
-  return {
-    items,
-    data,
-    error: query.error,
-    isError: query.isError,
-    isLoading: query.isLoading,
-    isFetching: query.isFetching,
-    isSuccess: query.isSuccess,
-    status: query.status,
-    *[Symbol.iterator](): ArrayIterator<ApiError | K[] | null> {
-      yield items;
-      yield query.error;
-    },
-  };
-}
-
-/**
- * Returns a combined list of Kubernetes objects and watches for changes from the clusters given.
- */
-export function useKubeObjectList<K extends KubeObject>({
-  kubeObjectClass,
-  namespace,
-  cluster,
-  clusters,
-  queryParams,
-}: {
-  /** Class to instantiate the object with */
-  kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
-  /** Object list namespace */
-  namespace?: string;
-  cluster?: string;
-  /** Object list clusters */
-  clusters?: string[];
-  queryParams?: QueryParameters;
-}): [Array<K> | null, ApiError | null] & QueryListResponse<KubeList<K>, K, ApiError> {
-  if (clusters && clusters.length > 0) {
-    return _useKubeObjectLists({
-      kubeObjectClass,
-      namespace,
-      clusters: clusters,
-      queryParams,
-    });
-  } else {
-    return _useKubeObjectList({
-      kubeObjectClass,
-      namespace,
-      cluster: cluster,
-      queryParams,
-    });
-  }
-}
-
-/**
- * Returns a combined list of Kubernetes objects and watches for changes from the clusters given.
- *
- * @private please use useKubeObjectList
- */
-function _useKubeObjectLists<K extends KubeObject>({
-  kubeObjectClass,
-  namespace,
-  clusters,
-  queryParams,
-}: {
-  /** Class to instantiate the object with */
-  kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
-  /** Object list namespace */
-  namespace?: string;
-  /** Object list clusters */
-  clusters: string[];
-  queryParams?: QueryParameters;
-}): [Array<K> | null, ApiError | null] & QueryListResponse<KubeList<K>, K, ApiError> {
-  const clusterResults: Record<string, ReturnType<typeof useKubeObjectList<K>>> = {};
-
-  for (const cluster of clusters) {
-    clusterResults[cluster] = _useKubeObjectList({
-      kubeObjectClass,
-      namespace,
-      cluster: cluster || undefined,
-      queryParams,
-    });
-  }
-
-  let items = null;
-  for (const cluster of clusters) {
-    if (items === null) {
-      items = clusterResults[cluster].items;
-    } else {
-      items = items.concat(clusterResults[cluster].items!);
-    }
-  }
-
-  // data makes no sense really for multiple clusters, but useful for single cluster?
-  const data =
-    clusters.map(cluster => clusterResults[cluster].data).find(it => it !== null) ?? null;
-  const error =
-    clusters.map(cluster => clusterResults[cluster].error).find(it => it !== null) ?? null;
-  const isError = clusters.some(cluster => clusterResults[cluster].isError);
-  const isLoading = clusters.some(cluster => clusterResults[cluster].isLoading);
-  const isFetching = clusters.some(cluster => clusterResults[cluster].isFetching);
-  const isSuccess = clusters.every(cluster => clusterResults[cluster].isSuccess);
-  // status makes no sense really for multiple clusters, but maybe useful for single cluster?
-  const status =
-    clusters.map(cluster => clusterResults[cluster].status).find(it => it !== null) ?? 'pending';
-
-  let clusterErrors: Record<string, ApiError | null> | null = {};
-  clusters.forEach(cluster => {
-    if (clusterErrors && clusterResults[cluster]?.error !== null) {
-      clusterErrors[cluster] = clusterResults[cluster].error;
-    }
-  });
-  if (Object.keys(clusterErrors).length === 0) {
-    clusterErrors = null;
-  }
-
-  // @ts-ignore
-  return {
-    items,
-    data,
-    error,
-    isError,
-    isLoading,
-    isFetching,
-    isSuccess,
-    status,
-    *[Symbol.iterator](): ArrayIterator<ApiError | K[] | null> {
-      yield items;
-      yield error;
-    },
-    clusterResults,
-    clusterErrors,
-  };
-}

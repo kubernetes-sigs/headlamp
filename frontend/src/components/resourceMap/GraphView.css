@@ -1,0 +1,65 @@
+:root {
+  --graph-animation-duration: 0.2s;
+  --graph-animation-delay: calc(var(--graph-animation-duration) * 0.5);
+  --graph-animation-appear: calc(var(--graph-animation-duration) * 0.4);
+}
+
+.react-flow__node {
+  will-change: transform, width, height, opacity;
+  transition: transform, width, height;
+  transition-duration: var(--graph-animation-duration);
+
+  animation: appear var(--graph-animation-appear) linear var(--graph-animation-delay);
+  animation-fill-mode: both;
+}
+
+.react-flow__node:not(.parent):hover,
+.react-flow__node:not(.parent):has(div:focus) {
+  z-index: 1 !important;
+}
+
+.react-flow__node-group,
+.react-flow__node-group:focus,
+.react-flow__node-group:active {
+  border: unset;
+  color: unset;
+}
+
+.react-flow__pane:not(.dragging) .react-flow__viewport {
+  transition: transform var(--graph-animation-duration);
+}
+
+.react-flow__viewport {
+  will-change: transform;
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion) {
+  .react-flow__node,
+  .react-flow__edge,
+  .react-flow__edges path {
+    transition-duration: 0;
+  }
+  .react-flow__pane:not(.dragging) .react-flow__viewport {
+    transition-duration: 0;
+  }
+}
+
+.react-flow__controls-button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 36px;
+  width: 36px;
+  padding: 2px;
+  cursor: pointer;
+  user-select: none;
+}

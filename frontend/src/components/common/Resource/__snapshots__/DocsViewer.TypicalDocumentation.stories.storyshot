@@ -1,0 +1,157 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-19midj6"
+    >
+      <p
+        class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+      >
+        Showing documentation for: Pod
+      </p>
+      <ul
+        aria-multiselectable="false"
+        class="MuiTreeView-root css-16c5dhn-MuiTreeView-root"
+        id=":mock-test-id:"
+        role="tree"
+        tabindex="0"
+      >
+        <li
+          aria-expanded="false"
+          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
+          id=":mock-test-id:"
+          role="treeitem"
+          tabindex="-1"
+        >
+          <div
+            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+          >
+            <div
+              class="MuiTreeItem-iconContainer"
+            />
+            <div
+              class="MuiTreeItem-label"
+            >
+              <div>
+                <p
+                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                >
+                  apiVersion
+                </p>
+                 
+                <span
+                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                >
+                  (
+                  string
+                  )
+                </span>
+              </div>
+            </div>
+          </div>
+        </li>
+        <li
+          aria-expanded="false"
+          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
+          id=":mock-test-id:"
+          role="treeitem"
+          tabindex="-1"
+        >
+          <div
+            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+          >
+            <div
+              class="MuiTreeItem-iconContainer"
+            />
+            <div
+              class="MuiTreeItem-label"
+            >
+              <div>
+                <p
+                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                >
+                  kind
+                </p>
+                 
+                <span
+                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                >
+                  (
+                  string
+                  )
+                </span>
+              </div>
+            </div>
+          </div>
+        </li>
+        <li
+          aria-expanded="false"
+          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
+          id=":mock-test-id:"
+          role="treeitem"
+          tabindex="-1"
+        >
+          <div
+            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+          >
+            <div
+              class="MuiTreeItem-iconContainer"
+            />
+            <div
+              class="MuiTreeItem-label"
+            >
+              <div>
+                <p
+                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                >
+                  metadata
+                </p>
+                 
+                <span
+                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                >
+                  (
+                  object
+                  )
+                </span>
+              </div>
+            </div>
+          </div>
+        </li>
+        <li
+          aria-expanded="false"
+          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
+          id=":mock-test-id:"
+          role="treeitem"
+          tabindex="-1"
+        >
+          <div
+            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+          >
+            <div
+              class="MuiTreeItem-iconContainer"
+            />
+            <div
+              class="MuiTreeItem-label"
+            >
+              <div>
+                <p
+                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                >
+                  spec
+                </p>
+                 
+                <span
+                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                >
+                  (
+                  object
+                  )
+                </span>
+              </div>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+</body>

@@ -1,4 +1,21 @@
-import helpers from '../../../../helpers';
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { getAppUrl } from '../../../../helpers/getAppUrl';
+import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
 import { getToken } from '../../../auth';
 import { JSON_HEADERS } from './constants';
 
@@ -45,7 +62,7 @@ export interface PortForwardRequest {
  * @returns The response from the API.
  * @throws {Error} if the request fails.
  */
-export function startPortForward(
+export async function startPortForward(
   cluster: string,
   namespace: string,
   podname: string,
@@ -56,6 +73,17 @@ export function startPortForward(
   address: string = '',
   id: string = ''
 ): Promise<PortForward> {
+  const kubeconfig = await findKubeconfigByClusterName(cluster);
+  const headers: HeadersInit = {
+    Authorization: `Bearer ${getToken(cluster)}`,
+    ...JSON_HEADERS,
+  };
+
+  // This means cluster is dynamically configured.
+  if (kubeconfig !== null) {
+    headers['X-HEADLAMP-USER-ID'] = getUserIdFromLocalStorage();
+  }
+
   const request: PortForwardRequest = {
     cluster,
     namespace,
@@ -67,12 +95,9 @@ export function startPortForward(
     address,
     port,
   };
-  return fetch(`${helpers.getAppUrl()}portforward`, {
+  return fetch(`${getAppUrl()}portforward`, {
     method: 'POST',
-    headers: new Headers({
-      Authorization: `Bearer ${getToken(cluster)}`,
-      ...JSON_HEADERS,
-    }),
+    headers: new Headers(headers),
     body: JSON.stringify(request),
   }).then((response: Response) => {
     return response.json().then(data => {
@@ -95,12 +120,22 @@ export function startPortForward(
  * @returns The response from the API.
  * @throws {Error} if the request fails.
  */
-export function stopOrDeletePortForward(
+export async function stopOrDeletePortForward(
   cluster: string,
   id: string,
   stopOrDelete: boolean = true
 ): Promise<string> {
-  return fetch(`${helpers.getAppUrl()}portforward`, {
+  const kubeconfig = await findKubeconfigByClusterName(cluster);
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+
+  // This means cluster is dynamically configured.
+  if (kubeconfig !== null) {
+    headers['X-HEADLAMP-USER-ID'] = getUserIdFromLocalStorage();
+  }
+
+  return fetch(`${getAppUrl()}portforward`, {
     method: 'DELETE',
     body: JSON.stringify({
       cluster,
@@ -126,8 +161,16 @@ export function stopOrDeletePortForward(
  *
  * @returns the list of port forwards for the cluster.
  */
-export function listPortForward(cluster: string): Promise<PortForward[]> {
-  return fetch(`${helpers.getAppUrl()}portforward/list?cluster=${cluster}`).then(response =>
-    response.json()
-  );
+export async function listPortForward(cluster: string): Promise<PortForward[]> {
+  const kubeconfig = await findKubeconfigByClusterName(cluster);
+  const headers: HeadersInit = {};
+
+  // This means cluster is dynamically configured.
+  if (kubeconfig !== null) {
+    headers['X-HEADLAMP-USER-ID'] = getUserIdFromLocalStorage();
+  }
+
+  return fetch(`${getAppUrl()}portforward/list?cluster=${cluster}`, {
+    headers: new Headers(headers),
+  }).then(response => response.json());
 }

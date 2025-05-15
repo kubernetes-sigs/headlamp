@@ -1,4 +1,3 @@
-
 # "Setup minikube as CI step in GitHub Actions"
 # https://minikube.sigs.k8s.io/docs/tutorials/setup_minikube_in_github_actions/
 # https://github.com/marketplace/actions/setup-minikube
@@ -19,7 +18,7 @@ on:
       - main
       - rc-*
       - testing-rc-*
-  
+
 permissions:
   contents: read
 
@@ -34,16 +33,26 @@ jobs:
     - uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7 # v3.8.2
       with:
         node-version: 20.x
-    - name: Start cluster
+    - name: Start Cluster 1
       uses: helm/kind-action@0025e74a8c7512023d06dc019c617aa3cf561fde # v1.0.0
       with:
-          cluster_name: test
+        cluster_name: test
+    - name: Rename Cluster 1 kind context
+      run: kubectl config rename-context kind-test test
+    - name: Start Cluster 2
+      uses: helm/kind-action@0025e74a8c7512023d06dc019c617aa3cf561fde # v1.0.0
+      with:
+        cluster_name: test2
+    - name: Rename Cluster 2 kind context
+      run: kubectl config rename-context kind-test2 test2
+    - name: Use Cluster 1 context
+      run: kubectl config use-context test
       # now you can run kubectl to see the pods in the cluster
     - name: Try the cluster!
       run: kubectl get pods -A
     - name: Restore image-cache Folder
       id: cache-image-restore
-      uses: actions/cache/restore@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
+      uses: actions/cache/restore@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
       with:
         path: ~/image-cache
         # cache the container image. All the paths this PR depends on except the e2e-tests folder for the key.
@@ -113,12 +122,30 @@ jobs:
           echo "Examples content: $examples_content"
           exit 1
         fi
-    - name: Deploy to cluster
-      run: kubectl apply -f e2e-tests/kubernetes-headlamp-ci.yaml
+    - name: Multi-Cluster Setup
+      run: |
+        # Use Cluster 1 context
+        kubectl config use-context test
+        export TEST_CA_DATA=$(kubectl config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+        export TEST_SERVER="https://$(kubectl get nodes -o=jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):6443"
+        kubectl create serviceaccount headlamp-admin --namespace kube-system
+        kubectl create clusterrolebinding headlamp-admin --serviceaccount=kube-system:headlamp-admin --clusterrole=cluster-admin
+        echo "HEADLAMP_TEST_TOKEN=$(kubectl create token headlamp-admin --duration 24h -n kube-system)" >> $GITHUB_ENV
+
+        # Use Cluster 2 context
+        kubectl config use-context test2
+        export TEST2_CA_DATA=$(kubectl config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+        export TEST2_SERVER="https://$(kubectl get nodes -o=jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):6443"
+        kubectl create serviceaccount headlamp-admin --namespace kube-system
+        kubectl create clusterrolebinding headlamp-admin --serviceaccount=kube-system:headlamp-admin --clusterrole=cluster-admin
+        echo "HEADLAMP_TEST2_TOKEN=$(kubectl create token headlamp-admin --duration 24h -n kube-system)" >> $GITHUB_ENV
+
+        envsubst < e2e-tests/kubernetes-headlamp-ci.yaml | kubectl --context=test apply -f -
     - name: Run e2e tests
       run: |
         echo "------------------------------------sleeping 12...------------------------------------"
         sleep 12
+        kubectl config use-context test
         kubectl get services --all-namespaces
         kubectl get deployments -n kube-system
         echo "------------------Waiting for headlamp deployment to be available...------------------"
@@ -129,10 +156,9 @@ jobs:
         export SERVICE_URL="http://${IP_ADDRESS}:${SERVICE_PORT}"
         echo $SERVICE_URL
         curl -L $SERVICE_URL | grep -q "Headlamp: Kubernetes Web UI"        
-        echo "--------------------------------Getting HEADLAMP_TOKEN--------------------------------"
-        kubectl create serviceaccount headlamp-admin --namespace kube-system
-        kubectl create clusterrolebinding headlamp-admin --serviceaccount=kube-system:headlamp-admin --clusterrole=cluster-admin
-        export HEADLAMP_TOKEN=$(kubectl create token headlamp-admin --duration 24h -n kube-system)
+        echo "--------------------------------Export Tokens Received From Previous Step--------------------------------"
+        export HEADLAMP_TEST_TOKEN=${HEADLAMP_TEST_TOKEN}
+        export HEADLAMP_TEST2_TOKEN=${HEADLAMP_TEST2_TOKEN}
         echo "---------------------------------Certificate handling---------------------------------"
         export KUBECONFIG=$HOME/.kube/config
         ca_data=$(yq e '.clusters[0].cluster."certificate-authority-data"' $KUBECONFIG | base64 --decode)
@@ -170,7 +196,7 @@ jobs:
     - name: Cache image-cache Folder
       if: steps.cache-image-restore.outputs.cache-hit != 'true'
       id: cache-image-save
-      uses: actions/cache/save@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
+      uses: actions/cache/save@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
       with:
         path: ~/image-cache
         key: ${{ steps.cache-image-restore.outputs.cache-primary-key }}

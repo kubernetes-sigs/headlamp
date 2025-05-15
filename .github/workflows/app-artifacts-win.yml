@@ -28,7 +28,7 @@ jobs:
         path: build-helper
     - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       with:
-        repository: headlamp-k8s/headlamp
+        repository: kubernetes-sigs/headlamp
         ref: ${{ github.event.inputs.buildBranch }}
         path: headlamp
     - name: Setup nodejs
@@ -39,9 +39,9 @@ jobs:
         cache-dependency-path: |
           headlamp/app/package-lock.json
           headlamp/frontend/package-lock.json
-    - uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
+    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
-        go-version: '1.22.*'
+        go-version: '1.24.*'
         cache-dependency-path: |
           headlamp/backend/go.sum
     - name: Dependencies

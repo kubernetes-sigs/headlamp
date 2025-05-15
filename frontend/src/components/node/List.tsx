@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { useTranslation } from 'react-i18next';
 import Node from '../../lib/k8s/node';
 import { getResourceMetrics } from '../../lib/util';
@@ -5,7 +21,7 @@ import { HoverInfoLabel } from '../common';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { UsageBarChart } from './Charts';
 import { NodeReadyLabel } from './Details';
-import { NodeTaintsLabel } from './utils';
+import { formatTaint, NodeTaintsLabel } from './utils';
 
 export default function NodeList() {
   const [nodeMetrics, metricsError] = Node.useMetrics();
@@ -22,9 +38,11 @@ export default function NodeList() {
       resourceClass={Node}
       columns={[
         'name',
+        'cluster',
         {
           id: 'cpu',
           label: t('CPU'),
+          gridTemplate: 'min-content',
           getValue: node => {
             const [used] = getResourceMetrics(node, nodeMetrics || [], 'cpu');
             return used;
@@ -57,9 +75,8 @@ export default function NodeList() {
         {
           id: 'ready',
           label: t('translation|Ready'),
-          gridTemplate: 'minmax(150px, .3fr)',
           getValue: node => {
-            const isReady = !!node.status.conditions.find(
+            const isReady = !!node.status.conditions?.find(
               condition => condition.type === 'Ready' && condition.status === 'True'
             );
             return isReady ? t('translation|Yes') : t('translation|No');
@@ -69,8 +86,7 @@ export default function NodeList() {
         {
           id: 'taints',
           label: t('translation|Taints'),
-          getValue: node =>
-            node.spec?.taints?.map(taint => `${taint.key}:${taint.effect}`)?.join(', '),
+          getValue: node => node.spec?.taints?.map(taint => formatTaint(taint))?.join(', '),
           render: (item: Node) => <NodeTaintsLabel node={item} />,
         },
         {
@@ -92,20 +108,23 @@ export default function NodeList() {
         {
           id: 'externalIP',
           label: t('External IP'),
-          getValue: node => node.getExternalIP(),
+          getValue: node => node.getExternalIP() || t('translation|None'),
         },
         {
           id: 'version',
           label: t('translation|Version'),
           gridTemplate: 'minmax(150px, .5fr)',
-          getValue: node => node.status.nodeInfo.kubeletVersion,
+          getValue: node => node.status.nodeInfo?.kubeletVersion,
         },
         {
           id: 'software',
           label: t('translation|Software'),
           gridTemplate: 'minmax(200px, 1.5fr)',
-          getValue: node => node.status.nodeInfo.operatingSystem,
+          getValue: node => node.status.nodeInfo?.operatingSystem,
           render: node => {
+            if (node.status.nodeInfo === undefined) {
+              return <></>;
+            }
             let osIcon = 'mdi:desktop-classic';
             if (node.status.nodeInfo.operatingSystem === 'linux') {
               osIcon = 'mdi:linux';
@@ -143,7 +162,6 @@ export default function NodeList() {
           },
           show: false,
         },
-        'cluster',
         'age',
       ]}
     />

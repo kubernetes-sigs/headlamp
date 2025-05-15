@@ -18,10 +18,9 @@ func WriteToFile(config clientcmdapi.Config, path string) error {
 	if _, err := os.Stat(configFile); err == nil {
 		// if it exists, write a new config file with a timestamp
 		fileName := "config_" + now + ".yaml"
-
 		newKubeConfigFile := filepath.Join(path, fileName)
-		err = clientcmd.WriteToFile(config, newKubeConfigFile)
 
+		err = clientcmd.WriteToFile(config, newKubeConfigFile)
 		if err != nil {
 			return errors.Wrap(err, "failed to write new kubeconfig file")
 		}

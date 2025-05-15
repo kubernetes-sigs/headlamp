@@ -33,6 +33,13 @@ spec:
           - "-plugins-dir=/headlamp/plugins"
         ports:
         - containerPort: 4466
+        readinessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /
+            port: 4466
+          initialDelaySeconds: 30
+          timeoutSeconds: 30
         livenessProbe:
           httpGet:
             scheme: HTTP

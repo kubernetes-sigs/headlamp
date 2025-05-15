@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import 'vitest-canvas-mock';
 import { composeStories, type Meta, setProjectAnnotations, type StoryFn } from '@storybook/react';
 import { act, render as testingLibraryRender, waitFor } from '@testing-library/react';
@@ -49,6 +65,7 @@ const options = {
 vi.mock('@iconify/react', () => ({
   Icon: () => null,
   InlineIcon: () => null,
+  addCollection: () => {},
 }));
 
 vi.mock('@monaco-editor/react', () => ({
@@ -73,10 +90,23 @@ function replaceUseId(node: any) {
   const attributesToReplace = ['id', 'for', 'aria-described', 'aria-labelledby', 'aria-controls'];
   if (node.nodeType === Node.ELEMENT_NODE) {
     for (const attr of node.attributes) {
-      if (attributesToReplace.includes(attr.name) && attr.value.includes(':')) {
-        // Update the attribute value here
-        node.setAttribute(attr.name, ':mock-test-id:');
+      if (attributesToReplace.includes(attr.name)) {
+        if (attr.value.includes(':')) {
+          // Handle React useId generated IDs
+          node.setAttribute(attr.name, ':mock-test-id:');
+        } else if (attr.name === 'id' && attr.value.includes('recharts')) {
+          // Handle recharts generated IDs
+          node.setAttribute(attr.name, 'recharts-id');
+        }
       }
+    }
+
+    if (node.className && typeof node.className === 'string') {
+      // Replace dynamic xterm owner classes with a fixed value
+      node.className = node.className.replace(
+        /xterm-dom-renderer-owner-\d+/g,
+        'xterm-dom-renderer-owner'
+      );
     }
   }
 
@@ -117,6 +147,8 @@ describe('Storybook Tests', () => {
       }
 
       stories.forEach(({ name, story }) => {
+        if (story.parameters?.storyshots?.disable) return;
+
         test(name, async () => {
           // Keep track of sent requests to wait for the to finish
           let requestsSent = 0;
@@ -177,7 +209,7 @@ describe('Storybook Tests', () => {
 
           document.body.removeAttribute('style');
 
-          expect(document.body).toMatchFileSnapshot(snapshotPath);
+          await expect(document.body).toMatchFileSnapshot(snapshotPath);
         });
       });
     });

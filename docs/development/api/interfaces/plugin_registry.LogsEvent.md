@@ -21,7 +21,7 @@ Event fired when viewing pod logs.
 
 #### Defined in
 
-[redux/headlampEventSlice.ts:145](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L145)
+[redux/headlampEventSlice.ts:145](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L145)
 
 ___
 
@@ -31,4 +31,4 @@ ___
 
 #### Defined in
 
-[redux/headlampEventSlice.ts:144](https://github.com/headlamp-k8s/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L144)
+[redux/headlampEventSlice.ts:144](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/redux/headlampEventSlice.ts#L144)

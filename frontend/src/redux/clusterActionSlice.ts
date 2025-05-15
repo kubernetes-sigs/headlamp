@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import i18next from 'i18next';
 import { OptionsObject as SnackbarProps } from 'notistack';
@@ -66,6 +82,7 @@ export interface CallbackAction extends CallbackActionOptions {
 }
 
 export interface CallbackActionOptions {
+  callbackArgs?: any[];
   /**
    * The url to navigate to when the action has started.
    */
@@ -163,6 +180,7 @@ export const executeClusterAction = createAsyncThunk(
       errorMessage,
       errorUrl,
       successMessage,
+      callbackArgs,
       cancelCallback,
       startOptions = {},
       cancelledOptions = {},
@@ -252,7 +270,11 @@ export const executeClusterAction = createAsyncThunk(
         if (controller.signal.aborted) {
           return rejectWithValue('Action cancelled');
         }
-        await Promise.resolve(callback());
+        if (callbackArgs === undefined) {
+          await Promise.resolve(callback());
+        } else {
+          await Promise.resolve(callback(...callbackArgs));
+        }
         dispatchSuccess();
       } catch (err) {
         if ((err as Error).message === 'Action cancelled' || controller.signal.aborted) {

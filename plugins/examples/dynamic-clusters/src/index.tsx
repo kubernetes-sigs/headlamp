@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { ApiProxy, Headlamp, registerAppBarAction } from '@kinvolk/headlamp-plugin/lib';
 import { Button, Modal, Paper, Stack, TextField, Typography } from '@mui/material';
 import * as yaml from 'js-yaml';
@@ -42,7 +58,7 @@ function ClusterCreationButton() {
       const isValidKubeconfig = (base64Kubeconfig: string): string | null => {
         try {
           // Decode the base64-encoded kubeconfig
-          const kubeconfig = Buffer.from(base64Kubeconfig, 'base64').toString('utf-8');
+          const kubeconfig = atob(base64Kubeconfig);
 
           // Attempt to parse the kubeconfig as YAML
           const kubeconfigObject: any = yaml.load(kubeconfig);
@@ -97,7 +113,9 @@ function ClusterCreationButton() {
 
   return (
     <>
-      <Button onClick={handleOpen}>New cluster</Button>
+      <Button color="inherit" onClick={handleOpen}>
+        New cluster
+      </Button>
       <Modal open={open} onClose={handleClose} style={modalStyle}>
         <Paper style={{ padding: '16px', width: '400px' }}>
           <Stack spacing={2}>
@@ -132,7 +150,9 @@ function ClusterCreationButton() {
                 />
               </>
             )}
-            <Button onClick={handleSubmit}>Submit</Button>
+            <Button color="inherit" onClick={handleSubmit}>
+              Submit
+            </Button>
 
             {/* Display error message to the user if an error occurred */}
             {error && (

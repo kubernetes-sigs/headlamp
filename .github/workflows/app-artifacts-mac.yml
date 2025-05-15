@@ -33,9 +33,9 @@ jobs:
         cache-dependency-path: |
           app/package-lock.json
           frontend/package-lock.json
-    - uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
+    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
-        go-version: '1.22.*'
+        go-version: '1.24.*'
         cache-dependency-path: |
           backend/go.sum
     - name: Dependencies
@@ -54,7 +54,11 @@ jobs:
         # This will trigger codesign. See app/mac/scripts/codeSign.js
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       run: |
-        make app-mac
+        make app-mac 2>&1 | tee build.log
+        if grep -q "Mac codesign: Failed" build.log; then
+          echo "Error: Mac codesign failed"
+          exit 1
+        fi
     - name: Early staple (only if we are not notarizing the app)
       if: ${{ ! inputs.signBinaries }}
       run: |
@@ -114,11 +118,11 @@ jobs:
       shell: pwsh
       run: |
         nuget.exe sources add -name esrp -source ${{ secrets.ESRP_NUGET_INDEX_URL }} -username headlamp -password ${{ secrets.AZ_DEVOPS_TOKEN }}
-        nuget.exe install Microsoft.EsrpClient -Version 1.2.87 -source  ${{ secrets.ESRP_NUGET_INDEX_URL }} | out-null
+        nuget.exe install Microsoft.EsrpClient -Version 1.2.127 -source  ${{ secrets.ESRP_NUGET_INDEX_URL }} | out-null
     - name: Sign App
       shell: pwsh
       run: |
-        $env:ESRP_PATH="$(Get-Location)\Microsoft.EsrpClient.1.2.87\tools\EsrpClient.exe"
+        $env:ESRP_PATH="$(Get-Location)\Microsoft.EsrpClient.1.2.127\tools\EsrpClient.exe"
         $env:HEADLAMP_WINDOWS_CLIENT_ID="${{ secrets.WINDOWS_CLIENT_ID }}"
         $env:HEADLAMP_WINDOWS_SIGN_EMAIL="${{ secrets.WINDOWS_SIGN_EMAIL }}"
         cd ./app/scripts
@@ -126,7 +130,7 @@ jobs:
     - name: Notarize App
       shell: pwsh
       run: |
-        $env:ESRP_PATH="$(Get-Location)\Microsoft.EsrpClient.1.2.87\tools\EsrpClient.exe"
+        $env:ESRP_PATH="$(Get-Location)\Microsoft.EsrpClient.1.2.127\tools\EsrpClient.exe"
         $env:HEADLAMP_WINDOWS_CLIENT_ID="${{ secrets.WINDOWS_CLIENT_ID }}"
         $env:HEADLAMP_WINDOWS_SIGN_EMAIL="${{ secrets.WINDOWS_SIGN_EMAIL }}"
         cd ./app/scripts
