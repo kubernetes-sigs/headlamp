@@ -13,7 +13,7 @@
     "@dagrejs/dagre": "^1.1.2",
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
-    "@headlamp-k8s/eslint-config": "^0.6.0",
+    "@jamowei/eslint-config": "^0.6.0",
     "@iconify/icons-mdi": "^1.2.9",
     "@iconify/react": "^3.2.1",
     "@monaco-editor/react": "^4.3.1",
@@ -185,7 +185,7 @@
       "license-header"
     ],
     "extends": [
-      "@headlamp-k8s",
+      "@jamowei",
       "prettier",
       "plugin:jsx-a11y/recommended"
     ],
@@ -212,7 +212,7 @@
       ]
     }
   },
-  "prettier": "@headlamp-k8s/eslint-config/prettier-config",
+  "prettier": "@jamowei/eslint-config/prettier-config",
   "devDependencies": {
     "@storybook/addon-actions": "^8.5.6",
     "@storybook/addon-essentials": "^8.5.6",

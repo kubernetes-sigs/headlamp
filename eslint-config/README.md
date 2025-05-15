@@ -7,7 +7,7 @@ our Javascript/Typescript projects.
 
 Install the config from NPM by using the following command:
 
-`npm install --save-dev @headlamp-k8s/eslint-config`
+`npm install --save-dev @jamowei/eslint-config`
 
 Install also the peer dependencies NPM suggested (if they're not installed
 automatically).
@@ -16,9 +16,9 @@ You can include it in your `package.json` file like the following:
 
 ```js
   "eslintConfig": {
-    "extends": ["@headlamp-k8s", "prettier", "prettier/react"]
+    "extends": ["@jamowei", "prettier", "prettier/react"]
   },
-  "prettier": "@headlamp-k8s/eslint-config/prettier-config",
+  "prettier": "@jamowei/eslint-config/prettier-config",
 ```
 
 ## Development

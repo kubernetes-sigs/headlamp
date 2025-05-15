@@ -79,7 +79,7 @@ async function createYAMLFiles(version, downloadURL, date, notesURL, checksum) {
 async function fetchGithubReleaseInfo() {
   const tag = projectVersion;
   const res = await fetch(
-    `https://api.github.com/repos/headlamp-k8s/headlamp/releases/tags/v${tag}`
+    `https://api.github.com/repos/jamowei/headlamp/releases/tags/v${tag}`
   );
 
   if (!res.ok) {

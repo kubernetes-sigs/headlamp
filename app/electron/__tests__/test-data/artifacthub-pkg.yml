@@ -5,7 +5,7 @@ createdAt: '2024-11-08T10:00:00Z'
 logoURL: 'https://minikube.sigs.k8s.io/images/logo/logo.png'
 description: A Headlamp plugin for managing Minikube clusters
 annotations:
-  headlamp/plugin/archive-url: 'https://github.com/headlamp-k8s/plugins/releases/download/example-change-logo-0.0.1/change-logo-0.0.1.tar.gz'
+  headlamp/plugin/archive-url: 'https://github.com/jamowei/plugins/releases/download/example-change-logo-0.0.1/change-logo-0.0.1.tar.gz'
   headlamp/plugin/archive-checksum: 'SHA256:8a2a23d116fe175b4350ffc6cc259781ed98d943f932e30fc5c8fe4e07b86e89'
   headlamp/plugin/version-compat: '>=0.30'
   headlamp/plugin/distro-compat: 'in-cluster,web,docker-desktop,desktop'

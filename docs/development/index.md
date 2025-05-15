@@ -154,24 +154,24 @@ If you have other requirements, please get in touch.
 
 ### Running the container image
 
-With docker you can run the Headlamp image(`ghcr.io/headlamp-k8s/headlamp:latest`).
+With docker you can run the Headlamp image(`ghcr.io/jamowei/headlamp:latest`).
 Note, the mount arguments add folders that are referenced in the ~/.kube
 folders - you may need to add other folders if your config refers
 to more folders.
 
 ```bash
-docker run --network="host" -p 127.0.0.1:4466:4466/tcp --mount type=bind,source="/home/rene/.minikube",target=$HOME/.minikube --mount type=bind,source="$HOME/.kube",target=/root/.kube ghcr.io/headlamp-k8s/headlamp:latest /headlamp/headlamp-server -html-static-dir /headlamp/frontend -plugins-dir=/headlamp/plugins
+docker run --network="host" -p 127.0.0.1:4466:4466/tcp --mount type=bind,source="/home/rene/.minikube",target=$HOME/.minikube --mount type=bind,source="$HOME/.kube",target=/root/.kube ghcr.io/jamowei/headlamp:latest /headlamp/headlamp-server -html-static-dir /headlamp/frontend -plugins-dir=/headlamp/plugins
 ```
 
-If you want to make a new container image called `headlamp-k8s/headlamp:development`
+If you want to make a new container image called `jamowei/headlamp:development`
 you can run it like this:
 
 ```bash
 $ DOCKER_IMAGE_VERSION=development make image
 ...
-Successfully tagged headlamp-k8s/headlamp:development
+Successfully tagged jamowei/headlamp:development
 
-$ docker run --network="host" -p 127.0.0.1:4466:4466/tcp --mount type=bind,source="/home/rene/.minikube",target=$HOME/.minikube --mount type=bind,source="$HOME/.kube",target=/root/.kube headlamp-k8s/headlamp:development /headlamp/headlamp-server -html-static-dir /headlamp/frontend -plugins-dir=/headlamp/plugins
+$ docker run --network="host" -p 127.0.0.1:4466:4466/tcp --mount type=bind,source="/home/rene/.minikube",target=$HOME/.minikube --mount type=bind,source="$HOME/.kube",target=/root/.kube jamowei/headlamp:development /headlamp/headlamp-server -html-static-dir /headlamp/frontend -plugins-dir=/headlamp/plugins
 ```
 
 Then go to <https://localhost:4466> in your browser.
@@ -198,7 +198,7 @@ DOCKER_IMAGE_VERSION=development make image
 #### Create a deployment yaml
 
 ```bash
-kubectl create deployment headlamp -n kube-system --image=headlamp-k8s/headlamp:development -o yaml --dry-run -- /headlamp/headlamp-server -html-static-dir /headlamp/frontend -in-cluster -watch-plugins-changes false -plugins-dir=/headlamp/plugins > minikube-headlamp.yaml
+kubectl create deployment headlamp -n kube-system --image=jamowei/headlamp:development -o yaml --dry-run -- /headlamp/headlamp-server -html-static-dir /headlamp/frontend -in-cluster -watch-plugins-changes false -plugins-dir=/headlamp/plugins > minikube-headlamp.yaml
 ```
 
 To use the local container image we change the `imagePullPolicy` to Never.
@@ -232,7 +232,7 @@ spec:
             - /headlamp/frontend
             - -in-cluster
             - -plugins-dir=/headlamp/plugins
-          image: headlamp-k8s/headlamp:development
+          image: jamowei/headlamp:development
           name: headlamp
           imagePullPolicy: Never
           resources: {}

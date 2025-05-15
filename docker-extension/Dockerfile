@@ -1,4 +1,4 @@
-FROM ghcr.io/headlamp-k8s/headlamp:v0.25.1@sha256:8825bb13459c64dcf9503d836b94b49c97dc831aff7c325a6eed68961388cf9c as headlamp
+FROM ghcr.io/jamowei/headlamp:v0.25.1@sha256:8825bb13459c64dcf9503d836b94b49c97dc831aff7c325a6eed68961388cf9c as headlamp
 
 FROM scratch
 

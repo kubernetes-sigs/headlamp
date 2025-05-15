@@ -1,5 +1,5 @@
 {
-  "name": "@headlamp-k8s/headlamp-events",
+  "name": "@jamowei/headlamp-events",
   "version": "0.0.1",
   "description": "An example of reacting to Headlamp events.",
   "scripts": {
@@ -21,10 +21,10 @@
     "kubernetes-debugging",
     "plugins"
   ],
-  "prettier": "@headlamp-k8s/eslint-config/prettier-config",
+  "prettier": "@jamowei/eslint-config/prettier-config",
   "eslintConfig": {
     "extends": [
-      "@headlamp-k8s",
+      "@jamowei",
       "prettier",
       "plugin:jsx-a11y/recommended"
     ]

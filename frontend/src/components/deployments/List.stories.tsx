@@ -65,7 +65,7 @@ const items: KubeDeployment[] = [
           containers: [
             {
               name: 'headlamp',
-              image: 'ghcr.io/headlamp-k8s/headlamp:latest',
+              image: 'ghcr.io/jamowei/headlamp:latest',
               imagePullPolicy: 'Always',
               args: ['-in-cluster', '-plugins-dir=/headlamp/plugins'],
               ports: [{ containerPort: 4466, protocol: 'TCP' }],
@@ -145,7 +145,7 @@ const items: KubeDeployment[] = [
           containers: [
             {
               name: 'headlamp-release',
-              image: 'ghcr.io/headlamp-k8s/headlamp:v0.18.0',
+              image: 'ghcr.io/jamowei/headlamp:v0.18.0',
               imagePullPolicy: 'IfNotPresent',
               args: ['-in-cluster', '-plugins-dir=/headlamp/plugins'],
               ports: [{ containerPort: 4466, name: 'http', protocol: 'TCP' }],
