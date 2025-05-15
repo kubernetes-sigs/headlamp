@@ -5310,7 +5310,7 @@
           "id": 134,
           "name": "wordWrapBreakAfterCharacters",
           "schema": undefined,
-        },
+          },
         "wordWrapBreakBeforeCharacters": EditorStringOption {
           "defaultValue": "([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋",
           "id": 135,
