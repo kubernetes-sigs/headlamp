@@ -54,3 +54,43 @@ To run the Helm template testing for the Headlamp chart, follow these steps:
     ```
 
 This will execute the `charts/headlamp/tests/test.sh` script, which dynamically renders and compares Helm templates for different test cases against their expected templates.
+
+## Updating Template Versions
+
+When changes are made to the Helm chart that intentionally modify the rendered templates (such as version updates, new features, or bug fixes), you'll need to update the expected templates to match the new output. The `helm-update-template-version` command simplifies this process.
+
+### How Template Version Updates Work
+
+The template version update process:
+
+1. Reads the current chart version and app version from `Chart.yaml`
+2. Checks each expected template file for version references
+3. Only updates files where versions are outdated
+4. Provides concise output showing only which files required updates
+
+### When to Use Template Version Updates
+
+You should run the template version update when:
+
+- You've updated the Helm chart version in `Chart.yaml`
+- You've updated the app version in `Chart.yaml`
+- You've made intentional changes to templates that affect their rendered output
+- The `helm-template-test` command fails with template differences that are expected
+
+### Running Template Version Updates
+
+To update the expected templates with the current versions:
+
+```bash
+make helm-update-template-version
+```
+
+This executes the `charts/headlamp/tests/update-version.sh` script, which renders templates with current versions and updates the expected templates accordingly.
+
+### After Updating Template Versions
+
+After running the template version update:
+
+1. Review the changes to ensure they're as expected
+2. Run `helm-template-test` again to verify that tests now pass
+3. Commit the updated expected templates along with your chart changes

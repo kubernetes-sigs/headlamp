@@ -67,6 +67,13 @@ config:
     # -- OIDC scopes to be used
     scopes: ""
 
+    # -- OIDC client to be used during token validation
+    validatorClientID: ""
+    # -- OIDC Issuer URL to be used during token validation
+    validatorIssuerURL: ""
+    # -- Use 'access_token' instead of 'id_token' when authenticating using OIDC
+    useAccessToken: false
+
     # Option 3:
     # @param config.oidc - External OIDC secret configuration
     # If you want to use an external secret for OIDC configuration, enable this option.

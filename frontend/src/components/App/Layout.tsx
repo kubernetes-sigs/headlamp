@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Box, Button } from '@mui/material';
 import Container from '@mui/material/Container';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -15,6 +31,7 @@ import { setConfig } from '../../redux/configSlice';
 import { ConfigState } from '../../redux/configSlice';
 import { useTypedSelector } from '../../redux/reducers/reducers';
 import store from '../../redux/stores/store';
+import { useUIPanelsGroupedBySide } from '../../redux/uiSlice';
 import { fetchStatelessClusterKubeConfigs, isEqualClusterConfigs } from '../../stateless/';
 import ActionsNotifier from '../common/ActionsNotifier';
 import AlertNotification from '../common/AlertNotification';
@@ -197,6 +214,8 @@ export default function Layout({}: LayoutProps) {
     : ({ maxWidth: 'xl' } as const);
   const MAXIMUM_NUM_ALERTS = 2;
 
+  const panels = useUIPanelsGroupedBySide();
+
   return (
     <>
       <Link
@@ -218,52 +237,68 @@ export default function Layout({}: LayoutProps) {
       <VersionDialog />
       <CssBaseline enableColorScheme />
       <ActionsNotifier />
-      <Box
-        sx={{
-          display: 'flex',
-          overflow: 'auto',
-          flexDirection: 'column',
-          height: '100dvh',
-        }}
-      >
-        <TopBar />
+      <Box sx={{ display: 'flex', height: '100dvh' }}>
+        {panels.left.map(it => (
+          <it.component key={it.id} />
+        ))}
         <Box
           sx={{
             display: 'flex',
-            overflow: 'hidden',
+            overflow: 'auto',
+            flexDirection: 'column',
+            flexGrow: 1,
           }}
         >
-          <Sidebar />
-          <Main
-            id="main"
+          {panels.top.map(it => (
+            <it.component key={it.id} />
+          ))}
+          <TopBar />
+          <Box
             sx={{
+              display: 'flex',
+              overflow: 'hidden',
               flexGrow: 1,
-              marginLeft: 'initial',
-              overflow: 'auto',
+              position: 'relative',
             }}
           >
-            {clustersNotInURL.slice(0, MAXIMUM_NUM_ALERTS).map(clusterName => (
-              <ClusterNotFoundPopup key={clusterName} cluster={clusterName} />
-            ))}
-            <AlertNotification />
-            <Box>
-              <Div />
-              <Container {...containerProps}>
-                <NavigationTabs />
-                {arePluginsLoaded && (
-                  <RouteSwitcher
-                    requiresToken={() => {
-                      const clusterName = getCluster() || '';
-                      const cluster = clusters ? clusters[clusterName] : undefined;
-                      return cluster?.useToken === undefined || cluster?.useToken;
-                    }}
-                  />
-                )}
-              </Container>
-            </Box>
-          </Main>
-          <DetailsDrawer />
+            <Sidebar />
+            <Main
+              id="main"
+              sx={{
+                flexGrow: 1,
+                marginLeft: 'initial',
+                overflow: 'auto',
+              }}
+            >
+              {clustersNotInURL.slice(0, MAXIMUM_NUM_ALERTS).map(clusterName => (
+                <ClusterNotFoundPopup key={clusterName} cluster={clusterName} />
+              ))}
+              <AlertNotification />
+              <Box>
+                <Div />
+                <Container {...containerProps}>
+                  <NavigationTabs />
+                  {arePluginsLoaded && (
+                    <RouteSwitcher
+                      requiresToken={() => {
+                        const clusterName = getCluster() || '';
+                        const cluster = clusters ? clusters[clusterName] : undefined;
+                        return cluster?.useToken === undefined || cluster?.useToken;
+                      }}
+                    />
+                  )}
+                </Container>
+              </Box>
+            </Main>
+            <DetailsDrawer />
+          </Box>
+          {panels.bottom.map(it => (
+            <it.component key={it.id} />
+          ))}
         </Box>
+        {panels.right.map(it => (
+          <it.component key={it.id} />
+        ))}
       </Box>
     </>
   );

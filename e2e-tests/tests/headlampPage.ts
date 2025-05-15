@@ -1,4 +1,21 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 /// <reference types="node" />
+import { AxeBuilder } from '@axe-core/playwright';
 import { expect, Page } from '@playwright/test';
 
 export class HeadlampPage {
@@ -6,6 +23,12 @@ export class HeadlampPage {
 
   constructor(private page: Page) {
     this.testURL = process.env.HEADLAMP_TEST_URL || '/';
+  }
+
+  async a11y() {
+    const axeBuilder = new AxeBuilder({ page: this.page });
+    const accessibilityResults = await axeBuilder.analyze();
+    expect(accessibilityResults.violations).toStrictEqual([]);
   }
 
   async authenticate(token?: string) {
@@ -68,6 +91,7 @@ export class HeadlampPage {
     await this.page.goto(`${this.testURL}${path}`, {
       waitUntil: 'networkidle',
     });
+    await this.page.waitForLoadState('load');
     if (title) {
       await this.hasTitleContaining(title);
     }

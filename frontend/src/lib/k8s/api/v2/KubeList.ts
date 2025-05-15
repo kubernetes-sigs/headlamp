@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { KubeObject, KubeObjectInterface } from '../../KubeObject';
 
 export interface KubeList<T extends KubeObjectInterface> {
@@ -29,7 +45,8 @@ export const KubeList = {
   >(
     list: KubeList<KubeObject<ObjectInterface>>,
     update: KubeListUpdateEvent<ObjectInterface>,
-    itemClass: ObjectClass
+    itemClass: ObjectClass,
+    cluster: string
   ): KubeList<KubeObject<ObjectInterface>> {
     // Skip if the update's resource version is older than or equal to what we have
     if (
@@ -47,9 +64,9 @@ export const KubeList = {
       case 'ADDED':
       case 'MODIFIED':
         if (index !== -1) {
-          newItems[index] = new itemClass(update.object);
+          newItems[index] = new itemClass(update.object, cluster);
         } else {
-          newItems.push(new itemClass(update.object));
+          newItems.push(new itemClass(update.object, cluster));
         }
         break;
       case 'DELETED':

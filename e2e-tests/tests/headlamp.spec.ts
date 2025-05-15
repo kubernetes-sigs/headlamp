@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { expect, test } from '@playwright/test';
 import { HeadlampPage } from './headlampPage';
 import { SecurityPage } from './securityPage';
@@ -41,6 +57,7 @@ test('service page should have headlamp service', async () => {
 
   // Check if there is text "headlamp" on the page
   await headlampPage.checkPageContent('headlamp');
+  await headlampPage.a11y();
 });
 
 test('headlamp service page should contain port', async () => {
@@ -50,6 +67,7 @@ test('headlamp service page should contain port', async () => {
 
   // Check if there is text "TCP" on the page
   await headlampPage.checkPageContent('TCP');
+  await headlampPage.a11y();
 });
 
 test('main page should have Security tab', async () => {
@@ -62,6 +80,7 @@ test('Service account tab should have headlamp-admin', async () => {
 
   // Check if there is text "headlamp-admin" on the page
   await headlampPage.checkPageContent('headlamp-admin');
+  await headlampPage.a11y();
 });
 
 test('Logout the user', async () => {
@@ -78,9 +97,11 @@ test('pagination goes to next page', async () => {
 
   // Check if there is text "Rows per page" on the page
   await headlampPage.checkPageContent('Rows per page');
+  await headlampPage.a11y();
 
   // Check working of pagination
   await headlampPage.checkRows();
+  await headlampPage.a11y();
 });
 
 // --- Headlamp tests end --- //

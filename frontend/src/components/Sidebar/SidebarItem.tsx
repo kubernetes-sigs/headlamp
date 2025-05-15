@@ -1,9 +1,25 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import Collapse from '@mui/material/Collapse';
 import List from '@mui/material/List';
 import ListItem, { ListItemProps } from '@mui/material/ListItem';
 import React, { memo } from 'react';
 import { generatePath } from 'react-router';
-import { getClusterPrefixedPath } from '../../lib/cluster';
+import { formatClusterPathParam, getClusterPrefixedPath } from '../../lib/cluster';
 import { useSelectedClusters } from '../../lib/k8s';
 import { createRouteURL, getRoute } from '../../lib/router';
 import ListItemLink from './ListItemLink';
@@ -47,7 +63,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
   let fullURL = url;
   if (fullURL && useClusterURL && clusters.length) {
     fullURL = generatePath(getClusterPrefixedPath(url), {
-      cluster: clusters.length ? clusters.join('+') : '',
+      cluster: clusters.length ? formatClusterPathParam(clusters) : '',
     });
   }
 

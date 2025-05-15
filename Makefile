@@ -191,3 +191,7 @@ i18n:
 .PHONY: helm-template-test
 helm-template-test:
 	charts/headlamp/tests/test.sh
+
+.PHONY: helm-update-template-version
+helm-update-template-version:
+	charts/headlamp/tests/update-version.sh

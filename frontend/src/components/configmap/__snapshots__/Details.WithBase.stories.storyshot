@@ -215,11 +215,19 @@
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                 >
                   <div
-                    class="MuiBox-root css-1rsqta2"
+                    class="MuiBox-root css-0"
                   >
                     <div
-                      class="mock-monaco-editor"
-                    />
+                      class="MuiBox-root css-1rsqta2"
+                    >
+                      <div
+                        class="MuiBox-root css-1y5kcuw"
+                      >
+                        <div
+                          class="mock-monaco-editor"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </dd>
                 <dt
@@ -231,11 +239,19 @@
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                 >
                   <div
-                    class="MuiBox-root css-1rsqta2"
+                    class="MuiBox-root css-0"
                   >
                     <div
-                      class="mock-monaco-editor"
-                    />
+                      class="MuiBox-root css-1rsqta2"
+                    >
+                      <div
+                        class="MuiBox-root css-1y5kcuw"
+                      >
+                        <div
+                          class="mock-monaco-editor"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </dd>
                 <dt
@@ -247,14 +263,36 @@
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
                 >
                   <div
-                    class="MuiBox-root css-1rsqta2"
+                    class="MuiBox-root css-0"
                   >
                     <div
-                      class="mock-monaco-editor"
-                    />
+                      class="MuiBox-root css-1rsqta2"
+                    >
+                      <div
+                        class="MuiBox-root css-1y5kcuw"
+                      >
+                        <div
+                          class="mock-monaco-editor"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </dd>
               </dl>
+              <div
+                class="MuiBox-root css-10igwnb"
+              >
+                <button
+                  class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
+                  tabindex="0"
+                  type="button"
+                >
+                  Save
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </button>
+              </div>
             </div>
           </div>
         </div>

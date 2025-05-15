@@ -5,6 +5,9 @@
 {{- $clientSecret := "" }}
 {{- $issuerURL := "" }}
 {{- $scopes := "" }}
+{{- $validatorClientID := "" }}
+{{- $validatorIssuerURL := "" }}
+{{- $useAccessToken := "" }}
 
 # This block of code is used to extract the values from the env.
 # This is done to check if the values are non-empty and if they are, they are used in the deployment.yaml.
@@ -20,6 +23,15 @@
   {{- end }}
   {{- if eq .name "OIDC_SCOPES" }}
     {{- $scopes = .value }}
+  {{- end }}
+  {{- if eq .name "OIDC_VALIDATOR_CLIENT_ID" }}
+    {{- $validatorClientID = .value }}
+  {{- end }}
+  {{- if eq .name "OIDC_VALIDATOR_ISSUER_URL" }}
+    {{- $validatorIssuerURL = .value }}
+  {{- end }}
+  {{- if eq .name "OIDC_USE_ACCESS_TOKEN" }}
+    {{- $useAccessToken = .value | toString }}
   {{- end }}
 {{- end }}
 
@@ -101,6 +113,27 @@ spec:
                   name: {{ $oidc.secret.name }}
                   key: scopes
             {{- end }}
+            {{- if $oidc.validatorClientID }}
+            - name: OIDC_VALIDATOR_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: validatorClientID
+            {{- end }}
+            {{- if $oidc.validatorIssuerURL }}
+            - name: OIDC_VALIDATOR_ISSUER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: validatorIssuerURL
+            {{- end }}
+            {{- if $oidc.useAccessToken }}
+            - name: OIDC_USE_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: useAccessToken
+            {{- end }}
             {{- else }}
             {{- if $oidc.clientID }}
             - name: OIDC_CLIENT_ID
@@ -117,6 +150,18 @@ spec:
             {{- if $oidc.scopes }}
             - name: OIDC_SCOPES
               value: {{ $oidc.scopes }}
+            {{- end }}
+            {{- if $oidc.validatorClientID }}
+            - name: OIDC_VALIDATOR_CLIENT_ID
+              value: {{ $oidc.validatorClientID }}
+            {{- end }}
+            {{- if $oidc.validatorIssuerURL }}
+            - name: OIDC_VALIDATOR_ISSUER_URL
+              value: {{ $oidc.validatorIssuerURL }}
+            {{- end }}
+            {{- if $oidc.useAccessToken }}
+            - name: OIDC_USE_ACCESS_TOKEN
+              value: {{ $oidc.useAccessToken }}
             {{- end }}
             {{- end }}
             {{- if .Values.env }}
@@ -149,11 +194,25 @@ spec:
             # Check if scopes are non empty either from env or oidc.config
             - "-oidc-scopes=$(OIDC_SCOPES)"
             {{- end }}
+            {{- if or (ne $oidc.validatorClientID "") (ne $validatorClientID "") }}
+            # Check if validatorClientID is non empty either from env or oidc.config
+            - "-oidc-validator-client-id=$(OIDC_VALIDATOR_CLIENT_ID)"
+            {{- end }}
+            {{- if or (ne $oidc.validatorIssuerURL "") (ne $validatorIssuerURL "") }}
+            # Check if validatorIssuerURL is non empty either from env or oidc.config
+            - "-oidc-validator-idp-issuer-url=$(OIDC_VALIDATOR_ISSUER_URL)"
+            {{- end }}
+            {{- if or (ne ($oidc.useAccessToken | toString) "false") (ne $useAccessToken "") }}
+            # Check if useAccessToken is non false either from env or oidc.config
+            - "-oidc-use-access-token=$(OIDC_USE_ACCESS_TOKEN)"
+            {{- end }}
             {{- else }}
             - "-oidc-client-id=$(OIDC_CLIENT_ID)"
             - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
             - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
             - "-oidc-scopes=$(OIDC_SCOPES)"
+            - "-oidc-validator-client-id=$(OIDC_VALIDATOR_CLIENT_ID)"
+            - "-oidc-validator-idp-issuer-url=$(OIDC_VALIDATOR_ISSUER_URL)"
             {{- end }}
             {{- with .Values.config.baseURL }}
             - "-base-url={{ . }}"
