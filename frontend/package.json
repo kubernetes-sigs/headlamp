@@ -10,7 +10,6 @@
   "type": "module",
   "dependencies": {
     "@apidevtools/swagger-parser": "^10.0.3",
-    "@dagrejs/dagre": "^1.1.2",
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
     "@headlamp-k8s/eslint-config": "^0.6.0",
@@ -47,7 +46,6 @@
     "@xterm/addon-search": "^0.15.0",
     "@xterm/xterm": "^5.5.0",
     "@xyflow/react": "^12.2.0",
-    "base64-arraybuffer": "^1.0.2",
     "buffer": "^6.0.3",
     "console-browserify": "^1.2.0",
     "cronstrue": "^2.50.0",
@@ -98,8 +96,7 @@
     "util": "^0.12.4",
     "vite": "^6.3.5",
     "vite-plugin-node-polyfills": "^0.23.0",
-    "vite-plugin-svgr": "^4.3.0",
-    "web-worker": "^1.3.0"
+    "vite-plugin-svgr": "^4.3.0"
   },
   "overrides": {
     "axe-core": "npm:dry-uninstall",
@@ -226,7 +223,6 @@
     "@storybook/theming": "^8.5.6",
     "@testing-library/jest-dom": "^6.4.8",
     "@testing-library/user-event": "^14.5.2",
-    "@vitest/coverage-istanbul": "^3.0.5",
     "eslint-plugin-license-header": "^0.8.0",
     "husky": "^4.3.8",
     "i18next-parser": "^9.1.0",
