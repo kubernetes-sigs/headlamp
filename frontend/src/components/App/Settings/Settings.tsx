@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import { Box, MenuItem, Select, Switch } from '@mui/material';
+import Box from '@mui/material/Box';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
+import Switch from '@mui/material/Switch';
 import { capitalize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';

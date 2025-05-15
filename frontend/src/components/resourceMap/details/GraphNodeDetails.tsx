@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { Box, Card } from '@mui/material';
+import Box from '@mui/material/Box';
+import Card from '@mui/material/Card';
 import { useTranslation } from 'react-i18next';
 import { ActionButton } from '../../common';
 import { GraphNode } from '../graph/graphModel';

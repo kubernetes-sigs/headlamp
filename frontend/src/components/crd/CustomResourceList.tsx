@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Box } from '@mui/material';
+import Box from '@mui/material/Box';
 import { JSONPath } from 'jsonpath-plus';
 import React from 'react';
 import { useTranslation } from 'react-i18next';

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Box } from '@mui/material';
+import Box from '@mui/material/Box';
 import DialogContent from '@mui/material/DialogContent';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal as XTerminal } from '@xterm/xterm';

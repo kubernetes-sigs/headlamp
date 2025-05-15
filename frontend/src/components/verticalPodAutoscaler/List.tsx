@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import { Link, Paper, Typography } from '@mui/material';
+import Link from '@mui/material/Link';
+import Paper from '@mui/material/Paper';
+import Typography from '@mui/material/Typography';
 import { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import VPA from '../../lib/k8s/vpa';

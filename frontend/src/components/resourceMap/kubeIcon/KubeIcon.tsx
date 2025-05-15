@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { alpha, Box } from '@mui/material';
+import Box from '@mui/material/Box';
+import { alpha } from '@mui/system/colorManipulator';
 import { useTypedSelector } from '../../../redux/reducers/reducers';
 import CRoleIcon from './img/c-role.svg?react';
 import CmIcon from './img/cm.svg?react';

@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { Box, styled } from '@mui/material';
+import Box from '@mui/material/Box';
+import { styled } from '@mui/material/styles';
 
 /**
  * Displays children after a delay

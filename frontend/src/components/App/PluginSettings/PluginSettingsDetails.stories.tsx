@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { TextField } from '@mui/material';
+import TextField from '@mui/material/TextField';
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { PluginInfo, PluginSettingsDetailsProps } from '../../../plugin/pluginsSlice';

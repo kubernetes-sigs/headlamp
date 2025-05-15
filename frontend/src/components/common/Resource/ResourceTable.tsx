@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-import { Box, MenuItem, TableCellProps } from '@mui/material';
+import Box from '@mui/material/Box';
+import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
+import { TableCellProps } from '@mui/material/TableCell';
 import { MRT_FilterFns, MRT_Row, MRT_SortingFn, MRT_TableInstance } from 'material-react-table';
 import { ComponentProps, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';

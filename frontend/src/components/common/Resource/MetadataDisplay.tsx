@@ -15,8 +15,9 @@
  */
 
 import { Icon } from '@iconify/react';
-import { Box, Theme } from '@mui/material';
+import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
+import { Theme } from '@mui/material/styles';
 import Typography, { TypographyProps } from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';

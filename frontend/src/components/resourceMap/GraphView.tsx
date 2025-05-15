@@ -17,7 +17,11 @@
 import '@xyflow/react/dist/base.css';
 import './GraphView.css';
 import { Icon } from '@iconify/react';
-import { Box, Chip, styled, Theme, ThemeProvider } from '@mui/material';
+import Box from '@mui/material/Box';
+import Chip from '@mui/material/Chip';
+import { Theme } from '@mui/material/styles';
+import { styled } from '@mui/material/styles';
+import ThemeProvider from '@mui/system/ThemeProvider';
 import { Edge, Node, Panel, ReactFlowProvider } from '@xyflow/react';
 import {
   createContext,

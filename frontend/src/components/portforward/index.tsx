@@ -15,8 +15,11 @@
  */
 
 import { Icon, InlineIcon } from '@iconify/react';
-import { Box, IconButton, Menu, MenuItem } from '@mui/material';
+import Box from '@mui/material/Box';
+import IconButton from '@mui/material/IconButton';
 import MuiLink from '@mui/material/Link';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/system';
 import { useSnackbar } from 'notistack';
 import React from 'react';

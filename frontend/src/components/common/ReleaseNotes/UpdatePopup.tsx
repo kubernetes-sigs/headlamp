@@ -15,7 +15,9 @@
  */
 
 import { Icon } from '@iconify/react';
-import { Box, Button, Snackbar } from '@mui/material';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Snackbar from '@mui/material/Snackbar';
 import { styled } from '@mui/system';
 import React from 'react';
 import { useTranslation } from 'react-i18next';

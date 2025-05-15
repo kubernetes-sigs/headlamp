@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import { FormControl, InputLabel, MenuItem, Select } from '@mui/material';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
 import { action } from '@storybook/addon-actions';
 import { Meta, StoryFn } from '@storybook/react';
 import { useCallback, useEffect, useState } from 'react';

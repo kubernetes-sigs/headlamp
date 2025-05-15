@@ -14,8 +14,14 @@
  * limitations under the License.
  */
 
-import { Box, FormControl, InputLabel, MenuItem, Select, styled, Switch } from '@mui/material';
+import Box from '@mui/material/Box';
+import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
+import InputLabel from '@mui/material/InputLabel';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
+import { styled } from '@mui/material/styles';
+import Switch from '@mui/material/Switch';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import { useSnackbar } from 'notistack';
 import React, { useState } from 'react';

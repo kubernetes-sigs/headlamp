@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { Alert, AlertTitle } from '@mui/material';
+import Alert from '@mui/material/Alert';
+import AlertTitle from '@mui/material/AlertTitle';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import CRD from '../../lib/k8s/crd';

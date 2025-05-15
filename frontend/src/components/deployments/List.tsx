@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Box } from '@mui/material';
+import Box from '@mui/material/Box';
 import { useTranslation } from 'react-i18next';
 import { KubeContainer } from '../../lib/k8s/cluster';
 import Deployment from '../../lib/k8s/deployment';

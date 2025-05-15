@@ -15,18 +15,16 @@
  */
 
 import { Icon } from '@iconify/react';
-import {
-  Box,
-  Button,
-  FormControl,
-  IconButton,
-  ListItemSecondaryAction,
-  ListItemText,
-  MenuItem,
-  Select,
-  SelectChangeEvent,
-  TextField,
-} from '@mui/material';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import FormControl from '@mui/material/FormControl';
+import IconButton from '@mui/material/IconButton';
+import ListItemSecondaryAction from '@mui/material/ListItemSecondaryAction';
+import ListItemText from '@mui/material/ListItemText';
+import MenuItem from '@mui/material/MenuItem';
+import { SelectChangeEvent } from '@mui/material/Select';
+import Select from '@mui/material/Select';
+import TextField from '@mui/material/TextField';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';

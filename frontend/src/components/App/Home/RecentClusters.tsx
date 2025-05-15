@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import { Button, Grid, ToggleButton as MuiToggledButton, ToggleButtonGroup } from '@mui/material';
+import Button from '@mui/material/Button';
+import Grid from '@mui/material/Grid';
+import MuiToggledButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { styled } from '@mui/system';
 import React from 'react';
 import { useTranslation } from 'react-i18next';

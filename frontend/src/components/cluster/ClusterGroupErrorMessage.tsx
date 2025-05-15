@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import { Alert, AlertTitle, Box, Button } from '@mui/material';
+import Alert from '@mui/material/Alert';
+import AlertTitle from '@mui/material/AlertTitle';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../lib/k8s';

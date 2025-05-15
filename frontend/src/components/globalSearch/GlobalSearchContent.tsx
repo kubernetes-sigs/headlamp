@@ -15,16 +15,14 @@
  */
 
 import { Icon } from '@iconify/react';
-import {
-  Box,
-  CircularProgress,
-  Paper,
-  Popper,
-  TextField,
-  Typography,
-  useAutocomplete,
-  UseAutocompleteReturnValue,
-} from '@mui/material';
+import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
+import Paper from '@mui/material/Paper';
+import Popper from '@mui/material/Popper';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import useAutocomplete from '@mui/material/useAutocomplete';
+import { UseAutocompleteReturnValue } from '@mui/material/useAutocomplete';
 import Fuse from 'fuse.js';
 import { capitalize } from 'lodash';
 import { lazy, Suspense, useMemo, useRef, useState } from 'react';

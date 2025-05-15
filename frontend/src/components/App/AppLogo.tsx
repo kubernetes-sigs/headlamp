@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Theme } from '@mui/material';
+import { Theme } from '@mui/material/styles';
 import { SxProps } from '@mui/system';
 import React, { isValidElement, ReactElement } from 'react';
 import { getThemeName, useNavBarMode } from '../../lib/themes';

@@ -15,9 +15,13 @@
  */
 
 import { InlineIcon } from '@iconify/react';
-import { Button, Checkbox, FormControl, Grid, Tooltip } from '@mui/material';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Checkbox from '@mui/material/Checkbox';
+import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
+import Grid from '@mui/material/Grid';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { styled } from '@mui/system';
 import * as yaml from 'js-yaml';

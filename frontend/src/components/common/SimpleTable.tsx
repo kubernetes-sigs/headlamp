@@ -15,14 +15,19 @@
  */
 
 import { Icon, InlineIcon } from '@iconify/react';
-import { Button, IconButton, Paper, SxProps, TableContainer, Theme } from '@mui/material';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import Paper from '@mui/material/Paper';
+import { Theme } from '@mui/material/styles';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TablePagination from '@mui/material/TablePagination';
 import TableRow from '@mui/material/TableRow';
+import { SxProps } from '@mui/system';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../helpers/tablesRowsPerPage';

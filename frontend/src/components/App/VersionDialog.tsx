@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { DialogContent } from '@mui/material';
+import DialogContent from '@mui/material/DialogContent';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { getProductName, getVersion } from '../../helpers/getProductInfo';

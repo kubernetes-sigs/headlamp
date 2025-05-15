@@ -14,8 +14,12 @@
  * limitations under the License.
  */
 
-import { Box, Paper, Table as MuiTable, TableCellProps, TableHead } from '@mui/material';
+import Box from '@mui/material/Box';
+import Paper from '@mui/material/Paper';
 import { useTheme } from '@mui/material/styles';
+import MuiTable from '@mui/material/Table';
+import { TableCellProps } from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
 import { alpha, styled } from '@mui/system';
 import {
   MRT_BottomToolbar,

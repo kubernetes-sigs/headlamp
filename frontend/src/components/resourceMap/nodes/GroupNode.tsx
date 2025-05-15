@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import { alpha, Box, styled } from '@mui/material';
+import Box from '@mui/material/Box';
+import { styled } from '@mui/material/styles';
+import { alpha } from '@mui/system/colorManipulator';
 import { memo } from 'react';
 import { useGraphView, useNode } from '../GraphView';
 import { KubeIcon } from '../kubeIcon/KubeIcon';

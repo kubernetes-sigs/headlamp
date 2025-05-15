@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { alpha, useTheme } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import { alpha } from '@mui/system/colorManipulator';
 import { BaseEdge, EdgeProps } from '@xyflow/react';
 import { memo } from 'react';
 import { GraphEdge } from '../graph/graphModel';

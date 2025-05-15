@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
-import { Box, Button, DialogContent, Grid, InputBase, Paper } from '@mui/material';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import DialogContent from '@mui/material/DialogContent';
+import Grid from '@mui/material/Grid';
+import InputBase from '@mui/material/InputBase';
+import Paper from '@mui/material/Paper';
 import { FitAddon } from '@xterm/addon-fit';
 import { ISearchOptions, SearchAddon } from '@xterm/addon-search';
 import { Terminal as XTerminal } from '@xterm/xterm';

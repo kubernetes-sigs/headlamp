@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import { Box, Breadcrumbs, Link } from '@mui/material';
+import Box from '@mui/material/Box';
+import Breadcrumbs from '@mui/material/Breadcrumbs';
+import Link from '@mui/material/Link';
 import { useTranslation } from 'react-i18next';
 import { getMainNode } from './graph/graphGrouping';
 import { GraphNode } from './graph/graphModel';

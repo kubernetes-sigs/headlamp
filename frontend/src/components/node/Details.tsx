@@ -15,9 +15,9 @@
  */
 
 import { InlineIcon } from '@iconify/react';
-import { Paper } from '@mui/material';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
+import Paper from '@mui/material/Paper';
 import _ from 'lodash';
 import { useSnackbar } from 'notistack';
 import React, { useEffect, useState } from 'react';

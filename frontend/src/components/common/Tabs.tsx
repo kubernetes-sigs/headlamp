@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Theme } from '@mui/material';
+import { Theme } from '@mui/material/styles';
 import MuiTab from '@mui/material/Tab';
 import MuiTabs from '@mui/material/Tabs';
 import Typography, { TypographyProps } from '@mui/material/Typography';

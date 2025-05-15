@@ -15,7 +15,9 @@
  */
 
 import { Icon } from '@iconify/react';
-import { alpha, styled, useTheme } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import { styled } from '@mui/material/styles';
+import { alpha } from '@mui/system/colorManipulator';
 import { Handle, NodeProps, Position } from '@xyflow/react';
 import { memo, useEffect, useState } from 'react';
 import { getMainNode } from '../graph/graphGrouping';

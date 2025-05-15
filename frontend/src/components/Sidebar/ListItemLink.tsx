@@ -15,9 +15,12 @@
  */
 
 import { Icon, IconProps } from '@iconify/react';
-import { alpha, ListItemButton, styled, Tooltip } from '@mui/material';
+import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
+import { styled } from '@mui/material/styles';
+import Tooltip from '@mui/material/Tooltip';
+import { alpha } from '@mui/system/colorManipulator';
 import React from 'react';
 import { Link as RouterLink, LinkProps as RouterLinkProps } from 'react-router-dom';
 

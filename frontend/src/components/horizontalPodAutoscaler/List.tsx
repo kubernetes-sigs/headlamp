@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Chip } from '@mui/material';
+import Chip from '@mui/material/Chip';
 import { styled } from '@mui/system';
 import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';

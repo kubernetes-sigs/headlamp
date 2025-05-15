@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { FormControlLabel, Switch } from '@mui/material';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Switch from '@mui/material/Switch';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';

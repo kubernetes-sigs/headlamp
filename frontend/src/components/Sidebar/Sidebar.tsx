@@ -15,8 +15,8 @@
  */
 
 import { InlineIcon } from '@iconify/react';
-import { Button } from '@mui/material';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Drawer from '@mui/material/Drawer';
 import Grid from '@mui/material/Grid';
 import List from '@mui/material/List';

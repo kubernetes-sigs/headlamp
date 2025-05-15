@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Box } from '@mui/material';
+import Box from '@mui/material/Box';
 import { useTranslation } from 'react-i18next';
 import GatewayClass from '../../lib/k8s/gatewayClass';
 import { LightTooltip, StatusLabel, StatusLabelProps } from '../common';

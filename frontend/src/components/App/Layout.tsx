@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { Box, Button } from '@mui/material';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Container from '@mui/material/Container';
 import CssBaseline from '@mui/material/CssBaseline';
 import Link from '@mui/material/Link';

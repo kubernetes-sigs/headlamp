@@ -15,7 +15,7 @@
  */
 
 import { Icon } from '@iconify/react';
-import { Box } from '@mui/material';
+import Box from '@mui/material/Box';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { KubeContainer } from '../../lib/k8s/cluster';

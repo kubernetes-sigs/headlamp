@@ -16,12 +16,13 @@
 
 import { Icon } from '@iconify/react';
 import Editor from '@monaco-editor/react';
-import { Button, InputLabel } from '@mui/material';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import Grid, { GridProps, GridSize } from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import Input, { InputProps } from '@mui/material/Input';
+import InputLabel from '@mui/material/InputLabel';
 import Paper from '@mui/material/Paper';
 import { BaseTextFieldProps } from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';

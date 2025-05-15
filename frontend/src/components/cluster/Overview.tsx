@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-import { FormControlLabel, Switch, Theme } from '@mui/material';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import Grid from '@mui/material/Grid';
+import { Theme } from '@mui/material/styles';
+import Switch from '@mui/material/Switch';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
