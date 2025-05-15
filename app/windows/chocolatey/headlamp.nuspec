@@ -8,7 +8,7 @@
     <title>Headlamp</title>
     <authors>Kinvolk</authors>
     <projectUrl>https://github.com/kubernetes-sigs/headlamp/</projectUrl>
-    <iconUrl>http://rawcdn.githack.com/headlamp-k8s/headlamp/main/frontend/public/apple-touch-icon.png</iconUrl>
+    <iconUrl>http://rawcdn.githack.com/jamowei/headlamp/main/frontend/public/apple-touch-icon.png</iconUrl>
     <licenseUrl>https://github.com/kubernetes-sigs/headlamp/blob/main/LICENSE</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <projectSourceUrl>https://github.com/kubernetes-sigs/headlamp/</projectSourceUrl>

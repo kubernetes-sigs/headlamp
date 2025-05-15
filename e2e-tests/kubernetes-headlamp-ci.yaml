@@ -86,7 +86,7 @@ spec:
         - /bin/sh
         - -c
         - mkdir -p /build/plugins && cp -r /plugins/* /build/plugins/
-        image: ghcr.io/headlamp-k8s/headlamp-plugins-test:latest
+        image: ghcr.io/jamowei/headlamp-plugins-test:latest
         imagePullPolicy: Never
         name: headlamp-plugins
         volumeMounts:
@@ -99,7 +99,7 @@ spec:
           runAsGroup: 101
           runAsNonRoot: true
           runAsUser: 100
-        image: "ghcr.io/headlamp-k8s/headlamp:latest"
+        image: "ghcr.io/jamowei/headlamp:latest"
         imagePullPolicy: Never
         args:
         - "-enable-dynamic-clusters"

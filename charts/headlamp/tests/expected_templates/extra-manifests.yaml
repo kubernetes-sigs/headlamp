@@ -115,7 +115,7 @@ spec:
             runAsGroup: 101
             runAsNonRoot: true
             runAsUser: 100
-          image: "ghcr.io/headlamp-k8s/headlamp:v0.30.0"
+          image: "ghcr.io/jamowei/headlamp:v0.30.0"
           imagePullPolicy: IfNotPresent
           
           env:

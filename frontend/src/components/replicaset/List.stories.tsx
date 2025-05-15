@@ -71,7 +71,7 @@ const items = [
           containers: [
             {
               args: ['-in-cluster', '-plugins-dir=/headlamp/plugins'],
-              image: 'ghcr.io/headlamp-k8s/headlamp:latest',
+              image: 'ghcr.io/jamowei/headlamp:latest',
               imagePullPolicy: 'Always',
               livenessProbe: {
                 failureThreshold: 3,
@@ -171,7 +171,7 @@ const items = [
           containers: [
             {
               args: ['-in-cluster', '-plugins-dir=/headlamp/plugins'],
-              image: 'ghcr.io/headlamp-k8s/headlamp:v0.18.0',
+              image: 'ghcr.io/jamowei/headlamp:v0.18.0',
               imagePullPolicy: 'IfNotPresent',
               livenessProbe: {
                 failureThreshold: 3,

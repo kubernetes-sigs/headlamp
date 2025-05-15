@@ -149,14 +149,14 @@
     "name": "Kinvolk",
     "email": "hello@kinvolk.io"
   },
-  "prettier": "@headlamp-k8s/eslint-config/prettier-config",
+  "prettier": "@jamowei/eslint-config/prettier-config",
   "devDependencies": {
     "@babel/cli": "^7.24.8",
     "@babel/core": "^7.24.9",
     "@babel/preset-env": "^7.24.8",
     "@babel/preset-typescript": "^7.24.7",
     "@electron/notarize": "^2.3.2",
-    "@headlamp-k8s/eslint-config": "^0.6.0",
+    "@jamowei/eslint-config": "^0.6.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.14.0",
     "electron": "^31.2.0",

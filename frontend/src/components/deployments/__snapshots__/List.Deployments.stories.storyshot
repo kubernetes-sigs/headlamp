@@ -875,11 +875,11 @@
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1c21yoq-MuiTableCell-root"
                 >
                   <span
-                    aria-label="ghcr.io/headlamp-k8s/headlamp:v0.18.0"
+                    aria-label="ghcr.io/jamowei/headlamp:v0.18.0"
                     class=""
                     data-mui-internal-clone-element="true"
                   >
-                    ghcr.io/headlamp-k8s/headlamp:v0.18.0
+                    ghcr.io/jamowei/headlamp:v0.18.0
                   </span>
                 </td>
                 <td
@@ -1014,11 +1014,11 @@
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1c21yoq-MuiTableCell-root"
                 >
                   <span
-                    aria-label="ghcr.io/headlamp-k8s/headlamp:latest"
+                    aria-label="ghcr.io/jamowei/headlamp:latest"
                     class=""
                     data-mui-internal-clone-element="true"
                   >
-                    ghcr.io/headlamp-k8s/headlamp:latest
+                    ghcr.io/jamowei/headlamp:latest
                   </span>
                 </td>
                 <td
