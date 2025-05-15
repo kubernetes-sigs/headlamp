@@ -529,8 +529,21 @@ export default function PodDetails(props: PodDetailsProps) {
             value: item.status.hostIP ?? '',
           },
           {
+            name: t('Host IPs'),
+            value: item.status.hostIPs
+              ? item.status.hostIPs.map(ipObj => ipObj.ip).join(', ')
+              : '',
+            hideLabel: item.status.hostIPs?.length === 0,
+          },
+          {
             name: t('Pod IP'),
             value: item.status.podIP ?? '',
+          },
+          {
+            name: t('Pod IPs'),
+            value: item.status.podIPs
+              ? item.status.podIPs.map(ipObj => ipObj.ip).join(', ')
+              : ''
           },
           {
             name: t('QoS Class'),
