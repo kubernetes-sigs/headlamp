@@ -22,7 +22,7 @@
     "@iconify/react": "^3.2.1",
     "@monaco-editor/react": "^4.3.1",
     "@mui/icons-material": "^5.16.7",
-    "@mui/lab": "^5.0.0-alpha.152",
+    "@mui/lab": "^5.0.0-alpha.176",
     "@mui/material": "^5.15.14",
     "@mui/system": "^5.15.14",
     "@mui/x-date-pickers": "^7.15.0",
