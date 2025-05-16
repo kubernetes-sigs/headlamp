@@ -38,8 +38,8 @@ import { isElectron } from '../../../helpers/isElectron';
 import { useCluster, useClustersConf } from '../../../lib/k8s';
 import { deleteCluster, parseKubeConfig, renameCluster } from '../../../lib/k8s/apiProxy';
 import { setConfig, setStatelessConfig } from '../../../redux/configSlice';
-import { findKubeconfigByClusterName, updateStatelessClusterKubeconfig } from '../../../stateless/';
-import { Link, Loader, NameValueTable, SectionBox } from '../../common';
+import { findKubeconfigByClusterName, updateStatelessClusterKubeconfig } from '../../../stateless';
+import { ConfirmDialog, Link, Loader, NameValueTable, SectionBox } from '../../common';
 import ConfirmButton from '../../common/ConfirmButton';
 import Empty from '../../common/EmptyContent';
 import NodeShellSettings from './NodeShellSettings';
@@ -101,6 +101,10 @@ export default function SettingsCluster() {
   const [cluster, setCluster] = React.useState(useCluster() || '');
   const clusterFromURLRef = React.useRef('');
   const [newClusterName, setNewClusterName] = React.useState(cluster || '');
+  const [clusterErrorDialogOpen, setClusterErrorDialogOpen] = React.useState(false);
+  const [clusterErrorDialogMessage, setClusterErrorDialogMessage] = React.useState('');
+  const [customNameInUse, setCustomNameInUse] = React.useState(false);
+
   const theme = useTheme();
 
   const history = useHistory();
@@ -108,18 +112,50 @@ export default function SettingsCluster() {
   const location = useLocation();
 
   const clusterInfo = (clusterConf && clusterConf[cluster || '']) || null;
-  const source = clusterInfo?.meta_data?.source || '';
+  const originalName = clusterInfo?.meta_data?.originalName;
+  const displayName = originalName || (clusterInfo ? clusterInfo.name : '');
+  const source = clusterInfo?.meta_data?.source;
+  // Note: display original name is currently only supported for non dynamic clusters from kubeconfig sources.
+  const clusterID = clusterInfo?.meta_data?.clusterID || '';
+
+  // This function is part of a double check, this is meant to check all the cluster names currently in use as display names
+  // Note: if the metadata is not available or does not load, another check is done in the backend to ensure the name is unique in its own config
+  function checkNameInUse(name: string) {
+    if (!clusterConf) {
+      return false;
+    }
+
+    // These are the display names of the clusters, renamed clusters have their display name as the custom name
+    const clusterNames = Object.values(clusterConf).map(cluster => cluster.name);
+
+    // We also include original names from non dynamic clusters if they exist
+    const originalNames = Object.values(clusterConf)
+      .map(cluster => cluster.meta_data?.originalName)
+      .filter(originalName => originalName !== undefined);
+
+    const allNames = [...clusterNames, ...originalNames];
+
+    const nameInUse = allNames.includes(name);
+
+    setCustomNameInUse(nameInUse);
+  }
 
   const handleUpdateClusterName = (source: string) => {
     try {
-      renameCluster(cluster || '', newClusterName, source)
+      renameCluster(cluster || '', newClusterName, source, clusterID)
         .then(async config => {
           if (cluster) {
-            const kubeconfig = await findKubeconfigByClusterName(cluster);
+            const kubeconfig =
+              source === 'kubeconfig'
+                ? await findKubeconfigByClusterName(cluster, clusterID)
+                : await findKubeconfigByClusterName(cluster);
             if (kubeconfig !== null) {
               await updateStatelessClusterKubeconfig(kubeconfig, newClusterName, cluster);
               // Make another request for updated kubeconfig
-              const updatedKubeconfig = await findKubeconfigByClusterName(cluster);
+              const updatedKubeconfig =
+                source === 'kubeconfig'
+                  ? await findKubeconfigByClusterName(cluster, clusterID)
+                  : await findKubeconfigByClusterName(cluster);
               if (updatedKubeconfig !== null) {
                 parseKubeConfig({ kubeconfig: updatedKubeconfig })
                   .then((config: any) => {
@@ -139,6 +175,8 @@ export default function SettingsCluster() {
         })
         .catch((err: Error) => {
           console.error('Error updating cluster name:', err.message);
+          setClusterErrorDialogMessage(err.message);
+          setClusterErrorDialogOpen(true);
         });
     } catch (error) {
       console.error('Error updating cluster name:', error);
@@ -287,6 +325,10 @@ export default function SettingsCluster() {
     "translation|Cluster name must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character."
   );
 
+  const clusterNameInUseMessage = t(
+    'translation|This custom name is already in use, please choose a different name.'
+  );
+
   // If we don't have yet a cluster name from the URL, we are still loading.
   if (!clusterFromURLRef.current) {
     return <Loader title="Loading" />;
@@ -325,6 +367,53 @@ export default function SettingsCluster() {
     );
   }
 
+  function ClusterErrorDialog() {
+    return (
+      <ConfirmDialog
+        onConfirm={() => {
+          setClusterErrorDialogOpen(false);
+        }}
+        handleClose={() => {
+          setClusterErrorDialogOpen(false);
+        }}
+        hideNoButton
+        open={clusterErrorDialogOpen}
+        title={t('translation|Error')}
+        description={clusterErrorDialogMessage}
+        confirmLabel={t('translation|Okay')}
+      ></ConfirmDialog>
+    );
+  }
+
+  // Display the original name of the cluster if it was loaded from a kubeconfig file.
+  function ClusterName() {
+    return (
+      <>
+        {clusterErrorDialogOpen && <ClusterErrorDialog />}
+        <Typography>{t('translation|Name')}</Typography>
+        {displayName && (
+          <Typography variant="body2" color="textSecondary">
+            {t('translation|Original name: {{ displayName }}', {
+              displayName: displayName,
+            })}
+          </Typography>
+        )}
+      </>
+    );
+  }
+
+  function handleHelperText() {
+    if (!isValidCurrentName) {
+      return invalidClusterNameMessage;
+    }
+
+    if (customNameInUse) {
+      return clusterNameInUseMessage;
+    }
+
+    return t('translation|The current name of the cluster. You can define a custom name.');
+  }
+
   return (
     <>
       <SectionBox title={t('translation|Cluster Settings')} backLink>
@@ -342,24 +431,19 @@ export default function SettingsCluster() {
           <NameValueTable
             rows={[
               {
-                name: t('translation|Name'),
+                name: <ClusterName />,
                 value: (
                   <TextField
                     onChange={event => {
                       let value = event.target.value;
                       value = value.replace(' ', '');
                       setNewClusterName(value);
+                      checkNameInUse(value);
                     }}
                     value={newClusterName}
                     placeholder={cluster}
-                    error={!isValidCurrentName}
-                    helperText={
-                      isValidCurrentName
-                        ? t(
-                            'translation|The current name of the cluster. You can define a custom name.'
-                          )
-                        : invalidClusterNameMessage
-                    }
+                    error={!isValidCurrentName || customNameInUse}
+                    helperText={handleHelperText()}
                     InputProps={{
                       endAdornment: (
                         <Box pt={2} textAlign="right">
@@ -372,9 +456,9 @@ export default function SettingsCluster() {
                             confirmTitle={t('translation|Change name')}
                             confirmDescription={t(
                               'translation|Are you sure you want to change the name for "{{ clusterName }}"?',
-                              { clusterName: cluster }
+                              { clusterName: displayName }
                             )}
-                            disabled={!newClusterName || !isValidCurrentName}
+                            disabled={!newClusterName || !isValidCurrentName || customNameInUse}
                           >
                             {t('translation|Apply')}
                           </ConfirmButton>
