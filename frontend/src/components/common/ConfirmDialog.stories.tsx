@@ -42,3 +42,12 @@ ConfirmDialogClosed.args = {
   title: 'A fine title',
   description: 'A really good description.',
 };
+
+export const ConfirmDialogCancelHidden = Template.bind({});
+ConfirmDialogCancelHidden.args = {
+  open: true,
+  title: 'A fine title',
+  description: 'A really good description.',
+  hideCancelButton: true,
+  confirmLabel: 'Confirm',
+};

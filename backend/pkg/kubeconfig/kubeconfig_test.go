@@ -3,6 +3,7 @@ package kubeconfig_test
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -84,6 +85,27 @@ func TestLoadContextsFromKubeConfigFile(t *testing.T) {
 		require.Equal(t, 1, len(contexts), "Expected 1 contexts from the partially valid file")
 		require.Equal(t, "valid-context", contexts[0].Name, "Expected context name to be 'valid-context'")
 	})
+}
+
+// TestLoadContextFromFile validates the behavior of the LoadContextsFromFile function.
+//
+// This test ensures that the function correctly processes a valid kubeconfig file
+// and produces the expected metadata results without errors.
+func TestLoadContextFromFile(t *testing.T) {
+	kubeConfigFile := "./test_data/kubeconfig_metadata"
+
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig)
+
+	require.NoError(t, err, "Expected no error for valid file")
+	require.Empty(t, contextErrors, "Expected no context errors for valid file")
+	require.Equal(t, 2, len(contexts), "Expected 2 contexts from valid file")
+
+	expectedNames := []string{"random-cluster-x", "random-cluster-y"}
+	for _, ctx := range contexts {
+		assert.Contains(t, expectedNames, ctx.Name, "Unexpected context name")
+		assert.Equal(t, kubeConfigFile, ctx.KubeConfigPath, "Unexpected kubeconfig path")
+		assert.Equal(t, fmt.Sprintf("%s:%s", kubeConfigFile, ctx.Name), ctx.ClusterID, "Unexpected ClusterID")
+	}
 }
 
 func TestContext(t *testing.T) {

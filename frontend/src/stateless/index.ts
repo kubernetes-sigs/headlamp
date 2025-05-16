@@ -222,13 +222,62 @@ export function getStatelessClusterKubeConfigs(): Promise<string[]> {
 }
 
 /**
+ * Finds the kubeconfig and context with the matching cluster name or custom name in headlamp_info.
+ * @param clusterID The ID for a cluster, composed of the kubeconfig path and cluster name
+ * @param clusterName The name of the cluster to find.
+ * @param parsedKubeconfig The parsed kubeconfig object.
+ * @returns An object containing the matching kubeconfig and context.
+ */
+function findMatchingContexts(
+  clusterName: string,
+  parsedKubeconfig: KubeconfigObject,
+  clusterID?: string
+) {
+  let matchingContext;
+  let matchingKubeconfig;
+
+  // Note: currently clusterID is being used for non dynamic clusters only
+  if (clusterID) {
+    // Find source for the kubeconfig
+    const source = parsedKubeconfig.contexts.find(
+      context => context.context.clusterID === clusterID
+    )?.context.source;
+
+    // Find the context with the matching clusterID
+    if (source === 'kubeconfig') {
+      matchingKubeconfig = parsedKubeconfig.contexts.find(
+        context => context.context.clusterID === clusterID
+      );
+    }
+  } else {
+    // Find the context with the matching cluster name or custom name in headlamp_info
+    matchingContext = parsedKubeconfig.contexts.find(
+      context =>
+        context.name === clusterName ||
+        context.context.extensions?.find(extension => extension.name === 'headlamp_info')?.extension
+          .customName === clusterName
+    );
+
+    matchingKubeconfig = parsedKubeconfig.contexts.find(context => context.name === clusterName);
+  }
+
+  return { matchingKubeconfig, matchingContext };
+}
+
+/**
  * Finds a kubeconfig by cluster name.
- * @param clusterName
+ * @param clusterName The name of the cluster to find.
+ * @param clusterID The ID for a cluster, composed of the kubeconfig path and cluster name
  * @returns A promise that resolves with the kubeconfig, or null if not found.
  * @throws Error if IndexedDB is not supported.
  * @throws Error if the kubeconfig is invalid.
  */
-export function findKubeconfigByClusterName(clusterName: string): Promise<string | null> {
+export function findKubeconfigByClusterName(
+  /** The name of the cluster to find */
+  clusterName: string,
+  /** The ID for a cluster, composed of the kubeconfig path and cluster name */
+  clusterID?: string
+): Promise<string | null> {
   return new Promise<string | null>(async (resolve, reject) => {
     try {
       const request = indexedDB.open('kubeconfigs', 1) as any;
@@ -257,14 +306,11 @@ export function findKubeconfigByClusterName(clusterName: string): Promise<string
 
             const parsedKubeconfig = jsyaml.load(atob(kubeconfig)) as KubeconfigObject;
             // Check for "headlamp_info" in extensions
-            const matchingContext = parsedKubeconfig.contexts.find(
-              context =>
-                context.context.extensions?.find(extension => extension.name === 'headlamp_info')
-                  ?.extension.customName === clusterName
-            );
 
-            const matchingKubeconfig = parsedKubeconfig.contexts.find(
-              context => context.name === clusterName
+            const { matchingKubeconfig, matchingContext } = findMatchingContexts(
+              clusterName,
+              parsedKubeconfig,
+              clusterID
             );
 
             if (matchingKubeconfig || matchingContext) {
