@@ -21,7 +21,14 @@ import { useHistory } from 'react-router';
 import { filterGeneric, filterResource } from '../redux/filterSlice';
 import { useTypedSelector } from '../redux/reducers/reducers';
 import store from '../redux/stores/store';
-import { getCluster, getClusterGroup, getClusterPrefixedPath } from './cluster';
+import {
+  formatClusterPathParam,
+  getCluster,
+  getClusterGroup,
+  getClusterPathParam,
+  getClusterPrefixedPath,
+  getSelectedClusters,
+} from './cluster';
 import { ApiError } from './k8s/apiProxy';
 import { KubeMetrics } from './k8s/cluster';
 import { KubeEvent } from './k8s/event';
@@ -31,7 +38,16 @@ import { Workload } from './k8s/Workload';
 import { parseCpu, parseRam, unparseCpu, unparseRam } from './units';
 
 // Exported to keep compatibility for plugins that may have used them.
-export { filterGeneric, filterResource, getClusterPrefixedPath, getCluster, getClusterGroup };
+export {
+  filterGeneric,
+  filterResource,
+  getClusterPrefixedPath,
+  getCluster,
+  getClusterGroup,
+  getSelectedClusters,
+  getClusterPathParam,
+  formatClusterPathParam,
+};
 
 const humanize = humanizeDuration.humanizer();
 humanize.languages['en-mini'] = {
