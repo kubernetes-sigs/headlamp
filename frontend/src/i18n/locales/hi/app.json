@@ -1,392 +1,392 @@
 {
-    "table": {
-      "name": "नाम",
-      "namespace": "नेमस्पेस",
-      "created": "बनाया गया",
-      "age": "आयु",
-      "status": "स्थिति",
-      "labels": "लेबल",
-      "type": "प्रकार",
-      "ready": "तैयार",
-      "restarts": "पुनरारंभ",
-      "node": "नोड",
-      "ip": "आईपी",
-      "reason": "कारण",
-      "message": "संदेश",
-      "noMatchingItems": "कोई मिलान वाली वस्तुएँ नहीं मिलीं",
-      "noItems": "कोई वस्तुएँ नहीं हैं",
-      "actions": "कार्य",
-      "details": "विवरण",
-      "empty": "खाली",
-      "loading": "लोड हो रहा है..."
-    },
-    "pod": {
-      "logs": {
-        "title": "लॉग्स",
-        "selectContainer": "कंटेनर चुनें",
-        "tailLines": "पंक्तियाँ दिखाएँ",
-        "all": "सभी",
-        "since": "इससे पहले से",
-        "download": "डाउनलोड",
-        "autoRefresh": "स्वतः ताज़ा करें",
-        "timestamp": "समय स्टाम्प",
-        "wrapLines": "पंक्तियाँ लपेटें",
-        "previousLogs": "पिछले लॉग्स"
-      },
-      "details": {
-        "title": "पॉड विवरण",
-        "containers": "कंटेनर",
-        "status": "स्थिति",
-        "conditions": "शर्तें",
-        "volumeMounts": "वॉल्यूम माउंट",
-        "volumes": "वॉल्यूम्स",
-        "tolerations": "टॉलरेशन्स"
-      },
-      "status": {
-        "running": "चल रहा है",
-        "pending": "प्रतीक्षारत",
-        "succeeded": "सफल",
-        "failed": "विफल",
-        "unknown": "अज्ञात",
-        "completed": "पूर्ण",
-        "crashLoopBackOff": "क्रैश लूप बैकऑफ",
-        "error": "त्रुटि",
-        "evicted": "निष्कासित",
-        "creating": "बन रहा है"
-      },
-      "deleteDialog": {
-        "title": "पॉड हटाएँ",
-        "message": "क्या आप वाकई पॉड '{{name}}' को हटाना चाहते हैं?",
-        "force": "बलपूर्वक हटाएँ",
-        "gracePeriod": "ग्रेस अवधि (सेकंड में)"
-      }
-    },
-    "node": {
-      "details": {
-        "title": "नोड विवरण",
-        "conditions": "शर्तें",
-        "addresses": "पते",
-        "capacity": "क्षमता",
-        "allocatable": "आवंटन योग्य",
-        "systemInfo": "सिस्टम जानकारी",
-        "images": "छवियाँ",
-        "roles": "भूमिकाएँ"
-      },
-      "status": {
-        "ready": "तैयार",
-        "notReady": "तैयार नहीं",
-        "unknown": "अज्ञात",
-        "schedulingDisabled": "शेड्यूलिंग अक्षम"
-      }
-    },
-    "deployment": {
-      "details": {
-        "title": "डिप्लॉयमेंट विवरण",
-        "strategy": "रणनीति",
-        "replicas": "रेप्लिकाज़",
-        "conditions": "शर्तें",
-        "pods": "पॉड्स",
-        "selector": "सेलेक्टर",
-        "containers": "कंटेनर"
-      },
-      "status": {
-        "available": "उपलब्ध",
-        "progressing": "प्रगति पर",
-        "replicaFailure": "रेप्लिका विफलता"
-      }
-    },
-    "service": {
-      "details": {
-        "title": "सर्विस विवरण",
-        "type": "प्रकार",
-        "clusterIP": "क्लस्टर आईपी",
-        "externalIP": "बाहरी आईपी",
-        "ports": "पोर्ट्स",
-        "selector": "सेलेक्टर",
-        "endpoints": "एंडपॉइंट्स"
-      },
-      "types": {
-        "clusterIP": "क्लस्टर आईपी",
-        "nodePort": "नोड पोर्ट",
-        "loadBalancer": "लोड बैलेंसर",
-        "externalName": "बाहरी नाम"
-      }
-    },
-    "ingress": {
-      "details": {
-        "title": "इंग्रेस विवरण",
-        "rules": "नियम",
-        "tls": "टीएलएस",
-        "backend": "बैकएंड",
-        "host": "होस्ट",
-        "path": "पथ"
-      }
-    },
-    "namespace": {
-      "details": {
-        "title": "नेमस्पेस विवरण",
-        "status": "स्थिति",
-        "resourceQuota": "संसाधन कोटा",
-        "limitRange": "सीमा रेंज"
-      },
-      "status": {
-        "active": "सक्रिय",
-        "terminating": "समाप्त हो रहा है"
-      }
-    },
-    "configmap": {
-      "details": {
-        "title": "कॉन्फिगमैप विवरण",
-        "data": "डेटा"
-      }
-    },
-    "secret": {
-      "details": {
-        "title": "सीक्रेट विवरण",
-        "type": "प्रकार",
-        "data": "डेटा",
-        "decoded": "डिकोड किया गया",
-        "encoded": "एनकोड किया गया"
-      },
-      "types": {
-        "opaque": "अपारदर्शी",
-        "dockerconfigjson": "डॉकर कॉन्फिग",
-        "basic-auth": "बेसिक ऑथ",
-        "ssh-auth": "एसएसएच ऑथ",
-        "tls": "टीएलएस",
-        "bootstrap": "बूटस्ट्रैप",
-        "service-account-token": "सर्विस अकाउंट टोकन"
-      }
-    },
-    "persistentVolume": {
-      "details": {
-        "title": "परसिस्टेंट वॉल्यूम विवरण",
-        "capacity": "क्षमता",
-        "accessModes": "एक्सेस मोड",
-        "reclaimPolicy": "रिक्लेम पॉलिसी",
-        "storageClass": "स्टोरेज क्लास",
-        "persistentVolumeClaim": "परसिस्टेंट वॉल्यूम क्लेम",
-        "mountOptions": "माउंट विकल्प",
-        "status": "स्थिति"
-      },
-      "accessModes": {
-        "readWriteOnce": "रीड राइट वन्स",
-        "readOnlyMany": "रीड ओनली मेनी",
-        "readWriteMany": "रीड राइट मेनी"
-      },
-      "status": {
-        "available": "उपलब्ध",
-        "bound": "बाउंड",
-        "released": "रिलीज्ड",
-        "failed": "विफल"
-      }
-    },
-    "persistentVolumeClaim": {
-      "details": {
-        "title": "परसिस्टेंट वॉल्यूम क्लेम विवरण",
-        "accessModes": "एक्सेस मोड",
-        "volumeName": "वॉल्यूम नाम",
-        "storageClass": "स्टोरेज क्लास",
-        "capacity": "क्षमता",
-        "status": "स्थिति"
-      },
-      "status": {
-        "pending": "प्रतीक्षारत",
-        "bound": "बाउंड",
-        "lost": "खोया हुआ"
-      }
-    },
-    "storageClass": {
-      "details": {
-        "title": "स्टोरेज क्लास विवरण",
-        "provisioner": "प्रोविजनर",
-        "reclaimPolicy": "रिक्लेम पॉलिसी",
-        "volumeBindingMode": "वॉल्यूम बाइंडिंग मोड",
-        "parameters": "पैरामीटर"
-      },
-      "reclaimPolicy": {
-        "delete": "हटाएँ",
-        "retain": "रखें"
-      },
-      "volumeBindingMode": {
-        "immediate": "तत्काल",
-        "waitForFirstConsumer": "पहले उपभोक्ता के लिए प्रतीक्षा करें"
-      }
-    },
-    "role": {
-      "details": {
-        "title": "रोल विवरण",
-        "rules": "नियम"
-      }
-    },
-    "clusterRole": {
-      "details": {
-        "title": "क्लस्टर रोल विवरण",
-        "rules": "नियम"
-      }
-    },
-    "roleBinding": {
-      "details": {
-        "title": "रोल बाइंडिंग विवरण",
-        "role": "रोल",
-        "subjects": "विषय"
-      }
-    },
-    "clusterRoleBinding": {
-      "details": {
-        "title": "क्लस्टर रोल बाइंडिंग विवरण",
-        "role": "रोल",
-        "subjects": "विषय"
-      }
-    },
-    "serviceAccount": {
-      "details": {
-        "title": "सर्विस अकाउंट विवरण",
-        "secrets": "सीक्रेट्स"
-      }
-    },
-    "settings": {
-      "title": "सेटिंग्स",
-      "general": {
-        "title": "सामान्य",
-        "language": "भाषा",
-        "theme": "थीम",
-        "lightTheme": "हल्का",
-        "darkTheme": "गहरा",
-        "resourceDetailsView": "संसाधन विवरण दृश्य",
-        "sidebar": "साइडबार",
-        "table": "तालिका",
-        "rowsPerPage": "प्रति पृष्ठ पंक्तियाँ",
-        "timeFormat": "समय प्रारूप",
-        "timezone": "समय क्षेत्र",
-        "sortSidebarAlphabetically": "साइडबार को वर्णानुक्रम में क्रमबद्ध करें"
-      },
-      "cluster": {
-        "title": "क्लस्टर",
-        "addCluster": "क्लस्टर जोड़ें",
-        "editCluster": "क्लस्टर संपादित करें",
-        "removeCluster": "क्लस्टर हटाएँ",
-        "defaultNamespace": "डिफ़ॉल्ट नेमस्पेस",
-        "allowedNamespaces": "अनुमति प्राप्त नेमस्पेस",
-        "clusterName": "क्लस्टर नाम",
-        "kubeConfig": "कुबे कॉन्फिग",
-        "contextName": "कॉन्टेक्स्ट नाम",
-        "apiserverURL": "एपीआई सर्वर यूआरएल",
-        "certificate": "सर्टिफिकेट",
-        "token": "टोकन",
-        "authType": "प्रमाणीकरण प्रकार",
-        "skipTLSVerify": "टीएलएस सत्यापन छोड़ें",
-        "uploadKubeConfig": "कुबेकॉन्फिग अपलोड करें",
-        "kubeConfigInfo": "आप इसके द्वारा क्लस्टर जोड़ सकते हैं:",
-        "kubeConfigFile": "कुबेकॉन्फिग फ़ाइल",
-        "enterValues": "मान दर्ज करें",
-        "error": {
-          "missingName": "क्लस्टर का नाम आवश्यक है",
-          "duplicateName": "इस नाम का क्लस्टर पहले से मौजूद है",
-          "invalidConfig": "अमान्य कुबेकॉन्फिग",
-          "connectionFailed": "कनेक्शन विफल"
-        }
-      },
-      "plugins": {
-        "title": "प्लगइन्स",
-        "installed": "स्थापित",
-        "available": "उपलब्ध",
-        "install": "स्थापित करें",
-        "uninstall": "अनइंस्टॉल करें",
-        "update": "अपडेट करें",
-        "author": "लेखक",
-        "version": "संस्करण",
-        "description": "विवरण",
-        "learnMore": "अधिक जानें"
-      }
-    },
-    "login": {
-      "title": "लॉगिन",
-      "kubeconfig": "कुबेकॉन्फिग",
-      "oidc": "OIDC",
-      "token": "टोकन",
-      "basic": "बेसिक",
-      "certificate": "सर्टिफिकेट",
-      "username": "उपयोगकर्ता नाम",
-      "password": "पासवर्ड",
-      "login": "लॉगिन",
-      "error": {
-        "invalidCredentials": "अमान्य क्रेडेंशियल",
-        "sessionExpired": "सत्र समाप्त हो गया है"
-      }
-    },
-    "error": {
-      "title": "त्रुटि",
-      "notFound": "पृष्ठ नहीं मिला",
-      "unauthorized": "अनधिकृत",
-      "forbidden": "निषिद्ध",
-      "serverError": "सर्वर त्रुटि",
-      "connectionFailed": "कनेक्शन विफल",
-      "timeout": "समय समाप्त",
-      "unknown": "अज्ञात त्रुटि",
-      "goBack": "वापस जाएँ",
-      "retry": "पुनः प्रयास करें"
-    },
-    "common": {
-      "yes": "हां",
-      "no": "नहीं",
-      "ok": "ठीक है",
-      "cancel": "रद्द करें",
-      "save": "सहेजें",
-      "close": "बंद करें",
-      "edit": "संपादित करें",
-      "delete": "हटाएँ",
-      "create": "बनाएँ",
-      "add": "जोड़ें",
-      "remove": "हटाएँ",
-      "loading": "लोड हो रहा है...",
-      "refresh": "ताज़ा करें",
-      "search": "खोज",
-      "filter": "फ़िल्टर",
-      "name": "नाम",
-      "description": "विवरण",
-      "status": "स्थिति",
-      "type": "प्रकार",
-      "created": "बनाया गया",
-      "age": "आयु",
-      "none": "कोई नहीं",
+  "table": {
+    "name": "नाम",
+    "namespace": "नेमस्पेस",
+    "created": "बनाया गया",
+    "age": "आयु",
+    "status": "स्थिति",
+    "labels": "लेबल",
+    "type": "प्रकार",
+    "ready": "तैयार",
+    "restarts": "पुनरारंभ",
+    "node": "नोड",
+    "ip": "आईपी",
+    "reason": "कारण",
+    "message": "संदेश",
+    "noMatchingItems": "कोई मिलान वाली वस्तुएँ नहीं मिलीं",
+    "noItems": "कोई वस्तुएँ नहीं हैं",
+    "actions": "कार्य",
+    "details": "विवरण",
+    "empty": "खाली",
+    "loading": "लोड हो रहा है..."
+  },
+  "pod": {
+    "logs": {
+      "title": "लॉग्स",
+      "selectContainer": "कंटेनर चुनें",
+      "tailLines": "पंक्तियाँ दिखाएँ",
       "all": "सभी",
-      "empty": "खाली",
+      "since": "इससे पहले से",
+      "download": "डाउनलोड",
+      "autoRefresh": "स्वतः ताज़ा करें",
+      "timestamp": "समय स्टाम्प",
+      "wrapLines": "पंक्तियाँ लपेटें",
+      "previousLogs": "पिछले लॉग्स"
+    },
+    "details": {
+      "title": "पॉड विवरण",
+      "containers": "कंटेनर",
+      "status": "स्थिति",
+      "conditions": "शर्तें",
+      "volumeMounts": "वॉल्यूम माउंट",
+      "volumes": "वॉल्यूम्स",
+      "tolerations": "टॉलरेशन्स"
+    },
+    "status": {
+      "running": "चल रहा है",
+      "pending": "प्रतीक्षारत",
+      "succeeded": "सफल",
+      "failed": "विफल",
       "unknown": "अज्ञात",
-      "enabled": "सक्षम",
-      "disabled": "अक्षम",
-      "more": "अधिक",
-      "less": "कम",
-      "details": "विवरण",
-      "info": "जानकारी",
-      "warning": "चेतावनी",
+      "completed": "पूर्ण",
+      "crashLoopBackOff": "क्रैश लूप बैकऑफ",
       "error": "त्रुटि",
-      "success": "सफलता",
-      "namespace": "नेमस्पेस",
-      "cluster": "क्लस्टर",
-      "resource": "संसाधन",
-      "configuration": "कॉन्फिगरेशन",
-      "settings": "सेटिंग्स",
-      "general": "सामान्य",
-      "advanced": "उन्नत",
-      "help": "सहायता",
-      "about": "के बारे में",
-      "documentation": "दस्तावेज़ीकरण",
-      "version": "संस्करण",
-      "confirm": "पुष्टि करें",
-      "areYouSure": "क्या आप निश्चित हैं?",
-      "thisActionCannotBeUndone": "यह क्रिया पूर्ववत नहीं की जा सकती है",
-      "actions": "कार्य",
-      "optional": "वैकल्पिक",
-      "required": "आवश्यक",
-      "default": "डिफ़ॉल्ट",
-      "custom": "कस्टम",
-      "minutes": "मिनट",
-      "seconds": "सेकंड",
-      "hours": "घंटे",
-      "days": "दिन",
-      "weeks": "सप्ताह",
-      "months": "महीने",
-      "years": "वर्ष"
+      "evicted": "निष्कासित",
+      "creating": "बन रहा है"
+    },
+    "deleteDialog": {
+      "title": "पॉड हटाएँ",
+      "message": "क्या आप वाकई पॉड '{{name}}' को हटाना चाहते हैं?",
+      "force": "बलपूर्वक हटाएँ",
+      "gracePeriod": "ग्रेस अवधि (सेकंड में)"
     }
+  },
+  "node": {
+    "details": {
+      "title": "नोड विवरण",
+      "conditions": "शर्तें",
+      "addresses": "पते",
+      "capacity": "क्षमता",
+      "allocatable": "आवंटन योग्य",
+      "systemInfo": "सिस्टम जानकारी",
+      "images": "छवियाँ",
+      "roles": "भूमिकाएँ"
+    },
+    "status": {
+      "ready": "तैयार",
+      "notReady": "तैयार नहीं",
+      "unknown": "अज्ञात",
+      "schedulingDisabled": "शेड्यूलिंग अक्षम"
+    }
+  },
+  "deployment": {
+    "details": {
+      "title": "डिप्लॉयमेंट विवरण",
+      "strategy": "रणनीति",
+      "replicas": "रेप्लिकाज़",
+      "conditions": "शर्तें",
+      "pods": "पॉड्स",
+      "selector": "सेलेक्टर",
+      "containers": "कंटेनर"
+    },
+    "status": {
+      "available": "उपलब्ध",
+      "progressing": "प्रगति पर",
+      "replicaFailure": "रेप्लिका विफलता"
+    }
+  },
+  "service": {
+    "details": {
+      "title": "सर्विस विवरण",
+      "type": "प्रकार",
+      "clusterIP": "क्लस्टर आईपी",
+      "externalIP": "बाहरी आईपी",
+      "ports": "पोर्ट्स",
+      "selector": "सेलेक्टर",
+      "endpoints": "एंडपॉइंट्स"
+    },
+    "types": {
+      "clusterIP": "क्लस्टर आईपी",
+      "nodePort": "नोड पोर्ट",
+      "loadBalancer": "लोड बैलेंसर",
+      "externalName": "बाहरी नाम"
+    }
+  },
+  "ingress": {
+    "details": {
+      "title": "इंग्रेस विवरण",
+      "rules": "नियम",
+      "tls": "टीएलएस",
+      "backend": "बैकएंड",
+      "host": "होस्ट",
+      "path": "पथ"
+    }
+  },
+  "namespace": {
+    "details": {
+      "title": "नेमस्पेस विवरण",
+      "status": "स्थिति",
+      "resourceQuota": "संसाधन कोटा",
+      "limitRange": "सीमा रेंज"
+    },
+    "status": {
+      "active": "सक्रिय",
+      "terminating": "समाप्त हो रहा है"
+    }
+  },
+  "configmap": {
+    "details": {
+      "title": "कॉन्फिगमैप विवरण",
+      "data": "डेटा"
+    }
+  },
+  "secret": {
+    "details": {
+      "title": "सीक्रेट विवरण",
+      "type": "प्रकार",
+      "data": "डेटा",
+      "decoded": "डिकोड किया गया",
+      "encoded": "एनकोड किया गया"
+    },
+    "types": {
+      "opaque": "अपारदर्शी",
+      "dockerconfigjson": "डॉकर कॉन्फिग",
+      "basic-auth": "बेसिक ऑथ",
+      "ssh-auth": "एसएसएच ऑथ",
+      "tls": "टीएलएस",
+      "bootstrap": "बूटस्ट्रैप",
+      "service-account-token": "सर्विस अकाउंट टोकन"
+    }
+  },
+  "persistentVolume": {
+    "details": {
+      "title": "परसिस्टेंट वॉल्यूम विवरण",
+      "capacity": "क्षमता",
+      "accessModes": "एक्सेस मोड",
+      "reclaimPolicy": "रिक्लेम पॉलिसी",
+      "storageClass": "स्टोरेज क्लास",
+      "persistentVolumeClaim": "परसिस्टेंट वॉल्यूम क्लेम",
+      "mountOptions": "माउंट विकल्प",
+      "status": "स्थिति"
+    },
+    "accessModes": {
+      "readWriteOnce": "रीड राइट वन्स",
+      "readOnlyMany": "रीड ओनली मेनी",
+      "readWriteMany": "रीड राइट मेनी"
+    },
+    "status": {
+      "available": "उपलब्ध",
+      "bound": "बाउंड",
+      "released": "रिलीज्ड",
+      "failed": "विफल"
+    }
+  },
+  "persistentVolumeClaim": {
+    "details": {
+      "title": "परसिस्टेंट वॉल्यूम क्लेम विवरण",
+      "accessModes": "एक्सेस मोड",
+      "volumeName": "वॉल्यूम नाम",
+      "storageClass": "स्टोरेज क्लास",
+      "capacity": "क्षमता",
+      "status": "स्थिति"
+    },
+    "status": {
+      "pending": "प्रतीक्षारत",
+      "bound": "बाउंड",
+      "lost": "खोया हुआ"
+    }
+  },
+  "storageClass": {
+    "details": {
+      "title": "स्टोरेज क्लास विवरण",
+      "provisioner": "प्रोविजनर",
+      "reclaimPolicy": "रिक्लेम पॉलिसी",
+      "volumeBindingMode": "वॉल्यूम बाइंडिंग मोड",
+      "parameters": "पैरामीटर"
+    },
+    "reclaimPolicy": {
+      "delete": "हटाएँ",
+      "retain": "रखें"
+    },
+    "volumeBindingMode": {
+      "immediate": "तत्काल",
+      "waitForFirstConsumer": "पहले उपभोक्ता के लिए प्रतीक्षा करें"
+    }
+  },
+  "role": {
+    "details": {
+      "title": "रोल विवरण",
+      "rules": "नियम"
+    }
+  },
+  "clusterRole": {
+    "details": {
+      "title": "क्लस्टर रोल विवरण",
+      "rules": "नियम"
+    }
+  },
+  "roleBinding": {
+    "details": {
+      "title": "रोल बाइंडिंग विवरण",
+      "role": "रोल",
+      "subjects": "विषय"
+    }
+  },
+  "clusterRoleBinding": {
+    "details": {
+      "title": "क्लस्टर रोल बाइंडिंग विवरण",
+      "role": "रोल",
+      "subjects": "विषय"
+    }
+  },
+  "serviceAccount": {
+    "details": {
+      "title": "सर्विस अकाउंट विवरण",
+      "secrets": "सीक्रेट्स"
+    }
+  },
+  "settings": {
+    "title": "सेटिंग्स",
+    "general": {
+      "title": "सामान्य",
+      "language": "भाषा",
+      "theme": "थीम",
+      "lightTheme": "हल्का",
+      "darkTheme": "गहरा",
+      "resourceDetailsView": "संसाधन विवरण दृश्य",
+      "sidebar": "साइडबार",
+      "table": "तालिका",
+      "rowsPerPage": "प्रति पृष्ठ पंक्तियाँ",
+      "timeFormat": "समय प्रारूप",
+      "timezone": "समय क्षेत्र",
+      "sortSidebarAlphabetically": "साइडबार को वर्णानुक्रम में क्रमबद्ध करें"
+    },
+    "cluster": {
+      "title": "क्लस्टर",
+      "addCluster": "क्लस्टर जोड़ें",
+      "editCluster": "क्लस्टर संपादित करें",
+      "removeCluster": "क्लस्टर हटाएँ",
+      "defaultNamespace": "डिफ़ॉल्ट नेमस्पेस",
+      "allowedNamespaces": "अनुमति प्राप्त नेमस्पेस",
+      "clusterName": "क्लस्टर नाम",
+      "kubeConfig": "कुबे कॉन्फिग",
+      "contextName": "कॉन्टेक्स्ट नाम",
+      "apiserverURL": "एपीआई सर्वर यूआरएल",
+      "certificate": "सर्टिफिकेट",
+      "token": "टोकन",
+      "authType": "प्रमाणीकरण प्रकार",
+      "skipTLSVerify": "टीएलएस सत्यापन छोड़ें",
+      "uploadKubeConfig": "कुबेकॉन्फिग अपलोड करें",
+      "kubeConfigInfo": "आप इसके द्वारा क्लस्टर जोड़ सकते हैं:",
+      "kubeConfigFile": "कुबेकॉन्फिग फ़ाइल",
+      "enterValues": "मान दर्ज करें",
+      "error": {
+        "missingName": "क्लस्टर का नाम आवश्यक है",
+        "duplicateName": "इस नाम का क्लस्टर पहले से मौजूद है",
+        "invalidConfig": "अमान्य कुबेकॉन्फिग",
+        "connectionFailed": "कनेक्शन विफल"
+      }
+    },
+    "plugins": {
+      "title": "प्लगइन्स",
+      "installed": "स्थापित",
+      "available": "उपलब्ध",
+      "install": "स्थापित करें",
+      "uninstall": "अनइंस्टॉल करें",
+      "update": "अपडेट करें",
+      "author": "लेखक",
+      "version": "संस्करण",
+      "description": "विवरण",
+      "learnMore": "अधिक जानें"
+    }
+  },
+  "login": {
+    "title": "लॉगिन",
+    "kubeconfig": "कुबेकॉन्फिग",
+    "oidc": "OIDC",
+    "token": "टोकन",
+    "basic": "बेसिक",
+    "certificate": "सर्टिफिकेट",
+    "username": "उपयोगकर्ता नाम",
+    "password": "पासवर्ड",
+    "login": "लॉगिन",
+    "error": {
+      "invalidCredentials": "अमान्य क्रेडेंशियल",
+      "sessionExpired": "सत्र समाप्त हो गया है"
+    }
+  },
+  "error": {
+    "title": "त्रुटि",
+    "notFound": "पृष्ठ नहीं मिला",
+    "unauthorized": "अनधिकृत",
+    "forbidden": "निषिद्ध",
+    "serverError": "सर्वर त्रुटि",
+    "connectionFailed": "कनेक्शन विफल",
+    "timeout": "समय समाप्त",
+    "unknown": "अज्ञात त्रुटि",
+    "goBack": "वापस जाएँ",
+    "retry": "पुनः प्रयास करें"
+  },
+  "common": {
+    "yes": "हां",
+    "no": "नहीं",
+    "ok": "ठीक है",
+    "cancel": "रद्द करें",
+    "save": "सहेजें",
+    "close": "बंद करें",
+    "edit": "संपादित करें",
+    "delete": "हटाएँ",
+    "create": "बनाएँ",
+    "add": "जोड़ें",
+    "remove": "हटाएँ",
+    "loading": "लोड हो रहा है...",
+    "refresh": "ताज़ा करें",
+    "search": "खोज",
+    "filter": "फ़िल्टर",
+    "name": "नाम",
+    "description": "विवरण",
+    "status": "स्थिति",
+    "type": "प्रकार",
+    "created": "बनाया गया",
+    "age": "आयु",
+    "none": "कोई नहीं",
+    "all": "सभी",
+    "empty": "खाली",
+    "unknown": "अज्ञात",
+    "enabled": "सक्षम",
+    "disabled": "अक्षम",
+    "more": "अधिक",
+    "less": "कम",
+    "details": "विवरण",
+    "info": "जानकारी",
+    "warning": "चेतावनी",
+    "error": "त्रुटि",
+    "success": "सफलता",
+    "namespace": "नेमस्पेस",
+    "cluster": "क्लस्टर",
+    "resource": "संसाधन",
+    "configuration": "कॉन्फिगरेशन",
+    "settings": "सेटिंग्स",
+    "general": "सामान्य",
+    "advanced": "उन्नत",
+    "help": "सहायता",
+    "about": "के बारे में",
+    "documentation": "दस्तावेज़ीकरण",
+    "version": "संस्करण",
+    "confirm": "पुष्टि करें",
+    "areYouSure": "क्या आप निश्चित हैं?",
+    "thisActionCannotBeUndone": "यह क्रिया पूर्ववत नहीं की जा सकती है",
+    "actions": "कार्य",
+    "optional": "वैकल्पिक",
+    "required": "आवश्यक",
+    "default": "डिफ़ॉल्ट",
+    "custom": "कस्टम",
+    "minutes": "मिनट",
+    "seconds": "सेकंड",
+    "hours": "घंटे",
+    "days": "दिन",
+    "weeks": "सप्ताह",
+    "months": "महीने",
+    "years": "वर्ष"
   }
+}
