@@ -51,3 +51,10 @@ func (h *RequestHandler) RecordDuration(ctx context.Context, start time.Time, at
 		h.metrics.RequestDuration.Record(ctx, duration, metric.WithAttributes(attrs...))
 	}
 }
+
+// RecordErrorCount increments error counter metrics.
+func (h *RequestHandler) RecordErrorCount(ctx context.Context, attrs ...attribute.KeyValue) {
+	if h.metrics != nil {
+		h.metrics.ErrorCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
+	}
+}

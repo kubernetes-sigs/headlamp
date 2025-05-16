@@ -181,14 +181,8 @@ func TestRecordError(t *testing.T) {
 }
 
 func TestRecordDuration(t *testing.T) {
-	setupMetrics := func() *tel.Metrics {
-		metrics, err := tel.NewMetrics()
-		require.NoError(t, err)
-		return metrics
-	}
-
 	t.Run("records duration without attributes", func(t *testing.T) {
-		metrics := setupMetrics()
+		metrics := setupMetrics(t)
 		handler := tel.NewRequestHandler(nil, metrics)
 		ctx := context.Background()
 		start := time.Now()
@@ -201,7 +195,7 @@ func TestRecordDuration(t *testing.T) {
 	})
 
 	t.Run("records duration with attributes", func(t *testing.T) {
-		metrics := setupMetrics()
+		metrics := setupMetrics(t)
 		handler := tel.NewRequestHandler(nil, metrics)
 		ctx := context.Background()
 		start := time.Now()
@@ -222,7 +216,7 @@ func TestRecordDuration(t *testing.T) {
 	})
 
 	t.Run("handles zero duration", func(t *testing.T) {
-		metrics := setupMetrics()
+		metrics := setupMetrics(t)
 		handler := tel.NewRequestHandler(nil, metrics)
 		ctx := context.Background()
 		start := time.Now()
@@ -231,5 +225,59 @@ func TestRecordDuration(t *testing.T) {
 			handler.RecordDuration(ctx, start)
 		})
 	})
+}
 
+func TestRecordErrorCount(t *testing.T) {
+	t.Run("increments error counter without attributes", func(t *testing.T) {
+		metrics := setupMetrics(t)
+		handler := tel.NewRequestHandler(nil, metrics)
+		ctx := context.Background()
+
+		assert.NotPanics(t, func() {
+			handler.RecordErrorCount(ctx)
+		})
+	})
+
+	t.Run("increments error counter with attributes", func(t *testing.T) {
+		metrics := setupMetrics(t)
+		handler := tel.NewRequestHandler(nil, metrics)
+		ctx := context.Background()
+
+		attrs := []attribute.KeyValue{
+			attribute.String("error_type", "validation"),
+			attribute.Int("status_code", 400),
+		}
+
+		assert.NotPanics(t, func() {
+			handler.RecordErrorCount(ctx, attrs...)
+		})
+	})
+
+	t.Run("handles nil metrics", func(t *testing.T) {
+		handler := tel.NewRequestHandler(nil, nil)
+		ctx := context.Background()
+
+		assert.NotPanics(t, func() {
+			handler.RecordErrorCount(ctx)
+		})
+	})
+
+	t.Run("handles multiple increments", func(t *testing.T) {
+		metrics := setupMetrics(t)
+		handler := tel.NewRequestHandler(nil, metrics)
+		ctx := context.Background()
+
+		assert.NotPanics(t, func() {
+			for i := 0; i < 3; i++ {
+				handler.RecordErrorCount(ctx)
+			}
+		})
+	})
+}
+
+func setupMetrics(t *testing.T) *tel.Metrics {
+	metrics, err := tel.NewMetrics()
+	require.NoError(t, err)
+
+	return metrics
 }
