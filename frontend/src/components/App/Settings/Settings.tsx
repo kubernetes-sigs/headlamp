@@ -98,24 +98,25 @@ export default function Settings() {
           {
             name: t('translation|Theme'),
             value: (
-              <Select
-                variant="outlined"
-                size="small"
-                defaultValue={themeName}
-                onChange={e => {
-                  dispatch(setTheme(e.target.value as string));
-                  console.log(e, e.target.value);
-                }}
-              >
-                {appThemes.map(it => (
-                  <MenuItem key={it.name} value={it.name}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <ThemePreview theme={it} />
-                      {capitalize(it.name)}
-                    </Box>
-                  </MenuItem>
-                ))}
-              </Select>
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                <Select
+                  variant="outlined"
+                  size="small"
+                  value={themeName}
+                  onChange={(e) => setTheme(e.target.value)}
+                  sx={{ minWidth: 120 }}
+                >
+                  {appThemes.map((theme) => (
+                    <MenuItem key={theme.name} value={theme.name}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <ThemePreview theme={theme} size={30} />
+                        {capitalize(theme.name)}
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+                <ThemePreview theme={appThemes.find(t => t.name === themeName)!} size={40} />
+              </Box>
             ),
           },
           {
