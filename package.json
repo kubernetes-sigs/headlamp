@@ -1,0 +1,27 @@
+{
+  "name": "@headlamp-k8s/headlamp-build",
+  "version": "0.0.1",
+  "description": "Use 'npm start' to get going quickly. See contrib guide docs for more info. For building and running Headlamp without Make.",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "start": "cd app && npm start",
+    "backend": "npm install && cross-env HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -enable-dynamic-clusters",
+    "build:backend": "cd backend && go build -o ./headlamp-server${SERVER_EXE_EXT} ./cmd"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/headlamp-k8s/headlamp.git"
+  },
+  "keywords": [
+    "headlamp",
+    "kubernetes"
+  ],
+  "author": "Headlamp devs",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/headlamp-k8s/headlamp/issues"
+  },
+  "homepage": "https://github.com/headlamp-k8s/headlamp#readme"
+}
