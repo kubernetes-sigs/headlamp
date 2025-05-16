@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -27,5 +28,14 @@ func (h *RequestHandler) RecordEvent(span trace.Span, msg string, attrs ...attri
 		} else {
 			span.AddEvent(msg)
 		}
+	}
+}
+
+// RecordError records an error event in telemetry.
+func (h *RequestHandler) RecordError(span trace.Span, err error, msg string) {
+	if h.metrics != nil && span != nil {
+		span.AddEvent(msg)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, msg)
 	}
 }

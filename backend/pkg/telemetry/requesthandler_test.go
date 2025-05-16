@@ -2,6 +2,7 @@ package telemetry_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -110,5 +113,68 @@ func TestRecordEvent(t *testing.T) {
 		}
 
 		assert.Len(t, foundAttrs, 2, "Not all expected attributes were found")
+	})
+}
+
+func TestRecordError(t *testing.T) {
+	t.Run("handles nil span", func(t *testing.T) {
+		metrics := &tel.Metrics{}
+		handler := tel.NewRequestHandler(nil, metrics)
+		handler.RecordError(nil, errors.New("test error"), "test error message")
+	})
+
+	t.Run("handles nil error", func(t *testing.T) {
+		handler, sr := setupTest(t)
+		_, span := testSpan()
+		handler.RecordError(span, nil, "test error message")
+		span.End()
+
+		spans := sr.Ended()
+		require.Len(t, spans, 1)
+		assert.Equal(t, codes.Error, spans[0].Status().Code)
+		assert.Equal(t, "test error message", spans[0].Status().Description)
+	})
+
+	t.Run("records error with message", func(t *testing.T) {
+		handler, sr := setupTest(t)
+		_, span := testSpan()
+		handler.RecordError(span, errors.New("test error"), "error occurred")
+		span.End()
+
+		spans := sr.Ended()
+		require.Len(t, spans, 1)
+		require.GreaterOrEqual(t, len(spans[0].Events()), 2)
+		assert.Equal(t, codes.Error, spans[0].Status().Code)
+		assert.Equal(t, "error occurred", spans[0].Status().Description)
+
+		var errorEvent *sdktrace.Event
+
+		for _, event := range spans[0].Events() {
+			if event.Name == "exception" {
+				errorEvent = &event
+				break
+			}
+		}
+
+		require.NotNil(t, errorEvent, "Error event should be recorded")
+
+		hasErrorType := false
+		hasErrorMessage := false
+
+		for _, attr := range errorEvent.Attributes {
+			switch string(attr.Key) {
+			case "exception.type":
+				assert.Equal(t, "*errors.errorString", attr.Value.AsString())
+
+				hasErrorType = true
+			case "exception.message":
+				assert.Equal(t, "test error", attr.Value.AsString())
+
+				hasErrorMessage = true
+			}
+		}
+
+		assert.True(t, hasErrorType, "Error type attribute should be present")
+		assert.True(t, hasErrorMessage, "Error message attribute should be present")
 	})
 }
