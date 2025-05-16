@@ -1,8 +1,12 @@
 package telemetry
 
 import (
+	"context"
+	"time"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -37,5 +41,13 @@ func (h *RequestHandler) RecordError(span trace.Span, err error, msg string) {
 		span.AddEvent(msg)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, msg)
+	}
+}
+
+// RecordDuration records request duration metrics.
+func (h *RequestHandler) RecordDuration(ctx context.Context, start time.Time, attrs ...attribute.KeyValue) {
+	if h.metrics != nil {
+		duration := float64(time.Since(start).Milliseconds())
+		h.metrics.RequestDuration.Record(ctx, duration, metric.WithAttributes(attrs...))
 	}
 }

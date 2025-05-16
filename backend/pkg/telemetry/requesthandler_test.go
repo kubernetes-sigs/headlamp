@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	tel "github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
@@ -177,4 +178,58 @@ func TestRecordError(t *testing.T) {
 		assert.True(t, hasErrorType, "Error type attribute should be present")
 		assert.True(t, hasErrorMessage, "Error message attribute should be present")
 	})
+}
+
+func TestRecordDuration(t *testing.T) {
+	setupMetrics := func() *tel.Metrics {
+		metrics, err := tel.NewMetrics()
+		require.NoError(t, err)
+		return metrics
+	}
+
+	t.Run("records duration without attributes", func(t *testing.T) {
+		metrics := setupMetrics()
+		handler := tel.NewRequestHandler(nil, metrics)
+		ctx := context.Background()
+		start := time.Now()
+
+		time.Sleep(10 * time.Millisecond)
+
+		assert.NotPanics(t, func() {
+			handler.RecordDuration(ctx, start)
+		})
+	})
+
+	t.Run("records duration with attributes", func(t *testing.T) {
+		metrics := setupMetrics()
+		handler := tel.NewRequestHandler(nil, metrics)
+		ctx := context.Background()
+		start := time.Now()
+
+		time.Sleep(10 * time.Millisecond)
+		handler.RecordDuration(ctx, start, attribute.String("operation", "test"),
+			attribute.Int("status", 200))
+	})
+
+	t.Run("handles nil metrics", func(t *testing.T) {
+		handler := tel.NewRequestHandler(nil, nil)
+		ctx := context.Background()
+		start := time.Now()
+
+		assert.NotPanics(t, func() {
+			handler.RecordDuration(ctx, start)
+		})
+	})
+
+	t.Run("handles zero duration", func(t *testing.T) {
+		metrics := setupMetrics()
+		handler := tel.NewRequestHandler(nil, metrics)
+		ctx := context.Background()
+		start := time.Now()
+
+		assert.NotPanics(t, func() {
+			handler.RecordDuration(ctx, start)
+		})
+	})
+
 }
