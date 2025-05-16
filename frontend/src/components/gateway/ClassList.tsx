@@ -72,6 +72,7 @@ export default function GatewayClassList() {
         {
           id: 'controllerName',
           label: t('Controller'),
+          filterVariant: 'multi-select',
           getValue: (gatewayClass: GatewayClass) => gatewayClass.spec?.controllerName,
         },
         {
