@@ -85,7 +85,7 @@ function create(name, link) {
         .split('$${headlamp-plugin-version}')
         .join(headlampPluginPkg.version)
         .split('$${eslint-config-version}')
-        .join(headlampPluginPkg.dependencies['@headlamp-k8s/eslint-config'])
+        .join(headlampPluginPkg.dependencies['@jamowei/eslint-config'])
     );
   }
 
@@ -973,7 +973,7 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
   }
 
   /**
-   * Removes "@headlamp-k8s/eslint-config" dependency if it is there.
+   * Removes "@jamowei/eslint-config" dependency if it is there.
    *
    * It is a transitive dependency of "@kinvolk/headlamp-plugin", and
    * does not need to be there anymore.
@@ -989,10 +989,10 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
       console.error(`Error: Failed to read package.json from "${packageJsonPath}".`);
       return false;
     }
-    const oldVersion = packageJson.devDependencies['@headlamp-k8s/eslint-config'];
-    // remove @headlamp-k8s/eslint-config if it is there
+    const oldVersion = packageJson.devDependencies['@jamowei/eslint-config'];
+    // remove @jamowei/eslint-config if it is there
     if (oldVersion) {
-      const cmd = `npm remove @headlamp-k8s/eslint-config --save`;
+      const cmd = `npm remove @jamowei/eslint-config --save`;
       if (runCmd(cmd, '.')) {
         return false;
       }
@@ -1023,7 +1023,7 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
     if (skipPackageUpdates !== true) {
       if (!failed && !removeEslintConfig()) {
         failed = true;
-        reason = 'removing @headlamp-k8s/eslint-config failed.';
+        reason = 'removing @jamowei/eslint-config failed.';
       }
       if (!failed && !resetPackageLock()) {
         failed = true;

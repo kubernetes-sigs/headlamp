@@ -9,7 +9,7 @@ image:
   # -- Container image registry
   registry: ghcr.io
   # -- Container image name
-  repository: headlamp-k8s/headlamp
+  repository: jamowei/headlamp
   # -- Image pull policy. One of Always, Never, IfNotPresent
   pullPolicy: IfNotPresent
   # -- Container image tag, If "" uses appVersion in Chart.yaml
