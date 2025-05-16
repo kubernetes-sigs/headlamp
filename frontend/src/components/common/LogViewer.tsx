@@ -24,7 +24,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { ISearchOptions, SearchAddon } from '@xterm/addon-search';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
-import React, { ReactNode, useEffect } from 'react';
+import React, { ReactNode, useEffect, useMemo } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useTranslation } from 'react-i18next';
 import ActionButton from './ActionButton';
@@ -47,6 +47,24 @@ export interface LogViewerProps extends DialogProps {
    * @description This is a boolean that determines whether the reconnect button should be shown or not.
    */
   showReconnectButton?: boolean;
+  isWrappedTextEnabled?: boolean;
+}
+
+/**
+ * this function will find the longest line of a bundle of logs and return its length.
+ */
+export function findLongestLine(logs: string[]): number {
+  const stream = logs.join('');
+  const parts = stream.replace(/\r\n/g, '\n').split(/\\n|\n|\r/);
+  let longest = 0;
+
+  parts.forEach(part => {
+    if (part.length > longest) {
+      longest = part.length;
+    }
+  });
+
+  return longest;
 }
 
 export function LogViewer(props: LogViewerProps) {
@@ -59,6 +77,7 @@ export function LogViewer(props: LogViewerProps) {
     topActions = [],
     handleReconnect,
     showReconnectButton = false,
+    isWrappedTextEnabled,
     ...other
   } = props;
   const { t } = useTranslation();
@@ -67,6 +86,18 @@ export function LogViewer(props: LogViewerProps) {
   const searchAddonRef = React.useRef<any>(null);
   const [terminalContainerRef, setTerminalContainerRef] = React.useState<HTMLElement | null>(null);
   const [showSearch, setShowSearch] = React.useState(false);
+
+  const wrappedWidth = useMemo(() => {
+    if (!isWrappedTextEnabled) {
+      return undefined;
+    }
+
+    const longestLine = findLongestLine(logs);
+
+    if (longestLine > 0) {
+      return longestLine + 1;
+    }
+  }, [logs, isWrappedTextEnabled]);
 
   useHotkeys('ctrl+shift+f', () => {
     setShowSearch(true);
@@ -116,7 +147,8 @@ export function LogViewer(props: LogViewerProps) {
     xtermRef.current?.write(getJointLogs());
 
     const pageResizeHandler = () => {
-      fitAddonRef.current!.fit();
+      fitAddonRef.current?.fit();
+
       console.debug('resize');
     };
     window.addEventListener('resize', pageResizeHandler);
@@ -127,7 +159,7 @@ export function LogViewer(props: LogViewerProps) {
       searchAddonRef.current?.dispose();
       xtermRef.current = null;
     };
-  }, [terminalContainerRef, xtermRef.current]);
+  }, [terminalContainerRef, xtermRef.current, isWrappedTextEnabled]);
 
   React.useEffect(() => {
     if (!xtermRef.current) {
@@ -154,7 +186,9 @@ export function LogViewer(props: LogViewerProps) {
       title={title}
       onFullScreenToggled={() => {
         setTimeout(() => {
-          fitAddonRef.current!.fit();
+          if (!isWrappedTextEnabled) {
+            fitAddonRef.current?.fit();
+          }
         }, 1);
       }}
       withFullScreen
@@ -170,11 +204,11 @@ export function LogViewer(props: LogViewerProps) {
           '& .xterm ': {
             height: '100vh', // So the terminal doesn't stay shrunk when shrinking vertically and maximizing again.
             '& .xterm-viewport': {
+              overflowY: 'hidden',
               width: 'initial !important', // BugFix: https://github.com/xtermjs/xterm.js/issues/3564#issuecomment-1004417440
             },
           },
           '& #xterm-container': {
-            overflow: 'hidden',
             width: '100%',
             height: '100%',
             '& .terminal.xterm': {
@@ -183,42 +217,62 @@ export function LogViewer(props: LogViewerProps) {
           },
         })}
       >
-        <Grid container justifyContent="space-between" alignItems="center" wrap="nowrap">
-          <Grid item container spacing={1}>
-            {topActions.map((component, i) => (
-              <Grid item key={i}>
-                {component}
-              </Grid>
-            ))}
-          </Grid>
-          <Grid item xs>
-            <ActionButton
-              description={t('translation|Find')}
-              onClick={() => setShowSearch(show => !show)}
-              icon="mdi:magnify"
-            />
-          </Grid>
-          <Grid item xs>
-            <ActionButton
-              description={t('translation|Clear')}
-              onClick={() => clearPodLogs(xtermRef)}
-              icon="mdi:broom"
-            />
-          </Grid>
-          <Grid item xs>
-            <ActionButton
-              description={t('Download')}
-              onClick={downloadLog}
-              icon="mdi:file-download-outline"
-            />
-          </Grid>
-        </Grid>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+          }}
+        >
+          {/* Main Actions */}
+          <Box>
+            <Grid item container spacing={1}>
+              {topActions.map((component, i) => (
+                <Grid item key={i}>
+                  {component}
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+
+          {/* Side Actions */}
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'flex-end',
+            }}
+          >
+            <Grid item xs>
+              <ActionButton
+                description={t('translation|Find')}
+                onClick={() => setShowSearch(show => !show)}
+                icon="mdi:magnify"
+              />
+            </Grid>
+            <Grid item xs>
+              <ActionButton
+                description={t('translation|Clear')}
+                onClick={() => clearPodLogs(xtermRef)}
+                icon="mdi:broom"
+              />
+            </Grid>
+            <Grid item xs>
+              <ActionButton
+                description={t('Download')}
+                onClick={downloadLog}
+                icon="mdi:file-download-outline"
+              />
+            </Grid>
+          </Box>
+        </Box>
         <Box
           sx={theme => ({
             paddingTop: theme.spacing(1),
             flex: 1,
             width: '100%',
-            overflow: 'hidden',
+            overflowY: 'auto',
+            overflowX: 'hidden',
             display: 'flex',
             flexDirection: 'column-reverse',
             position: 'relative',
@@ -229,11 +283,33 @@ export function LogViewer(props: LogViewerProps) {
               Reconnect
             </Button>
           )}
-          <div
-            id="xterm-container"
-            ref={ref => setTerminalContainerRef(ref)}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse' }}
-          />
+          <Box
+            sx={{
+              width: '100%',
+              overflowX: 'auto',
+              overflowY: 'visible',
+              flex: '0 0 auto',
+            }}
+          >
+            <Box
+              sx={{
+                flex: '0 0 auto',
+                display: 'inline-block',
+                width: isWrappedTextEnabled && wrappedWidth !== 0 ? `${wrappedWidth}ch` : '100%',
+              }}
+            >
+              <div
+                id="xterm-container"
+                ref={ref => setTerminalContainerRef(ref)}
+                style={{
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column-reverse',
+                }}
+              />
+            </Box>
+          </Box>
+
           <SearchPopover
             open={showSearch}
             onClose={() => setShowSearch(false)}
