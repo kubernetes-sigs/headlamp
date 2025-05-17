@@ -37,6 +37,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -916,7 +917,8 @@ func TestIsTokenAboutToExpire(t *testing.T) {
 
 func TestOIDCTokenRefreshMiddleware(t *testing.T) {
 	config := &HeadlampConfig{
-		cache: cache.New[interface{}](),
+		cache:            cache.New[interface{}](),
+		telemetryHandler: &telemetry.RequestHandler{},
 	}
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -950,6 +952,7 @@ func TestStartHeadlampServer(t *testing.T) {
 		cache:           cache.New[interface{}](),
 		kubeConfigStore: kubeconfig.NewContextStore(),
 		pluginDir:       tempDir,
+		telemetryConfig: GetDefaultTestTelemetryConfig(),
 	}
 
 	// Use a channel to signal when the server is ready
@@ -1077,6 +1080,21 @@ func TestHandleClusterHelm(t *testing.T) {
 
 			assert.Equal(t, tc.expectedStatus, w.Code)
 		})
+	}
+}
+
+// GetDefaultTestTelemetryConfig returns a default telemetry configuration for testing purposes.
+func GetDefaultTestTelemetryConfig() config.Config {
+	return config.Config{
+		ServiceName:        "headlamp-test",
+		ServiceVersion:     &[]string{"0.30.0"}[0],
+		TracingEnabled:     &[]bool{false}[0],
+		MetricsEnabled:     &[]bool{false}[0],
+		JaegerEndpoint:     &[]string{""}[0],
+		OTLPEndpoint:       &[]string{""}[0],
+		UseOTLPHTTP:        &[]bool{false}[0],
+		StdoutTraceEnabled: &[]bool{false}[0],
+		SamplingRate:       &[]float64{0}[0],
 	}
 }
 

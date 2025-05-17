@@ -43,6 +43,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -85,6 +86,7 @@ type HeadlampConfig struct {
 	multiplexer               *Multiplexer
 	telemetry                 *telemetry.Telemetry
 	metrics                   *telemetry.Metrics
+	telemetryConfig           cfg.Config
 	telemetryHandler          *telemetry.RequestHandler
 }
 
@@ -972,18 +974,49 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 }
 
 func StartHeadlampServer(config *HeadlampConfig) {
+	tel, err := telemetry.NewTelemetry(config.telemetryConfig)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to initialize telemetry")
+		os.Exit(1)
+	}
+
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := tel.Shutdown(shutdownCtx); err != nil {
+			logger.Log(logger.LevelError, nil, err, "Failed to properly shutdown telemetry")
+		}
+	}()
+
+	metrics, err := telemetry.NewMetrics()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to initialize metrics")
+	}
+
+	config.telemetry = tel
+	config.metrics = metrics
+	config.telemetryHandler = telemetry.NewRequestHandler(tel, metrics)
+
+	router := mux.NewRouter()
+
+	if config.telemetry != nil && config.metrics != nil {
+		router.Use(telemetry.TracingMiddleware("headlamp-server"))
+		router.Use(config.metrics.RequestCounterMiddleware)
+	}
+
 	// Copy static files as squashFS is read-only (AppImage)
 	if config.staticDir != "" {
 		dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "Failed to create static dir")
-			os.Exit(1)
+			return
 		}
 
 		err = os.CopyFS(dir, os.DirFS(config.staticDir))
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "Failed to copy files from static dir")
-			os.Exit(1)
+			return
 		}
 
 		config.staticDir = dir
@@ -996,10 +1029,9 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	addr := fmt.Sprintf("%s:%d", config.listenAddr, config.port)
 
 	// Start server
-	err := http.ListenAndServe(addr, handler) //nolint:gosec
-	if err != nil {
+	if err := http.ListenAndServe(addr, handler); err != nil { //nolint:gosec
 		logger.Log(logger.LevelError, nil, err, "Failed to start server")
-		os.Exit(1)
+		return
 	}
 }
 
