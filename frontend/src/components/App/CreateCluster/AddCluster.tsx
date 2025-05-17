@@ -27,7 +27,9 @@ import { useHistory } from 'react-router-dom';
 import { createRouteURL } from '../../../lib/router';
 import { ClusterProviderInfo } from '../../../redux/clusterProviderSlice';
 import { useTypedSelector } from '../../../redux/reducers/reducers';
-import { DialogProps, PageGrid, SectionBox } from '../../common';
+import { DialogProps } from '../../common/Dialog';
+import { PageGrid } from '../../common/Resource';
+import SectionBox from '../../common/SectionBox';
 
 function AddClusterProvider({ title, icon, description, url }: ClusterProviderInfo) {
   const history = useHistory();
