@@ -176,6 +176,7 @@
   "From": "От",
   "Age": "Возраст",
   "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_one": "",
+  "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_few": "",
   "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_many": "",
   "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_other": "",
   "Release Notes ({{ appVersion }})": "Примечания к выпуску ({{ appVersion }})",
