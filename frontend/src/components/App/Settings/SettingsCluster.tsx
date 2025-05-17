@@ -39,9 +39,12 @@ import { useCluster, useClustersConf } from '../../../lib/k8s';
 import { deleteCluster, parseKubeConfig, renameCluster } from '../../../lib/k8s/apiProxy';
 import { setConfig, setStatelessConfig } from '../../../redux/configSlice';
 import { findKubeconfigByClusterName, updateStatelessClusterKubeconfig } from '../../../stateless/';
-import { Link, Loader, NameValueTable, SectionBox } from '../../common';
 import ConfirmButton from '../../common/ConfirmButton';
 import Empty from '../../common/EmptyContent';
+import Link from '../../common/Link';
+import Loader from '../../common/Loader';
+import NameValueTable from '../../common/NameValueTable';
+import SectionBox from '../../common/SectionBox';
 import NodeShellSettings from './NodeShellSettings';
 import { isValidNamespaceFormat } from './util';
 
