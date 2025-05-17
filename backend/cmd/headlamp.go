@@ -1386,42 +1386,58 @@ func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 // all the requests made to /clusters/{clusterName}/{api:.*} endpoint.
 // It parses the request and creates a proxy request to the cluster.
 // That proxy is saved in the cache with the context key.
-func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
+func handleClusterAPI(c *HeadlampConfig, router *mux.Router) { //nolint:funlen
+	handleError := func(w http.ResponseWriter, span trace.Span, err error, msg string, status int) {
+		logger.Log(logger.LevelError, nil, err, msg)
+		c.telemetryHandler.RecordError(span, err, msg)
+		http.Error(w, err.Error(), status)
+	}
+
 	router.PathPrefix("/clusters/{clusterName}/{api:.*}").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		ctx := r.Context()
+
+		ctx, span := telemetry.CreateSpan(ctx, r, "cluster-api", "handleClusterAPI",
+			attribute.String("cluster", mux.Vars(r)["clusterName"]),
+		)
+		defer span.End()
+
+		c.telemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", mux.Vars(r)["clusterName"]))
+		c.telemetryHandler.RecordEvent(span, "Cluster API request started")
+
+		// A deferred function to record duration metrics & log the request completion
+		defer recordRequestCompletion(c, ctx, start, r)
+
 		contextKey, err := c.getContextKeyForRequest(r)
 		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"key": contextKey},
-				err, "failed to get context key")
-			http.NotFound(w, r)
-
+			handleError(w, span, err, "failed to get context key", http.StatusBadRequest)
 			return
 		}
 
 		kContext, err := c.kubeConfigStore.GetContext(contextKey)
 		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"key": contextKey},
-				err, "failed to get context")
-			http.NotFound(w, r)
-
+			handleError(w, span, err, "failed to get context", http.StatusNotFound)
 			return
 		}
 
 		if kContext.Error != "" {
-			logger.Log(logger.LevelError, map[string]string{"key": contextKey},
-				errors.New(kContext.Error), "context has error")
-			http.Error(w, kContext.Error, http.StatusBadRequest)
-
+			handleError(w, span, errors.New(kContext.Error), "context has error", http.StatusBadRequest)
 			return
 		}
 
 		clusterURL, err := url.Parse(kContext.Cluster.Server)
 		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"ClusterURL": kContext.Cluster.Server},
-				err, "failed to parse cluster URL")
-			http.NotFound(w, r)
-
+			handleError(w, span, err, "failed to parse cluster URL", http.StatusNotFound)
 			return
 		}
+
+		// Record attributes about the proxy request
+		span.SetAttributes(
+			attribute.String("cluster.server", kContext.Cluster.Server),
+			attribute.String("cluster.api_path", mux.Vars(r)["api"]),
+		)
+		c.telemetryHandler.RecordClusterProxyRequestsCount(ctx, attribute.String("cluster", contextKey),
+			attribute.String("http.method", r.Method))
 
 		r.Host = clusterURL.Host
 		r.Header.Set("X-Forwarded-Host", r.Host)
@@ -1432,18 +1448,34 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 
 		// Process WebSocket protocol headers if present
 		processWebSocketProtocolHeader(r)
-
 		plugins.HandlePluginReload(c.cache, w)
 
-		err = kContext.ProxyRequest(w, r)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"key": contextKey},
-				err, "failed to proxy request")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err = kContext.ProxyRequest(w, r); err != nil {
+			c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "proxy_error"),
+				attribute.String("cluster", contextKey))
+			handleError(w, span, err, "failed to proxy request", http.StatusInternalServerError)
 
 			return
 		}
+
+		if c.telemetry != nil {
+			span.SetStatus(codes.Ok, "")
+			c.telemetryHandler.RecordEvent(span, "Cluster API request completed")
+		}
 	})
+}
+
+func recordRequestCompletion(c *HeadlampConfig, ctx context.Context,
+	start time.Time, r *http.Request,
+) {
+	duration := time.Since(start).Seconds() * 1000 // duration in ms
+	c.telemetryHandler.RecordDuration(ctx, start,
+		attribute.String("http.method", r.Method),
+		attribute.String("http.path", r.URL.Path),
+		attribute.String("cluster", mux.Vars(r)["clusterName"]))
+	logger.Log(logger.LevelInfo,
+		map[string]string{"duration_ms": fmt.Sprintf("%.2f", duration)},
+		nil, "Complete cluster API request")
 }
 
 // Handle WebSocket connections that include token in Sec-WebSocket-Protocol

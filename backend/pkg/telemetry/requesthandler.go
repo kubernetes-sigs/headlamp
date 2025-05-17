@@ -60,6 +60,13 @@ func (h *RequestHandler) RecordErrorCount(ctx context.Context, attrs ...attribut
 	}
 }
 
+// RecordErrorCount increments error counter metrics.
+func (h *RequestHandler) RecordClusterProxyRequestsCount(ctx context.Context, attrs ...attribute.KeyValue) {
+	if h.metrics != nil {
+		h.metrics.ClusterProxyRequests.Add(ctx, 1, metric.WithAttributes(attrs...))
+	}
+}
+
 // RecordRequestCount increments request counter metrics with HTTP request details.
 // It automatically adds method and path attributes from the request along with any additional attributes provided.
 func (h *RequestHandler) RecordRequestCount(ctx context.Context, r *http.Request, attrs ...attribute.KeyValue) {
