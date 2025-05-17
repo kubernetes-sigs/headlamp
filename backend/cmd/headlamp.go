@@ -1273,88 +1273,110 @@ func checkHeadlampBackendToken(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-//nolint:gocognit,funlen
+//nolint:funlen
 func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 	router.PathPrefix("/clusters/{clusterName}/helm/{.*}").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		start := time.Now()
+		path := r.URL.Path
+		clusterName := mux.Vars(r)["clusterName"]
+
+		_, span := telemetry.CreateSpan(ctx, r, "helm", "handleClusterHelm",
+			attribute.String("cluster", clusterName),
+		)
+		c.telemetryHandler.RecordEvent(span, "Starting Helm operation request")
+		defer span.End()
+
+		c.telemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
+
 		if err := checkHeadlampBackendToken(w, r); err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to check headlamp backend token")
+			c.telemetryHandler.RecordError(span, err, "authentication failed")
+			c.telemetryHandler.RecordDuration(ctx, start, attribute.String("status", "auth error"))
+			c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error", "auth failure"))
+			logger.Log(logger.LevelInfo, map[string]string{
+				"path":    path,
+				"method":  r.Method,
+				"cluster": clusterName,
+			}, err, "failed to check headlamp backend token")
 
 			return
 		}
 
 		helmHandler, err := getHelmHandler(c, w, r)
 		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to get helm handler")
+			logger.Log(logger.LevelError, map[string]string{
+				"path":    path,
+				"method":  r.Method,
+				"cluster": clusterName,
+			}, err, "failed to get helm handler")
+
+			c.telemetryHandler.RecordError(span, err, "failed to get helm handler")
+			c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error", "failed to get helm handler"))
+			c.telemetryHandler.RecordDuration(ctx, start,
+				attribute.String("api.route", "handleClusterHelm"))
 
 			return
 		}
 
-		// we used nolint:gocognit in this function because...
-		//  Perhaps there's a better way to dispatch these?
-		path := r.URL.Path
+		routeHandler := func(route, operation string, handler func(http.ResponseWriter, *http.Request)) {
+			c.telemetryHandler.RecordEvent(span, "Executing route",
+				attribute.String("route", route),
+				attribute.String("operation", operation))
+			c.telemetryHandler.RecordRequestCount(ctx, r)
 
-		if strings.HasSuffix(path, "/releases/list") && r.Method == http.MethodGet {
-			helmHandler.ListRelease(w, r)
-			return
+			logger.Log(logger.LevelInfo, map[string]string{"route": route}, nil, "Dispatching helm operation: "+operation)
+			handler(w, r)
 		}
 
-		if strings.HasSuffix(path, "/release/install") && r.Method == http.MethodPost {
-			helmHandler.InstallRelease(w, r)
+		switch {
+		case strings.HasSuffix(path, "/releases/list") && r.Method == http.MethodGet:
+			routeHandler("/releases/list", "ListRelease", helmHandler.ListRelease)
 			return
-		}
-
-		if strings.HasSuffix(path, "/release/history") && r.Method == http.MethodGet {
-			helmHandler.GetReleaseHistory(w, r)
+		case strings.HasSuffix(path, "/release/install") && r.Method == http.MethodPost:
+			routeHandler("/release/install", "InstallRelease", helmHandler.InstallRelease)
 			return
-		}
-
-		if strings.HasSuffix(path, "/releases/uninstall") && r.Method == http.MethodDelete {
-			helmHandler.UninstallRelease(w, r)
+		case strings.HasSuffix(path, "/release/history") && r.Method == http.MethodGet:
+			routeHandler("/release/history", "GetReleaseHistory", helmHandler.GetReleaseHistory)
 			return
-		}
-
-		if strings.HasSuffix(path, "/releases/rollback") && r.Method == http.MethodPut {
-			helmHandler.RollbackRelease(w, r)
+		case strings.HasSuffix(path, "/releases/uninstall") && r.Method == http.MethodDelete:
+			routeHandler("/releases/uninstall", "UninstallRelease", helmHandler.UninstallRelease)
 			return
-		}
-
-		if strings.HasSuffix(path, "/releases/upgrade") && r.Method == http.MethodPut {
-			helmHandler.UpgradeRelease(w, r)
+		case strings.HasSuffix(path, "/releases/rollback") && r.Method == http.MethodPut:
+			routeHandler("/releases/rollback", "RollbackRelease", helmHandler.RollbackRelease)
 			return
-		}
-
-		if strings.HasSuffix(path, "/releases") && r.Method == http.MethodGet {
-			helmHandler.GetRelease(w, r)
+		case strings.HasSuffix(path, "/releases/upgrade") && r.Method == http.MethodPut:
+			routeHandler("/releases/upgrade", "UpgradeRelease", helmHandler.UpgradeRelease)
 			return
-		}
-
-		if strings.HasSuffix(path, "/repositories") && r.Method == http.MethodGet {
-			helmHandler.ListRepo(w, r)
+		case strings.HasSuffix(path, "/releases") && r.Method == http.MethodGet:
+			routeHandler("/releases", "GetRelease", helmHandler.GetRelease)
 			return
-		}
-
-		if strings.HasSuffix(path, "/repositories") && r.Method == http.MethodPost {
-			helmHandler.AddRepo(w, r)
+		case strings.HasSuffix(path, "/repositories") && r.Method == http.MethodGet:
+			routeHandler("/repositories", "ListRepo", helmHandler.ListRepo)
 			return
-		}
-
-		if strings.HasSuffix(path, "/repositories/remove") && r.Method == http.MethodDelete {
-			helmHandler.RemoveRepo(w, r)
+		case strings.HasSuffix(path, "/repositories") && r.Method == http.MethodPost:
+			routeHandler("/repositories", "AddRepo", helmHandler.AddRepo)
 			return
-		}
-
-		if strings.HasSuffix(path, "/repositories/update") && r.Method == http.MethodPut {
-			helmHandler.UpdateRepository(w, r)
+		case strings.HasSuffix(path, "/repositories/remove") && r.Method == http.MethodDelete:
+			routeHandler("/repositories/remove", "RemoveRepo", helmHandler.RemoveRepo)
 			return
-		}
-
-		if strings.HasSuffix(path, "/charts") && r.Method == http.MethodGet {
-			helmHandler.ListCharts(w, r)
+		case strings.HasSuffix(path, "/repositories/update") && r.Method == http.MethodPut:
+			routeHandler("/repositories/update", "UpdateRepository", helmHandler.UpdateRepository)
 			return
-		}
+		case strings.HasSuffix(path, "/charts") && r.Method == http.MethodGet:
+			routeHandler("/charts", "ListCharts", helmHandler.ListCharts)
+			return
+		case strings.HasSuffix(path, "/action/status") && r.Method == http.MethodGet:
+			routeHandler("/action/status", "GetActionStatus", helmHandler.GetActionStatus)
+			return
+		default:
+			logger.Log(logger.LevelError, map[string]string{"path": path}, nil, "Unknown helm API route")
 
-		if strings.HasSuffix(path, "/action/status") && r.Method == http.MethodGet {
-			helmHandler.GetActionStatus(w, r)
+			c.telemetryHandler.RecordEvent(span, "Unknown API route", attribute.String("path", path))
+			span.SetStatus(codes.Error, "Unknown API route")
+			c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error", "unknown_route"))
+
+			http.NotFound(w, r)
+
 			return
 		}
 	})
