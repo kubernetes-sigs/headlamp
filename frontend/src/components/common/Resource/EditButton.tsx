@@ -136,6 +136,7 @@ export default function EditButton(props: EditButtonProps) {
           open={openDialog}
           onClose={() => setOpenDialog(false)}
           onSave={handleSave}
+          allowToHideManagedFields
           errorMessage={errorMessage}
           onEditorChanged={() => setErrorMessage('')}
         />
