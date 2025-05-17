@@ -27,8 +27,12 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { useTypedSelector } from '../../../../redux/reducers/reducers';
-import { DateLabel, Link, SectionBox, SectionFilterHeader, Table } from '../../../common';
 import Empty from '../../../common/EmptyContent';
+import { DateLabel } from '../../../common/Label';
+import Link from '../../../common/Link';
+import SectionBox from '../../../common/SectionBox';
+import SectionFilterHeader from '../../../common/SectionFilterHeader';
+import Table from '../../../common/Table';
 import {
   Notification,
   NotificationIface,
