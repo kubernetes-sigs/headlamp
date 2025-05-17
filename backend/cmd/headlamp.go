@@ -48,6 +48,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/portforward"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -82,6 +83,9 @@ type HeadlampConfig struct {
 	cache                     cache.Cache[interface{}]
 	kubeConfigStore           kubeconfig.ContextStore
 	multiplexer               *Multiplexer
+	telemetry                 *telemetry.Telemetry
+	metrics                   *telemetry.Metrics
+	telemetryHandler          *telemetry.RequestHandler
 }
 
 const DrainNodeCacheTTL = 20 // seconds
