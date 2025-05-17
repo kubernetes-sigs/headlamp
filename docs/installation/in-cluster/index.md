@@ -83,7 +83,7 @@ If you want to quickly access Headlamp (after having its service running) and
 don't want to set up an ingress for it, you can run use port-forwarding as follows:
 
 ```bash
-kubectl port-forward -n kube-system service/headlamp 8080:80
+kubectl port-forward -n kube-system service/headlamp 8080:4466
 ```
 
 and then you can access `localhost:8080` in your browser.
