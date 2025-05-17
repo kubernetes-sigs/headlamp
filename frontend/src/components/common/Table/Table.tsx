@@ -242,6 +242,28 @@ export default function Table<RowItem extends Record<string, any>>({
     return ids;
   }, [tableProps.columns, tableProps.enableRowActions, tableProps.enableRowSelection]);
 
+  // --- Column Filter State Persistence ---
+  // Use table id if available, otherwise fallback to a default key
+  const tableId = (tableProps as any).id || 'default-table';
+  // Load column filters from localStorage
+  const [columnFilters, setColumnFilters] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`columnFilters.${tableId}`);
+      return saved ? JSON.parse(saved) : undefined;
+    } catch {
+      return undefined;
+    }
+  });
+
+  // Save column filters to localStorage whenever they change
+  useEffect(() => {
+    if (columnFilters !== undefined) {
+      try {
+        localStorage.setItem(`columnFilters.${tableId}`, JSON.stringify(columnFilters));
+      } catch {}
+    }
+  }, [columnFilters, tableId]);
+
   const table = useMaterialReactTable({
     ...tableProps,
     columns: tableColumns ?? [],
@@ -258,20 +280,11 @@ export default function Table<RowItem extends Record<string, any>>({
       setPage(pagination.pageIndex + 1);
       setPageSize(pagination.pageSize);
     },
-    renderToolbarInternalActions: props => {
-      const isSomeRowsSelected =
-        tableProps.enableRowSelection && props.table.getSelectedRowModel().rows.length !== 0;
-      if (isSomeRowsSelected) {
-        const renderRowSelectionToolbar = tableProps.renderRowSelectionToolbar;
-        if (renderRowSelectionToolbar !== undefined) {
-          return renderRowSelectionToolbar(props);
-        }
-      }
-      return null;
-    },
+    onColumnFiltersChange: setColumnFilters,
     initialState: {
       density: 'compact',
       ...(tableProps.initialState ?? {}),
+      columnFilters: columnFilters ?? (tableProps.initialState?.columnFilters || []),
     },
     state: {
       ...(tableProps.state ?? {}),
@@ -280,6 +293,7 @@ export default function Table<RowItem extends Record<string, any>>({
         pageIndex: page - 1,
         pageSize: pageSize,
       },
+      columnFilters,
     },
     positionActionsColumn: 'last',
     layoutMode: 'grid',
