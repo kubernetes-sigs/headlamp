@@ -264,6 +264,8 @@ func TestCreateSpan(t *testing.T) {
 	originalTP := otel.GetTracerProvider()
 	otel.SetTracerProvider(tp)
 
+	req := httptest.NewRequest(http.MethodPost, "/test/path", nil)
+
 	defer otel.SetTracerProvider(originalTP)
 
 	t.Run("creates span with attributes", func(t *testing.T) {
@@ -276,7 +278,7 @@ func TestCreateSpan(t *testing.T) {
 			attribute.Bool("bool.key", true),
 		}
 
-		_, span := tel.CreateSpan(context.Background(), tracerName, operationName, attrs...)
+		_, span := tel.CreateSpan(context.Background(), req, tracerName, operationName, attrs...)
 		require.NotNil(t, span)
 		span.End()
 

@@ -52,6 +52,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -317,40 +318,13 @@ func defaultKubeConfigPersistenceFile() (string, error) {
 // It serves plugin static files at "plugins/" and "static-plugins/".
 // It disables caching and reloads plugin list base paths if not in-cluster.
 func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
-	// Delete plugin route
+	// Delete plugin route.
 	// This is only available when running locally.
 	if !config.useInCluster {
-		r.HandleFunc("/plugins/{name}", func(w http.ResponseWriter, r *http.Request) {
-			if err := checkHeadlampBackendToken(w, r); err != nil {
-				return
-			}
-			pluginName := mux.Vars(r)["name"]
-
-			err := plugins.Delete(config.pluginDir, pluginName)
-			if err != nil {
-				http.Error(w, "Error deleting plugin", http.StatusInternalServerError)
-				return
-			}
-			w.WriteHeader(http.StatusOK)
-		}).Methods("DELETE")
+		addPluginDeleteRoute(config, r)
 	}
 
-	r.HandleFunc("/plugins", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		pluginsList, err := config.cache.Get(context.Background(), plugins.PluginListKey)
-		if err != nil && err == cache.ErrNotFound {
-			pluginsList = []string{}
-		}
-		if err := json.NewEncoder(w).Encode(pluginsList); err != nil {
-			logger.Log(logger.LevelError, nil, err, "encoding plugins base paths list")
-		} else {
-			// Notify that the client has requested the plugins list. So we can start sending
-			// refresh requests.
-			if err := config.cache.Set(context.Background(), plugins.PluginCanSendRefreshKey, true); err != nil {
-				logger.Log(logger.LevelError, nil, err, "setting plugin-can-send-refresh key")
-			}
-		}
-	}).Methods("GET")
+	addPluginListRoute(config, r)
 
 	// Serve plugins
 	pluginHandler := http.StripPrefix(config.baseURL+"/plugins/", http.FileServer(http.Dir(config.pluginDir)))
@@ -367,6 +341,99 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 			http.FileServer(http.Dir(config.staticPluginDir)))
 		r.PathPrefix("/static-plugins/").Handler(staticPluginsHandler)
 	}
+}
+
+// addPluginDeleteRoute registers a DELETE endpoint handler at "/plugins/{name}" for plugin deletion.
+// This endpoint is only available when running in local (non-cluster) mode.
+func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
+	r.HandleFunc("/plugins/{name}", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		var span trace.Span
+		pluginName := mux.Vars(r)["name"]
+
+		// Start tracing for deletePlugin.
+		if config.telemetry != nil {
+			_, span = telemetry.CreateSpan(ctx, r, "plugins", "deletePlugin",
+				attribute.String("plugin.name", pluginName),
+			)
+
+			defer span.End()
+		}
+
+		// Increment deletion attempt metric
+		if config.telemetry != nil && config.metrics != nil {
+			config.metrics.PluginDeleteCount.Add(ctx, 1)
+		}
+
+		logger.Log(logger.LevelInfo, nil, nil, "Received DELETE request for plugin: "+mux.Vars(r)["name"])
+
+		if err := checkHeadlampBackendToken(w, r); err != nil {
+			config.telemetryHandler.RecordError(span, err, " Invalid backend token")
+			logger.Log(logger.LevelWarn, nil, err, "Invalid backend token for DELETE /plugins/{name}")
+			return
+		}
+
+		err := plugins.Delete(config.pluginDir, pluginName)
+		if err != nil {
+			config.telemetryHandler.RecordError(span, err, "Failed to delete plugin")
+
+			logger.Log(logger.LevelError, nil, err, "Error deleting plugin: "+pluginName)
+			http.Error(w, "Error deleting plugin", http.StatusInternalServerError)
+			return
+		}
+		logger.Log(logger.LevelInfo, nil, nil, "Plugin deleted successfully: "+pluginName)
+
+		w.WriteHeader(http.StatusOK)
+	}).Methods("DELETE")
+}
+
+// addPluginListRoute registers a GET endpoint handler at "/plugins" that serves the list of available plugins.
+// It handles telemetry, metrics collection, and plugin list caching.
+func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
+	r.HandleFunc("/plugins", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		var span trace.Span
+
+		// Start tracing for listPlugins.
+		if config.telemetry != nil {
+			_, span = telemetry.CreateSpan(ctx, r, "plugins", "listPlugins")
+
+			defer span.End()
+		}
+
+		// Increment metric for plugin loads
+		if config.telemetry != nil && config.metrics != nil {
+			config.metrics.PluginLoadCount.Add(ctx, 1)
+		}
+
+		logger.Log(logger.LevelInfo, nil, nil, "Received GET request for plugin list")
+
+		w.Header().Set("Content-Type", "application/json")
+		pluginsList, err := config.cache.Get(context.Background(), plugins.PluginListKey)
+		if err != nil && err == cache.ErrNotFound {
+			pluginsList = []string{}
+
+			if config.telemetry != nil {
+				span.SetAttributes(attribute.Int("plugins.count", 0))
+			}
+		} else if config.telemetry != nil && pluginsList != nil {
+			if list, ok := pluginsList.([]string); ok {
+				span.SetAttributes(attribute.Int("plugins.count", len(list)))
+			}
+		}
+		if err := json.NewEncoder(w).Encode(pluginsList); err != nil {
+			logger.Log(logger.LevelError, nil, err, "encoding plugins base paths list")
+		} else {
+			// Notify that the client has requested the plugins list. So we can start sending
+			// refresh requests.
+			if err := config.cache.Set(context.Background(), plugins.PluginCanSendRefreshKey, true); err != nil {
+				config.telemetryHandler.RecordError(span, err, "Failed to set plugin-can-send-refresh key")
+				logger.Log(logger.LevelError, nil, err, "setting plugin-can-send-refresh key failed")
+			} else if config.telemetry != nil {
+				span.SetStatus(codes.Ok, "Plugin list retrieved successfully")
+			}
+		}
+	}).Methods("GET")
 }
 
 //nolint:gocognit,funlen,gocyclo
@@ -1029,10 +1096,7 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 
 		var span trace.Span
 		if c.telemetry != nil {
-			_, span = telemetry.CreateSpan(ctx, "auth", "OIDCTokenRefreshMiddleware",
-				attribute.String("request.method", r.Method),
-				attribute.String("http.path", r.URL.Path),
-			)
+			_, span = telemetry.CreateSpan(ctx, r, "auth", "OIDCTokenRefreshMiddleware")
 
 			c.telemetryHandler.RecordEvent(span, "Middleware started")
 
