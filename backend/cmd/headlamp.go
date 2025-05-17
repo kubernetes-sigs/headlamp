@@ -1213,12 +1213,26 @@ func StartHeadlampServer(config *HeadlampConfig) {
 
 // Returns the helm.Handler given the config and request. Writes http.NotFound if clusterName is not there.
 func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (*helm.Handler, error) {
+	ctx := r.Context()
+	start := time.Now()
+
+	_, span := telemetry.CreateSpan(ctx, r, "headlamp-server", "getHelmHandler")
+	c.telemetryHandler.RecordEvent(span, "Get helm handler started")
+
+	defer span.End()
+	c.telemetryHandler.RecordRequestCount(ctx, r)
+
 	clusterName := mux.Vars(r)["clusterName"]
+	telemetry.AddSpanAttributes(ctx, attribute.String("clusterName", clusterName))
 
 	context, err := c.kubeConfigStore.GetContext(clusterName)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"clusterName": clusterName},
+		logger.Log(
+			logger.LevelError, map[string]string{"clusterName": clusterName},
 			err, "failed to get context")
+		c.telemetryHandler.RecordError(span, err, "failed to get context")
+		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error", "failed to get context"))
+		c.telemetryHandler.RecordDuration(ctx, start, attribute.String("status", "not found"))
 		http.NotFound(w, r)
 
 		return nil, errors.New("not found")
@@ -1228,11 +1242,18 @@ func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (
 
 	helmHandler, err := helm.NewHandler(context.ClientConfig(), c.cache, namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "failed to create helm handler")
+		logger.Log(logger.LevelError, map[string]string{"namespace": namespace},
+			err, "failed to create helm handler")
+		c.telemetryHandler.RecordError(span, err, "failed to create helm handler")
+		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error", "helm handler creation failure"))
+		c.telemetryHandler.RecordDuration(ctx, start, attribute.String("status", "failure"))
 		http.Error(w, "failed to create helm handler", http.StatusInternalServerError)
 
 		return nil, err
 	}
+
+	c.telemetryHandler.RecordDuration(ctx, start, attribute.String("status", "success"))
+	c.telemetryHandler.RecordEvent(span, "Successfully created helm handler")
 
 	return helmHandler, nil
 }

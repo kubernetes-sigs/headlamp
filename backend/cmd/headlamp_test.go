@@ -1002,8 +1002,10 @@ func TestHandleClusterHelm(t *testing.T) {
 	defer os.Unsetenv("HEADLAMP_BACKEND_TOKEN")
 
 	config := &HeadlampConfig{
-		cache:           cache.New[interface{}](),
-		kubeConfigStore: kubeconfig.NewContextStore(),
+		cache:            cache.New[interface{}](),
+		kubeConfigStore:  kubeconfig.NewContextStore(),
+		telemetryConfig:  GetDefaultTestTelemetryConfig(),
+		telemetryHandler: &telemetry.RequestHandler{},
 	}
 
 	// Add a mock context to the kubeConfigStore

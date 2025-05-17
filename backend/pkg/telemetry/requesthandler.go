@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -56,5 +57,16 @@ func (h *RequestHandler) RecordDuration(ctx context.Context, start time.Time, at
 func (h *RequestHandler) RecordErrorCount(ctx context.Context, attrs ...attribute.KeyValue) {
 	if h.metrics != nil {
 		h.metrics.ErrorCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
+	}
+}
+
+// RecordRequestCount increments request counter metrics with HTTP request details.
+// It automatically adds method and path attributes from the request along with any additional attributes provided.
+func (h *RequestHandler) RecordRequestCount(ctx context.Context, r *http.Request, attrs ...attribute.KeyValue) {
+	if h.metrics != nil && h.telemetry != nil {
+		h.metrics.RequestCounter.Add(ctx, 1, metric.WithAttributes(append(attrs,
+			attribute.String("http.method", r.Method),
+			attribute.String("http.path", r.URL.Path),
+		)...))
 	}
 }

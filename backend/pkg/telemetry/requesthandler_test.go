@@ -281,3 +281,65 @@ func setupMetrics(t *testing.T) *tel.Metrics {
 
 	return metrics
 }
+
+func TestRecordRequestCount(t *testing.T) {
+	t.Run("records request count with default attributes", func(t *testing.T) {
+		metrics := setupMetrics(t)
+		handler := tel.NewRequestHandler(nil, metrics)
+		req := httptest.NewRequest(http.MethodGet, "/test/path", nil)
+		ctx := req.Context()
+
+		assert.NotPanics(t, func() {
+			handler.RecordRequestCount(ctx, req)
+		})
+	})
+
+	t.Run("records request count with additional attributes", func(t *testing.T) {
+		metrics := setupMetrics(t)
+		handler := tel.NewRequestHandler(nil, metrics)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/resource", nil)
+		ctx := req.Context()
+
+		attrs := []attribute.KeyValue{
+			attribute.String("user_id", "test-user"),
+			attribute.String("resource_type", "test-resource"),
+		}
+
+		assert.NotPanics(t, func() {
+			handler.RecordRequestCount(ctx, req, attrs...)
+		})
+	})
+
+	t.Run("handles nil metrics", func(t *testing.T) {
+		handler := tel.NewRequestHandler(nil, nil)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		ctx := req.Context()
+
+		assert.NotPanics(t, func() {
+			handler.RecordRequestCount(ctx, req)
+		})
+	})
+
+	t.Run("handles nil request", func(t *testing.T) {
+		metrics := setupMetrics(t)
+		handler := tel.NewRequestHandler(nil, metrics)
+		ctx := context.Background()
+
+		assert.NotPanics(t, func() {
+			handler.RecordRequestCount(ctx, nil)
+		})
+	})
+
+	t.Run("handles multiple requests", func(t *testing.T) {
+		metrics := setupMetrics(t)
+		handler := tel.NewRequestHandler(nil, metrics)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		ctx := req.Context()
+
+		assert.NotPanics(t, func() {
+			for i := 0; i < 3; i++ {
+				handler.RecordRequestCount(ctx, req)
+			}
+		})
+	})
+}
