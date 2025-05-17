@@ -50,6 +50,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/portforward"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -435,6 +436,12 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	err := kubeconfig.LoadAndStoreKubeConfigs(config.kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "loading kubeconfig")
+	}
+
+	// Prometheus metrics endpoint
+	if config.metrics != nil {
+		r.Handle("/metrics", promhttp.Handler())
+		logger.Log(logger.LevelInfo, nil, nil, "prometheus metrics enpoint: /metrics")
 	}
 
 	// load dynamic clusters
