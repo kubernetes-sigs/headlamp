@@ -26,6 +26,21 @@ Assumes being run within the plugins/headlamp-plugin folder
 const PACKAGE_NAME = 'headlamp-myfancy';
 
 function testHeadlampPlugin() {
+  const validYml = `name: test-plugin\nversion: 1.0.0\ndescription: Test plugin\nkeywords:\n  - test\nlinks:\n  - name: homepage\n    url: https://example.com\nmaintainers:\n  - name: Tester\n    email: tester@example.com\n`;
+  fs.writeFileSync('artifacthub-pkg.yml', validYml);
+  run('node', ['bin/headlamp-plugin.js', 'validate-artifacthub', 'artifacthub-pkg.yml']);
+  const invalidYml = `name: test-plugin\nversion: 1.0.0\n`;
+  fs.writeFileSync('artifacthub-pkg.yml', invalidYml);
+  let failed = false;
+  try {
+    run('node', ['bin/headlamp-plugin.js', 'validate-artifacthub', 'artifacthub-pkg.yml']);
+  } catch (e) {
+    failed = true;
+  }
+  if (!failed) {
+    exit('Error: validate-artifacthub did not fail on invalid input');
+  }
+  fs.rmSync('artifacthub-pkg.yml');
   // remove some temporary files.
   cleanup();
 

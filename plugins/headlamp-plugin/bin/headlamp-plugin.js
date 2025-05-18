@@ -1628,6 +1628,73 @@ yargs(process.argv.slice(2))
       }
     }
   )
+  .command(
+    'validate-artifacthub [file]',
+    'Validate an artifacthub-pkg.yml file against the ArtifactHub schema.',
+    yargs => {
+      yargs.positional('file', {
+        describe: 'Path to artifacthub-pkg.yml',
+        type: 'string',
+        default: 'artifacthub-pkg.yml',
+      });
+    },
+    async argv => {
+      process.exitCode = await validateArtifactHub(argv.file);
+    }
+  )
   .demandCommand(1, '')
   .strict()
   .help().argv;
+async function validateArtifactHub(file) {
+  const yaml = require('js-yaml');
+  const Ajv = require('ajv');
+  const schemaPath = require('path').resolve(__dirname, '../artifacthub-pkg.schema.json');
+  let data, schema;
+  // 1. Load and parse YAML file
+  try {
+    if (!fs.existsSync(file)) {
+      console.error(`File not found: ${file}`);
+      return 2;
+    }
+    const yamlContent = fs.readFileSync(file, 'utf8');
+    data = yaml.load(yamlContent);
+  } catch (err) {
+    console.error(`Failed to read or parse YAML file: ${file}`);
+    console.error(err.message);
+    return 2;
+  }
+
+  // 2. Load schema
+  try {
+    if (!fs.existsSync(schemaPath)) {
+      console.error(`Schema file not found: ${schemaPath}`);
+      return 2;
+    }
+    schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+  } catch (err) {
+    console.error(`Failed to read or parse schema file: ${schemaPath}`);
+    console.error(err.message);
+    return 2;
+  }
+
+  // 3. Validate
+  try {
+    const ajv = new Ajv({ allErrors: true, strict: false });
+    const validate = ajv.compile(schema);
+    const valid = validate(data);
+    if (valid) {
+      console.log(`\u2714 ${file} is valid according to ArtifactHub schema.`);
+      return 0;
+    } else {
+      console.error(`\u2716 ${file} is NOT valid. Validation errors:`);
+      for (const err of validate.errors) {
+        console.error(`- [${err.instancePath || '/'}] ${err.message}`);
+      }
+      return 1;
+    }
+  } catch (err) {
+    console.error('Validation failed:', err.message);
+    return 2;
+  }
+}
+
