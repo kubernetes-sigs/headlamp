@@ -256,6 +256,8 @@ func TestDynamicClusters(t *testing.T) {
 				enableDynamicClusters: true,
 				cache:                 cache,
 				kubeConfigStore:       kubeConfigStore,
+				telemetryConfig:       GetDefaultTestTelemetryConfig(),
+				telemetryHandler:      &telemetry.RequestHandler{},
 			}
 			handler := createHeadlampHandler(&c)
 
@@ -343,6 +345,8 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 		enableDynamicClusters: true,
 		cache:                 cache,
 		kubeConfigStore:       kubeConfigStore,
+		telemetryConfig:       GetDefaultTestTelemetryConfig(),
+		telemetryHandler:      &telemetry.RequestHandler{},
 	}
 	handler := createHeadlampHandler(&c)
 
@@ -669,6 +673,8 @@ func TestRenameCluster(t *testing.T) {
 		enableDynamicClusters: true,
 		cache:                 cache,
 		kubeConfigStore:       kubeConfigStore,
+		telemetryConfig:       GetDefaultTestTelemetryConfig(),
+		telemetryHandler:      &telemetry.RequestHandler{},
 	}
 	handler := createHeadlampHandler(&c)
 

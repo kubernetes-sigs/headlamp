@@ -1475,7 +1475,7 @@ func recordRequestCompletion(c *HeadlampConfig, ctx context.Context,
 		attribute.String("cluster", mux.Vars(r)["clusterName"]))
 	logger.Log(logger.LevelInfo,
 		map[string]string{"duration_ms": fmt.Sprintf("%.2f", duration)},
-		nil, "Complete cluster API request")
+		nil, "Request completed successfully")
 }
 
 // Handle WebSocket connections that include token in Sec-WebSocket-Protocol
@@ -1712,33 +1712,63 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 
 // addCluster adds cluster to store and updates the kubeconfig file.
 func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	start := time.Now()
+
+	_, span := telemetry.CreateSpan(ctx, r, "cluster-management", "addCluster")
+	c.telemetryHandler.RecordEvent(span, "Add cluster request started")
+	defer span.End()
+	// Defer recording the duration and logging when the request is complete.
+	defer recordRequestCompletion(c, ctx, start, r)
+	c.telemetryHandler.RecordRequestCount(ctx, r)
+
 	if err := checkHeadlampBackendToken(w, r); err != nil {
+		c.telemetryHandler.RecordError(span, err, "invalid backend token")
+		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "invalid token"))
 		logger.Log(logger.LevelError, nil, err, "invalid token")
+
 		return
 	}
 
 	clusterReq, err := decodeClusterRequest(r)
 	if err != nil {
+		c.telemetryHandler.RecordError(span, err, "failed to decode cluster request")
+		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "decode error"))
 		http.Error(w, err.Error(), http.StatusBadRequest)
+
 		return
 	}
 
-	contexts, setupErrors := c.processClusterRequest(clusterReq)
+	if c.telemetry != nil {
+		if clusterReq.Name != nil {
+			span.SetAttributes(attribute.String("clusterName", *clusterReq.Name))
+		}
 
+		if clusterReq.Server != nil {
+			span.SetAttributes(attribute.String("clusterServer", *clusterReq.Server))
+		}
+
+		span.SetAttributes(attribute.Bool("clusterIsKubeConfig", clusterReq.KubeConfig != nil))
+	}
+
+	contexts, setupErrors := c.processClusterRequest(clusterReq)
 	if len(contexts) == 0 {
-		logger.Log(logger.LevelError, nil, errors.New("no contexts found in kubeconfig"), "getting contexts from kubeconfig")
+		c.telemetryHandler.RecordError(span, errors.New("no contexts found in kubeconfig"), "no contexts found in kubeconfig")
+		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "no_contexts_found"))
 		http.Error(w, "getting contexts from kubeconfig", http.StatusBadRequest)
+		logger.Log(logger.LevelError, nil, errors.New("no contexts found in kubeconfig"), "getting contexts from kubeconfig")
 
 		return
 	}
 
 	setupErrors = c.addContextsToStore(contexts, setupErrors)
-
-	if len(setupErrors) > 0 {
-		logger.Log(logger.LevelError, nil, setupErrors, "setting up contexts from kubeconfig")
-		http.Error(w, "setting up contexts from kubeconfig", http.StatusBadRequest)
-
+	if err := c.handleSetupErrors(setupErrors, ctx, w, span); err != nil {
 		return
+	}
+
+	if c.telemetry != nil {
+		span.SetAttributes(attribute.Int("contexts.added", len(contexts)))
+		span.SetStatus(codes.Ok, "Cluster added successfully")
 	}
 
 	w.WriteHeader(http.StatusCreated)
@@ -1758,6 +1788,32 @@ func decodeClusterRequest(r *http.Request) (ClusterReq, error) {
 	}
 
 	return clusterReq, nil
+}
+
+func (c *HeadlampConfig) handleSetupErrors(setupErrors []error,
+	ctx context.Context, w http.ResponseWriter, span trace.Span,
+) []error {
+	if len(setupErrors) > 0 {
+		logger.Log(logger.LevelError, nil, setupErrors, "setting up contexts from kubeconfig")
+
+		if c.telemetry != nil {
+			span.SetStatus(codes.Error, "Failed to setup contexts from kubeconfig")
+
+			errMsg := fmt.Sprintf("%v", setupErrors)
+			span.SetAttributes(attribute.String("error.message", errMsg))
+
+			for _, setupErr := range setupErrors {
+				c.telemetryHandler.RecordError(span, setupErr, "setup error")
+			}
+		}
+
+		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "setup_context_error"))
+		http.Error(w, "setting up contexts from kubeconfig", http.StatusBadRequest)
+
+		return setupErrors
+	}
+
+	return nil
 }
 
 // processClusterRequest processes the cluster request.
