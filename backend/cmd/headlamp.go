@@ -1897,28 +1897,43 @@ func (c *HeadlampConfig) addContextsToStore(contexts []kubeconfig.Context, setup
 
 // deleteCluster deletes the cluster from the store and updates the kubeconfig file.
 func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	start := time.Now()
+
+	_, span := telemetry.CreateSpan(ctx, r, "cluster-management", "deleteCluster")
+	defer span.End()
+	c.telemetryHandler.RecordRequestCount(ctx, r)
+
+	defer func() {
+		duration := time.Since(start).Milliseconds()
+
+		c.telemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "/cluster/delete"))
+		logger.Log(logger.LevelInfo, map[string]string{
+			"duration_ms": fmt.Sprintf("%d", duration),
+			"api.route":   "/cluster/delete",
+		}, nil, "Completed deleteCluster request")
+	}()
+
+	name := mux.Vars(r)["name"]
+
 	if err := checkHeadlampBackendToken(w, r); err != nil {
+		c.telemetryHandler.RecordError(span, err, "invalid backend token")
+		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "invalid_token"))
 		logger.Log(logger.LevelError, nil, err, "invalid token")
 
 		return
 	}
 
-	name := mux.Vars(r)["name"]
-
 	err := c.kubeConfigStore.RemoveContext(name)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": name},
-			err, "deleting cluster")
-		http.Error(w, "deleting cluster", http.StatusInternalServerError)
+		c.handleError(w, ctx, span, err, "failed to delete cluster", http.StatusInternalServerError)
 
 		return
 	}
 
 	kubeConfigPersistenceFile, err := defaultKubeConfigPersistenceFile()
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": name},
-			err, "getting default kubeconfig persistence file")
-		http.Error(w, "getting default kubeconfig persistence file", http.StatusInternalServerError)
+		c.handleError(w, ctx, span, err, "failed to get kubeconfig persistence file", http.StatusInternalServerError)
 
 		return
 	}
@@ -1931,15 +1946,13 @@ func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
 
 	err = kubeconfig.RemoveContextFromFile(name, kubeConfigPersistenceFile)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": name},
-			err, "removing cluster from kubeconfig")
-		http.Error(w, "removing cluster from kubeconfig", http.StatusInternalServerError)
+		c.handleError(w, ctx, span, err, "failed to remove cluster from kubeconfig", http.StatusInternalServerError)
 
 		return
 	}
 
 	logger.Log(logger.LevelInfo, map[string]string{"cluster": name, "proxy": name},
-		nil, "Removed cluster proxy")
+		nil, "removed cluster successfully")
 
 	c.getConfig(w, r)
 }
