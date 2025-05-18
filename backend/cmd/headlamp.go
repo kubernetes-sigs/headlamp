@@ -1969,9 +1969,22 @@ func (c *HeadlampConfig) getKubeConfigPath(source string) (string, error) {
 
 // Handler for renaming a stateless cluster.
 func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *http.Request, clusterName string) {
+	ctx := r.Context()
+	start := time.Now()
+
+	c.telemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
+	_, span := telemetry.CreateSpan(ctx, r, "cluster-rename", "handleStatelessClusterRename",
+		attribute.String("cluster", clusterName),
+	)
+	c.telemetryHandler.RecordEvent(span, "Stateless cluster rename request started")
+
+	defer span.End()
+
 	if err := c.kubeConfigStore.RemoveContext(clusterName); err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
 			err, "decoding request body")
+		c.telemetryHandler.RecordError(span, err, "decoding request body")
+		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "remove_context_failure"))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return
@@ -1979,6 +1992,13 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 
 	w.WriteHeader(http.StatusCreated)
 	c.getConfig(w, r)
+
+	duration := time.Since(start).Milliseconds()
+	c.telemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "handleStatelessClusterRename"))
+	logger.Log(logger.LevelInfo, map[string]string{
+		"duration_ms": fmt.Sprintf("%d", duration),
+		"api.route":   "handleStatelessClusterRename",
+	}, nil, "Completed stateless cluster rename")
 }
 
 // customNameToExtenstions writes the custom name to the Extensions map in the kubeconfig.
