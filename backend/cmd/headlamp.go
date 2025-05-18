@@ -1277,7 +1277,6 @@ func checkHeadlampBackendToken(w http.ResponseWriter, r *http.Request) error {
 func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 	router.PathPrefix("/clusters/{clusterName}/helm/{.*}").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		start := time.Now()
 		path := r.URL.Path
 		clusterName := mux.Vars(r)["clusterName"]
 
@@ -1290,30 +1289,14 @@ func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 		c.telemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
 
 		if err := checkHeadlampBackendToken(w, r); err != nil {
-			c.telemetryHandler.RecordError(span, err, "authentication failed")
-			c.telemetryHandler.RecordDuration(ctx, start, attribute.String("status", "auth error"))
-			c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error", "auth failure"))
-			logger.Log(logger.LevelInfo, map[string]string{
-				"path":    path,
-				"method":  r.Method,
-				"cluster": clusterName,
-			}, err, "failed to check headlamp backend token")
+			c.handleError(w, ctx, span, err, "failed to check headlamp backend token", http.StatusForbidden)
 
 			return
 		}
 
 		helmHandler, err := getHelmHandler(c, w, r)
 		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{
-				"path":    path,
-				"method":  r.Method,
-				"cluster": clusterName,
-			}, err, "failed to get helm handler")
-
-			c.telemetryHandler.RecordError(span, err, "failed to get helm handler")
-			c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error", "failed to get helm handler"))
-			c.telemetryHandler.RecordDuration(ctx, start,
-				attribute.String("api.route", "handleClusterHelm"))
+			c.handleError(w, ctx, span, err, "failed to get helm handler", http.StatusForbidden)
 
 			return
 		}
@@ -1382,17 +1365,20 @@ func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 	})
 }
 
+func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
+	span trace.Span, err error, msg string, status int,
+) {
+	logger.Log(logger.LevelError, nil, err, msg)
+	c.telemetryHandler.RecordError(span, err, msg)
+	c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", msg))
+	http.Error(w, err.Error(), status)
+}
+
 // handleClusterAPI handles cluster API requests. It is responsible for
 // all the requests made to /clusters/{clusterName}/{api:.*} endpoint.
 // It parses the request and creates a proxy request to the cluster.
 // That proxy is saved in the cache with the context key.
 func handleClusterAPI(c *HeadlampConfig, router *mux.Router) { //nolint:funlen
-	handleError := func(w http.ResponseWriter, span trace.Span, err error, msg string, status int) {
-		logger.Log(logger.LevelError, nil, err, msg)
-		c.telemetryHandler.RecordError(span, err, msg)
-		http.Error(w, err.Error(), status)
-	}
-
 	router.PathPrefix("/clusters/{clusterName}/{api:.*}").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		ctx := r.Context()
@@ -1410,24 +1396,24 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) { //nolint:funlen
 
 		contextKey, err := c.getContextKeyForRequest(r)
 		if err != nil {
-			handleError(w, span, err, "failed to get context key", http.StatusBadRequest)
+			c.handleError(w, ctx, span, err, "failed to get context key", http.StatusBadRequest)
 			return
 		}
 
 		kContext, err := c.kubeConfigStore.GetContext(contextKey)
 		if err != nil {
-			handleError(w, span, err, "failed to get context", http.StatusNotFound)
+			c.handleError(w, ctx, span, err, "failed to get context", http.StatusNotFound)
 			return
 		}
 
 		if kContext.Error != "" {
-			handleError(w, span, errors.New(kContext.Error), "context has error", http.StatusBadRequest)
+			c.handleError(w, ctx, span, errors.New(kContext.Error), "context has error", http.StatusBadRequest)
 			return
 		}
 
 		clusterURL, err := url.Parse(kContext.Cluster.Server)
 		if err != nil {
-			handleError(w, span, err, "failed to parse cluster URL", http.StatusNotFound)
+			c.handleError(w, ctx, span, err, "failed to parse cluster URL", http.StatusNotFound)
 			return
 		}
 
@@ -1453,7 +1439,7 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) { //nolint:funlen
 		if err = kContext.ProxyRequest(w, r); err != nil {
 			c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "proxy_error"),
 				attribute.String("cluster", contextKey))
-			handleError(w, span, err, "failed to proxy request", http.StatusInternalServerError)
+			c.handleError(w, ctx, span, err, "failed to proxy request", http.StatusInternalServerError)
 
 			return
 		}
@@ -2176,29 +2162,38 @@ func (c *HeadlampConfig) addClusterSetupRoute(r *mux.Router) {
 This function is used to handle the node drain request.
 */
 func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	_, span := telemetry.CreateSpan(ctx, r, "node-management", "handleNodeDrain")
+	c.telemetryHandler.RecordRequestCount(ctx, r)
+	c.telemetryHandler.RecordEvent(span, "node drain request started")
+
+	defer span.End()
+
+	// handleError := func(err error, msg string, status int) {
+	// 	logger.Log(logger.LevelError, nil, err, msg)
+	// 	c.telemetryHandler.RecordError(span, err, msg)
+	// 	c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", msg))
+	// 	http.Error(w, msg, status)
+	// }
+
 	var drainPayload struct {
 		Cluster  string `json:"cluster"`
 		NodeName string `json:"nodeName"`
 	}
-	// get nodeName and cluster from request body
-	err := json.NewDecoder(r.Body).Decode(&drainPayload)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "decoding payload")
-		http.Error(w, "decoding payload", http.StatusBadRequest)
+
+	if err := json.NewDecoder(r.Body).Decode(&drainPayload); err != nil {
+		c.handleError(w, ctx, span, err, "decoding payload", http.StatusBadRequest)
 
 		return
 	}
 
 	if drainPayload.NodeName == "" {
-		logger.Log(logger.LevelError, nil, errors.New("nodeName not found"), "nodeName is required")
-		http.Error(w, "nodeName is required", http.StatusBadRequest)
-
+		c.handleError(w, ctx, span, errors.New("nodeName not found"), "missing nodeName", http.StatusBadRequest)
 		return
 	}
 
 	if drainPayload.Cluster == "" {
-		logger.Log(logger.LevelError, nil, errors.New("clusterName not found"), "clusterName is required")
-		http.Error(w, "clusterName is required", http.StatusBadRequest)
+		c.handleError(w, ctx, span, errors.New("clusterName not found"), "missing clusterName", http.StatusBadRequest)
 
 		return
 	}
@@ -2207,17 +2202,14 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 
 	ctxtProxy, err := c.kubeConfigStore.GetContext(drainPayload.Cluster)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": drainPayload.Cluster},
-			err, "getting context")
-		http.Error(w, "Cluster not found", http.StatusNotFound)
+		c.handleError(w, ctx, span, err, "Cluster not found", http.StatusNotFound)
 
 		return
 	}
 
 	clientset, err := ctxtProxy.ClientSetWithToken(token)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "getting client")
-		http.Error(w, "getting client", http.StatusInternalServerError)
+		c.handleError(w, ctx, span, err, "getting client", http.StatusInternalServerError)
 
 		return
 	}
@@ -2231,8 +2223,7 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 	responsePayload.Message = "Drain node request submitted successfully"
 
 	if err = json.NewEncoder(w).Encode(responsePayload); err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing response")
-		http.Error(w, "writing response", http.StatusInternalServerError)
+		c.handleError(w, ctx, span, err, "writing response", http.StatusInternalServerError)
 
 		return
 	}

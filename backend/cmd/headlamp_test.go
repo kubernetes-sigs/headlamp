@@ -503,7 +503,7 @@ func TestExternalProxy(t *testing.T) {
 	}
 }
 
-func TestDrainAndCordonNode(t *testing.T) {
+func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
 	type test struct {
 		handler http.Handler
 	}
@@ -513,10 +513,12 @@ func TestDrainAndCordonNode(t *testing.T) {
 	tests := []test{
 		{
 			handler: createHeadlampHandler(&HeadlampConfig{
-				useInCluster:    false,
-				kubeConfigPath:  config.GetDefaultKubeConfigPath(),
-				cache:           cache,
-				kubeConfigStore: kubeConfigStore,
+				useInCluster:     false,
+				kubeConfigPath:   config.GetDefaultKubeConfigPath(),
+				cache:            cache,
+				kubeConfigStore:  kubeConfigStore,
+				telemetryConfig:  GetDefaultTestTelemetryConfig(),
+				telemetryHandler: &telemetry.RequestHandler{},
 			}),
 		},
 	}
