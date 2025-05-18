@@ -2311,52 +2311,64 @@ Since node drain is an async operation, we need to poll for the status of the dr
 This endpoint returns the status of the drain operation.
 */
 func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Request) {
-	var drainPayload struct {
+	start := time.Now()
+	ctx := r.Context()
+
+	_, span := telemetry.CreateSpan(ctx, r, "node-management", "handleNodeDrainStatus",
+		attribute.String("cluster", r.URL.Query().Get("cluster")),
+		attribute.String("nodeName", r.URL.Query().Get("nodeName")),
+	)
+	c.telemetryHandler.RecordEvent(span, "handleNodeDrainStatus request started")
+	c.telemetryHandler.RecordRequestCount(ctx, r)
+
+	defer span.End()
+
+	// Parse query parameters
+	drainPayload := struct {
 		Cluster  string `json:"cluster"`
 		NodeName string `json:"nodeName"`
+	}{
+		Cluster:  r.URL.Query().Get("cluster"),
+		NodeName: r.URL.Query().Get("nodeName"),
 	}
 
-	drainPayload.Cluster = r.URL.Query().Get("cluster")
-	drainPayload.NodeName = r.URL.Query().Get("nodeName")
-
 	if drainPayload.NodeName == "" {
-		logger.Log(logger.LevelError, nil, errors.New("nodeName not found"), "nodeName is required")
-		http.Error(w, "nodeName is required", http.StatusBadRequest)
-
+		c.handleError(w, ctx, span, errors.New("nodeName is required"), "nodeName is missing", http.StatusBadRequest)
 		return
 	}
 
 	if drainPayload.Cluster == "" {
-		logger.Log(logger.LevelError, nil, errors.New("clusterName not found"), "clusterName is required")
-		http.Error(w, "clusterName is required", http.StatusBadRequest)
+		c.handleError(w, ctx, span, errors.New("clusterName is required"), "clusterName is missing", http.StatusBadRequest)
 
 		return
 	}
 
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte(drainPayload.NodeName+drainPayload.Cluster)).String()
-	ctx := context.Background()
 
 	cacheItem, err := c.cache.Get(ctx, cacheKey)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cacheKey": cacheKey},
-			err, "getting cache item")
-		w.WriteHeader(http.StatusNotFound)
+		c.handleError(w, ctx, span, err, "failed to get cache item", http.StatusNotFound)
 
 		return
 	}
-
-	var responsePayload struct {
+	// Prepare successful response
+	responsePayload := struct {
 		ID      string `json:"id"`
 		Cluster string `json:"cluster"`
+	}{
+		ID:      cacheItem.(string),
+		Cluster: drainPayload.Cluster,
 	}
 
-	responsePayload.ID = cacheItem.(string)
-	responsePayload.Cluster = drainPayload.Cluster
+	c.telemetryHandler.RecordEvent(span, "Drain status found", attribute.String("cache.key", cacheKey))
 
 	if err = json.NewEncoder(w).Encode(responsePayload); err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing response")
-		http.Error(w, "writing response", http.StatusInternalServerError)
+		c.handleError(w, ctx, span, err, "failed to encode repsone", http.StatusInternalServerError)
 
 		return
 	}
+
+	c.telemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "handleNodeDrainStatus"))
+	logger.Log(logger.LevelInfo, map[string]string{"duration_ms": fmt.Sprintf("%d", time.Since(start).Milliseconds())},
+		nil, "handleNodeDrainStatus completed")
 }
