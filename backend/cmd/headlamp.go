@@ -2078,66 +2078,102 @@ func (c *HeadlampConfig) getPathAndLoadKubeconfig(source, clusterName string) (s
 
 // Handler for renaming a cluster.
 func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	clusterName := vars["name"]
-	// Parse request body.
+	ctx := r.Context()
+	start := time.Now()
+	clusterName := mux.Vars(r)["name"]
+
+	// Setup telemetry
+	_, span := telemetry.CreateSpan(ctx, r, "cluster-rename", "renameCluster",
+		attribute.String("cluster", clusterName),
+	)
+	defer span.End()
+
+	c.telemetryHandler.RecordEvent(span, "Rename cluster request started")
+	c.telemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
+
+	// Parse request and validate
 	var reqBody RenameClusterRequest
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
-			err, "decoding request body")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
+		c.handleError(w, ctx, span, err, "failed to decode request body", http.StatusBadRequest)
 		return
 	}
 
+	// Handle stateless clusters separately
 	if reqBody.Stateless {
-		// For stateless clusters we just need to remove cluster from cache
+		c.telemetryHandler.RecordEvent(span, "Delegating to handleStatelessClusterRename")
 		c.handleStatelessClusterRename(w, r, clusterName)
 
 		return
 	}
 
-	// Get path of kubeconfig from source
+	if err := c.handleClusterRename(w, r, clusterName, reqBody, ctx, span); err != nil {
+		return // Error already handled inside handleClusterRename
+	}
+
+	// Record success metrics and logging
+	c.telemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "renameCluster"))
+	logger.Log(logger.LevelInfo, map[string]string{
+		"duration_ms": fmt.Sprintf("%d", time.Since(start).Milliseconds()),
+		"api.route":   "renameCluster",
+	}, nil, "Completed renameCluster request")
+}
+
+func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Request,
+	clusterName string, reqBody RenameClusterRequest, ctx context.Context, span trace.Span,
+) error {
+	// Load kubeconfig
 	path, config, err := c.getPathAndLoadKubeconfig(reqBody.Source, clusterName)
 	if err != nil {
-		http.Error(w, "getting kubeconfig file", http.StatusInternalServerError)
-		return
+		c.handleError(w, ctx, span, err, "failed to get kubeconfig file", http.StatusInternalServerError)
+		return err
 	}
 
-	// Find the context with the given cluster name
-	contextName := clusterName
-
-	// Iterate over the contexts to find the context with the given cluster name
-	for k, v := range config.Contexts {
-		info := v.Extensions["headlamp_info"]
-		if info != nil {
-			customObj, err := MarshalCustomObject(info, contextName)
-			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
-					err, "marshaling custom object")
-
-				return
-			}
-
-			// Check if the CustomName field matches the cluster name
-			if customObj.CustomName != "" && customObj.CustomName == clusterName {
-				contextName = k
-			}
-		}
+	// Find context name
+	contextName := c.findContextName(config, clusterName, ctx, span, w)
+	if contextName == "" {
+		return errors.New("context not found")
 	}
 
+	// Update config
 	if err := customNameToExtenstions(config, contextName, reqBody.NewClusterName, path); err != nil {
-		http.Error(w, "writing custom extension to kubeconfig", http.StatusInternalServerError)
-		return
+		c.handleError(w, ctx, span, err, "failed to write custom extension", http.StatusInternalServerError)
+		return err
 	}
 
 	if errs := c.updateCustomContextToCache(config, clusterName); len(errs) > 0 {
-		http.Error(w, "setting up contexts from kubeconfig", http.StatusBadRequest)
-		return
+		c.handleError(w, ctx, span, err, "failed to update context to cache", http.StatusInternalServerError)
+		return errors.New("failed to update context cache")
 	}
 
 	w.WriteHeader(http.StatusCreated)
 	c.getConfig(w, r)
+
+	return nil
+}
+
+func (c *HeadlampConfig) findContextName(config *api.Config, clusterName string,
+	ctx context.Context, span trace.Span, w http.ResponseWriter,
+) string {
+	contextName := clusterName
+
+	for k, v := range config.Contexts {
+		info := v.Extensions["headlamp_info"]
+		if info == nil {
+			continue
+		}
+
+		customObj, err := MarshalCustomObject(info, contextName)
+		if err != nil {
+			c.handleError(w, ctx, span, err, "failed to marshal custom object", http.StatusInternalServerError)
+			return ""
+		}
+
+		if customObj.CustomName != "" && customObj.CustomName == clusterName {
+			return k
+		}
+	}
+
+	return contextName
 }
 
 func (c *HeadlampConfig) addClusterSetupRoute(r *mux.Router) {
@@ -2168,13 +2204,6 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 	c.telemetryHandler.RecordEvent(span, "node drain request started")
 
 	defer span.End()
-
-	// handleError := func(err error, msg string, status int) {
-	// 	logger.Log(logger.LevelError, nil, err, msg)
-	// 	c.telemetryHandler.RecordError(span, err, msg)
-	// 	c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", msg))
-	// 	http.Error(w, msg, status)
-	// }
 
 	var drainPayload struct {
 		Cluster  string `json:"cluster"`
