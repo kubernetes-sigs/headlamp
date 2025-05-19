@@ -31,7 +31,7 @@ import { createRouteURL } from '../../../lib/router';
 import { useId } from '../../../lib/util';
 import { setConfig } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/reducers/reducers';
-import { ConfirmDialog } from '../../common';
+import { ConfirmDialog } from '../../common/ConfirmDialog';
 import ErrorBoundary from '../../common/ErrorBoundary/ErrorBoundary';
 
 interface ClusterContextMenuProps {

@@ -93,3 +93,74 @@ and then you can access `localhost:8080` in your browser.
 Once Headlamp is up and running, be sure to enable access to it either by creating
 a [service account](../#create-a-service-account-token) or by setting up
 [OIDC](./oidc).
+
+## Plugin Management
+
+Headlamp supports managing plugins through a sidecar container when deployed in-cluster.
+
+### Using values.yaml
+
+You can directly specify the plugin configuration in your `values.yaml`:
+
+```yaml
+pluginsManager:
+  enabled: true
+  configContent: |
+    plugins:
+      - name: my-plugin
+        source: https://artifacthub.io/packages/headlamp/my-repo/my_plugin
+        version: 1.0.0
+    installOptions:
+      parallel: true
+      maxConcurrent: 2
+  baseImage: node:lts-alpine
+  version: latest
+```
+
+### Using a Separate plugin.yml
+
+Alternatively, you can maintain a separate `plugin.yml` file:
+
+1. Create a `plugin.yml` file:
+```yaml
+plugins:
+  - name: my-plugin
+    source: https://artifacthub.io/packages/headlamp/my-repo/my_plugin
+    version: 1.0.0
+    # Optional: specify dependencies if needed
+    dependencies:
+      - another-plugin
+
+installOptions:
+  parallel: true
+  maxConcurrent: 2
+```
+
+2. Install/upgrade Headlamp using the plugin configuration:
+```bash
+helm upgrade --install my-headlamp headlamp/headlamp --namespace kube-system -f values.yaml --set pluginsManager.configContent="$(cat plugin.yml)"
+```
+
+### Plugin Configuration Format
+
+The plugin configuration supports the following fields:
+
+- `plugins`: Array of plugins to install
+  - `name`: Plugin name (required)
+  - `source`: Plugin source URL from Artifact Hub (required)
+  - `version`: Plugin version (required)
+  - `dependencies`: Array of plugin names that this plugin depends on (optional)
+- `installOptions`:
+  - `parallel`: Whether to install plugins in parallel (default: false)
+  - `maxConcurrent`: Maximum number of concurrent installations when parallel is true
+
+### Auto-updating Plugins
+
+Headlamp's plugin manager can automatically watch for changes in the plugin configuration. However, you need to enable watch for these changes in the main headlamp container. This can be enabled through the `watchPlugins` setting in `values.yaml`:
+
+```yaml
+config:
+  watchPlugins: true  # Set to true to enable automatic plugin updates in main headlamp container
+```
+
+When enabled, any plugins' changes (either through Helm upgrades or direct ConfigMap updates) wil update in the main headlamp container by enabling --watch-plugins-changes flag on headlamp server.

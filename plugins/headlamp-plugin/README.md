@@ -55,10 +55,13 @@ headlamp-plugin --help
   headlamp-plugin.js install [URL]          Install plugin(s) from a configuration
                                             file or a plugin Artifact Hub URL.
                                             Options:
-                                            -c, --config: Path to config file
-                                            --folderName: Install folder name
-                                            --headlampVersion: Target version
-                                            -q, --quiet: Suppress logs
+                                                  --version          Show version number
+                                              -c, --config           Path to plugin configuration file
+                                                  --folderName       Name of the folder to install the plugin 
+                                                  --headlampVersion  Version of headlamp to install the plugin 
+                                              -q, --quiet            Do not print logs
+                                              -w, --watch            Watch config file for changes and automatically
+                                                                    reinstall plugins
   headlamp-plugin.js update [pluginName]    Update the plugin to the latest version.
   headlamp-plugin.js uninstall [pluginName] Uninstall the plugin.
 ```

@@ -27,7 +27,8 @@ import {
   loadClusterSettings,
   storeClusterSettings,
 } from '../../../helpers/clusterSettings';
-import { NameValueTable, SectionBox } from '../../common';
+import { NameValueTable } from '../../common/NameValueTable';
+import SectionBox from '../../common/SectionBox';
 import { isValidNamespaceFormat } from './util';
 
 /**

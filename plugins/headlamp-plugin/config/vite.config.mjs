@@ -5,6 +5,7 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import svgr from 'vite-plugin-svgr';
 import { resolve } from 'path';
 import cssInjectedByJsPlugin from 'vite-plugin-css-injected-by-js';
+import { fileURLToPath } from 'url';
 
 const externalModules = {
   '@mui/material': 'pluginLib.MuiMaterial',
@@ -77,7 +78,8 @@ export default defineConfig({
         find: /^(vite-plugin-node-polyfills\/shims\/.+)/,
         replacement: '$1',
         customResolver(source) {
-          return import.meta.resolve(source).replace(/^file:\/\//, '');
+          const resolved = import.meta.resolve(source);
+          return fileURLToPath(resolved);
         },
       },
     ],

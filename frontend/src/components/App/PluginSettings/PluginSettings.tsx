@@ -29,8 +29,10 @@ import { isElectron } from '../../../helpers/isElectron';
 import { useFilterFunc } from '../../../lib/util';
 import { PluginInfo, reloadPage, setPluginSettings } from '../../../plugin/pluginsSlice';
 import { useTypedSelector } from '../../../redux/reducers/reducers';
-import { Link as HeadlampLink, SectionBox, Table } from '../../common';
+import { Link as HeadlampLink } from '../../common/';
+import SectionBox from '../../common/SectionBox';
 import SectionFilterHeader from '../../common/SectionFilterHeader';
+import Table from '../../common/Table';
 
 /**
  * Interface of the component's props structure.
