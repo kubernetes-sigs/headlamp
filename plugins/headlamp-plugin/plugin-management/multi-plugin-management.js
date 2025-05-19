@@ -19,6 +19,7 @@ const PluginManagement = require('./plugin-management');
 const PluginManager = PluginManagement.PluginManager;
 const Ajv = require('ajv');
 const yaml = require('js-yaml');
+const path = require('path');
 
 // Plugin configuration schema
 const pluginConfigSchema = {
@@ -98,6 +99,45 @@ class MultiPluginManager {
         });
       }
     };
+  }
+
+  /**
+   * Removes plugins from pluginsDir that are not in the configured plugins list
+   * @private
+   * @param {Set<string>} configuredPlugins - Set of plugin names that should be kept
+   */
+  _cleanupUnusedPlugins(configuredPlugins) {
+    if (!this.pluginsDir || !fs.existsSync(this.pluginsDir)) {
+      return;
+    }
+
+    try {
+      const existingPlugins = fs
+        .readdirSync(this.pluginsDir, { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+        .map(dirent => dirent.name);
+
+      for (const pluginDir of existingPlugins) {
+        if (!configuredPlugins.has(pluginDir)) {
+          const pluginPath = path.join(this.pluginsDir, pluginDir);
+          if (this.progressCallback) {
+            this.progressCallback({
+              type: 'info',
+              message: `Removing plugin not in config: ${pluginDir}`,
+            });
+          }
+          fs.rmSync(pluginPath, { recursive: true, force: true });
+        }
+      }
+    } catch (error) {
+      if (this.progressCallback) {
+        this.progressCallback({
+          type: 'error',
+          message: `Error during cleanup: ${error.message}`,
+          raise: false,
+        });
+      }
+    }
   }
 
   /**
@@ -231,6 +271,17 @@ class MultiPluginManager {
         }
       }
     }
+
+    // after installation, clean up plugins that are not in the config
+    const configuredPlugins = new Set(
+      config.plugins.map(p =>
+        p.source
+          ?.replace(/^\/+|\/+$/g, '') // remove leading and trailing slashes
+          .split('/')
+          ?.pop()
+      )
+    );
+    this._cleanupUnusedPlugins(configuredPlugins);
 
     const result = {
       total: pluginsNames.length,
