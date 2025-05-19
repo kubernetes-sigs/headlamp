@@ -1447,6 +1447,11 @@ yargs(process.argv.slice(2))
           describe: 'Do not print logs',
           type: 'boolean',
         })
+        .option('watch', {
+          alias: 'w',
+          describe: 'Watch config file for changes and automatically reinstall plugins',
+          type: 'boolean',
+        })
         .check(argv => {
           if (!argv.URL && !argv.config) {
             throw new Error('Either URL or --config must be specified');
@@ -1454,12 +1459,15 @@ yargs(process.argv.slice(2))
           if (argv.URL && argv.config) {
             throw new Error('Cannot specify both URL and --config');
           }
+          if (argv.watch && !argv.config) {
+            throw new Error('Watch option can only be used with --config');
+          }
           return true;
         });
     },
     async argv => {
+      const { URL, config, folderName, headlampVersion, quiet, watch } = argv;
       try {
-        const { URL, config, folderName, headlampVersion, quiet } = argv;
         const progressCallback = quiet
           ? () => {}
           : data => {
@@ -1483,6 +1491,18 @@ yargs(process.argv.slice(2))
                 }
               }
             };
+
+        /**
+         * @param {string} configPath
+         */
+        async function installFromConfig(configPath) {
+          const installer = new MultiPluginManager(folderName, headlampVersion, progressCallback);
+          const result = await installer.installFromConfig(configPath);
+          if (result.failed > 0) {
+            throw new Error(`${result.failed} plugins failed to install`);
+          }
+        }
+
         if (URL) {
           // Single plugin installation
           try {
@@ -1492,12 +1512,41 @@ yargs(process.argv.slice(2))
             process.exit(1); // Exit with error status
           }
         } else if (config) {
-          const installer = new MultiPluginManager(folderName, headlampVersion, progressCallback);
           // Bulk installation from config
-          const result = await installer.installFromConfig(config);
-          // Exit with error if any plugins failed to install
-          if (result.failed > 0) {
-            process.exit(1);
+          try {
+            await installFromConfig(config);
+          } catch (error) {
+            console.error('Installation failed', {
+              error: error.message,
+              stack: error.stack,
+            });
+          }
+
+          if (watch) {
+            console.log(`Watching ${config} for changes...`);
+            fs.watch(config, async eventType => {
+              if (eventType === 'change') {
+                console.log(`Config file changed, reinstalling plugins...`);
+                try {
+                  await installFromConfig(config);
+                  console.log('Plugins reinstalled successfully');
+                } catch (error) {
+                  console.error('Installation failed', {
+                    error: error.message,
+                    stack: error.stack,
+                  });
+                }
+              }
+            });
+
+            // Keep the process running
+            process.stdin.resume();
+
+            // Handle graceful shutdown
+            process.on('SIGINT', () => {
+              console.log('\nStopping config file watch');
+              process.exit(0);
+            });
           }
         }
       } catch (error) {
