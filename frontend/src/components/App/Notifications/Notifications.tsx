@@ -35,8 +35,8 @@ import { useClustersConf } from '../../../lib/k8s';
 import Event from '../../../lib/k8s/event';
 import { createRouteURL } from '../../../lib/router';
 import { useTypedSelector } from '../../../redux/reducers/reducers';
-import { DateLabel } from '../../common';
 import Empty from '../../common/EmptyContent';
+import { DateLabel } from '../../common/Label';
 import {
   defaultMaxNotificationsStored,
   loadNotifications,
