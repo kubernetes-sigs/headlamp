@@ -26,27 +26,41 @@ spec:
         k8s-app: headlamp
     spec:
       containers:
-      - name: headlamp
-        image: ghcr.io/headlamp-k8s/headlamp:latest
-        args:
-          - "-in-cluster"
-          - "-plugins-dir=/headlamp/plugins"
-        ports:
-        - containerPort: 4466
-        readinessProbe:
-          httpGet:
-            scheme: HTTP
-            path: /
-            port: 4466
-          initialDelaySeconds: 30
-          timeoutSeconds: 30
-        livenessProbe:
-          httpGet:
-            scheme: HTTP
-            path: /
-            port: 4466
-          initialDelaySeconds: 30
-          timeoutSeconds: 30
+        - name: headlamp
+          image: ghcr.io/kubernetes-sigs/headlamp:latest
+          args:
+            - "-in-cluster"
+            - "-plugins-dir=/headlamp/plugins"
+          env:
+            - name: HEADLAMP_CONFIG_TRACING_ENABLED
+              value: "true"
+            - name: HEADLAMP_CONFIG_METRICS_ENABLED
+              value: "true"
+            - name: HEADLAMP_CONFIG_OTLP_ENDPOINT
+              value: "otel-collector:4317"
+            - name: HEADLAMP_CONFIG_SERVICE_NAME
+              value: "headlamp"
+            - name: HEADLAMP_CONFIG_SERVICE_VERSION
+              value: "latest"
+          ports:
+            - containerPort: 4466
+              name: http
+            - containerPort: 9090
+              name: metrics
+          readinessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /
+              port: 4466
+            initialDelaySeconds: 30
+            timeoutSeconds: 30
+          livenessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /
+              port: 4466
+            initialDelaySeconds: 30
+            timeoutSeconds: 30
       nodeSelector:
         'kubernetes.io/os': linux
 ---
