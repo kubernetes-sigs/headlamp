@@ -51,6 +51,9 @@ func getDefaultKubeConfigPath(t *testing.T) string {
 	return filepath.Join(homeDirectory, ".kube", "config")
 }
 
+// findPortToForward finds a pod and its target port to forward to.
+// It returns the pod name and target port as strings.
+// If not found, it returns empty strings.
 func findPortToForward(t *testing.T, kc *kubeconfig.Context) (string, string) {
 	clientSet, err := kc.ClientSetWithToken("")
 	require.NoError(t, err)
