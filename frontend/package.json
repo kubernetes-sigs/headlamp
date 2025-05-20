@@ -129,7 +129,9 @@
     "build-storybook": "storybook build -o ../docs/development/storybook",
     "i18n": "i18next 'src/**/*.{ts,tsx}' -c ./src/i18n/i18next-parser.config.js",
     "tsc": "tsc",
-    "make-version": "node ./make-env.js"
+    "make-version": "node ./make-env.js",
+    "update-copyright": "node ../scripts/update-copyright-years.js",
+    "test-copyright": "node ../scripts/test-copyright-update.js"
   },
   "browserslist": {
     "production": [

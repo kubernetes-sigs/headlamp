@@ -1,0 +1,52 @@
+name: Update Copyright Years
+
+on:
+  schedule:
+    - cron: '0 0 1 1 *'  # Run at midnight on January 1
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  update-copyright:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+          
+      # No external dependencies needed
+        
+      - name: Get current year
+        id: date
+        run: echo "year=$(date +'%Y')" >> $GITHUB_OUTPUT
+        
+      - name: Update copyright years
+        run: node scripts/update-copyright-years.js
+        
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v4
+        with:
+          title: 'chore: update copyright year to ${{ steps.date.outputs.year }}'
+          commit-message: 'chore: update copyright year to ${{ steps.date.outputs.year }}'
+          branch: update-copyright-year
+          delete-branch: true
+          body: |
+            This PR updates the copyright year in license headers to ${{ steps.date.outputs.year }}.
+            
+            The update changes copyright headers from:
+            ```
+            Copyright YYYY The Kubernetes Authors
+            ```
+            
+            To:
+            ```
+            Copyright ${{ steps.date.outputs.year }} The Kubernetes Authors
+            ```
+            
+            This is an automated PR created by the scheduled copyright update workflow.
+          labels: |
+            documentation
+            automated pr
