@@ -122,8 +122,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		return
 	}
 
-	// extract the token from the request header
-	token := extractToken(r)
+	token := extractTokenFromRequestHeader(r)
 
 	// get the context for the cluster
 	clusterName := getClusterName(p.Cluster, r.Header.Get("X-HEADLAMP-USER-ID"))
@@ -185,7 +184,7 @@ func parsePortForwardRequest(r *http.Request) (portForwardRequest, error) {
 }
 
 // extractToken get the token from the request header.
-func extractToken(r *http.Request) string {
+func extractTokenFromRequestHeader(r *http.Request) string {
 	reqToken := r.Header.Get("Authorization")
 	splitToken := strings.Split(reqToken, "Bearer ")
 
