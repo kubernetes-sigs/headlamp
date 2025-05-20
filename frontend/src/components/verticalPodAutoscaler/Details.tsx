@@ -17,7 +17,11 @@
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import VPA from '../../lib/k8s/vpa';
-import { DateLabel, DetailsGrid, Link, SectionBox, SimpleTable } from '../common';
+import { DateLabel } from '../common/Label';
+import Link from '../common/Link';
+import { DetailsGrid } from '../common/Resource';
+import SectionBox from '../common/SectionBox';
+import SimpleTable from '../common/SimpleTable';
 
 export default function VpaDetails(props: { name?: string; namespace?: string; cluster?: string }) {
   const params = useParams<{ namespace: string; name: string }>();

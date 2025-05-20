@@ -17,6 +17,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import { initialState as CONFIG_INITIAL_STATE } from '../../../../redux/configSlice';
+import { drawerModeSlice } from '../../../../redux/drawerModeSlice';
 import { initialState as FILTER_INITIAL_STATE } from '../../../../redux/filterSlice';
 import { uiSlice } from '../../../../redux/uiSlice';
 import { TestContext } from '../../../../test';
@@ -49,6 +50,7 @@ const store = configureStore({
       filter: { ...FILTER_INITIAL_STATE },
       config: { ...CONFIG_INITIAL_STATE },
       ui: { ...uiSlice.getInitialState() },
+      drawerMode: { ...drawerModeSlice.getInitialState() },
     }
   ) => state,
   preloadedState: {
@@ -74,6 +76,9 @@ const store = configureStore({
     },
     notifications: {
       notifications: loadNotifications(),
+    },
+    drawerMode: {
+      ...drawerModeSlice.getInitialState(),
     },
   },
 });

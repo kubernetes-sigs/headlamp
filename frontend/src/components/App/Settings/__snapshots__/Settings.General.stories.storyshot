@@ -134,6 +134,7 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
+<<<<<<< HEAD
             Theme
           </dt>
           <dd
@@ -215,6 +216,8 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
+=======
+>>>>>>> da96826c23dabfe12496b39bd880aa18401de1a8
             Resource details view
           </dt>
           <dd
@@ -462,6 +465,192 @@
             </span>
           </dd>
         </dl>
+        <div
+          class="MuiBox-root css-1k57ox4"
+        >
+          <div
+            class="MuiBox-root css-xonqoi"
+          >
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-k2ogvs-MuiTypography-root"
+            >
+              Theme
+            </p>
+          </div>
+          <div
+            class="MuiBox-root css-exrnj3"
+          >
+            <div
+              class="MuiBox-root css-1a2ne5x"
+            >
+              <div
+                class="MuiBox-root css-1yhz2ch"
+                role="button"
+                tabindex="0"
+              >
+                <div
+                  class="MuiBox-root css-h3uu27"
+                >
+                  <div
+                    class="MuiBox-root css-1f1uc6a"
+                  />
+                  <div
+                    class="MuiBox-root css-1z0uf79"
+                  />
+                  <div
+                    class="MuiBox-root css-5zxu0k"
+                  />
+                  <div
+                    class="MuiBox-root css-1oxk0si"
+                  />
+                  <div
+                    class="MuiBox-root css-jkymop"
+                  />
+                  <div
+                    class="MuiBox-root css-n01h7b"
+                  />
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
+                  Light
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-ba9uxd"
+                role="button"
+                tabindex="0"
+              >
+                <div
+                  class="MuiBox-root css-1giqewv"
+                >
+                  <div
+                    class="MuiBox-root css-ni9bm1"
+                  />
+                  <div
+                    class="MuiBox-root css-1z0uf79"
+                  />
+                  <div
+                    class="MuiBox-root css-3dcp9m"
+                  />
+                  <div
+                    class="MuiBox-root css-1coq5wc"
+                  />
+                  <div
+                    class="MuiBox-root css-ew82rx"
+                  />
+                  <div
+                    class="MuiBox-root css-1ep3rs4"
+                  />
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
+                  Dark
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-ba9uxd"
+                role="button"
+                tabindex="0"
+              >
+                <div
+                  class="MuiBox-root css-h3uu27"
+                >
+                  <div
+                    class="MuiBox-root css-1aoxae"
+                  />
+                  <div
+                    class="MuiBox-root css-1xqumfe"
+                  />
+                  <div
+                    class="MuiBox-root css-19czym2"
+                  />
+                  <div
+                    class="MuiBox-root css-1swhc7p"
+                  />
+                  <div
+                    class="MuiBox-root css-c8sfqn"
+                  />
+                  <div
+                    class="MuiBox-root css-8jmga1"
+                  />
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
+                  Headlamp classic
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-ba9uxd"
+                role="button"
+                tabindex="0"
+              >
+                <div
+                  class="MuiBox-root css-161eg9d"
+                >
+                  <div
+                    class="MuiBox-root css-1uehyk8"
+                  />
+                  <div
+                    class="MuiBox-root css-1xynfpy"
+                  />
+                  <div
+                    class="MuiBox-root css-okkunh"
+                  />
+                  <div
+                    class="MuiBox-root css-1fzrvd"
+                  />
+                  <div
+                    class="MuiBox-root css-4usmf5"
+                  />
+                  <div
+                    class="MuiBox-root css-44mj8i"
+                  />
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
+                  Lights out
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-ba9uxd"
+                role="button"
+                tabindex="0"
+              >
+                <div
+                  class="MuiBox-root css-1y7ghyx"
+                >
+                  <div
+                    class="MuiBox-root css-zbyu3o"
+                  />
+                  <div
+                    class="MuiBox-root css-1ajpcw4"
+                  />
+                  <div
+                    class="MuiBox-root css-1c66u4w"
+                  />
+                  <div
+                    class="MuiBox-root css-1o70p9j"
+                  />
+                  <div
+                    class="MuiBox-root css-iszuoz"
+                  />
+                  <div
+                    class="MuiBox-root css-8mvqu"
+                  />
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
+                  Monochrome light
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
