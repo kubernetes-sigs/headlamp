@@ -192,6 +192,7 @@ ones made in the local docker environment.
 
 ```bash
 eval $(minikube docker-env)
+docker build -t headlamp-k8s/headlamp:development
 DOCKER_IMAGE_VERSION=development make image
 ```
 
