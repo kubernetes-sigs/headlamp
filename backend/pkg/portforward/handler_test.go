@@ -111,9 +111,18 @@ func TestStartPortForward(t *testing.T) {
 	require.NotEmpty(t, podName)
 	require.NotEmpty(t, targetPort)
 
-	const clusterName = "minikube"
+	const defaultClusterName = "minikube"
+	const defaultNamespace = "headlamp"
 
-	const namespace = "headlamp"
+	clusterName := os.Getenv("HEADLAMP_TEST_CLUSTER")
+	if clusterName == "" {
+		clusterName = defaultClusterName
+	}
+
+	namespace := os.Getenv("HEADLAMP_TEST_NAMESPACE")
+	if namespace == "" {
+		namespace = defaultNamespace
+	}
 
 	const waitTime = 7 * time.Second
 
