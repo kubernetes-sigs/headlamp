@@ -33,6 +33,7 @@ export const supportedLanguages: { [langCode: string]: string } = {
   ko: '한국어',
   ja: '日本語',
   ru: 'Русский',
+  hi: 'हिन्दी',
 };
 
 i18next
