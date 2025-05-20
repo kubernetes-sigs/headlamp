@@ -139,7 +139,7 @@ func Parse(args []string) (*Config, error) {
 	return &config, nil
 }
 
-// Prepares and parses command line arguments.
+// setupAndParseArgs prepares and parses command line arguments.
 func setupAndParseArgs(f *flag.FlagSet, k *koanf.Koanf, args []string) error {
 	if args == nil {
 		args = []string{}
@@ -162,7 +162,7 @@ func setupAndParseArgs(f *flag.FlagSet, k *koanf.Koanf, args []string) error {
 	return nil
 }
 
-// Loads configuration from environment variables.
+// loadConfigFromEnv loads configuration from environment variables.
 func loadConfigFromEnv(k *koanf.Koanf) error {
 	if err := k.Load(env.Provider("HEADLAMP_CONFIG_", ".", func(s string) string {
 		return strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(s, "HEADLAMP_CONFIG_")), "_", "-")
@@ -174,7 +174,7 @@ func loadConfigFromEnv(k *koanf.Koanf) error {
 	return nil
 }
 
-// Loads only the flags that were explicitly set.
+// loadExplicitFlags loads only the flags that were explicitly set.
 func loadExplicitFlags(f *flag.FlagSet, k *koanf.Koanf) error {
 	if err := k.Load(basicflag.ProviderWithValue(f, ".", func(key string, value string) (string, interface{}) {
 		flagSet := false
@@ -195,7 +195,7 @@ func loadExplicitFlags(f *flag.FlagSet, k *koanf.Koanf) error {
 	return nil
 }
 
-// Sets the appropriate kubeconfig path.
+// setKubeConfigPath sets the appropriate kubeconfig path.
 func setKubeConfigPath(config *Config) {
 	kubeConfigPath := ""
 
