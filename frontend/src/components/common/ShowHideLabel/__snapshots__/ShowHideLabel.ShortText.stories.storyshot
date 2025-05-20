@@ -1,0 +1,18 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1v5z18m"
+    >
+      <div
+        class="MuiBox-root css-k008qs"
+      >
+        <label
+          id="my-label2"
+          style="word-break: break-all; white-space: normal;"
+        >
+          Short text
+        </label>
+      </div>
+    </div>
+  </div>
+</body>

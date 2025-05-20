@@ -1,0 +1,17 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-0"
+      style="display: flex; margin-bottom: 5px;"
+    >
+      <a
+        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+        href="http://exampleurl.com/pathA"
+        style="margin-right: 5px;"
+      >
+        /pathA
+      </a>
+      (Prefix)
+    </div>
+  </div>
+</body>

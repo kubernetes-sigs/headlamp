@@ -1,0 +1,587 @@
+<body>
+  <div>
+    <div
+      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-1 css-bsyb48-MuiGrid-root"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-p0cik4"
+        >
+          <button
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            <span
+              class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+            />
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+              style="padding-top: 3px;"
+            >
+              Back
+            </p>
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+        </div>
+      </div>
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-p0cik4"
+        >
+          <div
+            class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            >
+              <div
+                class="MuiBox-root css-70qvj9"
+              >
+                <h1
+                  class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+                >
+                  HorizontalPodAutoscaler: php-apache
+                </h1>
+                <div
+                  class="MuiBox-root css-ldp2l3"
+                />
+              </div>
+            </div>
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            >
+              <div
+                class="MuiGrid-root MuiGrid-container MuiGrid-item css-ztq4zc-MuiGrid-root"
+              >
+                <div
+                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                />
+                <div
+                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                />
+                <div
+                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                >
+                  <button
+                    aria-label="Edit"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                    data-mui-internal-clone-element="true"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                >
+                  <button
+                    aria-label="Delete"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                    data-mui-internal-clone-element="true"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                  <div />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-p0cik4"
+        >
+          <div
+            class="MuiBox-root css-j1fy4m"
+          >
+            <div
+              aria-busy="false"
+              aria-live="polite"
+              class="MuiBox-root css-1txv3mw"
+            >
+              <div
+                class="MuiBox-root css-0"
+              >
+                <dl
+                  class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+                >
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                  >
+                    Name
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    >
+                      php-apache
+                    </span>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                  >
+                    Namespace
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                  >
+                    <a
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                      href="/"
+                    >
+                      default
+                    </a>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                  >
+                    Creation
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    >
+                      2022-10-20T11:10:58.000Z
+                    </span>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                  >
+                    Annotations
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-yi3mkw"
+                    >
+                      <p
+                        aria-label="kubectl.kubernetes.io/last-applied-configuration: {"apiVersion":"autoscaling/v2","kind":"HorizontalPodAutoscaler","metadata":{"annotations":{},"creationTimestamp":"2022-10-17T08:04:30Z","name":"php-apache","namespace":"default","resourceVersion":"4488138","uid":"a98be011-f69e-404a-bcfa-d76d78d24884"},"spec":{"maxReplicas":10,"metrics":[{"resource":{"name":"cpu","target":{"averageUtilization":50,"type":"Utilization"}},"type":"Resource"},{"resource":{"name":"memory","target":{"averageValue":"100Mi","type":"AverageValue"}},"type":"Resource"}],"minReplicas":1,"scaleTargetRef":{"apiVersion":"apps/v1","kind":"Deployment","name":"php-apache"}},"status":{"conditions":[{"lastTransitionTime":"2022-10-17T08:04:45Z","message":"recommended size matches current size","reason":"ReadyForNewScale","status":"True","type":"AbleToScale"},{"lastTransitionTime":"2022-10-17T21:57:14Z","message":"the HPA was able to successfully calculate a replica count from cpu resource utilization (percentage of request)","reason":"ValidMetricFound","status":"True","type":"ScalingActive"},{"lastTransitionTime":"2022-10-20T10:11:08Z","message":"the desired replica count is less than the minimum replica count","reason":"TooFewReplicas","status":"True","type":"ScalingLimited"}],"currentMetrics":[{"resource":{"current":{"averageUtilization":0,"averageValue":"1m"},"name":"cpu"},"type":"Resource"}],"currentReplicas":1,"desiredReplicas":1,"lastScaleTime":"2022-10-20T10:11:08Z"}}
+"
+                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        data-mui-internal-clone-element="true"
+                      >
+                        kubectl.kubernetes.io/last-applied-configuration: …
+                      </p>
+                    </div>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                  >
+                    Reference
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                  >
+                    <a
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                      href="/"
+                    >
+                      Deployment
+                      /
+                      php-apache
+                    </a>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                  >
+                    Metrics
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-onzayo-MuiPaper-root-MuiTableContainer-root"
+                    >
+                      <table
+                        class="MuiTable-root css-1ml9dpn-MuiTable-root"
+                      >
+                        <thead
+                          class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
+                        >
+                          <tr
+                            class="MuiTableRow-root MuiTableRow-head css-13jktim-MuiTableRow-root"
+                          >
+                            <th
+                              class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                              scope="col"
+                            >
+                              Name
+                            </th>
+                            <th
+                              class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                              scope="col"
+                            >
+                              (Current/Target)
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody
+                          class="MuiTableBody-root css-apqrd9-MuiTableBody-root"
+                        >
+                          <tr
+                            class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                          >
+                            <td
+                              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                            >
+                              resource memory on pods
+                            </td>
+                            <td
+                              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                            >
+                              14360576/100Mi
+                            </td>
+                          </tr>
+                          <tr
+                            class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                          >
+                            <td
+                              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                            >
+                              resource cpu on pods (as a percentage of request)
+                            </td>
+                            <td
+                              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                            >
+                              0% (1m)/50%
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                  >
+                    MinReplicas
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                  >
+                    1
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+                  >
+                    MaxReplicas
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+                  >
+                    10
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
+                  >
+                    Deployment pods
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    >
+                      1 current / 1 desired
+                    </span>
+                  </dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-p0cik4"
+        >
+          <div
+            class="MuiBox-root css-j1fy4m"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+            >
+              <div
+                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              >
+                <div
+                  class="MuiBox-root css-70qvj9"
+                >
+                  <h2
+                    class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+                  >
+                    Conditions
+                  </h2>
+                  <div
+                    class="MuiBox-root css-ldp2l3"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="MuiBox-root css-1txv3mw"
+            >
+              <div
+                class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-onzayo-MuiPaper-root-MuiTableContainer-root"
+              >
+                <table
+                  class="MuiTable-root css-r7i92b-MuiTable-root"
+                >
+                  <thead
+                    class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
+                  >
+                    <tr
+                      class="MuiTableRow-root MuiTableRow-head css-13jktim-MuiTableRow-root"
+                    >
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Condition
+                      </th>
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Status
+                      </th>
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Last Transition
+                      </th>
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Last Update
+                      </th>
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Reason
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    class="MuiTableBody-root css-apqrd9-MuiTableBody-root"
+                  >
+                    <tr
+                      class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                    >
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <span
+                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                        >
+                          AbleToScale
+                        </span>
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        True
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <p
+                          aria-label="2022-10-20T11:11:01.000Z"
+                          class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          3 months
+                        </p>
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        -
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <p
+                          aria-label="the HPA controller was able to get the target's current scale"
+                          class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          SucceededGetScale
+                        </p>
+                      </td>
+                    </tr>
+                    <tr
+                      class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                    >
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <span
+                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                        >
+                          ScalingActive
+                        </span>
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        False
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <p
+                          aria-label="2022-10-26T12:53:22.000Z"
+                          class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          3 months
+                        </p>
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        -
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <p
+                          aria-label="the HPA was unable to compute the replica count: failed to get memory utilization: unable to get metrics for resource memory: no metrics returned from resource metrics API"
+                          class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          FailedGetResourceMetric
+                        </p>
+                      </td>
+                    </tr>
+                    <tr
+                      class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                    >
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <span
+                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                        >
+                          ScalingLimited
+                        </span>
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        False
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <p
+                          aria-label="2022-10-20T11:11:01.000Z"
+                          class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          3 months
+                        </p>
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        -
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <p
+                          aria-label="the desired count is within the acceptable range"
+                          class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          DesiredWithinRange
+                        </p>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-p0cik4"
+        >
+          <div
+            class="MuiBox-root css-j1fy4m"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+            >
+              <div
+                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              >
+                <div
+                  class="MuiBox-root css-70qvj9"
+                >
+                  <h2
+                    class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+                  >
+                    Events
+                  </h2>
+                  <div
+                    class="MuiBox-root css-ldp2l3"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="MuiBox-root css-1txv3mw"
+            >
+              <div
+                class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
+              >
+                <div
+                  class="MuiBox-root css-19midj6"
+                >
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                  >
+                    No data to be shown.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

@@ -1,0 +1,31 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1v5z18m"
+    >
+      <div
+        class="MuiBox-root css-k008qs"
+      >
+        <label
+          aria-expanded="false"
+          id="label-id"
+          style="word-break: break-all; white-space: normal;"
+        >
+          This is a placeholder label text that is many characters long. It is meant to be used as a temporary label for a UI element until the actual label is available. The text is long enough to fill up the space allocated for the label and provide a realistic pr
+          …
+          <button
+            aria-controls="label-id"
+            arial-label="Expand"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-z81te2-MuiButtonBase-root-MuiIconButton-root"
+            tabindex="0"
+            type="button"
+          >
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+        </label>
+      </div>
+    </div>
+  </div>
+</body>

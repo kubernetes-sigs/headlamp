@@ -1,0 +1,56 @@
+<body>
+  <div>
+    <div
+      class="MuiFormControl-root css-1nrlq1o-MuiFormControl-root"
+    >
+      <div
+        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall  css-uwmwwo-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
+      >
+        <div
+          aria-controls="under-test"
+          aria-expanded="false"
+          aria-haspopup="listbox"
+          aria-label="Select locale"
+          class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
+          role="combobox"
+          tabindex="0"
+        >
+          en
+        </div>
+        <input
+          aria-controls="under-test"
+          aria-hidden="true"
+          aria-invalid="false"
+          class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+          tabindex="-1"
+          value="en"
+        />
+        <svg
+          aria-hidden="true"
+          class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiSelect-icon MuiSelect-iconOutlined css-hfutr2-MuiSvgIcon-root-MuiSelect-icon"
+          data-testid="ArrowDropDownIcon"
+          focusable="false"
+          viewBox="0 0 24 24"
+        >
+          <path
+            d="M7 10l5 5 5-5z"
+          />
+        </svg>
+        <fieldset
+          aria-hidden="true"
+          class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+        >
+          <legend
+            class="css-ihdtdm"
+          >
+            <span
+              class="notranslate"
+            >
+              ​
+            </span>
+          </legend>
+        </fieldset>
+      </div>
+    </div>
+  </div>
+</body>

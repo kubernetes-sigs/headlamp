@@ -1,0 +1,11 @@
+version: '3'
+services:
+  headlamp:
+    image: ghcr.io/headlamp-k8s/headlamp:v0.25.1
+    command: ["--kubeconfig","/headlamp/config/config", "--port","64446", "--enable-dynamic-clusters"]
+    restart: unless-stopped
+    volumes:
+      - ~/.kube/:/headlamp/config:ro
+    ports:
+      - 64446:64446
+      - "30000-32000:30000-32000"

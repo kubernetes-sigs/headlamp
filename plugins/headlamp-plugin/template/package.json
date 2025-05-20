@@ -1,0 +1,39 @@
+{
+  "name": "$${name}",
+  "version": "0.1.0",
+  "description": "Your Headlamp plugin",
+  "scripts": {
+    "start": "headlamp-plugin start",
+    "build": "headlamp-plugin build",
+    "format": "headlamp-plugin format",
+    "lint": "headlamp-plugin lint",
+    "lint-fix": "headlamp-plugin lint --fix",
+    "package": "headlamp-plugin package",
+    "tsc": "headlamp-plugin tsc",
+    "storybook": "headlamp-plugin storybook",
+    "storybook-build": "headlamp-plugin storybook-build",
+    "test": "headlamp-plugin test"
+  },
+  "keywords": [
+    "headlamp",
+    "headlamp-plugin",
+    "kubernetes",
+    "kubernetes-ui",
+    "kubernetes-debugging",
+    "plugins"
+  ],
+  "prettier": "@headlamp-k8s/eslint-config/prettier-config",
+  "eslintConfig": {
+    "extends": [
+      "@headlamp-k8s",
+      "prettier",
+      "plugin:jsx-a11y/recommended"
+    ]
+  },
+  "overrides": {
+    "typescript": "5.6.2"
+  },
+  "devDependencies": {
+    "@kinvolk/headlamp-plugin": "^$${headlamp-plugin-version}"
+  }
+}

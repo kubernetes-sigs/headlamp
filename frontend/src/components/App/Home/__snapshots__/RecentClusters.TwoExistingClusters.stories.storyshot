@@ -1,0 +1,55 @@
+<body>
+  <div>
+    <div
+      aria-labelledby="#recent-clusters-label"
+      class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-2 css-1vj4bu4-MuiGrid-root"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-container MuiGrid-item css-lx31tv-MuiGrid-root"
+      >
+        <div
+          aria-label="Selected clusters"
+          class="MuiToggleButtonGroup-root css-1kgngcn-MuiToggleButtonGroup-root"
+          role="group"
+        >
+          <button
+            aria-pressed="false"
+            class="MuiButtonBase-root MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard MuiToggleButtonGroup-firstButton css-1j4gaun-MuiButtonBase-root-MuiToggleButton-root"
+            tabindex="0"
+            type="button"
+            value="[object Object]"
+          >
+            cluster0
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <button
+            aria-pressed="false"
+            class="MuiButtonBase-root MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard MuiToggleButtonGroup-lastButton css-1j4gaun-MuiButtonBase-root-MuiToggleButton-root"
+            tabindex="0"
+            type="button"
+            value="[object Object]"
+          >
+            cluster1
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+        </div>
+        <div
+          class="MuiGrid-root MuiGrid-item css-1oluiat-MuiGrid-root"
+        >
+          <button
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
+            disabled=""
+            tabindex="-1"
+            type="button"
+          >
+            View
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

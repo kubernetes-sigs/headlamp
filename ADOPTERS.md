@@ -1,0 +1,19 @@
+# Adopters
+
+This page contains a non-comprehensive list of organizations using [Headlamp](https://headlamp.dev) as end users, or to build higher layer products and services, that we know of.
+
+## Adding your org to this list
+
+If you would like your organization to be added to this list, please open a PR with your name, link, and a brief description of your use case.
+
+## Headlamp adopters (in alphabetical order):
+
+| Organization                                 | Description                                                                                                                                                                                                                                                                                                                                                       |
+|----------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [EPAM Systems, Inc.](https://epam.com/)      | EPAM leverages Headlamp for their [edp-headlamp](https://github.com/epam/edp-headlamp) project, integrating it within their [KubeRocketCI](https://docs.kuberocketci.io/) open-source solution to enhance the user interface and experience for managing Platform using Kubernetes-native approach.                                                               |
+| [Millennium bcp](https://www.millenniumbcp.pt/) | Millennium bcp is utilizing Headlamp as a User Interface to enhance visibility and streamline the configuration and deployment of microservices and applications. |
+| [Oracle](https://www.oracle.com/) | [Oracle Cloud Native Environment (OCNE)](https://www.oracle.com/linux/cloud-native-environment/), based on open standards, specifications, and APIs defined by the Open Container Initiative and Cloud Native Computing Foundation (CNCF), includes a CNCF-certified Kubernetes module, container runtimes, virtualization, service mesh, storage, networking, observability, and diagnostics. Oracle leverages Headlamp and its plugin system for implementing its own [OCNE UI](https://docs.oracle.com/en/learn/ocne-ui/index.html).
+| [Orange](https://www.orange.com/en) | Orange, a global telco operator, is using headlamp to offer a web UI for managing custom k8s resources, in particular developer-facing subscriptions of managed data services.                                                                                                                                                                                |
+| [Swisscom](https://www.swisscom.ch/) | Swisscom is the major Swiss telco operator and IT services provider. Swisscom is using Headlamp as a User Interface for improving visibility of configuration and deployment of Cloud Native Network Function (CNF). |
+| [Virginia Tech](https://vt.edu/)             | Virginia Tech deploys Headlamp as a UI for their [IT Common Platform](https://docs.platform.it.vt.edu/) service, running essential university functions and managing 6 clusters. They also develop a number of [Headlamp plugins](https://code.vt.edu/it-common-platform/platform-support/headlamp-plugins) to deliver extra functionality on top of the base UI. |
+| [WhizUs GmbH](https://www.whizus.com/)       | At WhizUs, we're always exploring and evaluating the latest Cloud Native technologies and projects. As part of our ongoing efforts to improve Kubernetes management, we've evaluated Headlamp and are now using it as our Kubernetes UI in selected customer projects.                                                                                            |

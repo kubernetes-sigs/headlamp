@@ -1,0 +1,49 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["dom", "dom.iterable", "esnext", "es2020"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "noFallthroughCasesInSwitch": true,
+    "types": ["vite/client", "vite-plugin-svgr/client", "vitest/globals"]
+  },
+  "include": ["src"],
+  "typedocOptions": {
+    "out": "../docs/development/api",
+    "plugin": ["typedoc-plugin-markdown", "typedoc-plugin-rename-defaults"],
+    "entryPoints": [
+      "src/lib/k8s/",
+      "src/redux/reducers/reducers.tsx",
+      "src/lib/k8s/cluster.ts",
+      "src/lib/router.tsx",
+      "src/lib/util.ts",
+      "src/lib/AppTheme.ts",
+      "src/plugin/lib.ts",
+      "src/plugin/registry.tsx"
+    ],
+    "entryPointStrategy": "expand",
+    "excludeExternals": true,
+    "excludePrivate": true,
+    "excludeProtected": true,
+    "readme": "none",
+    "name": "API",
+    "useCodeBlocks": "true",
+    "entryFileName": "API.md",
+    "hidePageHeader": "true",
+    "hideBreadcrumbs": "true",
+    "expandParameters": "true",
+    "parametersFormat": "table",
+    "indexFormat": "table",
+    "classPropertiesFormat": "table"
+  }
+}

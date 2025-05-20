@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="735"
+   height="116"
+   viewBox="0 0 735 116"
+   fill="none"
+   version="1.1"
+   id="svg22"
+   sodipodi:docname="headlamp_light.svg"
+   inkscape:version="1.0.1 (3bc2e813f5, 2020-09-07)">
+  <metadata
+     id="metadata28">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <defs
+     id="defs26" />
+  <sodipodi:namedview
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="2048"
+     inkscape:window-height="1088"
+     id="namedview24"
+     showgrid="false"
+     inkscape:zoom="1.9863946"
+     inkscape:cx="367.5"
+     inkscape:cy="42.125558"
+     inkscape:window-x="0"
+     inkscape:window-y="27"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg22"
+     inkscape:document-rotation="0" />
+  <rect
+     style="fill:#ffffff;stroke:#ffffff;stroke-width:0.980804;stroke-linejoin:round"
+     id="rect853"
+     width="734.27606"
+     height="115.22318"
+     x="0.21381894"
+     y="0.27651522"
+     inkscape:export-xdpi="300"
+     inkscape:export-ydpi="300" />
+  <g
+     id="g862"
+     transform="matrix(0.93744133,0,0,0.93744133,26.066567,3.4128899)">
+    <path
+       d="M 92.3,73.5 V 46.3 L 85.1,36.9 V 21.1 L 62,12.8 V 0 H 30.3 V 12.8 L 7.2,21.1 V 36.9 L 0,46.3 V 73.5 L 7.2,83.2 0,105.6 46.2,115.8 92.3,105.6 85.1,83.2 Z"
+       fill="#000000"
+       id="path2" />
+    <path
+       d="M 46.2,83.2 C 58.9578,83.2 69.3,72.8578 69.3,60.1 69.3,47.3422 58.9578,37 46.2,37 33.4422,37 23.1,47.3422 23.1,60.1 c 0,12.7578 10.3422,23.1 23.1,23.1 z"
+       fill="#faec20"
+       id="path4" />
+    <path
+       d="m 178.4,107.9 h -10 v -10.0001 -10 -10 -10 h -10 -10 v 10 10 10 10.0001 h -10 -10 v -10.0001 -10 -10 -10 -10 -10 -10 -10 -10 -10 h 10 10 v 10 10 10 10 h 10 10 v -10 -10 -10 -10 h 10 10 v 10 10 10 10 10 10 10 10 10 10.0001 z"
+       fill="#000000"
+       id="path6" />
+    <path
+       d="m 256.4,107.9 h -10 -10 -10 -10 -10 v -10.0001 -10 -10 -10 -10 -10 -10 -10 -10 -10 h 10 10 10 10 10 10 v 10 10 h -10 -10 -10 -10 v 10 10 h 10 10 10 10 v 10 10 h -10 -10 -10 -10 v 10 10 h 10 10 10 10 v 10 10.0001 z"
+       fill="#000000"
+       id="path8" />
+    <path
+       d="m 334.4,107.9 h -10 v -10.0001 -10 -10 -10 h -10 -10 v 10 10 10 10.0001 h -10 -10 v -10.0001 -10 -10 -10 -10 -10 -10 -10 -10 -10 h 10 10 10 10 10 10 v 10 10 10 10 10 10 10 10 10 10.0001 z m -20,-60.0001 h 10 v -10 -10 h -10 -10 v 10 10 z"
+       fill="#000000"
+       id="path10" />
+    <path
+       d="m 392.4,107.9 h -10 -10 -10 v -10.0001 -10 -10 -10 -10 -10 -10 -10 -10 -10 h 10 10 10 10 v 10 10 h 10 10 v 10 10 10 10 10 10 h -10 -10 v -10 -10 -10 -10 -10 -10 h -10 -10 v 10 10 10 10 10 10 h 10 10 v 10 10.0001 z"
+       fill="#000000"
+       id="path12" />
+    <path
+       d="m 490.4,107.9 h -10 -10 -10 -10 -10 v -10.0001 -10 -10 -10 -10 -10 -10 -10 -10 -10 h 10 10 v 10 10 10 10 10 10 10 10 h 10 10 10 10 v 10 10.0001 z"
+       fill="#000000"
+       id="path14" />
+    <path
+       d="m 568.4,107.9 h -10 v -10.0001 -10 -10 -10 h -10 -10 v 10 10 10 10.0001 h -10 -10 v -10.0001 -10 -10 -10 -10 -10 -10 -10 -10 -10 h 10 10 10 10 10 10 v 10 10 10 10 10 10 10 10 10 10.0001 z m -20,-60.0001 h 10 v -10 -10 h -10 -10 v 10 10 z"
+       fill="#000000"
+       id="path16" />
+    <path
+       d="m 646.4,107.9 h -10 v -10.0001 -10 -10 -10 -10 -10 h -10 -10 v 10 10 10 10 10 10.0001 h -10 -10 v -10.0001 -10 -10 -10 -10 -10 -10 -10 -10 -10 h 10 10 v 10 10 h 10 10 v -10 -10 h 10 10 v 10 10 10 10 10 10 10 10 10 10.0001 z"
+       fill="#000000"
+       id="path18" />
+    <path
+       d="m 684.4,107.9 h -10 v -10.0001 -10 -10 -10 -10 -10 -10 -10 -10 -10 h 10 10 10 10 10 10 v 10 10 10 10 10 10 h -10 -10 -10 -10 v 10 10 10 10.0001 z m 20,-60.0001 h 10 v -10 -10 h -10 -10 v 10 10 z"
+       fill="#000000"
+       id="path20" />
+  </g>
+</svg>

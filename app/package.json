@@ -1,0 +1,184 @@
+{
+  "name": "headlamp",
+  "version": "0.30.0",
+  "description": "Easy-to-use and extensible Kubernetes web UI",
+  "main": "electron/main.js",
+  "homepage": "https://github.com/kubernetes-sigs/headlamp/#readme",
+  "productName": "Headlamp",
+  "engines": {
+    "npm": ">=10.0.0",
+    "node": ">=20.11.1"
+  },
+  "scripts": {
+    "build": "npm run copy-icons && npm run copy-plugins && npm run compile-electron && npm run prod-deps && electron-builder --dir --publish never",
+    "compile-electron": "babel electron --out-dir electron/ --extensions .ts",
+    "copy-icons": "mkdirp build/icons && copyfiles -f ../frontend/build/*.png ../frontend/build/*.ico ../frontend/build/*.icns ../frontend/build/*.svg build/icons",
+    "copy-plugins": "npx --no-install rimraf build/.plugins && mkdirp build/.plugins && copyfiles ../.plugins build/.plugins",
+    "dev": "npm run compile-electron && cross-env ELECTRON_DEV=1 electron .",
+    "dev-only-app": "npm run compile-electron && cross-env ELECTRON_DEV=1 ELECTRON_START_URL=http://localhost:3000 EXTERNAL_SERVER=true electron .",
+    "i18n": "npx --no-install i18next ./electron/main.ts -c ./electron/i18next-parser.config.js",
+    "package": "npm run build && electron-builder build --publish never",
+    "package-msi": "npm run build && node windows/msi/build.js",
+    "prod-deps": "mkdirp prod_deps && cd ./prod_deps && copyfiles -f ../package.json ../package-lock.json . && npm i --only=prod && cd .. && npx --no-install rimraf ./prod_deps/node_modules/.bin",
+    "start": "node scripts/start.js",
+    "test": "npm run compile-tests && jest",
+    "compile-tests": "babel electron --out-dir electron/ --extensions .ts"
+  },
+  "build": {
+    "appId": "com.microsoft.Headlamp",
+    "beforeBuild": "./scripts/build-backend.js",
+    "afterPack": "./scripts/after-pack.js",
+    "asar": false,
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "protocols": {
+      "name": "headlamp-protocol",
+      "schemes": [
+        "headlamp"
+      ]
+    },
+    "nsis": {
+      "deleteAppDataOnUninstall": true,
+      "runAfterFinish": true,
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "deb": {
+      "artifactName": "${name}_${version}-1_${arch}.${ext}"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "armv7l",
+            "arm64"
+          ]
+        },
+        {
+          "target": "tar.gz",
+          "arch": [
+            "x64",
+            "armv7l",
+            "arm64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "executableName": "headlamp",
+      "maintainer": "Kinvolk <hello@kinvolk.io>",
+      "category": "Network",
+      "extraResources": [
+        {
+          "from": "../backend/headlamp-server"
+        }
+      ]
+    },
+    "mac": {
+      "appId": "com.microsoft.Headlamp",
+      "sign": "./mac/scripts/codeSign.js",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "gatekeeperAssess": false,
+      "notarize": false,
+      "entitlements": "mac/entitlements.mac.plist",
+      "entitlementsInherit": "mac/entitlements.mac.plist",
+      "extraResources": [
+        {
+          "from": "../backend/headlamp-server"
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "sign": "windows/sign.js",
+      "extraResources": [
+        {
+          "from": "../backend/headlamp-server.exe"
+        }
+      ]
+    },
+    "files": [
+      "electron/main.js",
+      "electron/preload.js",
+      "electron/i18next.config.js",
+      "electron/i18n-helper.js",
+      "electron/windowSize.js",
+      "electron/env-paths.js",
+      "electron/plugin-management.js",
+      "electron/runCmd.js"
+    ],
+    "extraResources": [
+      {
+        "from": "../frontend/build",
+        "to": "frontend"
+      },
+      {
+        "from": "../.plugins",
+        "to": ".plugins"
+      },
+      {
+        "from": "./app-build-manifest.json",
+        "to": "app-build-manifest.json"
+      }
+    ],
+    "publish": {
+      "provider": "github",
+      "repo": "headlamp",
+      "owner": "kinvolk"
+    },
+    "extends": null
+  },
+  "keywords": [],
+  "author": {
+    "name": "Kinvolk",
+    "email": "hello@kinvolk.io"
+  },
+  "prettier": "@headlamp-k8s/eslint-config/prettier-config",
+  "devDependencies": {
+    "@babel/cli": "^7.24.8",
+    "@babel/core": "^7.24.9",
+    "@babel/preset-env": "^7.24.8",
+    "@babel/preset-typescript": "^7.24.7",
+    "@electron/notarize": "^2.3.2",
+    "@headlamp-k8s/eslint-config": "^0.6.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.14.0",
+    "electron": "^31.2.0",
+    "electron-builder": "^24.13.3",
+    "i18next-parser": "^9.0.0",
+    "jest": "^29.7.0",
+    "typescript": "5.5.4"
+  },
+  "overrides": {
+    "typescript": "5.5.4"
+  },
+  "dependencies": {
+    "copyfiles": "^2.4.1",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.5",
+    "electron-wix-msi": "^5.1.3",
+    "find-process": "^1.4.7",
+    "i18next": "^23.12.1",
+    "i18next-fs-backend": "^2.3.1",
+    "mkdirp": "^3.0.1",
+    "nock": "^14.0.1",
+    "tar": "^7.4.0",
+    "yargs": "^17.7.2"
+  }
+}

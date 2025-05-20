@@ -1,0 +1,67 @@
+---
+title: Desktop App
+sidebar_position: 2
+---
+
+Headlamp can be run as a desktop application for users who do not want to
+deploy it in-cluster or those who want to manage unrelated clusters locally.
+
+There are desktop apps for [Linux](./linux-installation.md), [Mac](./mac-installation.md), and [Windows](./win-installation.md).
+
+Please check the following guides for the installation in your desired platform.
+
+import DocCardList from '@theme/DocCardList';
+
+<DocCardList />
+
+## Use a non-default kube config file
+
+If you wish to use a non-default kubeconfig file, then you can do it by
+providing it as an argument to Headlamp, e.g.:
+
+```bash
+/path/to/headlamp /my/different/kubeconfig
+```
+
+or by using an environment variable:
+
+```bash
+KUBECONFIG=/my/different/kubeconfig /path/to/headlamp
+```
+
+### Use several kube config files
+
+If you need to use more than one kubeconfig file at the same time, you can list
+each config file path with a separator.
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<Tabs>
+  <TabItem value="unix" label="Unix" default>
+    ```bash
+    KUBECONFIG=kubeconfig1:kubeconfig2:kubeconfig3 /path/to/headlamp
+    ```
+  </TabItem>
+  <TabItem value="powershell" label="PowerShell">
+    ```powershell
+    KUBECONFIG=kubeconfig1;kubeconfig2;kubeconfig3 /path/to/headlamp
+    ```
+  </TabItem>
+</Tabs>
+
+
+
+## Access using OIDC
+
+OIDC has a useful feature for
+[running Headlamp in a cluster](../in-cluster). It allows cluster operators to just
+give users a URL that they can use to log in and access Headlamp.
+If your kubeconfig is set to use OIDC for authentication (you have already
+authenticated and produced a kubeconfig), Headlamp will read those settings. It
+will then try to use them to offer effortless login to the cluster.
+
+Still, the kube config OIDC settings will not provide a OIDC callback URL. Make sure that your OIDC configuration for your cluster includes Headlamp's OIDC callback in its redirect URIs. I.e., say you're using
+Dex for the OIDC connection and you have it already configured in your
+kubeconfig. Then, be sure to add the `/oidc-callback` endpoint with Headlamp's local address
+to Dex's `staticClient.redirectURIs`: `http://localhost:6644/oidc-callback`.

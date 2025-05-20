@@ -1,0 +1,220 @@
+<body>
+  <div
+    aria-hidden="true"
+  >
+    <main
+      class="MuiBox-root css-0"
+    >
+      <div
+        class="MuiSnackbar-root MuiSnackbar-anchorOriginBottomCenter css-1t20nyk-MuiSnackbar-root"
+        role="presentation"
+      >
+        <div
+          aria-describedby="message-id"
+          class="MuiPaper-root MuiPaper-outlined MuiSnackbarContent-root css-1cboije-MuiPaper-root-MuiSnackbarContent-root"
+          direction="up"
+          role="alert"
+          style="opacity: 1; transform: none; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms,transform 150ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+        >
+          <div
+            class="MuiSnackbarContent-message css-1exqwzz-MuiSnackbarContent-message"
+          >
+            <span
+              id="message-id"
+            >
+              Error authenticating
+            </span>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div
+    class="MuiDialog-root MuiModal-root css-1ixaqad-MuiModal-root-MuiDialog-root"
+    role="presentation"
+  >
+    <div
+      aria-hidden="true"
+      class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
+      style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+    />
+    <div
+      data-testid="sentinelStart"
+      tabindex="0"
+    />
+    <div
+      class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
+      role="presentation"
+      style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+      tabindex="-1"
+    >
+      <div
+        aria-labelledby="authtoken-dialog-title"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm css-1708vl9-MuiPaper-root-MuiDialog-paper"
+        role="dialog"
+      >
+        <h2
+          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-wlr4ab-MuiTypography-root-MuiDialogTitle-root"
+          id="authtoken-dialog-title"
+          style="display: flex;"
+        >
+          <div
+            class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            >
+              <h1
+                class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
+                style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
+              >
+                <div
+                  class="MuiBox-root css-19midj6"
+                />
+              </h1>
+            </div>
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            >
+              <div
+                class="MuiBox-root css-0"
+              >
+                <button
+                  aria-label="Show build information"
+                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                  tabindex="0"
+                  type="button"
+                >
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </h2>
+        <div
+          class="MuiDialogContent-root MuiDialogContent-dividers css-gl9hfx-MuiDialogContent-root"
+        >
+          <h2
+            class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
+            id="authtoken-dialog-title"
+            style="display: flex;"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
+            >
+              <div
+                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              >
+                <h1
+                  class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
+                  style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
+                >
+                  a title
+                </h1>
+              </div>
+            </div>
+          </h2>
+          <div
+            class="MuiDialogContent-root css-ypiqx9-MuiDialogContent-root"
+          >
+            <p
+              class="MuiTypography-root MuiDialogContentText-root MuiTypography-body1 MuiDialogContentText-root css-1tmyuhs-MuiTypography-root-MuiDialogContentText-root"
+            >
+              Please paste your authentication token.
+            </p>
+            <div
+              class="MuiFormControl-root MuiFormControl-marginDense MuiFormControl-fullWidth MuiTextField-root css-1z10yd4-MuiFormControl-root-MuiTextField-root"
+            >
+              <label
+                class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
+                data-shrink="true"
+                for="token"
+                id="token-label"
+              >
+                ID token
+              </label>
+              <div
+                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-u775sc-MuiInputBase-root-MuiOutlinedInput-root"
+              >
+                <input
+                  aria-invalid="false"
+                  class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
+                  id="token"
+                  type="password"
+                  value="a token"
+                />
+                <fieldset
+                  aria-hidden="true"
+                  class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                >
+                  <legend
+                    class="css-14lo706"
+                  >
+                    <span>
+                      ID token
+                    </span>
+                  </legend>
+                </fieldset>
+              </div>
+            </div>
+          </div>
+          <div
+            class="MuiDialogActions-root MuiDialogActions-spacing css-knqc4i-MuiDialogActions-root"
+          >
+            <div
+              class="MuiBox-root css-d0uhtl"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+              >
+                Check out how to generate a
+                <a
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  href="https://headlamp.dev/docs/latest/installation/#create-a-service-account-token"
+                  style="cursor: pointer; margin-left: 0.4rem;"
+                  target="_blank"
+                >
+                  service account token
+                </a>
+                .
+              </p>
+            </div>
+            <div
+              style="flex: 1 0 0px;"
+            />
+          </div>
+          <div
+            class="MuiBox-root css-1dj2o51"
+          >
+            <a
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+              href="/"
+            >
+              Cluster settings
+            </a>
+          </div>
+          <div
+            class="MuiDialogActions-root MuiDialogActions-spacing css-knqc4i-MuiDialogActions-root"
+          >
+            <button
+              class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
+              tabindex="0"
+              type="button"
+            >
+              Authenticate
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      data-testid="sentinelEnd"
+      tabindex="0"
+    />
+  </div>
+</body>

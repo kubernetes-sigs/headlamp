@@ -1,0 +1,268 @@
+# Default values for headlamp.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# -- Number of desired pods
+replicaCount: 1
+
+image:
+  # -- Container image registry
+  registry: ghcr.io
+  # -- Container image name
+  repository: headlamp-k8s/headlamp
+  # -- Image pull policy. One of Always, Never, IfNotPresent
+  pullPolicy: IfNotPresent
+  # -- Container image tag, If "" uses appVersion in Chart.yaml
+  tag: ""
+
+# -- An optional list of references to secrets in the same namespace to use for pulling any of the images used
+imagePullSecrets: []
+# -- Overrides the name of the chart
+nameOverride: ""
+# -- Overrides the full name of the chart
+fullnameOverride: ""
+
+# -- An optional list of init containers to be run before the main containers.
+initContainers: []
+
+config:
+  inCluster: true
+  # -- base url path at which headlamp should run
+  baseURL: ""
+  oidc:
+    # Option 1:
+    # @param config.oidc.secret - OIDC secret configuration
+    # If you want to use an existing secret, set create to false and provide the name of the secret.
+    # If you want to create a new secret, set create to true and provide the name of the secret.
+    # Also provide the values for clientID, clientSecret, issuerURL, and scopes.
+    # Example:
+    # config:
+    #   oidc:
+    #     secret:
+    #       create: true
+    #       name: oidc
+    secret:
+      # -- Generate OIDC secret. If true, will generate a secret using .config.oidc.
+      create: true
+      # -- Name of the OIDC secret.
+      name: oidc
+
+    # Option 2:
+    # @param config.oidc - OIDC env configuration
+    # If you want to set the OIDC configuration directly, set the following values.
+    # Example:
+    # config:
+    #   oidc:
+    #     clientID: "clientID"
+    #     clientSecret: "clientSecret"
+    #     issuerURL: "issuerURL"
+    #     scopes: "scopes"
+
+    # -- OIDC client ID
+    clientID: ""
+    # -- OIDC client secret
+    clientSecret: ""
+    # -- OIDC issuer URL
+    issuerURL: ""
+    # -- OIDC scopes to be used
+    scopes: ""
+
+    # -- OIDC client to be used during token validation
+    validatorClientID: ""
+    # -- OIDC Issuer URL to be used during token validation
+    validatorIssuerURL: ""
+    # -- Use 'access_token' instead of 'id_token' when authenticating using OIDC
+    useAccessToken: false
+
+    # Option 3:
+    # @param config.oidc - External OIDC secret configuration
+    # If you want to use an external secret for OIDC configuration, enable this option.
+    # Provide the name of the secret to use.
+    # Example:
+    # config:
+    #   oidc:
+    #     secret:
+    #       create: false
+    #     externalSecret:
+    #       enabled: true
+    #       name: oidc
+    externalSecret:
+      enabled: false
+      name: ""
+  # -- directory to look for plugins
+  pluginsDir: "/headlamp/plugins"
+  watchPlugins: false
+  # Extra arguments that can be given to the container. See charts/headlamp/README.md for more information.
+  extraArgs: []
+
+# -- An optional list of environment variables
+# env:
+#   - name: KUBERNETES_SERVICE_HOST
+#     value: "localhost"
+#   - name: KUBERNETES_SERVICE_PORT
+#     value: "6443"
+
+serviceAccount:
+  # -- Specifies whether a service account should be created
+  create: true
+  # -- Annotations to add to the service account
+  annotations: {}
+  # -- The name of the service account to use.(If not set and create is true, a name is generated using the fullname template)
+  name: ""
+
+clusterRoleBinding:
+  # -- Specified whether a cluster role binding should be created
+  create: true
+  # -- Set name of the Cluster Role with limited permissions from you cluster
+  # for example - clusterRoleName: user-ro
+  clusterRoleName: cluster-admin
+  # -- Annotations to add to the cluster role binding
+  annotations: {}
+
+# -- Annotations to add to the deployment
+deploymentAnnotations: {}
+
+# -- Annotations to add to the pod
+podAnnotations: {}
+
+# -- Headlamp pod's Security Context
+podSecurityContext:
+  {}
+  # fsGroup: 2000
+
+# -- Headlamp containers Security Context
+securityContext:
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  privileged: false
+  runAsUser: 100
+  runAsGroup: 101
+
+service:
+  # -- Kubernetes Service type
+  type: ClusterIP
+  # -- Kubernetes Service port
+  port: 80
+  # -- Kubernetes Service clusterIP
+  clusterIP: ""
+  # -- Kubernetes Service loadBalancerIP
+  loadBalancerIP: ""
+  # -- Kubernetes Service loadBalancerSourceRanges
+  loadBalancerSourceRanges: []
+  # -- Kubernetes Service Nodeport
+  nodePort: null
+
+# -- Headlamp containers volume mounts
+volumeMounts: []
+
+# -- Headlamp pod's volumes
+volumes: []
+
+persistentVolumeClaim:
+  # -- Enable Persistent Volume Claim
+  enabled: false
+  # -- Annotations to add to the persistent volume claim (if enabled)
+  annotations:
+    {}
+  # -- accessModes for the persistent volume claim, eg: ReadWriteOnce, ReadOnlyMany, ReadWriteMany etc.
+  accessModes: []
+  # -- size of the persistent volume claim, eg: 10Gi. Required if enabled is true.
+  size: ""
+  # -- storageClassName for the persistent volume claim.
+  storageClassName: ""
+  # -- selector for the persistent volume claim.
+  selector: {}
+  # -- volumeMode for the persistent volume claim, eg: Filesystem, Block.
+  volumeMode: ""
+
+ingress:
+  # -- Enable ingress controller resource
+  enabled: false
+  # -- Annotations for Ingress resource
+  annotations:
+    {}
+    # kubernetes.io/tls-acme: "true"
+
+  # -- Additional labels to add to the Ingress resource
+  labels: {}
+    # app.kubernetes.io/part-of: traefik
+    # environment: prod
+
+  # -- Ingress class name. replacement for the deprecated "kubernetes.io/ingress.class" annotation
+  ingressClassName: ""
+
+  # -- Hostname(s) for the Ingress resource
+  # Please refer to https://kubernetes.io/docs/reference/kubernetes-api/service-resources/ingress-v1/#IngressSpec for more information.
+  hosts:
+    []
+    # - host: chart-example.local
+    #   paths:
+    #   - path: /
+    #     type: ImplementationSpecific
+  # -- Ingress TLS configuration
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+# -- CPU/Memory resource requests/limits
+resources:
+  {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# -- Node labels for pod assignment
+nodeSelector: {}
+
+# -- Toleration labels for pod assignment
+tolerations: []
+
+# -- Affinity settings for pod assignment
+affinity: {}
+
+# Plugin Manager Sidecar Container Configuration
+pluginsManager:
+  # -- Enable plugin manager
+  enabled: false
+  # -- Plugin configuration file name
+  configFile: "plugin.yml"
+  # -- Plugin configuration content in YAML format. This is required if plugins.enabled is true.
+  configContent: ""
+  # -- Base node image to use
+  baseImage: node:lts-alpine
+  # -- Headlamp plugin package version to install
+  version: latest
+  # -- Specify resrouces
+  # resources:
+  #   requests:
+  #     cpu: "500m"
+  #     memory: "2048Mi"
+  #   limits:
+  #     cpu: "1000m"
+  #     memory: "4096Mi"
+
+# -- Additional Kubernetes manifests to be deployed. Include the manifest as nested YAML.
+extraManifests: []
+# - apiVersion: v1
+#   kind: ConfigMap
+#   metadata:
+#     name: my-config
+#   data:
+#     key: value
+# - apiVersion: v1
+#   kind: ConfigMap
+#   metadata:
+#     name: my-config-too
+#   data:
+#     key: value

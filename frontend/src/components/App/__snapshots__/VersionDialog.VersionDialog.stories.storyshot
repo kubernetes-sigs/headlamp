@@ -1,0 +1,112 @@
+<body>
+  <div
+    aria-hidden="true"
+  />
+  <div
+    class="MuiDialog-root MuiModal-root css-zw3mfo-MuiModal-root-MuiDialog-root"
+    role="presentation"
+    style="z-index: 1900;"
+  >
+    <div
+      aria-hidden="true"
+      class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
+      style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+    />
+    <div
+      data-testid="sentinelStart"
+      tabindex="0"
+    />
+    <div
+      class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
+      role="presentation"
+      style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+      tabindex="-1"
+    >
+      <div
+        aria-labelledby=":mock-test-id:"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm MuiDialog-paperFullWidth css-1ehm288-MuiPaper-root-MuiDialog-paper"
+        role="dialog"
+      >
+        <h2
+          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
+          id=":mock-test-id:"
+          style="display: flex;"
+        >
+          <div
+            class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            >
+              <h1
+                class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
+                style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
+              >
+                Headlamp
+              </h1>
+            </div>
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            >
+              <div
+                class="MuiBox-root css-0"
+              >
+                <button
+                  aria-label="Close"
+                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                  data-mui-internal-clone-element="true"
+                  tabindex="0"
+                  type="button"
+                >
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </h2>
+        <div
+          class="MuiDialogContent-root css-ypiqx9-MuiDialogContent-root"
+        >
+          <dl
+            class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+          >
+            <dt
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+            >
+              Version
+            </dt>
+            <dd
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+            >
+              <span
+                class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+              >
+                0.0.1
+              </span>
+            </dd>
+            <dt
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
+            >
+              Git Commit
+            </dt>
+            <dd
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
+            >
+              <span
+                class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+              >
+                abc123abc123abc123abc123abc123abc123abc123abc123abc123
+              </span>
+            </dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+    <div
+      data-testid="sentinelEnd"
+      tabindex="0"
+    />
+  </div>
+</body>

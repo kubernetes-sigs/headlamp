@@ -1,0 +1,153 @@
+env:
+  browser: true
+  es6: true
+  node: true
+globals:
+  Atomics: readonly
+  SharedArrayBuffer: readonly
+parser: '@typescript-eslint/parser'
+parserOptions:
+  ecmaFeatures:
+    jsx: true
+    modules: true
+  ecmaVersion: 2018
+  sourceType: module
+plugins:
+- react
+- react-hooks
+- simple-import-sort
+- '@typescript-eslint/eslint-plugin'
+- unused-imports
+rules:
+  key-spacing:
+  - 1
+  arrow-spacing:
+  - 1
+  eqeqeq:
+  - 1
+  - always
+  max-len:
+  - 1
+  - code: 100
+    ignoreTemplateLiterals: true
+    ignoreStrings: true
+    ignoreUrls: true
+  space-in-parens:
+  - 0
+  - always
+  template-curly-spacing:
+  - 0
+  - always
+  array-bracket-spacing:
+  - 0
+  - always
+  object-curly-spacing:
+  - 0
+  - always
+  computed-property-spacing:
+  - 0
+  - always
+  no-multiple-empty-lines:
+  - 1
+  - max: 1
+    maxEOF: 1
+    maxBOF: 0
+  space-infix-ops:
+  - 1
+  no-multi-spaces:
+  - 1
+  quotes:
+  - 1
+  - single
+  - avoidEscape: true
+  no-use-before-define:
+  - 0
+  - functions: false
+  semi:
+  - 1
+  - always
+  prefer-const: 1
+  react/prefer-es6-class: 0
+  react/jsx-filename-extension: 0
+  react/jsx-curly-spacing:
+  - 0
+  - always
+  react/jsx-indent:
+  - 1
+  - 2
+  - checkAttributes: true
+  react/jsx-indent-props:
+  - 1
+  - 2
+  react/jsx-closing-bracket-location:
+  - 1
+  react/jsx-boolean-value:
+  - 1
+  - never
+  react/jsx-max-props-per-line:
+  - 1
+  - maximum: 1
+    when: multiline
+  no-unneeded-ternary:
+  - 1
+  indent:
+  - 1
+  - 2
+  - ArrayExpression: 1
+    CallExpression:
+      arguments: 'off'
+    FunctionDeclaration:
+      body: 1
+      parameters: first
+    FunctionExpression:
+      body: 1
+      parameters: first
+    MemberExpression: 1
+    ObjectExpression: first
+    SwitchCase: 1
+    ignoredNodes:
+    - JSXElement
+    outerIIFEBody: 1
+  comma-spacing:
+  - 1
+  newline-per-chained-call:
+  - 1
+  keyword-spacing:
+  - 1
+  no-whitespace-before-property:
+  - 1
+  no-case-declarations:
+  - 1
+  no-trailing-spaces:
+  - 1
+  no-return-assign:
+  - 1
+  no-param-reassign:
+  - 1
+  - props: false
+  no-shadow:
+  - 0
+  no-underscore-dangle:
+  - 0
+  - always
+  sort-imports:
+  - 0
+  simple-import-sort/imports:
+  - 1
+  - groups:
+    - - "^\\u0000"
+      - "^@?\\w"
+      - "^[^.]"
+      - "^\\."
+  eol-last:
+  - 1
+  - always
+  one-var:
+  - 1
+  - never
+  unused-imports/no-unused-imports: error
+  no-unused-vars: error
+
+settings:
+  react:
+    version: detect

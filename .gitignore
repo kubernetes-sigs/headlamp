@@ -1,0 +1,11 @@
+backend/headlamp-server
+backend/headlamp-server.exe
+backend/tools
+backend/coverage.out
+app/electron/src/*
+docs/development/storybook/
+.plugins
+node_modules
+.idea/
+plugins/headlamp-plugin/headlamp-myfancy/
+plugins/examples/*/dist/

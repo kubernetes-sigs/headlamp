@@ -1,0 +1,162 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-j1fy4m"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+      >
+        <div
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        >
+          <div
+            class="MuiBox-root css-70qvj9"
+          >
+            <h2
+              class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+            >
+              Volumes
+            </h2>
+            <div
+              class="MuiBox-root css-ldp2l3"
+            />
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiBox-root css-1txv3mw"
+      >
+        <dl
+          class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+        >
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 css-pxyi5o-MuiGrid-root"
+          >
+            ca-certs
+          </dt>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+          >
+            Kind
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+          >
+            <span
+              class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+            >
+              hostPath
+            </span>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+          >
+            Source
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+          >
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              ca-certs
+            </p>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+          >
+            path
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+          >
+            <span
+              class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+            >
+              /etc/ssl/certs
+            </span>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
+          >
+            type
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
+          >
+            <span
+              class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+            >
+              DirectoryOrCreate
+            </span>
+          </dd>
+        </dl>
+        <dl
+          class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+        >
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 css-pxyi5o-MuiGrid-root"
+          >
+            etc-ca-certificates
+          </dt>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+          >
+            Kind
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+          >
+            <span
+              class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+            >
+              hostPath
+            </span>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+          >
+            Source
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+          >
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              etc-ca-certificates
+            </p>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+          >
+            path
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+          >
+            <span
+              class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+            >
+              /etc/ca-certificates
+            </span>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
+          >
+            type
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
+          >
+            <span
+              class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+            >
+              DirectoryOrCreate
+            </span>
+          </dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</body>

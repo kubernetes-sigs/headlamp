@@ -1,0 +1,33 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Storyshots ReactiveLogo Large Dark 1`] = `
+<div>
+  <p>
+    large dark theme logo
+  </p>
+</div>
+`;
+
+exports[`Storyshots ReactiveLogo Large Light 1`] = `
+<div>
+  <p>
+    large light theme logo
+  </p>
+</div>
+`;
+
+exports[`Storyshots ReactiveLogo Small Dark 1`] = `
+<div>
+  <p>
+    small dark theme logo
+  </p>
+</div>
+`;
+
+exports[`Storyshots ReactiveLogo Small Light 1`] = `
+<div>
+  <p>
+    small light theme logo
+  </p>
+</div>
+`;

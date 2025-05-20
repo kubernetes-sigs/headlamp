@@ -1,0 +1,120 @@
+<body>
+  <div>
+    <div
+      aria-busy="false"
+      aria-live="polite"
+      class="MuiBox-root css-2esbmj"
+    >
+      <p
+        class="MuiTypography-root MuiTypography-body1 css-b7twky-MuiTypography-root"
+      >
+        Pods
+      </p>
+      <div
+        class="recharts-wrapper"
+        style="position: relative; cursor: default; width: 160px; height: 160px; margin-left: auto; margin-right: auto;"
+      >
+        <svg
+          class="recharts-surface"
+          cx="100"
+          cy="100"
+          height="160"
+          style="width: 100%; height: 100%;"
+          viewBox="0 0 160 160"
+          width="160"
+        >
+          <title />
+          <desc />
+          <defs>
+            <clippath
+              id="recharts-id"
+            >
+              <rect
+                height="150"
+                width="150"
+                x="5"
+                y="5"
+              />
+            </clippath>
+          </defs>
+          <g
+            class="recharts-layer recharts-pie"
+            tabindex="0"
+          >
+            <g
+              class="recharts-layer recharts-pie-sector"
+              tabindex="-1"
+            >
+              <path
+                class="recharts-sector"
+                cx="85"
+                cy="85"
+                d="M 85,21
+    A 64,64,0,
+    0,1,
+    85,149
+  L 85,133
+            A 48,48,0,
+            0,0,
+            85,37 Z"
+                fill="#000"
+                name="ready"
+                role="img"
+                stroke="#e0e0e0"
+                tabindex="-1"
+              />
+            </g>
+            <g
+              class="recharts-layer recharts-pie-sector"
+              tabindex="-1"
+            >
+              <path
+                class="recharts-sector"
+                cx="85"
+                cy="85"
+                d="M 85,149
+    A 64,64,0,
+    0,1,
+    84.99999999999999,21
+  L 84.99999999999999,37
+            A 48,48,0,
+            0,0,
+            85,133 Z"
+                fill="#f44336"
+                name="notReady"
+                role="img"
+                stroke="#e0e0e0"
+                tabindex="-1"
+              />
+            </g>
+            <g
+              class="recharts-layer recharts-pie-sector"
+              tabindex="-1"
+            />
+            <text
+              class="recharts-text recharts-label"
+              fill="#808080"
+              offset="5"
+              style="font-size: 24px; fill: #000;"
+              text-anchor="middle"
+              x="85"
+              y="85"
+            >
+              <tspan
+                dy="0.355em"
+                x="85"
+              >
+                50.0 %
+              </tspan>
+            </text>
+          </g>
+        </svg>
+      </div>
+      <p
+        class="MuiTypography-root MuiTypography-body1 css-1linoo0-MuiTypography-root"
+      >
+        5 / 10 Requested
+      </p>
+    </div>
+  </div>
+</body>

@@ -1,0 +1,31 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Storyshots Message Error 1`] = `
+<div>
+  <p
+    class="MuiTypography-root makeStyles-pods MuiTypography-body1 MuiTypography-colorTextPrimary"
+  >
+    Uh, pods!?
+  </p>
+</div>
+`;
+
+exports[`Storyshots Message Large Amount 1`] = `
+<div>
+  <p
+    class="MuiTypography-root makeStyles-pods MuiTypography-body1 MuiTypography-colorTextPrimary"
+  >
+    # Pods: 10,000
+  </p>
+</div>
+`;
+
+exports[`Storyshots Message Small Amount 1`] = `
+<div>
+  <p
+    class="MuiTypography-root makeStyles-pods MuiTypography-body1 MuiTypography-colorTextPrimary"
+  >
+    # Pods: 1
+  </p>
+</div>
+`;

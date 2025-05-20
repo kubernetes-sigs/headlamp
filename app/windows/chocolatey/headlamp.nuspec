@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Do not remove this test for UTF-8: if “Ω” doesn’t appear as greek uppercase omega letter enclosed in quotation marks, you should use an editor that supports UTF-8, not this one. -->
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>headlamp</id>
+    <version>0.30.0</version>
+    <packageSourceUrl>https://github.com/kubernetes-sigs/headlamp/tree/main/app/windows/chocolatey</packageSourceUrl>
+    <title>Headlamp</title>
+    <authors>Kinvolk</authors>
+    <projectUrl>https://github.com/kubernetes-sigs/headlamp/</projectUrl>
+    <iconUrl>http://rawcdn.githack.com/headlamp-k8s/headlamp/main/frontend/public/apple-touch-icon.png</iconUrl>
+    <licenseUrl>https://github.com/kubernetes-sigs/headlamp/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/kubernetes-sigs/headlamp/</projectSourceUrl>
+    <docsUrl>https://headlamp.dev/docs/latest/</docsUrl>
+    <bugTrackerUrl>https://github.com/kubernetes-sigs/headlamp/issues</bugTrackerUrl>
+    <tags>headlamp kubernetes ui gui dashboard devops</tags>
+    <summary>An easy-to-use and extensible graphical UI for Kubernetes.</summary>
+    <description><![CDATA[
+# Headlamp
+
+Headlamp is an easy-to-use and extensible Kubernetes graphical UI.
+
+Headlamp was created to be a Kubernetes UI that has the traditional functionality of other
+web UIs/dashboards available (i.e. to list and view resources) as well as other features.
+
+## Features
+
+  * Vendor independent / generic Kubernetes UI
+  * Works in-cluster, or locally as a desktop app
+  * Multi-cluster
+  * Extensible through plugins
+  * UI controls reflecting user roles (no deletion/update if not allowed)
+  * Clean & modern UI
+  * Cancellable creation/update/deletion operations
+  * Logs, exec, and resource editor with documentation
+  * Read-write / interactive (actions based on permissions)
+
+### Accessing
+
+Headlamp uses [RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac) for checking
+whether and how users can access resources. If you try Headlamp with a token that has very limited
+permissions, you may not be able to view your cluster resources correctly.
+
+See the documentation on [how to easily get a Service Account token](https://headlamp.dev/docs/latest/installation#create-a-service-account-token) for your cluster.
+]]></description>
+    <releaseNotes>See release notes at the [Github releases page](https://github.com/kubernetes-sigs/headlamp/releases)</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

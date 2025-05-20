@@ -1,0 +1,76 @@
+<body>
+  <div>
+    <div
+      class="MuiTabs-root css-1ujnqem-MuiTabs-root"
+    >
+      <div
+        class="MuiTabs-scrollableX MuiTabs-hideScrollbar css-oqr85h"
+        style="width: 99px; height: 99px; position: absolute; top: -9999px; overflow: scroll;"
+      />
+      <div
+        class="MuiTabs-scroller MuiTabs-hideScrollbar MuiTabs-scrollableX css-69z67c-MuiTabs-scroller"
+        style="margin-bottom: 0px;"
+      >
+        <div
+          aria-label="Basic Tabs"
+          class="MuiTabs-flexContainer css-heg063-MuiTabs-flexContainer"
+          role="tablist"
+        >
+          <button
+            aria-controls="full-width-tabpanel-0-BasicTabs-tabs-id"
+            aria-selected="true"
+            class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-f00lt7-MuiButtonBase-root-MuiTab-root"
+            id="full-width-tab-0-BasicTabs-tabs-id"
+            role="tab"
+            tabindex="0"
+            type="button"
+          >
+            tab 1 label
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <button
+            aria-controls="full-width-tabpanel-1-BasicTabs-tabs-id"
+            aria-selected="false"
+            class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
+            id="full-width-tab-1-BasicTabs-tabs-id"
+            role="tab"
+            tabindex="-1"
+            type="button"
+          >
+            tab 2 label
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+        </div>
+        <span
+          class="MuiTabs-indicator css-1s2zz1g-MuiTabs-indicator"
+          style="left: 0px; width: 0px;"
+        />
+      </div>
+    </div>
+    <div
+      aria-labelledby="full-width-tab-0-BasicTabs-tabs-id"
+      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+      id="full-width-tabpanel-0-BasicTabs-tabs-id"
+      role="tabpanel"
+    >
+      <p>
+        tab body 1
+      </p>
+    </div>
+    <div
+      aria-labelledby="full-width-tab-1-BasicTabs-tabs-id"
+      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+      hidden=""
+      id="full-width-tabpanel-1-BasicTabs-tabs-id"
+      role="tabpanel"
+    >
+      <p>
+        tab body 2
+      </p>
+    </div>
+  </div>
+</body>

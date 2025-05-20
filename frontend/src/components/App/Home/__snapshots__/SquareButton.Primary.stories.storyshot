@@ -1,0 +1,27 @@
+<body>
+  <div>
+    <button
+      class="MuiButtonBase-root css-10d1a0h-MuiButtonBase-root"
+      tabindex="0"
+      type="button"
+    >
+      <div
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-zq45tj-MuiPaper-root-MuiCard-root"
+      >
+        <div
+          class="MuiCardContent-root css-d64700-MuiCardContent-root"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-11x8x5l-MuiTypography-root"
+            title="Some label"
+          >
+            Some label
+          </p>
+        </div>
+      </div>
+      <span
+        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+      />
+    </button>
+  </div>
+</body>

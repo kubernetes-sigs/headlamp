@@ -1,0 +1,19 @@
+{
+    "icon": "headlamp.svg",
+    "vm": {
+      "composefile": "docker-compose.yml",
+      "exposes": {
+        "socket": "extension-headlamp.sock"
+      }
+    },
+    "ui": {
+      "dashboard-tab": {
+        "title": "Headlamp",
+        "src": "index.html",
+        "root": "/ui",
+        "backend": {
+          "socket": "extension-headlamp.sock"
+        }
+      }
+    }
+  }

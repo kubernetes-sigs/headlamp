@@ -1,0 +1,22 @@
+name: Trigger Headlamp website update
+
+# See https://github.com/kubernetes-sigs/headlamp-website
+on:
+  push:
+    paths:
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trigger_flatpak_update:
+    name: Trigger Headlamp website update
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger via gh
+        env:
+          GITHUB_TOKEN: ${{ secrets.KINVOLK_REPOS_TOKEN }}
+        run: |
+          gh api repos/headlamp-k8s/headlamp-website/dispatches --raw-field event_type=headlamp-docs-update

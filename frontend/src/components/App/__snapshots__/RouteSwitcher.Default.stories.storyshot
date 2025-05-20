@@ -1,0 +1,99 @@
+<body>
+  <div>
+    <div
+      class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column css-1b95sop-MuiGrid-root"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        <img
+          alt=""
+          class="css-8atqhb"
+          src="/src/assets/headlamp-broken.svg"
+        />
+        <h1
+          class="MuiTypography-root MuiTypography-h1 css-5ewpze-MuiTypography-root"
+        >
+          Uh-oh! Something went wrong.
+        </h1>
+        <h2
+          class="MuiTypography-root MuiTypography-h2 css-15otqr2-MuiTypography-root"
+        >
+          Error loading My Test Route
+        </h2>
+      </div>
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-iefvb7"
+        >
+          <div
+            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAccordion-root MuiAccordion-rounded MuiAccordion-gutters css-d0yk9k-MuiPaper-root-MuiAccordion-root"
+          >
+            <div
+              aria-expanded="false"
+              class="MuiButtonBase-root MuiAccordionSummary-root MuiAccordionSummary-gutters css-1f773le-MuiButtonBase-root-MuiAccordionSummary-root"
+              role="button"
+              tabindex="0"
+            >
+              <div
+                class="MuiAccordionSummary-content MuiAccordionSummary-contentGutters css-eqpfi5-MuiAccordionSummary-content"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                >
+                  Error Details
+                </p>
+              </div>
+              <div
+                class="MuiAccordionSummary-expandIconWrapper css-yw020d-MuiAccordionSummary-expandIconWrapper"
+              />
+            </div>
+            <div
+              class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-bz4dnt-MuiCollapse-root"
+              style="min-height: 0px;"
+            >
+              <div
+                class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
+              >
+                <div
+                  class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
+                >
+                  <div
+                    class="MuiAccordion-region"
+                    role="region"
+                  >
+                    <div
+                      class="MuiAccordionDetails-root css-15v22id-MuiAccordionDetails-root"
+                    >
+                      <div
+                        class="MuiBox-root css-s2uf1z"
+                      >
+                        <button
+                          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
+                          tabindex="0"
+                          type="button"
+                        >
+                          Copy
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
+                      </div>
+                      <pre
+                        class="MuiTypography-root MuiTypography-body2 css-dna8j4-MuiTypography-root"
+                      >
+                        Here is the stack trace
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

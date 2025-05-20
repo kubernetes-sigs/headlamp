@@ -1,0 +1,57 @@
+linters:
+  disable-all: false
+  enable:
+    - asciicheck
+    - bodyclose
+    - dogsled
+    - dupl
+    - errcheck
+    - exhaustive
+    - funlen
+    - gochecknoinits
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - gofmt
+    - gofumpt
+    - goimports
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - lll
+    - govet
+    - misspell
+    - nakedret
+    - nestif
+    - noctx
+    - nolintlint
+    - prealloc
+    - rowserrcheck
+    - staticcheck
+    - unused
+    - stylecheck
+    - testpackage
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - whitespace
+    - wsl
+  disable:
+    - gci
+    - gochecknoglobals
+    - godox
+    - err113
+    - goheader
+    - gomodguard
+    - nlreturn
+    - sqlclosecheck
+    - depguard
+
+linters-settings:
+  gofmt:
+    simplify: true

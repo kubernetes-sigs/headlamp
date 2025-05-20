@@ -1,0 +1,30 @@
+<body>
+  <div>
+    <div
+      class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column css-1b95sop-MuiGrid-root"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        404
+        <h1
+          class="MuiTypography-root MuiTypography-h1 css-5ewpze-MuiTypography-root"
+        >
+          Uh-oh! Something went wrong.
+        </h1>
+        <h2
+          class="MuiTypography-root MuiTypography-h2 css-15otqr2-MuiTypography-root"
+        >
+          Head back 
+          <a
+            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+            href="/"
+          >
+            home
+          </a>
+          .
+        </h2>
+      </div>
+    </div>
+  </div>
+</body>

@@ -1,0 +1,208 @@
+# "Setup minikube as CI step in GitHub Actions"
+# https://minikube.sigs.k8s.io/docs/tutorials/setup_minikube_in_github_actions/
+# https://github.com/marketplace/actions/setup-minikube
+
+name: Build Container and test
+on:
+  pull_request:
+    paths:
+    - 'backend/**'
+    - 'frontend/**'
+    - Makefile
+    - '.github/**'
+    - Dockerfile
+    - Dockerfile.plugins
+    - 'e2e-tests/**'
+  push:
+    branches:
+      - main
+      - rc-*
+      - testing-rc-*
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    name: build discover and deploy
+    permissions:
+      actions: write # needed to upload artifacts
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7 # v3.8.2
+      with:
+        node-version: 20.x
+    - name: Start Cluster 1
+      uses: helm/kind-action@0025e74a8c7512023d06dc019c617aa3cf561fde # v1.0.0
+      with:
+        cluster_name: test
+    - name: Rename Cluster 1 kind context
+      run: kubectl config rename-context kind-test test
+    - name: Start Cluster 2
+      uses: helm/kind-action@0025e74a8c7512023d06dc019c617aa3cf561fde # v1.0.0
+      with:
+        cluster_name: test2
+    - name: Rename Cluster 2 kind context
+      run: kubectl config rename-context kind-test2 test2
+    - name: Use Cluster 1 context
+      run: kubectl config use-context test
+      # now you can run kubectl to see the pods in the cluster
+    - name: Try the cluster!
+      run: kubectl get pods -A
+    - name: Restore image-cache Folder
+      id: cache-image-restore
+      uses: actions/cache/restore@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
+      with:
+        path: ~/image-cache
+        # cache the container image. All the paths this PR depends on except the e2e-tests folder for the key.
+        key: ${{ runner.os }}-image-${{ hashFiles('backend/pkg/**', 'backend/cmd/**', 'backend/go.*', 'frontend/src/**', 'frontend/package.json', 'frontend/package-lock.json', 'Makefile', '.github/workflows/build-container.yml', 'Dockerfile', 'Dockerfile.plugins') }}
+    - name: Restore Cached Docker Images
+      if: steps.cache-image-restore.outputs.cache-hit == 'true'
+      run: |
+        export SHELL=/bin/bash
+        docker load -i ~/image-cache/headlamp-plugins-test.tar
+        docker load -i ~/image-cache/headlamp.tar
+    - name: Make a .plugins folder for testing later
+      if: steps.cache-image-restore.outputs.cache-hit != 'true'
+      run: |
+        echo "Extract pod-counter plugin into .plugins folder, which will be copied into image later by 'make image'."
+        cd plugins/examples/pod-counter
+        npm ci
+        npm run build
+        cd ../../../
+        cd plugins/headlamp-plugin
+        npm ci
+        node bin/headlamp-plugin.js extract ../examples/pod-counter ../../.plugins/
+        cd ../../
+        ls -laR .plugins
+    - name: Remove unnecessary files
+      if: steps.cache-image-restore.outputs.cache-hit != 'true'
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+    - name: Build image
+      if: steps.cache-image-restore.outputs.cache-hit != 'true'
+      run: |
+        export SHELL=/bin/bash
+        DOCKER_IMAGE_VERSION=latest make image
+        DOCKER_IMAGE_VERSION=latest DOCKER_PLUGINS_IMAGE_NAME=headlamp-plugins-test make build-plugins-container
+        echo -n "verifying images:"
+        docker images
+    - name: Import images to kind
+      run: |
+        export SHELL=/bin/bash
+        kind load docker-image ghcr.io/headlamp-k8s/headlamp-plugins-test:latest --name test
+        kind load docker-image ghcr.io/headlamp-k8s/headlamp:latest --name test
+    - name: Test .plugins folder
+      if: steps.cache-image-restore.outputs.cache-hit != 'true'
+      run: |
+        export SHELL=/bin/bash
+        echo "----------------------------"
+        echo "Test .plugins folder is copied to the right place in the image by 'make image'"
+        echo "--- Files in the image /headlamp/ folder: ---"
+        docker run --rm --entrypoint=/bin/sh ghcr.io/headlamp-k8s/headlamp:latest -c "cd /headlamp/ && find ."
+        echo "----- Checking if the .plugins/ are copied to the right place in the image -----"
+        docker run --rm --entrypoint=/bin/sh ghcr.io/headlamp-k8s/headlamp:latest -c "set -e; (cd /headlamp/plugins && [ -e pod-counter/package.json ] && [ -e pod-counter/main.js ]) || exit 1"
+        echo "----- Checking if the plugins/example folder match copied docker plugins -----"
+        # List contents of /plugins inside the container
+        docker_output=$(docker run --rm --entrypoint=/bin/sh ghcr.io/headlamp-k8s/headlamp-plugins-test:latest -c "set -e; ls /plugins || exit 1")
+
+        # Get the list of folders inside the examples folder
+        examples_folder="plugins/examples"
+        examples_content=$(ls "$examples_folder")
+
+        # Check if the Docker output matches the examples folder content
+        if [[ "$docker_output" == "$examples_content" ]]; then
+          echo "Docker output matches examples folder content"
+        else
+          echo "Docker output does not match examples folder content"
+          echo "Docker output: $docker_output"
+          echo "----------------------------"
+          echo "Examples content: $examples_content"
+          exit 1
+        fi
+    - name: Multi-Cluster Setup
+      run: |
+        # Use Cluster 1 context
+        kubectl config use-context test
+        export TEST_CA_DATA=$(kubectl config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+        export TEST_SERVER="https://$(kubectl get nodes -o=jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):6443"
+        kubectl create serviceaccount headlamp-admin --namespace kube-system
+        kubectl create clusterrolebinding headlamp-admin --serviceaccount=kube-system:headlamp-admin --clusterrole=cluster-admin
+        echo "HEADLAMP_TEST_TOKEN=$(kubectl create token headlamp-admin --duration 24h -n kube-system)" >> $GITHUB_ENV
+
+        # Use Cluster 2 context
+        kubectl config use-context test2
+        export TEST2_CA_DATA=$(kubectl config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+        export TEST2_SERVER="https://$(kubectl get nodes -o=jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):6443"
+        kubectl create serviceaccount headlamp-admin --namespace kube-system
+        kubectl create clusterrolebinding headlamp-admin --serviceaccount=kube-system:headlamp-admin --clusterrole=cluster-admin
+        echo "HEADLAMP_TEST2_TOKEN=$(kubectl create token headlamp-admin --duration 24h -n kube-system)" >> $GITHUB_ENV
+
+        envsubst < e2e-tests/kubernetes-headlamp-ci.yaml | kubectl --context=test apply -f -
+    - name: Run e2e tests
+      run: |
+        echo "------------------------------------sleeping 12...------------------------------------"
+        sleep 12
+        kubectl config use-context test
+        kubectl get services --all-namespaces
+        kubectl get deployments -n kube-system
+        echo "------------------Waiting for headlamp deployment to be available...------------------"
+        kubectl wait deployment -n kube-system headlamp --for condition=Available=True --timeout=30s
+        echo "----------------------------------Opening the service----------------------------------"
+        IP_ADDRESS=$(kubectl get nodes -o=jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+        SERVICE_PORT=$(kubectl get services headlamp -n kube-system -o=jsonpath='{.spec.ports[0].nodePort}')
+        export SERVICE_URL="http://${IP_ADDRESS}:${SERVICE_PORT}"
+        echo $SERVICE_URL
+        curl -L $SERVICE_URL | grep -q "Headlamp: Kubernetes Web UI"        
+        echo "--------------------------------Export Tokens Received From Previous Step--------------------------------"
+        export HEADLAMP_TEST_TOKEN=${HEADLAMP_TEST_TOKEN}
+        export HEADLAMP_TEST2_TOKEN=${HEADLAMP_TEST2_TOKEN}
+        echo "---------------------------------Certificate handling---------------------------------"
+        export KUBECONFIG=$HOME/.kube/config
+        ca_data=$(yq e '.clusters[0].cluster."certificate-authority-data"' $KUBECONFIG | base64 --decode)
+        echo "$ca_data" > ca.crt
+        kubectl config set-cluster kind-test --certificate-authority=$(pwd)/ca.crt --server=https://${IP_ADDRESS}:${SERVICE_PORT}
+        kubectl config unset clusters.kind-test.certificate-authority-data
+        cc_data=$(yq e '.users[0].user."client-certificate-data"' $KUBECONFIG | base64 --decode)
+        echo "$cc_data" > client.crt
+        ck_data=$(yq e '.users[0].user."client-key-data"' $KUBECONFIG | base64 --decode)
+        echo "$ck_data" > client.key
+        kubectl config set-credentials admin@kind-test --client-certificate=$(pwd)/client.crt --client-key=$(pwd)/client.key
+        kubectl config unset users.admin@kind-test.client-certificate-data
+        kubectl config unset users.admin@kind-test.client-key-data
+        echo "Modified kubeconfig:"
+        cat $KUBECONFIG
+        echo "-----------------------------Running playwright e2e tests-----------------------------"
+        cd e2e-tests
+        npm ci
+        npx playwright install --with-deps
+        HEADLAMP_TEST_URL=$SERVICE_URL npx playwright test
+        exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+          echo "Playwright tests failed with exit code $exit_code"
+          exit 1
+        else
+          echo "Playwright tests passed successfully"
+        fi
+    - name: Save Docker Images to Tar files in image-cache Folder
+      if: steps.cache-image-restore.outputs.cache-hit != 'true'
+      run: |
+        export SHELL=/bin/bash
+        mkdir -p ~/image-cache
+        docker save -o ~/image-cache/headlamp-plugins-test.tar ghcr.io/headlamp-k8s/headlamp-plugins-test
+        docker save -o ~/image-cache/headlamp.tar ghcr.io/headlamp-k8s/headlamp
+    - name: Cache image-cache Folder
+      if: steps.cache-image-restore.outputs.cache-hit != 'true'
+      id: cache-image-save
+      uses: actions/cache/save@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
+      with:
+        path: ~/image-cache
+        key: ${{ steps.cache-image-restore.outputs.cache-primary-key }}
+    - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+      if: always()
+      with:
+        name: e2e-tests-report
+        path: e2e-tests/playwright-report/
+        retention-days: 30

@@ -1,0 +1,51 @@
+{
+  "compilerOptions": {
+    "target": "es2017",
+    "allowSyntheticDefaultImports": true,
+    "jsx": "react-jsx",
+    "moduleResolution": "node",
+    "baseUrl": "../../../../",
+    "esModuleInterop": true,
+    "types": ["vite/client", "vite-plugin-svgr/client", "vitest/globals", "lodash"],
+    "paths": {
+      "*": [
+        "node_modules/@types/*",
+        "node_modules/@kinvolk/headlamp-plugin/node_modules/*",
+        "node_modules/@kinvolk/headlamp-plugin/node_modules/*/index.js",
+        "node_modules/*.js",
+        "node_modules/*/es6/index.js",
+        "node_modules/*/index.js"
+      ],
+      "@iconify/react": [
+        "node_modules/@kinvolk/headlamp-plugin/node_modules/@iconify/react/src/icon.js"
+      ],
+      "@kinvolk/headlamp-plugin/lib/Crd": [
+        "node_modules/@kinvolk/headlamp-plugin/lib/lib/crd.d.ts"
+      ],
+      "@kinvolk/headlamp-plugin/lib/K8s/*": [
+        "node_modules/@kinvolk/headlamp-plugin/lib/lib/k8s/*/index.d.ts",
+        "node_modules/@kinvolk/headlamp-plugin/lib/lib/k8s/*.d.ts"
+      ],
+      "@kinvolk/headlamp-plugin/lib/*": [
+        "node_modules/@kinvolk/headlamp-plugin/lib/lib/*/index.d.ts",
+        "node_modules/@kinvolk/headlamp-plugin/lib/lib/*.d.ts"
+      ],
+      "@kinvolk/headlamp-plugin/lib/ApiProxy": [
+        "node_modules/@kinvolk/headlamp-plugin/lib/lib/k8s/apiProxy.d.ts"
+      ],
+      "@kinvolk/headlamp-plugin/lib/Utils": [
+        "node_modules/@kinvolk/headlamp-plugin/lib/lib/util.d.ts"
+      ],
+      "@kinvolk/headlamp-plugin/lib/CommonComponents": [
+        "node_modules/@kinvolk/headlamp-plugin/lib/components/common/index.d.ts"
+      ],
+      "@kinvolk/headlamp-plugin/lib/CommonComponents/*": [
+        "node_modules/@kinvolk/headlamp-plugin/lib/components/common/*/index.d.ts",
+        "node_modules/@kinvolk/headlamp-plugin/lib/components/common/*.d.ts"
+      ]
+    },
+    "rootDirs": ["node_modules/@kinvolk/headlamp-plugin/"],
+    "skipLibCheck": true
+  },
+  "include": ["./../../../../src/**/*"]
+}

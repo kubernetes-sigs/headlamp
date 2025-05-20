@@ -1,0 +1,9 @@
+<body>
+  <div>
+    <span
+      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+    >
+      A ValueLabel is here
+    </span>
+  </div>
+</body>

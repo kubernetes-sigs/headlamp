@@ -1,0 +1,10 @@
+<body>
+  <div>
+    <a
+      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+      href="/"
+    >
+      a link
+    </a>
+  </div>
+</body>
