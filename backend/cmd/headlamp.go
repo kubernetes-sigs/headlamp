@@ -509,9 +509,11 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	}
 
 	// Prometheus metrics endpoint
-	if config.metrics != nil {
+	// to enable this endpoint, run command run-backend-with-metrics
+	// or set the environment variable HEADLAMP_CONFIG_METRICS_ENABLED=true
+	if config.metrics != nil && config.telemetryConfig.MetricsEnabled != nil && *config.telemetryConfig.MetricsEnabled {
 		r.Handle("/metrics", promhttp.Handler())
-		logger.Log(logger.LevelInfo, nil, nil, "prometheus metrics enpoint: /metrics")
+		logger.Log(logger.LevelInfo, nil, nil, "prometheus metrics endpoint: /metrics")
 	}
 
 	// load dynamic clusters
