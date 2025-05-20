@@ -129,8 +129,13 @@ frontend-tsc:
 
 .PHONY: frontend-i18n-check
 frontend-i18n-check:
-	@echo "Checking translations. If this fails use: 'npm run i18n'"
-	cd frontend && npm run i18n -- --fail-on-update
+ifeq ($(UNIXSHELL),true)
+	@echo "Checking translations. If this fails use: 'make i18n' or 'npm run i18n'"
+	@cd frontend && npm run i18n -- --fail-on-update || echo "⚠️  Translation check failed. Run 'make i18n' or 'npm run i18n' to update translations." && exit 1
+else
+	@echo "Checking translations. If this fails use: 'make i18n' or 'npm run i18n'"
+	@cmd /C "cd frontend && npm run i18n -- --fail-on-update || echo Translation check failed. Run 'make i18n' or 'npm run i18n' to update translations. && exit 1"
+endif
 
 frontend-test:
 	cd frontend && npm run test -- --coverage
