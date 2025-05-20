@@ -1,4 +1,7 @@
-# AKS Cluster Setup with Azure Entra Login and Entra RBAC Using OAuth2Proxy
+---
+title: AKS Cluster Setup with Azure Entra Login and Entra RBAC Using OAuth2Proxy
+sidebar_label: "Tutorial: Headlamp on AKS with Azure Entra-ID Using OAuth2Proxy"
+---
 
 This guide explains how to secure your Azure Kubernetes Service (AKS) cluster with **Azure Entra ID** login and enforce **Entra RBAC** using **OAuth2Proxy** as an authentication proxy.
 
