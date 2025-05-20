@@ -32,6 +32,7 @@ export const supportedLanguages: { [langCode: string]: string } = {
   zh: '简体中文',
   ko: '한국어',
   ja: '日本語',
+  hi: 'हिन्दी',
 };
 
 i18next
