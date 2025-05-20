@@ -16,8 +16,8 @@
 
 import { useTranslation } from 'react-i18next';
 import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
-import { Link } from '../common';
 import LabelListItem from '../common/LabelListItem';
+import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { makePVCStatusLabel } from './ClaimDetails';
 

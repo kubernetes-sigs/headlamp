@@ -177,6 +177,9 @@ spec:
             {{- if .Values.config.inCluster }}
             - "-in-cluster"
             {{- end }}
+            {{- if .Values.config.watchPlugins }}
+            - "-watch-plugins-changes"
+            {{- end }}
             {{- with .Values.config.pluginsDir}}
             - "-plugins-dir={{ . }}"
             {{- end }}
@@ -238,10 +241,39 @@ spec:
               port: http
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- with .Values.volumeMounts }}
+          {{- if or .Values.pluginsManager.enabled .Values.volumeMounts }}
           volumeMounts:
+            {{- if .Values.pluginsManager.enabled }}
+            - name: plugins-dir
+              mountPath: {{ .Values.config.pluginsDir }}
+            {{- end }}
+            {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
+        {{- if .Values.pluginsManager.enabled }}
+        - name: headlamp-plugin
+
+          image: {{ .Values.pluginsManager.baseImage }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Installing headlamp-plugin globally..."
+              npm install -g @kinvolk/headlamp-plugin@{{ .Values.pluginsManager.version }}
+              echo "Installed headlamp-plugin successfully."
+              if [ -f "/config/plugin.yml" ]; then
+                echo "Installing plugins from config..."
+                cat /config/plugin.yml
+                headlamp-plugin install --config /config/plugin.yml --folderName {{ .Values.config.pluginsDir }} --watch
+              fi
+          volumeMounts:
+            - name: plugins-dir
+              mountPath: {{ .Values.config.pluginsDir }}
+            - name: plugin-config
+              mountPath: /config
+          resources:
+            {{- toYaml .Values.pluginsManager.resources | nindent 12 }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -254,7 +286,16 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.volumes}}
+      {{- if or .Values.pluginsManager.enabled .Values.volumes }}
       volumes:
+        {{- if .Values.pluginsManager.enabled }}
+        - name: plugins-dir
+          emptyDir: {}
+        - name: plugin-config
+          configMap:
+            name: {{ include "headlamp.fullname" . }}-plugin-config
+        {{- end }}
+        {{- with .Values.volumes}}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
