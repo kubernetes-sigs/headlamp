@@ -44,7 +44,7 @@ For detailed instructions on creating a new release, refer to the [GitHub docume
 :::info
 For security reasons, Headlamp allows the download of plugins exclusively from GitHub, GitLab, and BitBucket. While this may change in the future, if you need your plugins to be downloaded from somewhere else, please [let us know](https://github.com/kubernetes-sigs/headlamp/issues).
 
-Also, by default the Plugin Catalog only shows plugins marked as official in ArtifactHub, or allow-listed by Headlamp. Users can override this behavior and make Headlamp show all the plugins by switching off the "Only official plugins" setting for the Plugin Catalog. Read more at the [Plugin Catalog README](https://github.com/headlamp-k8s/plugins/tree/main/plugin-catalog#readme).
+Also, by default the Plugin Catalog only shows plugins marked as official in ArtifactHub, or allow-listed by Headlamp. Users can override this behavior and make Headlamp show all the plugins by switching off the "Only official plugins" setting for the Plugin Catalog. Read more at the [Plugin Catalog README](https://github.com/jamowei/plugins/tree/main/plugin-catalog#readme).
 :::
 
 ## Step 3: Create an ArtifactHub package for the plugin
@@ -65,7 +65,7 @@ annotations:
   headlamp/plugin/distro-compat: <Compatibility of your plugin>
 ```
 
-Replace the placeholders with appropriate values. For more information, refer to the [Artifact Hub documentation](https://artifacthub.io/docs/topics/annotations/headlamp/). A sample configuration can be found [here](https://github.com/headlamp-k8s/plugins/blob/main/opencost/artifacthub-pkg.yml).
+Replace the placeholders with appropriate values. For more information, refer to the [Artifact Hub documentation](https://artifacthub.io/docs/topics/annotations/headlamp/). A sample configuration can be found [here](https://github.com/jamowei/plugins/blob/main/opencost/artifacthub-pkg.yml).
 
 ## Step 4: Push Changes to GitHub
 

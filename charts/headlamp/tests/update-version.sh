@@ -49,7 +49,7 @@ check_and_update_template() {
         fi
         
         # Check image version
-        if ! grep -q "ghcr.io/headlamp-k8s/headlamp:v${CURRENT_IMAGE_VERSION}" "${expected_file}"; then
+        if ! grep -q "ghcr.io/jamowei/headlamp:v${CURRENT_IMAGE_VERSION}" "${expected_file}"; then
             needs_update=true
         fi
     else

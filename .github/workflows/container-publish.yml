@@ -18,7 +18,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: headlamp-k8s/headlamp
+  IMAGE_NAME: jamowei/headlamp
 jobs:
   push_to_registry:
     name: Test building container image
