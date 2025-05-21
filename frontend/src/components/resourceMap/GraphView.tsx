@@ -41,7 +41,7 @@ import Namespace from '../../lib/k8s/namespace';
 import K8sNode from '../../lib/k8s/node';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/reducers/reducers';
-import { NamespacesAutocomplete } from '../common';
+import { NamespacesAutocomplete } from '../common/NamespacesAutocomplete';
 import { GraphNodeDetails } from './details/GraphNodeDetails';
 import { filterGraph, GraphFilter } from './graph/graphFiltering';
 import {
