@@ -17,7 +17,7 @@
 import { Box } from '@mui/system';
 import { useTranslation } from 'react-i18next';
 import Service from '../../../lib/k8s/service';
-import { StatusLabel } from '../../common';
+import { StatusLabel } from '../../common/Label';
 
 export function ServiceGlance({ service }: { service: Service }) {
   const { t } = useTranslation();
