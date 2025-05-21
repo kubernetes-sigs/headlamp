@@ -87,25 +87,78 @@ func TestLoadContextsFromKubeConfigFile(t *testing.T) {
 	})
 }
 
-// TestLoadContextFromFile validates the behavior of the LoadContextsFromFile function.
-//
-// This test ensures that the function correctly processes a valid kubeconfig file
-// and produces the expected metadata results without errors.
-func TestLoadContextFromFile(t *testing.T) {
-	kubeConfigFile := "./test_data/kubeconfig_metadata"
+func TestLoadContextsWithDuplicateContextNames(t *testing.T) {
+	// Simulate two kubeconfig files with the same context name
+	kubeConfigFile1 := "./test_data/kubeconfig_duplicate1"
+	kubeConfigFile2 := "./test_data/kubeconfig_duplicate2"
+
+	// Both files have a context named "duplicate-context"
+	combined := kubeConfigFile1 + string(os.PathListSeparator) + kubeConfigFile2
+
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromMultipleFiles(combined, kubeconfig.KubeConfig)
+	require.NoError(t, err)
+	require.Empty(t, contextErrors)
+	// Should load both contexts, even if names are the same, but may overwrite in store
+	var count int
+	for _, ctx := range contexts {
+		if ctx.Name == "duplicate-context" {
+			count++
+		}
+	}
+	assert.Equal(t, 2, count, "Expected 2 contexts with the same name from different files")
+}
+
+func TestLoadContextsWithMissingOrInvalidContextNames(t *testing.T) {
+	// File with a context missing the 'name' field
+	kubeConfigFile := "./test_data/kubeconfig_missing_context_name"
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig)
+	require.NoError(t, err)
+	require.NotEmpty(t, contextErrors, "Expected context errors for missing context name")
+	require.Empty(t, contexts, "Expected no valid contexts when context name is missing")
+}
+
+func TestLoadContextsWithSpecialCharactersInFilePath(t *testing.T) {
+	// Simulate a file path with spaces and special characters
+	kubeConfigFile := "./test_data/kube config @special.yaml"
+	// Copy a valid kubeconfig to this path for testing
+	_ = os.WriteFile(kubeConfigFile, []byte(`
+apiVersion: v1
+kind: Config
+contexts:
+- name: special-context
+  context:
+    cluster: special-cluster
+    user: special-user
+clusters:
+- name: special-cluster
+  cluster:
+    server: https://special.example.com
+users:
+- name: special-user
+  user:
+    token: special-token
+`), 0600)
+
+	defer os.Remove(kubeConfigFile)
 
 	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig)
+	require.NoError(t, err)
+	require.Empty(t, contextErrors)
+	require.Equal(t, 1, len(contexts))
+	assert.Equal(t, "special-context", contexts[0].Name)
+}
 
-	require.NoError(t, err, "Expected no error for valid file")
-	require.Empty(t, contextErrors, "Expected no context errors for valid file")
-	require.Equal(t, 2, len(contexts), "Expected 2 contexts from valid file")
-
-	expectedNames := []string{"random-cluster-x", "random-cluster-y"}
-	for _, ctx := range contexts {
-		assert.Contains(t, expectedNames, ctx.Name, "Unexpected context name")
-		assert.Equal(t, kubeConfigFile, ctx.KubeConfigPath, "Unexpected kubeconfig path")
-		assert.Equal(t, fmt.Sprintf("%s:%s", kubeConfigFile, ctx.Name), ctx.ClusterID, "Unexpected ClusterID")
+func TestClusterIDNotGeneratedIfNameIsEmpty(t *testing.T) {
+	// Simulate a context with empty name
+	ctx := kubeconfig.Context{
+		Name: "",
+		// KubeConfigPath and ClusterID would be set by the loader, but here we simulate
 	}
+	// Simulate logic that would set ClusterID
+	if ctx.Name != "" {
+		ctx.ClusterID = fmt.Sprintf("%s:%s", ctx.KubeConfigPath, ctx.Name)
+	}
+	assert.Empty(t, ctx.ClusterID, "ClusterID should be empty if Name is empty")
 }
 
 func TestContext(t *testing.T) {

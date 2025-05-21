@@ -339,8 +339,8 @@ type ContextLoadError struct {
 
 // LoadContextsFromFile loads contexts from a kubeconfig file.
 // It reads the kubeconfig file from the given path and loads the contexts from the file.
-// It returns an error if the file cannot be read.
-// It will return valid contexts, ContextLoadError and errors if there are any errors in the file.
+// It returns an error if the file cannot be read, or there is an error unmarshaling the file.
+// It will return valid (contexts, ContextLoadErrors, nil) and errors if there are any errors in the file.
 func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []ContextLoadError, error) {
 	data, err := os.ReadFile(kubeConfigPath)
 	if err != nil {
@@ -350,19 +350,14 @@ func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []Conte
 	skipProxySetup := source != KubeConfig
 
 	contexts, contextErrors, err := loadContextsFromData(data, source, skipProxySetup)
+
 	if err != nil {
-		return nil, nil, fmt.Errorf("error loading contexts from file: %v", err)
+		return nil, nil, fmt.Errorf("error loading contexts from kubeconfig file: %v", err)
 	}
 
-	// add the KubeConfigPath to each context
 	for i := range contexts {
-		pathName := kubeConfigPath
-
-		contexts[i].KubeConfigPath = pathName
-
-		// create the clusterID from the path and context name
-		clusterID := fmt.Sprintf("%s:%s", pathName, contexts[i].Name)
-		contexts[i].ClusterID = clusterID
+		contexts[i].KubeConfigPath = kubeConfigPath
+		contexts[i].ClusterID = fmt.Sprintf("%s+%s", kubeConfigPath, contexts[i].Name)
 	}
 
 	return contexts, contextErrors, nil
