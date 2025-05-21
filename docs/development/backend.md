@@ -35,6 +35,12 @@ To lint the backend/ code.
 make backend-lint
 ```
 
+This command can fix some lint issues.
+
+```bash
+make backend-lint-fix
+```
+
 ## Format
 
 To format the backend code.
@@ -48,3 +54,15 @@ make backend-format
 ```bash
 make backend-test
 ```
+
+Test coverage with a html report in the browser.
+
+```bash
+make backend-coverage-html
+```
+
+To just print a simpler coverage report to the console.
+```bash
+make backend-coverage
+```
+
