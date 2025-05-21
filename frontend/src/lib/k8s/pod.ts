@@ -72,6 +72,8 @@ export interface LogOptions {
   showTimestamps?: boolean;
   /** Whether to follow the log stream */
   follow?: boolean;
+  /** Whether to prettify JSON logs with formatted indentation */
+  prettifyLogs?: boolean;
   /** Callback to be called when the reconnection attempts stop */
   onReconnectStop?: () => void;
 }
@@ -87,9 +89,10 @@ type oldGetLogs = (
 ) => () => void;
 type newGetLogs = (
   container: string,
-  onLogs: StreamResultsCb,
+  onLogs: LogStreamResultsCb,
   logsOptions: LogOptions
 ) => () => void;
+type LogStreamResultsCb = (result: { logs: string[]; hasJsonLogs: boolean }) => void;
 
 type PodDetailedStatus = {
   restarts: number;
@@ -150,10 +153,12 @@ class Pod extends KubeObject<KubePod> {
       showPrevious = false,
       showTimestamps = false,
       follow = true,
+      prettifyLogs = false,
       onReconnectStop,
     } = logsOptions;
 
     let logs: string[] = [];
+    let hasJsonLogs = false;
     let url = `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/log?container=${container}&previous=${showPrevious}&timestamps=${showTimestamps}&follow=${follow}`;
 
     // Negative tailLines parameter fetches all logs. If it's non negative it fetches
@@ -162,19 +167,46 @@ class Pod extends KubeObject<KubePod> {
       url += `&tailLines=${tailLines}`;
     }
 
-    function onResults(item: string) {
-      if (!item) {
-        return;
-      }
+    function prettifyLogLine(logLine: string): string {
+      try {
+        const jsonMatch = logLine.match(/(\{.*\})/);
+        if (!jsonMatch) return logLine;
 
-      logs.push(Base64.decode(item));
-      onLogs(logs);
+        const jsonStr = jsonMatch[1];
+        const jsonObj = JSON.parse(jsonStr);
+        const prettyJson = JSON.stringify(jsonObj, null, 2);
+
+        if (showTimestamps) {
+          const timestamp = logLine.slice(0, jsonMatch.index).trim();
+          return timestamp ? `${timestamp}\n${prettyJson}\n` : `${prettyJson}\n`;
+        } else {
+          return `${prettyJson}\n`;
+        }
+      } catch {
+        return logLine; // Return original log line if parsing fails
+      }
+    }
+
+    function onResults(item: string) {
+      if (!item) return;
+
+      const decodedLog = Base64.decode(item);
+      if (!decodedLog || decodedLog.trim() === '') return;
+      const trimmedLog = decodedLog.trim();
+      const jsonMatch = trimmedLog.match(/(\{.*\})/);
+      if (!jsonMatch) return false;
+      JSON.parse(jsonMatch[1]);
+      hasJsonLogs = true;
+      const processedLog = hasJsonLogs && prettifyLogs ? prettifyLogLine(decodedLog) : decodedLog;
+      logs.push(processedLog);
+      onLogs({ logs, hasJsonLogs });
     }
 
     const { cancel } = stream(url, onResults, {
       isJson: false,
       connectCb: () => {
         logs = [];
+        hasJsonLogs = false;
       },
       /**
        * This callback is called when the connection is closed. It then check
@@ -185,7 +217,6 @@ class Pod extends KubeObject<KubePod> {
         // If it's a reconnection attempt, stop further reconnection attempts
         if (follow && isReconnecting) {
           isReconnecting = false;
-
           // If the onReconnectStop callback is provided, call it
           if (onReconnectStop) {
             onReconnectStop();

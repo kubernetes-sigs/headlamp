@@ -41,6 +41,7 @@ import {
 } from '../common/Resource';
 import AuthVisible from '../common/Resource/AuthVisible';
 import Terminal from '../common/Terminal';
+import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
 
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
@@ -59,6 +60,8 @@ export function PodLogViewer(props: PodLogViewerProps) {
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showTimestamps, setShowTimestamps] = React.useState<boolean>(true);
   const [follow, setFollow] = React.useState<boolean>(true);
+  const [prettifyLogs, setPrettifyLogs] = React.useState<boolean>(false);
+  const [hasJsonLogs, setHasJsonLogs] = React.useState<boolean>(false);
   const [lines, setLines] = React.useState<number>(100);
   const [logs, setLogs] = React.useState<{ logs: string[]; lastLineShown: number }>({
     logs: [],
@@ -74,14 +77,30 @@ export function PodLogViewer(props: PodLogViewerProps) {
   }
 
   const options = { leading: true, trailing: true, maxWait: 1000 };
-  function setLogsDebounced(logLines: string[]) {
+
+  function setLogsDebounced({
+    logs: logLines,
+    hasJsonLogs,
+  }: {
+    logs: string[];
+    hasJsonLogs: boolean;
+  }) {
+    setHasJsonLogs(hasJsonLogs);
+
+    const displayLogs = logLines.map(logEntry => {
+      if (prettifyLogs && hasJsonLogs) {
+        return colorizePrettifiedLog(logEntry);
+      }
+      return logEntry;
+    });
+
     setLogs(current => {
       if (current.lastLineShown >= logLines.length) {
         xtermRef.current?.clear();
-        xtermRef.current?.write(logLines.join('').replaceAll('\n', '\r\n'));
+        xtermRef.current?.write(displayLogs.join('').replaceAll('\n', '\r\n'));
       } else {
         xtermRef.current?.write(
-          logLines
+          displayLogs
             .slice(current.lastLineShown + 1)
             .join('')
             .replaceAll('\n', '\r\n')
@@ -93,8 +112,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
         lastLineShown: logLines.length - 1,
       };
     });
-    // If we stopped following the logs and we have logs already,
-    // then we don't need to fetch them again.
+
     if (!follow && logs.logs.length > 0) {
       xtermRef.current?.write(
         '\n\n' +
@@ -104,43 +122,39 @@ export function PodLogViewer(props: PodLogViewerProps) {
       return;
     }
   }
+
   const debouncedSetState = _.debounce(setLogsDebounced, 500, options);
 
-  React.useEffect(
-    () => {
-      let callback: any = null;
+  React.useEffect(() => {
+    let callback: any = null;
 
-      if (props.open) {
-        xtermRef.current?.clear();
-        setLogs({ logs: [], lastLineShown: -1 });
+    if (props.open) {
+      xtermRef.current?.clear();
+      setLogs({ logs: [], lastLineShown: -1 });
+      setHasJsonLogs(false);
 
-        callback = item.getLogs(container, debouncedSetState, {
-          tailLines: lines,
-          showPrevious,
-          showTimestamps,
-          follow,
-          /**
-           * When the connection is lost, show the reconnect button.
-           * This will stop the current log stream.
-           */
-          onReconnectStop: () => {
-            setShowReconnectButton(true);
-          },
-        });
+      callback = item.getLogs(container, debouncedSetState, {
+        tailLines: lines,
+        showPrevious,
+        showTimestamps,
+        follow,
+        prettifyLogs,
+        onReconnectStop: () => {
+          setShowReconnectButton(true);
+        },
+      });
+    }
+
+    return function cleanup() {
+      if (callback) {
+        callback();
       }
-
-      return function cleanup() {
-        if (callback) {
-          callback();
-        }
-      };
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [container, lines, open, showPrevious, showTimestamps, follow]
-  );
+    };
+  }, [container, lines, open, showPrevious, showTimestamps, follow, prettifyLogs]);
 
   function handleContainerChange(event: any) {
     setContainer(event.target.value);
+    setHasJsonLogs(false);
   }
 
   function handleLinesChange(event: any) {
@@ -170,35 +184,27 @@ export function PodLogViewer(props: PodLogViewerProps) {
     setFollow(follow => !follow);
   }
 
-  /**
-   * Handle the reconnect button being clicked.
-   * This will start a new log stream and hide the reconnect button.
-   */
+  function handlePrettifyChange() {
+    setPrettifyLogs(prettify => !prettify);
+  }
+
   function handleReconnect() {
-    // If there's an existing log stream, cancel it
     if (cancelLogsStream) {
       cancelLogsStream();
     }
 
-    // Start a new log stream
     const newCancelLogsStream = item.getLogs(container, debouncedSetState, {
       tailLines: lines,
       showPrevious,
       showTimestamps,
       follow,
-      /**
-       * When the connection is lost, show the reconnect button.
-       * This will stop the current log stream.
-       */
+      prettifyLogs,
       onReconnectStop: () => {
         setShowReconnectButton(true);
       },
     });
 
-    // Set the cancelLogsStream function to the new one
     setCancelLogsStream(() => newCancelLogsStream);
-
-    // Hide the reconnect button
     setShowReconnectButton(false);
   }
 
@@ -320,7 +326,21 @@ export function PodLogViewer(props: PodLogViewerProps) {
             />
           }
         />,
-      ]}
+        hasJsonLogs && (
+          <PaddedFormControlLabel
+            label={t('translation|Prettify')}
+            control={
+              <Switch
+                checked={prettifyLogs}
+                onChange={handlePrettifyChange}
+                name="prettifyLogs"
+                color="primary"
+                size="small"
+              />
+            }
+          />
+        ),
+      ].filter(Boolean)}
       {...other}
     />
   );
