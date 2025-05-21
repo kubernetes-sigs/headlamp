@@ -1,5 +1,21 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import '@xterm/xterm/css/xterm.css';
-import { Box } from '@mui/material';
+import Box from '@mui/material/Box';
 import { DialogProps } from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import FormControl from '@mui/material/FormControl';
@@ -64,8 +80,23 @@ export default function Terminal(props: TerminalProps) {
 
     xterm.open(containerRef);
 
+    let lastKeyPressEvent: KeyboardEvent | null = null;
     xterm.onData(data => {
-      send(0, data);
+      let dataToSend = data;
+
+      // On MacOS with a German layout, the Alt+7 should yield a | character, but
+      // the onData event doesn't get it. So we need to add a custom key handler.
+      // No need to check for the actual platform because the key patterns should
+      // be good enough.
+      if (
+        data === '\u001b7' &&
+        lastKeyPressEvent?.key === '|' &&
+        lastKeyPressEvent.code === 'Digit7'
+      ) {
+        dataToSend = '|';
+      }
+
+      send(0, dataToSend);
     });
 
     xterm.onResize(size => {
@@ -74,6 +105,12 @@ export default function Terminal(props: TerminalProps) {
 
     // Allow copy/paste in terminal
     xterm.attachCustomKeyEventHandler(arg => {
+      if (arg.type === 'keydown') {
+        lastKeyPressEvent = arg;
+      } else {
+        lastKeyPressEvent = null;
+      }
+
       if (arg.ctrlKey && arg.type === 'keydown') {
         if (arg.code === 'KeyC') {
           const selection = xterm.getSelection();

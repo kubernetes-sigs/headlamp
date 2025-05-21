@@ -1,17 +1,31 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import bellIcon from '@iconify/icons-mdi/bell';
 import { Icon } from '@iconify/react';
-import {
-  Badge,
-  Box,
-  Button,
-  Grid,
-  IconButton,
-  ListItem,
-  Popover,
-  Tooltip,
-  Typography,
-  useTheme,
-} from '@mui/material';
+import Badge from '@mui/material/Badge';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Grid from '@mui/material/Grid';
+import IconButton from '@mui/material/IconButton';
+import ListItem from '@mui/material/ListItem';
+import Popover from '@mui/material/Popover';
+import { useTheme } from '@mui/material/styles';
+import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -21,8 +35,8 @@ import { useClustersConf } from '../../../lib/k8s';
 import Event from '../../../lib/k8s/event';
 import { createRouteURL } from '../../../lib/router';
 import { useTypedSelector } from '../../../redux/reducers/reducers';
-import { DateLabel } from '../../common';
 import Empty from '../../common/EmptyContent';
+import { DateLabel } from '../../common/Label';
 import {
   defaultMaxNotificationsStored,
   loadNotifications,

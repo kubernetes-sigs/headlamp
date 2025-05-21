@@ -1,16 +1,30 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Icon, InlineIcon } from '@iconify/react';
-import {
-  Box,
-  Chip,
-  FormControl,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  Select,
-  TextField,
-  Typography,
-} from '@mui/material';
+import Box from '@mui/material/Box';
+import Chip from '@mui/material/Chip';
+import FormControl from '@mui/material/FormControl';
+import IconButton from '@mui/material/IconButton';
+import InputLabel from '@mui/material/InputLabel';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
 import { useTheme } from '@mui/material/styles';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -25,21 +39,14 @@ import { useCluster, useClustersConf } from '../../../lib/k8s';
 import { deleteCluster, parseKubeConfig, renameCluster } from '../../../lib/k8s/apiProxy';
 import { setConfig, setStatelessConfig } from '../../../redux/configSlice';
 import { findKubeconfigByClusterName, updateStatelessClusterKubeconfig } from '../../../stateless/';
-import { Link, Loader, NameValueTable, SectionBox } from '../../common';
 import ConfirmButton from '../../common/ConfirmButton';
 import Empty from '../../common/EmptyContent';
-
-function isValidNamespaceFormat(namespace: string) {
-  // We allow empty strings just because that's the default value in our case.
-  if (!namespace) {
-    return true;
-  }
-
-  // Validates that the namespace is a valid DNS-1123 label and returns a boolean.
-  // https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-label-names
-  const regex = new RegExp('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$');
-  return regex.test(namespace);
-}
+import Link from '../../common/Link';
+import Loader from '../../common/Loader';
+import NameValueTable from '../../common/NameValueTable';
+import SectionBox from '../../common/SectionBox';
+import NodeShellSettings from './NodeShellSettings';
+import { isValidNamespaceFormat } from './util';
 
 function isValidClusterNameFormat(name: string) {
   // We allow empty isValidClusterNameFormat just because that's the default value in our case.
@@ -323,12 +330,7 @@ export default function SettingsCluster() {
 
   return (
     <>
-      <SectionBox
-        title={t('translation|Cluster Settings ({{ clusterName }})', {
-          clusterName: cluster,
-        })}
-        backLink
-      >
+      <SectionBox title={t('translation|Cluster Settings')} backLink>
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <ClusterSelector clusters={clusters} currentCluster={cluster} />
           <Link
@@ -518,6 +520,7 @@ export default function SettingsCluster() {
           ]}
         />
       </SectionBox>
+      <NodeShellSettings cluster={cluster} />
       {removableCluster && isElectron() && (
         <Box pt={2} textAlign="right">
           <ConfirmButton

@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { describe, expect, it, vi } from 'vitest';
 import { KubeObjectClass, KubeObjectInterface } from '../../KubeObject';
 import { KubeList, KubeListUpdateEvent } from './KubeList';
@@ -14,6 +30,8 @@ class MockKubeObject implements KubeObjectInterface {
     Object.assign(this, data);
   }
 }
+
+const cluster = 'cluster-name';
 
 describe('KubeList.applyUpdate', () => {
   const itemClass = MockKubeObject as unknown as KubeObjectClass;
@@ -38,7 +56,7 @@ describe('KubeList.applyUpdate', () => {
       },
     };
 
-    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass);
+    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
 
     expect(updatedList.items).toHaveLength(2);
     expect(updatedList.items[1].metadata.uid).toBe('2');
@@ -55,7 +73,7 @@ describe('KubeList.applyUpdate', () => {
       },
     };
 
-    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass);
+    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
 
     expect(updatedList.items).toHaveLength(1);
     expect(updatedList.items[0].metadata.resourceVersion).toBe('2');
@@ -72,7 +90,7 @@ describe('KubeList.applyUpdate', () => {
       },
     };
 
-    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass);
+    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
 
     expect(updatedList.items).toHaveLength(2);
     expect(updatedList.items[1].metadata.uid).toBe('3');
@@ -89,7 +107,7 @@ describe('KubeList.applyUpdate', () => {
       },
     };
 
-    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass);
+    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
 
     expect(updatedList.items).toHaveLength(0);
   });
@@ -105,7 +123,7 @@ describe('KubeList.applyUpdate', () => {
       },
     };
 
-    KubeList.applyUpdate(initialList, updateEvent, itemClass);
+    KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
 
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error in update', updateEvent);
     consoleErrorSpy.mockRestore();
@@ -122,7 +140,7 @@ describe('KubeList.applyUpdate', () => {
       },
     };
 
-    KubeList.applyUpdate(initialList, updateEvent, itemClass);
+    KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
 
     expect(consoleErrorSpy).toHaveBeenCalledWith('Unknown update type', updateEvent);
     consoleErrorSpy.mockRestore();

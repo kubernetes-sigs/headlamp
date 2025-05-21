@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { has } from 'lodash';
 import React, { ReactNode } from 'react';
 import { AppLogoProps, AppLogoType } from '../components/App/AppLogo';
@@ -39,7 +55,6 @@ import {
   setAppBarActionsProcessor,
   setDetailsViewHeaderAction,
 } from '../redux/actionButtonsSlice';
-import { setClusterChooserButtonComponent, setFunctionsToOverride } from '../redux/actions/actions';
 import {
   CallbackAction,
   CallbackActionOptions,
@@ -76,6 +91,7 @@ import {
 import { addOverviewChartsProcessor, OverviewChartsProcessor } from '../redux/overviewChartsSlice';
 import { setRoute, setRouteFilter } from '../redux/routesSlice';
 import store from '../redux/stores/store';
+import { UIPanel, uiSlice } from '../redux/uiSlice';
 import {
   PluginSettingsComponentType,
   PluginSettingsDetailsProps,
@@ -591,7 +607,7 @@ export function registerAppLogo(logo: AppLogoType) {
  *
  */
 export function registerClusterChooser(chooser: ClusterChooserType) {
-  store.dispatch(setClusterChooserButtonComponent(chooser));
+  store.dispatch(uiSlice.actions.setClusterChooserButton(chooser));
 }
 
 /**
@@ -609,7 +625,7 @@ export function registerClusterChooser(chooser: ClusterChooserType) {
 export function registerSetTokenFunction(
   override: (cluster: string, token: string | null) => void
 ) {
-  store.dispatch(setFunctionsToOverride({ setToken: override }));
+  store.dispatch(uiSlice.actions.setFunctionsToOverride({ setToken: override }));
 }
 
 /**
@@ -625,7 +641,7 @@ export function registerSetTokenFunction(
  * ```
  */
 export function registerGetTokenFunction(override: (cluster: string) => string | undefined) {
-  store.dispatch(setFunctionsToOverride({ getToken: override }));
+  store.dispatch(uiSlice.actions.setFunctionsToOverride({ getToken: override }));
 }
 
 /**
@@ -929,6 +945,25 @@ export function clusterAction(
   actionOptions: CallbackActionOptions = {}
 ) {
   store.dispatch(sendClusterAction(callback, actionOptions));
+}
+
+/**
+ * Registers a UI panel in the application's UI.
+ *
+ * See {@link UIPanel} for more details on Panel definition
+ *
+ * @param panel - The UI panel configuration object to be registered
+ * @example
+ * ```tsx
+ * registerUIPanel({
+ *   id: 'my-panel',
+ *   location: 'right'
+ *   component: () => <div style={{ width: '100px', flexShrink: 0 }}>Hello world</div>,
+ * });
+ * ```
+ */
+export function registerUIPanel(panel: UIPanel) {
+  store.dispatch(uiSlice.actions.addUIPanel(panel));
 }
 
 export {

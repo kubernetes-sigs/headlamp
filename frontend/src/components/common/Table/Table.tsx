@@ -1,5 +1,25 @@
-import { Box, Paper, Table as MuiTable, TableCellProps, TableHead } from '@mui/material';
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import Box from '@mui/material/Box';
+import Paper from '@mui/material/Paper';
 import { useTheme } from '@mui/material/styles';
+import MuiTable from '@mui/material/Table';
+import { TableCellProps } from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
 import { alpha, styled } from '@mui/system';
 import {
   MRT_BottomToolbar,
@@ -20,7 +40,11 @@ import { MRT_Localization_EN } from 'material-react-table/locales/en';
 import { MRT_Localization_ES } from 'material-react-table/locales/es';
 import { MRT_Localization_FR } from 'material-react-table/locales/fr';
 import { MRT_Localization_IT } from 'material-react-table/locales/it';
+import { MRT_Localization_JA } from 'material-react-table/locales/ja';
+import { MRT_Localization_KO } from 'material-react-table/locales/ko';
 import { MRT_Localization_PT } from 'material-react-table/locales/pt';
+import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
+import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
 import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
@@ -131,7 +155,11 @@ const tableLocalizationMap: Record<string, MRT_Localization> = {
   es: MRT_Localization_ES,
   fr: MRT_Localization_FR,
   it: MRT_Localization_IT,
+  ja: MRT_Localization_JA,
   pt: MRT_Localization_PT,
+  ko: MRT_Localization_KO,
+  zh: MRT_Localization_ZH_HANS,
+  'zh-TW': MRT_Localization_ZH_HANT,
 };
 
 const StyledHeadRow = styled('tr')(({ theme }) => ({
