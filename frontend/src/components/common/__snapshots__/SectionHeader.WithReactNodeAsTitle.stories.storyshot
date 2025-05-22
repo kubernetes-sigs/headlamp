@@ -1,0 +1,38 @@
+<body>
+  <div>
+     
+    <div
+      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <h1
+            class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+          >
+            <span
+              class="MuiTypography-root MuiTypography-inherit css-191i2np-MuiTypography-root"
+            >
+              Launch Control
+            </span>
+          </h1>
+          <div
+            class="MuiBox-root css-ldp2l3"
+          />
+        </div>
+        <p
+          class="MuiTypography-root MuiTypography-h6 css-1fggqnx-MuiTypography-root"
+        >
+          <span
+            class="MuiTypography-root MuiTypography-caption css-70yeff-MuiTypography-root"
+          >
+            Manage all launch sequences
+          </span>
+        </p>
+      </div>
+    </div>
+  </div>
+</body>
