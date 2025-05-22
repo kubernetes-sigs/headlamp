@@ -20,17 +20,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { I18nextProvider } from 'react-i18next';
 import { Provider } from 'react-redux';
-import i18n from '../../i18n/config'; // Your i18n instance
-import { createMuiTheme, getThemeName } from '../../lib/themes'; // Headlamp's theme utilities
-import store from '../../redux/stores/store'; // Your main Redux store
+import i18n from '../../i18n/config';
+import { createMuiTheme, getThemeName } from '../../lib/themes';
+import store from '../../redux/stores/store';
 import AppContainer from './AppContainer';
 
-// A minimal QueryClient for Storybook
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: false, // Don't retry failed queries in stories
-      staleTime: Infinity, // Keep data fresh for the duration of the story
+      retry: false,
+      staleTime: Infinity,
     },
   },
 });
@@ -40,7 +39,6 @@ export default {
   component: AppContainer,
   decorators: [
     Story => {
-      // This setup mimics the main App.tsx providers
       const muiTheme = createMuiTheme(
         getThemeName() === 'dark'
           ? store.getState().theme.appThemes.find(t => t.name === 'dark') ||
@@ -64,31 +62,24 @@ export default {
     },
   ],
   parameters: {
-    layout: 'fullscreen', // AppContainer typically takes up the whole screen
+    layout: 'fullscreen',
     docs: {
       description: {
         component:
           'The root container for the Headlamp application. It sets up routing, global providers, and the main layout. This story primarily verifies that it renders its children correctly.',
       },
     },
-    // Actions and controls are less relevant for such a high-level component.
   },
 } as Meta<typeof AppContainer>;
 
-const Template: StoryFn = args => <AppContainer {...args} />; // AppContainer doesn't take props directly
+const Template: StoryFn = args => <AppContainer {...args} />;
 
 export const Default = Template.bind({});
 Default.storyName = 'Default Application Container';
 Default.parameters = {
   msw: {
     handlers: {
-      // Add any essential global API mocks here if AppContainer or its direct children
-      // make immediate API calls on mount that are not covered by baseMocks.
-      // For example, /config is often fetched early.
-      story: [
-        // http.get('http://localhost:4466/config', () => HttpResponse.json({ clusters: [] })),
-        // http.get('http://localhost:4466/plugins', () => HttpResponse.json([])),
-      ],
+      story: [],
     },
   },
 };
