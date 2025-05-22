@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import { Icon } from '@iconify/react'; // For icons in actions
-import { Button, Chip, IconButton, Typography } from '@mui/material'; // For example actions
+import { Icon } from '@iconify/react';
+import { Button, Chip, IconButton, Typography } from '@mui/material';
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import { TestContext } from '../../test'; // Adjust path as necessary
+import { TestContext } from '../../test';
 import SectionHeader, { SectionHeaderProps } from './SectionHeader';
 
 export default {
-  title: 'common/SectionHeader', // Categorized under 'common'
+  title: 'common/SectionHeader',
   component: SectionHeader,
   decorators: [
     Story => (
