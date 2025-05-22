@@ -150,19 +150,40 @@ export function getClusterDefaultNamespace(cluster: string, checkSettings?: bool
 /**
  * renameCluster sends call to backend to update a field in kubeconfig which
  * is the custom name of the cluster used by the user.
+ *
+ * Note: Currently, the use for the optional clusterID is only for the clusterID for non-dynamic clusters.
+ * It is not needed or used for dynamic clusters.
  * @param cluster
+ * @param newClusterName
+ * @param source
+ * @param clusterID
  */
-export async function renameCluster(cluster: string, newClusterName: string, source: string) {
+export async function renameCluster(
+  /** The name of the cluster to rename */
+  cluster: string,
+  /** The new name for the cluster */
+  newClusterName: string,
+  /** The source of the cluster, either 'kubeconfig' or 'dynamic_cluster' */
+  source: string,
+  /** The ID for a cluster, composed of the kubeconfig path and cluster name */
+  clusterID?: string
+) {
   let stateless = false;
+  let kubeconfig;
+  let renameURL = `/cluster/${cluster}`;
+
   if (cluster) {
-    const kubeconfig = await findKubeconfigByClusterName(cluster);
+    kubeconfig = await findKubeconfigByClusterName(cluster, clusterID);
+
+    renameURL = `/cluster/${cluster}`;
+
     if (kubeconfig !== null) {
       stateless = true;
     }
   }
 
   return request(
-    `/cluster/${cluster}`,
+    renameURL,
     {
       method: 'PUT',
       headers: { ...getHeadlampAPIHeaders() },
