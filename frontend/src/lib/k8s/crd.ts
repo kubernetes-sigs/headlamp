@@ -147,8 +147,6 @@ export interface CRClassArgs {
   customResourceDefinition: CustomResourceDefinition;
 }
 
-const IS_CUSTOM_RESOURCE = Symbol.for('isCustomResource');
-
 /** @deprecated Use the version of the function that receives an object as its argument. */
 export function makeCustomResourceClass(
   args: [group: string, version: string, pluralName: string][],
@@ -190,18 +188,8 @@ export function makeCustomResourceClass(
     );
     static isNamespaced = objArgs.isNamespaced;
     static apiEndpoint = apiFunc(...apiInfoArgs);
-    static [IS_CUSTOM_RESOURCE] = true;
     static customResourceDefinition = crClassArgs.customResourceDefinition;
   };
-}
-
-export function isCustomResource(obj: KubeObject): obj is KubeObject & {
-  constructor: {
-    customResourceDefinition: CustomResourceDefinition;
-    [IS_CUSTOM_RESOURCE]: true;
-  };
-} {
-  return Boolean((obj.constructor as any)?.[IS_CUSTOM_RESOURCE]);
 }
 
 export default CustomResourceDefinition;

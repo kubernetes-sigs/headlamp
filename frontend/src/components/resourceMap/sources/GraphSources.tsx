@@ -26,7 +26,6 @@ import {
   useState,
 } from 'react';
 import { KubeObject } from '../../../lib/k8s/cluster';
-import { isCustomResource } from '../../../lib/k8s/crd';
 import { GraphEdge, GraphNode, GraphSource, Relation } from '../graph/graphModel';
 
 /**
@@ -84,9 +83,8 @@ export const kubeOwnersEdges = (obj: KubeObject): GraphEdge[] => {
  * Create an object from any Kube object
  */
 export const makeKubeObjectNode = (obj: KubeObject): GraphNode => {
-  if (isCustomResource(obj)) {
-    const crd = obj.constructor.customResourceDefinition;
-    // `obj` is now narrowed and the extra property is added only here
+  const crd = (obj.constructor as any)?.customResourceDefinition;
+  if (crd && typeof crd.getMainAPIGroup === 'function') {
     const [group, , plural] = crd.getMainAPIGroup();
     return {
       id: obj.metadata.uid,
