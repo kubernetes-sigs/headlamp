@@ -29,8 +29,9 @@ import { useFilterFunc } from '../../../lib/util';
 import { DefaultHeaderAction, RowAction } from '../../../redux/actionButtonsSlice';
 import { useNamespaces } from '../../../redux/filterSlice';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
-import { useTypedSelector } from '../../../redux/reducers/reducers';
+import { useDispatch, useTypedSelector } from '../../../redux/reducers/reducers';
 import { useSettings } from '../../App/Settings/hook';
+import { setTableFilters } from './tableFilterSlice';
 import { ClusterGroupErrorMessage } from '../../cluster/ClusterGroupErrorMessage';
 import { DateLabel } from '../Label';
 import Link from '../Link';
@@ -312,8 +313,36 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
   const clusters = useSelectedClusters();
   const tableProcessors = useTypedSelector(state => state.resourceTable.tableColumnsProcessors);
   const defaultFilterFunc = useFilterFunc();
+  const dispatch = useDispatch();
+  const savedFilters = useTypedSelector(state => (id ? state.tableFilter[id] : undefined));
   const [columnVisibility, setColumnVisibility] = useState(() =>
     initColumnVisibilityState(columns, id)
+  );
+
+  // Initialize state from saved filters
+  useEffect(() => {
+    if (savedFilters && table) {
+      table.setColumnFilters(savedFilters.columnFilters);
+      table.setGlobalFilter(savedFilters.globalFilter);
+      table.setSorting(savedFilters.sorting);
+    }
+  }, []);
+
+  // Save filter state changes
+  const onFilterChange = useCallback(
+    (columnFilters: any[], globalFilter: string, sorting: any[]) => {
+      if (id) {
+        dispatch(
+          setTableFilters({
+            tableId: id,
+            columnFilters,
+            globalFilter,
+            sorting,
+          })
+        );
+      }
+    },
+    [dispatch, id]
   );
 
   const [tableSettings] = useState<{ id: string; show: boolean }[]>(
@@ -572,6 +601,12 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
       <Table
         enableFullScreenToggle={false}
         enableFacetedValues
+        onColumnFiltersChange={filters => 
+          onFilterChange(filters, table?.getState().globalFilter || '', table?.getState().sorting || [])}
+        onGlobalFilterChange={filter => 
+          onFilterChange(table?.getState().columnFilters || [], filter, table?.getState().sorting || [])}
+        onSortingChange={sorting => 
+          onFilterChange(table?.getState().columnFilters || [], table?.getState().globalFilter || '', sorting)}
         enableRowSelection={wrappedEnableRowSelection}
         renderRowSelectionToolbar={renderRowSelectionToolbar}
         errorMessage={errorMessage}
