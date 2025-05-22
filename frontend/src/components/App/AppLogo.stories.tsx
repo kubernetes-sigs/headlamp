@@ -24,9 +24,8 @@ import { createMuiTheme } from '../../lib/themes';
 import { TestContext } from '../../test';
 import { AppLogo, AppLogoProps } from './AppLogo';
 import OriginalAppLogo from './AppLogo';
-import { darkTheme,initialState as themeInitialState, lightTheme } from './themeSlice';
+import { darkTheme, initialState as themeInitialState, lightTheme } from './themeSlice';
 
-// Mocking the Redux store parts that AppLogo might interact with indirectly (theme selection)
 const mockStore = (themeName: string = 'light') => {
   const clonedThemeInitialState = JSON.parse(JSON.stringify(themeInitialState));
   return configureStore({
@@ -89,7 +88,6 @@ export default {
     },
   },
   parameters: {
-    // Optional: If your component relies on theme for background, configure Storybook backgrounds
     backgrounds: {
       default: 'light',
       values: [
@@ -105,7 +103,7 @@ const Template: StoryFn<AppLogoProps> = args => <AppLogo {...args} />;
 export const DefaultLargeLight = Template.bind({});
 DefaultLargeLight.args = {
   logoType: 'large',
-  themeName: 'light', // Explicitly set for story clarity, though decorator handles it
+  themeName: 'light',
 };
 DefaultLargeLight.storyName = 'Default Logo - Large (Light Theme)';
 
@@ -115,9 +113,6 @@ DefaultSmallLight.args = {
   themeName: 'light',
 };
 DefaultSmallLight.storyName = 'Default Logo - Small (Light Theme)';
-
-// To see dark theme versions, use the Storybook toolbar to switch background/theme.
-// The decorator will pick up the theme and pass it to AppLogo if needed.
 
 export const DefaultLargeDark = Template.bind({});
 DefaultLargeDark.args = {
@@ -135,8 +130,6 @@ DefaultSmallDark.args = {
 DefaultSmallDark.parameters = { backgrounds: { default: 'dark' } };
 DefaultSmallDark.storyName = 'Default Logo - Small (Dark Theme)';
 
-// Story for OriginalAppLogo to ensure it's testable in isolation if ever needed,
-// though AppLogo is the primary export.
 const OriginalTemplate: StoryFn<AppLogoProps> = args => <OriginalAppLogo {...args} />;
 
 export const OriginalLargeLight = OriginalTemplate.bind({});
@@ -154,7 +147,6 @@ OriginalSmallDark.args = {
 OriginalSmallDark.parameters = { backgrounds: { default: 'dark' } };
 OriginalSmallDark.storyName = 'Original Logo Component - Small Dark';
 
-// Example of how a plugin might override the logo
 const MyCustomPluginLogo: React.FC<AppLogoProps> = ({ logoType, themeName, ...props }) => (
   <div
     {...props}
@@ -170,10 +162,6 @@ const MyCustomPluginLogo: React.FC<AppLogoProps> = ({ logoType, themeName, ...pr
 );
 
 const PluginOverrideTemplate: StoryFn<AppLogoProps> = args => {
-  // In a real plugin, this would be done via registerAppLogo
-  // For Storybook, we simulate it by setting the store state directly in the decorator
-  // or by passing the component if AppLogo was designed to accept a component prop.
-  // Since AppLogo reads from Redux, we'll set it in the decorator.
   return <AppLogo {...args} />;
 };
 
@@ -187,7 +175,6 @@ WithPluginOverride.decorators = [
     const currentHeadlampTheme = currentThemeName === 'dark' ? darkTheme : lightTheme;
     const muiStoryTheme = createMuiTheme(currentHeadlampTheme);
 
-    // Simulate plugin registration
     const storeWithPluginLogo = configureStore({
       reducer: {
         theme: (
