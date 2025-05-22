@@ -18,6 +18,7 @@ import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import cloneDeep from 'lodash/cloneDeep';
 import { useTranslation } from 'react-i18next';
 import { generatePath, useHistory } from 'react-router';
 import { getCluster, getClusterPrefixedPath } from '../../lib/cluster';
@@ -67,7 +68,8 @@ export default function NavigationTabs() {
   let defaultIndex = null;
   const listItemsOriginal = useSidebarItems(sidebar.selected.sidebar ?? undefined);
   // Making a copy because we're going to mutate it later in here
-  const listItems = structuredClone(listItemsOriginal);
+  const listItems = cloneDeep(listItemsOriginal);
+
   let navigationItem = listItems.find(item => item.name === sidebar.selected.item);
   if (!navigationItem) {
     const parent = findParentOfSubList(listItems, sidebar.selected.item);

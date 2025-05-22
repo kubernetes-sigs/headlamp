@@ -26,6 +26,7 @@ import Grid from '@mui/material/Grid';
 import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
 import * as yaml from 'js-yaml';
+import _ from 'lodash';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -42,6 +43,7 @@ import {
 } from '../../../redux/headlampEventSlice';
 import { AppDispatch } from '../../../redux/stores/store';
 import { useCurrentAppTheme } from '../../App/themeSlice';
+import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import ConfirmButton from '../ConfirmButton';
 import { Dialog, DialogProps } from '../Dialog';
 import Loader from '../Loader';
@@ -62,6 +64,7 @@ export interface EditorDialogProps extends DialogProps {
   onEditorChanged?: ((newValue: string) => void) | null;
   /** The function to open the dialog. */
   setOpen?: (open: boolean) => void;
+  allowToHideManagedFields?: boolean;
   /** The label to use for the save button. */
   saveLabel?: string;
   /** The error message to display. */
@@ -81,6 +84,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     setOpen,
     saveLabel,
     errorMessage,
+    allowToHideManagedFields,
     title,
     actions = [],
     ...other
@@ -109,17 +113,17 @@ export default function EditorDialog(props: EditorDialogProps) {
 
   const theme = useCurrentAppTheme();
 
-  const [useSimpleEditor, setUseSimpleEditorState] = React.useState(() => {
-    const localData = localStorage.getItem('useSimpleEditor');
-    return localData ? JSON.parse(localData) : false;
-  });
+  const [hideManagedFields, setHideManagedFields] = useLocalStorageState<boolean>(
+    'hideManagedFields',
+    true
+  );
+  const [useSimpleEditor, setUseSimpleEditor] = useLocalStorageState<boolean>(
+    'useSimpleEditor',
+    false
+  );
+
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
-
-  function setUseSimpleEditor(data: boolean) {
-    localStorage.setItem('useSimpleEditor', JSON.stringify(data));
-    setUseSimpleEditorState(data);
-  }
 
   function isKubeObjectIsh(item: any): item is KubeObjectIsh {
     return item && typeof item === 'object' && !Array.isArray(item) && 'metadata' in item;
@@ -127,6 +131,7 @@ export default function EditorDialog(props: EditorDialogProps) {
 
   // Update the code when the item changes, but only if the code hasn't been touched.
   React.useEffect(() => {
+    const clonedItem = _.cloneDeep(item);
     if (!item || Object.keys(item || {}).length === 0) {
       const defaultCode = '# Enter your YAML or JSON here';
       originalCodeRef.current = { code: defaultCode, format: 'yaml' };
@@ -134,9 +139,15 @@ export default function EditorDialog(props: EditorDialogProps) {
       return;
     }
 
+    if (allowToHideManagedFields && hideManagedFields) {
+      if (isKubeObjectIsh(clonedItem) && clonedItem.metadata) {
+        delete clonedItem.metadata.managedFields;
+      }
+    }
+
     // Determine the format (YAML or JSON) and serialize to string
     const format = looksLikeJson(originalCodeRef.current.code) ? 'json' : 'yaml';
-    const itemCode = format === 'json' ? JSON.stringify(item) : yaml.dump(item);
+    const itemCode = format === 'json' ? JSON.stringify(clonedItem) : yaml.dump(clonedItem);
 
     // Update the code if the item representation has changed
     if (itemCode !== originalCodeRef.current.code) {
@@ -162,7 +173,7 @@ export default function EditorDialog(props: EditorDialogProps) {
         }
       }
     }
-  }, [item]);
+  }, [item, hideManagedFields]);
 
   React.useEffect(() => {
     codeRef.current = code;
@@ -444,11 +455,23 @@ export default function EditorDialog(props: EditorDialogProps) {
                 }
                 <Grid item>
                   <FormGroup row>
+                    {allowToHideManagedFields && (
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={hideManagedFields}
+                            onChange={() => setHideManagedFields(() => !hideManagedFields)}
+                            name="hideManagedFields"
+                          />
+                        }
+                        label={t('Hide Managed Fields')}
+                      />
+                    )}
                     <FormControlLabel
                       control={
                         <Switch
                           checked={useSimpleEditor}
-                          onChange={() => setUseSimpleEditor(!useSimpleEditor)}
+                          onChange={() => setUseSimpleEditor(() => !useSimpleEditor)}
                           name="useSimpleEditor"
                         />
                       }
