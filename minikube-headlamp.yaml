@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: headlamp
+  name: headlamp
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: headlamp
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: headlamp
+    spec:
+      containers:
+      - command:
+        - /headlamp/headlamp-server
+        - -html-static-dir
+        - /headlamp/frontend
+        - -in-cluster
+        - -plugins-dir=/headlamp/plugins
+        image: headlamp-k8s/headlamp:development
+        name: headlamp
+        imagePullPolicy: Never
+        resources: {}
+status: {}
