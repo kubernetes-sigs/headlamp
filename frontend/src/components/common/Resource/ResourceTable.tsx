@@ -19,7 +19,7 @@ import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 import { TableCellProps } from '@mui/material/TableCell';
 import { MRT_FilterFns, MRT_Row, MRT_SortingFn, MRT_TableInstance } from 'material-react-table';
-import { ComponentProps, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { ComponentProps, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/apiProxy';
@@ -326,7 +326,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
       table.setGlobalFilter(savedFilters.globalFilter);
       table.setSorting(savedFilters.sorting);
     }
-  }, []);
+  }, [savedFilters, table]);
 
   // Save filter state changes
   const onFilterChange = useCallback(

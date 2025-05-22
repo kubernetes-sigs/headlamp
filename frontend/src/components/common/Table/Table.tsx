@@ -242,13 +242,24 @@ export default function Table<RowItem extends Record<string, any>>({
     return ids;
   }, [tableProps.columns, tableProps.enableRowActions, tableProps.enableRowSelection]);
 
-  // --- Column Filter State Persistence ---
+  // --- Column Filter and Sorting State Persistence ---
   // Use table id if available, otherwise fallback to a default key
   const tableId = (tableProps as any).id || 'default-table';
+  
   // Load column filters from localStorage
   const [columnFilters, setColumnFilters] = useState(() => {
     try {
       const saved = localStorage.getItem(`columnFilters.${tableId}`);
+      return saved ? JSON.parse(saved) : undefined;
+    } catch {
+      return undefined;
+    }
+  });
+
+  // Load sorting state from localStorage
+  const [sorting, setSorting] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`columnSorting.${tableId}`);
       return saved ? JSON.parse(saved) : undefined;
     } catch {
       return undefined;
@@ -263,6 +274,15 @@ export default function Table<RowItem extends Record<string, any>>({
       } catch {}
     }
   }, [columnFilters, tableId]);
+  
+  // Save sorting state to localStorage whenever it changes
+  useEffect(() => {
+    if (sorting !== undefined) {
+      try {
+        localStorage.setItem(`columnSorting.${tableId}`, JSON.stringify(sorting));
+      } catch {}
+    }
+  }, [sorting, tableId]);
 
   const table = useMaterialReactTable({
     ...tableProps,
@@ -281,10 +301,12 @@ export default function Table<RowItem extends Record<string, any>>({
       setPageSize(pagination.pageSize);
     },
     onColumnFiltersChange: setColumnFilters,
+    onSortingChange: setSorting,
     initialState: {
       density: 'compact',
       ...(tableProps.initialState ?? {}),
       columnFilters: columnFilters ?? (tableProps.initialState?.columnFilters || []),
+      sorting: sorting ?? (tableProps.initialState?.sorting || []),
     },
     state: {
       ...(tableProps.state ?? {}),
@@ -294,6 +316,7 @@ export default function Table<RowItem extends Record<string, any>>({
         pageSize: pageSize,
       },
       columnFilters,
+      sorting,
     },
     positionActionsColumn: 'last',
     layoutMode: 'grid',
