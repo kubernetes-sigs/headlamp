@@ -269,6 +269,9 @@ export async function fetchAndExecutePlugins(
   onSettingsChange: (plugins: PluginInfo[]) => void,
   onIncompatible: (plugins: Record<string, PluginInfo>) => void
 ) {
+  // Clear existing plugins before reloading to ensure clean state
+  window.plugins = {};
+  
   const pluginPaths = (await fetch(`${getAppUrl()}plugins`).then(resp => resp.json())) as string[];
 
   const sourcesPromise = Promise.all(
@@ -337,6 +340,9 @@ export async function fetchAndExecutePlugins(
   );
   onSettingsChange(packagesIncompatibleSet);
 
+  // Track which plugins were successfully loaded
+  const loadedPlugins: string[] = [];
+
   sourcesToExecute.forEach((source, index) => {
     // Execute plugins inside a context (not in global/window)
     (function (str: string) {
@@ -345,6 +351,7 @@ export async function fetchAndExecutePlugins(
         // Giving an evaled code a filename will make it easier to use source maps
         const sourceMapPath = `\n//# sourceURL=//${pluginName}/dist/main.js`;
         const result = eval(str + sourceMapPath);
+        loadedPlugins.push(pluginName);
         return result;
       } catch (e) {
         // We just continue if there is an error.
@@ -378,4 +385,7 @@ export async function fetchAndExecutePlugins(
 
   // Refresh theme name if the theme that was used from a plugin was deleted
   store.dispatch(themeSlice.actions.ensureValidThemeName());
+  
+  console.log(`Successfully loaded ${loadedPlugins.length} plugins: ${loadedPlugins.join(', ')}`);
+  return loadedPlugins;
 }
