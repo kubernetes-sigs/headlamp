@@ -26,10 +26,12 @@ export interface TileChartProps extends Omit<PercentageCircleProps, 'data'> {
   infoTooltip?: string | null;
   /** Data to display for the chart. */
   data?: PercentageCircleProps['data'] | null;
+  /** Whether the title should be clickable. If true, the title will be rendered as a child component. */
+  titleClickable?: boolean;
 }
 
 export function TileChart(props: TileChartProps) {
-  const { title, infoTooltip = '', legend, total, data, ...others } = props;
+  const { title, infoTooltip = '', legend, total, data, titleClickable = false, ...others } = props;
 
   return (
     <Paper
@@ -52,16 +54,35 @@ export function TileChart(props: TileChartProps) {
       >
         <Box flexGrow={1} width="100%">
           <Box>
-            <Typography
-              sx={theme => ({
-                fontSize: theme.typography.pxToRem(16),
-                display: 'inline',
-                fontWeight: 600,
-              })}
-              gutterBottom
-            >
-              {title || ''}
-            </Typography>
+            {titleClickable ? (
+              <Box
+                sx={theme => ({
+                  fontSize: theme.typography.pxToRem(16),
+                  display: 'inline',
+                  fontWeight: 600,
+                  '& a': {
+                    color: 'inherit',
+                    textDecoration: 'none',
+                    '&:hover': {
+                      textDecoration: 'underline',
+                    },
+                  },
+                })}
+              >
+                {title}
+              </Box>
+            ) : (
+              <Typography
+                sx={theme => ({
+                  fontSize: theme.typography.pxToRem(16),
+                  display: 'inline',
+                  fontWeight: 600,
+                })}
+                gutterBottom
+              >
+                {title || ''}
+              </Typography>
+            )}
             {infoTooltip && <TooltipIcon>{infoTooltip}</TooltipIcon>}
           </Box>
           <Typography

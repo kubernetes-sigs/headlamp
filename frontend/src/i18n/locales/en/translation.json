@@ -109,7 +109,7 @@
   "Use A Token": "Use A Token",
   "Failed to connect. Please make sure the Kubernetes cluster is running and accessible. Error: {{ errorMessage }}": "Failed to connect. Please make sure the Kubernetes cluster is running and accessible. Error: {{ errorMessage }}",
   "Failed to get authentication information: {{ errorMessage }}": "Failed to get authentication information: {{ errorMessage }}",
-  "Try Again": "Try Again",
+  "Try again": "Try again",
   "Back": "Back",
   "Memory Usage": "Memory Usage",
   "{{ available }} units": "{{ available }} units",
