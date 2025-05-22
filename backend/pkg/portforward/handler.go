@@ -110,86 +110,98 @@ func getFreePort() (int, error) {
 }
 
 // StartPortForward handles the port forward request.
-//
-//nolint:funlen
 func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache[interface{}],
 	w http.ResponseWriter, r *http.Request,
 ) {
-	var p portForwardRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		logger.Log(logger.LevelError, nil, err, "decoding portforward payload")
-		http.Error(w, "failed to marshal port forward payload "+err.Error(), http.StatusBadRequest)
-
-		return
-	}
-
-	if p.ID == "" {
-		p.ID = uuid.New().String()
-	}
-
-	reqToken := r.Header.Get("Authorization")
-	splitToken := strings.Split(reqToken, "Bearer ")
-
-	var token string
-	if reqToken != "" || len(splitToken) > 2 {
-		token = splitToken[1]
-	}
-
-	if err := p.Validate(); err != nil {
-		logger.Log(logger.LevelError, nil, err, "validating portforward payload")
+	// parse the request body
+	p, err := parsePortForwardRequest(r)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to process port forward request")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return
 	}
 
+	token := extractTokenFromRequestHeader(r)
+
+	// get the context for the cluster
+	clusterName := getClusterName(p.Cluster, r.Header.Get("X-HEADLAMP-USER-ID"))
+
+	kContext, err := kubeConfigStore.GetContext(clusterName)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to get kubeconfig context")
+		http.Error(w, "failed to get kubeconfig context: "+err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	// start the port forward
+	err = startPortForward(kContext, cache, p, token)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to start port forward")
+		http.Error(w, "failed to start port forward: "+err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	// return response
+	w.Header().Set("Content-Type", "application/json")
+
+	if err = json.NewEncoder(w).Encode(p); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing json payload to response")
+		http.Error(w, "failed to write json payload: "+err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// parsePortForwardRequest parses and validates the port forward request.
+func parsePortForwardRequest(r *http.Request) (portForwardRequest, error) {
+	var p portForwardRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		return p, fmt.Errorf("decoding payload: %w", err)
+	}
+
+	// if no ID is specified, generate a new one
+	if p.ID == "" {
+		p.ID = uuid.New().String()
+	}
+
+	if err := p.Validate(); err != nil {
+		return p, err
+	}
+
+	// if no port is specified find a available port
 	if p.Port == "" {
-		// if no port is specified find a available port
 		freePort, err := getFreePort()
 		if err != nil || freePort == 0 {
-			logger.Log(logger.LevelError, nil, err, "getting free port")
-			http.Error(w, "can't find any available port "+err.Error(), http.StatusInternalServerError)
-
-			return
+			return p, fmt.Errorf("can't find any available port: %w", err)
 		}
 
 		p.Port = strconv.Itoa(freePort)
 	}
 
-	// Get user ID from header if present
-	userID := r.Header.Get("X-HEADLAMP-USER-ID")
+	return p, nil
+}
 
-	// If user ID is present, append it to cluster name
-	clusterName := p.Cluster
+// extractToken get the token from the request header.
+func extractTokenFromRequestHeader(r *http.Request) string {
+	reqToken := r.Header.Get("Authorization")
+	splitToken := strings.Split(reqToken, "Bearer ")
+
+	if reqToken != "" && len(splitToken) > 1 {
+		return splitToken[1]
+	}
+
+	return ""
+}
+
+// getClusterName gets the cluster name, appends the user ID if present.
+func getClusterName(cluster, userID string) string {
 	if userID != "" {
-		clusterName = p.Cluster + userID
+		return cluster + userID
 	}
 
-	kContext, err := kubeConfigStore.GetContext(clusterName)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": p.Cluster},
-			err, "getting kubeconfig context")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	err = startPortForward(kContext, cache, p, token)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "starting portforward")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	if err = json.NewEncoder(w).Encode(p); err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing json payload to response write")
-		http.Error(w, "failed to write json payload to response write "+err.Error(), http.StatusInternalServerError)
-
-		return
-	}
+	return cluster
 }
 
 // startPortForward starts a port forward.
