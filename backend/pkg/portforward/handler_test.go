@@ -139,9 +139,12 @@ func TestStartPortForward(t *testing.T) {
 }
 
 // testStartPortForward tests starting a port forward.
-func testStartPortForward(t *testing.T, kubeConfigStore kubeconfig.ContextStore, ch cache.Cache[interface{}],
-	clusterName, namespace, podName, targetPort string) (pfID, port string) {
-
+func testStartPortForward(
+	t *testing.T,
+	kubeConfigStore kubeconfig.ContextStore,
+	ch cache.Cache[interface{}],
+	clusterName, namespace, podName, targetPort string,
+) (pfID, port string) {
 	t.Helper()
 
 	startReq := makeJSONRequest(map[string]interface{}{
