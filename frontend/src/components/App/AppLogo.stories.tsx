@@ -24,7 +24,7 @@ import { createMuiTheme } from '../../lib/themes';
 import { TestContext } from '../../test';
 import { AppLogo, AppLogoProps } from './AppLogo';
 import OriginalAppLogo from './AppLogo';
-import { darkTheme,initialState as themeInitialState, lightTheme } from './themeSlice';
+import { darkTheme, initialState as themeInitialState, lightTheme } from './themeSlice';
 
 // Mocking the Redux store parts that AppLogo might interact with indirectly (theme selection)
 const mockStore = (themeName: string = 'light') => {
