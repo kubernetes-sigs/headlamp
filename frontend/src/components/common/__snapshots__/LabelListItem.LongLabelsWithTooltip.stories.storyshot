@@ -1,0 +1,19 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1gth7hv"
+    >
+      <span
+        aria-label="kubernetes.io/arch=amd64
+kubernetes.io/hostname=kind-control-plane-node-that-is-very-long
+kubernetes.io/os=linux
+node-role.kubernetes.io/control-plane=
+another.very.long.label.name.with.a.very.long.value/foo=bar-baz-qux-quux-corge-grault-garply-waldo-fred-plugh-xyzzy-thud-extra-long-value-to-force-wrapping-and-tooltip-behavior"
+        class=""
+        data-mui-internal-clone-element="true"
+      >
+        kubernetes.io/arch=amd64, kubernetes.io/hostname=kind-control-plane-node-that-is-very-long, kubernetes.io/os=linux, node-role.kubernetes.io/control-plane=, another.very.long.label.name.with.a.very.long.value/foo=bar-baz-qux-quux-corge-grault-garply-waldo-fred-plugh-xyzzy-thud-extra-long-value-to-force-wrapping-and-tooltip-behavior
+      </span>
+    </div>
+  </div>
+</body>

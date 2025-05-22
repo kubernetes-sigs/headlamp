@@ -1,0 +1,19 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1gth7hv"
+    >
+      <span
+        aria-label="simple-string
+
+
+[object Object]
+another-string"
+        class=""
+        data-mui-internal-clone-element="true"
+      >
+        simple-string, , , [object Object], another-string
+      </span>
+    </div>
+  </div>
+</body>

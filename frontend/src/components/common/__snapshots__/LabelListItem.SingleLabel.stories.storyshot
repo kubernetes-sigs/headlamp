@@ -1,0 +1,15 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1gth7hv"
+    >
+      <span
+        aria-label="app: my-single-app"
+        class=""
+        data-mui-internal-clone-element="true"
+      >
+        app: my-single-app
+      </span>
+    </div>
+  </div>
+</body>
