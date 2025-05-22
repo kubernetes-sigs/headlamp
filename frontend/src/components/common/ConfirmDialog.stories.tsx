@@ -18,11 +18,11 @@ import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import { Meta, StoryFn } from '@storybook/react';
 import React, { useState } from 'react';
-import { TestContext } from '../../test'; // Adjust path if necessary
-import { ConfirmDialog, ConfirmDialogProps } from './ConfirmDialog'; // Assuming ConfirmDialogProps is exported
+import { TestContext } from '../../test';
+import { ConfirmDialog, ConfirmDialogProps } from './ConfirmDialog';
 
 export default {
-  title: 'common/ConfirmDialog', // Updated title to match the 'common' category
+  title: 'common/ConfirmDialog',
   component: ConfirmDialog,
   decorators: [
     Story => (
@@ -41,7 +41,7 @@ export default {
       description: 'The title of the dialog.',
     },
     description: {
-      control: 'text', // Can be text for simple cases, or use a custom control for ReactNode
+      control: 'text',
       description: 'The main content/description of the dialog.',
     },
     cancelLabel: {
@@ -61,21 +61,19 @@ export default {
       description:
         'Callback fired when the dialog requests to be closed (e.g., cancel, backdrop click, escape key).',
     },
-    // Add other MuiDialogProps as needed, e.g., maxWidth, fullWidth
   },
 } as Meta<typeof ConfirmDialog>;
 
-// Template for stories that need to manage the open state
 const InteractiveTemplate: StoryFn<ConfirmDialogProps> = args => {
-  const [open, setOpen] = useState(args.open || false); // Control open state locally for interaction
+  const [open, setOpen] = useState(args.open || false);
 
   const handleOpenDialog = () => setOpen(true);
   const handleCloseDialog = () => {
-    args.handleClose(); // Call the action from Storybook
+    args.handleClose();
     setOpen(false);
   };
   const handleConfirmDialog = () => {
-    args.onConfirm(); // Call the action from Storybook
+    args.onConfirm();
     setOpen(false);
   };
 
@@ -96,7 +94,7 @@ const InteractiveTemplate: StoryFn<ConfirmDialogProps> = args => {
 
 export const DefaultOpen = InteractiveTemplate.bind({});
 DefaultOpen.args = {
-  open: true, // Will be initially open due to Storybook args, but InteractiveTemplate controls it
+  open: true,
   title: 'Confirm Action',
   description: 'Are you sure you want to perform this action? This cannot be undone.',
 };
@@ -104,7 +102,6 @@ DefaultOpen.storyName = 'Default (Initially Open)';
 
 export const Interactive = InteractiveTemplate.bind({});
 Interactive.args = {
-  // 'open' prop is controlled by the InteractiveTemplate's local state via the button
   title: 'Delete Item',
   description: 'Are you sure you want to delete "My Important File"? This action is permanent.',
 };
@@ -140,8 +137,6 @@ WithReactNodeDescription.args = {
 };
 WithReactNodeDescription.storyName = 'With ReactNode as Description';
 
-// Story to show how it behaves when the 'open' prop is false initially via args
-// (though InteractiveTemplate will make it controllable via button)
 export const InitiallyClosed = InteractiveTemplate.bind({});
 InitiallyClosed.args = {
   open: false,
