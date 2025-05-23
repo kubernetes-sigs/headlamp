@@ -14,12 +14,7 @@
  * limitations under the License.
  */
 
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import DialogContent from '@mui/material/DialogContent';
-import Grid from '@mui/material/Grid';
-import InputBase from '@mui/material/InputBase';
-import Paper from '@mui/material/Paper';
+import { Box, Button, DialogContent, Grid, InputBase, Paper, useTheme } from '@mui/material';
 import { FitAddon } from '@xterm/addon-fit';
 import { ISearchOptions, SearchAddon } from '@xterm/addon-search';
 import { Terminal as XTerminal } from '@xterm/xterm';
@@ -31,21 +26,14 @@ import ActionButton from './ActionButton';
 import { Dialog, DialogProps } from './Dialog';
 
 export interface LogViewerProps extends DialogProps {
-  logs: string[];
+  logs: string[]; // Primarily for download; actual display managed by parent via xtermRef
   title?: string;
   downloadName?: string;
   onClose: () => void;
   topActions?: ReactNode[];
   open: boolean;
-  xtermRef?: React.MutableRefObject<XTerminal | null>;
-  /**
-   * @description This is a callback function that is called when the user clicks on the reconnect button.
-   * @returns void
-   */
+  xtermRef: React.MutableRefObject<XTerminal | null>; // Changed: xtermRef is now mandatory and controlled by parent
   handleReconnect?: () => void;
-  /**
-   * @description This is a boolean that determines whether the reconnect button should be shown or not.
-   */
   showReconnectButton?: boolean;
 }
 
@@ -54,190 +42,243 @@ export function LogViewer(props: LogViewerProps) {
     logs,
     title = '',
     downloadName = 'log',
-    xtermRef: outXtermRef,
+    xtermRef: parentXtermRef, // This ref object is from the parent (PodLogViewer)
     onClose,
     topActions = [],
     handleReconnect,
     showReconnectButton = false,
-    ...other
+    open: dialogOpen, // Renamed to avoid conflict with xterm.open
+    ...otherDialogProps
   } = props;
   const { t } = useTranslation();
-  const xtermRef = React.useRef<XTerminal | null>(null);
-  const fitAddonRef = React.useRef<any>(null);
-  const searchAddonRef = React.useRef<any>(null);
+  const theme = useTheme(); // For theming SearchPopover
+
+  // This component uses the xtermRef passed from the parent. It initializes xterm into it.
+  const fitAddonRef = React.useRef<FitAddon | null>(null);
+  const searchAddonRef = React.useRef<SearchAddon | null>(null);
   const [terminalContainerRef, setTerminalContainerRef] = React.useState<HTMLElement | null>(null);
   const [showSearch, setShowSearch] = React.useState(false);
 
   useHotkeys('ctrl+shift+f', () => {
-    setShowSearch(true);
+    setShowSearch(show => !show); // Toggle search visibility
   });
 
   function downloadLog() {
-    // Cuts off the last 5 digits of the timestamp to remove the milliseconds
     const time = new Date().toISOString().replace(/:/g, '-').slice(0, -5);
-
     const element = document.createElement('a');
-    const file = new Blob(logs, { type: 'text/plain' });
+    const fileContent = logs.map(line => line + (line.endsWith('\n') ? '' : '\n')).join('');
+    const file = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
     element.href = URL.createObjectURL(file);
     element.download = `${downloadName}_${time}.txt`;
-    // Required for FireFox
     document.body.appendChild(element);
     element.click();
+    document.body.removeChild(element);
   }
 
   React.useEffect(() => {
-    if (!terminalContainerRef || !!xtermRef.current) {
+    // console.log('LogViewer: useEffect for terminal init. terminalContainerRef:', !!terminalContainerRef, 'parentXtermRef.current:', !!parentXtermRef.current);
+    if (!terminalContainerRef || parentXtermRef.current) {
+      // Terminal already initialized by this effect or container not ready
       return;
     }
 
+    // console.log('LogViewer: Initializing new XTerminal instance.');
     fitAddonRef.current = new FitAddon();
     searchAddonRef.current = new SearchAddon();
 
-    xtermRef.current = new XTerminal({
+    const xterm = new XTerminal({
       cursorStyle: 'bar',
       scrollback: 10000,
-      rows: 30, // initial rows before fit
+      rows: 30,
       lineHeight: 1.21,
       allowProposedApi: true,
+      convertEol: true,
+      theme: {
+        // Basic theme, consider making this configurable
+        background: '#1e1e1e',
+        foreground: '#d4d4d4',
+        cursor: '#d4d4d4',
+        selectionBackground: '#264f78',
+      },
     });
 
-    if (!!outXtermRef) {
-      outXtermRef.current = xtermRef.current;
+    // Populate the parent's ref object with this new XTerminal instance.
+    // This allows the parent (PodLogViewer) to control this XTerminal instance.
+    parentXtermRef.current = xterm;
+
+    xterm.loadAddon(fitAddonRef.current);
+    xterm.loadAddon(searchAddonRef.current);
+    enableCopyPasteInXterm(xterm);
+
+    xterm.open(terminalContainerRef);
+    // console.log('LogViewer: XTerminal opened in container.');
+
+    try {
+      fitAddonRef.current.fit();
+      // console.log('LogViewer: FitAddon executed.');
+    } catch (e) {
+      // console.error('LogViewer: Error calling fitAddon.fit():', e);
     }
 
-    xtermRef.current.loadAddon(fitAddonRef.current);
-    xtermRef.current.loadAddon(searchAddonRef.current);
-    enableCopyPasteInXterm(xtermRef.current);
+    // Parent (PodLogViewer) is now responsible for writing initial logs and subsequent updates.
 
-    xtermRef.current.open(terminalContainerRef!);
-
-    fitAddonRef.current!.fit();
-
-    xtermRef.current?.write(getJointLogs());
-
-    const pageResizeHandler = () => {
-      fitAddonRef.current!.fit();
-      console.debug('resize');
-    };
+    const pageResizeHandler = _.debounce(() => {
+      // console.log('LogViewer: Window resize detected, calling fitAddon.fit()');
+      fitAddonRef.current?.fit();
+    }, 250);
     window.addEventListener('resize', pageResizeHandler);
 
     return function cleanup() {
+      // console.log('LogViewer: Cleanup. Disposing xterm instance and addons.');
       window.removeEventListener('resize', pageResizeHandler);
-      xtermRef.current?.dispose();
       searchAddonRef.current?.dispose();
-      xtermRef.current = null;
+      searchAddonRef.current = null;
+      fitAddonRef.current?.dispose();
+      fitAddonRef.current = null;
+
+      // Critical: Dispose the terminal instance
+      if (parentXtermRef.current) {
+        parentXtermRef.current.dispose();
+        parentXtermRef.current = null; // Clear the ref in the parent
+      }
     };
-  }, [terminalContainerRef, xtermRef.current]);
+  }, [terminalContainerRef, parentXtermRef]); // Effect for initializing terminal
 
+  // Effect to fit terminal when dialog's full-screen state changes or it opens
   React.useEffect(() => {
-    if (!xtermRef.current) {
-      return;
+    if (dialogOpen && fitAddonRef.current && parentXtermRef.current?.element) {
+      // console.log('LogViewer: Dialog open/fullscreen changed, attempting to fit.');
+      // Timeout to allow layout to settle after dialog changes
+      const fitTimeout = setTimeout(() => {
+        try {
+          fitAddonRef.current?.fit();
+          // console.log('LogViewer: FitAddon executed on dialog open/fullscreen.');
+        } catch (e) {
+          // console.error('LogViewer: Error fitting on dialog open/fullscreen:', e);
+        }
+      }, 150);
+      return () => clearTimeout(fitTimeout);
     }
-
-    // We're delegating to external xterm ref.
-    if (!!outXtermRef) {
-      return;
-    }
-
-    xtermRef.current?.clear();
-    xtermRef.current?.write(getJointLogs());
-
-    return function cleanup() {};
-  }, [logs, xtermRef]);
-
-  function getJointLogs() {
-    return logs?.join('').replaceAll('\n', '\r\n');
-  }
+  }, [dialogOpen, otherDialogProps.fullScreen, parentXtermRef]);
 
   return (
     <Dialog
       title={title}
       onFullScreenToggled={() => {
-        setTimeout(() => {
-          fitAddonRef.current!.fit();
-        }, 1);
+        // The effect above handles fitting on fullScreen prop change
       }}
       withFullScreen
       onClose={onClose}
-      {...other}
+      open={dialogOpen}
+      {...otherDialogProps}
     >
       <DialogContent
-        sx={theme => ({
-          height: '80%',
-          minHeight: '80%',
+        sx={{
+          height: '80vh', // Use vh for more predictable sizing relative to viewport
+          minHeight: '300px', // Ensure a minimum height
           display: 'flex',
           flexDirection: 'column',
+          padding: theme.spacing(1, 2, 2, 2),
+          overflow: 'hidden', // Prevent double scrollbars from DialogContent itself
           '& .xterm ': {
-            height: '100vh', // So the terminal doesn't stay shrunk when shrinking vertically and maximizing again.
+            height: '100%',
             '& .xterm-viewport': {
-              width: 'initial !important', // BugFix: https://github.com/xtermjs/xterm.js/issues/3564#issuecomment-1004417440
+              width: 'initial !important', // BugFix for xterm.js
             },
+          },
+          '& #xterm-container-wrapper': {
+            // Wrapper for positioning and potential scrollbars if xterm fails
+            flex: '1 1 auto',
+            overflow: 'hidden', // This should ideally contain xterm's own scrollbars
+            position: 'relative', // For reconnect button and search popover
+            display: 'flex', // To make #xterm-container fill it
+            flexDirection: 'column',
           },
           '& #xterm-container': {
-            overflow: 'hidden',
+            // Direct container for xterm.js instance
+            flex: '1 1 auto',
             width: '100%',
-            height: '100%',
+            height: '100%', // Take full height of the wrapper
             '& .terminal.xterm': {
-              padding: theme.spacing(1),
+              padding: theme.spacing(0.5), // Reduced padding for more log space
+              height: '100%',
             },
           },
-        })}
+        }}
       >
-        <Grid container justifyContent="space-between" alignItems="center" wrap="nowrap">
-          <Grid item container spacing={1}>
+        <Grid
+          container
+          justifyContent="space-between"
+          alignItems="center"
+          wrap="nowrap"
+          sx={{ pb: 1, flexShrink: 0 }}
+        >
+          <Grid
+            item
+            container
+            spacing={1}
+            alignItems="center"
+            wrap="nowrap"
+            sx={{ overflowX: 'auto' }}
+          >
             {topActions.map((component, i) => (
               <Grid item key={i}>
                 {component}
               </Grid>
             ))}
           </Grid>
-          <Grid item xs>
-            <ActionButton
-              description={t('translation|Find')}
-              onClick={() => setShowSearch(show => !show)}
-              icon="mdi:magnify"
-            />
-          </Grid>
-          <Grid item xs>
-            <ActionButton
-              description={t('translation|Clear')}
-              onClick={() => clearPodLogs(xtermRef)}
-              icon="mdi:broom"
-            />
-          </Grid>
-          <Grid item xs>
-            <ActionButton
-              description={t('Download')}
-              onClick={downloadLog}
-              icon="mdi:file-download-outline"
-            />
+          <Grid item container xs justifyContent="flex-end" spacing={1} wrap="nowrap">
+            <Grid item>
+              <ActionButton
+                description={t('translation|Find')}
+                onClick={() => setShowSearch(show => !show)}
+                icon="mdi:magnify"
+              />
+            </Grid>
+            <Grid item>
+              <ActionButton
+                description={t('translation|Clear')}
+                onClick={() => parentXtermRef.current?.clear()}
+                icon="mdi:broom"
+              />
+            </Grid>
+            <Grid item>
+              <ActionButton
+                description={t('Download')}
+                onClick={downloadLog}
+                icon="mdi:file-download-outline"
+                iconButtonProps={{ disabled: logs.length === 0 }} // <<< CORRECTED LINE
+              />
+            </Grid>
           </Grid>
         </Grid>
-        <Box
-          sx={theme => ({
-            paddingTop: theme.spacing(1),
-            flex: 1,
-            width: '100%',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column-reverse',
-            position: 'relative',
-          })}
-        >
-          {showReconnectButton && (
-            <Button onClick={handleReconnect} color="info" variant="contained">
-              Reconnect
+        {/* This Box is the main container for the terminal and reconnect button */}
+        <Box id="xterm-container-wrapper">
+          {showReconnectButton && handleReconnect && (
+            <Button
+              onClick={handleReconnect}
+              color="info"
+              variant="contained"
+              sx={{
+                position: 'absolute',
+                top: theme.spacing(1),
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 10,
+              }}
+            >
+              {t('translation|Reconnect')}
             </Button>
           )}
           <div
             id="xterm-container"
-            ref={ref => setTerminalContainerRef(ref)}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse' }}
+            ref={setTerminalContainerRef} // Callback ref to get the DOM element for xterm.open()
           />
           <SearchPopover
             open={showSearch}
             onClose={() => setShowSearch(false)}
             searchAddonRef={searchAddonRef}
+            xtermRef={parentXtermRef}
           />
         </Box>
       </DialogContent>
@@ -245,36 +286,34 @@ export function LogViewer(props: LogViewerProps) {
   );
 }
 
-// clears logs for pod
-function clearPodLogs(xtermRef: React.MutableRefObject<XTerminal | null>) {
-  xtermRef.current?.clear();
-  // keeping this comment if logs dont print after clear
-  // xtermRef.current?.write(getJointLogs());
-}
-
 function enableCopyPasteInXterm(xterm: XTerminal) {
   xterm.attachCustomKeyEventHandler(arg => {
     if (arg.ctrlKey && arg.code === 'KeyC' && arg.type === 'keydown') {
       const selection = xterm.getSelection();
       if (selection) {
-        return false;
+        navigator.clipboard
+          .writeText(selection)
+          .catch(err => console.error('Failed to copy text: ', err));
+        return false; // Prevent default handling if we successfully copied
       }
     }
-    if (arg.ctrlKey && arg.code === 'KeyV' && arg.type === 'keydown') {
-      return false;
-    }
-    return true;
+    // For Ctrl+V, xterm.js handles paste internally by default if not overridden
+    // or if the application doesn't capture the event.
+    // Let xterm.js handle it or use xterm.paste("text") if intercepting.
+    return true; // Allow other keys to be processed by xterm
   });
 }
 
 interface SearchPopoverProps {
-  searchAddonRef: { current: SearchAddon | null };
+  searchAddonRef: React.MutableRefObject<SearchAddon | null>;
+  xtermRef: React.MutableRefObject<XTerminal | null>; // Pass xtermRef for focusing
   open: boolean;
   onClose: () => void;
 }
 
 export function SearchPopover(props: SearchPopoverProps) {
-  const { searchAddonRef, open, onClose } = props;
+  const { searchAddonRef, xtermRef, open, onClose } = props;
+  const theme = useTheme();
   const [searchResult, setSearchResult] = React.useState<
     { resultIndex: number; resultCount: number } | undefined
   >(undefined);
@@ -283,189 +322,190 @@ export function SearchPopover(props: SearchPopoverProps) {
   const [wholeWordMatchChecked, setWholeWordMatchChecked] = React.useState<boolean>(false);
   const [regexChecked, setRegexChecked] = React.useState<boolean>(false);
   const { t } = useTranslation(['translation']);
-  const focusedRef = React.useCallback(
-    (node: HTMLInputElement) => {
-      if (open && !!node) {
-        node.focus();
-        node.select();
-      }
-    },
-    [open]
-  );
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
 
-  const randomId = _.uniqueId('search-input-');
+  React.useEffect(() => {
+    if (open && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    } else if (!open) {
+      // When closing, return focus to the terminal if it exists
+      xtermRef.current?.focus();
+    }
+  }, [open, xtermRef]);
+
+  const randomId = React.useMemo(() => _.uniqueId('search-input-'), []);
 
   const searchAddonTextDecorationOptions: ISearchOptions['decorations'] = {
-    matchBackground: '#6d402a',
-    activeMatchBackground: '#515c6a',
-    matchOverviewRuler: '#f00',
-    activeMatchColorOverviewRuler: '#515c6a',
+    matchBackground: theme.palette.mode === 'dark' ? '#6d402a' : '#ffe6cc',
+    activeMatchBackground: theme.palette.mode === 'dark' ? '#515c6a' : '#cce5ff',
+    matchOverviewRuler: theme.palette.error.main,
+    activeMatchColorOverviewRuler: theme.palette.action.active,
   };
+
+  const performSearch = React.useCallback(
+    (direction: 'next' | 'previous' | 'new' = 'new') => {
+      if (!searchAddonRef.current || !searchText) {
+        searchAddonRef.current?.clearDecorations();
+        setSearchResult(undefined);
+        return;
+      }
+      try {
+        const options: ISearchOptions = {
+          regex: regexChecked,
+          caseSensitive: caseSensitiveChecked,
+          wholeWord: wholeWordMatchChecked,
+          decorations: searchAddonTextDecorationOptions,
+        };
+        if (direction === 'next' || direction === 'new') {
+          searchAddonRef.current.findNext(searchText, options);
+        } else {
+          searchAddonRef.current.findPrevious(searchText, options);
+        }
+      } catch (e) {
+        // console.warn('Error searching logs: ', e);
+        searchAddonRef.current?.clearDecorations();
+        setSearchResult(undefined);
+      }
+    },
+    [
+      searchText,
+      regexChecked,
+      caseSensitiveChecked,
+      wholeWordMatchChecked,
+      searchAddonRef,
+      searchAddonTextDecorationOptions,
+    ]
+  );
 
   useEffect(() => {
+    if (!searchAddonRef.current) return;
+
     if (!open) {
-      searchAddonRef.current?.clearDecorations();
-      searchAddonRef.current?.clearActiveDecoration();
+      searchAddonRef.current.clearDecorations();
+      setSearchResult(undefined);
       return;
     }
+    // Perform search when text or options change, or when it opens
+    performSearch('new');
 
-    try {
-      searchAddonRef.current?.findNext(searchText, {
-        regex: regexChecked,
-        caseSensitive: caseSensitiveChecked,
-        wholeWord: wholeWordMatchChecked,
-        decorations: searchAddonTextDecorationOptions,
-      });
-    } catch (e) {
-      // Catch invalid regular expression error
-      console.log('Error searching logs: ', e);
-      searchAddonRef.current?.findNext('');
-    }
-
-    searchAddonRef.current?.onDidChangeResults(args => {
-      setSearchResult(args);
+    const disposable = searchAddonRef.current.onDidChangeResults(results => {
+      setSearchResult(
+        results ? { resultIndex: results.resultIndex, resultCount: results.resultCount } : undefined
+      );
     });
 
-    return function cleanup() {
-      searchAddonRef.current?.findNext('');
+    return () => {
+      disposable?.dispose();
     };
-  }, [searchText, caseSensitiveChecked, wholeWordMatchChecked, regexChecked, open]);
+  }, [
+    open,
+    searchText,
+    caseSensitiveChecked,
+    wholeWordMatchChecked,
+    regexChecked,
+    searchAddonRef,
+    performSearch,
+  ]);
 
-  const handleFindNext = () => {
-    searchAddonRef.current?.findNext(searchText, {
-      regex: regexChecked,
-      caseSensitive: caseSensitiveChecked,
-      wholeWord: wholeWordMatchChecked,
-      decorations: searchAddonTextDecorationOptions,
-    });
-  };
-
-  const handleFindPrevious = () => {
-    searchAddonRef.current?.findPrevious(searchText, {
-      regex: regexChecked,
-      caseSensitive: caseSensitiveChecked,
-      wholeWord: wholeWordMatchChecked,
-      decorations: searchAddonTextDecorationOptions,
-    });
-  };
+  const handleFindNext = () => performSearch('next');
+  const handleFindPrevious = () => performSearch('previous');
 
   const handleClose = () => {
     onClose();
   };
 
-  const onSearchTextChange = (event: any) => {
+  const onSearchTextChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchText(event.target.value);
   };
 
-  const handleInputKeyDown = (event: any) => {
+  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
+      event.preventDefault();
       if (event.shiftKey) {
         handleFindPrevious();
       } else {
         handleFindNext();
       }
+    } else if (event.key === 'Escape') {
+      handleClose();
     }
   };
 
-  const baseGray = '#cccccc';
-  const grayText = {
-    color: baseGray,
-  };
-  const redText = {
-    color: '#f48771',
-  };
-
-  const searchResults = () => {
-    let color = grayText;
-    let msg = '';
-    if (!searchText) {
-      msg = t('translation|No results');
-    } else if (!searchResult) {
-      msg = t('translation|Too many matches');
-      color = redText;
-    } else {
-      if (searchResult.resultCount === 0) {
-        msg = t('translation|No results');
-        color = redText;
-      } else {
-        msg = t('translation|{{ currentIndex }} of {{ totalResults }}', {
-          currentIndex:
-            searchResult?.resultIndex !== undefined ? searchResult?.resultIndex + 1 : '?',
-          totalResults:
-            searchResult?.resultCount === undefined ? '999+' : searchResult?.resultCount,
-        });
-      }
-    }
-
-    return (
-      <Box component="span" sx={color}>
-        {msg}
-      </Box>
-    );
+  const searchResultsText = () => {
+    if (!searchText) return t('translation|Enter search term');
+    if (!searchResult || searchResult.resultCount === 0) return t('translation|No results');
+    return t('translation|{{ currentIndex }} of {{ totalResults }}', {
+      currentIndex: searchResult.resultIndex + 1,
+      totalResults: searchResult.resultCount,
+    });
   };
 
-  return !open ? (
-    <></>
-  ) : (
+  return !open ? null : (
     <Paper
-      sx={theme => {
-        //@todo: This style should match the theme being used.
-        return {
-          position: 'absolute',
-          background: '#252526',
-          top: 8,
-          right: 15,
-          padding: '4px 8px',
-          zIndex: theme.zIndex.modal,
+      elevation={3}
+      sx={{
+        position: 'absolute',
+        background: theme.palette.background.paper,
+        top: theme.spacing(1),
+        right: theme.spacing(2),
+        padding: theme.spacing(0.5, 1),
+        zIndex: theme.zIndex.modal + 1, // Ensure it's above other modal content
+        display: 'flex',
+        flexDirection: 'row',
+        alignItems: 'center',
+        border: `1px solid ${theme.palette.divider}`,
+        '& .SearchTextArea': {
+          background: theme.palette.action.hover,
           display: 'flex',
           flexDirection: 'row',
           alignItems: 'center',
-          borderLeft: `2px solid #555`,
-          '& .SearchTextArea': {
-            background: '#3c3c3c',
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            padding: '1px 4px 2px 0',
-            width: 240,
-            '& .MuiInputBase-root': {
-              color: baseGray,
-              fontSize: '0.85rem',
-              border: '1px solid rgba(0,0,0,0)',
-              '&.Mui-focused': {
-                border: `1px solid #007fd4`,
-              },
-              '&>input': {
-                padding: '2px 4px',
-              },
+          padding: theme.spacing(0.25, 0.5, 0.25, 0),
+          width: 240,
+          '& .MuiInputBase-root': {
+            color: theme.palette.text.primary,
+            fontSize: '0.85rem',
+            border: '1px solid transparent',
+            '&.Mui-focused': {
+              borderColor: theme.palette.primary.main,
             },
-            '& .MuiIconButton-root': {
-              margin: '0 1px',
-              padding: theme.spacing(0.5),
-              fontSize: '1.05rem',
-              color: baseGray,
-              borderRadius: 4,
-              '&.checked': {
-                background: '#245779',
-              },
+            '& > input': {
+              padding: theme.spacing(0.5, 1),
             },
           },
-          '& .search-results': {
-            width: 70,
-            marginLeft: 8,
-            fontSize: '0.8rem',
-          },
-          '& .search-actions': {
-            '& .MuiIconButton-root': {
-              padding: 2,
-              fontSize: '1.05rem',
-              color: baseGray,
-              '&.Mui-disabled': {
-                color: '#767677',
-              },
+          '& .MuiIconButton-root': {
+            margin: theme.spacing(0, 0.125),
+            padding: theme.spacing(0.5),
+            fontSize: '1.05rem',
+            color: theme.palette.text.secondary,
+            borderRadius: '4px',
+            '&.checked': {
+              background: theme.palette.action.selected,
+              color: theme.palette.primary.contrastText,
             },
           },
-        };
+        },
+        '& .search-results': {
+          width: 'auto',
+          minWidth: 90,
+          marginLeft: theme.spacing(1),
+          fontSize: '0.8rem',
+          textAlign: 'center',
+          color:
+            (!searchText || !searchResult || searchResult.resultCount === 0) && searchText
+              ? theme.palette.error.main
+              : theme.palette.text.secondary,
+        },
+        '& .search-actions': {
+          '& .MuiIconButton-root': {
+            padding: theme.spacing(0.25),
+            fontSize: '1.05rem',
+            color: theme.palette.text.secondary,
+            '&.Mui-disabled': {
+              color: theme.palette.action.disabled,
+            },
+          },
+        },
       }}
     >
       <Box className="SearchTextArea">
@@ -475,52 +515,46 @@ export function SearchPopover(props: SearchPopoverProps) {
           placeholder={t('translation|Find')}
           inputProps={{ autoComplete: 'off', type: 'text', name: randomId, id: randomId }}
           onKeyDown={handleInputKeyDown}
-          inputRef={focusedRef}
+          inputRef={inputRef}
         />
         <ActionButton
           icon="mdi:format-letter-case"
-          onClick={() => setCaseSensitiveChecked(!caseSensitiveChecked)}
+          onClick={() => setCaseSensitiveChecked(c => !c)}
           description={t('translation|Match case')}
-          iconButtonProps={{
-            className: caseSensitiveChecked ? 'checked' : '',
-          }}
+          iconButtonProps={{ className: caseSensitiveChecked ? 'checked' : '' }}
         />
         <ActionButton
           icon="mdi:format-letter-matches"
-          onClick={() => setWholeWordMatchChecked(!wholeWordMatchChecked)}
+          onClick={() => setWholeWordMatchChecked(w => !w)}
           description={t('translation|Match whole word')}
-          iconButtonProps={{
-            className: wholeWordMatchChecked ? 'checked' : '',
-          }}
+          iconButtonProps={{ className: wholeWordMatchChecked ? 'checked' : '' }}
         />
         <ActionButton
           icon="mdi:regex"
-          onClick={() => setRegexChecked(!regexChecked)}
+          onClick={() => setRegexChecked(r => !r)}
           description={t('translation|Use regular expression')}
-          iconButtonProps={{
-            className: regexChecked ? 'checked' : '',
-          }}
+          iconButtonProps={{ className: regexChecked ? 'checked' : '' }}
         />
       </Box>
-      <div className="search-results">{searchResults()}</div>
+      <div className="search-results">{searchResultsText()}</div>
       <div className="search-actions">
         <ActionButton
           icon="mdi:arrow-up"
           onClick={handleFindPrevious}
           description={t('translation|Previous Match (Shift+Enter)')}
-          iconButtonProps={{
-            disabled: !searchResult?.resultCount && searchResult?.resultCount !== undefined,
-          }}
+          iconButtonProps={{ disabled: !searchResult || searchResult.resultCount === 0 }}
         />
         <ActionButton
           icon="mdi:arrow-down"
           onClick={handleFindNext}
           description={t('translation|Next Match (Enter)')}
-          iconButtonProps={{
-            disabled: !searchResult?.resultCount && searchResult?.resultCount !== undefined,
-          }}
+          iconButtonProps={{ disabled: !searchResult || searchResult.resultCount === 0 }}
         />
-        <ActionButton icon="mdi:close" onClick={handleClose} description={t('translation|Close')} />
+        <ActionButton
+          icon="mdi:close"
+          onClick={handleClose}
+          description={t('translation|Close (Esc)')}
+        />
       </div>
     </Paper>
   );
