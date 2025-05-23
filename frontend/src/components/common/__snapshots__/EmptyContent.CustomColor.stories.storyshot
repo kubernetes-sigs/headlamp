@@ -1,0 +1,13 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-19midj6"
+    >
+      <p
+        class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-4i3jix-MuiTypography-root"
+      >
+        This message has a custom color.
+      </p>
+    </div>
+  </div>
+</body>

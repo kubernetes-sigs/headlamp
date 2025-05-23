@@ -1,0 +1,18 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-19midj6"
+    >
+      <h6
+        class="MuiTypography-root MuiTypography-h6 css-k6p83p-MuiTypography-root"
+      >
+        No Data Available
+      </h6>
+      <p
+        class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+      >
+        Please try adjusting your filters or come back later.
+      </p>
+    </div>
+  </div>
+</body>

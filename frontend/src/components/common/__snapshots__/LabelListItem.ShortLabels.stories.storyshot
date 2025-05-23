@@ -1,0 +1,17 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1gth7hv"
+    >
+      <span
+        aria-label="app: my-app
+env: production
+tier: frontend"
+        class=""
+        data-mui-internal-clone-element="true"
+      >
+        app: my-app, env: production, tier: frontend
+      </span>
+    </div>
+  </div>
+</body>
