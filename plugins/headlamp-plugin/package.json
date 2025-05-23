@@ -101,7 +101,7 @@
     "monaco-editor": "^0.52.2",
     "msw": "2.4.9",
     "msw-storybook-addon": "2.0.3",
-    "nock": "^14.0.0-beta.14",
+    "nock": "^14.0.4",
     "notistack": "^3.0.2",
     "openapi-types": "^9.3.0",
     "prettier": "^2.7.1",
