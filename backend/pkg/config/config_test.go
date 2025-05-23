@@ -145,6 +145,7 @@ func getTestCases()[] testCase {
     }
 }
 
+// TestParse function
 func TestParse(t * testing.T) {
     tests: = getTestCases()
 
