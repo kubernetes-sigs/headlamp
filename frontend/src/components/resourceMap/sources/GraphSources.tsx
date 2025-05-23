@@ -80,6 +80,20 @@ export const kubeOwnersEdges = (obj: KubeObject): GraphEdge[] => {
 };
 
 /**
+ * Create reverse Edges from object's ownerReferences
+ */
+export const kubeOwnersEdgesReversed = (obj: KubeObject): GraphEdge[] => {
+  return (
+    obj.metadata.ownerReferences?.map(owner => ({
+      id: `${owner.uid}-${obj.metadata.uid}`,
+      type: 'kubeRelation',
+      source: owner.uid,
+      target: obj.metadata.uid,
+    })) ?? []
+  );
+};
+
+/**
  * Create an object from any Kube object
  */
 export const makeKubeObjectNode = (obj: KubeObject): GraphNode => {

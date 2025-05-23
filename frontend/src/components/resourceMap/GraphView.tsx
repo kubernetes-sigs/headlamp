@@ -53,11 +53,11 @@ import {
 } from './graph/graphGrouping';
 import { applyGraphLayout } from './graph/graphLayout';
 import { GraphLookup, makeGraphLookup } from './graph/graphLookup';
-import { forEachNode, GraphEdge, GraphNode, GraphSource } from './graph/graphModel';
+import { forEachNode, GraphEdge, GraphNode, GraphSource, Relation } from './graph/graphModel';
 import { GraphControlButton } from './GraphControls';
 import { GraphRenderer } from './GraphRenderer';
 import { SelectionBreadcrumbs } from './SelectionBreadcrumbs';
-import { kubeObjectRelations } from './sources/definitions/relations';
+import { getAllRelations } from './sources/definitions/relations';
 import { getAllSources } from './sources/definitions/sources';
 import { GraphSourceManager, useSources } from './sources/GraphSources';
 import { GraphSourcesView } from './sources/GraphSourcesView';
@@ -95,6 +95,12 @@ interface GraphViewContentProps {
    * See {@link GraphSource} for more information
    */
   defaultSources?: GraphSource[];
+  /**
+   * List of Graph Relations to display
+   *
+   * See {@link GraphSource} for more information
+   */
+  defaultRelations?: Relation[];
 
   /** Default filters to apply */
   defaultFilters?: GraphFilter[];
@@ -451,6 +457,7 @@ function CustomThemeProvider({ children }: { children: ReactNode }) {
  */
 export function GraphView(props: GraphViewContentProps) {
   const propsSources = props.defaultSources ?? getAllSources();
+  const propsRelations = props.defaultRelations ?? getAllRelations();
 
   // Load plugin defined sources
   const pluginGraphSources = useTypedSelector(state => state.graphView.graphSources);
@@ -463,7 +470,7 @@ export function GraphView(props: GraphViewContentProps) {
   return (
     <StrictMode>
       <ReactFlowProvider>
-        <GraphSourceManager sources={sources} relations={kubeObjectRelations}>
+        <GraphSourceManager sources={sources} relations={propsRelations}>
           <GraphViewContent {...props} defaultSources={sources} />
         </GraphSourceManager>
       </ReactFlowProvider>
