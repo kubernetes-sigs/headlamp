@@ -29,15 +29,7 @@ import (
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "list-plugins" {
-		conf, err := config.Parse(os.Args[2:])
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "fetching config:%v")
-			os.Exit(1)
-		}
-
-		if err := plugins.ListPlugins(conf.StaticDir, conf.PluginsDir); err != nil {
-			logger.Log(logger.LevelError, nil, err, "listing plugins")
-		}
+		runListPlugins()
 
 		return
 	}
@@ -77,5 +69,28 @@ func main() {
 		cache:                     cache,
 		kubeConfigStore:           kubeConfigStore,
 		multiplexer:               multiplexer,
+		telemetryConfig: config.Config{
+			ServiceName:        conf.ServiceName,
+			ServiceVersion:     conf.ServiceVersion,
+			TracingEnabled:     conf.TracingEnabled,
+			MetricsEnabled:     conf.MetricsEnabled,
+			JaegerEndpoint:     conf.JaegerEndpoint,
+			OTLPEndpoint:       conf.OTLPEndpoint,
+			UseOTLPHTTP:        conf.UseOTLPHTTP,
+			StdoutTraceEnabled: conf.StdoutTraceEnabled,
+			SamplingRate:       conf.SamplingRate,
+		},
 	})
+}
+
+func runListPlugins() {
+	conf, err := config.Parse(os.Args[2:])
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "fetching config:%v")
+		os.Exit(1)
+	}
+
+	if err := plugins.ListPlugins(conf.StaticDir, conf.PluginsDir); err != nil {
+		logger.Log(logger.LevelError, nil, err, "listing plugins")
+	}
 }

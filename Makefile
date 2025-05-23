@@ -104,6 +104,19 @@ else
 	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
 endif
 
+run-backend-with-metrics:
+	@echo "**** Running backend with Prometheus metrics enabled ****"
+ifeq ($(UNIXSHELL),true)
+	HEADLAMP_BACKEND_TOKEN=headlamp \
+    HEADLAMP_CONFIG_METRICS_ENABLED=true \
+    HEADLAMP_CONFIG_ENABLE_HELM=true \
+    HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true \
+    ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
+else
+	@echo "**** Running on Windows without bash or zsh. ****"
+	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_METRICS_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
+endif
+
 run-frontend:
 ifeq ($(UNIXSHELL),true)
 	cd frontend && nice -16 npm start
@@ -195,3 +208,41 @@ helm-template-test:
 .PHONY: helm-update-template-version
 helm-update-template-version:
 	charts/headlamp/tests/update-version.sh
+
+# TODO: add windows compatibility
+.PHONY: run-jaeger
+run-jaeger:
+	@echo "Starting Jaeger container..."
+	@docker rm -f jaeger 2>/dev/null || true
+	@docker run -d --name jaeger \
+        -p 16686:16686 \
+        -p 4317:4317 \
+        -p 4318:4318 \
+        -e COLLECTOR_OTLP_ENABLED=true \
+        jaegertracing/all-in-one:latest
+	@echo "Jaeger UI will be available at http://localhost:16686"
+	@echo "OTLP endpoints: grpc://localhost:4317, http://localhost:4318"
+
+.PHONY: run-prometheus
+run-prometheus:
+	@echo "Starting Prometheus container..."
+	@docker rm -f prometheus 2>/dev/null || true
+	@docker run -d \
+        --name prometheus \
+        --network host \
+        -p 9090:9090 \
+        -v $(PWD)/backend/pkg/telemetry/prometheus.yaml:/etc/prometheus.yaml \
+        prom/prometheus:latest --config.file=/etc/prometheus.yaml
+	@echo "Prometheus UI will be available at http://localhost:9090"
+
+.PHONY: run-monitoring
+run-monitoring: run-jaeger run-prometheus
+	@echo "Monitoring stack is ready:"
+	@echo "- Jaeger UI: http://localhost:16686"
+	@echo "- Prometheus UI: http://localhost:9090"
+
+.PHONY: stop-monitoring
+stop-monitoring:
+	@echo "Stopping monitoring containers..."
+	@docker rm -f jaeger prometheus 2>/dev/null || true
+	@echo "Monitoring containers stopped"
