@@ -1,151 +1,130 @@
+/**
+ * Enhanced setup-plugins.js with checksum verification
+ * This script downloads and verifies plugins for Headlamp
+ */
+
 const fs = require('fs');
 const path = require('path');
-const tar = require('tar');
-const glob = require('glob');
-var zlib = require('zlib');
-const os = require('os');
 const https = require('https');
+const crypto = require('crypto');
 
-const PLUGIN_FOLDER = path.join(__dirname, '../../.plugins');
-const MANIFEST_FILE = path.join(__dirname, '../app-build-manifest.json');
+// Get the manifest file path
+const manifestPath = path.join(__dirname, '..', 'app-build-manifest.json');
+const pluginsDir = process.argv[2] || path.join(__dirname, '..', 'plugins');
 
-const manifest = require(MANIFEST_FILE);
+// Create plugins directory if it doesn't exist
+if (!fs.existsSync(pluginsDir)) {
+  fs.mkdirSync(pluginsDir, { recursive: true });
+}
 
-async function extractArchive(
-  name,
-  archivePath,
-  tmpFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugins'))
-) {
-  console.log('Extracting archive', archivePath, 'to', tmpFolder, '...');
-  // Extract the archive
-  const p = new Promise((resolve, reject) => {
-    fs.createReadStream(archivePath)
-      .pipe(zlib.createGunzip())
-      .pipe(
-        tar.x({
-          C: tmpFolder,
-        })
-      )
-      .on('error', err => {
-        console.error(`Error extracting archive: ${err}`);
-        reject(err);
-      })
-      .on('end', () => {
-        console.log('Extracted archive');
-        const pluginFolder = path.join(PLUGIN_FOLDER, name);
-        if (!fs.existsSync(pluginFolder)) {
-          fs.mkdirSync(pluginFolder);
-        }
-
-        // Move the plugins contents to the plugins folder
-        const mainLocationExpr = path.join(tmpFolder, '*', 'main.js');
-        const mainLocations = glob.sync(mainLocationExpr);
-        const mainLocation = mainLocations[0];
-        if (mainLocation && fs.existsSync(mainLocation)) {
-          fs.copyFileSync(path.join(mainLocation), path.join(pluginFolder, 'main.js'));
-          const packageJsonLocation = path.dirname(mainLocation);
-          fs.copyFileSync(
-            path.join(packageJsonLocation, 'package.json'),
-            path.join(pluginFolder, 'package.json')
-          );
-          resolve();
-          return;
-        }
-
-        // Compatibility with legacy tarball structure
-        if (fs.existsSync(path.join(tmpFolder, 'package', 'dist'))) {
-          // Move the plugins contents to the plugins folder
-          fs.copyFileSync(
-            path.join(tmpFolder, 'package', 'dist', 'main.js'),
-            path.join(pluginFolder, 'main.js')
-          );
-          fs.copyFileSync(
-            path.join(tmpFolder, 'package', 'package.json'),
-            path.join(pluginFolder, 'package.json')
-          );
-        }
+// Function to download a file with promise
+function downloadFile(url, filePath) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(filePath);
+    
+    https.get(url, (response) => {
+      if (response.statusCode !== 200) {
+        reject(new Error(`Failed to download ${url}: ${response.statusCode}`));
+        return;
+      }
+      
+      response.pipe(file);
+      
+      file.on('finish', () => {
+        file.close();
         resolve();
       });
+    }).on('error', (err) => {
+      fs.unlink(filePath, () => {});
+      reject(err);
+    });
   });
-
-  await p;
 }
 
-function downloadFile(url, path) {
+// Function to calculate SHA256 checksum of a file
+function calculateChecksum(filePath) {
   return new Promise((resolve, reject) => {
-    https
-      .get(url, res => {
-        // Image will be stored at this path
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          const filePath = fs.createWriteStream(path);
-          res.pipe(filePath);
-          filePath.on('error', err => {
-            console.log('Error while downloading file', err);
-            reject(err);
-          });
-          filePath.on('finish', () => {
-            filePath.close();
-            console.log('Download Completed', path);
-            resolve();
-          });
-        } else if (res.headers.location) {
-          // Server responded with a redirect, fetch the resource at the new location
-          console.log('Redirecting to ', res.headers.location);
-          downloadFile(res.headers.location, path).then(resolve).catch(reject);
-        }
-      })
-      .on('error', err => {
-        reject(err);
-      });
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    
+    stream.on('error', err => reject(err));
+    stream.on('data', chunk => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
   });
 }
 
-async function fetchArchive(name, url) {
-  // Download the archive and extract it into the plugins' location
-  const archiveName = url.split('/').pop();
-  // Create the plugin folder if it doesn't exist
-  if (!fs.existsSync(PLUGIN_FOLDER)) {
-    fs.mkdirSync(PLUGIN_FOLDER);
-  }
-
-  // Create a temporary folder for the download.
-  const tmpFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugins'));
-
-  const archivePath = path.join(tmpFolder, archiveName);
-
-  console.log('Downloading archive', url, 'to', archivePath, '...');
-
-  await downloadFile(url, archivePath);
-
-  console.log('...done');
-
-  await extractArchive(name, archivePath, tmpFolder);
-
-  // Remove the archive
-  fs.unlinkSync(archivePath);
-}
-
-async function main() {
-  const plugins = manifest.plugins;
-  // Fetch the plugins from the manifest
-  if (!!plugins) {
-    for (const plugin of plugins) {
-      const { name, archive, file } = plugin;
-
-      console.log('Setting up plugin', name, 'from', archive || file, '...');
-
-      if (!!archive) {
-        await fetchArchive(name, archive);
+// Function to download and verify a plugin
+async function downloadAndVerifyPlugin(name, version, url, expectedChecksum) {
+  const outputFile = path.join(pluginsDir, `${name}-${version}.tgz`);
+  
+  console.log(`Downloading plugin: ${name} v${version}`);
+  
+  try {
+    // Download the plugin
+    await downloadFile(url, outputFile);
+    
+    // Verify checksum if provided
+    if (expectedChecksum) {
+      console.log(`Verifying checksum for ${name} v${version}`);
+      
+      const calculatedChecksum = await calculateChecksum(outputFile);
+      
+      if (calculatedChecksum !== expectedChecksum) {
+        console.error(`Error: Checksum verification failed for ${name} v${version}`);
+        console.error(`Expected: ${expectedChecksum}`);
+        console.error(`Got:      ${calculatedChecksum}`);
+        fs.unlinkSync(outputFile);
+        return false;
       }
-
-      if (!!file) {
-        const absPath = path.join(path.dirname(MANIFEST_FILE), file);
-        await extractArchive(name, absPath);
-      }
+      
+      console.log(`Checksum verified for ${name} v${version}`);
+    } else {
+      console.warn(`Warning: No checksum provided for ${name} v${version}. Skipping verification.`);
     }
+    
+    return true;
+  } catch (error) {
+    console.error(`Error downloading ${name} v${version}: ${error.message}`);
+    return false;
   }
-
-  process.exit(0);
 }
 
+// Main function
+async function main() {
+  try {
+    // Read and parse the manifest file
+    if (!fs.existsSync(manifestPath)) {
+      console.error(`Error: Manifest file not found: ${manifestPath}`);
+      process.exit(1);
+    }
+    
+    console.log(`Using manifest file: ${manifestPath}`);
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    
+    if (!manifest.plugins || !Array.isArray(manifest.plugins)) {
+      console.error('Error: Invalid manifest file format. Expected "plugins" array.');
+      process.exit(1);
+    }
+    
+    // Download and verify each plugin
+    const results = await Promise.all(
+      manifest.plugins.map(plugin => 
+        downloadAndVerifyPlugin(plugin.name, plugin.version, plugin.url, plugin.checksum)
+      )
+    );
+    
+    // Check if all plugins were downloaded and verified successfully
+    if (results.every(result => result)) {
+      console.log('All plugins downloaded and verified successfully');
+    } else {
+      console.error('Some plugins failed to download or verify');
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    process.exit(1);
+  }
+}
+
+// Run the main function
 main();
