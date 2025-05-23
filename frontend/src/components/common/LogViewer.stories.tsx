@@ -20,9 +20,10 @@ import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import { action } from '@storybook/addon-actions';
 import { Meta, StoryFn } from '@storybook/react';
-import { useCallback, useEffect, useState } from 'react';
+import { Terminal as XTerminal } from '@xterm/xterm';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getTestDate } from '../../helpers/testHelpers';
-import { LogViewer, LogViewerProps } from './LogViewer';
+import { LogViewer, LogViewerProps } from './LogViewer'; // Add this import for XTerminal
 
 export default {
   title: 'LogViewer',
@@ -37,7 +38,11 @@ export default {
   },
 } as Meta;
 
-const Template: StoryFn<LogViewerProps> = args => <LogViewer {...args} />;
+// Create a wrapper template that includes the required xtermRef
+const Template: StoryFn<LogViewerProps> = args => {
+  const xtermRef = useRef<XTerminal | null>(null);
+  return <LogViewer {...args} xtermRef={xtermRef} />;
+};
 
 export const BasicLogs = Template.bind({});
 BasicLogs.args = {
@@ -99,6 +104,7 @@ LogOverflow.parameters = {
 export const LiveUpdatingLogs = () => {
   const [logs, setLogs] = useState<string[]>(['Starting log stream\n']);
   const [counter, setCounter] = useState<number>(1);
+  const xtermRef = useRef<XTerminal | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -117,6 +123,7 @@ export const LiveUpdatingLogs = () => {
       title="Live Updating Logs"
       downloadName="live-updating-logs"
       onClose={action('closed')}
+      xtermRef={xtermRef}
     />
   );
 };
@@ -174,6 +181,7 @@ const ContainerSelector = ({
 export const TopActions = () => {
   const [selectedContainer, setSelectedContainer] = useState<string>('web-server');
   const [logs, setLogs] = useState<string[]>(containerLogs['web-server']);
+  const xtermRef = useRef<XTerminal | null>(null);
 
   const handleContainerChange = (container: string) => {
     setSelectedContainer(container);
@@ -195,6 +203,7 @@ export const TopActions = () => {
           onContainerChange={handleContainerChange}
         />,
       ]}
+      xtermRef={xtermRef}
     />
   );
 };
@@ -212,6 +221,7 @@ export const ReconnectToSeeLogs = () => {
   const [logs, setLogs] = useState<string[]>(initialLogs);
   const [connectionState, setConnectionState] = useState<ConnectionState>('connected');
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const xtermRef = useRef<XTerminal | null>(null);
 
   useEffect(() => {
     if (connectionState !== 'connected') return;
@@ -278,6 +288,7 @@ export const ReconnectToSeeLogs = () => {
       onClose={action('closed')}
       showReconnectButton={connectionState === 'disconnected'}
       handleReconnect={handleReconnect}
+      xtermRef={xtermRef}
     />
   );
 };
