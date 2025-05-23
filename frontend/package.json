@@ -234,7 +234,7 @@
     "lint-staged": "^10.5.4",
     "msw": "2.4.9",
     "msw-storybook-addon": "2.0.3",
-    "nock": "^14.0.0-beta.14",
+    "nock": "^14.0.4",
     "prettier": "^2.7.1",
     "resize-observer-polyfill": "^1.5.1",
     "storybook": "^8.5.6",
