@@ -130,6 +130,7 @@
   "Node shell is not supported in this OS: {{ nodeOS }}": "",
   "Shell: {{ itemName }}": "",
   "Logs: {{ itemName }}": "ログ: {{ itemName }}",
+  "Select Container...": "",
   "Seconds": "秒",
   "Show Logs": "ログの表示",
   "logs": "ログ",
