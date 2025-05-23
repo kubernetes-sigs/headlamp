@@ -14,17 +14,20 @@
  * limitations under the License.
  */
 
-import Box from '@mui/material/Box';
-import FormControl from '@mui/material/FormControl';
+import {
+  Box,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  SelectChangeEvent,
+  styled,
+  Switch,
+} from '@mui/material';
 import FormControlLabel from '@mui/material/FormControlLabel';
-import InputLabel from '@mui/material/InputLabel';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
-import { styled } from '@mui/material/styles';
-import Switch from '@mui/material/Switch';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import { useSnackbar } from 'notistack';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { request } from '../../../lib/k8s/apiProxy';
 import { KubeContainerStatus } from '../../../lib/k8s/cluster';
@@ -37,12 +40,10 @@ import ActionButton from '../ActionButton';
 import { LogViewer } from '../LogViewer';
 import { LightTooltip } from '../Tooltip';
 
-// Component props interface
 interface LogsButtonProps {
   item: KubeObject | null;
 }
 
-// Styled component for consistent padding in form controls
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   margin: 0,
   paddingTop: theme.spacing(2),
@@ -50,407 +51,448 @@ const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
 }));
 
 export function LogsButton({ item }: LogsButtonProps) {
-  const [showLogs, setShowLogs] = useState(false);
+  const [showLogsDialog, setShowLogsDialog] = useState(false);
   const [pods, setPods] = useState<Pod[]>([]);
-  const [selectedPodIndex, setSelectedPodIndex] = useState<number | 'all'>('all');
+  const [selectedPodName, setSelectedPodName] = useState<string | 'all'>('all');
   const [selectedContainer, setSelectedContainer] = useState('');
-
-  const [logs, setLogs] = useState<{ logs: string[]; lastLineShown: number }>({
-    logs: [],
-    lastLineShown: -1,
-  });
-  const [allPodLogs, setAllPodLogs] = useState<{ [podName: string]: string[] }>({});
-
+  const [displayedLogLines, setDisplayedLogLines] = useState<string[]>([]); // Primarily for download
   const [showTimestamps, setShowTimestamps] = useState<boolean>(true);
-  const [follow, setFollow] = useState<boolean>(true);
+  const [follow, setFollow] = useState<boolean>(true); // Default to true
   const [lines, setLines] = useState<number>(100);
-  const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
+  const [showPrevious, setShowPrevious] = useState<boolean>(false);
   const [showReconnectButton, setShowReconnectButton] = useState(false);
 
-  const xtermRef = React.useRef<XTerminal | null>(null);
+  const xtermRef = useRef<XTerminal | null>(null);
   const { t } = useTranslation(['glossary', 'translation']);
   const { enqueueSnackbar } = useSnackbar();
 
-  const clearLogs = React.useCallback(() => {
+  const activeStreamCleanupsRef = useRef<Array<() => void>>([]);
+  const userScrolledUpRef = useRef<boolean>(false);
+  const scrollListenerDisposableRef = useRef<{ dispose: () => void } | null>(null);
+  const streamGenerationRef = useRef<number>(0);
+
+  const clearTerminalAndLogs = useCallback(() => {
     if (xtermRef.current) {
       xtermRef.current.clear();
     }
-    setLogs({ logs: [], lastLineShown: -1 });
+    setDisplayedLogLines([]);
   }, []);
 
-  // Fetch related pods.
   async function getRelatedPods(): Promise<Pod[]> {
     if (item instanceof Deployment || item instanceof ReplicaSet || item instanceof DaemonSet) {
       try {
         let labelSelector = '';
         const selector = item.spec.selector;
-
-        if (selector.matchLabels) {
+        if (selector?.matchLabels) {
           labelSelector = Object.entries(selector.matchLabels)
             .map(([key, value]) => `${key}=${value}`)
             .join(',');
         }
-
+        if (!labelSelector && selector?.matchExpressions) {
+          labelSelector = selector.matchExpressions
+            .map((exp: { key: string; operator: string; values: string[] }) => {
+              if (exp.operator === 'In' || exp.operator === 'Equals')
+                return `${exp.key}=${exp.values[0]}`;
+              return '';
+            })
+            .filter(Boolean)
+            .join(',');
+        }
         if (!labelSelector) {
-          const resourceType =
-            item instanceof Deployment
-              ? 'deployment'
-              : item instanceof ReplicaSet
-              ? 'replicaset'
-              : 'daemonset';
+          const resourceType = item.kind.toLowerCase();
           throw new Error(
             t('translation|No label selectors found for this {{type}}', { type: resourceType })
           );
         }
-
         const response = await request(
           `/api/v1/namespaces/${item.metadata.namespace}/pods?labelSelector=${labelSelector}`,
           { method: 'GET' }
         );
-
-        if (!response?.items) {
-          throw new Error(t('translation|Invalid response from server'));
-        }
-
+        if (!response?.items) throw new Error(t('translation|Invalid response from server'));
         return response.items.map((podData: any) => new Pod(podData));
       } catch (error) {
-        console.error('Error in getRelatedPods:', error);
-        throw new Error(
-          error instanceof Error ? error.message : t('translation|Failed to fetch related pods')
-        );
+        throw error;
       }
     }
     return [];
   }
 
-  // Event handlers for log viewing options
-  function handleLinesChange(event: any) {
-    setLines(event.target.value);
-  }
-
-  function handleTimestampsChange() {
-    setShowTimestamps(prev => !prev);
-  }
-
-  function handleFollowChange() {
-    setFollow(prev => !prev);
-  }
-
-  function handlePreviousChange() {
-    setShowPrevious(previous => !previous);
-  }
-
-  // Handler for initial logs button click
   async function handleClick() {
     if (item instanceof Deployment || item instanceof ReplicaSet || item instanceof DaemonSet) {
       try {
         const fetchedPods = await getRelatedPods();
         if (fetchedPods.length > 0) {
           setPods(fetchedPods);
-          setSelectedPodIndex('all');
-          setSelectedContainer(fetchedPods[0].spec.containers[0].name);
-          setShowLogs(true);
+          setSelectedPodName('all');
+
+          let initialContainer = '';
+          if (fetchedPods[0]?.spec?.containers?.length > 0) {
+            initialContainer = fetchedPods[0].spec.containers[0].name;
+          }
+          setSelectedContainer(initialContainer);
+
+          setFollow(true); // Explicitly set desired initial follow state
+          userScrolledUpRef.current = false; // Reset scroll state
+
+          setShowLogsDialog(true); // Set this last
+
+          if (initialContainer === '') {
+            enqueueSnackbar(
+              t('translation|No containers found in the first pod. Please select a container.'),
+              { variant: 'info', autoHideDuration: 5000 }
+            );
+          }
         } else {
           enqueueSnackbar(t('translation|No pods found for this workload'), {
             variant: 'warning',
             autoHideDuration: 3000,
           });
         }
-      } catch (error) {
-        console.error('Error fetching pods:', error);
+      } catch (error: any) {
         enqueueSnackbar(
           t('translation|Failed to fetch pods: {{error}}', {
-            error: error instanceof Error ? error.message : t('translation|Unknown error'),
+            error: error.message || String(error),
           }),
-          {
-            variant: 'error',
-            autoHideDuration: 5000,
-          }
+          { variant: 'error', autoHideDuration: 5000 }
         );
       }
     }
   }
 
-  // Handler for closing the logs viewer
-  function handleClose() {
-    setShowLogs(false);
+  function handleCloseDialog() {
+    setShowLogsDialog(false);
     setPods([]);
-    setSelectedPodIndex('all');
+    setSelectedPodName('all');
     setSelectedContainer('');
-    setLogs({ logs: [], lastLineShown: -1 });
+    setDisplayedLogLines([]);
+    setShowReconnectButton(false);
+    userScrolledUpRef.current = false;
+    activeStreamCleanupsRef.current.forEach(cleanup => cleanup());
+    activeStreamCleanupsRef.current = [];
+    if (scrollListenerDisposableRef.current) {
+      scrollListenerDisposableRef.current.dispose();
+      scrollListenerDisposableRef.current = null;
+    }
   }
 
-  // Get containers for the selected pod
-  const containers = React.useMemo(() => {
+  const currentPodsForSelection = useMemo(() => {
+    if (selectedPodName === 'all') return pods;
+    const singlePod = pods.find(p => p.getName() === selectedPodName);
+    return singlePod ? [singlePod] : [];
+  }, [pods, selectedPodName]);
+
+  const containersForSelection = useMemo(() => {
     if (!pods.length) return [];
-    if (selectedPodIndex === 'all')
-      return pods[0]?.spec?.containers?.map(container => container.name) || [];
-    const selectedPod = pods[selectedPodIndex as number];
-    return selectedPod?.spec?.containers?.map(container => container.name) || [];
-  }, [pods, selectedPodIndex]);
+    const podForContainerList =
+      selectedPodName === 'all' || !pods.find(p => p.getName() === selectedPodName)
+        ? pods[0]
+        : pods.find(p => p.getName() === selectedPodName);
+    return podForContainerList?.spec?.containers?.map(c => c.name) || [];
+  }, [pods, selectedPodName]);
 
-  // Check if a container has been restarted
-  function hasContainerRestarted(podName: string | undefined, containerName: string) {
-    if (!podName) return false;
-    const pod = pods.find(p => p.getName() === podName);
-    const cont = pod?.status?.containerStatuses?.find(
-      (c: KubeContainerStatus) => c.name === containerName
-    );
-    if (!cont) {
-      return false;
+  useEffect(() => {
+    activeStreamCleanupsRef.current.forEach(cleanup => cleanup());
+    activeStreamCleanupsRef.current = [];
+    if (scrollListenerDisposableRef.current) {
+      scrollListenerDisposableRef.current.dispose();
+      scrollListenerDisposableRef.current = null;
     }
 
-    return cont.restartCount > 0;
-  }
-
-  // Handler for reconnecting to logs stream
-  function handleReconnect() {
-    if (pods.length && selectedContainer) {
-      setShowReconnectButton(false);
-      setLogs({ logs: [], lastLineShown: -1 });
-    }
-  }
-
-  // Function to process and display all logs
-  const processAllLogs = React.useCallback(() => {
-    const allLogs: string[] = [];
-    Object.entries(allPodLogs).forEach(([podName, podLogs]) => {
-      podLogs.forEach(log => {
-        allLogs.push(`[${podName}] ${log}`);
-      });
-    });
-
-    // Sort logs by timestamp
-    allLogs.sort((a, b) => {
-      const timestampA = a.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)?.[0] || '';
-      const timestampB = b.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)?.[0] || '';
-      return timestampA.localeCompare(timestampB);
-    });
-
-    if (xtermRef.current) {
-      xtermRef.current.clear();
-      xtermRef.current.write(allLogs.join('').replaceAll('\n', '\r\n'));
+    if (
+      !showLogsDialog ||
+      !selectedContainer ||
+      !xtermRef.current ||
+      currentPodsForSelection.length === 0
+    ) {
+      if (xtermRef.current && !showLogsDialog) xtermRef.current.clear();
+      return;
     }
 
-    setLogs({
-      logs: allLogs,
-      lastLineShown: allLogs.length - 1,
-    });
-  }, [allPodLogs]);
+    const xterm = xtermRef.current;
+    streamGenerationRef.current += 1;
+    const currentStreamGeneration = streamGenerationRef.current;
 
-  // Function to fetch and aggregate logs from all pods
-  function fetchAllPodsLogs(pods: Pod[], container: string): () => void {
-    clearLogs();
-    setAllPodLogs({});
+    clearTerminalAndLogs();
+    setShowReconnectButton(false);
+    userScrolledUpRef.current = false;
 
-    const cleanups: Array<() => void> = [];
+    if (follow) {
+      xterm.write(t('translation|Attempting to follow logs...') + '\r\n');
+      setTimeout(() => {
+        if (
+          xtermRef.current &&
+          currentStreamGeneration === streamGenerationRef.current &&
+          !userScrolledUpRef.current
+        ) {
+          xtermRef.current.scrollToBottom();
+        }
+      }, 50);
+    } else {
+      xterm.write(t('translation|Fetching logs...') + '\r\n');
+      // "Paused" message will be added after logs are fetched if any, or by a fallback timeout
+    }
 
-    pods.forEach(pod => {
-      const cleanup = pod.getLogs(
-        container,
-        (newLogs: string[]) => {
-          const podName = pod.getName();
-          setAllPodLogs(current => {
-            const updated = {
-              ...current,
-              [podName]: newLogs,
-            };
-            return updated;
-          });
+    const newCleanups: Array<() => void> = [];
+    let initialLogsFetchedForNonFollow = false;
+
+    currentPodsForSelection.forEach(pod => {
+      const stopStreamFn = pod.getLogs(
+        selectedContainer,
+        (newLinesChunk: string[]) => {
+          if (currentStreamGeneration !== streamGenerationRef.current) return;
+          if (!xtermRef.current) return;
+
+          const prefix = selectedPodName === 'all' && pods.length > 1 ? `[${pod.getName()}] ` : '';
+          const textToWrite = newLinesChunk
+            .map(line => prefix + (line.endsWith('\n') ? line : line + '\n'))
+            .join('')
+            .replaceAll('\n', '\r\n');
+          xtermRef.current.write(textToWrite);
+          setDisplayedLogLines(prev => [...prev, ...newLinesChunk.map(l => prefix + l)]);
+
+          if (follow && !userScrolledUpRef.current && xtermRef.current) {
+            setTimeout(() => {
+              if (
+                xtermRef.current &&
+                currentStreamGeneration === streamGenerationRef.current &&
+                !userScrolledUpRef.current
+              ) {
+                xtermRef.current.scrollToBottom();
+              }
+            }, 0);
+          } else if (!follow && xtermRef.current && !initialLogsFetchedForNonFollow) {
+            if (newLinesChunk.length > 0) {
+              xtermRef.current.write(
+                '\r\n' +
+                  t(
+                    'translation|Logs are paused. Click the follow button to resume following them.'
+                  ) +
+                  '\r\n'
+              );
+              initialLogsFetchedForNonFollow = true;
+            }
+            setTimeout(() => {
+              // Scroll after writing static logs + paused message
+              if (xtermRef.current && currentStreamGeneration === streamGenerationRef.current) {
+                xtermRef.current.scrollToBottom();
+              }
+            }, 50);
+          }
         },
         {
-          tailLines: lines,
+          tailLines: lines > 0 ? lines : undefined,
           showPrevious,
           showTimestamps,
           follow,
           onReconnectStop: () => {
+            if (currentStreamGeneration !== streamGenerationRef.current) return;
+            if (!xtermRef.current) return;
             setShowReconnectButton(true);
           },
         }
       );
-      cleanups.push(cleanup);
+      if (stopStreamFn) newCleanups.push(stopStreamFn);
     });
+    activeStreamCleanupsRef.current = newCleanups;
 
-    return () => cleanups.forEach(cleanup => cleanup());
-  }
-
-  // Effect for fetching and updating logs
-  React.useEffect(() => {
-    let cleanup: (() => void) | null = null;
-    let isSubscribed = true;
-
-    if (showLogs && selectedContainer) {
-      clearLogs();
-      setAllPodLogs({}); // Clear aggregated logs when switching pods
-
-      // Handle paused logs state
-      if (!follow && logs.logs.length > 0) {
-        xtermRef.current?.write(
-          '\n\n' +
-            t('translation|Logs are paused. Click the follow button to resume following them.') +
-            '\r\n'
-        );
-        return;
-      }
-
-      if (selectedPodIndex === 'all') {
-        cleanup = fetchAllPodsLogs(pods, selectedContainer);
-      } else {
-        const pod = pods[selectedPodIndex as number];
-        if (pod) {
-          let lastLogLength = 0;
-          cleanup = pod.getLogs(
-            selectedContainer,
-            (newLogs: string[]) => {
-              if (!isSubscribed) return;
-
-              setLogs(current => {
-                const terminalRef = xtermRef.current;
-                if (!terminalRef) return current;
-
-                // Only process new logs in chunks for better performance
-                if (newLogs.length > lastLogLength) {
-                  const CHUNK_SIZE = 1000; // Process 1000 lines at a time
-                  const startIdx = lastLogLength;
-                  const endIdx = Math.min(startIdx + CHUNK_SIZE, newLogs.length);
-
-                  // Process only the new chunk of logs
-                  const newLogContent = newLogs
-                    .slice(startIdx, endIdx)
-                    .join('')
-                    .replaceAll('\n', '\r\n');
-
-                  terminalRef.write(newLogContent);
-                  lastLogLength = endIdx;
-
-                  // If there are more logs to process, schedule them for the next frame
-                  if (endIdx < newLogs.length) {
-                    requestAnimationFrame(() => {
-                      setLogs(current => ({
-                        ...current,
-                        logs: newLogs,
-                        lastLineShown: endIdx - 1,
-                      }));
-                    });
-                    return current;
-                  }
-                }
-
-                return {
-                  logs: newLogs,
-                  lastLineShown: newLogs.length - 1,
-                };
-              });
-            },
-            {
-              tailLines: lines,
-              showPrevious,
-              showTimestamps,
-              follow,
-              onReconnectStop: () => {
-                if (isSubscribed) {
-                  setShowReconnectButton(true);
-                }
-              },
-            }
+    if (!follow) {
+      setTimeout(() => {
+        if (
+          xtermRef.current &&
+          currentStreamGeneration === streamGenerationRef.current &&
+          !initialLogsFetchedForNonFollow
+        ) {
+          xtermRef.current.write(
+            '\r\n' +
+              t('translation|Logs are paused. Click the follow button to resume following them.') +
+              '\r\n'
           );
+          xtermRef.current.scrollToBottom();
         }
-      }
+      }, 200);
+    }
+
+    if (follow && xterm) {
+      scrollListenerDisposableRef.current = xterm.onScroll(() => {
+        if (!xtermRef.current || currentStreamGeneration !== streamGenerationRef.current) return;
+        const buffer = xtermRef.current.buffer.active;
+        const isPhysicallyAtBottom = buffer.viewportY + xtermRef.current.rows >= buffer.length;
+        if (isPhysicallyAtBottom) {
+          if (userScrolledUpRef.current) {
+            userScrolledUpRef.current = false;
+            setTimeout(() => {
+              if (
+                xtermRef.current &&
+                currentStreamGeneration === streamGenerationRef.current &&
+                !userScrolledUpRef.current
+              ) {
+                xtermRef.current.scrollToBottom();
+              }
+            }, 0);
+          }
+        } else {
+          if (!userScrolledUpRef.current) {
+            userScrolledUpRef.current = true;
+          }
+        }
+      });
     }
 
     return () => {
-      isSubscribed = false;
-      if (cleanup) {
-        cleanup();
+      activeStreamCleanupsRef.current.forEach(cleanup => cleanup());
+      activeStreamCleanupsRef.current = [];
+      if (scrollListenerDisposableRef.current) {
+        scrollListenerDisposableRef.current.dispose();
+        scrollListenerDisposableRef.current = null;
       }
     };
   }, [
-    selectedPodIndex,
+    showLogsDialog,
+    selectedPodName,
     selectedContainer,
-    showLogs,
-    lines,
-    showTimestamps,
     follow,
-    clearLogs,
-    t,
+    lines,
+    showPrevious,
+    showTimestamps,
     pods,
+    clearTerminalAndLogs,
+    t,
+    xtermRef, // xtermRef (object) as dependency to re-run if LogViewer sets .current
   ]);
 
-  // Effect to process logs when allPodLogs changes - only for "All Pods" mode
-  React.useEffect(() => {
-    if (selectedPodIndex === 'all' && showLogs && Object.keys(allPodLogs).length > 0) {
-      processAllLogs();
+  function handlePodSelectionChange(event: SelectChangeEvent<string | 'all'>) {
+    const newPodName = event.target.value as string | 'all';
+    setSelectedPodName(newPodName);
+    userScrolledUpRef.current = false;
+    const podToConsiderForContainer =
+      newPodName === 'all'
+        ? pods.length > 0
+          ? pods[0]
+          : null
+        : pods.find(p => p.getName() === newPodName);
+    if (podToConsiderForContainer) {
+      const currentContainerExists = podToConsiderForContainer.spec.containers.some(
+        c => c.name === selectedContainer
+      );
+      if (!currentContainerExists && podToConsiderForContainer.spec.containers.length > 0) {
+        setSelectedContainer(podToConsiderForContainer.spec.containers[0].name);
+      } else if (!currentContainerExists) {
+        setSelectedContainer('');
+      }
+    } else if (pods.length > 0 && pods[0].spec.containers.length > 0) {
+      // Fallback if selected pod disappears
+      setSelectedContainer(pods[0].spec.containers[0].name);
+    } else {
+      setSelectedContainer('');
     }
-  }, [allPodLogs, selectedPodIndex, showLogs, processAllLogs]);
+  }
+
+  function handleContainerSelectionChange(event: SelectChangeEvent<string>) {
+    setSelectedContainer(event.target.value);
+    userScrolledUpRef.current = false;
+  }
+
+  function handleActualReconnect() {
+    setShowReconnectButton(false);
+    // The main useEffect will re-run due to its dependencies.
+  }
+
+  function handleFollowToggle() {
+    setFollow(f => {
+      const newFollowState = !f;
+      // Message for turning follow OFF is now handled by the main useEffect
+      // when it re-runs with follow: false.
+      userScrolledUpRef.current = false;
+      return newFollowState;
+    });
+  }
+
+  function hasAnyContainerRestarted(
+    podNameForCheck: string | undefined,
+    containerName: string
+  ): boolean {
+    if (!containerName) return false;
+    const podToCheck = podNameForCheck
+      ? pods.find(p => p.getName() === podNameForCheck)
+      : pods.length > 0
+      ? pods[0]
+      : null;
+    if (!podToCheck) return false;
+    const contStatus = podToCheck.status?.containerStatuses?.find(
+      (c: KubeContainerStatus) => c.name === containerName
+    );
+    return contStatus ? contStatus.restartCount > 0 : false;
+  }
 
   const topActions = [
     <Box
-      key="container-controls"
-      sx={{ display: 'flex', gap: 2, alignItems: 'center', width: '100%' }}
+      key="log-controls"
+      sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', width: '100%' }}
     >
-      {/* Pod selection dropdown */}
-      <FormControl sx={{ minWidth: 200 }}>
-        <InputLabel>{t('translation|Select Pod')}</InputLabel>
+      <FormControl sx={{ minWidth: 200, flexGrow: 1 }}>
+        <InputLabel id="pod-select-label">{t('translation|Select Pod')}</InputLabel>
         <Select
-          value={selectedPodIndex}
-          onChange={event => {
-            setSelectedPodIndex(event.target.value as number | 'all');
-            clearLogs();
-          }}
+          labelId="pod-select-label"
+          value={selectedPodName}
+          onChange={handlePodSelectionChange}
           label={t('translation|Select Pod')}
         >
-          <MenuItem value="all">{t('translation|All Pods')}</MenuItem>
-          {pods.map((pod, index) => (
-            <MenuItem key={pod.getName()} value={index}>
+          <MenuItem value="all">
+            {t('translation|All Pods')} ({pods.length})
+          </MenuItem>
+          {pods.map(pod => (
+            <MenuItem key={pod.getName()} value={pod.getName()}>
               {pod.getName()}
             </MenuItem>
           ))}
         </Select>
       </FormControl>
-
-      {/* Container selection dropdown */}
-      <FormControl sx={{ minWidth: 200 }}>
-        <InputLabel>{t('translation|Container')}</InputLabel>
+      <FormControl sx={{ minWidth: 200, flexGrow: 1 }}>
+        <InputLabel id="container-select-label">{t('translation|Container')}</InputLabel>
         <Select
-          value={selectedContainer}
-          onChange={event => {
-            setSelectedContainer(event.target.value);
-            clearLogs();
-          }}
+          labelId="container-select-label"
+          value={containersForSelection.includes(selectedContainer) ? selectedContainer : ''}
+          onChange={handleContainerSelectionChange}
           label={t('translation|Container')}
+          displayEmpty
+          disabled={containersForSelection.length === 0}
         >
-          {containers.map(container => (
-            <MenuItem key={container} value={container}>
-              {container}
-              {hasContainerRestarted(
-                pods[selectedPodIndex === 'all' ? 0 : selectedPodIndex]?.getName(),
-                container
-              ) && ` (${t('translation|Restarted')})`}
+          {containersForSelection.length === 0 && (
+            <MenuItem value="" disabled>
+              {t('translation|No containers')}
+            </MenuItem>
+          )}
+          {containersForSelection.map(cName => (
+            <MenuItem key={cName} value={cName}>
+              {' '}
+              {cName}{' '}
+              {hasAnyContainerRestarted(
+                selectedPodName === 'all' ? pods[0]?.getName() : selectedPodName,
+                cName
+              ) && ` (${t('translation|Restarted')})`}{' '}
             </MenuItem>
           ))}
         </Select>
       </FormControl>
-
-      {/* Lines selector */}
       <FormControl sx={{ minWidth: 120 }}>
-        <InputLabel>Lines</InputLabel>
-        <Select value={lines} onChange={handleLinesChange}>
+        <InputLabel id="lines-select-label">{t('translation|Lines')}</InputLabel>
+        <Select
+          labelId="lines-select-label"
+          value={lines}
+          onChange={e => setLines(e.target.value as number)}
+        >
           {[100, 1000, 2500].map(i => (
             <MenuItem key={i} value={i}>
               {i}
             </MenuItem>
           ))}
-          <MenuItem value={-1}>All</MenuItem>
+          <MenuItem value={-1}>{t('translation|All')}</MenuItem>
         </Select>
       </FormControl>
-
-      {/* Show previous logs switch */}
       <LightTooltip
         title={
-          hasContainerRestarted(
-            selectedPodIndex === 'all'
-              ? pods[0]?.getName()
-              : pods[selectedPodIndex as number]?.getName(),
+          hasAnyContainerRestarted(
+            selectedPodName === 'all' ? pods[0]?.getName() : selectedPodName,
             selectedContainer
           )
             ? t('translation|Show logs for previous instances of this container.')
@@ -459,29 +501,32 @@ export function LogsButton({ item }: LogsButtonProps) {
               )
         }
       >
-        <PaddedFormControlLabel
-          label={t('translation|Show previous')}
-          disabled={
-            !hasContainerRestarted(
-              selectedPodIndex === 'all'
-                ? pods[0]?.getName()
-                : pods[selectedPodIndex as number]?.getName(),
-              selectedContainer
-            )
-          }
-          control={<Switch checked={showPrevious} onChange={handlePreviousChange} />}
-        />
+        <span>
+          <PaddedFormControlLabel
+            label={t('translation|Show previous')}
+            disabled={
+              !selectedContainer ||
+              !hasAnyContainerRestarted(
+                selectedPodName === 'all' ? pods[0]?.getName() : selectedPodName,
+                selectedContainer
+              )
+            }
+            control={<Switch checked={showPrevious} onChange={() => setShowPrevious(p => !p)} />}
+          />
+        </span>
       </LightTooltip>
-
-      {/* Timestamps switch */}
-      <FormControlLabel
-        control={<Switch checked={showTimestamps} onChange={handleTimestampsChange} size="small" />}
+      <PaddedFormControlLabel
+        control={
+          <Switch
+            checked={showTimestamps}
+            onChange={() => setShowTimestamps(ts => !ts)}
+            size="small"
+          />
+        }
         label={t('translation|Timestamps')}
       />
-
-      {/* Follow logs switch */}
-      <FormControlLabel
-        control={<Switch checked={follow} onChange={handleFollowChange} size="small" />}
+      <PaddedFormControlLabel
+        control={<Switch checked={follow} onChange={handleFollowToggle} size="small" />}
         label={t('translation|Follow')}
       />
     </Box>,
@@ -489,28 +534,26 @@ export function LogsButton({ item }: LogsButtonProps) {
 
   return (
     <>
-      {/* Show logs button for supported workload types */}
       {(item instanceof Deployment || item instanceof ReplicaSet || item instanceof DaemonSet) && (
         <ActionButton
           icon="mdi:file-document-box-outline"
           onClick={handleClick}
           description={t('translation|Show logs')}
+          iconButtonProps={{ disabled: !item }}
         />
       )}
-
-      {/* Logs viewer dialog */}
-      {showLogs && (
+      {showLogsDialog && (
         <LogViewer
-          title={item?.getName() || ''}
-          downloadName={`${item?.getName()}_${
-            selectedPodIndex === 'all' ? 'all_pods' : pods[selectedPodIndex as number]?.getName()
-          }`}
-          open={showLogs}
-          onClose={handleClose}
-          logs={logs.logs}
+          title={`${item?.getName() || 'Workload'} Logs`}
+          downloadName={`${item?.getName() || 'workload'}_${
+            selectedPodName === 'all' ? 'all_pods' : selectedPodName
+          }_${selectedContainer || 'logs'}`}
+          open={showLogsDialog}
+          onClose={handleCloseDialog}
+          logs={displayedLogLines}
           topActions={topActions}
           xtermRef={xtermRef}
-          handleReconnect={handleReconnect}
+          handleReconnect={handleActualReconnect}
           showReconnectButton={showReconnectButton}
         />
       )}
