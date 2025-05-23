@@ -142,17 +142,18 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
         >
           <ListItemText>{t('translation|Settings')}</ListItemText>
         </MenuItem>
-        {helpers.isElectron() && cluster.meta_data?.source === 'dynamic_cluster' && (
-          <MenuItem
-            onClick={() => {
-              setOpenConfirmDialog('deleteDynamic');
-              handleMenuClose();
-            }}
-          >
-            <ListItemText>{t('translation|Delete')}</ListItemText>
-          </MenuItem>
+        {helpers.isElectron() && (
+          <Tooltip title={t('translation|Remove cluster context from ~/.kube/config')}>
+            <MenuItem
+              onClick={() => {
+                setOpenConfirmDialog('removeCluster');
+                handleMenuClose();
+              }}
+            >
+              <ListItemText>{t('translation|Remove')}</ListItemText>
+            </MenuItem>
+          </Tooltip>
         )}
-
         {menuItems.map((Item, index) => {
           return (
             <Item
@@ -165,15 +166,15 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
         })}
       </Menu>
       <ConfirmDialog
-        open={openConfirmDialog === 'deleteDynamic'}
+        open={openConfirmDialog === 'removeCluster'}
         handleClose={() => setOpenConfirmDialog('')}
         onConfirm={() => {
           setOpenConfirmDialog('');
           removeCluster(cluster);
         }}
-        title={t('translation|Delete Cluster')}
+        title={t('translation|Remove Cluster')}
         description={t(
-          'translation|Are you sure you want to remove the cluster "{{ clusterName }}"?',
+          'translation|Are you sure you want to remove the cluster context "{{ clusterName }}" from ~/.kube/config? This will not delete the actual cluster.',
           {
             clusterName: cluster.name,
           }
