@@ -208,15 +208,3 @@ WithSelectedNamespaces.args = {
   selectedNamespaces: ['default', 'kube-system'],
 };
 WithSelectedNamespaces.storyName = 'With Namespaces Pre-selected';
-
-export const WithPreRenderFilterActions = Template.bind({});
-WithPreRenderFilterActions.args = {
-  title: 'Resources with Custom Filter',
-  headerStyle: 'main',
-  preRenderFromFilterActions: [
-    <Button key="custom-filter" variant="outlined" size="small">
-      My Custom Filter
-    </Button>,
-  ],
-};
-WithPreRenderFilterActions.storyName = 'With preRenderFromFilterActions';
