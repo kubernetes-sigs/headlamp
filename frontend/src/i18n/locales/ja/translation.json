@@ -14,6 +14,8 @@
   "Proceed to select your preferred method for cluster creation and addition": "希望するクラスターの作成や追加の方法を選択してください",
   "Load from KubeConfig": "KubeConfig から読み込む",
   "Providers": "プロバイダー",
+  "Cluster \"{{ clusterName }}\" removed successfully": "",
+  "Failed to remove cluster \"{{ clusterName }}\": {{ error }}": "",
   "Actions": "アクション",
   "View": "表示",
   "Settings": "設定",

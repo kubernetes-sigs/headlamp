@@ -14,6 +14,8 @@
   "Proceed to select your preferred method for cluster creation and addition": "Proceed to select your preferred method for cluster creation and addition",
   "Load from KubeConfig": "Load from KubeConfig",
   "Providers": "Providers",
+  "Cluster \"{{ clusterName }}\" removed successfully": "Cluster \"{{ clusterName }}\" removed successfully",
+  "Failed to remove cluster \"{{ clusterName }}\": {{ error }}": "Failed to remove cluster \"{{ clusterName }}\": {{ error }}",
   "Actions": "Actions",
   "View": "View",
   "Settings": "Settings",

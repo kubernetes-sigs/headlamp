@@ -14,6 +14,8 @@
   "Proceed to select your preferred method for cluster creation and addition": "",
   "Load from KubeConfig": "從 KubeConfig 讀取",
   "Providers": "",
+  "Cluster \"{{ clusterName }}\" removed successfully": "",
+  "Failed to remove cluster \"{{ clusterName }}\": {{ error }}": "",
   "Actions": "操作",
   "View": "檢視",
   "Settings": "設定",

@@ -14,6 +14,8 @@
   "Proceed to select your preferred method for cluster creation and addition": "클러스터 생성 및 추가 방법을 선택하세요.",
   "Load from KubeConfig": "KubeConfig에서 불러오기",
   "Providers": "제공자",
+  "Cluster \"{{ clusterName }}\" removed successfully": "",
+  "Failed to remove cluster \"{{ clusterName }}\": {{ error }}": "",
   "Actions": "작업",
   "View": "보기",
   "Settings": "설정",

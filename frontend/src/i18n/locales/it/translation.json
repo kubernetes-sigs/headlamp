@@ -14,6 +14,8 @@
   "Proceed to select your preferred method for cluster creation and addition": "",
   "Load from KubeConfig": "Carica da KubeConfig",
   "Providers": "",
+  "Cluster \"{{ clusterName }}\" removed successfully": "",
+  "Failed to remove cluster \"{{ clusterName }}\": {{ error }}": "",
   "Actions": "Azioni",
   "View": "Visualizza",
   "Settings": "Impostazioni",

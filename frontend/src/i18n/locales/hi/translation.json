@@ -14,6 +14,8 @@
   "Proceed to select your preferred method for cluster creation and addition": "क्लस्टर बनाने और जोड़ने के लिए अपनी पसंदीदा विधि चुनें",
   "Load from KubeConfig": "KubeConfig से लोड करें",
   "Providers": "प्रदाता",
+  "Cluster \"{{ clusterName }}\" removed successfully": "",
+  "Failed to remove cluster \"{{ clusterName }}\": {{ error }}": "",
   "Actions": "क्रियाएँ",
   "View": "देखें",
   "Settings": "सेटिंग्स",
