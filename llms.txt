@@ -1,0 +1,32 @@
+# Headlamp
+
+> Headlamp is a Kubernetes web UI that provides a user-friendly interface for interacting with Kubernetes clusters. It is extensible via plugins and is part of the Kubernetes SIG UI family.
+
+This file provides context for AI assistants to help with Headlamp core development. See `plugins/llms.txt` for plugin-specific context.
+
+Key information and guidelines can be found in the main documentation files. The core logic is split between the frontend (React) and backend (Go).
+
+## Documentation
+
+- [README](README.md): General overview, features, and getting started.
+- [CONTRIBUTING](CONTRIBUTING.md): Guidelines for contributing to the project.
+- [Development Guide](docs/development/index.md): Instructions for setting up the development environment and building Headlamp.
+
+## Core Code
+
+- [Frontend Source](frontend/src/): Main React frontend codebase.
+- [Backend Source](backend/): Main Go backend codebase.
+- [App Source](app/): Main application code using frontend and backend components.
+
+## Configuration & Build
+
+- [Makefile](Makefile): Contains build, test, and deployment commands.
+- [Dockerfile](Dockerfile): Defines the main application container.
+- [Dockerfile.plugins](Dockerfile.plugins): Defines the container build process including plugins.
+
+## Optional
+
+- [Security Policy](SECURITY.md): Information on reporting security vulnerabilities.
+- [Code of Conduct](code-of-conduct.md): Community guidelines.
+- [Adopters](ADOPTERS.md): List of organizations using Headlamp.
+- [Maintainers](MAINTAINERS.md): List of project maintainers. 
