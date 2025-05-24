@@ -1,0 +1,23 @@
+<body>
+  <div>
+     
+    <div
+      class="MuiBox-root css-ur1vvw"
+    >
+      <div
+        class="MuiBox-root css-ur1vvw"
+      >
+        <div
+          style="padding: 5px; border: 1px solid red; background-color: grey; color: white;"
+          sx="[object Object]"
+        >
+          My Plugin 
+          large
+           Logo (
+          light
+          )
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
