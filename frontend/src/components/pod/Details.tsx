@@ -162,6 +162,21 @@ export function PodLogViewer(props: PodLogViewerProps) {
     return cont.restartCount > 0;
   }
 
+  function hasContainerCrashed() {
+    const cont = item?.status?.containerStatuses?.find(
+      (c: KubeContainerStatus) => c.name === container
+    );
+    if (!cont) {
+      return false;
+    }
+
+    return !!cont.lastState?.terminated;
+  }
+
+  function canShowPreviousLogs() {
+    return hasContainerRestarted() || hasContainerCrashed();
+  }
+
   function handleTimestampsChange() {
     setShowTimestamps(timestamps => !timestamps);
   }
@@ -275,16 +290,16 @@ export function PodLogViewer(props: PodLogViewerProps) {
         </FormControl>,
         <LightTooltip
           title={
-            hasContainerRestarted()
+            canShowPreviousLogs()
               ? t('translation|Show logs for previous instances of this container.')
               : t(
-                  'translation|You can only select this option for containers that have been restarted.'
+                  'translation|You can only select this option for containers that have crashed or been restarted.'
                 )
           }
         >
           <PaddedFormControlLabel
             label={t('translation|Show previous')}
-            disabled={!hasContainerRestarted()}
+            disabled={!canShowPreviousLogs()}
             control={
               <Switch
                 checked={showPrevious}

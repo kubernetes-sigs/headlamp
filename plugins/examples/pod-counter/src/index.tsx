@@ -17,6 +17,7 @@
 import {
   AppBarActionsProcessorArgs,
   DefaultAppBarAction,
+  Headlamp,
   K8s,
   registerAppBarAction,
   registerPluginSettings,
@@ -29,7 +30,12 @@ import Message from './Message';
 function PodCounter() {
   const [pods, error] = K8s.ResourceClasses.Pod.useList();
   const msg = pods === null ? 'Loading…' : pods.length.toString();
-  return <Message msg={msg} error={error} />;
+  
+  // Access environment variables through the Headlamp class
+  const env = Headlamp.getEnv();
+  const version = env.REACT_APP_HEADLAMP_VERSION || 'unknown';
+  
+  return <Message msg={`${msg} (v${version})`} error={error} />;
 }
 
 registerAppBarAction(PodCounter);

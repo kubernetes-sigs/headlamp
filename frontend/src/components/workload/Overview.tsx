@@ -96,6 +96,7 @@ export default function Overview() {
     return joint;
   }, [workloadsData]);
 
+  // Ensure the order here matches the order in workloadsData for consistency
   const workloads: WorkloadClass[] = [
     Pod,
     Deployment,
