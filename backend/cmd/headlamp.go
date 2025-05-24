@@ -963,6 +963,7 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 			w.Header().Set("X-Authorization", newToken.AccessToken)
 		}
 
+		// Always call the next handler in the chain, even if token refresh failed
 		next.ServeHTTP(w, r)
 	})
 }
