@@ -1,0 +1,25 @@
+<body>
+  <div>
+     
+    <div
+      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <h4
+            class="MuiTypography-root MuiTypography-h4 MuiTypography-noWrap css-15onnfg-MuiTypography-root"
+          >
+            Label Style Title
+          </h4>
+          <div
+            class="MuiBox-root css-ldp2l3"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
