@@ -81,10 +81,12 @@ export default function CustomResourceDefinitionList() {
         },
         {
           label: t('translation|Group'),
+          filterVariant: 'multi-select',
           getValue: crd => crd.spec.group,
         },
         {
           label: t('Scope'),
+          filterVariant: 'multi-select',
           getValue: crd => crd.spec.scope,
         },
         {
