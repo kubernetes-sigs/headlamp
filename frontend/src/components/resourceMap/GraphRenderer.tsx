@@ -31,7 +31,7 @@ import {
 } from '@xyflow/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader } from '../common';
+import Loader from '../common/Loader';
 import { GraphEdgeComponent } from './edges/GraphEdgeComponent';
 import { maxZoom, minZoom } from './graphConstants';
 import { GraphControls } from './GraphControls';

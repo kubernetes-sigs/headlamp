@@ -91,6 +91,7 @@ config:
       name: ""
   # -- directory to look for plugins
   pluginsDir: "/headlamp/plugins"
+  watchPlugins: false
   # Extra arguments that can be given to the container. See charts/headlamp/README.md for more information.
   extraArgs: []
 
@@ -229,6 +230,27 @@ tolerations: []
 
 # -- Affinity settings for pod assignment
 affinity: {}
+
+# Plugin Manager Sidecar Container Configuration
+pluginsManager:
+  # -- Enable plugin manager
+  enabled: false
+  # -- Plugin configuration file name
+  configFile: "plugin.yml"
+  # -- Plugin configuration content in YAML format. This is required if plugins.enabled is true.
+  configContent: ""
+  # -- Base node image to use
+  baseImage: node:lts-alpine
+  # -- Headlamp plugin package version to install
+  version: latest
+  # -- Specify resrouces
+  # resources:
+  #   requests:
+  #     cpu: "500m"
+  #     memory: "2048Mi"
+  #   limits:
+  #     cpu: "1000m"
+  #     memory: "4096Mi"
 
 # -- Additional Kubernetes manifests to be deployed. Include the manifest as nested YAML.
 extraManifests: []

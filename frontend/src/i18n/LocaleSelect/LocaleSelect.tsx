@@ -24,8 +24,11 @@ import { useTranslation } from 'react-i18next';
 import { supportedLanguages } from '../config';
 
 export interface LocaleSelectProps {
+  /** Whether to show the title label above the select dropdown. */
   showTitle?: boolean;
+  /** Whether to display full names of languages instead of their language codes. */
   showFullNames?: boolean;
+  /** Additional props to pass to the underlying Material-UI `FormControl` component. */
   formControlProps?: FormControlProps;
 }
 
@@ -36,6 +39,11 @@ export default function LocaleSelect(props: LocaleSelectProps) {
   const { formControlProps, showFullNames } = props;
   const { t, i18n } = useTranslation();
   const theme = useTheme();
+  /**
+   * Returns a memoized mapping of language codes to their full names if showFullNames is true.
+   *
+   * @returns An object where keys are language codes and values are full names, or an empty object if showFullNames is false.
+   */
   const fullNames = React.useMemo(() => {
     if (!showFullNames) {
       return {};
@@ -44,6 +52,11 @@ export default function LocaleSelect(props: LocaleSelectProps) {
     return getFullNames();
   }, [showFullNames]);
 
+  /**
+   * Handles the change in language selection.
+   *
+   * @param event - The event triggered by selecting a new language from the dropdown.
+   */
   const changeLng = (event: SelectChangeEvent<string>) => {
     const lng = event.target.value as string;
 
@@ -51,6 +64,11 @@ export default function LocaleSelect(props: LocaleSelectProps) {
     theme.direction = i18n.dir();
   };
 
+  /**
+   * Retrieves full language names for supported languages from the i18next configuration.
+   *
+   * @returns An object mapping language codes to their full names.
+   */
   function getFullNames() {
     if (!i18n?.options?.supportedLngs) {
       return {};

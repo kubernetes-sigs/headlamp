@@ -25,7 +25,7 @@ Headlamp was created to blend the traditional feature set of other web UIs/dashb
 - Vendor-independent / generic Kubernetes UI
 - Works in-cluster, or locally as a desktop app
 - Multi-cluster
-- Extensible through plugins
+- Extensible through [plugins](https://github.com/headlamp-k8s/plugins)
 - UI controls reflecting user roles (no deletion/update if not allowed)
 - Clean & modern UI
 - Cancellable creation/update/deletion operations
@@ -77,8 +77,15 @@ tested, or comment if there are any regressions in the existing ones.
 
 ## Extensions / Plugins
 
+Please see [headlamp plugins on Artifact Hub](https://artifacthub.io/packages/search?kind=21&sort=relevance&page=1) for a list of plugins published.
+
+See the [plugins repo](https://github.com/headlamp-k8s/plugins) for some official plugins.
+
+### Plugin development
+
 If you are interested in tweaking Headlamp to fit your use-cases, you can check out
 our [plugin development guide](https://headlamp.dev/docs/latest/development/plugins/).
+
 
 ## Get involved
 

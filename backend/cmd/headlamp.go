@@ -1298,14 +1298,25 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 			continue
 		}
 
+		kubeconfigPath := context.KubeConfigPath
+
+		source := context.SourceStr()
+
+		clusterID := context.ClusterID
+
 		clusters = append(clusters, Cluster{
 			Name:     context.Name,
 			Server:   context.Cluster.Server,
 			AuthType: context.AuthType(),
 			Metadata: map[string]interface{}{
-				"source":     context.SourceStr(),
+				"source":     source,
 				"namespace":  context.KubeContext.Namespace,
 				"extensions": context.KubeContext.Extensions,
+				"origin": map[string]interface{}{
+					"kubeconfig": kubeconfigPath,
+				},
+				"originalName": context.Name,
+				"clusterID":    clusterID,
 			},
 		})
 	}

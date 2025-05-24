@@ -39,7 +39,7 @@ const initialState: DrawerModeState = {
   selectedResource: undefined,
 };
 
-const drawerModeSlice = createSlice({
+export const drawerModeSlice = createSlice({
   name: 'drawerMode',
   initialState,
   reducers: {

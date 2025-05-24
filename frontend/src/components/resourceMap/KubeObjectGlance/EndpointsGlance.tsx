@@ -17,7 +17,7 @@
 import { Box } from '@mui/system';
 import { useTranslation } from 'react-i18next';
 import Endpoints from '../../../lib/k8s/endpoints';
-import { StatusLabel } from '../../common';
+import { StatusLabel } from '../../common/Label';
 
 export function EndpointsGlance({ endpoints }: { endpoints: Endpoints }) {
   const { t } = useTranslation();

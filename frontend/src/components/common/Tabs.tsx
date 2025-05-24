@@ -22,28 +22,58 @@ import { SxProps } from '@mui/system';
 import React, { ReactNode } from 'react';
 import { useId } from '../../lib/util';
 
+/**
+ * Represents a single tab with a label and its corresponding content.
+ */
 export interface Tab {
+  /** The display label for the tab. */
   label: string;
+  /** The React component to render when the tab is active. */
   component: ReactNode;
 }
 
+/**
+ * Props for the `Tabs` component.
+ */
 export interface TabsProps {
+  /** Array of tabs to display, each containing a label and component. */
   tabs: Tab[];
+  /** Additional props to pass to the underlying Material-UI Tabs component. */
   tabProps?: {
     [propName: string]: any;
   };
+  /** The index of the initially active tab. Defaults to 0. Set to null or false to disable initial selection. */
   defaultIndex?: number | null | boolean;
+  /** Callback invoked when the active tab changes.
+   * @param tabIndex - The index of the newly selected tab.
+   */
   onTabChanged?: (tabIndex: number) => void;
+  /** Styling for the Tabs component using Material-UI's sx prop. */
   sx?: SxProps<Theme>;
+  /** ARIA label for accessibility, describing the purpose of the tab group. */
   ariaLabel: string;
 }
 
+/**
+ * A scrollable tab navigation component using Material UI,
+ * with support for default tab selection, custom styles,
+ * and dynamic content rendering.
+ *
+ * @param props - The properties to configure the Tabs component.
+ * @returns A tabbed interface with selectable content panels.
+ */
 export default function Tabs(props: TabsProps) {
   const { tabs, tabProps = {}, defaultIndex = 0, onTabChanged = null, ariaLabel } = props;
   const [tabIndex, setTabIndex] = React.useState<TabsProps['defaultIndex']>(
     defaultIndex && Math.min(defaultIndex as number, 0)
   );
 
+  /**
+   * Handles tab change events.
+   *
+   * @param event - The event triggered by selecting a new tab.
+   * @param newValue - The index of the newly selected tab.
+   */
   function handleTabChange(event: any, newValue: number) {
     setTabIndex(newValue);
 
@@ -114,13 +144,26 @@ export default function Tabs(props: TabsProps) {
   );
 }
 
+/**
+ * Props for a single tab panel.
+ */
 interface TabPanelProps extends TypographyProps {
+  /** The index of the currently active tab. */
   tabIndex: number;
+  /** The index of this tab panel. */
   index: number;
+  /** The unique ID for the tab panel, used for accessibility. */
   id: string;
+  /** The ID of the tab that controls this panel, used for accessibility. */
   labeledBy: string;
 }
 
+/**
+ * Renders a panel for the currently active tab.
+ *
+ * @param props - The properties of the tab panel.
+ * @returns A container showing the content if this panel is active.
+ */
 export function TabPanel(props: TabPanelProps) {
   const { children, tabIndex, index, id, labeledBy } = props;
 

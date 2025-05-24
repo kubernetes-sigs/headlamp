@@ -15,6 +15,7 @@
  */
 
 import { Icon } from '@iconify/react';
+import { Tooltip } from '@mui/material';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
@@ -137,6 +138,7 @@ export function PureNamespacesAutocomplete({
         const joiner = ', ';
         const joinerLength = joiner.length;
         let joinnedNamespaces = 1;
+        const remainingTags = tags.slice(1);
 
         tags.slice(1).forEach(tag => {
           if (namespacesToShow.length + tag.length + joinerLength <= maxNamespacesChars) {
@@ -153,7 +155,19 @@ export function PureNamespacesAutocomplete({
             {tags.length > joinnedNamespaces && (
               <>
                 <span>,&nbsp;</span>
-                <b>{`+${tags.length - joinnedNamespaces}`}</b>
+                <Tooltip
+                  title={
+                    <ul style={{ margin: 0, padding: 10, listStyle: 'none' }}>
+                      {remainingTags.map((tag, key) => (
+                        <li key={key}>{tag}</li>
+                      ))}
+                    </ul>
+                  }
+                  arrow
+                  placement="top"
+                >
+                  <b style={{ cursor: 'pointer' }}>{`+${tags.length - joinnedNamespaces}`}</b>
+                </Tooltip>
               </>
             )}
           </Typography>

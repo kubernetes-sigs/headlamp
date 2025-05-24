@@ -18,10 +18,11 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
 import { ResourceClasses } from '../../lib/k8s';
 import Endpoints, { KubeEndpoint } from '../../lib/k8s/endpoints';
-import { Link, SectionHeader } from '../common';
 import Empty from '../common/EmptyContent';
+import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
+import SectionHeader from '../common/SectionHeader';
 import SimpleTable from '../common/SimpleTable';
 
 export default function EndpointDetails(props: {

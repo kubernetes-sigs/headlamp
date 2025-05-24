@@ -120,7 +120,7 @@ function SidebarToggleButton() {
           dispatch(setWhetherSidebarOpen(!isOpen));
         }}
         icon={isOpen ? 'mdi:chevron-left-box-outline' : 'mdi:chevron-right-box-outline'}
-        description={t('translation|Collapse Sidebar')}
+        description={isOpen ? t('translation|Shrink sidebar') : t('translation|Expand sidebar')}
       />
     </Box>
   );

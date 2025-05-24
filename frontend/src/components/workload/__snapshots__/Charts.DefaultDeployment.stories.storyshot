@@ -1,0 +1,115 @@
+<body>
+  <div>
+    <div
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
+    >
+      <div
+        class="MuiBox-root css-qrw4x1"
+      >
+        <div
+          class="MuiBox-root css-1sl8dhm"
+        >
+          <div
+            class="MuiBox-root css-0"
+          >
+            <p
+              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+            />
+          </div>
+          <p
+            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
+          >
+            1 Ready / 1 Total
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-0"
+        >
+          <div
+            aria-busy="false"
+            aria-live="polite"
+            class="MuiBox-root css-2esbmj"
+          >
+            <div
+              class="recharts-wrapper"
+              style="position: relative; cursor: default; width: 112px; height: 112px; margin-left: auto; margin-right: auto;"
+            >
+              <svg
+                class="recharts-surface"
+                cx="70"
+                cy="70"
+                height="112"
+                style="width: 100%; height: 100%;"
+                viewBox="0 0 112 112"
+                width="112"
+              >
+                <title />
+                <desc />
+                <defs>
+                  <clippath
+                    id="recharts-id"
+                  >
+                    <rect
+                      height="102"
+                      width="102"
+                      x="5"
+                      y="5"
+                    />
+                  </clippath>
+                </defs>
+                <g
+                  class="recharts-layer recharts-pie"
+                  tabindex="0"
+                >
+                  <g
+                    class="recharts-layer recharts-pie-sector"
+                    tabindex="-1"
+                  >
+                    <path
+                      class="recharts-sector"
+                      cx="61"
+                      cy="61"
+                      d="M 61,16.199999999999996
+    A 44.800000000000004,44.800000000000004,0,
+    1,1,
+    60.99921809249515,16.20000000682343
+  L 60.999410078712856,27.200000005148027
+            A 33.800000000000004,33.800000000000004,0,
+            1,0,
+            61,27.199999999999996 Z"
+                      fill="#c62828"
+                      name="failed"
+                      role="img"
+                      stroke="#e0e0e0"
+                      tabindex="-1"
+                    />
+                  </g>
+                  <g
+                    class="recharts-layer recharts-pie-sector"
+                    tabindex="-1"
+                  />
+                  <text
+                    class="recharts-text recharts-label"
+                    fill="#808080"
+                    offset="5"
+                    style="font-size: 16.8px; fill: #000;"
+                    text-anchor="middle"
+                    x="61"
+                    y="61"
+                  >
+                    <tspan
+                      dy="0.355em"
+                      x="61"
+                    >
+                      0 %
+                    </tspan>
+                  </text>
+                </g>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

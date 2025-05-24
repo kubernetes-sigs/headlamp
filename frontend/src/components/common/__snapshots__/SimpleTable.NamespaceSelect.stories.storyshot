@@ -57,7 +57,11 @@
                       <span>
                         , 
                       </span>
-                      <b>
+                      <b
+                        class=""
+                        data-mui-internal-clone-element="true"
+                        style="cursor: pointer;"
+                      >
                         +1
                       </b>
                     </p>

@@ -22,7 +22,7 @@ import { getPercentStr, getReadyReplicas, getTotalReplicas } from '../../lib/uti
 import { PercentageCircleProps } from '../common/Chart';
 import TileChart from '../common/TileChart';
 
-interface WorkloadCircleChartProps extends Omit<PercentageCircleProps, 'data'> {
+export interface WorkloadCircleChartProps extends Omit<PercentageCircleProps, 'data'> {
   workloadData: Workload[] | null;
   partialLabel: string;
   totalLabel: string;

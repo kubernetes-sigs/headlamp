@@ -39,9 +39,12 @@ import { useCluster, useClustersConf } from '../../../lib/k8s';
 import { deleteCluster, parseKubeConfig, renameCluster } from '../../../lib/k8s/apiProxy';
 import { setConfig, setStatelessConfig } from '../../../redux/configSlice';
 import { findKubeconfigByClusterName, updateStatelessClusterKubeconfig } from '../../../stateless/';
-import { Link, Loader, NameValueTable, SectionBox } from '../../common';
 import ConfirmButton from '../../common/ConfirmButton';
 import Empty from '../../common/EmptyContent';
+import Link from '../../common/Link';
+import Loader from '../../common/Loader';
+import NameValueTable from '../../common/NameValueTable';
+import SectionBox from '../../common/SectionBox';
 import NodeShellSettings from './NodeShellSettings';
 import { isValidNamespaceFormat } from './util';
 
@@ -325,6 +328,28 @@ export default function SettingsCluster() {
     );
   }
 
+  // Display the original name of the cluster if it was loaded from a kubeconfig file.
+  function ClusterName() {
+    const currentName = clusterInfo?.name;
+    const originalName = clusterInfo?.meta_data?.originalName;
+    const source = clusterInfo?.meta_data?.source;
+    // Note: display original name is currently only supported for non dynamic clusters from kubeconfig sources.
+    const displayOriginalName = source === 'kubeconfig' && originalName;
+
+    return (
+      <>
+        <Typography>{t('translation|Name')}</Typography>
+        {displayOriginalName && currentName !== displayOriginalName && (
+          <Typography variant="body2" color="textSecondary">
+            {t('translation|Original name: {{ originalName }}', {
+              originalName: originalName,
+            })}
+          </Typography>
+        )}
+      </>
+    );
+  }
+
   return (
     <>
       <SectionBox title={t('translation|Cluster Settings')} backLink>
@@ -342,7 +367,7 @@ export default function SettingsCluster() {
           <NameValueTable
             rows={[
               {
-                name: t('translation|Name'),
+                name: <ClusterName />,
                 value: (
                   <TextField
                     onChange={event => {

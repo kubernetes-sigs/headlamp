@@ -16,9 +16,10 @@
 
 import { useTranslation } from 'react-i18next';
 import PersistentVolume from '../../lib/k8s/persistentVolume';
-import { LightTooltip, Link } from '../common';
 import LabelListItem from '../common/LabelListItem';
+import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
+import LightTooltip from '../common/Tooltip/TooltipLight';
 import { makePVStatusLabel } from './VolumeDetails';
 
 export default function VolumeList() {
