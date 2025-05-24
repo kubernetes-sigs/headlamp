@@ -37,6 +37,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 )
@@ -46,7 +47,10 @@ const (
 	STOPPED = "Stopped"
 )
 
-const PodAvailabilityCheckTimer = 5 // seconds
+const (
+	PodAvailabilityCheckTimer   = 5 // seconds
+	PortForwardReadinessTimeout = 30 * time.Second
+)
 
 type portForwardRequest struct {
 	ID               string `json:"id"`
@@ -110,143 +114,335 @@ func getFreePort() (int, error) {
 }
 
 // StartPortForward handles the port forward request.
+//
+//nolint:funlen
 func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache[interface{}],
 	w http.ResponseWriter, r *http.Request,
 ) {
-	// parse the request body
-	p, err := parsePortForwardRequest(r)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "failed to process port forward request")
+	var p portForwardRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		logger.Log(logger.LevelError, nil, err, "decoding portforward payload")
+		http.Error(w, "failed to marshal port forward payload "+err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	if p.ID == "" {
+		p.ID = uuid.New().String()
+	}
+
+	reqToken := r.Header.Get("Authorization")
+	splitToken := strings.Split(reqToken, "Bearer ")
+
+	var token string
+	if reqToken != "" && len(splitToken) >= 2 {
+		token = splitToken[1]
+	}
+
+	if err := p.Validate(); err != nil {
+		logger.Log(logger.LevelError, nil, err, "validating portforward payload")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return
 	}
 
-	token := extractTokenFromRequestHeader(r)
-
-	// get the context for the cluster
-	clusterName := getClusterName(p.Cluster, r.Header.Get("X-HEADLAMP-USER-ID"))
-
-	kContext, err := kubeConfigStore.GetContext(clusterName)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "failed to get kubeconfig context")
-		http.Error(w, "failed to get kubeconfig context: "+err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	// start the port forward
-	err = startPortForward(kContext, cache, p, token)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "failed to start port forward")
-		http.Error(w, "failed to start port forward: "+err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	// return response
-	w.Header().Set("Content-Type", "application/json")
-
-	if err = json.NewEncoder(w).Encode(p); err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing json payload to response")
-		http.Error(w, "failed to write json payload: "+err.Error(), http.StatusInternalServerError)
-	}
-}
-
-// parsePortForwardRequest parses and validates the port forward request.
-func parsePortForwardRequest(r *http.Request) (portForwardRequest, error) {
-	var p portForwardRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		return p, fmt.Errorf("decoding payload: %w", err)
-	}
-
-	// if no ID is specified, generate a new one
-	if p.ID == "" {
-		p.ID = uuid.New().String()
-	}
-
-	if err := p.Validate(); err != nil {
-		return p, err
-	}
-
-	// if no port is specified find a available port
 	if p.Port == "" {
 		freePort, err := getFreePort()
 		if err != nil || freePort == 0 {
-			return p, fmt.Errorf("can't find any available port: %w", err)
+			logger.Log(logger.LevelError, nil, err, "getting free port")
+			http.Error(w, "can't find any available port "+err.Error(), http.StatusInternalServerError)
+
+			return
 		}
 
 		p.Port = strconv.Itoa(freePort)
 	}
 
-	return p, nil
-}
+	userID := r.Header.Get("X-HEADLAMP-USER-ID")
+	clusterName := p.Cluster
 
-// extractToken get the token from the request header.
-func extractTokenFromRequestHeader(r *http.Request) string {
-	reqToken := r.Header.Get("Authorization")
-	splitToken := strings.Split(reqToken, "Bearer ")
-
-	if reqToken != "" && len(splitToken) > 1 {
-		return splitToken[1]
-	}
-
-	return ""
-}
-
-// getClusterName gets the cluster name, appends the user ID if present.
-func getClusterName(cluster, userID string) string {
 	if userID != "" {
-		return cluster + userID
+		clusterName = p.Cluster + userID
 	}
 
-	return cluster
+	kContext, err := kubeConfigStore.GetContext(clusterName)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"cluster": p.Cluster},
+			err, "getting kubeconfig context")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	err = startPortForward(kContext, cache, p, token)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "starting portforward")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err = json.NewEncoder(w).Encode(p); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing json payload to response write")
+		http.Error(w, "failed to write json payload to response write "+err.Error(), http.StatusInternalServerError)
+
+		return
+	}
 }
 
-// startPortForward starts a port forward.
-//
-//nolint:funlen
-func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{}],
-	p portForwardRequest, token string,
-) error {
+// getKubeClientAndConfig prepares Kubernetes clientset and REST config.
+// It takes a kubeconfig context and an optional bearer token.
+// It returns the configured clientset, REST config, or an error if setup fails.
+func getKubeClientAndConfig(kContext *kubeconfig.Context, token string) (*kubernetes.Clientset, *rest.Config, error) {
 	clientset, err := kContext.ClientSetWithToken(token)
 	if err != nil {
-		return fmt.Errorf("failed to create portforward request: %v", err)
+		return nil, nil, fmt.Errorf("failed to create clientset: %w", err)
 	}
 
 	rConf, err := kContext.RESTConfig()
 	if err != nil {
-		return fmt.Errorf("failed to create portforward request: %v", err)
+		return nil, nil, fmt.Errorf("failed to get REST config: %w", err)
 	}
 
 	if token != "" {
 		rConf.BearerToken = token
 	}
 
+	return clientset, rConf, nil
+}
+
+// initPortForwarder sets up the SPDY dialer and creates a new port forwarder.
+// It requires a REST config, namespace, pod name, and the port mapping string (e.g., "8080:80").
+// It returns the port forwarder instance, stop/ready channels, output/error buffers, or an error.
+func initPortForwarder(rConf *rest.Config, namespace, podName, portMapping string) (
+	*portforward.PortForwarder, chan struct{}, chan struct{}, *bytes.Buffer, *bytes.Buffer, error,
+) {
 	roundTripper, upgrader, err := spdy.RoundTripperFor(rConf)
 	if err != nil {
-		return fmt.Errorf("failed to create portforward request")
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to create SPDY round tripper: %w", err)
 	}
 
-	requestURL := fmt.Sprintf("%s/api/v1/namespaces/%s/pods/%s/portforward", rConf.Host, p.Namespace, p.Pod)
+	path := fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward", namespace, podName)
 
-	reqURL, err := url.Parse(requestURL)
+	hostURL, err := url.Parse(rConf.Host)
 	if err != nil {
-		return fmt.Errorf("portforward request: failed to parse url: %v", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("invalid REST config host: %w", err)
 	}
 
-	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: roundTripper}, http.MethodPost, reqURL)
+	fullURL := hostURL.ResolveReference(&url.URL{Path: path})
+
+	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: roundTripper}, http.MethodPost, fullURL)
 	stopChan, readyChan := make(chan struct{}), make(chan struct{}, 1)
 	out, errOut := new(bytes.Buffer), new(bytes.Buffer)
 
-	forwarder, err := portforward.New(dialer, []string{p.Port + ":" + p.TargetPort},
-		stopChan, readyChan, out, errOut)
+	forwarder, err := portforward.New(dialer, []string{portMapping}, stopChan, readyChan, out, errOut)
 	if err != nil {
-		return fmt.Errorf("portforward request: failed to create portforward: %v", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to create portforwarder: %w", err)
 	}
 
-	portForwardToStore := portForward{
+	return forwarder, stopChan, readyChan, out, errOut, nil
+}
+
+// safeCloseChan attempts to close a channel and recovers from a panic
+// if the channel is already closed or nil.
+func safeCloseChan(ch chan struct{}) {
+	defer func() {
+		if r := recover(); r != nil {
+			_ = r
+		}
+	}()
+
+	if ch != nil {
+		close(ch)
+	}
+}
+
+// monitorPodAndManagePortForward runs in a goroutine and periodically checks if the
+// target pod for a port-forward is still running. If the pod is not running
+// (or if an unrecoverable error occurs during check), it signals the port-forward
+// to stop by closing its stopChan and updates its status in the cache.
+// It stops when the associated port-forward's closeChan is closed.
+func monitorPodAndManagePortForward(
+	clientset *kubernetes.Clientset,
+	cache cache.Cache[interface{}],
+	pfDetails *portForward,
+) {
+	ticker := time.NewTicker(PodAvailabilityCheckTimer * time.Second)
+	defer ticker.Stop()
+
+	logParams := map[string]string{"id": pfDetails.ID, "pod": pfDetails.Pod, "namespace": pfDetails.Namespace}
+
+	for {
+		select {
+		case <-ticker.C:
+			err := checkIfPodIsRunning(clientset, pfDetails.Namespace, pfDetails.Pod)
+			if err != nil {
+				if errors.Is(err, syscall.ECONNREFUSED) {
+					logger.Log(logger.LevelInfo, logParams, err, "checking pod (ECONNREFUSED), continuing")
+					continue
+				}
+
+				errMsg := fmt.Sprintf("Pod %s/%s check failed: %v", pfDetails.Namespace, pfDetails.Pod, err)
+				logger.Log(logger.LevelError, logParams, errors.New(errMsg), "stopping port-forward due to pod status")
+
+				pfDetails.Status = STOPPED
+				pfDetails.Error = errMsg
+				portforwardstore(cache, *pfDetails)
+				safeCloseChan(pfDetails.closeChan)
+
+				return
+			}
+		case <-pfDetails.closeChan:
+			logger.Log(logger.LevelInfo, logParams, nil, "Pod monitor stopping: port forward closeChan was closed.")
+
+			return
+		}
+	}
+}
+
+// handlePortForwardReadiness waits for the port forward to be ready, handling potential
+// errors from errOut, timeouts, or premature stop signals.
+// It updates the portForward details in the cache based on the outcome.
+func handlePortForwardReadiness(
+	cache cache.Cache[interface{}],
+	pfDetails *portForward,
+	readyChan chan struct{},
+	errOut *bytes.Buffer,
+	logParams map[string]string,
+) error {
+	select {
+	case <-readyChan:
+		if errOut.String() != "" {
+			errMsg := fmt.Sprintf("portforward failed to start, stderr: %s", errOut.String())
+			logger.Log(logger.LevelError, logParams, errors.New(errMsg), "checking ready status")
+
+			pfDetails.Status = STOPPED
+			pfDetails.Error = errMsg
+
+			portforwardstore(cache, *pfDetails)
+			safeCloseChan(pfDetails.closeChan)
+
+			return errors.New(errMsg)
+		}
+
+		pfDetails.Status = RUNNING
+		pfDetails.Error = ""
+
+		portforwardstore(cache, *pfDetails)
+		logger.Log(logger.LevelInfo, logParams, nil, "Port forward ready and running.")
+
+	case <-time.After(PortForwardReadinessTimeout):
+		errMsg := "timeout waiting for portforward to become ready"
+		logger.Log(logger.LevelError, logParams, errors.New(errMsg), "readiness timeout")
+
+		pfDetails.Status = STOPPED
+		pfDetails.Error = errMsg
+
+		portforwardstore(cache, *pfDetails)
+		safeCloseChan(pfDetails.closeChan)
+
+		return errors.New(errMsg)
+
+	case <-pfDetails.closeChan:
+		errMsg := "portforward stopped before becoming ready"
+		logger.Log(logger.LevelInfo, logParams, nil, errMsg)
+
+		if pfDetails.Status == RUNNING {
+			pfDetails.Status = STOPPED
+		}
+
+		if pfDetails.Error == "" {
+			pfDetails.Error = errMsg
+		}
+
+		portforwardstore(cache, *pfDetails)
+
+		return errors.New(errMsg)
+	}
+
+	return nil
+}
+
+// runAndMonitorPortForward starts the actual port forwarding in a goroutine,
+// then handles its readiness, and if ready, starts another goroutine to
+// monitor the target pod's status.
+func runAndMonitorPortForward(
+	clientset *kubernetes.Clientset,
+	cache cache.Cache[interface{}],
+	pfDetails *portForward,
+	forwarder *portforward.PortForwarder,
+	readyChan chan struct{},
+	errOut *bytes.Buffer,
+) error {
+	logParams := map[string]string{
+		"id": pfDetails.ID, "pod": pfDetails.Pod, "port": pfDetails.Port, "targetPort": pfDetails.TargetPort,
+	}
+
+	go func() {
+		if err := forwarder.ForwardPorts(); err != nil {
+			logger.Log(logger.LevelError, logParams, err, "ForwardPorts() failed")
+
+			pfDetails.Status = STOPPED
+			pfDetails.Error = err.Error()
+
+			portforwardstore(cache, *pfDetails)
+			safeCloseChan(pfDetails.closeChan)
+		} else {
+			logger.Log(logger.LevelInfo, logParams, nil, "ForwardPorts() exited.")
+
+			if pfDetails.Status == RUNNING {
+				pfDetails.Status = STOPPED
+				if pfDetails.Error == "" {
+					pfDetails.Error = "Port forward stopped."
+				}
+
+				portforwardstore(cache, *pfDetails)
+			}
+		}
+	}()
+
+	err := handlePortForwardReadiness(cache, pfDetails, readyChan, errOut, logParams)
+	if err != nil {
+		return err
+	}
+
+	go monitorPodAndManagePortForward(clientset, cache, pfDetails)
+
+	return nil
+}
+
+// startPortForward starts a port forward. This is the internal function that was refactored.
+// It sets up Kubernetes clients, initializes the port forwarder, and manages its lifecycle.
+func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{}],
+	p portForwardRequest, token string,
+) error {
+	clientset, rConf, err := getKubeClientAndConfig(kContext, token)
+	if err != nil {
+		return fmt.Errorf("failed to setup Kubernetes client/config: %w", err)
+	}
+
+	portMapping := p.Port + ":" + p.TargetPort
+
+	var (
+		forwarder           *portforward.PortForwarder
+		stopChan, readyChan chan struct{}
+		outBuffer, errOut   *bytes.Buffer
+		errInit             error
+	)
+
+	forwarder, stopChan, readyChan, outBuffer, errOut, errInit = initPortForwarder(
+		rConf, p.Namespace, p.Pod, portMapping,
+	)
+	if errInit != nil {
+		return fmt.Errorf("failed to initialize port forwarder: %w", errInit)
+	}
+
+	_ = outBuffer // Avoid unused variable error if outBuffer isn't used directly later
+
+	pfDetails := &portForward{
 		ID:               p.ID,
 		closeChan:        stopChan,
 		Pod:              p.Pod,
@@ -260,47 +456,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 		Error:            "",
 	}
 
-	go func() {
-		if err = forwarder.ForwardPorts(); err != nil { // Locks until stopChan is closed.
-			logger.Log(logger.LevelError, nil, err, "forwarding ports")
-			stopChan <- struct{}{}
-
-			portForwardToStore.Error = err.Error()
-			portforwardstore(cache, portForwardToStore)
-		}
-	}()
-
-	<-readyChan
-
-	if errOut.String() == "" {
-		portforwardstore(cache, portForwardToStore)
-	}
-
-	/* check every PodAvailabilityCheckTimer seconds if the pod for which we started a portforward is running
-	if not then we close the channel
-	*/
-	ticker := time.NewTicker(PodAvailabilityCheckTimer * time.Second)
-
-	go func() {
-		for range ticker.C {
-			err := checkIfPodIsRunning(clientset, p.Namespace, p.Pod)
-			if err != nil {
-				if errors.Is(err, syscall.ECONNREFUSED) {
-					continue
-				}
-
-				logger.Log(logger.LevelError, nil, err, "checking if pod is running")
-				stopChan <- struct{}{}
-
-				portForwardToStore.Error = err.Error()
-
-				portforwardstore(cache, portForwardToStore)
-				ticker.Stop()
-			}
-		}
-	}()
-
-	return nil
+	return runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
 }
 
 func checkIfPodIsRunning(clientset *kubernetes.Clientset, namespace string, pod string) error {
@@ -356,11 +512,9 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], w http.ResponseWrit
 		return
 	}
 
-	// Get user ID from header if present
 	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-
-	// If user ID is present, append it to cluster name
 	clusterName := p.Cluster
+
 	if userID != "" {
 		clusterName = p.Cluster + userID
 	}
@@ -388,11 +542,9 @@ func GetPortForwards(cache cache.Cache[interface{}], w http.ResponseWriter, r *h
 		return
 	}
 
-	// Get user ID from header if present
 	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-
-	// If user ID is present, append it to cluster name
 	clusterName := cluster
+
 	if userID != "" {
 		clusterName = cluster + userID
 	}
@@ -427,11 +579,9 @@ func GetPortForwardByID(cache cache.Cache[interface{}], w http.ResponseWriter, r
 		return
 	}
 
-	// Get user ID from header if present
 	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-
-	// If user ID is present, append it to cluster name
 	clusterName := cluster
+
 	if userID != "" {
 		clusterName = cluster + userID
 	}

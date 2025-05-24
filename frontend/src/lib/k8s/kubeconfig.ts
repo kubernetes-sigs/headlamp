@@ -154,6 +154,10 @@ export interface KubeconfigObject {
       user: string;
       /** namespace is the default namespace. */
       namespace?: string;
+      /**  this is needed for attaching clusterID to the cluster for accurate cluster actions */
+      clusterID?: string;
+      /** Source for kubeconfig */
+      source?: string;
       /** Extensions holds additional information. This is useful for extenders so that reads and writes don't clobber unknown fields on the Context object. */
       extensions?: Array<{
         /** name is the nickname of the extension. */

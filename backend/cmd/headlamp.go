@@ -1615,7 +1615,7 @@ func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
 	c.getConfig(w, r)
 }
 
-// Get path of kubeconfig from source.
+// Get path of kubeconfig we load headlamp with from source.
 func (c *HeadlampConfig) getKubeConfigPath(source string) (string, error) {
 	if source == "kubeconfig" {
 		return c.kubeConfigPath, nil
@@ -1731,6 +1731,7 @@ func (c *HeadlampConfig) getPathAndLoadKubeconfig(source, clusterName string) (s
 func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	clusterName := vars["name"]
+
 	// Parse request body.
 	var reqBody RenameClusterRequest
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
@@ -1755,27 +1756,16 @@ func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find the context with the given cluster name
-	contextName := clusterName
+	isUnique := CheckUniqueName(config.Contexts, clusterName, reqBody.NewClusterName)
+	if !isUnique {
+		http.Error(w, "custom name already in use", http.StatusBadRequest)
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
+			err, "cluster name already exists in the kubeconfig")
 
-	// Iterate over the contexts to find the context with the given cluster name
-	for k, v := range config.Contexts {
-		info := v.Extensions["headlamp_info"]
-		if info != nil {
-			customObj, err := MarshalCustomObject(info, contextName)
-			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
-					err, "marshaling custom object")
-
-				return
-			}
-
-			// Check if the CustomName field matches the cluster name
-			if customObj.CustomName != "" && customObj.CustomName == clusterName {
-				contextName = k
-			}
-		}
+		return
 	}
+
+	contextName := findMatchingContextName(config, clusterName)
 
 	if err := customNameToExtenstions(config, contextName, reqBody.NewClusterName, path); err != nil {
 		http.Error(w, "writing custom extension to kubeconfig", http.StatusInternalServerError)
@@ -1789,6 +1779,72 @@ func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	c.getConfig(w, r)
+}
+
+// findMatchingContextName checks all contexts, returning the key for whichever
+// has a matching customObj.CustomName, if any.
+func findMatchingContextName(config *api.Config, clusterName string) string {
+	contextName := clusterName
+
+	for k, v := range config.Contexts {
+		info := v.Extensions["headlamp_info"]
+		if info != nil {
+			customObj, err := MarshalCustomObject(info, contextName)
+			if err != nil {
+				logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
+					err, "marshaling custom object")
+				continue
+			}
+
+			if customObj.CustomName != "" && customObj.CustomName == clusterName {
+				contextName = k
+			}
+		}
+	}
+
+	return contextName
+}
+
+// checkUniqueName returns false if 'newName' is already in 'names', otherwise returns true.
+// It is used for checking context names.
+//
+// Parameters:
+//   - contexts: The Kubernetes API configuration containing contexts.
+//   - currentName: The name of the current context being checked.
+//   - newName: The new name to check for uniqueness.
+func CheckUniqueName(contexts map[string]*api.Context, currentName string, newName string) bool {
+	contextNames := make([]string, 0, len(contexts))
+
+	for name := range contexts {
+		contextNames = append(contextNames, name)
+		logger.Log(logger.LevelInfo, map[string]string{"context added": name},
+			nil, "context name")
+	}
+
+	// Iterate over the contexts and add the custom names
+	for _, y := range contexts {
+		info := y.Extensions["headlamp_info"]
+		if info != nil {
+			customObj, err := MarshalCustomObject(info, currentName)
+			if err != nil {
+				logger.Log(logger.LevelError, map[string]string{"context": currentName},
+					err, "marshaling custom object")
+			}
+
+			// add custom name if it is not empty
+			if customObj.CustomName != "" {
+				contextNames = append(contextNames, customObj.CustomName)
+			}
+		}
+	}
+
+	for _, current := range contextNames {
+		if current == newName {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (c *HeadlampConfig) addClusterSetupRoute(r *mux.Router) {

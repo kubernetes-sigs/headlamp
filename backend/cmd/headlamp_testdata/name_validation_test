@@ -1,0 +1,48 @@
+apiVersion: v1
+clusters:
+  - cluster:
+      certificate-authority-data: dGVzdA==
+      server: https://kubernetes.docker.internal:6443
+    name: random-cluster-x
+  - cluster:
+      certificate-authority-data: dGVzdA==
+      extensions:
+        - extension:
+            last-update: Mon, 26 Dec 2022 20:33:03 IST
+            provider: random-cluster-y.sigs.k8s.io
+            version: v1.28.0
+          name: cluster_info
+      server: https://127.0.0.1:60279
+    name: random-cluster-y
+contexts:
+  - context:
+      cluster: random-cluster-x
+      user: random-cluster-x
+    name: random-cluster-x
+  - context:
+      cluster: random-cluster-y
+      extensions:
+        - extension:
+            last-update: Mon, 26 Dec 2022 20:33:03 IST
+            provider: random-cluster-y.sigs.k8s.io
+            version: v1.28.0
+          name: context_info
+        - extension:
+            creationTimestamp: null
+            customName: superfly-name
+          name: headlamp_info
+      namespace: default
+      user: random-cluster-y
+    name: random-cluster-y
+current-context: random-cluster-y
+kind: Config
+preferences: {}
+users:
+  - name: random-cluster-x
+    user:
+      client-certificate-data: dGVzdA==
+      client-key-data: dGVzdA==
+  - name: random-cluster-y
+    user:
+      client-certificate-data: dGVzdA==
+      client-key-data: dGVzdA==

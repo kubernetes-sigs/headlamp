@@ -23,7 +23,7 @@ import React from 'react';
 export type HeaderStyle = 'main' | 'subsection' | 'normal' | 'label';
 
 export interface SectionHeaderProps {
-  title: string;
+  title: string | React.ReactNode;
   subtitle?: string | React.ReactNode;
   actions?: React.ReactNode[] | null;
   noPadding?: boolean;
