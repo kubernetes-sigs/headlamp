@@ -130,6 +130,7 @@
   "Node shell is not supported in this OS: {{ nodeOS }}": "",
   "Shell: {{ itemName }}": "",
   "Logs: {{ itemName }}": "Journaux : {{ itemName }}",
+  "Select Container...": "",
   "Seconds": "Secondes",
   "Show Logs": "Afficher les journaux",
   "logs": "journaux",
