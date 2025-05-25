@@ -6,7 +6,7 @@
       <span
         class="MuiTypography-root MuiTypography-body1 css-op46cf-MuiTypography-root"
       >
-        Pending
+        This is a rather long status message that might need to wrap or be handled by its container.
       </span>
     </div>
   </div>

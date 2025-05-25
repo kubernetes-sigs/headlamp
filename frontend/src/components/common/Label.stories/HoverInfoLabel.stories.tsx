@@ -14,49 +14,109 @@
  * limitations under the License.
  */
 
+import { Box, Typography } from '@mui/material';
 import { Meta, StoryFn } from '@storybook/react';
-import { HoverInfoLabel as HoverInfoLabelComponent, HoverInfoLabelProps } from '../Label';
+import React from 'react';
+import { TestContext } from '../../../test';
+import { HoverInfoLabel, HoverInfoLabelProps } from '../Label';
 
 export default {
-  title: 'Label/HoverInfoLabel',
-  component: HoverInfoLabelComponent,
-  argTypes: {},
-} as Meta;
-
-const Template: StoryFn<HoverInfoLabelProps> = args => <HoverInfoLabelComponent {...args} />;
-
-export const HoverInfoLabel = Template.bind({});
-HoverInfoLabel.args = {
-  label: 'Some label',
-  hoverInfo: 'hover info',
-};
-
-export const HoverInfoLabelInfo = Template.bind({});
-HoverInfoLabelInfo.args = {
-  label: 'Some label',
-  hoverInfo: <div>hover info div</div>,
-};
-
-export const LabelProps = Template.bind({});
-LabelProps.args = {
-  label: 'Some label',
-  hoverInfo: <div>hover info div</div>,
-  labelProps: {
-    variant: 'body2',
+  title: 'Labels/HoverInfoLabel',
+  component: HoverInfoLabel,
+  decorators: [
+    Story => (
+      <TestContext>
+        <Box sx={{ padding: 2 }}>
+          <Story />
+        </Box>
+      </TestContext>
+    ),
+  ],
+  argTypes: {
+    label: { control: 'text', description: 'The main label text.' },
+    hoverInfo: {
+      control: 'text',
+      description: 'Information to display on hover (string or ReactNode).',
+    },
+    icon: {
+      control: 'text',
+      description: 'Iconify string for the icon (e.g., "mdi:information-outline").',
+    },
+    iconPosition: {
+      control: 'radio',
+      options: ['start', 'end'],
+      description: 'Position of the icon relative to the label.',
+    },
+    labelProps: {
+      control: 'object',
+      description: 'Props to pass to the label Typography component.',
+    },
+    iconProps: { control: 'object', description: 'Props to pass to the Icon component.' },
   },
-};
+} as Meta<typeof HoverInfoLabel>;
 
-export const IconPosition = Template.bind({});
-IconPosition.args = {
-  label: 'Some label',
-  hoverInfo: <div>hover info div</div>,
+const Template: StoryFn<HoverInfoLabelProps> = args => <HoverInfoLabel {...args} />;
+
+export const Default = Template.bind({});
+Default.args = {
+  label: 'Creation Timestamp',
+  hoverInfo: 'The time at which this resource was created.',
+};
+Default.storyName = 'Basic HoverInfoLabel';
+
+export const WithCustomIcon = Template.bind({});
+WithCustomIcon.args = {
+  label: 'Status Details',
+  hoverInfo: 'Current operational status of the resource.',
+  icon: 'mdi:help-circle-outline',
+};
+WithCustomIcon.storyName = 'With Custom Icon';
+
+export const WithReactNodeAsHoverInfo = Template.bind({});
+WithReactNodeAsHoverInfo.args = {
+  label: 'Complex Information',
+  hoverInfo: (
+    <>
+      <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+        Detailed Breakdown
+      </Typography>
+      <ul>
+        <li>Point one about the complex information.</li>
+        <li>Point two with further details.</li>
+      </ul>
+    </>
+  ),
+};
+WithReactNodeAsHoverInfo.storyName = 'With ReactNode as HoverInfo';
+
+export const IconAtStart = Template.bind({});
+IconAtStart.args = {
+  label: 'Information First',
+  hoverInfo: 'The information icon appears before the label text.',
   iconPosition: 'start',
 };
+IconAtStart.storyName = 'Icon Position Start';
 
-// icon isn't used in the codebase.
-// export const HoverInfoLabelIcon = Template.bind({});
-// HoverInfoLabelIcon.args = {
-//   label: "Some label",
-//   hoverInfo: "value",
-//   icon: null, // unused it seems.
-// };
+export const CustomLabelStyling = Template.bind({});
+CustomLabelStyling.args = {
+  label: 'Important System Label',
+  hoverInfo: 'This label uses custom typography styling.',
+  labelProps: {
+    variant: 'h6',
+    color: 'error.dark',
+    sx: { fontStyle: 'italic' },
+  },
+};
+CustomLabelStyling.storyName = 'With Custom Label Styling';
+
+export const CustomIconProps = Template.bind({});
+CustomIconProps.args = {
+  label: 'Label with Big Icon',
+  hoverInfo: 'The icon next to this label is larger and has a different color.',
+  iconProps: {
+    width: '1.5rem',
+    height: '1.5rem',
+    color: 'purple',
+  },
+};
+CustomIconProps.storyName = 'With Custom Icon Props';

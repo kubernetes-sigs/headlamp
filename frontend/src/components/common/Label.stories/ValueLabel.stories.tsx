@@ -16,16 +16,39 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import { ValueLabel as ValueLabelComponent } from '../Label';
+import { TestContext } from '../../../test';
+import { ValueLabel } from '../Label';
+
+interface ValueLabelStoryProps {
+  children: React.ReactNode;
+}
 
 export default {
-  title: 'Label/ValueLabel',
-  component: ValueLabelComponent,
-  argTypes: {},
-} as Meta;
+  title: 'Labels/ValueLabel',
+  component: ValueLabel,
+  decorators: [
+    Story => (
+      <TestContext>
+        <Story />
+      </TestContext>
+    ),
+  ],
+  argTypes: {
+    children: { control: 'text', description: 'The text content of the ValueLabel.' },
+  },
+} as Meta<typeof ValueLabel>;
 
-const ValueLabelTemplate: StoryFn<{}> = args => (
-  <ValueLabelComponent {...args}>A ValueLabel is here</ValueLabelComponent>
-);
+const Template: StoryFn<ValueLabelStoryProps> = args => <ValueLabel {...args} />;
 
-export const ValueLabel = ValueLabelTemplate.bind({});
+export const Default = Template.bind({});
+Default.args = {
+  children: 'Actual Value',
+};
+Default.storyName = 'Basic ValueLabel';
+
+export const LongText = Template.bind({});
+LongText.args = {
+  children:
+    'This is a very long value string to observe how it behaves with word breaks and potential wrapping within its container, especially focusing on the `wordBreak: break-word` style.',
+};
+LongText.storyName = 'Long ValueLabel Text';

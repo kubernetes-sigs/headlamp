@@ -1,9 +1,13 @@
 <body>
   <div>
-    <span
-      class="MuiTypography-root MuiTypography-body1 css-1ybpqju-MuiTypography-root"
+    <div
+      class="MuiBox-root css-1821gv5"
     >
-      success
-    </span>
+      <span
+        class="MuiTypography-root MuiTypography-body1 css-1ybpqju-MuiTypography-root"
+      >
+        Ready
+      </span>
+    </div>
   </div>
 </body>

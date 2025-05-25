@@ -1,0 +1,15 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-19midj6"
+    >
+      <p
+        aria-label="The time at which this resource was created."
+        class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+        data-mui-internal-clone-element="true"
+      >
+        Creation Timestamp
+      </p>
+    </div>
+  </div>
+</body>

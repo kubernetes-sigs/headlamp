@@ -14,37 +14,85 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
+import { Box } from '@mui/material';
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import { StatusLabel as StatusLabelComponent, StatusLabelProps } from '../Label';
+import { TestContext } from '../../../test';
+import { StatusLabel, StatusLabelProps } from '../Label';
 
 export default {
-  title: 'Label/StatusLabel',
-  component: StatusLabelComponent,
-  argTypes: {},
-} as Meta;
+  title: 'Labels/StatusLabel',
+  component: StatusLabel,
+  decorators: [
+    Story => (
+      <TestContext>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Story />
+        </Box>
+      </TestContext>
+    ),
+  ],
+  argTypes: {
+    status: {
+      control: 'select',
+      options: ['success', 'warning', 'error', ''],
+      description: 'The status type, which determines the color scheme.',
+    },
+    children: {
+      control: 'text',
+      description: 'The text content or React node for the status label.',
+    },
+    sx: {
+      control: 'object',
+      description: 'Custom MUI sx props for styling.',
+    },
+  },
+} as Meta<typeof StatusLabel>;
 
-const Template: StoryFn<StatusLabelProps> = args => (
-  <StatusLabelComponent {...args}>{args.status}</StatusLabelComponent>
-);
+const Template: StoryFn<StatusLabelProps> = args => <StatusLabel {...args} />;
 
-export const Success = Template.bind({
-  component: StatusLabelComponent,
-});
+export const Success = Template.bind({});
 Success.args = {
   status: 'success',
+  children: 'Ready',
 };
 
-export const Error = Template.bind({
-  component: StatusLabelComponent,
-});
-Error.args = {
-  status: 'error',
-};
-
-export const Warning = Template.bind({
-  component: StatusLabelComponent,
-});
+export const Warning = Template.bind({});
 Warning.args = {
   status: 'warning',
+  children: 'Pending',
 };
+
+export const Error = Template.bind({});
+Error.args = {
+  status: 'error',
+  children: 'Failed',
+};
+
+export const Neutral = Template.bind({});
+Neutral.args = {
+  status: '',
+  children: 'Unknown',
+};
+Neutral.storyName = 'Neutral (Empty Status)';
+
+export const WithIcon = Template.bind({});
+WithIcon.args = {
+  status: 'success',
+  children: (
+    <>
+      <Icon icon="mdi:check-circle-outline" style={{ marginRight: '4px' }} />
+      Verified
+    </>
+  ),
+};
+WithIcon.storyName = 'With Leading Icon';
+
+export const LongTextStatus = Template.bind({});
+LongTextStatus.args = {
+  status: 'warning',
+  children:
+    'This is a rather long status message that might need to wrap or be handled by its container.',
+};
+LongTextStatus.storyName = 'With Long Text';
