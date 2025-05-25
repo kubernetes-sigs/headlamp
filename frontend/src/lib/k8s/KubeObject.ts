@@ -62,6 +62,15 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
   /** Whether the object is namespaced. */
   static readonly isNamespaced: boolean;
+  
+  /**
+   * Returns the kind of the resource class.
+   * This method can be called on both the class and its instances.
+   * @returns The kind of the resource.
+   */
+  static getKind(): string {
+    return this.kind;
+  }
 
   static _internalApiEndpoint?: ReturnType<typeof apiFactoryWithNamespace | typeof apiFactory>;
 
