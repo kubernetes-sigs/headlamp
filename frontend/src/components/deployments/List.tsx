@@ -77,6 +77,7 @@ export default function DeploymentsList() {
     <ResourceListView
       title={t('Deployments')}
       resourceClass={Deployment}
+      reflectInURL
       columns={[
         'name',
         'namespace',

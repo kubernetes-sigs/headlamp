@@ -50,6 +50,7 @@ import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { useURLState } from '../../../lib/util';
 import { useSettings } from '../../App/Settings/hook';
+import { useQueryParamsState } from '../../resourceMap/useQueryParamsState';
 import Empty from '../EmptyContent';
 import Loader from '../Loader';
 
@@ -192,6 +193,11 @@ export default function Table<RowItem extends Record<string, any>>({
   const shouldReflectInURL = reflectInURL !== undefined && reflectInURL !== false;
   const prefix = reflectInURL === true ? '' : reflectInURL || '';
   const [page, setPage] = usePageURLState(shouldReflectInURL ? 'p' : '', prefix, initialPage);
+  const filterKey = prefix ? `${prefix}filter` : 'filter';
+  const [globalFilter, setGlobalFilter] = useQueryParamsState<string | undefined>(
+    shouldReflectInURL ? filterKey : '',
+    shouldReflectInURL ? '' : undefined
+  );
 
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = rowsPerPage || storeRowsPerPageOptions;
@@ -258,6 +264,7 @@ export default function Table<RowItem extends Record<string, any>>({
       setPage(pagination.pageIndex + 1);
       setPageSize(pagination.pageSize);
     },
+    onGlobalFilterChange: setGlobalFilter,
     renderToolbarInternalActions: props => {
       const isSomeRowsSelected =
         tableProps.enableRowSelection && props.table.getSelectedRowModel().rows.length !== 0;
@@ -269,18 +276,27 @@ export default function Table<RowItem extends Record<string, any>>({
       }
       return null;
     },
-    initialState: {
-      density: 'compact',
-      ...(tableProps.initialState ?? {}),
-    },
-    state: {
-      ...(tableProps.state ?? {}),
-      columnOrder: columnOrder,
-      pagination: {
-        pageIndex: page - 1,
-        pageSize: pageSize,
-      },
-    },
+    initialState: useMemo(
+      () => ({
+        density: 'compact',
+        globalFilter: globalFilter || '',
+        ...(tableProps.initialState ?? {}),
+      }),
+      [tableProps.initialState, globalFilter]
+    ),
+    state: useMemo(
+      () => ({
+        ...(tableProps.state ?? {}),
+        columnOrder,
+        pagination: {
+          pageIndex: page - 1,
+          pageSize: pageSize,
+        },
+        globalFilter,
+        ...(globalFilter ? { showGlobalFilter: true } : {}),
+      }),
+      [tableProps.state, columnOrder, page, pageSize, globalFilter]
+    ),
     positionActionsColumn: 'last',
     layoutMode: 'grid',
     // Need to provide our own empty message
