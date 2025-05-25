@@ -110,6 +110,7 @@ export default function NamespacesList() {
 
   return (
     <ResourceListView
+      reflectInURL
       title={t('Namespaces')}
       headerProps={{
         titleSideActions: [<CreateNamespaceButton />],

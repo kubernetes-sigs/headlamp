@@ -47,6 +47,7 @@ import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
 import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
 import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useHistory, useLocation } from 'react-router-dom';
 import { getTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { useURLState } from '../../../lib/util';
 import { useSettings } from '../../App/Settings/hook';
@@ -192,6 +193,28 @@ export default function Table<RowItem extends Record<string, any>>({
   const shouldReflectInURL = reflectInURL !== undefined && reflectInURL !== false;
   const prefix = reflectInURL === true ? '' : reflectInURL || '';
   const [page, setPage] = usePageURLState(shouldReflectInURL ? 'p' : '', prefix, initialPage);
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const filterKey = prefix ? `${prefix}filter` : 'filter';
+  const initialFilter = shouldReflectInURL ? searchParams.get(filterKey) || '' : '';
+  const [globalFilter, setGlobalFilter] = useState<string>(initialFilter);
+
+  const history = useHistory();
+  useEffect(() => {
+    if (!shouldReflectInURL) return;
+
+    const searchParams = new URLSearchParams(location.search);
+    const currentFilter = searchParams.get(filterKey) || '';
+
+    if (globalFilter !== currentFilter) {
+      if (globalFilter) {
+        searchParams.set(filterKey, globalFilter);
+      } else {
+        searchParams.delete(filterKey);
+      }
+      history.replace(`${location.pathname}?${searchParams.toString()}`);
+    }
+  }, [globalFilter, prefix, location.pathname, history, shouldReflectInURL, filterKey]);
 
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = rowsPerPage || storeRowsPerPageOptions;
@@ -258,6 +281,7 @@ export default function Table<RowItem extends Record<string, any>>({
       setPage(pagination.pageIndex + 1);
       setPageSize(pagination.pageSize);
     },
+    onGlobalFilterChange: setGlobalFilter,
     renderToolbarInternalActions: props => {
       const isSomeRowsSelected =
         tableProps.enableRowSelection && props.table.getSelectedRowModel().rows.length !== 0;
@@ -269,18 +293,27 @@ export default function Table<RowItem extends Record<string, any>>({
       }
       return null;
     },
-    initialState: {
-      density: 'compact',
-      ...(tableProps.initialState ?? {}),
-    },
-    state: {
-      ...(tableProps.state ?? {}),
-      columnOrder: columnOrder,
-      pagination: {
-        pageIndex: page - 1,
-        pageSize: pageSize,
-      },
-    },
+    initialState: useMemo(
+      () => ({
+        density: 'compact',
+        globalFilter: globalFilter || '',
+        ...(tableProps.initialState ?? {}),
+      }),
+      [tableProps.initialState, globalFilter]
+    ),
+    state: useMemo(
+      () => ({
+        ...(tableProps.state ?? {}),
+        columnOrder,
+        pagination: {
+          pageIndex: page - 1,
+          pageSize: pageSize,
+        },
+        globalFilter,
+        ...(globalFilter ? { showGlobalFilter: true } : {}),
+      }),
+      [tableProps.state, columnOrder, page, pageSize, globalFilter]
+    ),
     positionActionsColumn: 'last',
     layoutMode: 'grid',
     // Need to provide our own empty message

@@ -35,6 +35,7 @@ export default function NodeList() {
       headerProps={{
         noNamespaceFilter: true,
       }}
+      reflectInURL
       resourceClass={Node}
       columns={[
         'name',
