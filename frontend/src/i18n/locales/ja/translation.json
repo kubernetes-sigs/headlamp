@@ -35,6 +35,7 @@
   "Something went wrong with cluster {{ cluster }}": "クラスター {{ cluster }} で問題が発生しました",
   "Choose another cluster": "別のクラスターを選択",
   "Skip to main content": "メインコンテンツへスキップ",
+  "Something went wrong with cluster test-cluster": "",
   "Mark all as read": "すべて既読にする",
   "Clear all": "すべてクリア",
   "Notifications": "通知",
