@@ -50,6 +50,13 @@ export default mergeConfig(
       },
       restoreMocks: false,
       setupFiles: ['./src/setupTests.ts'],
+      includeSource: ['src/**/*.{js,jsx,ts,tsx}'],
+      storybook: {
+        // Enable Storybook integration
+        enabled: true,
+        // Configure the directory where your stories are located
+        directory: ['src'],
+      },
     },
   })
 );
