@@ -1,0 +1,71 @@
+<body>
+  <div>
+    <a
+      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineAlways css-q10y4w-MuiTypography-root-MuiLink-root"
+      href="#main"
+    >
+      Skip to main content
+    </a>
+    <div
+      class="MuiBox-root css-12ub0xu"
+    >
+      <div
+        class="MuiBox-root css-1uqao6u"
+      >
+        <div
+          class="MuiBox-root css-1l1sxnu"
+        />
+        <div
+          class="MuiBox-root css-1ukcme8"
+        >
+          <div
+            class="MuiBox-root css-fqffw5"
+          />
+          <main
+            class="css-1hqu9io"
+            id="main"
+          >
+            <div
+              class="MuiBox-root css-0"
+            >
+              <div
+                class="css-0"
+              />
+              <div
+                class="MuiContainer-root MuiContainer-maxWidthXl css-19r6kue-MuiContainer-root"
+              >
+                <div
+                  class="MuiBox-root css-1dd75ib"
+                />
+                <div
+                  class="MuiBox-root css-7coe79"
+                >
+                  <h2>
+                    Custom Content
+                  </h2>
+                  <p>
+                    This demonstrates the layout with custom content in the main area.
+                  </p>
+                  <div
+                    class="MuiBox-root css-1qhpuhr"
+                  >
+                    <p>
+                      Scrollable content area
+                    </p>
+                    <div
+                      style="margin-top: 400px;"
+                    >
+                      <p>
+                        Content at bottom to demonstrate scrolling behavior
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
