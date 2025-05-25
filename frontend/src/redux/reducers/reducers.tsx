@@ -31,6 +31,7 @@ import overviewChartsReducer from '../overviewChartsSlice';
 import routesReducer from '../routesSlice';
 import { uiSlice } from '../uiSlice';
 import resourceTableReducer from './../../components/common/Resource/resourceTableSlice';
+import tableFilterReducer from './../../components/common/Resource/tableFilterSlice';
 import detailsViewSectionReducer from './../../components/DetailsViewSection/detailsViewSectionSlice';
 import sidebarReducer from './../../components/Sidebar/sidebarSlice';
 import pluginConfigReducer from './../../plugin/pluginConfigSlice';
@@ -45,6 +46,7 @@ const reducers = combineReducers({
   notifications: notificationsReducer,
   theme: themeReducer,
   resourceTable: resourceTableReducer,
+  tableFilter: tableFilterReducer,
   detailsViewSection: detailsViewSectionReducer,
   routes: routesReducer,
   sidebar: sidebarReducer,

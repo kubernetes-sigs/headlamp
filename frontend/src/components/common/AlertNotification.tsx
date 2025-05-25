@@ -133,7 +133,12 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
         alignItems: 'center',
         left: '50%',
         width: 'auto',
+        maxWidth: '90vw',
         transform: 'translateX(-50%)',
+        flexWrap: {
+          xs: 'wrap',
+          sm: 'nowrap',
+        },
       })}
       action={
         <Button
@@ -142,6 +147,10 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
             borderColor: theme.palette.error.main,
             background: theme.palette.common.white,
             lineHeight: theme.typography.body2.lineHeight,
+            margin: {
+              xs: 'auto',
+              sm: theme.spacing(0, 0, 0, 2),
+            },
             '&:hover': {
               color: theme.palette.common.white,
               borderColor: theme.palette.common.white,
@@ -151,7 +160,7 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
           onClick={() => setNetworkStatusCheckTimeFactor(0)}
           size="small"
         >
-          {t('translation|Try Again')}
+          {t('translation|Try again')}
         </Button>
       }
     >
@@ -161,6 +170,12 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
           paddingTop: theme.spacing(0.5),
           fontWeight: 'bold',
           fontSize: '16px',
+          wordBreak: 'break-word',
+          width: '100%',
+          marginBottom: {
+            xs: theme.spacing(1),
+            sm: 0,
+          },
         })}
       >
         {t('translation|Lost connection to the cluster.')}

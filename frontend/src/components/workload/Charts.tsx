@@ -80,6 +80,7 @@ export function WorkloadCircleChart(props: WorkloadCircleChartProps) {
       }}
       label={getLabel()}
       legend={getLegend()}
+      titleClickable={true}
       {...other}
     />
   );
