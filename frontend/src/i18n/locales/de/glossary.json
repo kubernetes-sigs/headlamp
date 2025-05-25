@@ -130,6 +130,7 @@
   "Node shell is not supported in this OS: {{ nodeOS }}": "",
   "Shell: {{ itemName }}": "",
   "Logs: {{ itemName }}": "Ereignisprotokolle: {{ itemName }}",
+  "Select Container...": "",
   "Seconds": "Sekunden",
   "Show Logs": "Ereignisprotokolle anzeigen",
   "logs": "Ereignisprotokolle",

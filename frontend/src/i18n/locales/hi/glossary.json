@@ -130,6 +130,7 @@
   "Node shell is not supported in this OS: {{ nodeOS }}": "इस OS में नोड शेल समर्थित नहीं है: {{ nodeOS }}",
   "Shell: {{ itemName }}": "शेल: {{ itemName }}",
   "Logs: {{ itemName }}": "लॉग्स: {{ itemName }}",
+  "Select Container...": "",
   "Seconds": "सेकंड",
   "Show Logs": "लॉग्स दिखाएं",
   "logs": "लॉग्स",
