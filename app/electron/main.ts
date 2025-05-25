@@ -659,10 +659,54 @@ function quitServerProcess() {
     return;
   }
 
-  serverProcess.stdin.destroy();
-  // @todo: should we try and end the process a bit more gracefully?
-  //       What happens if the kill signal doesn't kill it?
-  serverProcess.kill();
+  try {
+    // Try to gracefully terminate the process
+    serverProcess.stdin.destroy();
+    
+    // Use different signals based on platform
+    if (process.platform === 'win32') {
+      // On Windows, use SIGTERM
+      serverProcess.kill('SIGTERM');
+      
+      // Force kill after a timeout if it doesn't exit
+      setTimeout(() => {
+        try {
+          if (serverProcess) {
+            console.log('Force killing server process...');
+            serverProcess.kill('SIGKILL');
+          }
+        } catch (error) {
+          console.error('Error force killing server process:', error);
+        }
+      }, 2000);
+    } else {
+      // On Unix-like systems, use SIGINT first (equivalent to Ctrl+C)
+      serverProcess.kill('SIGINT');
+      
+      // Force kill after a timeout if it doesn't exit
+      setTimeout(() => {
+        try {
+          if (serverProcess) {
+            console.log('Force killing server process with SIGKILL...');
+            serverProcess.kill('SIGKILL');
+          }
+        } catch (error) {
+          console.error('Error force killing server process:', error);
+        }
+      }, 2000);
+    }
+  } catch (error) {
+    console.error('Error killing server process:', error);
+    
+    // As a last resort, try to force kill
+    try {
+      if (serverProcess) {
+        serverProcess.kill('SIGKILL');
+      }
+    } catch (innerError) {
+      console.error('Failed to force kill server process:', innerError);
+    }
+  }
 
   serverProcess = null;
 }
@@ -1168,6 +1212,8 @@ function startElecron() {
     });
 
     mainWindow.on('closed', () => {
+      // Ensure the server process is terminated when the window is closed
+      quitServerProcess();
       mainWindow = null;
     });
 
@@ -1410,6 +1456,7 @@ function startElecron() {
   });
 }
 
+app.on('before-quit', quitServerProcess);
 app.on('quit', quitServerProcess);
 
 /**

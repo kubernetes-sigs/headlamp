@@ -42,3 +42,24 @@ process.on('SIGINT', () => {
   }
   process.exit(0);
 });
+
+// Handle process exit to ensure all child processes are terminated
+process.on('exit', () => {
+  console.log('Process exiting. Terminating all child processes...');
+  serverProcess.kill('SIGINT');
+  frontendProcess.kill('SIGINT');
+  if (appProcess) {
+    appProcess.kill('SIGINT');
+  }
+});
+
+// Handle uncaught exceptions to ensure all child processes are terminated
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+  serverProcess.kill('SIGINT');
+  frontendProcess.kill('SIGINT');
+  if (appProcess) {
+    appProcess.kill('SIGINT');
+  }
+  process.exit(1);
+});
