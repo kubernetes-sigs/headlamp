@@ -61,7 +61,7 @@ $ helm install my-headlamp headlamp/headlamp \
 |-----|------|---------|-------------|
 | replicaCount | int | `1` | Number of desired pods |
 | image.registry | string | `"ghcr.io"` | Container image registry |
-| image.repository | string | `"headlamp-k8s/headlamp"` | Container image name |
+| image.repository | string | `"jamowei/headlamp"` | Container image name |
 | image.tag | string | `""` | Container image tag (defaults to Chart appVersion) |
 | image.pullPolicy | string | `"IfNotPresent"` | Image pull policy |
 
@@ -125,7 +125,7 @@ config:
 |-----|------|---------|-------------|
 | replicaCount | int | `1` | Number of desired pods |
 | image.registry | string | `"ghcr.io"` | Container image registry |
-| image.repository | string | `"headlamp-k8s/headlamp"` | Container image name |
+| image.repository | string | `"jamowei/headlamp"` | Container image name |
 | image.tag | string | `""` | Container image tag (defaults to Chart appVersion) |
 | image.pullPolicy | string | `"IfNotPresent"` | Image pull policy |
 | imagePullSecrets | list | `[]` | Image pull secrets references |

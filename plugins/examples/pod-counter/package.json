@@ -25,10 +25,10 @@
     "url": "https://github.com/kinvolk/headlamp.git",
     "directory": "plugins/examples/pod-counter"
   },
-  "prettier": "@headlamp-k8s/eslint-config/prettier-config",
+  "prettier": "@jamowei/eslint-config/prettier-config",
   "eslintConfig": {
     "extends": [
-      "@headlamp-k8s",
+      "@jamowei",
       "prettier",
       "plugin:jsx-a11y/recommended"
     ]

@@ -160,14 +160,14 @@ npx playwright test -g "404 page is present" --headed
 
    - Tag your Docker image and push it using ttl.sh:
      ```
-     docker tag headlamp-k8s/headlamp ttl.sh/headlamp-k8s/headlamp
-     docker push ttl.sh/headlamp-k8s/headlamp
+     docker tag jamowei/headlamp ttl.sh/jamowei/headlamp
+     docker push ttl.sh/jamowei/headlamp
      ```
 
 3. **Pull the Docker image to your local machine:**
    - After pushing, exit back to your local machine and pull the image:
      ```
-     docker pull ttl.sh/headlamp-k8s/headlamp
+     docker pull ttl.sh/jamowei/headlamp
      ```
 
 ### Setup Minikube and Run Tests
@@ -179,7 +179,7 @@ npx playwright test -g "404 page is present" --headed
    - Navigate to `e2e-tests/kubernetes-headlamp-ci.yml`.
    - Change the `image` field under `spec.containers` to match the Docker image you pulled:
      ```
-     image: ttl.sh/headlamp-k8s/headlamp
+     image: ttl.sh/jamowei/headlamp
      ```
 
 3. **Deploy to the cluster and run end-to-end tests:**
