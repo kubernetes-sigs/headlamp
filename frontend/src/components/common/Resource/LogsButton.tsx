@@ -248,7 +248,7 @@ export function LogsButton({ item }: LogsButtonProps) {
     pods.forEach(pod => {
       const cleanup = pod.getLogs(
         container,
-        (newLogs: string[]) => {
+        ({ logs: newLogs }: { logs: string[]; hasJsonLogs?: boolean }) => {
           const podName = pod.getName();
           setAllPodLogs(current => {
             const updated = {
@@ -301,7 +301,7 @@ export function LogsButton({ item }: LogsButtonProps) {
           let lastLogLength = 0;
           cleanup = pod.getLogs(
             selectedContainer,
-            (newLogs: string[]) => {
+            ({ logs: newLogs }: { logs: string[]; hasJsonLogs?: boolean }) => {
               if (!isSubscribed) return;
 
               setLogs(current => {

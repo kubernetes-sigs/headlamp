@@ -20,13 +20,8 @@ import '../src/index.css';
 import { Title, Subtitle, Description, Primary, Controls } from '@storybook/blocks';
 import { baseMocks } from './baseMocks';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import App from '../src/App';
-import { darkTheme, lightTheme, useAppThemes } from '../src/components/App/themeSlice';
+import { darkTheme, lightTheme } from '../src/components/App/defaultAppThemes';
 import { createMuiTheme } from '../src/lib/themes';
-
-// App import will load the whole app dependency tree
-// And assigning it to a value will make sure it's not tree-shaken and removed
-const DontDeleteMe = App;
 
 // https://github.com/mswjs/msw-storybook-addon
 initialize({

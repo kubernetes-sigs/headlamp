@@ -61,3 +61,5 @@ export const graphViewSlice = createSlice({
     },
   },
 });
+
+export default graphViewSlice.reducer;

@@ -102,3 +102,5 @@ export const useUIPanelsGroupedBySide = () => {
     [panels]
   );
 };
+
+export default uiSlice.reducer;

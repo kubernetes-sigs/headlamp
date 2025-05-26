@@ -44,12 +44,13 @@ import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
 import Terminal from '../common/Terminal';
 import LightTooltip from '../common/Tooltip/TooltipLight';
+import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
 
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   margin: 0,
   paddingTop: theme.spacing(2),
-  paddingRight: theme.spacing(2),
+  paddingRight: theme.spacing(1),
 }));
 
 interface PodLogViewerProps extends Omit<LogViewerProps, 'logs'> {
@@ -62,6 +63,9 @@ export function PodLogViewer(props: PodLogViewerProps) {
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showTimestamps, setShowTimestamps] = React.useState<boolean>(true);
   const [follow, setFollow] = React.useState<boolean>(true);
+  const [prettifyLogs, setPrettifyLogs] = React.useState<boolean>(false);
+  const [formatJsonValues, setFormatJsonValues] = React.useState<boolean>(false);
+  const [hasJsonLogs, setHasJsonLogs] = React.useState<boolean>(false);
   const [lines, setLines] = React.useState<number>(100);
   const [logs, setLogs] = React.useState<{ logs: string[]; lastLineShown: number }>({
     logs: [],
@@ -77,14 +81,30 @@ export function PodLogViewer(props: PodLogViewerProps) {
   }
 
   const options = { leading: true, trailing: true, maxWait: 1000 };
-  function setLogsDebounced(logLines: string[]) {
+
+  function setLogsDebounced({
+    logs: logLines,
+    hasJsonLogs,
+  }: {
+    logs: string[];
+    hasJsonLogs: boolean;
+  }) {
+    setHasJsonLogs(hasJsonLogs);
+
+    const displayLogs = logLines.map(logEntry => {
+      if (prettifyLogs && hasJsonLogs) {
+        return colorizePrettifiedLog(logEntry);
+      }
+      return logEntry;
+    });
+
     setLogs(current => {
       if (current.lastLineShown >= logLines.length) {
         xtermRef.current?.clear();
-        xtermRef.current?.write(logLines.join('').replaceAll('\n', '\r\n'));
+        xtermRef.current?.write(displayLogs.join('').replaceAll('\n', '\r\n'));
       } else {
         xtermRef.current?.write(
-          logLines
+          displayLogs
             .slice(current.lastLineShown + 1)
             .join('')
             .replaceAll('\n', '\r\n')
@@ -96,6 +116,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
         lastLineShown: logLines.length - 1,
       };
     });
+
     // If we stopped following the logs and we have logs already,
     // then we don't need to fetch them again.
     if (!follow && logs.logs.length > 0) {
@@ -107,6 +128,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
       return;
     }
   }
+
   const debouncedSetState = _.debounce(setLogsDebounced, 500, options);
 
   React.useEffect(
@@ -116,12 +138,15 @@ export function PodLogViewer(props: PodLogViewerProps) {
       if (props.open) {
         xtermRef.current?.clear();
         setLogs({ logs: [], lastLineShown: -1 });
+        setHasJsonLogs(false);
 
         callback = item.getLogs(container, debouncedSetState, {
           tailLines: lines,
           showPrevious,
           showTimestamps,
           follow,
+          prettifyLogs,
+          formatJsonValues,
           /**
            * When the connection is lost, show the reconnect button.
            * This will stop the current log stream.
@@ -139,11 +164,12 @@ export function PodLogViewer(props: PodLogViewerProps) {
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [container, lines, open, showPrevious, showTimestamps, follow]
+    [container, lines, open, showPrevious, showTimestamps, follow, prettifyLogs, formatJsonValues]
   );
 
   function handleContainerChange(event: any) {
     setContainer(event.target.value);
+    setHasJsonLogs(false);
   }
 
   function handleLinesChange(event: any) {
@@ -173,6 +199,14 @@ export function PodLogViewer(props: PodLogViewerProps) {
     setFollow(follow => !follow);
   }
 
+  function handlePrettifyChange() {
+    setPrettifyLogs(prettify => !prettify);
+  }
+
+  function handleFormatJsonValuesChange() {
+    setFormatJsonValues(format => !format);
+  }
+
   /**
    * Handle the reconnect button being clicked.
    * This will start a new log stream and hide the reconnect button.
@@ -189,6 +223,8 @@ export function PodLogViewer(props: PodLogViewerProps) {
       showPrevious,
       showTimestamps,
       follow,
+      prettifyLogs,
+      formatJsonValues,
       /**
        * When the connection is lost, show the reconnect button.
        * This will stop the current log stream.
@@ -286,7 +322,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
           }
         >
           <PaddedFormControlLabel
-            label={t('translation|Show previous')}
+            label={t('translation|Previous')}
             disabled={!hasContainerRestarted()}
             control={
               <Switch
@@ -295,6 +331,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
                 name="checkPrevious"
                 color="primary"
                 size="small"
+                sx={{ transform: 'scale(0.8)' }}
               />
             }
           />
@@ -308,6 +345,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
               name="checkTimestamps"
               color="primary"
               size="small"
+              sx={{ transform: 'scale(0.8)' }}
             />
           }
         />,
@@ -320,10 +358,45 @@ export function PodLogViewer(props: PodLogViewerProps) {
               name="follow"
               color="primary"
               size="small"
+              sx={{ transform: 'scale(0.8)' }}
             />
           }
         />,
-      ]}
+        hasJsonLogs && (
+          <PaddedFormControlLabel
+            label={t('translation|Prettify')}
+            control={
+              <Switch
+                checked={prettifyLogs}
+                onChange={handlePrettifyChange}
+                name="prettifyLogs"
+                color="primary"
+                size="small"
+                sx={{ transform: 'scale(0.8)' }}
+              />
+            }
+          />
+        ),
+        hasJsonLogs && (
+          <LightTooltip
+            title={t('translation|Show JSON values in plain text by removing escape characters.')}
+          >
+            <PaddedFormControlLabel
+              label={t('translation|Format')}
+              control={
+                <Switch
+                  checked={formatJsonValues}
+                  onChange={handleFormatJsonValuesChange}
+                  name="formatJsonValues"
+                  color="primary"
+                  size="small"
+                  sx={{ transform: 'scale(0.8)' }}
+                />
+              }
+            />
+          </LightTooltip>
+        ),
+      ].filter(Boolean)}
       {...other}
     />
   );
