@@ -34,6 +34,7 @@ import resourceTableReducer from './../../components/common/Resource/resourceTab
 import detailsViewSectionReducer from './../../components/DetailsViewSection/detailsViewSectionSlice';
 import sidebarReducer from './../../components/Sidebar/sidebarSlice';
 import pluginConfigReducer from './../../plugin/pluginConfigSlice';
+import tableFiltersReducer from '../tableFiltersSlice';
 
 const reducers = combineReducers({
   filter: filterReducer,
@@ -55,6 +56,7 @@ const reducers = combineReducers({
   drawerMode: drawerModeSlice,
   graphView: graphViewSlice.reducer,
   clusterProvider: clusterProviderReducer,
+  tableFilters: tableFiltersReducer,
 });
 
 export type RootState = ReturnType<typeof reducers>;
