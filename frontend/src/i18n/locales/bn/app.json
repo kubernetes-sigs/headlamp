@@ -1,6 +1,6 @@
 {
-  "Failed to fetch plugin info": "Plugin এর তথ্য আনতে ব্যর্থ হয়েছে",
-  "An error occurred while fetching plugin info from {{  URL }}.": "{{ URL }} থেকে Plugin এর তথ্য আনার সময় একটি ত্রুটি ঘটেছে।",
+  "Failed to fetch plugin info": "Plugin এর তথ্য আনতে Failed হয়েছে",
+  "An error occurred while fetching plugin info from {{  URL }}.": "{{ URL }} থেকে Plugin এর তথ্য আনার সময় একটি Error ঘটেছে।",
   "Yes": "হ্যাঁ",
   "No": "না",
   "Plugin Installation": "Plugin Installation",
@@ -14,7 +14,7 @@
   "Hide": "লুকান",
   "Hide Others": "অন্যদের লুকান",
   "Show All": "সব দেখান",
-  "File": "ফাইল",
+  "File": "File",
   "Close": "বন্ধ করুন",
   "Edit": "Edit",
   "Cut": "কাট",
@@ -26,7 +26,7 @@
   "Stop Speaking": "কথা বলা বন্ধ করুন",
   "View": "দেখুন",
   "Toggle Developer Tools": "ডেভেলপার টুলস চালু/বন্ধ করুন",
-  "Reset Zoom": "জুম রিসেট করুন",
+  "Reset Zoom": "Zoom রিসেট করুন",
   "Zoom In": "বড় করুন",
   "Zoom Out": "ছোট করুন",
   "Toggle Fullscreen": "Fullscreen চালু/বন্ধ করুন",
@@ -46,6 +46,6 @@
   "Another process is running": "আরেকটি process ইতিমধ্যেই চলছে",
   "Looks like another process is already running. Continue by terminating that process automatically, or quit?": "মনে হচ্ছে আরেকটি process ইতিমধ্যে চলছে। আপনি কি সেই processটি স্বয়ংক্রিয়ভাবে বন্ধ করে চালিয়ে যেতে চান, না কি বের হতে চান?",
   "Continue": "Continue করুন",
-  "Failed to quit the other running process": "অন্য চলমান process বন্ধ করতে ব্যর্থ হয়েছে",
+  "Failed to quit the other running process": "অন্য চলমান process বন্ধ করতে Failed হয়েছে",
   "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "অন্য চলমান processটি বন্ধ করা যায়নি, PID গুলি: {{ process_list }}। অনুগ্রহ করে সেই processটি বন্ধ করুন এবং অ্যাপটি পুনরায় চালু করুন।"
 }
