@@ -19,6 +19,7 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isElectron } from '../../helpers/isElectron';
 import { useSelectedClusters } from '../../lib/k8s';
+import CRD from '../../lib/k8s/crd';
 import { createRouteURL } from '../../lib/router';
 import { useTypedSelector } from '../../redux/reducers/reducers';
 import { DefaultSidebars, SidebarItemProps } from '.';
@@ -56,6 +57,51 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   const shouldShowHomeItem = isElectron() || Object.keys(clusters).length !== 1;
   const selectedClusters = useSelectedClusters();
   const { t } = useTranslation();
+
+  const [crds, error] = CRD.useList();
+  console.log(error);
+
+  const crdsSidebarEntries = useMemo(() => {
+    const crdsSidebarEntries: SidebarItemProps[] = [];
+    if (sidebarName !== DefaultSidebars.IN_CLUSTER) {
+      return crdsSidebarEntries;
+    }
+
+    if (crds === null) {
+      return crdsSidebarEntries;
+    }
+
+    const entriesGroup = new Map<string, SidebarItemProps>();
+    crds.forEach(item => {
+      const group = item.jsonData.spec.group;
+      if (!entriesGroup.has(group)) {
+        entriesGroup.set(group, {
+          name: `group-${group}`,
+          label: group,
+          isCR: true,
+          subList: [
+            {
+              name: item.jsonData.metadata.name,
+              label: item.jsonData.spec.names.kind,
+              isCR: true,
+            },
+          ],
+        });
+      } else {
+        const entryGroup = entriesGroup.get(group)!;
+        entryGroup.subList?.push({
+          name: item.jsonData.metadata.name,
+          label: item.jsonData.spec.names.kind,
+          isCR: true,
+        });
+        //entryGroup.subList =
+      }
+    });
+    entriesGroup.forEach(item => {
+      crdsSidebarEntries.push(item);
+    });
+    return sortSidebarItems(crdsSidebarEntries);
+  }, [sidebarName, crds]);
 
   const sidebars = useMemo(() => {
     const homeItems: SidebarItemProps[] = [
@@ -260,6 +306,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         name: 'config',
         label: t('glossary|Configuration'),
         icon: 'mdi:format-list-checks',
+        divider: true,
         subList: [
           {
             name: 'configMaps',
@@ -323,6 +370,12 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         ],
       },
     ];
+
+    if (crdsSidebarEntries.length !== 0) {
+      crdsSidebarEntries.forEach(item => {
+        inClusterItems.push(item);
+      });
+    }
 
     // List of sidebars, they act as roots for the sidebar tree
     const sidebarsList: SidebarItemProps[] = [
@@ -390,6 +443,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     shouldShowHomeItem,
     Object.keys(clusters).join(','),
     selectedClusters.join(','),
+    crdsSidebarEntries,
     t,
   ]);
 

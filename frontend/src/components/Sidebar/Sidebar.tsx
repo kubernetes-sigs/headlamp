@@ -427,7 +427,8 @@ export const PureSidebar = memo(
 );
 
 export function useSidebarItem(
-  sidebarDesc: string | null | { item: string | null; sidebar?: string }
+  sidebarDesc: string | null | { item: string | null; sidebar?: string },
+  computedMatch: any
 ) {
   let itemName: string | null = null;
   let sidebar: DefaultSidebars | string | null = DefaultSidebars.IN_CLUSTER;
@@ -440,6 +441,9 @@ export function useSidebarItem(
     if (!!sidebarDesc.sidebar) {
       sidebar = sidebarDesc.sidebar || DefaultSidebars.IN_CLUSTER;
     }
+  }
+  if (itemName === 'customresource' && sidebar === DefaultSidebars.IN_CLUSTER) {
+    itemName = computedMatch?.params?.crd ?? itemName;
   }
 
   const dispatch = useDispatch();

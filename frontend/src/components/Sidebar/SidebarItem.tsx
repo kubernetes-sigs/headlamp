@@ -41,6 +41,7 @@ export interface SidebarItemProps extends ListItemProps, SidebarEntry {
   subList?: Omit<this, 'sidebar'>[];
   /** Whether to hide the sidebar item. */
   hide?: boolean;
+  isCR?: boolean;
 }
 
 const SidebarItem = memo((props: SidebarItemProps) => {
@@ -57,6 +58,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
     icon,
     fullWidth = true,
     hide,
+    isCR,
     ...other
   } = props;
   const clusters = useSelectedClusters();
@@ -69,10 +71,17 @@ const SidebarItem = memo((props: SidebarItemProps) => {
 
   if (!fullURL) {
     let routeName = name;
-    if (!getRoute(name)) {
-      routeName = subList.length > 0 ? subList[0].name : '';
+    if (isCR) {
+      if (name.startsWith('group-')) {
+        routeName = subList.length > 0 ? subList[0].name : '';
+      }
+      fullURL = createRouteURL('customresources', { crd: routeName });
+    } else {
+      if (!getRoute(name)) {
+        routeName = subList.length > 0 ? subList[0].name : '';
+      }
+      fullURL = createRouteURL(routeName);
     }
-    fullURL = createRouteURL(routeName);
   }
 
   return hide ? null : (
