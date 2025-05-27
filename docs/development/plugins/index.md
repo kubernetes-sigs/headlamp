@@ -38,3 +38,7 @@ project or within a Headlamp fork. Such a setup would require always
 rebuilding/maintaining Headlamp when changing a plugin.
 
 Learn [how to create a Headlamp plugin](./building.md).
+
+## Building a Custom Docker Image with Plugins
+
+See [Custom Docker Image with Plugins](./custom-docker-image.md) for a step-by-step guide to building a Headlamp Docker image with pre-installed plugins.
