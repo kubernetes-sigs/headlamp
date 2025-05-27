@@ -1,0 +1,209 @@
+name: Plugin Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      plugin_path:
+        description: 'Path to the plugin directory (relative to repo root)'
+        required: true
+      registry:
+        description: 'OCI registry to push to (e.g., ghcr.io/headlamp-k8s)'
+        required: false
+        default: 'ghcr.io/headlamp-k8s'
+      update_artifacthub:
+        description: 'Update ArtifactHub package file'
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-release:
+    name: Build and Release Plugin
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate plugin path
+        run: |
+          PLUGIN_PATH="${{ github.workspace }}/${{ inputs.plugin_path }}"
+          if [ ! -d "$PLUGIN_PATH" ]; then
+            echo "Error: Plugin directory does not exist: $PLUGIN_PATH"
+            exit 1
+          fi
+          
+          if [ ! -f "$PLUGIN_PATH/package.json" ]; then
+            echo "Error: package.json not found in plugin directory: $PLUGIN_PATH"
+            exit 1
+          fi
+          
+          echo "PLUGIN_PATH=$PLUGIN_PATH" >> $GITHUB_ENV
+          
+          # Extract plugin name and version
+          PLUGIN_NAME=$(node -p "require('$PLUGIN_PATH/package.json').name")
+          PLUGIN_VERSION=$(node -p "require('$PLUGIN_PATH/package.json').version")
+          
+          # Sanitize plugin name for Docker tag
+          SANITIZED_NAME=$(echo $PLUGIN_NAME | sed 's/@//g' | sed 's/\//-/g')
+          
+          echo "PLUGIN_NAME=$PLUGIN_NAME" >> $GITHUB_ENV
+          echo "PLUGIN_VERSION=$PLUGIN_VERSION" >> $GITHUB_ENV
+          echo "SANITIZED_NAME=$SANITIZED_NAME" >> $GITHUB_ENV
+          
+          echo "Plugin: $PLUGIN_NAME v$PLUGIN_VERSION"
+
+      - name: Install dependencies
+        run: |
+          cd $PLUGIN_PATH
+          npm ci
+
+      - name: Create output directory
+        run: mkdir -p dist
+
+      - name: Build plugin and create tarball
+        run: node plugins/build-plugin-release.js ${{ inputs.plugin_path }}
+
+      - name: Check for ArtifactHub configuration
+        id: check-artifacthub
+        run: |
+          if [ -f "$PLUGIN_PATH/artifacthub.yaml" ]; then
+            if grep -q "in-cluster" "$PLUGIN_PATH/artifacthub.yaml"; then
+              echo "BUILD_OCI=true" >> $GITHUB_ENV
+              echo "build_oci=true" >> $GITHUB_OUTPUT
+            else
+              echo "BUILD_OCI=false" >> $GITHUB_ENV
+              echo "build_oci=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "BUILD_OCI=false" >> $GITHUB_ENV
+            echo "build_oci=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        if: env.BUILD_OCI == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        if: env.BUILD_OCI == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push OCI image
+        if: env.BUILD_OCI == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.plugins
+          push: true
+          tags: ${{ inputs.registry }}/${{ env.SANITIZED_NAME }}:${{ env.PLUGIN_VERSION }},${{ inputs.registry }}/${{ env.SANITIZED_NAME }}:latest
+          build-args: |
+            PLUGIN_PATH=${{ inputs.plugin_path }}
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Get plugin details
+            const pluginName = process.env.PLUGIN_NAME;
+            const pluginVersion = process.env.PLUGIN_VERSION;
+            const sanitizedName = process.env.SANITIZED_NAME;
+            
+            // Create release
+            const releaseResponse = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: `${sanitizedName}-v${pluginVersion}`,
+              name: `${pluginName} v${pluginVersion}`,
+              draft: true,
+              prerelease: false,
+              generate_release_notes: true
+            });
+            
+            console.log(`Created release: ${releaseResponse.data.html_url}`);
+            return {
+              release_id: releaseResponse.data.id,
+              upload_url: releaseResponse.data.upload_url
+            };
+
+      - name: Upload tarball to release
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Get release details from previous step
+            const releaseId = ${{ steps.create_release.outputs.result }}.release_id;
+            
+            // Get plugin details
+            const pluginName = process.env.PLUGIN_NAME;
+            const pluginVersion = process.env.PLUGIN_VERSION;
+            const sanitizedName = process.env.SANITIZED_NAME;
+            
+            // Find the tarball file
+            const distDir = path.join(process.cwd(), 'dist');
+            const files = fs.readdirSync(distDir);
+            const tarballFile = files.find(file => file.endsWith('.tar.gz'));
+            
+            if (!tarballFile) {
+              throw new Error('Tarball file not found in dist directory');
+            }
+            
+            const tarballPath = path.join(distDir, tarballFile);
+            const tarballContent = fs.readFileSync(tarballPath);
+            
+            // Upload the tarball
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              name: tarballFile,
+              data: tarballContent
+            });
+            
+            console.log(`Uploaded ${tarballFile} to release`);
+
+      - name: Update ArtifactHub package file
+        if: inputs.update_artifacthub == true && steps.check-artifacthub.outputs.build_oci == 'true'
+        run: |
+          if [ -f "$PLUGIN_PATH/artifacthub.yaml" ]; then
+            echo "Updating ArtifactHub package file..."
+            node plugins/update-artifacthub.js ${{ inputs.plugin_path }} --registry=${{ inputs.registry }}
+            
+            # Commit and push changes
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add "$PLUGIN_PATH/artifacthub.yaml"
+            git commit -m "Update ArtifactHub package file for ${{ env.PLUGIN_NAME }} v${{ env.PLUGIN_VERSION }}"
+            git push
+          else
+            echo "No ArtifactHub package file found, skipping update."
+          fi
+
+      - name: Print release information
+        run: |
+          echo "Plugin release completed successfully!"
+          echo "Plugin: ${{ env.PLUGIN_NAME }} v${{ env.PLUGIN_VERSION }}"
+          echo "Tarball available in the GitHub release"
+          
+          if [ "${{ env.BUILD_OCI }}" == "true" ]; then
+            echo "OCI image pushed to: ${{ inputs.registry }}/${{ env.SANITIZED_NAME }}:${{ env.PLUGIN_VERSION }}"
+          fi

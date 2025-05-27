@@ -1,0 +1,56 @@
+name: Create Release Draft
+
+on:
+  workflow_dispatch:
+    inputs:
+      releaseName:
+        description: 'Name for this release (should be equivalent to the tag without the v prefix)'
+        required: true
+        default: 'X.Y.Z'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Release Draft
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        with:
+          token: ${{ github.token }}
+          draft: true
+          name: ${{ github.event.inputs.releaseName }}
+          body: |
+            ## ✨ Enhancements:
+            * Feature 1
+            * Feature 2
+
+            ## 🐞 Bug fixes
+            * Fix 1
+            * Fix 2
+
+            ## 💻 Development
+            * Development experience related change 1
+            * Development experience related change 2
+
+            ## 📖 Documentation
+            * Docs change 1
+            * Docs change 2
+
+            <!-- end-release-notes -->
+            **Container image:** :whale:  [ghcr.io/headlamp-k8s/headlamp:v${{ github.event.inputs.releaseName }}](https://github.com/kubernetes-sigs/headlamp/pkgs/container/headlamp)
+            **Desktop Apps:**
+
+            :penguin:  [Flatpak / Linux (AMD64)](https://flathub.org/apps/details/io.kinvolk.Headlamp)
+            :penguin:  Linux AppImage [AMD64](https://github.com/kubernetes-sigs/headlamp/releases/download/v${{ github.event.inputs.releaseName }}/Headlamp-${{ github.event.inputs.releaseName }}-linux-x64.AppImage), [ARM64](https://github.com/kubernetes-sigs/headlamp/releases/download/v${{ github.event.inputs.releaseName }}/Headlamp-${{ github.event.inputs.releaseName }}-linux-arm64.AppImage),  [ARMv7l](https://github.com/kubernetes-sigs/headlamp/releases/download/v${{ github.event.inputs.releaseName }}/Headlamp-${{ github.event.inputs.releaseName }}-linux-armv7l.AppImage)
+            :penguin: Linux Tarball [AMD64](https://github.com/kubernetes-sigs/headlamp/releases/download/v${{ github.event.inputs.releaseName }}/Headlamp-${{ github.event.inputs.releaseName }}-linux-x64.tar.gz), [ARM64](https://github.com/kubernetes-sigs/headlamp/releases/download/v${{ github.event.inputs.releaseName }}/Headlamp-${{ github.event.inputs.releaseName }}-linux-arm64.tar.gz), [ARMv7l](https://github.com/kubernetes-sigs/headlamp/releases/download/v${{ github.event.inputs.releaseName }}/Headlamp-${{ github.event.inputs.releaseName }}-linux-armv7l.tar.gz)
+            :penguin: Debian / Linux [AMD64](https://github.com/kubernetes-sigs/headlamp/releases/download/v${{ github.event.inputs.releaseName }}/headlamp_${{ github.event.inputs.releaseName }}-1_amd64.deb)
+            :green_apple:  [Mac (AMD64)](https://github.com/kubernetes-sigs/headlamp/releases/download/v${{ github.event.inputs.releaseName }}/Headlamp-${{ github.event.inputs.releaseName }}-mac-x64.dmg)
+            :green_apple: [Mac (ARM/M1)](https://github.com/kubernetes-sigs/headlamp/releases/download/v${{ github.event.inputs.releaseName }}/Headlamp-${{ github.event.inputs.releaseName }}-mac-arm64.dmg)
+            :blue_square:  [Windows (AMD64)](https://github.com/kubernetes-sigs/headlamp/releases/download/v${{ github.event.inputs.releaseName }}/Headlamp-${{ github.event.inputs.releaseName }}-win-x64.exe)
+        env:
+          GITHUB_REPOSITORY: $GITHUB_REPOSITORY

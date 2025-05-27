@@ -1,0 +1,11 @@
+{
+  "name": "@headlamp-k8s/plugin-scripts",
+  "version": "0.1.0",
+  "description": "Scripts for building and publishing Headlamp plugins",
+  "private": true,
+  "scripts": {
+    "build-release": "node build-plugin-release.js",
+    "update-artifacthub": "node update-artifacthub.js",
+    "test": "node test-plugin-release.js"
+  }
+}

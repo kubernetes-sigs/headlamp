@@ -1,0 +1,39 @@
+name: Test Plugin Scripts
+
+on:
+  pull_request:
+    paths:
+      - 'plugins/build-plugin-release.js'
+      - 'plugins/update-artifacthub.js'
+      - 'plugins/test-plugin-release.js'
+  push:
+    branches:
+      - main
+    paths:
+      - 'plugins/build-plugin-release.js'
+      - 'plugins/update-artifacthub.js'
+      - 'plugins/test-plugin-release.js'
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test Plugin Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          cd plugins/examples/pod-counter
+          npm ci
+
+      - name: Run tests
+        run: |
+          cd plugins
+          npm test

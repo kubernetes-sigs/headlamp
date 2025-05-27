@@ -1,0 +1,70 @@
+name: Release Charts
+
+# See https://github.com/helm/chart-releaser-action
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - charts/**
+      - '!charts/**/README.md'
+  # For manual dispatch
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    permissions:
+      contents: write # need to write a commit to the repo
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@5119fcb9089d432beecbf79bb2c7915207344b78 # v3.5
+
+      - name: Prepare GPG key
+        run: |
+          gpg_dir=.cr-gpg
+          mkdir "$gpg_dir"
+
+          # referring keyring to private key of gpg
+          keyring="$gpg_dir/secring.gpg"
+
+          # storing base64 GPG key into keyring
+          base64 -d <<< "$GPG_KEYRING_BASE64" > "$keyring"
+
+          passphrase_file="$gpg_dir/passphrase"
+
+          # storing passphrase data into a file
+          echo "$GPG_PASSPHRASE" > "$passphrase_file"
+
+          # saving passphrase into github-environment
+          echo "CR_PASSPHRASE_FILE=$passphrase_file" >> "$GITHUB_ENV"
+
+          # saving private key into github-environemnt
+          echo "CR_KEYRING=$keyring" >> "$GITHUB_ENV"
+        env:
+          GPG_KEYRING_BASE64: "${{ secrets.GPG_KEYRING_BASE64 }}" #Referring secrets of github above
+          GPG_PASSPHRASE: "${{ secrets.GPG_PASSPHRASE }}"
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@a917fd15b20e8b64b94d9158ad54cd6345335584 # v1.6.0
+        env:
+          CR_TOKEN: "${{ github.token }}"
+          CR_KEY: "${{ secrets.GPG_SIGNING_KEY_NAME }}" # Name used while creating key
+          CR_SIGN: true # set to true to sign images
+        with:
+          config: .github/cr.yaml
+          mark_as_latest: false # only headlamp is set to latest
