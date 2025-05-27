@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "jsonpath-plus": "^10.3.0",
+    "lodash": "^4.17.21",
+    "react": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.17.17",
+    "@types/react": "^19.1.6"
+  }
+}

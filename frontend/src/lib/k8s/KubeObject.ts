@@ -444,15 +444,28 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
   delete(force?: boolean) {
     const args: string[] = [this.getName()];
-    if (this.isNamespaced) {
+    // Only add namespace if the resource is namespaced and namespace is set
+    if ((this.constructor as typeof KubeObject).isNamespaced && this.getNamespace()) {
       args.unshift(this.getNamespace()!);
     }
     const params: DeleteParameters = {};
 
-    console.log(force);
+    // Debug log the delete path and parameters
+    // eslint-disable-next-line no-console
+    console.debug('[KubeObject.delete] Deleting', {
+      kind: this.kind,
+      name: this.getName(),
+      namespace: this.getNamespace(),
+      isNamespaced: (this.constructor as typeof KubeObject).isNamespaced,
+      args,
+      params,
+      cluster: this._clusterName,
+    });
+
     if (force) {
       params.gracePeriodSeconds = 0;
-      console.log(params);
+      // eslint-disable-next-line no-console
+      console.debug('[KubeObject.delete] Force delete params', params);
     }
 
     // @ts-ignore
