@@ -41,6 +41,7 @@ export interface SidebarItemProps extends ListItemProps, SidebarEntry {
   subList?: Omit<this, 'sidebar'>[];
   /** Whether to hide the sidebar item. */
   hide?: boolean;
+  level?: number;
   isCR?: boolean;
 }
 
@@ -55,6 +56,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
     subList = [],
     isSelected,
     hasParent = false,
+    level = 0,
     icon,
     fullWidth = true,
     hide,
@@ -96,6 +98,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
         search={search}
         iconOnly={!fullWidth}
         hasParent={hasParent}
+        level={level}
         fullWidth={fullWidth}
         {...other}
       />
@@ -122,6 +125,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
                   key={item.name}
                   isSelected={item.isSelected}
                   hasParent
+                  level={level + 1}
                   search={search}
                   {...item}
                 />
