@@ -314,7 +314,6 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         name: 'config',
         label: t('glossary|Configuration'),
         icon: 'mdi:format-list-checks',
-        divider: true,
         subList: [
           {
             name: 'configMaps',
@@ -366,7 +365,28 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
           },
         ],
       },
-      {
+    ];
+
+    if (crdsSidebarEntries.length !== 0) {
+      const sublist: SidebarItemProps[] = [
+        {
+          name: 'crs',
+          label: t('translation|Instances'),
+          divider: true,
+        },
+      ];
+
+      crdsSidebarEntries.forEach(item => {
+        sublist.push(item);
+      });
+      inClusterItems.push({
+        name: 'crds',
+        label: t('glossary|Custom Resources'),
+        icon: 'mdi:puzzle',
+        subList: sublist,
+      });
+    } else {
+      inClusterItems.push({
         name: 'crds',
         label: t('glossary|Custom Resources'),
         icon: 'mdi:puzzle',
@@ -376,12 +396,6 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             label: t('translation|Instances'),
           },
         ],
-      },
-    ];
-
-    if (crdsSidebarEntries.length !== 0) {
-      crdsSidebarEntries.forEach(item => {
-        inClusterItems.push(item);
       });
     }
 
