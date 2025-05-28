@@ -42,20 +42,9 @@ export function getToken(cluster: string) {
  * Assumes the token is a JWT and extracts the payload.
  * @param cluster - The name of the cluster for which to get user information.
  * @returns The parsed user information object from the token's payload.
- * @throws Error if the token is not a valid JWT or cannot be parsed.
  */
 export function getUserInfo(cluster: string) {
-  const token = getToken(cluster);
-  if (!token) {
-    // Or handle this case as per your application's requirements,
-    // e.g., return null or throw a more specific error.
-    console.warn(`No token found for cluster: ${cluster}`);
-    return null;
-  }
-  const user = token.split('.')[1];
-  if (!user) {
-    throw new Error(`Invalid token structure for cluster: ${cluster}`);
-  }
+  const user = getToken(cluster).split('.')[1];
   return JSON.parse(atob(user));
 }
 
