@@ -58,12 +58,15 @@ i18next
         });
     },
   })
+  // The above backend plugin dynamically imports only the language file needed for the current user. This makes the app load faster.
+
   // i18next options: https://www.i18next.com/overview/configuration-options
   .init({
-    debug: import.meta.env.DEV && !import.meta.env.UNDER_TEST,
+    debug: import.meta.env.DEV && !import.meta.env.UNDER_TEST, //Enable helpful console messages or debug messages in development mode.
     ns: sharedConfig.namespaces,
     defaultNS: sharedConfig.defaultNamespace,
     fallbackLng: 'en',
+    //uses settings from i18nextSharedConfig.mjs
     contextSeparator: sharedConfig.contextSeparator,
     supportedLngs: Object.keys(supportedLanguages),
     // nonExplicitSupportedLngs: true,
@@ -76,7 +79,8 @@ i18next
         return value;
       },
     },
-    returnEmptyString: false,
+    //interpolation: Handles how dynamic values (variables) are inserted into translated strings (e.g., "Welcome, {{name}}!")
+    returnEmptyString: false, //If a translation is missing, it won't return an empty string
     // https://react.i18next.com/latest/i18next-instance
     // https://www.i18next.com/overview/configuration-options
     react: {
