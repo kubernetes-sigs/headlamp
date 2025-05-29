@@ -16156,6 +16156,7 @@
   "registerGetTokenFunction": [Function],
   "registerHeadlampEventCallback": [Function],
   "registerKindIcon": [Function],
+  "registerKubeObjectGlance": [Function],
   "registerMapSource": [Function],
   "registerOverviewChartsProcessor": [Function],
   "registerPluginSettings": [Function],
