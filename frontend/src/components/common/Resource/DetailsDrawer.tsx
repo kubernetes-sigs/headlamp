@@ -68,6 +68,8 @@ export default function DetailsDrawer() {
         border: '1px solid',
         borderColor: theme.palette.divider,
       }}
+      role="complementary"
+      aria-describedby="resource-details-content"
     >
       <Box
         sx={{
@@ -78,7 +80,7 @@ export default function DetailsDrawer() {
       >
         <ActionButton onClick={() => closeDrawer()} icon="mdi:close" description={t('Close')} />
       </Box>
-      <Box>
+      <Box id="resource-details-content">
         {selectedResource && (
           <KubeObjectDetails
             resource={{

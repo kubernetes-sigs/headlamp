@@ -22,12 +22,14 @@ import { KubeObject } from '../../../lib/k8s/cluster';
 import Deployment from '../../../lib/k8s/deployment';
 import Endpoints from '../../../lib/k8s/endpoints';
 import Event from '../../../lib/k8s/event';
+import HPA from '../../../lib/k8s/hpa';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import Service from '../../../lib/k8s/service';
 import { DateLabel } from '../../common/Label';
 import { DeploymentGlance } from './DeploymentGlance';
 import { EndpointsGlance } from './EndpointsGlance';
+import { HorizontalPodAutoscalerGlance } from './HorizontalPodAutoscalerGlance';
 import { PodGlance } from './PodGlance';
 import { ReplicaSetGlance } from './ReplicaSetGlance';
 import { ServiceGlance } from './ServiceGlance';
@@ -64,6 +66,10 @@ export const KubeObjectGlance = memo(({ resource }: { resource: KubeObject }) =>
 
   if (kind === 'ReplicaSet' || kind === 'StatefulSet') {
     sections.push(<ReplicaSetGlance set={resource as ReplicaSet} />);
+  }
+
+  if (kind === 'HorizontalPodAutoscaler') {
+    sections.push(<HorizontalPodAutoscalerGlance hpa={resource as HPA} />);
   }
 
   if (events.length > 0) {

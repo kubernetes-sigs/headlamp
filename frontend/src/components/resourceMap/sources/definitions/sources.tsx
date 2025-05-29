@@ -21,6 +21,7 @@ import CronJob from '../../../../lib/k8s/cronJob';
 import DaemonSet from '../../../../lib/k8s/daemonSet';
 import Deployment from '../../../../lib/k8s/deployment';
 import Endpoints from '../../../../lib/k8s/endpoints';
+import HPA from '../../../../lib/k8s/hpa';
 import Ingress from '../../../../lib/k8s/ingress';
 import IngressClass from '../../../../lib/k8s/ingressClass';
 import Job from '../../../../lib/k8s/job';
@@ -122,8 +123,8 @@ export const allSources: GraphSource[] = [
       makeKubeSource(Secret),
       makeKubeSource(MutatingWebhookConfiguration),
       makeKubeSource(ValidatingWebhookConfiguration),
+      makeKubeSource(HPA),
       // TODO: Implement the rest of resources
-      // hpa
       // vpa
       // pdb
       // rq

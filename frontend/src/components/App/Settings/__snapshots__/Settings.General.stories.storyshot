@@ -146,9 +146,10 @@
                 class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
               >
                 <span
-                  class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
+                  class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
                 >
                   <input
+                    checked=""
                     class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
                     name="drawerMode"
                     type="checkbox"

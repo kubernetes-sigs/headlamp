@@ -30,7 +30,7 @@ export interface DrawerModeState {
   };
 }
 
-const getLocalDrawerStatus = (key: string) => localStorage.getItem(key) === 'true';
+const getLocalDrawerStatus = (key: string) => localStorage.getItem(key) !== 'false';
 
 const localStorageName = 'detailDrawerEnabled';
 
