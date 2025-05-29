@@ -19,7 +19,7 @@ import Namespace from '../../../lib/k8s/namespace';
 import Node from '../../../lib/k8s/node';
 import Pod from '../../../lib/k8s/pod';
 import { makeGraphLookup } from './graphLookup';
-import { forEachNode, GraphEdge, GraphNode } from './graphModel';
+import { forEachNode, getNodeWeight, GraphEdge, GraphNode } from './graphModel';
 
 export type GroupBy = 'node' | 'namespace' | 'instance';
 
@@ -113,7 +113,7 @@ const getConnectedComponents = (nodes: GraphNode[], edges: GraphEdge[]): GraphNo
       findConnectedComponent(node, componentNodes, componentEdges);
       const mainNode = getMainNode(componentNodes);
 
-      const id = 'group-' + mainNode.id;
+      const id = 'group-' + (mainNode?.id ?? 'unknown');
       components.push({
         id: id,
         nodes: componentNodes,
@@ -126,18 +126,34 @@ const getConnectedComponents = (nodes: GraphNode[], edges: GraphEdge[]): GraphNo
 };
 
 /**
- * Try to find a "main" node in the workload group
- * If can't find anything return the first node
+ * Try to find a "main" node in the group based on weight.
+ * Higher weight nodes are considered more important.
+ *
+ * @param nodes - Array of nodes to find the main node from
+ * @returns The node with the highest weight (most important), or undefined if array is empty
  */
-export const getMainNode = (nodes: GraphNode[]) => {
-  const deployment = nodes.find(it => it.kubeObject?.kind === 'Deployment');
-  const replicaSet = nodes.find(it => it.kubeObject?.kind === 'ReplicaSet');
-  const daemonSet = nodes.find(it => it.kubeObject?.kind === 'DaemonSet');
-  const statefulSet = nodes.find(it => it.kubeObject?.kind === 'StatefulSet');
-  const job = nodes.find(it => it.kubeObject?.kind === 'Job');
-  const cronJob = nodes.find(it => it.kubeObject?.kind === 'CronJob');
+export const getMainNode = (nodes: GraphNode[]): GraphNode | undefined => {
+  if (nodes.length === 0) {
+    return undefined;
+  }
 
-  return deployment ?? replicaSet ?? daemonSet ?? statefulSet ?? cronJob ?? job ?? nodes[0];
+  if (nodes.length === 1) {
+    return nodes[0];
+  }
+
+  // Find node with the highest weight
+  let mainNode = nodes[0];
+  let maxWeight = getNodeWeight(mainNode);
+
+  for (let i = 1; i < nodes.length; i++) {
+    const currentWeight = getNodeWeight(nodes[i]);
+    if (currentWeight > maxWeight) {
+      maxWeight = currentWeight;
+      mainNode = nodes[i];
+    }
+  }
+
+  return mainNode;
 };
 
 /**
@@ -189,7 +205,7 @@ const groupByProperty = (
 
 /**
  * Groups the graph into separate 'group' Nodes
- * Nodes within groups are sorted by size
+ * Nodes within groups are sorted by weight and size
  *
  * @param nodes - List of nodes
  * @param edges - List of edge
@@ -273,7 +289,7 @@ export function groupGraph(
       node => {
         if (node.nodes) {
           const mainNode = getMainNode(node.nodes.filter(node => !node.nodes) as GraphNode[]);
-          return mainNode.kubeObject?.metadata?.labels?.['app.kubernetes.io/instance'];
+          return mainNode?.kubeObject?.metadata?.labels?.['app.kubernetes.io/instance'];
         }
         return node.kubeObject?.metadata?.labels?.['app.kubernetes.io/instance'];
       },
@@ -283,21 +299,33 @@ export function groupGraph(
 
   root.nodes?.push(...components);
 
-  // Sort nodes within each group node
+  // Sort nodes within each group node using weight-based sorting
   forEachNode(root, node => {
     /**
-     * Sort elements, giving priority to bigger groups
+     * Sort elements, giving priority to both weight and bigger groups
      */
-    const getNodeWeight = (n: GraphNode) => {
+    const getNodeSortedWeight = (n: GraphNode): number => {
+      // base weight from the node's explicit weight or type-based default
+      let weight = getNodeWeight(n);
+
+      // additional weight for groups with edges (connected components)
       if (n.edges && n.nodes) {
-        const someEdges = n.edges.length > 0;
-        return 1 + (someEdges ? 100 : 0) + n.nodes.length;
+        const hasEdges = n.edges.length > 0;
+        const nodeCount = n.nodes.length;
+
+        if (hasEdges) {
+          weight += 10000; // weight boost for groups with connections
+        }
+
+        // add weight based on group size
+        weight += nodeCount * 10;
       }
-      return 1;
+
+      return weight;
     };
 
     if (node.nodes) {
-      node.nodes.sort((a, b) => getNodeWeight(b) - getNodeWeight(a));
+      node.nodes.sort((a, b) => getNodeSortedWeight(b) - getNodeSortedWeight(a));
     }
   });
 

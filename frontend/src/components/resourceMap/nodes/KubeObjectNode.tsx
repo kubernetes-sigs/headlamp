@@ -146,7 +146,8 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
   const theme = useTheme();
   const graph = useGraphView();
 
-  const kubeObject = node?.kubeObject ?? getMainNode(node?.nodes ?? [])?.kubeObject;
+  const mainNode = node?.nodes ? getMainNode(node.nodes) : undefined;
+  const kubeObject = node?.kubeObject ?? mainNode?.kubeObject;
 
   const isSelected = id === graph.nodeSelection;
   const isCollapsed = node?.nodes?.length ? node?.collapsed : true;
