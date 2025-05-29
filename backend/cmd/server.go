@@ -66,6 +66,7 @@ func main() {
 		enableHelm:                conf.EnableHelm,
 		enableDynamicClusters:     conf.EnableDynamicClusters,
 		watchPluginsChanges:       conf.WatchPluginsChanges,
+		caCertFile:                conf.CACertFile,
 		cache:                     cache,
 		kubeConfigStore:           kubeConfigStore,
 		multiplexer:               multiplexer,

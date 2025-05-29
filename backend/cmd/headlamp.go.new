@@ -1,0 +1,33 @@
+// This is a temporary file to hold our modified HeadlampConfig struct
+type HeadlampConfig struct {
+	useInCluster              bool
+	listenAddr                string
+	devMode                   bool
+	insecure                  bool
+	enableHelm                bool
+	enableDynamicClusters     bool
+	watchPluginsChanges       bool
+	port                      uint
+	kubeConfigPath            string
+	skippedKubeContexts       string
+	staticDir                 string
+	pluginDir                 string
+	staticPluginDir           string
+	oidcClientID              string
+	oidcValidatorClientID     string
+	oidcClientSecret          string
+	oidcIdpIssuerURL          string
+	oidcValidatorIdpIssuerURL string
+	oidcUseAccessToken        bool
+	baseURL                   string
+	oidcScopes                []string
+	proxyURLs                 []string
+	caCertFile                string
+	cache                     cache.Cache[interface{}]
+	kubeConfigStore           kubeconfig.ContextStore
+	multiplexer               *Multiplexer
+	telemetry                 *telemetry.Telemetry
+	metrics                   *telemetry.Metrics
+	telemetryConfig           cfg.Config
+	telemetryHandler          *telemetry.RequestHandler
+}
