@@ -1,6 +1,6 @@
 {
   "Failed to fetch plugin info": "प्लगिन जानकारी प्राप्त करने में विफल",
-  "An error occurred while fetching plugin info from {{ URL }}.": "{{ URL }} से प्लगिन जानकारी प्राप्त करते समय एक त्रुटि हुई।",
+  "An error occurred while fetching plugin info from {{  URL }}.": "{{  URL }} से प्लगिन जानकारी प्राप्त करते समय एक त्रुटि हुई।",
   "Yes": "हां",
   "No": "नहीं",
   "Plugin Installation": "प्लगिन इंस्टॉलेशन",

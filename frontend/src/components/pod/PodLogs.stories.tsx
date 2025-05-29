@@ -265,12 +265,12 @@ function getLogs(
 
 function unescapeStringLiterals(str: string): string {
   return str
-    .replace(/\\\\/g, '\\')
     .replace(/\\r\\n/g, '\r\n')
     .replace(/\\n/g, '\n')
     .replace(/\\t/g, '\t')
     .replace(/\\"/g, '"')
-    .replace(/\\'/g, "'");
+    .replace(/\\'/g, "'")
+    .replace(/\\\\/g, '\\');
 }
 
 export const PlainLogs = Template.bind({});

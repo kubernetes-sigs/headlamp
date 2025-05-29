@@ -172,12 +172,12 @@ class Pod extends KubeObject<KubePod> {
 
     function unescapeStringLiterals(str: string): string {
       return str
-        .replace(/\\\\/g, '\\') // Backslash
         .replace(/\\r\\n/g, '\r\n') // Carriage return + newline
         .replace(/\\n/g, '\n') // Newline
         .replace(/\\t/g, '\t') // Tab
         .replace(/\\"/g, '"') // Double quote
-        .replace(/\\'/g, "'"); // Single quote
+        .replace(/\\'/g, "'") // Single quote
+        .replace(/\\\\/g, '\\'); // Backslash
     }
 
     function prettifyLogLine(logLine: string): string {

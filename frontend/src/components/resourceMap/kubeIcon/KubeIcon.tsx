@@ -106,6 +106,7 @@ const kindGroups = {
   configuration: new Set([
     'ConfigMap',
     'Secret',
+    'HorizontalPodAutoscaler',
     'MutatingWebhookConfiguration',
     'ValidatingWebhookConfiguration',
   ]),

@@ -22,12 +22,18 @@ import { baseMocks } from './baseMocks';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { darkTheme, lightTheme } from '../src/components/App/defaultAppThemes';
 import { createMuiTheme } from '../src/lib/themes';
+import App from '../src/App';
 
 // https://github.com/mswjs/msw-storybook-addon
 initialize({
   onUnhandledRequest: 'warn',
   waitUntilReady: true,
 });
+
+// App import will load the whole app dependency tree
+// And assigning it to a value will make sure it's not tree-shaken and removed
+const DontDeleteMe = App;
+
 
 export const queryClient = new QueryClient({
   defaultOptions: {
