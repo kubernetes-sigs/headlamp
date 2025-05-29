@@ -158,6 +158,14 @@ const args = yargs(hideBin(process.argv))
       describe: 'Reloads plugins when there are changes to them or their directory',
       type: 'boolean',
     },
+    'ca-cert': {
+      describe: 'Path to custom CA certificate file',
+      type: 'string',
+    },
+    'insecure-ssl': {
+      describe: 'Skip SSL certificate verification',
+      type: 'boolean',
+    }
   })
   .positional('kubeconfig', {
     describe:
@@ -198,20 +206,6 @@ interface Action {
   destinationFolder?: string;
   headlampVersion?: string;
   pluginName?: string;
-}
-
-/**
- * `ProgressResp` is an interface for progress response.
- *
- * @interface
- * @property {string} type - The type of the progress response.
- * @property {string} message - The message of the progress response.
- * @property {Record<string, any>} data - Additional data for the progress response. Optional.
- */
-interface ProgressResp {
-  type: string;
-  message: string;
-  data?: Record<string, any>;
 }
 
 /**
@@ -625,6 +619,14 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   let serverArgs: string[] = ['--listen-addr=localhost'];
   if (!!args.kubeconfig) {
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);
+  }
+  if (!!args['ca-cert']) {
+    serverArgs = serverArgs.concat(['--ca-cert', args['ca-cert']]);
+    process.env.SSL_CERT_FILE = args['ca-cert'];
+  }
+  if (!!args['insecure-ssl']) {
+    serverArgs = serverArgs.concat(['--insecure-ssl']);
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
   }
   const proxyUrls = !!buildManifest && buildManifest['proxy-urls'];
   if (!!proxyUrls && proxyUrls.length > 0) {

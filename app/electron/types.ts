@@ -1,5 +1,16 @@
 import { IpcMainEvent } from 'electron';
 
+export interface SSLConfig {
+  caCert?: string;
+  insecureSSL?: boolean;
+}
+
+export interface ProgressResp {
+  type: string;
+  message: string;
+  data?: Record<string, any>;
+}
+
 export interface ToolMetadata {
   name: string;
   version: string;
@@ -8,12 +19,6 @@ export interface ToolMetadata {
   downloadUrl: string;
   sha256?: string;
   installPath: string;
-}
-
-export interface ProgressResp {
-  type: string;
-  message: string;
-  data?: Record<string, any>;
 }
 
 export interface IpcResponse<T = any> {
@@ -32,8 +37,9 @@ export interface ToolInstallParams {
 }
 
 export interface ToolManagerEvents {
-  'tools:list': () => Promise<IpcResponse<ToolMetadata[]>>;
-  'tools:install': (event: IpcMainEvent, params: ToolInstallParams) => Promise<IpcResponse<void>>;
-  'tools:uninstall': (event: IpcMainEvent, name: string) => Promise<IpcResponse<void>>;
-  'tools:execute': (event: IpcMainEvent, params: ToolExecuteParams) => Promise<IpcResponse<{ stdout: string; stderr: string }>>;
+  'tools:list': () => Promise<Record<string, any>>;
+  'tools:install': (metadata: ToolMetadata) => Promise<void>;
+  'tools:uninstall': (name: string) => Promise<void>;
+  'tools:execute': (name: string, args: string[]) => Promise<string>;
+  'tools:progress': (progress: ProgressResp) => void;
 }

@@ -108,3 +108,27 @@ Headlamp is released under the terms of the [Apache 2.0](./LICENSE) license.
 ## Frequently Asked Questions
 
 For more information about Headlamp, see the [Headlamp FAQ](https://headlamp.dev/docs/latest/faq/).
+
+## SSL Certificate Configuration
+
+When using Headlamp with a cluster that uses custom certificates or a private Certificate Authority (CA), you have two options:
+
+1. Use a custom CA certificate:
+```bash
+headlamp --ca-cert /path/to/ca.crt
+```
+
+2. Skip SSL certificate verification (not recommended for production):
+```bash
+headlamp --insecure-ssl
+```
+
+### Environment Variables
+
+The following environment variables can also be used to configure SSL certificate handling:
+
+- `SSL_CERT_FILE`: Path to a custom CA certificate file
+- `SSL_CERT_DIR`: Path to a directory containing CA certificates
+- `NODE_TLS_REJECT_UNAUTHORIZED`: Set to '0' to disable SSL certificate verification
+
+Note: Using `--insecure-ssl` is not recommended in production environments as it makes your connection vulnerable to man-in-the-middle attacks.
