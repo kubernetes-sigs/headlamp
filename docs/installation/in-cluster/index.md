@@ -47,7 +47,7 @@ kubectl apply -f https://raw.githubusercontent.com/kinvolk/headlamp/main/kuberne
 
 By default, Headlamp uses the default service account from the namespace it is deployed to, and generates a kubeconfig from it named `main`.
 
-If you wish to use another specific non-default kubeconfig file, then you can do it by mounting it to the default location at `/home/headlamp/.config/Headlamp/kubeconfigs/config`, or 
+If you wish to use another specific non-default kubeconfig file, then you can do it by mounting it to the default location at `/home/headlamp/.config/Headlamp/kubeconfigs/config`, or
 providing a custom path Headlamp with the ` -kubeconfig` argument or the KUBECONFIG env (through helm values.env)
 
 ### Use several kubeconfig files
@@ -76,6 +76,8 @@ and with that, you'll have a configured ingress file, so verify it and apply it:
 ```bash
 kubectl apply -f ./headlamp-ingress.yaml
 ```
+
+**Note:** If you're using nginx ingress controller with OIDC authentication and large JWT tokens, you may need additional configuration. See the [OIDC troubleshooting documentation](./oidc/#large-jwt-tokens-and-websocket-connection-issues) for details on configuring header buffer sizes.
 
 ## Exposing Headlamp with port-forwarding
 
