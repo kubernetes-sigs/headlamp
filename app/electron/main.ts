@@ -17,6 +17,7 @@
 import { ChildProcessWithoutNullStreams, exec, execSync, spawn } from 'child_process';
 import { randomBytes } from 'crypto';
 import dotenv from 'dotenv';
+import type { MessageBoxOptions, IpcMainEvent, MenuItemConstructorOptions } from 'electron';
 import {
   app,
   BrowserWindow,
@@ -24,11 +25,9 @@ import {
   ipcMain,
   Menu,
   MenuItem,
-  MessageBoxOptions,
   screen,
   shell,
 } from 'electron';
-import { IpcMainEvent, MenuItemConstructorOptions } from 'electron/main';
 import find_process from 'find-process';
 import * as fsPromises from 'fs/promises';
 import fs from 'node:fs';
@@ -49,7 +48,56 @@ import {
   PluginManager,
 } from './plugin-management';
 import { handleRunCommand } from './runCmd';
-import windowSize from './windowSize';
+import { ToolManager } from './tool-management';
+import { ProgressResp, ToolMetadata, ToolManagerEvents } from './types';
+import calculateWindowSize from './windowSize';
+
+// Utility function with proper typing
+function isEmpty(path: string): boolean {
+  return fs.readdirSync(path).length === 0;
+}
+
+const toolManager = new ToolManager();
+
+// Setup IPC handlers for tool management
+ipcMain.handle('tools:list', async () => {
+  try {
+    const tools = await toolManager.list();
+    return { success: true, data: tools };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Unknown error during tools listing' };
+  }
+});
+
+ipcMain.handle('tools:install', async (event, { metadata }) => {
+  try {
+    const progressCallback = (progress: ProgressResp) => {
+      event.sender.send('tools:install:progress', progress);
+    };
+    await toolManager.install(metadata, progressCallback);
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Unknown error during tool installation' };
+  }
+});
+
+ipcMain.handle('tools:uninstall', async (event, name: string) => {
+  try {
+    await toolManager.uninstall(name);
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Unknown error during tool uninstallation' };
+  }
+});
+
+ipcMain.handle('tools:execute', async (event, { name, args }: { name: string; args: string[] }) => {
+  try {
+    const output = await toolManager.executeTool(name, args);
+    return { success: true, data: output };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Unknown error during tool execution' };
+  }
+});
 
 dotenv.config({ path: path.join(process.resourcesPath, '.env') });
 
@@ -588,10 +636,6 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
 
   const bundledPlugins = path.join(process.resourcesPath, '.plugins');
 
-  function isEmpty(path) {
-    return fs.readdirSync(path).length === 0;
-  }
-
   // Enable the Helm and dynamic cluster endpoints
   process.env.HEADLAMP_CONFIG_ENABLE_HELM = 'true';
   process.env.HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS = 'true';
@@ -1119,7 +1163,7 @@ function startElecron() {
   async function createWindow() {
     // WSL has a problem with full size window placement, so make it smaller.
     const withMargin = isWSL();
-    const { width, height } = windowSize(screen.getPrimaryDisplay().workAreaSize, withMargin);
+    const { width, height } = calculateWindowSize(screen.getPrimaryDisplay().workAreaSize, withMargin);
 
     mainWindow = new BrowserWindow({
       width,
@@ -1284,6 +1328,49 @@ function startElecron() {
 
     new PluginManagerEventListeners().setupEventHandlers();
 
+    // Tool management IPC handlers
+    ipcMain.handle('tools:list', async () => {
+      try {
+        return await toolManager.list();
+      } catch (error) {
+        console.error('Error listing tools:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('tools:install', async (event, toolMetadata) => {
+      try {
+        const progressCallback = (progress: any) => {
+          event.sender.send('tools:progress', progress);
+        };
+        await toolManager.install(toolMetadata, progressCallback);
+        return true;
+      } catch (error) {
+        console.error('Error installing tool:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('tools:uninstall', async (event, toolName) => {
+      try {
+        await toolManager.uninstall(toolName);
+        return true;
+      } catch (error) {
+        console.error('Error uninstalling tool:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('tools:execute', async (event, { name, args }) => {
+      try {
+        const result = await toolManager.executeTool(name, args);
+        return result;
+      } catch (error) {
+        console.error('Error executing tool:', error);
+        throw error;
+      }
+    });
+
     if (!useExternalServer) {
       const runningHeadlamp = await getRunningHeadlampPIDs();
       let shouldWaitForKill = true;
@@ -1304,7 +1391,7 @@ function startElecron() {
             try {
               killProcess(pid);
             } catch (e) {
-              console.log(`Failed to quit headlamp-servere:`, e.message);
+              console.log(`Failed to quit headlamp-servere:`, (e as Error).message);
               shouldWaitForKill = false;
             }
           });
