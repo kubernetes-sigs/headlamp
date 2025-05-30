@@ -154,10 +154,11 @@ function AuthRoute(props: AuthRouteProps) {
     requiresAuth = true,
     requiresCluster = true,
     requiresToken,
+    computedMatch = {},
     ...other
   } = props;
   const redirectRoute = getCluster() ? 'login' : 'chooser';
-  useSidebarItem(sidebar);
+  useSidebarItem(sidebar, computedMatch);
 
   function getRenderer({ location }: RouteProps) {
     if (!requiresAuth) {
