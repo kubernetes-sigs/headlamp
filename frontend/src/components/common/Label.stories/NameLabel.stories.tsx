@@ -16,18 +16,39 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import { NameLabel as NameLabelComponent } from '../Label';
+import { TestContext } from '../../../test';
+import { NameLabel } from '../Label';
+
+interface NameLabelStoryProps {
+  children: React.ReactNode;
+}
 
 export default {
-  title: 'Label/NameLabel',
-  component: NameLabelComponent,
-  argTypes: {},
-} as Meta;
+  title: 'Labels/NameLabel',
+  component: NameLabel,
+  decorators: [
+    Story => (
+      <TestContext>
+        <Story />
+      </TestContext>
+    ),
+  ],
+  argTypes: {
+    children: { control: 'text', description: 'The text content of the NameLabel.' },
+  },
+} as Meta<typeof NameLabel>;
 
-const Template: StoryFn<{}> = args => (
-  <NameLabelComponent {...args}>A name label</NameLabelComponent>
-);
+const Template: StoryFn<NameLabelStoryProps> = args => <NameLabel {...args} />;
 
-export const NameLabel = Template.bind({
-  component: NameLabelComponent,
-});
+export const Default = Template.bind({});
+Default.args = {
+  children: 'Label Name',
+};
+Default.storyName = 'Basic NameLabel';
+
+export const LongText = Template.bind({});
+LongText.args = {
+  children:
+    'This is a much longer label name to demonstrate text wrapping or truncation behavior inherent to the component or its typical usage context, if any specific styling is applied by default.',
+};
+LongText.storyName = 'Long NameLabel Text';
