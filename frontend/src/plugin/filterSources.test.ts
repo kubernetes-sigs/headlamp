@@ -24,13 +24,7 @@ describe('filterSources', () => {
     const settingsPackages = undefined;
     const appMode = false;
 
-    const { sourcesToExecute } = filterSources(
-      sources,
-      packageInfos,
-      appMode,
-      '>=0.8.0-alpha.3',
-      settingsPackages
-    );
+    const { sourcesToExecute } = filterSources(sources, packageInfos, appMode, settingsPackages);
     expect(sourcesToExecute.length).toBe(0);
   });
 
@@ -55,7 +49,6 @@ describe('filterSources', () => {
       sources,
       packageInfos,
       appMode,
-      '>=0.8.0-alpha.3',
       settingsPackages
     );
     expect(Object.keys(incompatiblePlugins).length).toBe(0);
@@ -84,13 +77,7 @@ describe('filterSources', () => {
       },
     ];
     const appMode = true;
-    const { sourcesToExecute } = filterSources(
-      sources,
-      packageInfos,
-      appMode,
-      '>=0.8.0-alpha.3',
-      settingsPackages
-    );
+    const { sourcesToExecute } = filterSources(sources, packageInfos, appMode, settingsPackages);
 
     expect(sourcesToExecute.length).toBe(0);
   });
@@ -138,13 +125,7 @@ describe('filterSources', () => {
       },
     ];
     const appMode = true;
-    const { sourcesToExecute } = filterSources(
-      sources,
-      packageInfos,
-      appMode,
-      '>=0.8.0-alpha.3',
-      settingsPackages
-    );
+    const { sourcesToExecute } = filterSources(sources, packageInfos, appMode, settingsPackages);
 
     expect(sourcesToExecute.length).toBe(1);
     expect(sourcesToExecute[0]).toBe('source1');
@@ -197,7 +178,6 @@ describe('filterSources', () => {
       sources,
       packageInfos,
       appMode,
-      '>=0.8.0-alpha.3',
       settingsPackages
     );
 
@@ -210,8 +190,8 @@ describe('filterSources', () => {
       sources,
       packageInfos,
       appMode,
-      '', // empty string disables compatibility check
-      settingsPackages
+      settingsPackages,
+      true
     );
 
     expect(disabledCompatCheck.sourcesToExecute.length).toBe(2);

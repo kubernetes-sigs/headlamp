@@ -34,12 +34,12 @@ import * as ReactDOM from 'react-dom';
 import * as ReactRedux from 'react-redux';
 import * as ReactRouter from 'react-router-dom';
 import * as Recharts from 'recharts';
-import semver from 'semver';
 import { themeSlice } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
 import { getAppUrl } from '../helpers/getAppUrl';
 import { isElectron } from '../helpers/isElectron';
 import * as K8s from '../lib/k8s';
+import { checkCompatibleVersion, getPluginPaths, getPlugins } from '../lib/k8s/api/v2/plugins';
 import * as ApiProxy from '../lib/k8s/apiProxy';
 import * as Crd from '../lib/k8s/crd';
 import * as Notification from '../lib/notification';
@@ -143,10 +143,6 @@ export async function initializePlugins() {
  * @param sources array of source to execute. Has the same order as packageInfos.
  * @param packageInfos array of package.json contents
  * @param appMode if we are in app mode
- * @param compatibleVersion headlamp-plugin version this build is compatible with.
- *     If the plugin engine version is not compatible, the plugin will not be loaded.
- *     Can be set to a semver range, e.g. '>= 0.6.0' or '0.6.0 - 0.7.0'.
- *     If set to an empty string, all plugin versions will be loaded.
  * @param settingsPackages the packages from settings
  *
  * @returns the sources to execute and incompatible PackageInfos
@@ -156,8 +152,8 @@ export function filterSources(
   sources: string[],
   packageInfos: PluginInfo[],
   appMode: boolean,
-  compatibleVersion: string,
-  settingsPackages?: PluginInfo[]
+  settingsPackages?: PluginInfo[],
+  disableCompatibilityCheck?: boolean
 ) {
   const incompatiblePlugins: Record<string, PluginInfo> = {};
 
@@ -185,11 +181,11 @@ export function filterSources(
     return enabledInSettings;
   });
 
+  const checkAllVersion = disableCompatibilityCheck;
+
   const compatible = enabledSourcesAndPackageInfos.filter(({ packageInfo }) => {
-    const isCompatible = semver.satisfies(
-      semver.coerce(packageInfo.devDependencies?.['@kinvolk/headlamp-plugin']) || '',
-      compatibleVersion
-    );
+    const isCompatible = checkCompatibleVersion(packageInfo, checkAllVersion);
+
     if (!isCompatible) {
       incompatiblePlugins[packageInfo.name] = packageInfo;
       return false;
@@ -217,7 +213,7 @@ export function filterSources(
  */
 export function updateSettingsPackages(
   backendPlugins: PluginInfo[],
-  settingsPlugins: PluginInfo[]
+  settingsPlugins: { name: string; version?: string; isEnabled: boolean }[]
 ): PluginInfo[] {
   if (backendPlugins.length === 0) return [];
 
@@ -227,7 +223,11 @@ export function updateSettingsPackages(
       settingsPlugins.map(p => p.name + p.version).join('');
 
   if (!pluginsChanged) {
-    return settingsPlugins;
+    const updatedPlugins = backendPlugins.filter(plugin =>
+      settingsPlugins.some(setting => setting.name === plugin.name)
+    );
+
+    return updatedPlugins;
   }
 
   return backendPlugins.map(plugin => {
@@ -259,42 +259,17 @@ export function updateSettingsPackages(
  *
  */
 export async function fetchAndExecutePlugins(
-  settingsPackages: PluginInfo[],
+  settingsPackages: { name: string; isEnabled: boolean }[],
   onSettingsChange: (plugins: PluginInfo[]) => void,
   onIncompatible: (plugins: Record<string, PluginInfo>) => void
 ) {
-  const pluginPaths = (await fetch(`${getAppUrl()}plugins`).then(resp => resp.json())) as string[];
+  const pluginPaths = await getPluginPaths();
 
   const sourcesPromise = Promise.all(
     pluginPaths.map(path => fetch(`${getAppUrl()}${path}/main.js`).then(resp => resp.text()))
   );
 
-  const packageInfosPromise = await Promise.all<PluginInfo>(
-    pluginPaths.map(path =>
-      fetch(`${getAppUrl()}${path}/package.json`).then(resp => {
-        if (!resp.ok) {
-          if (resp.status !== 404) {
-            return Promise.reject(resp);
-          }
-          {
-            console.warn(
-              'Missing package.json. ' +
-                `Please upgrade the plugin ${path}` +
-                ' by running "headlamp-plugin extract" again.' +
-                ' Please use headlamp-plugin >= 0.8.0'
-            );
-            return {
-              name: path.split('/').slice(-1)[0],
-              version: '0.0.0',
-              author: 'unknown',
-              description: '',
-            };
-          }
-        }
-        return resp.json();
-      })
-    )
-  );
+  const packageInfosPromise = await getPlugins(settingsPackages);
 
   const sources = await sourcesPromise;
   const packageInfos = await packageInfosPromise;
@@ -305,15 +280,10 @@ export async function fetchAndExecutePlugins(
     onSettingsChange(updatedSettingsPackages);
   }
 
-  // Can set this to a semver version range like '>=0.8.0-alpha.3'.
-  // '' means all versions.
-  const compatibleHeadlampPluginVersion = '>=0.8.0-alpha.3';
-
   const { sourcesToExecute, incompatiblePlugins } = filterSources(
     sources,
     packageInfos,
     isElectron(),
-    compatibleHeadlampPluginVersion,
     updatedSettingsPackages
   );
 
