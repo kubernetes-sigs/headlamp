@@ -17,7 +17,7 @@
  */
 
 const USAGE = `
-This tests unpublished @kinvolk/headlamp-plugin package in repo.
+This tests unpublished @headlamp-k8s/headlamp-plugin package in repo.
 
 ./test-headlamp-plugin.js
 
@@ -112,15 +112,15 @@ function testHeadlampPlugin() {
   checkFileExists(join(curDir, 'src', 'headlamp-plugin.d.ts'));
   checkFileExists(join(curDir, '.vscode', 'extensions.json'));
 
-  // Does it upgrade "@kinvolk/headlamp-plugin" from an old version?
-  // change @kinvolk/headlamp-plugin version in package.json to an old one "^0.4.9"
+  // Does it upgrade "@headlamp-k8s/headlamp-plugin" from an old version?
+  // change @headlamp-k8s/headlamp-plugin version in package.json to an old one "^0.4.9"
   const packageJsonPath = join(curDir, 'package.json');
   const packageJson = fs.readFileSync(packageJsonPath, 'utf8');
   const changedJson = packageJson
     .split('\n')
     .map(line =>
-      line.includes('"@kinvolk/headlamp-plugin"')
-        ? '    "@kinvolk/headlamp-plugin": "^0.4.9"\n'
+      line.includes('"@headlamp-k8s/headlamp-plugin"')
+        ? '    "@headlamp-k8s/headlamp-plugin": "^0.4.9"\n'
         : line
     )
     .join('\n');

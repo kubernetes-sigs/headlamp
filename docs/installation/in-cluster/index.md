@@ -40,7 +40,7 @@ you have a running Kubernetes cluster and your `kubeconfig` pointing to it,
 you can run:
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/kinvolk/headlamp/main/kubernetes-headlamp.yaml
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/headlamp/main/kubernetes-headlamp.yaml
 ```
 
 ## Use a non-default kube config file

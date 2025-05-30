@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-/// <reference types="@kinvolk/headlamp-plugin" />
+/// <reference types="@headlamp-k8s/headlamp-plugin" />

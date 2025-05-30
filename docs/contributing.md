@@ -11,12 +11,12 @@ license ([Apache 2.0](https://github.com/kubernetes-sigs/headlamp/blob/main/LICE
 
 ## Code of Conduct
 
-Please refer to the Kinvolk [Code of Conduct](https://github.com/kinvolk/contribution/blob/master/CODE_OF_CONDUCT.md).
+Please refer to the Kubernetes [Code of Conduct](https://github.com/kubernetes/community/blob/master/code-of-conduct.md).
 
 ## Development practices
 
-The Headlamp project follows the [Kinvolk Contribution Guidelines](https://github.com/kinvolk/contribution),
-which promotes good and consistent contribution practices across Kinvolk's
+The Headlamp project follows the [Kubernetes Community Guidelines](https://github.com/kubernetes/community),
+which promotes good and consistent contribution practices across Kubernetes
 projects. Before starting to contribute, and in addition to this section, please
 read those guidelines.
 

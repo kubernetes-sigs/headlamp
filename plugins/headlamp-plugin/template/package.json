@@ -34,6 +34,6 @@
     "typescript": "5.6.2"
   },
   "devDependencies": {
-    "@kinvolk/headlamp-plugin": "^$${headlamp-plugin-version}"
+    "@headlamp-k8s/headlamp-plugin": "^$${headlamp-plugin-version}"
   }
 }

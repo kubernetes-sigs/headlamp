@@ -1,5 +1,5 @@
 {
-  "name": "@kinvolk/headlamp-plugin",
+  "name": "@headlamp-k8s/headlamp-plugin",
   "version": "0.12.0",
   "description": "The needed infrastructure for building Headlamp plugins.",
   "main": "lib/index.js",
@@ -163,7 +163,7 @@
   ],
   "keywords": [
     "headlamp",
-    "kinvolk",
+    "headlamp-k8s",
     "kubernetes",
     "kubernetes-ui",
     "kubernetes-plugins",
