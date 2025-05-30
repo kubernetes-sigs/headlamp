@@ -57,6 +57,7 @@ export default function IngressList() {
     <ResourceListView
       title={t('Ingresses')}
       resourceClass={Ingress}
+      reflectInURL
       columns={[
         'name',
         'namespace',

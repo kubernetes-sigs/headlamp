@@ -22,6 +22,7 @@ export function LeaseList() {
   const { t } = useTranslation(['glossary', 'translation']);
   return (
     <ResourceListView
+      reflectInURL
       title={t('glossary|Lease')}
       resourceClass={Lease}
       columns={[
