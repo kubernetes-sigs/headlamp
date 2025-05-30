@@ -9,6 +9,7 @@
   "Nodes": "노드",
   "Events": "이벤트",
   "Namespaces": "네임스페이스",
+  "Filter": "",
   "Namespace": "네임스페이스",
   "toggle field visibility": "필드 가시성 전환",
   "Condition": "조건",
