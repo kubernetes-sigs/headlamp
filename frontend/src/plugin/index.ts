@@ -38,6 +38,7 @@ import semver from 'semver';
 import { themeSlice } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
 import { getAppUrl } from '../helpers/getAppUrl';
+import { getSafeEnvVars } from '../helpers/getEnvVars';
 import { isElectron } from '../helpers/isElectron';
 import * as K8s from '../lib/k8s';
 import * as ApiProxy from '../lib/k8s/apiProxy';
@@ -51,6 +52,9 @@ import { ConfigStore } from './configStore';
 import { Headlamp, Plugin } from './lib';
 import { PluginInfo } from './pluginsSlice';
 import Registry, * as registryToExport from './registry';
+
+// Create a safe environment variables object to expose to plugins
+const safeEnvVars = getSafeEnvVars();
 
 window.pluginLib = {
   ApiProxy,
@@ -94,6 +98,8 @@ window.pluginLib = {
   Notification,
   Headlamp,
   Plugin,
+  // Add environment variables to the plugin library
+  env: safeEnvVars,
   ...registryToExport,
 };
 
@@ -263,6 +269,9 @@ export async function fetchAndExecutePlugins(
   onSettingsChange: (plugins: PluginInfo[]) => void,
   onIncompatible: (plugins: Record<string, PluginInfo>) => void
 ) {
+  // Clear existing plugins before reloading to ensure clean state
+  window.plugins = {};
+  
   const pluginPaths = (await fetch(`${getAppUrl()}plugins`).then(resp => resp.json())) as string[];
 
   const sourcesPromise = Promise.all(
@@ -331,6 +340,9 @@ export async function fetchAndExecutePlugins(
   );
   onSettingsChange(packagesIncompatibleSet);
 
+  // Track which plugins were successfully loaded
+  const loadedPlugins: string[] = [];
+
   sourcesToExecute.forEach((source, index) => {
     // Execute plugins inside a context (not in global/window)
     (function (str: string) {
@@ -339,6 +351,7 @@ export async function fetchAndExecutePlugins(
         // Giving an evaled code a filename will make it easier to use source maps
         const sourceMapPath = `\n//# sourceURL=//${pluginName}/dist/main.js`;
         const result = eval(str + sourceMapPath);
+        loadedPlugins.push(pluginName);
         return result;
       } catch (e) {
         // We just continue if there is an error.
@@ -372,4 +385,7 @@ export async function fetchAndExecutePlugins(
 
   // Refresh theme name if the theme that was used from a plugin was deleted
   store.dispatch(themeSlice.actions.ensureValidThemeName());
+  
+  console.log(`Successfully loaded ${loadedPlugins.length} plugins: ${loadedPlugins.join(', ')}`);
+  return loadedPlugins;
 }

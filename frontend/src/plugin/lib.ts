@@ -189,6 +189,16 @@ export abstract class Headlamp {
   getProductName() {
     return getProductName() || '';
   }
+
+  /**
+   * Returns the environment variables available to plugins.
+   * Only environment variables with REACT_APP_ prefix are exposed.
+   * 
+   * @returns an object containing environment variables
+   */
+  static getEnv() {
+    return window.pluginLib.env || {};
+  }
 }
 
 window.desktopApi?.receive('currentMenu', (currentMenus: AppMenu[]) => {

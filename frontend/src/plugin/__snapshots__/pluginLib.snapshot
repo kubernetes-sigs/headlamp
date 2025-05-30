@@ -9976,7 +9976,7 @@
       "root": "MuiMenuItem-root",
       "selected": "Mui-selected",
     },
-    "minor": 16,
+    "minor": 17,
     "mobileStepperClasses": {
       "dot": "MuiMobileStepper-dot",
       "dotActive": "MuiMobileStepper-dotActive",
@@ -10092,7 +10092,7 @@
       "root": "MuiPaper-root",
       "rounded": "MuiPaper-rounded",
     },
-    "patch": 7,
+    "patch": 1,
     "popoverClasses": {
       "paper": "MuiPopover-paper",
       "root": "MuiPopover-root",
@@ -10594,7 +10594,7 @@
     "useStepperContext": [Function],
     "useTheme": [Function],
     "useThemeProps": [Function],
-    "version": "5.16.7",
+    "version": "5.17.1",
     "withStyles": [Function],
     "withTheme": [Function],
   },
@@ -15028,7 +15028,7 @@
       "root": "MuiMenuItem-root",
       "selected": "Mui-selected",
     },
-    "minor": 16,
+    "minor": 17,
     "mobileStepperClasses": {
       "dot": "MuiMobileStepper-dot",
       "dotActive": "MuiMobileStepper-dotActive",
@@ -15144,7 +15144,7 @@
       "root": "MuiPaper-root",
       "rounded": "MuiPaper-rounded",
     },
-    "patch": 7,
+    "patch": 1,
     "popoverClasses": {
       "paper": "MuiPopover-paper",
       "root": "MuiPopover-root",
@@ -15646,7 +15646,7 @@
     "useStepperContext": [Function],
     "useTheme": [Function],
     "useThemeProps": [Function],
-    "version": "5.16.7",
+    "version": "5.17.1",
     "withStyles": [Function],
     "withTheme": [Function],
   },
