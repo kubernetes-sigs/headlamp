@@ -17,7 +17,7 @@
 import { Edge, EdgeMarker, Node } from '@xyflow/react';
 import { ElkExtendedEdge, ElkNode } from 'elkjs';
 import ELK from 'elkjs';
-import { forEachNode, GraphNode } from './graphModel';
+import { forEachNode, getNodeWeight, GraphNode, PARTITION_LAYER_THRESHOLDS } from './graphModel';
 
 type ElkNodeWithData = Omit<ElkNode, 'edges'> & {
   type: string;
@@ -41,24 +41,36 @@ const layoutOptions = {
   },
 };
 
-const partitionLayers = [
-  ['Deployment'],
-  ['ReplicaSet', 'ServiceAccount', 'CronJob', 'DaemonSet', 'StatefulSet'],
-  ['Job'],
-  ['Pod', 'RoleBinding'],
-  ['Service', 'NetworkPolicy', 'Role'],
-  ['Endpoints'],
-];
-
 /**
- * To increase readability of the graph we can sort nodes left-to-right
- * Where more 'owner' nodes like Deployment or ReplicaSet are on the left
+ * Determines the partition layer for a graph node for left-to-right layout.
+ * Higher weight nodes (more "owner" like, e.g. Deployment or ReplicaSet)
+ * are intended for earlier (left-most) layers.
+ * Uses predefined `PARTITION_LAYER_THRESHOLDS` for assignment.
+ *
+ * @param node The graph node to determine the layer for.
+ * @returns The layer index (e.g. 0 for the left-most layer).
  */
-function getPartitionLayer(node: GraphNode) {
-  if (!('kubeObject' in node)) return;
-  const kind = node.kubeObject?.kind;
-  const partitionLayer = partitionLayers.findIndex(layer => layer.includes(kind));
-  return partitionLayer > -1 ? partitionLayer : undefined;
+function getPartitionLayer(node: GraphNode): number {
+  // Nodes without a KubeObject (e.g., abstract groups) or those whose weights
+  // fall below all defined thresholds are assigned to the last (right-most) layer.
+  const lastLayer = PARTITION_LAYER_THRESHOLDS.length;
+
+  if (!node.kubeObject) {
+    return lastLayer;
+  }
+
+  const weight = getNodeWeight(node);
+
+  // Iterate through the thresholds. Assign the node to the first (left-most) layer
+  // for which its weight qualifies (weight >= threshold).
+  for (let i = 0; i < PARTITION_LAYER_THRESHOLDS.length; i++) {
+    if (weight >= PARTITION_LAYER_THRESHOLDS[i]) {
+      return i;
+    }
+  }
+
+  // This fallback is for weights lower than the smallest threshold.
+  return lastLayer;
 }
 
 /**

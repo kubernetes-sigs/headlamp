@@ -44,6 +44,12 @@ export type GraphNode = {
   collapsed?: boolean;
   /** Custom component to render details for this node */
   detailsComponent?: ComponentType<{ node: GraphNode }>;
+  /**
+   * Weight determines the priority/importance of this node (higher = more important).
+   * Used for sorting and determining the "main" node in groups.
+   * If not specified, defaults will be used based on node type.
+   */
+  weight?: number;
   /** Any custom data */
   data?: any;
 };
@@ -115,4 +121,97 @@ export interface Relation {
   fromSource: string;
   toSource?: string;
   predicate: (from: GraphNode, to: GraphNode) => boolean;
+}
+
+/**
+ * Default node weight assignments for different Kubernetes resource types.
+ * Higher weight = higher priority/importance in graph layout.
+ */
+const DEFAULT_NODE_WEIGHTS = {
+  // Tier 1: Highest Level Orchestration & Application Definition
+  HorizontalPodAutoscaler: 1000,
+  Deployment: 980,
+  StatefulSet: 970,
+  DaemonSet: 960,
+  CronJob: 940,
+  Job: 920,
+
+  // Tier 2: Core Runtime Components
+  ReplicaSet: 850,
+  Pod: 800,
+
+  // Tier 3: Network Exposure & Routing
+  Ingress: 780,
+  Service: 760,
+  IngressClass: 740,
+  NetworkPolicy: 720,
+
+  // Tier 4: Storage
+  PersistentVolumeClaim: 680,
+  StorageClass: 660,
+  PersistentVolume: 640,
+  CSIDriver: 620,
+
+  // Tier 5: Configuration & Secrets
+  ConfigMap: 580,
+  Secret: 570,
+
+  // Tier 6: Identity, Authorization & Admission Control
+  ServiceAccount: 550,
+  ClusterRole: 540,
+  ClusterRoleBinding: 535,
+  Role: 530,
+  RoleBinding: 525,
+  MutatingWebhookConfiguration: 510,
+  ValidatingWebhookConfiguration: 500,
+
+  // Tier 7: Supporting Network Resources (Often Derived)
+  EndpointSlice: 450,
+  Endpoints: 440,
+
+  // Tier 8: Custom Resource Definitions (Meta-level, defines new kinds)
+  CustomResourceDefinition: 400,
+
+  // Default for any other unspecified resource type
+  default: 300,
+} as const;
+
+/**
+ * These thresholds define the minimum weight for a node to be included in a partition layer.
+ * They are derived by looking at the `DEFAULT_NODE_WEIGHTS` and grouping them
+ * into partition layers sorted in descending order.
+ */
+export const PARTITION_LAYER_THRESHOLDS: readonly number[] = [
+  1000, // Layer 0: Top-tier controllers (e.g., HorizontalPodAutoscaler)
+  920, // Layer 1: Main workload controllers (e.g., Deployment, StatefulSet, Job)
+  800, // Layer 2: Core runtime components (e.g., ReplicaSet, Pod)
+  720, // Layer 3: Network exposure and policy (e.g., Ingress, Service, NetworkPolicy)
+  620, // Layer 4: Storage resources (e.g., PersistentVolumeClaim, StorageClass)
+  570, // Layer 5: Configuration data (e.g., ConfigMap, Secret)
+  500, // Layer 6: RBAC and admission control (e.g., ServiceAccount, Role, Webhooks)
+  440, // Layer 7: Derived network resources (e.g., EndpointSlice, Endpoints)
+  400, // Layer 8: Meta-definitions (e.g., CustomResourceDefinition)
+  300, // Layer 9: Default-weighted items or other low-priority resources
+] as const; // Ensure sorted descending, though manually defined this way.
+
+/**
+ * Gets the effective weight of a node, considering both explicit weight
+ * and default weights based on Kubernetes resource type.
+ *
+ * @param node - The GraphNode to get weight for
+ * @returns The effective weight (higher = more important)
+ */
+export function getNodeWeight(node: GraphNode): number {
+  // if explicit weight is set, use it
+  if (node.weight !== undefined) {
+    return node.weight;
+  }
+
+  // otherwise, use default weight based on Kubernetes resource kind
+  const kind = node.kubeObject?.kind;
+  if (kind && kind in DEFAULT_NODE_WEIGHTS) {
+    return DEFAULT_NODE_WEIGHTS[kind as keyof typeof DEFAULT_NODE_WEIGHTS];
+  }
+
+  return DEFAULT_NODE_WEIGHTS.default;
 }
