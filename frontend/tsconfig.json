@@ -17,7 +17,7 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["vite/client", "vite-plugin-svgr/client", "vitest/globals"]
   },
-  "include": ["src"],
+  "include": ["src", "src/types"],
   "typedocOptions": {
     "out": "../docs/development/api",
     "plugin": ["typedoc-plugin-markdown", "typedoc-plugin-rename-defaults"],

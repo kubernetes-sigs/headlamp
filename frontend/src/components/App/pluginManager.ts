@@ -26,7 +26,6 @@
 interface ProgressResp {
   type: string;
   message: string;
-  identifier?: string;
   data?: Record<string, any>;
 }
 

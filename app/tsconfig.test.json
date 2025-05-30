@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["jest", "node"],
+    "module": "commonjs",
+    "target": "ES2020",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "esModuleInterop": true,
+    "strict": true
+  },
+  "include": [
+    "electron/**/*.ts",
+    "electron/**/*.test.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

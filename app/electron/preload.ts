@@ -16,11 +16,24 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 
+// Define channel types to improve type safety
+type ValidSendChannel = 
+  | 'setMenu'
+  | 'locale'
+  | 'appConfig'
+  | 'pluginsLoaded'
+  | 'run-command'
+  | 'plugin-manager'
+  | 'request-backend-token'
+  | 'tools:list'
+  | 'tools:install'
+  | 'tools:uninstall'
+  | 'tools:execute';
+
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('desktopApi', {
-  send: (channel, data) => {
-    // allowed channels
+  send: (channel: ValidSendChannel, data: unknown) => {
     const validChannels = [
       'setMenu',
       'locale',
@@ -29,12 +42,15 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'run-command',
       'plugin-manager',
       'request-backend-token',
+      'tools:list',
+      'tools:install',
+      'tools:uninstall',
+      'tools:execute',
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }
-  },
-  receive: (channel, func) => {
+  },  receive: (channel: string, func: (...args: unknown[]) => void) => {
     const validChannels = [
       'currentMenu',
       'setMenu',
@@ -45,14 +61,19 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'command-exit',
       'plugin-manager',
       'backend-token',
+      'tools:list:result',
+      'tools:install:result',
+      'tools:uninstall:result',
+      'tools:execute:result',
+      'tools:progress',
+      'tools:error',
     ];
     if (validChannels.includes(channel)) {
       // Deliberately strip event as it includes `sender`
       ipcRenderer.on(channel, (event, ...args) => func(...args));
     }
   },
-
-  removeListener: (channel, func) => {
+  removeListener: (channel: string, func: (...args: unknown[]) => void) => {
     ipcRenderer.removeListener(channel, func);
   },
 });
