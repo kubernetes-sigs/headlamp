@@ -16,10 +16,10 @@
 
 import Button from '@mui/material/Button';
 import { SnackbarKey, useSnackbar } from 'notistack';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useHistory } from 'react-router-dom';
+import { useHistory, useLocation } from 'react-router-dom';
 import { isElectron } from '../helpers/isElectron';
 import { useTypedSelector } from '../redux/reducers/reducers';
 import { fetchAndExecutePlugins } from './index';
@@ -39,11 +39,60 @@ export default function Plugins() {
   const dispatch = useDispatch();
   const { closeSnackbar, enqueueSnackbar } = useSnackbar();
   const history = useHistory();
+  const location = useLocation();
   const { t } = useTranslation();
+  const pluginChangeListenerRef = useRef<boolean>(false);
 
   const settingsPlugins = useTypedSelector(state => state.plugins.pluginSettings);
 
-  // only run on first load
+  // Setup plugin hot-reloading listener
+  useEffect(() => {
+    // Only set up the listener once
+    if (pluginChangeListenerRef.current) {
+      return;
+    }
+
+    // Create a function to handle plugin hot-reloading
+    const handlePluginHotReload = () => {
+      console.log('Plugin hot-reload detected, refreshing plugins...');
+      fetchAndExecutePlugins(
+        settingsPlugins,
+        updatedSettingsPackages => {
+          dispatch(setPluginSettings(updatedSettingsPackages));
+        },
+        incompatiblePlugins => {
+          const pluginList = Object.values(incompatiblePlugins)
+            .map(p => p.name)
+            .join(', ');
+          if (pluginList.length > 0) {
+            const message = t(
+              'translation|Warning. Incompatible plugins disabled: ({{ pluginList }})',
+              { pluginList }
+            );
+            console.warn(message);
+            enqueueSnackbar(message);
+          }
+        }
+      ).catch(console.error);
+    };
+
+    // Listen for plugin changes from the file system
+    if (window.desktopApi) {
+      window.desktopApi.receive('plugin-changed', handlePluginHotReload);
+      // Tell the main process to start watching for plugin changes
+      window.desktopApi.send('watch-plugins');
+      pluginChangeListenerRef.current = true;
+    }
+
+    // Cleanup listener on unmount
+    return () => {
+      if (window.desktopApi) {
+        window.desktopApi.removeListener('plugin-changed', handlePluginHotReload);
+      }
+    };
+  }, []);
+
+  // Initial plugin loading
   useEffect(() => {
     fetchAndExecutePlugins(
       settingsPlugins,
@@ -89,5 +138,6 @@ export default function Plugins() {
       })
       .catch(console.error);
   }, []);
+  
   return null;
 }
