@@ -35,6 +35,7 @@
   "Something went wrong with cluster {{ cluster }}": "Mit dem Cluster ist etwas schief gelaufen {{ cluster }}",
   "Choose another cluster": "Wählen Sie einen anderen Cluster",
   "Skip to main content": "Zum Hauptinhalt springen",
+  "Something went wrong with cluster test-cluster": "",
   "Mark all as read": "Alle als gelesen markieren",
   "Clear all": "Alle löschen",
   "Notifications": "Nachrichten",
