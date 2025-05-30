@@ -82,3 +82,43 @@ then you have to:
 - Set `-oidc-scopes` if needed, e.g. `-oidc-scopes=profile,email,groups`
 
 **Note** If you already have another static client configured for Kubernetes for the [apiserver's OIDC](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#configuring-the-api-server) (OpenID Connect) configuration, use a **single static client ID** i.e `-oidc-client-id` for both Dex and Headlamp. Additionally, the **redirectURIs** need to be specified for each client.
+
+## Troubleshooting
+
+### Large JWT Tokens and WebSocket Connection Issues
+
+If you're experiencing WebSocket connection failures when using OIDC with large JWT tokens (typically >8K), this is often caused by nginx ingress controller's default header buffer size limitations. While regular HTTP requests may work fine, WebSocket connections can fail due to larger header requirements.
+
+**Symptoms:**
+- OIDC authentication works for regular page loads
+- WebSocket connections fail or disconnect frequently
+- Real-time features (like live resource updates) don't work properly
+- Browser console shows WebSocket connection errors
+
+**Solution:**
+
+When deploying Headlamp behind an nginx ingress controller, you may need to increase the header buffer size by adding the following annotation to your ingress configuration:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: headlamp
+  namespace: kube-system
+  annotations:
+    nginx.ingress.kubernetes.io/server-snippet: |
+      large_client_header_buffers 4 64k;
+spec:
+  # ... rest of your ingress configuration
+```
+
+**Explanation:**
+- `large_client_header_buffers 4 64k;` increases the buffer size from the default (4 buffers of 8K each) to 4 buffers of 64K each
+- This provides sufficient space for large JWT tokens in WebSocket connection headers
+- The setting only affects the specific ingress where it's applied
+
+**Alternative configurations:**
+- For extremely large tokens, you may need to increase the buffer size further: `large_client_header_buffers 8 64k;`
+- You can also adjust the number of buffers: `large_client_header_buffers 4 128k;`
+
+This issue is specific to nginx ingress controller deployments and doesn't affect other ingress controllers or direct cluster access.
