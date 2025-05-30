@@ -436,61 +436,83 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 	}).Methods("GET")
 }
 
-//nolint:gocognit,funlen,gocyclo
 func createHeadlampHandler(config *HeadlampConfig) http.Handler {
-	kubeConfigPath := config.kubeConfigPath
+	initializeHandler(config)
+	setupPlugins(config)
+	setupInClusterContext(config)
+	setupStaticDirectory(config)
 
+	r := createRouter(config)
+	loadKubeConfigs(config, r)
+	setupRoutes(config, r)
+
+	return finalizeHandler(config, r)
+}
+
+// initializeHandler logs configuration details and sets up static plugin directory
+func initializeHandler(config *HeadlampConfig) {
 	config.staticPluginDir = os.Getenv("HEADLAMP_STATIC_PLUGINS_DIR")
 
 	logger.Log(logger.LevelInfo, nil, nil, "Creating Headlamp handler")
 	logger.Log(logger.LevelInfo, nil, nil, "Listen address: "+fmt.Sprintf("%s:%d", config.listenAddr, config.port))
-	logger.Log(logger.LevelInfo, nil, nil, "Kubeconfig path: "+kubeConfigPath)
+	logger.Log(logger.LevelInfo, nil, nil, "Kubeconfig path: "+config.kubeConfigPath)
 	logger.Log(logger.LevelInfo, nil, nil, "Static plugin dir: "+config.staticPluginDir)
 	logger.Log(logger.LevelInfo, nil, nil, "Plugins dir: "+config.pluginDir)
 	logger.Log(logger.LevelInfo, nil, nil, "Dynamic clusters support: "+fmt.Sprint(config.enableDynamicClusters))
 	logger.Log(logger.LevelInfo, nil, nil, "Helm support: "+fmt.Sprint(config.enableHelm))
 	logger.Log(logger.LevelInfo, nil, nil, "Proxy URLs: "+fmt.Sprint(config.proxyURLs))
+}
 
+// setupPlugins initializes plugin cache and starts plugin watchers if needed
+func setupPlugins(config *HeadlampConfig) {
 	plugins.PopulatePluginsCache(config.staticPluginDir, config.pluginDir, config.cache)
-
-	skipFunc := kubeconfig.SkipKubeContextInCommaSeparatedString(config.skippedKubeContexts)
 
 	if !config.useInCluster || config.watchPluginsChanges {
 		// in-cluster mode is unlikely to want reloading plugins.
 		pluginEventChan := make(chan string)
 		go plugins.Watch(config.pluginDir, pluginEventChan)
 		go plugins.HandlePluginEvents(config.staticPluginDir, config.pluginDir, pluginEventChan, config.cache)
+
 		// in-cluster mode is unlikely to want reloading kubeconfig.
-		go kubeconfig.LoadAndWatchFiles(config.kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
+		skipFunc := kubeconfig.SkipKubeContextInCommaSeparatedString(config.skippedKubeContexts)
+		go kubeconfig.LoadAndWatchFiles(config.kubeConfigStore, config.kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
+	}
+}
+
+// setupInClusterContext configures in-cluster context if running in cluster mode
+func setupInClusterContext(config *HeadlampConfig) {
+	if !config.useInCluster {
+		return
 	}
 
-	// In-cluster
-	if config.useInCluster {
-		context, err := kubeconfig.GetInClusterContext(config.oidcIdpIssuerURL,
-			config.oidcClientID, config.oidcClientSecret,
-			strings.Join(config.oidcScopes, ","))
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
-		}
-
-		context.Source = kubeconfig.InCluster
-
-		err = context.SetupProxy()
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
-		}
-
-		err = config.kubeConfigStore.AddContext(context)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
-		}
+	context, err := kubeconfig.GetInClusterContext(config.oidcIdpIssuerURL,
+		config.oidcClientID, config.oidcClientSecret,
+		strings.Join(config.oidcScopes, ","))
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
+		return
 	}
 
+	context.Source = kubeconfig.InCluster
+
+	if err = context.SetupProxy(); err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
+	}
+
+	if err = config.kubeConfigStore.AddContext(context); err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+	}
+}
+
+// setupStaticDirectory configures static directory and base URL replacement
+func setupStaticDirectory(config *HeadlampConfig) {
 	if config.staticDir != "" {
 		baseURLReplace(config.staticDir, config.baseURL)
 	}
+}
 
-	// For when using a base-url, like "/headlamp" with a reverse proxy.
+// createRouter creates and configures the main router with base URL support
+func createRouter(config *HeadlampConfig) *mux.Router {
 	var r *mux.Router
 	if config.baseURL == "" {
 		r = mux.NewRouter()
@@ -502,15 +524,19 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	fmt.Println("*** Headlamp Server ***")
 	fmt.Println("  API Routers:")
 
+	return r
+}
+
+// loadKubeConfigs loads kubeconfig files and sets up metrics endpoint
+func loadKubeConfigs(config *HeadlampConfig, r *mux.Router) {
+	skipFunc := kubeconfig.SkipKubeContextInCommaSeparatedString(config.skippedKubeContexts)
+
 	// load kubeConfig clusters
-	err := kubeconfig.LoadAndStoreKubeConfigs(config.kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
-	if err != nil {
+	if err := kubeconfig.LoadAndStoreKubeConfigs(config.kubeConfigStore, config.kubeConfigPath, kubeconfig.KubeConfig, skipFunc); err != nil {
 		logger.Log(logger.LevelError, nil, err, "loading kubeconfig")
 	}
 
 	// Prometheus metrics endpoint
-	// to enable this endpoint, run command run-backend-with-metrics
-	// or set the environment variable HEADLAMP_CONFIG_METRICS_ENABLED=true
 	if config.metrics != nil && config.telemetryConfig.MetricsEnabled != nil && *config.telemetryConfig.MetricsEnabled {
 		r.Handle("/metrics", promhttp.Handler())
 		logger.Log(logger.LevelInfo, nil, nil, "prometheus metrics endpoint: /metrics")
@@ -520,127 +546,20 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	kubeConfigPersistenceFile, err := defaultKubeConfigPersistenceFile()
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "getting default kubeconfig persistence file")
+		return
 	}
 
-	err = kubeconfig.LoadAndStoreKubeConfigs(config.kubeConfigStore, kubeConfigPersistenceFile,
-		kubeconfig.DynamicCluster, skipFunc)
-	if err != nil {
+	if err = kubeconfig.LoadAndStoreKubeConfigs(config.kubeConfigStore, kubeConfigPersistenceFile, kubeconfig.DynamicCluster, skipFunc); err != nil {
 		logger.Log(logger.LevelError, nil, err, "loading dynamic kubeconfig")
 	}
+}
 
+// setupRoutes registers all HTTP routes and handlers
+func setupRoutes(config *HeadlampConfig, r *mux.Router) {
 	addPluginRoutes(config, r)
-
 	config.handleClusterRequests(r)
 
-	r.HandleFunc("/externalproxy", func(w http.ResponseWriter, r *http.Request) {
-		proxyURL := r.Header.Get("proxy-to")
-		if proxyURL == "" && r.Header.Get("Forward-to") != "" {
-			proxyURL = r.Header.Get("Forward-to")
-		}
-
-		if proxyURL == "" {
-			logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL},
-				errors.New("proxy URL is empty"), "proxy URL is empty")
-			http.Error(w, "proxy URL is empty", http.StatusBadRequest)
-
-			return
-		}
-
-		url, err := url.Parse(proxyURL)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL},
-				err, "The provided proxy URL is invalid")
-			http.Error(w, fmt.Sprintf("The provided proxy URL is invalid: %v", err), http.StatusBadRequest)
-
-			return
-		}
-
-		isURLContainedInProxyURLs := false
-
-		for _, proxyURL := range config.proxyURLs {
-			g := glob.MustCompile(proxyURL)
-			if g.Match(url.String()) {
-				isURLContainedInProxyURLs = true
-				break
-			}
-		}
-
-		if !isURLContainedInProxyURLs {
-			logger.Log(logger.LevelError, nil, err, "no allowed proxy url match, request denied")
-			http.Error(w, "no allowed proxy url match, request denied ", http.StatusBadRequest)
-
-			return
-		}
-
-		ctx := context.Background()
-
-		proxyReq, err := http.NewRequestWithContext(ctx, r.Method, proxyURL, r.Body)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "creating request")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		// We may want to filter some headers, otherwise we could just use a shallow copy
-		proxyReq.Header = make(http.Header)
-		for h, val := range r.Header {
-			proxyReq.Header[h] = val
-		}
-
-		// Disable caching
-		w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
-		w.Header().Set("Expires", time.Unix(0, 0).Format(http.TimeFormat))
-		w.Header().Set("Pragma", "no-cache")
-		w.Header().Set("X-Accel-Expires", "0")
-
-		client := http.Client{}
-
-		resp, err := client.Do(proxyReq)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "making request")
-			http.Error(w, err.Error(), http.StatusBadGateway)
-
-			return
-		}
-
-		defer resp.Body.Close()
-
-		// Check that the server actually sent compressed data
-		var reader io.ReadCloser
-
-		switch resp.Header.Get("Content-Encoding") {
-		case "gzip":
-			reader, err = gzip.NewReader(resp.Body)
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "reading gzip response")
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-
-				return
-			}
-			defer reader.Close()
-		default:
-			reader = resp.Body
-		}
-
-		respBody, err := io.ReadAll(reader)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "reading response")
-			http.Error(w, err.Error(), http.StatusBadGateway)
-
-			return
-		}
-
-		_, err = w.Write(respBody)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "writing response")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		defer resp.Body.Close()
-	})
+	r.HandleFunc("/externalproxy", config.handleExternalProxy)
 
 	// Configuration
 	r.HandleFunc("/config", config.getConfig).Methods("GET")
@@ -650,74 +569,154 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 	config.addClusterSetupRoute(r)
 
+	// Setup OIDC and OAuth handlers
 	oauthRequestMap := make(map[string]*OauthConfig)
+	setupOIDCRoutes(config, r, oauthRequestMap)
 
+	// Setup port forwarding routes
+	setupPortForwardRoutes(config, r)
+
+	// Setup node drain routes
+	r.HandleFunc("/drain-node", config.handleNodeDrain).Methods("POST")
+	r.HandleFunc("/drain-node-status", config.handleNodeDrainStatus).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
+
+	r.HandleFunc("/oidc-callback", func(w http.ResponseWriter, r *http.Request) {
+		handleOIDCCallback(config, oauthRequestMap, w, r)
+	})
+}
+
+// finalizeHandler sets up static file serving and CORS if needed
+func finalizeHandler(config *HeadlampConfig, r *mux.Router) http.Handler {
+	// Serve the frontend if needed
+	if config.staticDir != "" {
+		setupStaticFileServing(config, r)
+	}
+
+	// Setup CORS for dev mode
+	if config.devMode {
+		return setupCORS(r)
+	}
+
+	return r
+}
+
+// handleExternalProxy handles external proxy requests with URL validation
+func (config *HeadlampConfig) handleExternalProxy(w http.ResponseWriter, r *http.Request) {
+	proxyURL := r.Header.Get("proxy-to")
+	if proxyURL == "" && r.Header.Get("Forward-to") != "" {
+		proxyURL = r.Header.Get("Forward-to")
+	}
+
+	if proxyURL == "" {
+		logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL},
+			errors.New("proxy URL is empty"), "proxy URL is empty")
+		http.Error(w, "proxy URL is empty", http.StatusBadRequest)
+		return
+	}
+
+	url, err := url.Parse(proxyURL)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL},
+			err, "The provided proxy URL is invalid")
+		http.Error(w, fmt.Sprintf("The provided proxy URL is invalid: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	if !config.isURLAllowed(url.String()) {
+		logger.Log(logger.LevelError, nil, err, "no allowed proxy url match, request denied")
+		http.Error(w, "no allowed proxy url match, request denied ", http.StatusBadRequest)
+		return
+	}
+
+	config.forwardRequest(w, r, proxyURL)
+}
+
+// isURLAllowed checks if the URL matches any of the allowed proxy URLs
+func (config *HeadlampConfig) isURLAllowed(urlString string) bool {
+	for _, proxyURL := range config.proxyURLs {
+		g := glob.MustCompile(proxyURL)
+		if g.Match(urlString) {
+			return true
+		}
+	}
+	return false
+}
+
+// forwardRequest forwards the HTTP request to the target URL
+func (config *HeadlampConfig) forwardRequest(w http.ResponseWriter, r *http.Request, proxyURL string) {
+	ctx := context.Background()
+
+	proxyReq, err := http.NewRequestWithContext(ctx, r.Method, proxyURL, r.Body)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "creating request")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Copy headers
+	proxyReq.Header = make(http.Header)
+	for h, val := range r.Header {
+		proxyReq.Header[h] = val
+	}
+
+	// Disable caching
+	w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
+	w.Header().Set("Expires", time.Unix(0, 0).Format(http.TimeFormat))
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("X-Accel-Expires", "0")
+
+	client := http.Client{}
+	resp, err := client.Do(proxyReq)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "making request")
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	config.writeResponse(w, resp)
+}
+
+// writeResponse writes the proxy response back to the client
+func (config *HeadlampConfig) writeResponse(w http.ResponseWriter, resp *http.Response) {
+	var reader io.ReadCloser
+	var err error
+
+	switch resp.Header.Get("Content-Encoding") {
+	case "gzip":
+		reader, err = gzip.NewReader(resp.Body)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "reading gzip response")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer reader.Close()
+	default:
+		reader = resp.Body
+	}
+
+	respBody, err := io.ReadAll(reader)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "reading response")
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+
+	if _, err = w.Write(respBody); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing response")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// setupOIDCRoutes configures OIDC authentication routes
+func setupOIDCRoutes(config *HeadlampConfig, r *mux.Router, oauthRequestMap map[string]*OauthConfig) {
 	r.HandleFunc("/oidc", func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.Background()
-		cluster := r.URL.Query().Get("cluster")
-		if config.insecure {
-			tr := &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
-			}
-			insecureClient := &http.Client{Transport: tr}
-			ctx = oidc.ClientContext(ctx, insecureClient)
-		}
-
-		kContext, err := config.kubeConfigStore.GetContext(cluster)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
-				err, "failed to get context")
-
-			http.NotFound(w, r)
-			return
-		}
-
-		oidcAuthConfig, err := kContext.OidcConfig()
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
-				err, "failed to get oidc config")
-
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if config.oidcValidatorIdpIssuerURL != "" {
-			ctx = oidc.InsecureIssuerURLContext(ctx, config.oidcValidatorIdpIssuerURL)
-		}
-
-		provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"idpIssuerURL": oidcAuthConfig.IdpIssuerURL},
-				err, "failed to get provider")
-
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		validatorClientID := oidcAuthConfig.ClientID
-		if config.oidcValidatorClientID != "" {
-			validatorClientID = config.oidcValidatorClientID
-		}
-		oidcConfig := &oidc.Config{
-			ClientID: validatorClientID,
-		}
-
-		verifier := provider.Verifier(oidcConfig)
-		oauthConfig := &oauth2.Config{
-			ClientID:     oidcAuthConfig.ClientID,
-			ClientSecret: oidcAuthConfig.ClientSecret,
-			Endpoint:     provider.Endpoint(),
-			RedirectURL:  getOidcCallbackURL(r, config),
-			Scopes:       append([]string{oidc.ScopeOpenID}, oidcAuthConfig.Scopes...),
-		}
-		/* we encode the cluster to base64 and set it as state so that when getting redirected
-		by oidc we can use this state value to get cluster name
-		*/
-		state := base64.StdEncoding.EncodeToString([]byte(cluster))
-		oauthRequestMap[state] = &OauthConfig{Config: oauthConfig, Verifier: verifier, Ctx: ctx}
-		http.Redirect(w, r, oauthConfig.AuthCodeURL(state), http.StatusFound)
+		handleOIDCAuth(config, oauthRequestMap, w, r)
 	}).Queries("cluster", "{cluster}")
+}
 
+// setupPortForwardRoutes configures port forwarding routes
+func setupPortForwardRoutes(config *HeadlampConfig, r *mux.Router) {
 	r.HandleFunc("/portforward", func(w http.ResponseWriter, r *http.Request) {
 		portforward.StartPortForward(config.kubeConfigStore, config.cache, w, r)
 	}).Methods("POST")
@@ -730,133 +729,185 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		portforward.GetPortForwards(config.cache, w, r)
 	})
 
-	r.HandleFunc("/drain-node", config.handleNodeDrain).Methods("POST")
-	r.HandleFunc("/drain-node-status",
-		config.handleNodeDrainStatus).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
 	r.HandleFunc("/portforward", func(w http.ResponseWriter, r *http.Request) {
 		portforward.GetPortForwardByID(config.cache, w, r)
 	}).Methods("GET")
+}
 
-	r.HandleFunc("/oidc-callback", func(w http.ResponseWriter, r *http.Request) {
-		state := r.URL.Query().Get("state")
+// setupStaticFileServing configures static file serving
+func setupStaticFileServing(config *HeadlampConfig, r *mux.Router) {
+	staticPath := config.staticDir
 
-		decodedState, err := base64.StdEncoding.DecodeString(state)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to decode state")
-			http.Error(w, "wrong state set, invalid request "+err.Error(), http.StatusBadRequest)
-
-			return
+	if isWindows {
+		// We support unix paths on windows. So "frontend/static" works.
+		if strings.Contains(config.staticDir, "/") {
+			staticPath = filepath.FromSlash(config.staticDir)
 		}
+	}
 
-		if state == "" {
-			logger.Log(logger.LevelError, nil, err, "invalid request state is empty")
-			http.Error(w, "invalid request state is empty", http.StatusBadRequest)
+	spa := spaHandler{staticPath: staticPath, indexPath: "index.html", baseURL: config.baseURL}
+	r.PathPrefix("/").Handler(spa)
+	http.Handle("/", r)
+}
 
-			return
-		}
-
-		//nolint:nestif
-		if oauthConfig, ok := oauthRequestMap[state]; ok {
-			oauth2Token, err := oauthConfig.Config.Exchange(oauthConfig.Ctx, r.URL.Query().Get("code"))
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "failed to exchange token")
-				http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
-
-				return
-			}
-
-			tokenType := "id_token"
-			if config.oidcUseAccessToken {
-				tokenType = "access_token"
-			}
-
-			rawUserToken, ok := oauth2Token.Extra(tokenType).(string)
-			if !ok {
-				logger.Log(logger.LevelError, nil, err, fmt.Sprintf("no %s field in oauth2 token", tokenType))
-				http.Error(w, fmt.Sprintf("No %s field in oauth2 token.", tokenType), http.StatusInternalServerError)
-
-				return
-			}
-
-			if err := config.cache.Set(context.Background(),
-				fmt.Sprintf("oidc-token-%s", rawUserToken), oauth2Token.RefreshToken); err != nil {
-				logger.Log(logger.LevelError, nil, err, "failed to cache refresh token")
-				http.Error(w, "Failed to cache refresh token: "+err.Error(), http.StatusInternalServerError)
-
-				return
-			}
-
-			idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawUserToken)
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "failed to verify ID Token")
-				http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
-
-				return
-			}
-
-			resp := struct {
-				OAuth2Token   *oauth2.Token
-				IDTokenClaims *json.RawMessage // ID Token payload is just JSON.
-			}{oauth2Token, new(json.RawMessage)}
-
-			if err := idToken.Claims(&resp.IDTokenClaims); err != nil {
-				logger.Log(logger.LevelError, nil, err, "failed to get id token claims")
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-
-				return
-			}
-
-			var redirectURL string
-			if config.devMode {
-				redirectURL = "http://localhost:3000/"
-			} else {
-				redirectURL = "/"
-			}
-
-			baseURL := strings.Trim(config.baseURL, "/")
-			if baseURL != "" {
-				redirectURL += baseURL + "/"
-			}
-
-			redirectURL += fmt.Sprintf("auth?cluster=%1s&token=%2s", decodedState, rawUserToken)
-			http.Redirect(w, r, redirectURL, http.StatusSeeOther)
-		} else {
-			http.Error(w, "invalid request", http.StatusBadRequest)
-			return
-		}
+// setupCORS configures CORS for development mode
+func setupCORS(r *mux.Router) http.Handler {
+	headers := handlers.AllowedHeaders([]string{
+		"X-HEADLAMP_BACKEND-TOKEN", "X-Requested-With", "Content-Type",
+		"Authorization", "Forward-To",
+		"KUBECONFIG", "X-HEADLAMP-USER-ID",
 	})
+	methods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "DELETE", "PATCH", "OPTIONS"})
+	origins := handlers.AllowedOrigins([]string{"*"})
 
-	// Serve the frontend if needed
-	if config.staticDir != "" {
-		staticPath := config.staticDir
+	return handlers.CORS(headers, methods, origins)(r)
+}
 
-		if isWindows {
-			// We support unix paths on windows. So "frontend/static" works.
-			if strings.Contains(config.staticDir, "/") {
-				staticPath = filepath.FromSlash(config.staticDir)
-			}
+// handleOIDCAuth handles OIDC authentication requests
+func handleOIDCAuth(config *HeadlampConfig, oauthRequestMap map[string]*OauthConfig, w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+	cluster := r.URL.Query().Get("cluster")
+
+	if config.insecure {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
 		}
-
-		spa := spaHandler{staticPath: staticPath, indexPath: "index.html", baseURL: config.baseURL}
-		r.PathPrefix("/").Handler(spa)
-
-		http.Handle("/", r)
+		insecureClient := &http.Client{Transport: tr}
+		ctx = oidc.ClientContext(ctx, insecureClient)
 	}
 
-	// On dev mode we're loose about where connections come from
+	kContext, err := config.kubeConfigStore.GetContext(cluster)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"cluster": cluster}, err, "failed to get context")
+		http.NotFound(w, r)
+		return
+	}
+
+	oidcAuthConfig, err := kContext.OidcConfig()
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"cluster": cluster}, err, "failed to get oidc config")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if config.oidcValidatorIdpIssuerURL != "" {
+		ctx = oidc.InsecureIssuerURLContext(ctx, config.oidcValidatorIdpIssuerURL)
+	}
+
+	provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"idpIssuerURL": oidcAuthConfig.IdpIssuerURL}, err, "failed to get provider")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	validatorClientID := oidcAuthConfig.ClientID
+	if config.oidcValidatorClientID != "" {
+		validatorClientID = config.oidcValidatorClientID
+	}
+
+	oidcConfig := &oidc.Config{ClientID: validatorClientID}
+	verifier := provider.Verifier(oidcConfig)
+
+	oauthConfig := &oauth2.Config{
+		ClientID:     oidcAuthConfig.ClientID,
+		ClientSecret: oidcAuthConfig.ClientSecret,
+		Endpoint:     provider.Endpoint(),
+		RedirectURL:  getOidcCallbackURL(r, config),
+		Scopes:       append([]string{oidc.ScopeOpenID}, oidcAuthConfig.Scopes...),
+	}
+
+	// Encode cluster to base64 and set as state for OIDC redirect
+	state := base64.StdEncoding.EncodeToString([]byte(cluster))
+	oauthRequestMap[state] = &OauthConfig{Config: oauthConfig, Verifier: verifier, Ctx: ctx}
+	http.Redirect(w, r, oauthConfig.AuthCodeURL(state), http.StatusFound)
+}
+
+// handleOIDCCallback handles OIDC callback requests
+func handleOIDCCallback(config *HeadlampConfig, oauthRequestMap map[string]*OauthConfig, w http.ResponseWriter, r *http.Request) {
+	state := r.URL.Query().Get("state")
+
+	decodedState, err := base64.StdEncoding.DecodeString(state)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to decode state")
+		http.Error(w, "wrong state set, invalid request "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if state == "" {
+		logger.Log(logger.LevelError, nil, err, "invalid request state is empty")
+		http.Error(w, "invalid request state is empty", http.StatusBadRequest)
+		return
+	}
+
+	oauthConfig, ok := oauthRequestMap[state]
+	if !ok {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	oauth2Token, err := oauthConfig.Config.Exchange(oauthConfig.Ctx, r.URL.Query().Get("code"))
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to exchange token")
+		http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	tokenType := "id_token"
+	if config.oidcUseAccessToken {
+		tokenType = "access_token"
+	}
+
+	rawUserToken, ok := oauth2Token.Extra(tokenType).(string)
+	if !ok {
+		logger.Log(logger.LevelError, nil, err, fmt.Sprintf("no %s field in oauth2 token", tokenType))
+		http.Error(w, fmt.Sprintf("No %s field in oauth2 token.", tokenType), http.StatusInternalServerError)
+		return
+	}
+
+	if err := config.cache.Set(context.Background(), fmt.Sprintf("oidc-token-%s", rawUserToken), oauth2Token.RefreshToken); err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to cache refresh token")
+		http.Error(w, "Failed to cache refresh token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawUserToken)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to verify ID Token")
+		http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	resp := struct {
+		OAuth2Token   *oauth2.Token
+		IDTokenClaims *json.RawMessage // ID Token payload is just JSON.
+	}{oauth2Token, new(json.RawMessage)}
+
+	if err := idToken.Claims(&resp.IDTokenClaims); err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to get id token claims")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	redirectURL := config.buildRedirectURL(decodedState, rawUserToken)
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+}
+
+// buildRedirectURL constructs the redirect URL for OIDC callback
+func (config *HeadlampConfig) buildRedirectURL(decodedState []byte, rawUserToken string) string {
+	var redirectURL string
 	if config.devMode {
-		headers := handlers.AllowedHeaders([]string{
-			"X-HEADLAMP_BACKEND-TOKEN", "X-Requested-With", "Content-Type",
-			"Authorization", "Forward-To",
-			"KUBECONFIG", "X-HEADLAMP-USER-ID",
-		})
-		methods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "DELETE", "PATCH", "OPTIONS"})
-		origins := handlers.AllowedOrigins([]string{"*"})
-
-		return handlers.CORS(headers, methods, origins)(r)
+		redirectURL = "http://localhost:3000/"
+	} else {
+		redirectURL = "/"
 	}
 
-	return r
+	baseURL := strings.Trim(config.baseURL, "/")
+	if baseURL != "" {
+		redirectURL += baseURL + "/"
+	}
+
+	return redirectURL + fmt.Sprintf("auth?cluster=%1s&token=%2s", decodedState, rawUserToken)
 }
 
 func parseClusterAndToken(r *http.Request) (string, string) {
