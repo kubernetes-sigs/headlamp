@@ -37,6 +37,7 @@ export default function VolumeList() {
         {
           id: 'className',
           label: t('Class Name'),
+          filterVariant: 'multi-select',
           getValue: volume => volume.spec.storageClassName ?? '',
           render: volume => {
             const name = volume.spec.storageClassName;
@@ -69,11 +70,13 @@ export default function VolumeList() {
         {
           id: 'reclaimPolicy',
           label: t('Reclaim Policy'),
+          filterVariant: 'multi-select',
           getValue: volume => volume.spec.persistentVolumeReclaimPolicy,
         },
         {
           id: 'reason',
           label: t('translation|Reason'),
+          filterVariant: 'multi-select',
           getValue: volume => volume.status.reason,
           render: volume => {
             const reason = volume.status.reason;
