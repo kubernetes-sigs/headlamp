@@ -9,109 +9,111 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//nolint:funlen
 func TestParse(t *testing.T) {
-	t.Run("no_args_no_env", func(t *testing.T) {
-		conf, err := config.Parse(nil)
-		require.NoError(t, err)
-		require.NotNil(t, conf)
+	type envVar struct {
+		key   string
+		value string
+	}
+	testCases := []struct {
+		name           string
+		args           []string
+		envs           []envVar
+		expectConfig   func(*testing.T, *config.Config)
+		expectError    func(*testing.T, error)
+	}{
+		{
+			name: "no_args_no_env",
+			args: nil,
+			envs: nil,
+			expectConfig: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, false, conf.DevMode)
+				assert.Equal(t, "", conf.ListenAddr)
+				assert.Equal(t, uint(4466), conf.Port)
+				assert.Equal(t, "profile,email", conf.OidcScopes)
+			},
+			expectError: func(t *testing.T, err error) { require.NoError(t, err) },
+		},
+		{
+			name: "with_args",
+			args: []string{"go run ./cmd", "--port=3456"},
+			envs: nil,
+			expectConfig: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, uint(3456), conf.Port)
+			},
+			expectError: func(t *testing.T, err error) { require.NoError(t, err) },
+		},
+		{
+			name: "from_env",
+			args: []string{"go run ./cmd", "-in-cluster"},
+			envs: []envVar{{"HEADLAMP_CONFIG_OIDC_CLIENT_SECRET", "superSecretBotsStayAwayPlease"}},
+			expectConfig: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, "superSecretBotsStayAwayPlease", conf.OidcClientSecret)
+			},
+			expectError: func(t *testing.T, err error) { require.NoError(t, err) },
+		},
+		{
+			name: "both_args_and_env",
+			args: []string{"go run ./cmd", "--port=9876"},
+			envs: []envVar{{"HEADLAMP_CONFIG_PORT", "1234"}},
+			expectConfig: func(t *testing.T, conf *config.Config) {
+				assert.NotEqual(t, uint(1234), conf.Port)
+				assert.Equal(t, uint(9876), conf.Port)
+			},
+			expectError: func(t *testing.T, err error) { require.NoError(t, err) },
+		},
+		{
+			name: "oidc_settings_without_incluster",
+			args: []string{"go run ./cmd", "-oidc-client-id=noClient"},
+			envs: nil,
+			expectConfig: func(t *testing.T, conf *config.Config) { require.Nil(t, conf) },
+			expectError: func(t *testing.T, err error) {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "are only meant to be used in inCluster mode")
+			},
+		},
+		{
+			name: "invalid_base_url",
+			args: []string{"go run ./cmd", "--base-url=testingthis"},
+			envs: nil,
+			expectConfig: func(t *testing.T, conf *config.Config) { require.Nil(t, conf) },
+			expectError: func(t *testing.T, err error) {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "base-url")
+			},
+		},
+		{
+			name: "kubeconfig_from_default_env",
+			args: []string{"go run ./cmd"},
+			envs: []envVar{{"KUBECONFIG", "~/.kube/test_config.yaml"}},
+			expectConfig: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, conf.KubeConfigPath, "~/.kube/test_config.yaml")
+			},
+			expectError: func(t *testing.T, err error) { require.NoError(t, err) },
+		},
+		{
+			name: "enable_dynamic_clusters",
+			args: []string{"go run ./cmd", "--enable-dynamic-clusters"},
+			envs: nil,
+			expectConfig: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, true, conf.EnableDynamicClusters)
+			},
+			expectError: func(t *testing.T, err error) { require.NoError(t, err) },
+		},
+	}
 
-		assert.Equal(t, false, conf.DevMode)
-		assert.Equal(t, "", conf.ListenAddr)
-		assert.Equal(t, uint(4466), conf.Port)
-		assert.Equal(t, "profile,email", conf.OidcScopes)
-	})
-
-	t.Run("with_args", func(t *testing.T) {
-		args := []string{
-			"go run ./cmd", "--port=3456",
-		}
-		conf, err := config.Parse(args)
-		require.NoError(t, err)
-		require.NotNil(t, conf)
-
-		assert.Equal(t, uint(3456), conf.Port)
-	})
-
-	t.Run("from_env", func(t *testing.T) {
-		os.Setenv("HEADLAMP_CONFIG_OIDC_CLIENT_SECRET", "superSecretBotsStayAwayPlease")
-		defer os.Unsetenv("HEADLAMP_CONFIG_OIDC_CLIENT_SECRET")
-
-		args := []string{
-			"go run ./cmd", "-in-cluster",
-		}
-		conf, err := config.Parse(args)
-
-		require.NoError(t, err)
-		require.NotNil(t, conf)
-
-		assert.Equal(t, "superSecretBotsStayAwayPlease", conf.OidcClientSecret)
-	})
-
-	t.Run("both_args_and_env", func(t *testing.T) {
-		os.Setenv("HEADLAMP_CONFIG_PORT", "1234")
-		defer os.Unsetenv("HEADLAMP_CONFIG_PORT")
-
-		args := []string{
-			"go run ./cmd", "--port=9876",
-		}
-		conf, err := config.Parse(args)
-
-		require.NoError(t, err)
-		require.NotNil(t, conf)
-
-		assert.NotEqual(t, uint(1234), conf.Port)
-		assert.Equal(t, uint(9876), conf.Port)
-	})
-
-	t.Run("oidc_settings_without_incluster", func(t *testing.T) {
-		args := []string{
-			"go run ./cmd", "-oidc-client-id=noClient",
-		}
-		conf, err := config.Parse(args)
-
-		require.Error(t, err)
-		require.Nil(t, conf)
-
-		assert.Contains(t, err.Error(), "are only meant to be used in inCluster mode")
-	})
-
-	t.Run("invalid_base_url", func(t *testing.T) {
-		args := []string{
-			"go run ./cmd", "--base-url=testingthis",
-		}
-		conf, err := config.Parse(args)
-
-		require.Error(t, err)
-		require.Nil(t, conf)
-
-		assert.Contains(t, err.Error(), "base-url")
-	})
-
-	t.Run("kubeconfig_from_default_env", func(t *testing.T) {
-		os.Setenv("KUBECONFIG", "~/.kube/test_config.yaml")
-		defer os.Unsetenv("KUBECONFIG")
-
-		args := []string{
-			"go run ./cmd",
-		}
-		conf, err := config.Parse(args)
-
-		require.NoError(t, err)
-		require.NotNil(t, conf)
-
-		assert.Equal(t, conf.KubeConfigPath, "~/.kube/test_config.yaml")
-	})
-
-	t.Run("enable_dynamic_clusters", func(t *testing.T) {
-		args := []string{
-			"go run ./cmd", "--enable-dynamic-clusters",
-		}
-		conf, err := config.Parse(args)
-
-		require.NoError(t, err)
-		require.NotNil(t, conf)
-
-		assert.Equal(t, true, conf.EnableDynamicClusters)
-	})
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Set env vars
+			for _, env := range tc.envs {
+				os.Setenv(env.key, env.value)
+				defer os.Unsetenv(env.key)
+			}
+			conf, err := config.Parse(tc.args)
+			tc.expectError(t, err)
+			if err == nil {
+				require.NotNil(t, conf)
+				tc.expectConfig(t, conf)
+			}
+		})
+	}
 }
