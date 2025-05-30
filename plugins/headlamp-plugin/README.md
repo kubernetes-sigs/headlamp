@@ -1,4 +1,4 @@
-# @kinvolk/headlamp-plugin
+# @headlamp-k8s/headlamp-plugin
 
 The needed infrastructure for building Headlamp plugins.
 Headlamp plugins depend on this package.
@@ -57,8 +57,8 @@ headlamp-plugin --help
                                             Options:
                                                   --version          Show version number
                                               -c, --config           Path to plugin configuration file
-                                                  --folderName       Name of the folder to install the plugin 
-                                                  --headlampVersion  Version of headlamp to install the plugin 
+                                                  --folderName       Name of the folder to install the plugin
+                                                  --headlampVersion  Version of headlamp to install the plugin
                                               -q, --quiet            Do not print logs
                                               -w, --watch            Watch config file for changes and automatically
                                                                     reinstall plugins
@@ -88,7 +88,7 @@ installOptions:
 
 ### Generate types
 
-`@kinvolk/headlamp-plugin` ships type declarations from the `frontend` module.
+`@headlamp-k8s/headlamp-plugin` ships type declarations from the `frontend` module.
 To generate the declarations, run `npm run build`.
 
 ### How to test local changes to headlamp-plugin
@@ -106,10 +106,10 @@ See test-headlamp-plugin-published.js for testing published packages.
 Use your changes inside a plugin with an npm feature called linking:
 
 1. Run `npm link` within the src/plugins/headlamp-plugins folder.
-2. Create the plugin with link: `npx --yes @kinvolk/headlamp-plugin create myplugin --link`
+2. Create the plugin with link: `npx --yes @headlamp-k8s/headlamp-plugin create myplugin --link`
 3. Develop your plugin using your local headlamp-plugin changes.
 
-This internally does a `npm link @kinvolk/headlamp-plugin`, so the development
+This internally does a `npm link @headlamp-k8s/headlamp-plugin`, so the development
 version is linked rather than using a released version from npm.
 
 Why is this needed? Whilst npx uses linked packages by default,
@@ -144,7 +144,7 @@ are changed, they are synced appropriately.
 You can try an alpha release for testing with the following command.
 
 ```bash
-npx @kinvolk/headlamp-plugin@alpha upgrade --headlamp-plugin-version=alpha your-plugin-folder
+npx @headlamp-k8s/headlamp-plugin@alpha upgrade --headlamp-plugin-version=alpha your-plugin-folder
 ```
 
 ### Making an alpha release of headlamp-plugin

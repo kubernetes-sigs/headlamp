@@ -46,7 +46,7 @@ const vitePromise = import('vite');
  * Then runs npm install inside of the folder.
  *
  * @param {string} name - name of package and output folder.
- * @param {boolean} link - if we link @kinvolk/headlamp-plugin for testing
+ * @param {boolean} link - if we link @headlamp-k8s/headlamp-plugin for testing
  * @returns {0 | 1 | 2 | 3} Exit code, where 0 is success, 1, 2, and 3 are failures.
  */
 function create(name, link) {
@@ -95,8 +95,8 @@ function create(name, link) {
 
   // This can be used to make testing locally easier.
   if (link) {
-    console.log('Linking @kinvolk/headlamp-plugin');
-    child_process.spawnSync('npm', ['link', '@kinvolk/headlamp-plugin'], {
+    console.log('Linking @headlamp-k8s/headlamp-plugin');
+    child_process.spawnSync('npm', ['link', '@headlamp-k8s/headlamp-plugin'], {
       cwd: dstFolder,
     });
   }
@@ -119,8 +119,8 @@ function create(name, link) {
   // This can be used to make testing locally easier.
   if (link) {
     // Seems to require linking again with npm 7+
-    console.log('Linking @kinvolk/headlamp-plugin');
-    child_process.spawnSync('npm', ['link', '@kinvolk/headlamp-plugin'], {
+    console.log('Linking @headlamp-k8s/headlamp-plugin');
+    child_process.spawnSync('npm', ['link', '@headlamp-k8s/headlamp-plugin'], {
       cwd: dstFolder,
     });
   }
@@ -422,21 +422,21 @@ async function start() {
   }
 
   /**
-   * Inform if @kinvolk/headlamp-plugin is outdated.
+   * Inform if @headlamp-k8s/headlamp-plugin is outdated.
    */
   async function informIfOutdated() {
-    console.log('Checking if @kinvolk/headlamp-plugin is up to date...');
+    console.log('Checking if @headlamp-k8s/headlamp-plugin is up to date...');
     child_process.exec('npm outdated --json', (error, stdout) => {
       if (error) {
         // npm outdated exit codes 1 when something is not up to date.
         const result = stdout.toString();
         const outdated = JSON.parse(result);
-        if ('@kinvolk/headlamp-plugin' in outdated) {
+        if ('@headlamp-k8s/headlamp-plugin' in outdated) {
           const url = `https://github.com/kubernetes-sigs/headlamp/releases`;
           console.warn(
-            '    @kinvolk/headlamp-plugin is out of date. Run the following command to upgrade \n' +
+            '    @headlamp-k8s/headlamp-plugin is out of date. Run the following command to upgrade \n' +
               `    See release notes here: ${url}` +
-              '    npx @kinvolk/headlamp-plugin upgrade'
+              '    npx @headlamp-k8s/headlamp-plugin upgrade'
           );
           return;
         }
@@ -446,7 +446,7 @@ async function start() {
 
   setTimeout(() => {
     informIfOutdated().catch(error => {
-      console.error('Error checking if @kinvolk/headlamp-plugin is up to date:', error);
+      console.error('Error checking if @headlamp-k8s/headlamp-plugin is up to date:', error);
     });
   }, 500);
 
@@ -734,12 +734,12 @@ function format(packageFolder, check) {
  * #### Example
  * ```js
  *  {
- *    "@kinvolk/headlamp-plugin": {
+ *    "@headlamp-k8s/headlamp-plugin": {
  *      "current": "0.5.0",
  *      "wanted": "0.5.1",
  *      "latest": "0.5.1",
  *      "dependent": "pod-counter",
- *      "location": "/home/rene/dev/headlamp/plugins/examples/pod-counter/node_modules/@kinvolk/headlamp-plugin"
+ *      "location": "/home/rene/dev/headlamp/plugins/examples/pod-counter/node_modules/@headlamp-k8s/headlamp-plugin"
  *    }
  *  }
  * ```
@@ -950,7 +950,7 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
   }
 
   /**
-   * Upgrades "@kinvolk/headlamp-plugin" dependency to latest or given version.
+   * Upgrades "@headlamp-k8s/headlamp-plugin" dependency to latest or given version.
    *
    * @returns true unless there is a problem with the upgrade.
    */
@@ -958,12 +958,12 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
     const theTag = headlampPluginVersion ? headlampPluginVersion : 'latest';
     if (
       headlampPluginVersion !== undefined ||
-      '@kinvolk/headlamp-plugin' in getNpmOutdated() ||
+      '@headlamp-k8s/headlamp-plugin' in getNpmOutdated() ||
       !fs.existsSync('node_modules')
     ) {
-      // Upgrade the @kinvolk/headlamp-plugin
+      // Upgrade the @headlamp-k8s/headlamp-plugin
 
-      const cmd = `npm install @kinvolk/headlamp-plugin@${theTag} --save`;
+      const cmd = `npm install @headlamp-k8s/headlamp-plugin@${theTag} --save`;
       if (runCmd(cmd, '.')) {
         return false;
       }
@@ -975,7 +975,7 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
   /**
    * Removes "@headlamp-k8s/eslint-config" dependency if it is there.
    *
-   * It is a transitive dependency of "@kinvolk/headlamp-plugin", and
+   * It is a transitive dependency of "@headlamp-k8s/headlamp-plugin", and
    * does not need to be there anymore.
    *
    * @returns true unless there is a problem with the upgrade.
@@ -1031,7 +1031,7 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
       }
       if (!failed && !upgradeHeadlampPlugin()) {
         failed = true;
-        reason = 'upgrading @kinvolk/headlamp-plugin failed.';
+        reason = 'upgrading @headlamp-k8s/headlamp-plugin failed.';
       }
       if (!failed && !upgradeMui()) {
         failed = true;
@@ -1151,7 +1151,7 @@ function tsc(packageFolder) {
 function storybook(packageFolder) {
   try {
     child_process.execSync(
-      './node_modules/.bin/storybook dev -p 6007 -c node_modules/@kinvolk/headlamp-plugin/config/.storybook',
+      './node_modules/.bin/storybook dev -p 6007 -c node_modules/@headlamp-k8s/headlamp-plugin/config/.storybook',
       {
         stdio: 'inherit',
         cwd: packageFolder,
@@ -1175,7 +1175,7 @@ function storybook(packageFolder) {
  * @returns {0 | 1} Exit code, where 0 is success, 1 is failure.
  */
 function storybook_build(packageFolder) {
-  const script = `storybook build -c node_modules/@kinvolk/headlamp-plugin/config/.storybook`;
+  const script = `storybook build -c node_modules/@headlamp-k8s/headlamp-plugin/config/.storybook`;
   return runScriptOnPackages(packageFolder, 'storybook build', script, {});
 }
 
@@ -1186,7 +1186,7 @@ function storybook_build(packageFolder) {
  * @returns {0 | 1} Exit code, where 0 is success, 1 is failure.
  */
 function test(packageFolder) {
-  const script = `vitest -c node_modules/@kinvolk/headlamp-plugin/config/vite.config.mjs`;
+  const script = `vitest -c node_modules/@headlamp-k8s/headlamp-plugin/config/vite.config.mjs`;
   return runScriptOnPackages(packageFolder, 'test', script, { UNDER_TEST: 'true' });
 }
 
@@ -1223,7 +1223,7 @@ yargs(process.argv.slice(2))
         })
         .option('link', {
           describe:
-            'For development of headlamp-plugin itself, so it uses npm link @kinvolk/headlamp-plugin.',
+            'For development of headlamp-plugin itself, so it uses npm link @headlamp-k8s/headlamp-plugin.',
           type: 'boolean',
         });
     },

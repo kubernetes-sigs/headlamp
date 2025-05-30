@@ -13,7 +13,7 @@ for i in * ; do
   if [ -d "$i" ]; then
     cd "$i"
     # Test changes to headlamp-plugin in the PR/repo that released version might not have.
-    npm ci `ls -t ../../headlamp-plugin/kinvolk-headlamp-plugin-*.tgz | head -1`
+    npm ci `ls -t ../../headlamp-plugin/headlamp-k8s-headlamp-plugin-*.tgz | head -1`
     npm run lint
     npm run format
     npm run build

@@ -7,8 +7,8 @@ This section will walk you through basic plugin development.
 ## Types
 
 If you are using TypeScript to develop the plugin, the
-`@kinvolk/headlamp-plugin` package ships some type declarations in
-`@kinvolk/headlamp-plugin/types`. Please note that the whole external
+`@headlamp-k8s/headlamp-plugin` package ships some type declarations in
+`@headlamp-k8s/headlamp-plugin/types`. Please note that the whole external
 plugin mechanics are still in an early development phase. Thus, only the
 actual type declarations (and not the corresponding code) are shipped in this
 package.
@@ -20,7 +20,7 @@ in a file that should match the `src/index.tsx` structure explained in the
 [building](./building.md) section.
 
 ```tsx title="/src/index.tsx"
-import { registerAppBarAction } from "@kinvolk/headlamp-plugin/lib";
+import { registerAppBarAction } from "@headlamp-k8s/headlamp-plugin/lib";
 registerAppBarAction(<span>Hello Kubernetes</span>);
 ```
 
@@ -30,7 +30,7 @@ Let's create a plugin that just gets the number of pods in the cluster and
 displays that information in the top bar (i.e. registers an "app bar action").
 
 ```tsx title="/src/index.tsx"
-import { K8s, registerAppBarAction } from '@kinvolk/headlamp-plugin/lib';
+import { K8s, registerAppBarAction } from '@headlamp-k8s/headlamp-plugin/lib';
 import { Typography } from '@mui/material';
 
 function PodCounter() {

@@ -52,7 +52,7 @@ module.exports = {
       test: /\.tsx?$/,
       include: path.resolve(
         __dirname,
-        '../../../../../node_modules/@kinvolk/headlamp-plugin/config'
+        '../../../../../node_modules/@headlamp-k8s/headlamp-plugin/config'
       ),
       use: {
         loader: require.resolve('ts-loader'),
