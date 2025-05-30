@@ -23,7 +23,7 @@ import { memo, useEffect, useState } from 'react';
 import { getMainNode } from '../graph/graphGrouping';
 import { useGraphView, useNode } from '../GraphView';
 import { KubeIcon } from '../kubeIcon/KubeIcon';
-import { KubeObjectGlance } from '../KubeObjectGlance/KubeObjectGlance';
+import { NodeGlance } from '../KubeObjectGlance/NodeGlance';
 import { GroupNodeComponent } from './GroupNode';
 import { getStatus } from './KubeObjectStatus';
 
@@ -258,7 +258,7 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
           </Title>
         </LabelContainer>
       </TextContainer>
-      {isExpanded && kubeObject && <KubeObjectGlance resource={kubeObject} />}
+      {isExpanded && <NodeGlance node={node} />}
     </Container>
   );
 });

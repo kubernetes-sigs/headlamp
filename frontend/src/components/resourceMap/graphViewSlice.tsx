@@ -15,12 +15,12 @@
  */
 
 /**
- * This slice contains custom graph elements registered by plugins
+ * This slice contains custom graph elements and glances registered by plugins
  */
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { ReactNode } from 'react';
-import { GraphSource } from './graph/graphModel';
+import { GraphNode, GraphSource } from './graph/graphModel';
 
 export interface IconDefinition {
   /**
@@ -35,14 +35,21 @@ export interface IconDefinition {
   color?: string;
 }
 
+export interface Glance {
+  id: string;
+  component: (props: { node: GraphNode }) => ReactNode;
+}
+
 export interface GraphViewSliceState {
   graphSources: GraphSource[];
   kindIcons: Record<string, IconDefinition>;
+  glances: Record<string, Glance>;
 }
 
 const initialState: GraphViewSliceState = {
   graphSources: [],
   kindIcons: {},
+  glances: {},
 };
 
 export const graphViewSlice = createSlice({
@@ -59,7 +66,11 @@ export const graphViewSlice = createSlice({
     addKindIcon(state, action: PayloadAction<{ kind: string; definition: IconDefinition }>) {
       state.kindIcons[action.payload.kind] = action.payload.definition;
     },
+    setGlance(state, action: PayloadAction<Glance>) {
+      state.glances[action.payload.id] = action.payload;
+    },
   },
 });
 
+export const { addGraphSource, addKindIcon, setGlance } = graphViewSlice.actions;
 export default graphViewSlice.reducer;
