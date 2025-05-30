@@ -3,15 +3,15 @@
   "plugins": [
     {
       "name": "app-catalog",
-      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/app-catalog-0.6.0/app-catalog-0.6.0.tar.gz"
+      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/app-catalog-0.6.1/app-catalog-0.6.1.tar.gz"
     },
     {
       "name": "plugin-catalog",
-      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/plugin-catalog-0.3.1/headlamp-k8s-plugin-catalog-0.3.1.tar.gz"
+      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/plugin-catalog-0.4.0/headlamp-k8s-plugin-catalog-0.4.0.tar.gz"
     },
     {
       "name": "prometheus",
-      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/prometheus-0.5.0/prometheus-0.5.0.tar.gz"
+      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/prometheus-0.6.0/prometheus-0.6.0.tar.gz"
     }
   ]
 }

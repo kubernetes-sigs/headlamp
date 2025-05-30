@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: headlamp
-          image: ghcr.io/kubernetes-sigs/headlamp:latest
+          image: ghcr.io/headlamp-k8s/headlamp:latest
           args:
             - "-in-cluster"
             - "-plugins-dir=/headlamp/plugins"

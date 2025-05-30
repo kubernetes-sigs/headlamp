@@ -22,6 +22,8 @@ jobs:
   publish:
     name: Publish Assets
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # need to write to releases and download artifacts
     steps:
       - name: Checkout code
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -81,6 +83,34 @@ jobs:
             exit 0
           fi
 
+      - name: Prepare GPG key
+        run: |
+          gpg_dir=.cr-gpg
+          mkdir "$gpg_dir"
+
+          # referring keyring to private key of gpg
+          keyring="$gpg_dir/secring.gpg"
+
+          # storing base64 GPG key into keyring
+          base64 -d <<< "$GPG_KEYRING_BASE64" > "$keyring"
+
+          # Import the GPG key for signing
+          gpg --batch --import "$keyring"
+
+          passphrase_file="$gpg_dir/passphrase"
+
+          # storing passphrase data into a file
+          echo "$GPG_PASSPHRASE" > "$passphrase_file"
+
+          # saving passphrase into github-environment
+          echo "CR_PASSPHRASE_FILE=$passphrase_file" >> "$GITHUB_ENV"
+
+          # saving private key into github-environemnt
+          echo "CR_KEYRING=$keyring" >> "$GITHUB_ENV"
+        env:
+          GPG_KEYRING_BASE64: "${{ secrets.GPG_KEYRING_BASE64 }}" #Referring secrets of github above
+          GPG_PASSPHRASE: "${{ secrets.GPG_PASSPHRASE }}"
+
       - name: Install script dependencies
         working-directory: ./app/scripts/push-release-assets
         run: npm ci
@@ -107,3 +137,24 @@ jobs:
 
           echo "Executing: $CMD"
           eval $CMD
+
+      - name: Create and sign checksums signature
+        run: |
+          # Wait a moment for the checksums.txt to be available
+          sleep 5
+
+          # Create temporary directory for checksums
+          mkdir -p ./temp-checksums
+
+          # Download the checksums.txt file that was just uploaded
+          gh release download ${{ inputs.release_name }} --pattern "checksums.txt" --dir ./temp-checksums --clobber
+
+          # Create detached signature for checksums.txt
+          gpg --batch --yes --passphrase-file "$CR_PASSPHRASE_FILE" --default-key "${{ secrets.GPG_SIGNING_KEY_NAME }}" --armor --detach-sign ./temp-checksums/checksums.txt
+
+          # Upload the signature file
+          gh release upload ${{ inputs.release_name }} ./temp-checksums/checksums.txt.asc --clobber
+
+          echo "Checksums signature created and uploaded successfully"
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
