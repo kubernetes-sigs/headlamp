@@ -24,7 +24,7 @@ import { kubeObjectQueryKey, useEndpoints } from '../../lib/k8s/api/v2/hooks';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { createRouteURL, RouteURLProps } from '../../lib/router';
 import { setSelectedResource } from '../../redux/drawerModeSlice';
-import { useTypedSelector } from '../../redux/reducers/reducers';
+import { useTypedSelector } from '../../redux/hooks';
 import { canRenderDetails } from '../resourceMap/details/KubeNodeDetails';
 import { LightTooltip } from './Tooltip';
 

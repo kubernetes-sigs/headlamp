@@ -22,7 +22,7 @@ import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router';
 import { isElectron } from '../../../helpers/isElectron';
 import { setSelectedResource } from '../../../redux/drawerModeSlice';
-import { useTypedSelector } from '../../../redux/reducers/reducers';
+import { useTypedSelector } from '../../../redux/hooks';
 import { KubeObjectDetails } from '../../resourceMap/details/KubeNodeDetails';
 import { ActionButton } from '..';
 

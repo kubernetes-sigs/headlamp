@@ -48,7 +48,7 @@ import ServiceAccount from '../../lib/k8s/serviceAccount';
 import StatefulSet from '../../lib/k8s/statefulSet';
 import { createRouteURL, getDefaultRoutes } from '../../lib/router';
 import { getClusterPrefixedPath } from '../../lib/util';
-import { useTypedSelector } from '../../redux/reducers/reducers';
+import { useTypedSelector } from '../../redux/hooks';
 import { ThemePreview } from '../App/Settings/ThemePreview';
 import { setTheme, useAppThemes } from '../App/themeSlice';
 import { Delayed } from './Delayed';
