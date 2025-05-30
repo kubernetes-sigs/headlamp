@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+/*
+ *This component likely renders a dropdown menu or a list that allows the user to choose their preferred language for the application.
+ *When the user selects a language, this component tells i18next to switch to that language.
+ */
+
 import FormControl, { FormControlProps } from '@mui/material/FormControl';
 import FormLabel from '@mui/material/FormLabel';
 import MenuItem from '@mui/material/MenuItem';
