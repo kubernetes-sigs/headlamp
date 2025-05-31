@@ -1,0 +1,57 @@
+<body>
+  <div>
+    <a
+      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineAlways css-q10y4w-MuiTypography-root-MuiLink-root"
+      href="#main"
+    >
+      Skip to main content
+    </a>
+    <div
+      class="MuiBox-root css-12ub0xu"
+    >
+      <div
+        class="MuiBox-root css-1uqao6u"
+      >
+        <div
+          class="MuiBox-root css-1l1sxnu"
+        />
+        <div
+          class="MuiBox-root css-1ukcme8"
+        >
+          <div
+            class="MuiBox-root css-fqffw5"
+          />
+          <main
+            class="css-1hqu9io"
+            id="main"
+          >
+            <div
+              class="MuiBox-root css-0"
+            >
+              <div
+                class="css-0"
+              />
+              <div
+                class="MuiContainer-root MuiContainer-disableGutters css-idqxm-MuiContainer-root"
+              >
+                <div
+                  class="MuiBox-root css-1dd75ib"
+                />
+                <div
+                  class="MuiBox-root css-19midj6"
+                >
+                  <h1>
+                    Main Content Area
+                  </h1>
+                  <p>
+                    This is where the main application content would be displayed.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

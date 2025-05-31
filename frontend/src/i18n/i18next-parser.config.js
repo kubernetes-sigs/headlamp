@@ -16,9 +16,13 @@
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import sharedConfig from './i18nextSharedConfig.mjs';
 
-const directoryPath = path.join(import.meta.dirname, sharedConfig.localesPath);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const directoryPath = path.join(__dirname, sharedConfig.localesPath);
 const currentLocales = [];
 
 fs.readdirSync(directoryPath).forEach(file => currentLocales.push(file));
