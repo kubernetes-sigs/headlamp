@@ -1,0 +1,6 @@
+{
+  "devDependencies": {
+    "@storybook/cli": "^9.0.12",
+    "@storybook/react-vite": "^9.0.12"
+  }
+}
