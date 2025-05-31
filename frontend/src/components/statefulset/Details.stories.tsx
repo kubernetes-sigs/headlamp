@@ -26,7 +26,7 @@ const mockStatefulSet = {
   metadata: {
     name: 'mock-statefulset',
     namespace: 'default',
-    uid: '12345678-1234-1234-1234-123456789012',
+    uid: '12345678-1234-1256-1234-123456789012',
     creationTimestamp: '2025-05-31T17:15:53.298Z',
   },
   spec: {
