@@ -1144,6 +1144,7 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 		// refresh and cache new token
 		c.refreshAndSetToken(oidcAuthConfig, token, w, cluster, span, ctx)
 
+		// Always call the next handler in the chain, even if token refresh failed
 		next.ServeHTTP(w, r)
 		c.telemetryHandler.RecordDuration(ctx, start,
 			attribute.String("api.route", "OIDCTokenRefreshMiddleware"),

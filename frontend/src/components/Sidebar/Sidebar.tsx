@@ -155,6 +155,7 @@ const DefaultLinkArea = memo((props: { sidebarName: string; isOpen: boolean }) =
         alignItems="center"
         flexDirection={isOpen ? 'row' : 'column'}
         p={1}
+        mb={5} // Add 40px margin to the bottom
       >
         <Box>
           <VersionButton />

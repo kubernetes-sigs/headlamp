@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ConfigStore } from '@kinvolk/headlamp-plugin/lib';
+import { ConfigStore, Headlamp } from '@kinvolk/headlamp-plugin/lib';
 import { Typography } from '@mui/material';
 
 export interface MessageProps {
@@ -37,10 +37,16 @@ export default function Message({ msg, error }: MessageProps) {
   const config = new ConfigStore<{ errorMessage?: string }>('@kinvolk/headlamp-pod-counter');
   const useConf = config.useConfig();
   const conf = useConf();
+  
+  // Access environment variables through the Headlamp class
+  const env = Headlamp.getEnv();
+  const productName = env.REACT_APP_HEADLAMP_PRODUCT_NAME || 'Headlamp';
 
   return (
     <Typography color="textPrimary" sx={{ fontStyle: 'italic' }}>
-      {!error ? `# Pods: ${msg}` : conf?.errorMessage ? conf?.errorMessage : 'Uh, pods!?'}
+      {!error ? 
+        `${productName} - ${msg}` : 
+        conf?.errorMessage ? conf?.errorMessage : 'Uh, pods!?'}
     </Typography>
   );
 }
