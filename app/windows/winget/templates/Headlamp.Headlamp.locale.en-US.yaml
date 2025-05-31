@@ -11,7 +11,7 @@ Description: A Kubernetes web UI that is fully-featured, user-friendly and exten
 Tags:
   - kubernetes
   - plugins
-  - kinvolk
+  - headlamp-k8s
   - headlamp
   - dashboard
   - ui

@@ -11,7 +11,7 @@ to ship it once finished.
 This is how to start a new plugin:
 
 ```bash
-npx --yes @kinvolk/headlamp-plugin create headlamp-myfancy
+npx --yes @headlamp-k8s/headlamp-plugin create headlamp-myfancy
 cd headlamp-myfancy
 npm run start
 ```
@@ -255,5 +255,5 @@ Testing is necessary after running the upgrade command.
 Of course, make sure you have a backup of your plugin folder before running it.
 
 ```bash
-npx @kinvolk/headlamp-plugin upgrade --headlamp-plugin-version=latest your-plugin-folder
+npx @headlamp-k8s/headlamp-plugin upgrade --headlamp-plugin-version=latest your-plugin-folder
 ```

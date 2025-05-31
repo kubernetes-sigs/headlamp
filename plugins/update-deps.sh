@@ -2,13 +2,13 @@
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 PLUGINS_TO_UPDATE=$1
-HEADLAMP_PLUGIN="@kinvolk/headlamp-plugin"
+HEADLAMP_PLUGIN="@headlamp-k8s/headlamp-plugin"
 
 if [ -z "$PLUGINS_TO_UPDATE" ]; then
   PLUGINS_TO_UPDATE=$(ls $REPO_ROOT/plugins/examples)
 fi
 
-# Get the latest version of @kinvolk/headlamp-plugin
+# Get the latest version of @headlamp-k8s/headlamp-plugin
 LATEST_VERSION=$(npm view $HEADLAMP_PLUGIN version)
 echo "Latest version of $HEADLAMP_PLUGIN is $LATEST_VERSION"
 
@@ -36,7 +36,7 @@ for plugin in $PLUGINS_TO_UPDATE; do
     echo "No updates found for $plugin"
   fi
 
-  # Update @kinvolk/headlamp-plugin
+  # Update @headlamp-k8s/headlamp-plugin
   if grep -q "$HEADLAMP_PLUGIN" package.json; then
     echo "Updating $HEADLAMP_PLUGIN in $plugin"
 

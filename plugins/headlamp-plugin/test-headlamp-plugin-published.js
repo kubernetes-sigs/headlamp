@@ -17,7 +17,7 @@
  */
 
 const USAGE = `
-This tests a published @kinvolk/headlamp-plugin package.
+This tests a published @headlamp-k8s/headlamp-plugin package.
 
 ./test-headlamp-plugin-published.js 0.5.2
 
@@ -25,9 +25,9 @@ Assumes being run within the plugins/headlamp-plugin folder
 `;
 
 function testHeadlampPluginPublished(pluginVersion) {
-  run(`npm install @kinvolk/headlamp-plugin@${pluginVersion}`);
+  run(`npm install @headlamp-k8s/headlamp-plugin@${pluginVersion}`);
 
-  run('npx @kinvolk/headlamp-plugin create headlamp-myfancy');
+  run('npx @headlamp-k8s/headlamp-plugin create headlamp-myfancy');
 
   curDir = path.join(tmpDir, 'headlamp-myfancy');
   // test headlamp-plugin build
@@ -37,18 +37,18 @@ function testHeadlampPluginPublished(pluginVersion) {
   // test headlamp-plugin build folder
   curDir = tmpDir;
   fs.rmSync(path.join(tmpDir, 'headlamp-myfancy'), { recursive: true });
-  run('npx @kinvolk/headlamp-plugin create headlamp-myfancy');
-  run('npx @kinvolk/headlamp-plugin build headlamp-myfancy');
+  run('npx @headlamp-k8s/headlamp-plugin create headlamp-myfancy');
+  run('npx @headlamp-k8s/headlamp-plugin build headlamp-myfancy');
   checkFileExists(path.join(curDir, 'headlamp-myfancy', 'dist', 'main.js'));
 
   // test extraction works
-  run('npx @kinvolk/headlamp-plugin extract ./ .plugins');
+  run('npx @headlamp-k8s/headlamp-plugin extract ./ .plugins');
   checkFileExists(path.join(curDir, '.plugins', 'headlamp-myfancy', 'main.js'));
   // checkFileExists(path.join(curDir, '.plugins', 'headlamp-myfancy', 'package.json'));
 
   // test format command and that default code is formatted correctly
   fs.rmSync(path.join(tmpDir, 'headlamp-myfancy'), { recursive: true });
-  run('npx @kinvolk/headlamp-plugin create headlamp-myfancy');
+  run('npx @headlamp-k8s/headlamp-plugin create headlamp-myfancy');
   curDir = path.join(tmpDir, 'headlamp-myfancy');
   run('npm run format');
 
