@@ -18,8 +18,16 @@ import Box from '@mui/material/Box';
 import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 import { TableCellProps } from '@mui/material/TableCell';
-import { MRT_FilterFns, MRT_Row, MRT_SortingFn, MRT_TableInstance } from 'material-react-table';
+import {
+  MRT_ColumnFiltersState,
+  MRT_FilterFns,
+  MRT_Row,
+  MRT_SortingFn,
+  MRT_TableInstance,
+  MRT_Updater,
+} from 'material-react-table';
 import { ComponentProps, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/apiProxy';
@@ -29,7 +37,11 @@ import { useFilterFunc } from '../../../lib/util';
 import { DefaultHeaderAction, RowAction } from '../../../redux/actionButtonsSlice';
 import { useNamespaces } from '../../../redux/filterSlice';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
-import { useTypedSelector } from '../../../redux/reducers/reducers';
+import { RootState, useTypedSelector } from '../../../redux/reducers/reducers';
+import {
+  loadTableFiltersAction,
+  setTableFiltersAction,
+} from '../../../redux/tableFiltersSlice';
 import { useSettings } from '../../App/Settings/hook';
 import { ClusterGroupErrorMessage } from '../../cluster/ClusterGroupErrorMessage';
 import { DateLabel } from '../Label';
@@ -316,6 +328,19 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     initColumnVisibilityState(columns, id)
   );
 
+  const dispatch = useDispatch();
+  const tableId = id || 'unknown_table'; // Ensure tableId is always a string for Redux state and actions
+
+  const columnFilters = useTypedSelector(
+    (state: RootState) => state.tableFilters.filtersByTableId[tableId] || []
+  );
+
+  useEffect(() => {
+    if (tableId !== 'unknown_table') {
+      dispatch(loadTableFiltersAction({ tableId }));
+    }
+  }, [dispatch, tableId]);
+
   const [tableSettings] = useState<{ id: string; show: boolean }[]>(
     !!id ? loadTableSettings(id) : []
   );
@@ -555,8 +580,16 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     });
   }
 
+  function handleColumnFiltersChange(updater: MRT_Updater<MRT_ColumnFiltersState>) {
+    const newFilters = typeof updater === 'function' ? updater(columnFilters) : updater;
+    if (tableId !== 'unknown_table') {
+      dispatch(setTableFiltersAction({ tableId, filters: Array.isArray(newFilters) ? newFilters : [] }));
+    }
+  }
+
   const initialState: ComponentProps<typeof Table>['initialState'] = {
     sorting: sort ? [sort] : undefined,
+    columnFilters,
   };
 
   if (defaultGlobalFilter) {
@@ -583,9 +616,11 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
         rowsPerPage={storeRowsPerPageOptions}
         state={{
           columnVisibility,
+          columnFilters,
         }}
         reflectInURL={reflectInURL}
         onColumnVisibilityChange={onColumnsVisibilityChange as any}
+        onColumnFiltersChange={handleColumnFiltersChange}
         enableRowActions={enableRowActions}
         renderRowActionMenuItems={renderRowActionMenuItems as any}
         filterFns={{
