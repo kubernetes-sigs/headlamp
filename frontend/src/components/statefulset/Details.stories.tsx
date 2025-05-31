@@ -15,7 +15,7 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
-import { http,HttpResponse } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router-dom';
 import { TestContext } from '../../test';
 import StatefulSetDetails from './Details';
