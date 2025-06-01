@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const path = require('path');
 
 exports.default = async function codeSign(config) {
@@ -14,8 +14,9 @@ exports.default = async function codeSign(config) {
 
   let exitCode = 0;
   try {
-    execSync(
-      `codesign -s ${teamID} --deep --force --options runtime --entitlements ${entitlementsPath} ${config.app}`
+    execFileSync(
+      'codesign',
+      ['-s', teamID, '--deep', '--force', '--options', 'runtime', '--entitlements', entitlementsPath, config.app]
     );
   } catch (e) {
     exitCode = e.status !== null ? e.status : 1;
