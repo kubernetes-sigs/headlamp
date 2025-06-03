@@ -18,7 +18,7 @@ import { Theme } from '@mui/material/styles';
 import { SxProps } from '@mui/system';
 import React, { isValidElement, ReactElement } from 'react';
 import { getThemeName, useNavBarMode } from '../../lib/themes';
-import { useTypedSelector } from '../../redux/reducers/reducers';
+import { useTypedSelector } from '../../redux/hooks';
 import LogoDark from '../../resources/icon-dark.svg?react';
 import LogoLight from '../../resources/icon-light.svg?react';
 import LogoWithTextDark from '../../resources/logo-dark.svg?react';

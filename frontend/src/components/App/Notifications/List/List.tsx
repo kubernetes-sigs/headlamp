@@ -26,7 +26,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
-import { useTypedSelector } from '../../../../redux/reducers/reducers';
+import { useTypedSelector } from '../../../../redux/hooks';
 import Empty from '../../../common/EmptyContent';
 import { DateLabel } from '../../../common/Label';
 import Link from '../../../common/Link';

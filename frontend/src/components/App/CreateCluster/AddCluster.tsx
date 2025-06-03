@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router-dom';
 import { createRouteURL } from '../../../lib/router';
 import { ClusterProviderInfo } from '../../../redux/clusterProviderSlice';
-import { useTypedSelector } from '../../../redux/reducers/reducers';
+import { useTypedSelector } from '../../../redux/hooks';
 import { DialogProps } from '../../common/Dialog';
 import { PageGrid } from '../../common/Resource';
 import SectionBox from '../../common/SectionBox';

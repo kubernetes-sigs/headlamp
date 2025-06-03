@@ -23,7 +23,7 @@ import {
   HeaderAction,
   HeaderActionType,
 } from '../../../../redux/actionButtonsSlice';
-import { useTypedSelector } from '../../../../redux/reducers/reducers';
+import { useTypedSelector } from '../../../../redux/hooks';
 import ErrorBoundary from '../../ErrorBoundary';
 import SectionHeader, { HeaderStyle } from '../../SectionHeader';
 import DeleteButton from '../DeleteButton';

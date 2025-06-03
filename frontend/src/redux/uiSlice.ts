@@ -17,7 +17,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { ReactElement, useMemo } from 'react';
 import { ClusterChooserType } from '../components/cluster/ClusterChooser';
-import { useTypedSelector } from './reducers/reducers';
+import { useTypedSelector } from './hooks';
 
 export type FunctionsToOverride = {
   setToken?: (cluster: string, token: string | null) => void;

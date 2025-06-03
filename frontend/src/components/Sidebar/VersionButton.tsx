@@ -29,7 +29,7 @@ import { useTranslation } from 'react-i18next';
 import semver from 'semver';
 import { getVersion, useCluster } from '../../lib/k8s';
 import { StringDict } from '../../lib/k8s/cluster';
-import { useTypedSelector } from '../../redux/reducers/reducers';
+import { useTypedSelector } from '../../redux/hooks';
 import { NameValueTable } from '../common/SimpleTable';
 
 const versionSnackbarHideTimeout = 5000; // ms

@@ -42,7 +42,7 @@ jobs:
       run: |
         make app-linux
   build-windows:
-    runs-on: windows-2019
+    runs-on: windows-2025
     strategy:
       matrix:
         node-version: [20.x]

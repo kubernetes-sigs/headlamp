@@ -29,7 +29,7 @@ import {
   NotFoundRoute,
   Route as RouteType,
 } from '../../lib/router';
-import { useTypedSelector } from '../../redux/reducers/reducers';
+import { useTypedSelector } from '../../redux/hooks';
 import { uiSlice } from '../../redux/uiSlice';
 import ErrorBoundary from '../common/ErrorBoundary';
 import ErrorComponent from '../common/ErrorPage';

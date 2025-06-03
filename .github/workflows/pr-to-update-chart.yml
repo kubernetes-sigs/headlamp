@@ -65,7 +65,9 @@ jobs:
           sed -i "s/^appVersion:\ .*/appVersion: ${LATEST_HEADLAMP_TAG:1}/g" ./charts/headlamp/Chart.yaml
           git diff
           git status
-          git add ./charts/headlamp/Chart.yaml
+          # Update Chart.yaml and test templates
+          make helm-update-template-version
+          git add ./charts/headlamp
           git commit --signoff -m "charts: Bump Headlamp version to $LATEST_HEADLAMP_TAG"
           git status
           git log -1
