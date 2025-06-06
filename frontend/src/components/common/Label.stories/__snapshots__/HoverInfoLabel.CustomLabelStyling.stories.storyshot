@@ -1,0 +1,15 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-19midj6"
+    >
+      <h6
+        aria-label="This label uses custom typography styling."
+        class="MuiTypography-root MuiTypography-h6 css-1pjenbz-MuiTypography-root"
+        data-mui-internal-clone-element="true"
+      >
+        Important System Label
+      </h6>
+    </div>
+  </div>
+</body>
