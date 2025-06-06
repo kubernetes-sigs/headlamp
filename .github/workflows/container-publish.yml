@@ -68,7 +68,7 @@ jobs:
         echo "CONTAINER_TAGS=${{ env.CONTAINER_TAGS }}"
     - name: checkout to build branch
       run: |
-        git fetch --tags origin
+        git fetch --tags --force origin
         git checkout ${{ env.BUILD_TAG }}
     - name: Log in to the Container registry
       uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2.2.0
