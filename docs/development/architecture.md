@@ -196,7 +196,7 @@ What plugin-related resources are available, and where are they located?
 - See the [Plugin Development Documentation](https://headlamp.dev/docs/latest/development/plugins/) for more information about developing plugins.
 
 A key dependency:
-- **headlamp-plugin**: provides commands for running builds, linting, formatting, and testing. Provides shared config for tools like typescript, linting and formatting. Also provides tools for upgrading plugins between releases of Headlamp.
+- **headlamp-plugin**: provides commands for running builds, linting, formatting, and testing. Provides shared config for tools like TypeScript, linting and formatting. Also provides tools for upgrading plugins between releases of Headlamp.
 
 ## Design Principles and Core Behaviors
 
