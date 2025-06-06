@@ -214,7 +214,7 @@ If you're planning a big change to Headlamp, please open an issue first. See the
 
 ## Deployment Options
 
-See the [Installation Documentation](https://headlamp.dev/docs/latest/installation/) for more information.Including a Quickstart.
+See the [Installation Documentation](https://headlamp.dev/docs/latest/installation/) for more information, including a Quickstart.
 
 As mentioned above, Headlamp can be deployed as a container inside a Kubernetes cluster or as a Desktop app.
 
