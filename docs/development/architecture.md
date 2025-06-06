@@ -78,7 +78,7 @@ graph LR
 
 #### Plugin Hosting Options
 
-Where can plugins be hosted? It's possible to host plugins in many places both publicly and private.
+Where can plugins be hosted? It's possible to host plugins in many places both publicly and privately.
 
 See:
 - [headlamp-k8s/plugins repo](https://github.com/headlamp-k8s/plugins) maintained by Headlamp developers.
