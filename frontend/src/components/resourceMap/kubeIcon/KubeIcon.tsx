@@ -102,7 +102,7 @@ const kindGroups = {
     'IngressClass',
     'NetworkPolicy',
   ]),
-  security: new Set(['ServiceAccount', 'Role', 'RoleBinding']),
+  security: new Set(['ServiceAccount', 'Role', 'RoleBinding', 'ClusterRole', 'ClusterRoleBinding']),
   configuration: new Set([
     'ConfigMap',
     'Secret',

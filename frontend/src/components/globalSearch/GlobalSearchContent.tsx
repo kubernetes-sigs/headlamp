@@ -247,9 +247,29 @@ export function GlobalSearchContent({
     }));
   }, [appThemes]);
 
+  // Advanced Search
+  const advancedSearchSuggestion = useMemo(() => {
+    if (!query.trim() || selectedClusters.length === 0) return;
+    return {
+      id: 'advanced-search-suggestion',
+      subLabel: t('Advanced Search (Beta)'),
+      icon: <Icon icon="mdi:search" />,
+      label: `Search "${query}" with Advanced Search`,
+      onClick: () => {
+        const params = new URLSearchParams(history.location.search);
+        params.set('query', `metadata.name === "${query}"`);
+        params.set('resources', 'all');
+        history.push(createRouteURL('advancedSearch') + '?' + params.toString());
+      },
+    };
+  }, [query, selectedClusters]);
+
   const allOptions = useMemo(
-    () => [...themeActions, ...clusterItems, ...routes, ...items],
-    [themeActions, clusterItems, routes, items]
+    () =>
+      [...themeActions, ...clusterItems, ...routes, ...items, advancedSearchSuggestion].filter(
+        Boolean
+      ) as SearchResult[],
+    [themeActions, clusterItems, routes, items, advancedSearchSuggestion]
   );
 
   const fuse = useMemo(
