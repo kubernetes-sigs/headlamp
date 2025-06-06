@@ -122,7 +122,7 @@ Headlamp consists of the following major components:
 - **app/**: A native Electron-based application for running Headlamp as a desktop app.
 - **plugins/examples**: Example plugins demonstrating how to extend Headlamp.
 - **plugins/headlamp-plugin**: A component to manage plugins in development and in deployment.
-- **docs/**: Documentation that is in markdown, and gets put on the Headlamp Website.
+- **docs/**: Documentation that is in Markdown, and gets put on the Headlamp Website.
 
 The following components are in separate GitHub repos:
 - **Plugins**: Extensible modules that add custom functionality to the UI. The Headlamp team maintains their plugins in the [headlamp-k8s/plugins repo](https://github.com/headlamp-k8s/plugins). These include plugins for projects like Flux, Backstage and Inspektor Gadget.
