@@ -32,6 +32,7 @@ import stream from 'stream';
 import * as tar from 'tar';
 import zlib from 'zlib';
 import envPaths from './env-paths';
+import { ProgressResp } from './types';
 
 // comment out for testing
 // function sleep(ms) {
@@ -49,11 +50,6 @@ import envPaths from './env-paths';
  * @property {string} message - The message of the progress response.
  * @property {Record<string, any>} data - Additional data for the progress response. Optional.
  */
-interface ProgressResp {
-  type: string;
-  message: string;
-  data?: Record<string, any>;
-}
 
 type ProgressCallback = (progress: ProgressResp) => void;
 
@@ -863,7 +859,7 @@ function getExtraFiles(
  * @param {AbortSignal} signal - An optional AbortSignal for cancellation.
  * @returns {Promise<ArtifactHubHeadlampPkg>} A promise that resolves to the fetched plugin metadata.
  */
-async function fetchPluginInfo(URL, progressCallback, signal): Promise<ArtifactHubHeadlampPkg> {
+async function fetchPluginInfo(URL: string, options?: { signal?: AbortSignal }): Promise<ArtifactHubHeadlampPkg> {
   try {
     if (!URL.startsWith('https://artifacthub.io/packages/headlamp/')) {
       throw new Error('Invalid URL. Please provide a valid URL from ArtifactHub.');
@@ -874,10 +870,10 @@ async function fetchPluginInfo(URL, progressCallback, signal): Promise<ArtifactH
       'https://artifacthub.io/api/v1/packages/headlamp/'
     );
 
-    if (progressCallback) {
-      progressCallback({ type: 'info', message: 'Fetching Plugin Metadata' });
+    if (options?.progressCallback) {
+      options.progressCallback({ type: 'info', message: 'Fetching Plugin Metadata' });
     }
-    const response = await fetch(apiURL, { redirect: 'follow', signal });
+    const response = await fetch(apiURL, { redirect: 'follow', signal: options?.signal });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -897,8 +893,8 @@ async function fetchPluginInfo(URL, progressCallback, signal): Promise<ArtifactH
 
     if (extraFiles) {
       pkg.extraFiles = extraFiles;
-      if (progressCallback) {
-        progressCallback({
+      if (options?.progressCallback) {
+        options.progressCallback({
           type: 'info',
           message: `Found ${Object.keys(pkg.extraFiles)!.length} platform-specific extra files`,
         });
@@ -906,12 +902,17 @@ async function fetchPluginInfo(URL, progressCallback, signal): Promise<ArtifactH
     }
 
     return pkg;
-  } catch (e) {
-    if (progressCallback) {
-      progressCallback({ type: 'error', message: e.message });
+  } catch (e: unknown) {
+    if (e instanceof Error) {
+      if (options?.progressCallback) {
+        options.progressCallback({ type: 'error', message: e.message });
+      }
+      throw new Error(`Failed to fetch plugin info: ${e.message}`);
     }
-
-    throw e;
+    if (options?.progressCallback) {
+      options.progressCallback({ type: 'error', message: 'Failed to fetch plugin info: Unknown error' });
+    }
+    throw new Error('Failed to fetch plugin info: Unknown error');
   }
 }
 
