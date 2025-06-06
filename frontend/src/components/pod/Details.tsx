@@ -640,7 +640,7 @@ export default function PodDetails(props: PodDetailsProps) {
             id: 'headlamp.pod-logs',
             section: (
               <PodLogViewer
-                key="logs"
+                key={'logs-' + item.metadata.uid}
                 open={showLogs}
                 item={item}
                 onClose={() => {
