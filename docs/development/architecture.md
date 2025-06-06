@@ -52,7 +52,7 @@ Notes:
 - Frontend handles user interactions and displays data.
 - Backend acts as a proxy and service layer. Handling authentication, RBAC, and API aggregation.
 - Kubernetes API is the source of truth for cluster state.
-- WebSocket connections follow a similar path. However they maintain persistent connections for real-time updates.
+- WebSocket connections follow a similar path. However, they maintain persistent connections for real-time updates.
 
 
 ### WebSocket Lifecycle and Real-Time Updates
