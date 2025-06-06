@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-import { KubeContainer, LabelSelector } from './cluster';
+import { post } from './apiProxy';
+import { ClusterRequestParams } from './apiProxy';
+import { RolloutEndpoint } from './apiProxy';
+import { ApiEndpoint } from './apiProxy';
+import { LabelSelector } from './cluster';
 import { KubeMetadata } from './KubeMetadata';
 import { KubeObject, KubeObjectInterface } from './KubeObject';
 import { KubePodSpec } from './pod';
@@ -37,56 +41,64 @@ export interface KubeDeployment extends KubeObjectInterface {
   };
 }
 
+interface RolloutOptions {
+  revision?: number;
+  dryRun?: boolean;
+}
+
 class Deployment extends KubeObject<KubeDeployment> {
   static kind = 'Deployment';
   static apiName = 'deployments';
   static apiVersion = 'apps/v1';
   static isNamespaced = true;
 
+  protected static endpoint: ApiEndpoint<KubeDeployment> & { rollout?: RolloutEndpoint };
+
+  static {
+    this.endpoint = this.apiEndpoint as ApiEndpoint<KubeDeployment>;
+    this.endpoint.rollout = {
+      undo: (
+        name: string,
+        namespace: string,
+        options?: RolloutOptions,
+        params?: ClusterRequestParams
+      ) =>
+        post(
+          `/apis/apps/v1/namespaces/${namespace}/deployments/${name}/rollback`,
+          {
+            kind: 'DeploymentRollback',
+            apiVersion: 'apps/v1',
+            name: name,
+            rollbackTo: {
+              revision: options?.revision || 0,
+            },
+          },
+          options?.dryRun ? { dry_run: 'All' } : undefined,
+          params
+        ),
+      history: (
+        name: string,
+        namespace: string,
+        revision?: number,
+        params?: ClusterRequestParams
+      ) =>
+        post(
+          `/apis/apps/v1/namespaces/${namespace}/deployments/${name}/history`,
+          {
+            revision: revision || 0,
+          },
+          undefined,
+          params
+        ),
+    };
+  }
+
   get spec() {
-    return this.getValue('spec');
+    return this.jsonData.spec;
   }
 
   get status() {
-    return this.getValue('status');
-  }
-
-  getContainers(): KubeContainer[] {
-    return this.spec?.template?.spec?.containers || [];
-  }
-
-  getMatchLabelsList(): string[] {
-    const labels = this.spec.selector.matchLabels || {};
-    return Object.keys(labels).map(key => `${key}=${labels[key]}`);
-  }
-
-  static getBaseObject(): KubeDeployment {
-    const baseObject = super.getBaseObject() as KubeDeployment;
-    baseObject.metadata = {
-      ...baseObject.metadata,
-      namespace: '',
-      labels: { app: 'headlamp' },
-    };
-    baseObject.spec = {
-      selector: {
-        matchLabels: { app: 'headlamp' },
-      },
-      template: {
-        spec: {
-          containers: [
-            {
-              name: '',
-              image: '',
-              ports: [{ containerPort: 80 }],
-              imagePullPolicy: 'Always',
-            },
-          ],
-          nodeName: '',
-        },
-      },
-    };
-
-    return baseObject;
+    return this.jsonData.status;
   }
 }
 
