@@ -24,7 +24,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { ISearchOptions, SearchAddon } from '@xterm/addon-search';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
-import React, { ReactNode, useEffect } from 'react';
+import React, { ReactNode, useEffect, useMemo } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useTranslation } from 'react-i18next';
 import ActionButton from './ActionButton';
@@ -47,6 +47,24 @@ export interface LogViewerProps extends DialogProps {
    * @description This is a boolean that determines whether the reconnect button should be shown or not.
    */
   showReconnectButton?: boolean;
+  isWrappedTextEnabled?: boolean;
+}
+
+/**
+ * this function will find the longest line of a bundle of logs and return its length.
+ */
+export function findLongestLine(logs: string[]): number {
+  const stream = logs.join('');
+  const parts = stream.replace(/\r\n/g, '\n').split(/\\n|\n|\r/);
+  let longest = 0;
+
+  parts.forEach(part => {
+    if (part.length > longest) {
+      longest = part.length;
+    }
+  });
+
+  return longest;
 }
 
 export function LogViewer(props: LogViewerProps) {
@@ -59,6 +77,7 @@ export function LogViewer(props: LogViewerProps) {
     topActions = [],
     handleReconnect,
     showReconnectButton = false,
+    isWrappedTextEnabled,
     ...other
   } = props;
   const { t } = useTranslation();
@@ -67,6 +86,26 @@ export function LogViewer(props: LogViewerProps) {
   const searchAddonRef = React.useRef<any>(null);
   const [terminalContainerRef, setTerminalContainerRef] = React.useState<HTMLElement | null>(null);
   const [showSearch, setShowSearch] = React.useState(false);
+  const [scrollInfo, setScrollInfo] = React.useState({
+    scrollTop: 0,
+    scrollHeight: 1,
+    clientHeight: 1,
+  });
+  const xtermViewportRef = React.useRef<HTMLElement | null>(null);
+
+  const wrappedWidth = useMemo(() => {
+    if (isWrappedTextEnabled) {
+      return 80; // Default width for wrapped text
+    }
+
+    const longestLine = findLongestLine(logs);
+
+    if (longestLine > 0) {
+      return longestLine + 1;
+    }
+
+    return 80; // Fallback width if no logs are present
+  }, [logs, isWrappedTextEnabled]);
 
   useHotkeys('ctrl+shift+f', () => {
     setShowSearch(true);
@@ -113,10 +152,17 @@ export function LogViewer(props: LogViewerProps) {
 
     fitAddonRef.current!.fit();
 
+    if (!isWrappedTextEnabled && wrappedWidth !== 0) {
+      const cols = wrappedWidth + 5;
+      const rows = xtermRef.current.rows; // keep current rows
+      xtermRef.current.resize(cols, rows);
+    }
+
     xtermRef.current?.write(getJointLogs());
 
     const pageResizeHandler = () => {
-      fitAddonRef.current!.fit();
+      fitAddonRef.current?.fit();
+
       console.debug('resize');
     };
     window.addEventListener('resize', pageResizeHandler);
@@ -127,7 +173,7 @@ export function LogViewer(props: LogViewerProps) {
       searchAddonRef.current?.dispose();
       xtermRef.current = null;
     };
-  }, [terminalContainerRef, xtermRef.current]);
+  }, [terminalContainerRef, xtermRef.current, isWrappedTextEnabled]);
 
   React.useEffect(() => {
     if (!xtermRef.current) {
@@ -141,9 +187,89 @@ export function LogViewer(props: LogViewerProps) {
 
     xtermRef.current?.clear();
     xtermRef.current?.write(getJointLogs());
+    xtermRef.current?.scrollToBottom();
 
     return function cleanup() {};
   }, [logs, xtermRef]);
+
+  React.useEffect(() => {
+    if (!terminalContainerRef || !xtermRef.current) {
+      return;
+    }
+
+    const viewport = terminalContainerRef.querySelector('.xterm-viewport');
+    if (viewport) {
+      xtermViewportRef.current = viewport as HTMLElement;
+
+      const onScroll = () => {
+        setScrollInfo({
+          scrollTop: viewport.scrollTop,
+          scrollHeight: viewport.scrollHeight,
+          clientHeight: viewport.clientHeight,
+        });
+      };
+
+      viewport.addEventListener('scroll', onScroll);
+
+      onScroll(); // Initial call to set scroll info
+      return () => {
+        viewport.removeEventListener('scroll', onScroll);
+      };
+    }
+  }, [terminalContainerRef, xtermRef.current, isWrappedTextEnabled, wrappedWidth]);
+
+  interface LogViewerScrollBarProps {
+    scrollInfo: {
+      scrollTop: number;
+      scrollHeight: number;
+      clientHeight: number;
+    };
+    trackHeight?: string; // e.g. 'calc(100% - 24px)'
+    trackTop?: string; // e.g. '1em'
+  }
+
+  function LogViewerScrollBar({
+    scrollInfo,
+    trackHeight = 'calc(100% - 24px)',
+    trackTop = '1em',
+  }: LogViewerScrollBarProps) {
+    const { scrollTop, scrollHeight, clientHeight } = scrollInfo;
+
+    // Prevent division by zero
+    const maxScroll = Math.max(scrollHeight - clientHeight, 1);
+    const scrollRatio = scrollTop / maxScroll;
+    const thumbHeightPercent = (clientHeight / scrollHeight) * 100;
+    const maxTopPercent = 100 - thumbHeightPercent;
+    const thumbTopPercent = Math.min(scrollRatio * 100, maxTopPercent);
+
+    return (
+      <Box
+        sx={{
+          position: 'absolute',
+          top: trackTop,
+          right: 0,
+          width: '12px',
+          height: trackHeight,
+          background: '#222',
+          zIndex: 1,
+          overflowY: 'hidden',
+          paddingBottom: '4em',
+        }}
+      >
+        <Box
+          sx={{
+            position: 'absolute',
+            top: `${thumbTopPercent}%`,
+            width: '100%',
+            height: `${thumbHeightPercent}%`,
+            background: 'yellow',
+            borderRadius: '6px',
+            cursor: 'pointer',
+          }}
+        />
+      </Box>
+    );
+  }
 
   function getJointLogs() {
     return logs?.join('').replaceAll('\n', '\r\n');
@@ -154,7 +280,7 @@ export function LogViewer(props: LogViewerProps) {
       title={title}
       onFullScreenToggled={() => {
         setTimeout(() => {
-          fitAddonRef.current!.fit();
+          fitAddonRef.current?.fit();
         }, 1);
       }}
       withFullScreen
@@ -164,76 +290,161 @@ export function LogViewer(props: LogViewerProps) {
       <DialogContent
         sx={theme => ({
           height: '80%',
-          minHeight: '80%',
+          // minHeight: '80%',
           display: 'flex',
           flexDirection: 'column',
           '& .xterm ': {
-            height: '100vh', // So the terminal doesn't stay shrunk when shrinking vertically and maximizing again.
+            height: '100%', // So the terminal doesn't stay shrunk when shrinking vertically and maximizing again.
+            // '& .xterm-viewport': {
+            //   // overflowY: 'hidden',
+            //   width: 'initial !important', // BugFix: https://github.com/xtermjs/xterm.js/issues/3564#issuecomment-1004417440
+            // },
+            '& .xterm-scroll-area': {},
+            '& .xterm-viewport::-webkit-scrollbar': {
+              width: '12px',
+              paddingBottom: '400px',
+              ...(!isWrappedTextEnabled
+                ? {
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1,
+                  }
+                : {}),
+            },
+            '& .xterm-viewport::-webkit-scrollbar-thumb': {
+              background: 'yellow',
+              borderRadius: '6px',
+            },
+            '& .xterm-viewport::-webkit-scrollbar-track': {
+              background: '#222',
+            },
             '& .xterm-viewport': {
-              width: 'initial !important', // BugFix: https://github.com/xtermjs/xterm.js/issues/3564#issuecomment-1004417440
+              flex: 1,
+              scrollbarColor: 'yellow #222',
+              scrollbarWidth: 'thin',
             },
           },
+          '& .xterm-screen': {
+            flex: 1,
+            maxHeight: '80%',
+            marginBottom: theme.spacing(2),
+            // width: !isWrappedTextEnabled && wrappedWidth !== 0 ? `${wrappedWidth}ch !important` : '100% !important',
+            // overflowY: 'auto',
+            //
+          },
           '& #xterm-container': {
-            overflow: 'hidden',
             width: '100%',
-            height: '100%',
+            height: '80%',
+            maxHeight: '80%',
             '& .terminal.xterm': {
-              padding: theme.spacing(1),
+              flex: 1,
+              padding: theme.spacing(2),
+              width:
+                !isWrappedTextEnabled && wrappedWidth !== 0
+                  ? `${wrappedWidth}ch !important`
+                  : '100% !important',
             },
           },
         })}
       >
-        <Grid container justifyContent="space-between" alignItems="center" wrap="nowrap">
-          <Grid item container spacing={1}>
-            {topActions.map((component, i) => (
-              <Grid item key={i}>
-                {component}
-              </Grid>
-            ))}
-          </Grid>
-          <Grid item xs>
-            <ActionButton
-              description={t('translation|Find')}
-              onClick={() => setShowSearch(show => !show)}
-              icon="mdi:magnify"
-            />
-          </Grid>
-          <Grid item xs>
-            <ActionButton
-              description={t('translation|Clear')}
-              onClick={() => clearPodLogs(xtermRef)}
-              icon="mdi:broom"
-            />
-          </Grid>
-          <Grid item xs>
-            <ActionButton
-              description={t('Download')}
-              onClick={downloadLog}
-              icon="mdi:file-download-outline"
-            />
-          </Grid>
-        </Grid>
         <Box
-          sx={theme => ({
-            paddingTop: theme.spacing(1),
-            flex: 1,
-            width: '100%',
-            overflow: 'hidden',
+          sx={{
             display: 'flex',
-            flexDirection: 'column-reverse',
-            position: 'relative',
-          })}
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+          }}
         >
+          {/* Main Actions */}
+          <Box>
+            <Grid item container spacing={1}>
+              {topActions.map((component, i) => (
+                <Grid item key={i}>
+                  {component}
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+
+          {/* Side Actions */}
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'flex-end',
+            }}
+          >
+            <Grid item xs>
+              <ActionButton
+                description={t('translation|Find')}
+                onClick={() => setShowSearch(show => !show)}
+                icon="mdi:magnify"
+              />
+            </Grid>
+            <Grid item xs>
+              <ActionButton
+                description={t('translation|Clear')}
+                onClick={() => clearPodLogs(xtermRef)}
+                icon="mdi:broom"
+              />
+            </Grid>
+            <Grid item xs>
+              <ActionButton
+                description={t('Download')}
+                onClick={downloadLog}
+                icon="mdi:file-download-outline"
+              />
+            </Grid>
+          </Box>
+        </Box>
+        <Box
+          sx={{
+            //
+            width: '100%',
+            overflowY: 'hidden',
+            // overflowX: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            // position: 'relative',
+            // scrollbarGutter: 'stable both-edges',
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              height: '100%',
+            }}
+          >
+            <div
+              id="xterm-container"
+              ref={ref => setTerminalContainerRef(ref)}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            />
+            <Box
+              sx={{
+                height: '50%',
+              }}
+            >
+              {!isWrappedTextEnabled && (
+                <LogViewerScrollBar
+                  scrollInfo={scrollInfo}
+                  trackHeight={`calc(100% - ${xtermViewportRef.current?.offsetTop || 0}px)`}
+                  trackTop={`${xtermViewportRef.current?.offsetTop || 0}px`}
+                />
+              )}
+            </Box>
+          </Box>
+
           {showReconnectButton && (
             <Button onClick={handleReconnect} color="info" variant="contained">
               Reconnect
             </Button>
           )}
-          <div
-            id="xterm-container"
-            ref={ref => setTerminalContainerRef(ref)}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse' }}
-          />
+
           <SearchPopover
             open={showSearch}
             onClose={() => setShowSearch(false)}
