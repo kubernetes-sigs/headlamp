@@ -1,0 +1,15 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-19midj6"
+    >
+      <p
+        aria-label="The icon next to this label is larger and has a different color."
+        class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+        data-mui-internal-clone-element="true"
+      >
+        Label with Big Icon
+      </p>
+    </div>
+  </div>
+</body>
