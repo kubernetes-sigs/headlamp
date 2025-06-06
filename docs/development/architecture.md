@@ -229,7 +229,7 @@ Note: Since Headlamp is open source people contribute things that aren’t liste
 
 ## Releases
 
-We aim to release Headlamp monthly, with bug fix releases as needed. Please see the releases on github for information about released artifacts:
+We aim to release Headlamp monthly, with bug fix releases as needed. Please see the releases on GitHub for information about released artifacts:
 - [Headlamp repo releases](https://github.com/kubernetes-sigs/headlamp/releases)
 - [Plugins repo releases](https://github.com/headlamp-k8s/plugins/releases)
 
