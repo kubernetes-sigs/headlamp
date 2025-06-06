@@ -222,7 +222,7 @@ As mentioned above, Headlamp can be deployed as a container inside a Kubernetes 
 
 To see planned or in progress features, check the [Release Plan / Roadmap](https://github.com/orgs/headlamp-k8s/projects/1/views/1). It’s regularly updated, but it's a tentative plan. 
 
-Note: Since Headlamp is open source people contribute things that aren’t listed there. You can also explore:
+Note: Since Headlamp is open source, people contribute things that aren’t listed there. You can also explore:
 - [Open issues](https://github.com/kubernetes-sigs/headlamp/issues) — for bugs, feature requests, and discussions.
 - [Pull requests](https://github.com/kubernetes-sigs/headlamp/pulls) — to see what changes are being proposed or reviewed.
 - [Milestones](https://github.com/kubernetes-sigs/headlamp/milestones) — to track progress toward upcoming releases.
