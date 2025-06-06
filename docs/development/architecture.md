@@ -154,7 +154,7 @@ A few key dependencies:
 
 - **TypeScript**: Written in TypeScript.
 - **React Components**: Modular and reusable components that form the UI.
-- **Mui**: For UI components it uses Mui a Material UI component library.
+- **MUI**: For UI components, it uses MUI, a Material UI component library.
 - **State Management**: Uses Redux for managing application state.
 - **Routing**: Utilizes React Router for navigation within the app.
 - **Npm**: Uses npm for package management.
