@@ -124,7 +124,7 @@ Headlamp consists of the following major components:
 - **plugins/headlamp-plugin**: A component to manage plugins in development and in deployment.
 - **docs/**: Documentation that is in markdown, and gets put on the Headlamp Website.
 
-The following components are in separate github repos:
+The following components are in separate GitHub repos:
 - **Plugins**: Extensible modules that add custom functionality to the UI. The Headlamp team maintains their plugins in the [headlamp-k8s/plugins repo](https://github.com/headlamp-k8s/plugins). These include plugins for projects like Flux, Backstage and Inspektor Gadget.
 - **Headlamp Website**: Maintained in the [headlamp-k8s/website repo](https://github.com/headlamp-k8s/website). This contains things like the blog and the documentation. The website can be found at https://headlamp.dev/
 
