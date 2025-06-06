@@ -198,6 +198,18 @@ ingress:
         - headlamp.example.com
 ```
 
+**Note for nginx ingress users:** If you're using OIDC with large JWT tokens (>8K), you may need to add the following annotation to prevent WebSocket connection issues:
+
+```yaml
+ingress:
+  enabled: true
+  annotations:
+    nginx.ingress.kubernetes.io/server-snippet: |
+      large_client_header_buffers 4 64k;
+```
+
+For more details, see the [OIDC troubleshooting documentation](https://headlamp.dev/docs/latest/installation/in-cluster/oidc/#large-jwt-tokens-and-websocket-connection-issues).
+
 ### Resource Management
 
 | Key | Type | Default | Description |
