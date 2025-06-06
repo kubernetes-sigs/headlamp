@@ -93,17 +93,35 @@ spec:
           image: "ghcr.io/headlamp-k8s/headlamp:v0.31.0"
           imagePullPolicy: IfNotPresent
           
-          # Check if externalSecret is enabled
-          envFrom:
-          - secretRef:
-              name: oidc
+          env:
+            - name: OIDC_CLIENT_ID
+              value: azure-client-id
+            - name: OIDC_CLIENT_SECRET
+              value: azure-client-secret
+            - name: OIDC_ISSUER_URL
+              value: https://login.microsoftonline.com/tenant-id/v2.0
+            - name: OIDC_SCOPES
+              value: openid email profile
+            - name: OIDC_VALIDATOR_CLIENT_ID
+              value: azure-validator-client-id
+            - name: OIDC_VALIDATOR_ISSUER_URL
+              value: https://login.microsoftonline.com/tenant-id/v2.0
           args:
             - "-in-cluster"
             - "-plugins-dir=/headlamp/plugins"
+            # Check if externalSecret is disabled
+            # Check if clientID is non empty either from env or oidc.config
             - "-oidc-client-id=$(OIDC_CLIENT_ID)"
+            # Check if clientSecret is non empty either from env or oidc.config
             - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
+            # Check if issuerURL is non empty either from env or oidc.config
             - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
+            # Check if scopes are non empty either from env or oidc.config
             - "-oidc-scopes=$(OIDC_SCOPES)"
+            # Check if validatorClientID is non empty either from env or oidc.config
+            - "-oidc-validator-client-id=$(OIDC_VALIDATOR_CLIENT_ID)"
+            # Check if validatorIssuerURL is non empty either from env or oidc.config
+            - "-oidc-validator-idp-issuer-url=$(OIDC_VALIDATOR_ISSUER_URL)"
           ports:
             - name: http
               containerPort: 4466
