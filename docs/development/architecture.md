@@ -59,7 +59,7 @@ Notes:
 
 How does Headlamp get real-time updates from Kubernetes clusters?
 
-- Websockets are used for real-time updates from Kubernetes. 
+- WebSockets are used for real-time updates from Kubernetes. 
 - Browsers support a limited number of connections. Six usually.
 - With Headlamp in the browser there is one websocket to `headlamp-server` backend. The `headlamp-server` connects to many websockets on different Kubernetes API servers. Overcoming the browser limit.
 
