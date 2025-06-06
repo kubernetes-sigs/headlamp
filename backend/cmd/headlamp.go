@@ -277,40 +277,11 @@ func serveWithNoCacheHeader(fs http.Handler) http.HandlerFunc {
 // defaultKubeConfigPersistenceDir returns the default directory to store kubeconfig
 // files of clusters that are loaded in Headlamp.
 func defaultKubeConfigPersistenceDir() (string, error) {
-	userConfigDir, err := os.UserConfigDir()
-	if err == nil {
-		kubeConfigDir := filepath.Join(userConfigDir, "Headlamp", "kubeconfigs")
-		if isWindows {
-			// golang is wrong for config folder on windows.
-			// This matches env-paths and headlamp-plugin.
-			kubeConfigDir = filepath.Join(userConfigDir, "Headlamp", "Config", "kubeconfigs")
-		}
-
-		// Create the directory if it doesn't exist.
-		fileMode := 0o755
-
-		err = os.MkdirAll(kubeConfigDir, fs.FileMode(fileMode))
-		if err == nil {
-			return kubeConfigDir, nil
-		}
-	}
-
-	// if any error occurred, fallback to the current directory.
-	ex, err := os.Executable()
-	if err == nil {
-		return filepath.Dir(ex), nil
-	}
-
-	return "", fmt.Errorf("failed to get default kubeconfig persistence directory: %v", err)
+	return cfg.DefaultKubeConfigPersistenceDir()
 }
 
 func defaultKubeConfigPersistenceFile() (string, error) {
-	kubeConfigDir, err := defaultKubeConfigPersistenceDir()
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(kubeConfigDir, "config"), nil
+	return cfg.DefaultKubeConfigPersistenceFile()
 }
 
 // addPluginRoutes adds plugin routes to a router.
@@ -1933,6 +1904,8 @@ func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	c.handleDeleteCluster(w, r, ctx, span, name)
+
 	kubeConfigPersistenceFile, err := defaultKubeConfigPersistenceFile()
 	if err != nil {
 		c.handleError(w, ctx, span, err, "failed to get kubeconfig persistence file", http.StatusInternalServerError)
@@ -1946,17 +1919,76 @@ func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
 	},
 		nil, "Removing cluster from kubeconfig")
 
-	err = kubeconfig.RemoveContextFromFile(name, kubeConfigPersistenceFile)
-	if err != nil {
-		c.handleError(w, ctx, span, err, "failed to remove cluster from kubeconfig", http.StatusInternalServerError)
+	c.getConfig(w, r)
+}
 
+// handleDeleteCluster handles the deletion of a cluster.
+func (c *HeadlampConfig) handleDeleteCluster(
+	w http.ResponseWriter,
+	r *http.Request,
+	ctx context.Context,
+	span trace.Span,
+	name string,
+) {
+	removeKubeConfig := r.URL.Query().Get("removeKubeConfig") == "true"
+	if removeKubeConfig {
+		c.handleRemoveKubeConfig(w, r, ctx, span, name)
+		return
+	}
+
+	if err := c.handleRemoveFromDefaultKubeConfig(w, ctx, span, name); err != nil {
 		return
 	}
 
 	logger.Log(logger.LevelInfo, map[string]string{"cluster": name, "proxy": name},
 		nil, "removed cluster successfully")
+}
 
-	c.getConfig(w, r)
+// handleRemoveKubeConfig removes the cluster from the kubeconfig file.
+func (c *HeadlampConfig) handleRemoveKubeConfig(
+	w http.ResponseWriter,
+	r *http.Request,
+	ctx context.Context,
+	span trace.Span,
+	name string,
+) {
+	configPath := r.URL.Query().Get("configPath")
+	originalName := r.URL.Query().Get("originalName")
+	source := r.URL.Query().Get("source")
+
+	const kubeConfigSource = "kubeconfig"
+
+	var err error
+	if source == kubeConfigSource {
+		err = kubeconfig.RemoveContextFromFile(originalName, configPath)
+	} else {
+		err = kubeconfig.RemoveContextFromFile(name, configPath)
+	}
+
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to remove cluster from kubeconfig", http.StatusInternalServerError)
+	}
+}
+
+// handleRemoveFromDefaultKubeConfig removes the cluster from the default kubeconfig file.
+func (c *HeadlampConfig) handleRemoveFromDefaultKubeConfig(
+	w http.ResponseWriter,
+	ctx context.Context,
+	span trace.Span,
+	name string,
+) error {
+	configPathsList, pathErr := cfg.CollectMultiConfigPaths()
+	if pathErr != nil {
+		c.handleError(w, ctx, span, pathErr, "failed to collect kubeconfig paths", http.StatusInternalServerError)
+		return pathErr
+	}
+
+	if err := cfg.RemoveContextFromDefaultKubeConfig(name, configPathsList...); err != nil {
+		c.handleError(w, ctx, span, err, "failed to remove cluster from kubeconfig", http.StatusInternalServerError)
+		return err
+	}
+
+	return nil
 }
 
 // Get path of kubeconfig we load headlamp with from source.
