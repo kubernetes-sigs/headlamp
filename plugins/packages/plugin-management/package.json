@@ -1,0 +1,17 @@
+{
+  "name": "@headlamp-k8s/plugin-management",
+  "version": "0.1.0",
+  "description": "Shared plugin management library for Headlamp",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo 'No tests yet'"
+  },
+  "dependencies": {
+    "ajv": "^8.12.0",
+    "env-paths": "^2.2.1",
+    "fs-extra": "^11.2.0",
+    "js-yaml": "^4.1.0",
+    "semver": "^7.5.4",
+    "tar": "^7.0.0"
+  }
+} 

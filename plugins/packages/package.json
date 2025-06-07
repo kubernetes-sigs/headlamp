@@ -1,0 +1,14 @@
+{
+  "name": "headlamp-plugins",
+  "private": true,
+  "workspaces": [
+    "headlamp-plugin",
+    "plugin-management"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "format": "npm run format --workspaces"
+  }
+} 
