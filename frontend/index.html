@@ -40,6 +40,16 @@
       To begin the development, run `npm start` or `yarn start`.
       To create a production bundle, use `npm run build` or `yarn build`.
     -->
+    <script>
+      // Set the background color to avoid flashing screen
+      const currentThemeCacheKey = 'cached-current-theme';
+      const cachedTheme = JSON.parse(localStorage.getItem(currentThemeCacheKey) ?? 'null');
+
+      if (cachedTheme) {
+        document.body.style.backgroundColor = cachedTheme.background.default;
+        document.body.style.color = cachedTheme.text.primary;
+      }
+    </script>
     <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>

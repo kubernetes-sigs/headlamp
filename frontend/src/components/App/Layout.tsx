@@ -150,6 +150,12 @@ export default function Layout({}: LayoutProps) {
     };
   }, []);
 
+  // Remove splash screen styles from the body
+  // that are added in frontend/index.html
+  useEffect(() => {
+    document.body.removeAttribute('style');
+  }, []);
+
   /**
    * Fetches the cluster config from the backend and updates the redux store
    * if the present stored config is different from the fetched one.
