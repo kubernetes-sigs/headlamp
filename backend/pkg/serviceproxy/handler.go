@@ -87,4 +87,3 @@ func RequestHandler(kubeConfigStore kubeconfig.ContextStore, w http.ResponseWrit
 		return
 	}
 }
-Add comment
