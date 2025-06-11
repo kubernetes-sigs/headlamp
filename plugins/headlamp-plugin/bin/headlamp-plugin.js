@@ -29,10 +29,9 @@ const child_process = require('child_process');
 const validate = require('validate-npm-package-name');
 const yargs = require('yargs/yargs');
 const headlampPluginPkg = require('../package.json');
-const PluginManager = require('../plugin-management/plugin-management').PluginManager;
+const { PluginManager, MultiPluginManager } = require('@headlamp-k8s/pluginctl');
 const { table } = require('table');
 const tar = require('tar');
-const MultiPluginManager = require('../plugin-management/multi-plugin-management');
 
 // ES imports
 const viteCopyPluginPromise = import('vite-plugin-static-copy');
