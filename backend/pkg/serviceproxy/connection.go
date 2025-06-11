@@ -1,6 +1,10 @@
 package serviceproxy
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+	"net/url"
+)
 
 // ServiceConnection represents a connection to a service.
 type ServiceConnection interface {
@@ -20,9 +24,19 @@ func NewConnection(ps *proxyService) ServiceConnection {
 
 // Get - perform the get request.
 func (c *Connection) Get(requestURI string) ([]byte, error) {
-	uri := fmt.Sprintf("%s/%s", c.URI, requestURI)
+	base, err := url.Parse(c.URI)
+	if err != nil {
+		return nil, fmt.Errorf("invalid host uri: %w", err)
+	}
 
-	body, err := HTTPGet(uri)
+	rel, err := url.Parse(requestURI)
+	if err != nil {
+		return nil, fmt.Errorf("invalid request uri: %w", err)
+	}
+
+	fullURL := base.ResolveReference(rel)
+
+	body, err := HTTPGet(context.Background(), fullURL.String())
 	if err != nil {
 		return nil, err
 	}
