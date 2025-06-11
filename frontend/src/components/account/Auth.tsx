@@ -52,6 +52,8 @@ export default function AuthToken() {
             cluster: getCluster() as string,
           })
         );
+        // On successful authentication, reload the page
+        window.location.reload();
       } else {
         setToken('');
         setShowError(true);

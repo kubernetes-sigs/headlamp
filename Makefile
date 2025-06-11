@@ -65,6 +65,25 @@ app-tsc:
 	cd app && npm install
 	cd app && npm run tsc
 
+PHONY: backend-arch-build
+backend-arch-build: ## build Headlamp for multiple architecture and platforms
+	cd backend && GOOS=darwin GOARCH=amd64 go build \
+		-o out/darwin_amd64/headlamp-server${SERVER_EXE_EXT} \
+		-trimpath \
+		./cmd
+	cd backend && GOOS=darwin GOARCH=arm64 go build \
+		-o out/darwin_arm64/headlamp-server${SERVER_EXE_EXT} \
+		-trimpath \
+		./cmd
+	cd backend && GOOS=linux GOARCH=amd64 go build \
+		-o out/linux_amd64/headlamp-server${SERVER_EXE_EXT} \
+		-trimpath \
+		./cmd
+	cd backend && GOOS=linux GOARCH=arm64 go build \
+		-o out/linux_arm64/headlamp-server${SERVER_EXE_EXT} \
+		-trimpath \
+		./cmd
+
 .PHONY: backend
 backend:
 	cd backend && go build -o ./headlamp-server${SERVER_EXE_EXT} ./cmd
