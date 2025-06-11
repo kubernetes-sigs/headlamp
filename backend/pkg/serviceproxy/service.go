@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -60,10 +60,16 @@ func getService(cs kubernetes.Interface, namespace string, name string) (*proxyS
 }
 
 // getPort - return the first port named "http" or "https".
-// TODO - what if both exist?
+// Prefer "https" over "http" if both exist.
 func getPort(ports []corev1.ServicePort) (*corev1.ServicePort, error) {
 	for i, port := range ports {
-		if port.Name == HTTPSScheme || port.Name == HTTPScheme {
+		if port.Name == HTTPSScheme {
+			return &ports[i], nil
+		}
+	}
+
+	for i, port := range ports {
+		if port.Name == HTTPScheme {
 			return &ports[i], nil
 		}
 	}
