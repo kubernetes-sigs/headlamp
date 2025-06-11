@@ -265,7 +265,7 @@ spec:
           args:
             - |
               echo "Installing headlamp-plugin globally..."
-              npm install -g @kinvolk/headlamp-plugin@{{ .Values.pluginsManager.version }}
+              npm install -g @headlamp-k8s/headlamp-plugin@{{ .Values.pluginsManager.version }}
               echo "Installed headlamp-plugin successfully."
               if [ -f "/config/plugin.yml" ]; then
                 echo "Installing plugins from config..."
