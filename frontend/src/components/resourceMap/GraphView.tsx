@@ -17,7 +17,11 @@
 import '@xyflow/react/dist/base.css';
 import './GraphView.css';
 import { Icon } from '@iconify/react';
-import { Box, Chip, styled, Theme, ThemeProvider } from '@mui/material';
+import Box from '@mui/material/Box';
+import Chip from '@mui/material/Chip';
+import { Theme } from '@mui/material/styles';
+import { styled } from '@mui/material/styles';
+import ThemeProvider from '@mui/system/ThemeProvider';
 import { Edge, Node, Panel, ReactFlowProvider } from '@xyflow/react';
 import {
   createContext,
@@ -36,8 +40,8 @@ import { useDispatch } from 'react-redux';
 import Namespace from '../../lib/k8s/namespace';
 import K8sNode from '../../lib/k8s/node';
 import { setNamespaceFilter } from '../../redux/filterSlice';
-import { useTypedSelector } from '../../redux/reducers/reducers';
-import { NamespacesAutocomplete } from '../common';
+import { useTypedSelector } from '../../redux/hooks';
+import { NamespacesAutocomplete } from '../common/NamespacesAutocomplete';
 import { GraphNodeDetails } from './details/GraphNodeDetails';
 import { filterGraph, GraphFilter } from './graph/graphFiltering';
 import {

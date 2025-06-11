@@ -17,7 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 import { RuntimeClass } from '../../lib/k8s/runtime';
-import { DetailsGrid } from '../common';
+import { DetailsGrid } from '../common/Resource';
 
 export function RuntimeClassDetails(props: {
   name?: string;

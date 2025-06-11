@@ -178,15 +178,18 @@ class Event extends KubeObject<KubeEvent> {
     ];
     let objInstance: KubeObject | null = null;
     if (!!InvolvedObjectClass) {
-      objInstance = new InvolvedObjectClass({
-        kind: this.involvedObject.kind,
-        metadata: {
-          name: this.involvedObject.name,
-          namespace: InvolvedObjectClass.isNamespaced
-            ? this.involvedObject.namespace ?? this.getNamespace()
-            : undefined,
-        } as KubeMetadata,
-      });
+      objInstance = new InvolvedObjectClass(
+        {
+          kind: this.involvedObject.kind,
+          metadata: {
+            name: this.involvedObject.name,
+            namespace: InvolvedObjectClass.isNamespaced
+              ? this.involvedObject.namespace ?? this.getNamespace()
+              : undefined,
+          } as KubeMetadata,
+        },
+        this.cluster
+      );
     }
 
     return objInstance;

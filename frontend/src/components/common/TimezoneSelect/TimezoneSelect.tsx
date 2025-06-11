@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { TextField } from '@mui/material';
-import { Autocomplete } from '@mui/material';
+import Autocomplete from '@mui/material/Autocomplete';
+import TextField from '@mui/material/TextField';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import spacetime from 'spacetime';

@@ -15,9 +15,9 @@
  */
 
 import { InlineIcon } from '@iconify/react';
-import { Paper } from '@mui/material';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
+import Paper from '@mui/material/Paper';
 import _ from 'lodash';
 import { useSnackbar } from 'notistack';
 import React, { useEffect, useState } from 'react';
@@ -32,12 +32,15 @@ import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
 import { clusterAction } from '../../redux/clusterActionSlice';
 import { AppDispatch } from '../../redux/stores/store';
 import { CpuCircularChart, MemoryCircularChart } from '../cluster/Charts';
-import { ActionButton, ConfirmDialog, StatusLabelProps } from '../common';
+import ActionButton from '../common/ActionButton';
+import ConfirmDialog from '../common/ConfirmDialog';
+import { StatusLabelProps } from '../common/Label';
 import { HeaderLabel, StatusLabel, ValueLabel } from '../common/Label';
 import { ConditionsSection, DetailsGrid, OwnedPodsSection } from '../common/Resource';
 import AuthVisible from '../common/Resource/AuthVisible';
 import { SectionBox } from '../common/SectionBox';
 import { NameValueTable } from '../common/SimpleTable';
+import { NodeShellAction } from './NodeShellAction';
 import { NodeTaintsLabel } from './utils';
 
 function NodeConditionsLabel(props: { node: Node }) {
@@ -242,6 +245,10 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
                   />
                 </AuthVisible>
               ),
+            },
+            {
+              id: DefaultHeaderAction.NODE_SHELL,
+              action: <NodeShellAction item={item} />,
             },
           ];
         }}

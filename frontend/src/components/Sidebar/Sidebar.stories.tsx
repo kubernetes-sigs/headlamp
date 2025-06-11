@@ -20,7 +20,7 @@ import { SnackbarProvider } from 'notistack';
 import { initialState as THEME_INITIAL_STATE } from '../../components/App/themeSlice';
 import { initialState as CONFIG_INITIAL_STATE } from '../../redux/configSlice';
 import { initialState as FILTER_INITIAL_STATE } from '../../redux/filterSlice';
-import { INITIAL_STATE as UI_INITIAL_STATE } from '../../redux/reducers/ui';
+import { uiSlice } from '../../redux/uiSlice';
 import { TestContext } from '../../test';
 import Sidebar, { DefaultSidebars, PureSidebar } from './Sidebar';
 import { initialState as SIDEBAR_INITIAL_STATE, SidebarState } from './sidebarSlice';
@@ -39,7 +39,7 @@ const Template: StoryFn<StoryProps> = args => {
   const sidebarStore = configureStore({
     reducer: (
       state = {
-        ui: { ...UI_INITIAL_STATE },
+        ui: { ...uiSlice.getInitialState() },
       }
     ) => state,
     preloadedState: {
@@ -55,9 +55,7 @@ const Template: StoryFn<StoryProps> = args => {
       filter: {
         ...FILTER_INITIAL_STATE,
       },
-      ui: {
-        ...UI_INITIAL_STATE,
-      },
+      ui: { ...uiSlice.getInitialState() },
       sidebar: {
         ...SIDEBAR_INITIAL_STATE,
         isVisible: true,

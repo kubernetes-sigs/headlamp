@@ -19,7 +19,7 @@ import merge from 'lodash/merge';
 import React from 'react';
 import { useHistory } from 'react-router';
 import { filterGeneric, filterResource } from '../redux/filterSlice';
-import { useTypedSelector } from '../redux/reducers/reducers';
+import { useTypedSelector } from '../redux/hooks';
 import store from '../redux/stores/store';
 import { getCluster, getClusterGroup, getClusterPrefixedPath } from './cluster';
 import { ApiError } from './k8s/apiProxy';

@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-import { FormControlLabel, Switch, Theme } from '@mui/material';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import Grid from '@mui/material/Grid';
+import { Theme } from '@mui/material/styles';
+import Switch from '@mui/material/Switch';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
@@ -23,9 +25,12 @@ import Event from '../../lib/k8s/event';
 import Node from '../../lib/k8s/node';
 import Pod from '../../lib/k8s/pod';
 import { useFilterFunc } from '../../lib/util';
+import { useTypedSelector } from '../../redux/hooks';
 import { OverviewChart } from '../../redux/overviewChartsSlice';
-import { useTypedSelector } from '../../redux/reducers/reducers';
-import { DateLabel, Link, PageGrid, StatusLabel } from '../common';
+import { DateLabel } from '../common/Label';
+import { StatusLabel } from '../common/Label';
+import Link from '../common/Link';
+import { PageGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { SectionBox } from '../common/SectionBox';
 import ShowHideLabel from '../common/ShowHideLabel';

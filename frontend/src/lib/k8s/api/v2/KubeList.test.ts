@@ -31,6 +31,8 @@ class MockKubeObject implements KubeObjectInterface {
   }
 }
 
+const cluster = 'cluster-name';
+
 describe('KubeList.applyUpdate', () => {
   const itemClass = MockKubeObject as unknown as KubeObjectClass;
   const initialList: KubeList<any> = {
@@ -54,7 +56,7 @@ describe('KubeList.applyUpdate', () => {
       },
     };
 
-    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass);
+    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
 
     expect(updatedList.items).toHaveLength(2);
     expect(updatedList.items[1].metadata.uid).toBe('2');
@@ -71,7 +73,7 @@ describe('KubeList.applyUpdate', () => {
       },
     };
 
-    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass);
+    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
 
     expect(updatedList.items).toHaveLength(1);
     expect(updatedList.items[0].metadata.resourceVersion).toBe('2');
@@ -88,7 +90,7 @@ describe('KubeList.applyUpdate', () => {
       },
     };
 
-    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass);
+    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
 
     expect(updatedList.items).toHaveLength(2);
     expect(updatedList.items[1].metadata.uid).toBe('3');
@@ -105,7 +107,7 @@ describe('KubeList.applyUpdate', () => {
       },
     };
 
-    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass);
+    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
 
     expect(updatedList.items).toHaveLength(0);
   });
@@ -121,7 +123,7 @@ describe('KubeList.applyUpdate', () => {
       },
     };
 
-    KubeList.applyUpdate(initialList, updateEvent, itemClass);
+    KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
 
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error in update', updateEvent);
     consoleErrorSpy.mockRestore();
@@ -138,7 +140,7 @@ describe('KubeList.applyUpdate', () => {
       },
     };
 
-    KubeList.applyUpdate(initialList, updateEvent, itemClass);
+    KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
 
     expect(consoleErrorSpy).toHaveBeenCalledWith('Unknown update type', updateEvent);
     consoleErrorSpy.mockRestore();

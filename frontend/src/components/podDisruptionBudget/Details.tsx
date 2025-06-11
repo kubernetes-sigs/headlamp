@@ -18,7 +18,8 @@ import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import PDB from '../../lib/k8s/podDisruptionBudget';
-import { DetailsGrid, StatusLabel } from '../common';
+import { StatusLabel } from '../common/Label';
+import { DetailsGrid } from '../common/Resource';
 
 export default function PDBDetails(props: { name?: string; namespace?: string; cluster?: string }) {
   const params = useParams<{ namespace: string; name: string }>();

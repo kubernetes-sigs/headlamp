@@ -15,16 +15,14 @@
  */
 
 import { Icon } from '@iconify/react';
-import {
-  alpha,
-  Box,
-  CircularProgress,
-  IconButton,
-  InputAdornment,
-  TextField,
-  useMediaQuery,
-  useTheme,
-} from '@mui/material';
+import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
+import IconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
+import { useTheme } from '@mui/material/styles';
+import TextField from '@mui/material/TextField';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { alpha } from '@mui/system/colorManipulator';
 import { lazy, Suspense, useState } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { Trans, useTranslation } from 'react-i18next';

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { Typography } from '@mui/material';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import DialogActions from '@mui/material/DialogActions';
@@ -23,6 +22,7 @@ import DialogContentText from '@mui/material/DialogContentText';
 import Link from '@mui/material/Link';
 import Snackbar, { SnackbarCloseReason } from '@mui/material/Snackbar';
 import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
 import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { generatePath, useHistory } from 'react-router-dom';

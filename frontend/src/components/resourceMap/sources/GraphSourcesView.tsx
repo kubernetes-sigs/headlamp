@@ -15,18 +15,16 @@
  */
 
 import { Icon } from '@iconify/react';
-import {
-  alpha,
-  Badge,
-  Box,
-  Checkbox,
-  Chip,
-  CircularProgress,
-  Popover,
-  Stack,
-  styled,
-  Typography,
-} from '@mui/material';
+import Badge from '@mui/material/Badge';
+import Box from '@mui/material/Box';
+import Checkbox from '@mui/material/Checkbox';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Popover from '@mui/material/Popover';
+import Stack from '@mui/material/Stack';
+import { styled } from '@mui/material/styles';
+import Typography from '@mui/material/Typography';
+import { alpha } from '@mui/system/colorManipulator';
 import { memo, useState } from 'react';
 import { GraphSource } from '../graph/graphModel';
 import { SourceData } from './GraphSources';

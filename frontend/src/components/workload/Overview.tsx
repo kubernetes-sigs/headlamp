@@ -89,7 +89,7 @@ export default function Overview() {
     joint = joint.filter(Boolean);
 
     // Return null if no items are yet loaded, so we show the spinner in the table.
-    if (joint.length === 0) {
+    if (joint.some(it => it === undefined)) {
       return null;
     }
 

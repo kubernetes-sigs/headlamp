@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -133,9 +134,10 @@ func TestStatelessClusterApiRequest(t *testing.T) {
 				enableDynamicClusters: true,
 				cache:                 cache,
 				kubeConfigStore:       kubeConfigStore,
+				telemetryConfig:       GetDefaultTestTelemetryConfig(),
+				telemetryHandler:      &telemetry.RequestHandler{},
 			}
 			handler := createHeadlampHandler(&c)
-
 			headers := map[string]string{
 				"KUBECONFIG":         kubeConfig,
 				"X-HEADLAMP-USER-ID": tc.userID,

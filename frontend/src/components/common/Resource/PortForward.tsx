@@ -15,10 +15,14 @@
  */
 
 import { InlineIcon } from '@iconify/react';
-import { Box, Button, CircularProgress, Tooltip, Typography } from '@mui/material';
-import { Alert } from '@mui/material';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
 import { grey } from '@mui/material/colors';
 import MuiLink from '@mui/material/Link';
+import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { isDockerDesktop } from '../../../helpers/isDockerDesktop';

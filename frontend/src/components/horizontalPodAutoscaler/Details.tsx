@@ -17,7 +17,10 @@
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import HPA from '../../lib/k8s/hpa';
-import { ConditionsSection, DetailsGrid, Link, SimpleTable } from '../common';
+import Link from '../common/Link';
+import { ConditionsSection } from '../common/Resource';
+import { DetailsGrid } from '../common/Resource';
+import SimpleTable from '../common/SimpleTable';
 
 export default function HpaDetails(props: { name?: string; namespace?: string; cluster?: string }) {
   const params = useParams<{ namespace: string; name: string }>();

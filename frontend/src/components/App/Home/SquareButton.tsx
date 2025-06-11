@@ -15,10 +15,10 @@
  */
 
 import { Icon } from '@iconify/react';
-import { useTheme } from '@mui/material';
 import ButtonBase, { ButtonBaseProps } from '@mui/material/ButtonBase';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import { useTheme } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 
 export interface SquareButtonProps extends ButtonBaseProps {

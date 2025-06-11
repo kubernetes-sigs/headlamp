@@ -16,8 +16,8 @@
 
 import { useTranslation } from 'react-i18next';
 import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
-import { Link } from '../common';
 import LabelListItem from '../common/LabelListItem';
+import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { makePVCStatusLabel } from './ClaimDetails';
 
@@ -41,7 +41,12 @@ export default function VolumeClaimList() {
               return '';
             }
             return (
-              <Link routeName="storageClass" params={{ name }} tooltip>
+              <Link
+                routeName="storageClass"
+                params={{ name }}
+                activeCluster={volumeClaim.cluster}
+                tooltip
+              >
                 {name}
               </Link>
             );
@@ -74,7 +79,12 @@ export default function VolumeClaimList() {
               return '';
             }
             return (
-              <Link routeName="persistentVolume" params={{ name }} tooltip>
+              <Link
+                routeName="persistentVolume"
+                params={{ name }}
+                activeCluster={volumeClaim.cluster}
+                tooltip
+              >
                 {name}
               </Link>
             );

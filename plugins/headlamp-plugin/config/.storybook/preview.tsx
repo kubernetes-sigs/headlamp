@@ -13,47 +13,94 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 import React from 'react';
-import themesConf from '@kinvolk/headlamp-plugin/lib/lib/themes';
 import { ThemeProvider } from '@mui/material/styles';
+// import { initialize, mswLoader } from 'msw-storybook-addon';
+// import './index.css';
+import { Title, Subtitle, Description, Primary, Controls } from '@storybook/blocks';
+// import { baseMocks } from './baseMocks';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  darkTheme,
+  lightTheme,
+} from '@kinvolk/headlamp-plugin/lib/components/App/defaultAppThemes';
+import { createMuiTheme } from '@kinvolk/headlamp-plugin/lib/lib/themes';
 
-const darkTheme = themesConf['dark'];
-const lightTheme = themesConf['light'];
+// https://github.com/mswjs/msw-storybook-addon
+// initialize({
+//   onUnhandledRequest: 'warn',
+//   waitUntilReady: true,
+// });
 
-const withThemeProvider = (Story, context) => {
-  const backgroundColor = context.globals.backgrounds ? context.globals.backgrounds.value : 'light';
-  const theme = backgroundColor !== 'dark' ? lightTheme : darkTheme;
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnMount: 'always',
+      staleTime: 0,
+      retry: false,
+      gcTime: 0,
+    },
+  },
+});
+
+const withThemeProvider = (Story: any, context: any) => {
+  const theme = context.globals.backgrounds?.value === '#1f1f1f' ? darkTheme : lightTheme;
 
   const ourThemeProvider = (
-    <ThemeProvider theme={theme}>
-      <Story {...context} />
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider theme={createMuiTheme(theme)}>
+        <Story {...context} />
+      </ThemeProvider>
+    </QueryClientProvider>
   );
   return ourThemeProvider;
 };
-// export const decorators = [withThemeProvider, mswDecorator];
-// export const decorators = [mswDecorator];
 export const decorators = [withThemeProvider];
-
-export const globalTypes = {
-  theme: {
-    name: 'Theme',
-    description: 'Global theme for components',
-    defaultValue: 'light',
-    toolbar: {
-      icon: 'circlehollow',
-      items: ['light', 'dark'],
-    },
-  },
-};
 
 export const parameters = {
   backgrounds: {
     values: [
-      { name: 'light', value: 'light' },
-      { name: 'dark', value: 'dark' },
+      { name: 'light', value: '#FFF' },
+      { name: 'dark', value: '#1f1f1f' },
     ],
   },
-  actions: { argTypesRegex: '^on[A-Z].*' },
+
+  docs: {
+    toc: { disable: true },
+    // Customize docs page to exclude display of all stories
+    // Becasue it would cause stories override each others' mocks
+    page: () => (
+      <>
+        <Title />
+        <Subtitle />
+        <Description />
+        <Primary />
+        <Controls />
+      </>
+    ),
+  },
+
+  // https://github.com/mswjs/msw-storybook-addon#composing-request-handlers
+  // msw: {
+  //   handlers: {
+  //     /**
+  //      * If you wan't to override or disable them in a particular story
+  //      * set base to null in msw configuration
+  //      *
+  //      * parameters: {
+  //      *   msw: {
+  //      *     handlers: {
+  //      *       base: null,
+  //      *       story: [yourMocks]
+  //      *     }
+  //      *   }
+  //      * }
+  //      */
+  //     base: baseMocks,
+  //   },
+  // },
 };
+
+// export const loaders = [mswLoader];
+
+export const tags = ['autodocs'];

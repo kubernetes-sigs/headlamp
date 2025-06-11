@@ -40,8 +40,8 @@ import {
   AppBarActionType,
   DefaultAppBarAction,
 } from '../../redux/actionButtonsSlice';
-import { setVersionDialogOpen } from '../../redux/actions/actions';
-import { useTypedSelector } from '../../redux/reducers/reducers';
+import { useTypedSelector } from '../../redux/hooks';
+import { uiSlice } from '../../redux/uiSlice';
 import { SettingsButton } from '../App/Settings';
 import { ClusterTitle } from '../cluster/Chooser';
 import ErrorBoundary from '../common/ErrorBoundary';
@@ -304,7 +304,7 @@ export const PureTopBar = memo(
         <MenuItem
           component="a"
           onClick={() => {
-            dispatch(setVersionDialogOpen(true));
+            dispatch(uiSlice.actions.setVersionDialogOpen(true));
             handleMenuClose();
           }}
         >

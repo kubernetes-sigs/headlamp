@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Box } from '@mui/material';
+import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import { Variant } from '@mui/material/styles/createTypography';
 import Typography from '@mui/material/Typography';
@@ -23,7 +23,7 @@ import React from 'react';
 export type HeaderStyle = 'main' | 'subsection' | 'normal' | 'label';
 
 export interface SectionHeaderProps {
-  title: string;
+  title: string | React.ReactNode;
   subtitle?: string | React.ReactNode;
   actions?: React.ReactNode[] | null;
   noPadding?: boolean;

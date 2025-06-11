@@ -34,7 +34,7 @@ import {
   setDetailsViewSection,
 } from '../components/DetailsViewSection/detailsViewSectionSlice';
 import { GraphSource } from '../components/resourceMap/graph/graphModel';
-import { graphViewSlice, IconDefinition } from '../components/resourceMap/graphViewSlice';
+import { Glance, graphViewSlice, IconDefinition } from '../components/resourceMap/graphViewSlice';
 import { DefaultSidebars, SidebarEntryProps } from '../components/Sidebar';
 import { setSidebarItem, setSidebarItemFilter } from '../components/Sidebar/sidebarSlice';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
@@ -55,7 +55,6 @@ import {
   setAppBarActionsProcessor,
   setDetailsViewHeaderAction,
 } from '../redux/actionButtonsSlice';
-import { setClusterChooserButtonComponent, setFunctionsToOverride } from '../redux/actions/actions';
 import {
   CallbackAction,
   CallbackActionOptions,
@@ -92,6 +91,7 @@ import {
 import { addOverviewChartsProcessor, OverviewChartsProcessor } from '../redux/overviewChartsSlice';
 import { setRoute, setRouteFilter } from '../redux/routesSlice';
 import store from '../redux/stores/store';
+import { UIPanel, uiSlice } from '../redux/uiSlice';
 import {
   PluginSettingsComponentType,
   PluginSettingsDetailsProps,
@@ -295,6 +295,46 @@ export function registerSidebarEntry({
       sidebar,
     })
   );
+}
+
+/**
+ * Custom glance component for Kubernetes objects in Headlamp's graph view.
+ *
+ * @param glance - The glance object with a unique id and a React component to render.
+ *
+ * @example
+ *
+ * ```tsx
+import { registerKubeObjectGlance } from '@kinvolk/headlamp-plugin/lib';
+
+const NodeGlance = ({ node }) => {
+  // Check if the node represents a Kubernetes Node object
+  if (node.kubeObject && node.kubeObject.kind === 'Node') {
+    return (
+      <div>
+        <strong>Node:</strong> {node.kubeObject.metadata?.name} (CPU: {node.kubeObject.status?.capacity?.cpu || 'N/A'})
+      </div>
+    );
+  }
+
+  // Handle non-Kubernetes nodes with label or fallback to a default
+  if (node.label) {
+    return (
+      <div>
+        <strong>Node:</strong> {node.label}
+      </div>
+    );
+  }
+
+  // Return null if the node cannot be rendered by this glance
+  return null;
+};
+
+registerKubeObjectGlance({ id: 'node-glance', component: NodeGlance });
+ * ```
+ */
+export function registerKubeObjectGlance(glance: Glance) {
+  store.dispatch(graphViewSlice.actions.setGlance(glance));
 }
 
 /**
@@ -607,7 +647,7 @@ export function registerAppLogo(logo: AppLogoType) {
  *
  */
 export function registerClusterChooser(chooser: ClusterChooserType) {
-  store.dispatch(setClusterChooserButtonComponent(chooser));
+  store.dispatch(uiSlice.actions.setClusterChooserButton(chooser));
 }
 
 /**
@@ -625,7 +665,7 @@ export function registerClusterChooser(chooser: ClusterChooserType) {
 export function registerSetTokenFunction(
   override: (cluster: string, token: string | null) => void
 ) {
-  store.dispatch(setFunctionsToOverride({ setToken: override }));
+  store.dispatch(uiSlice.actions.setFunctionsToOverride({ setToken: override }));
 }
 
 /**
@@ -641,7 +681,7 @@ export function registerSetTokenFunction(
  * ```
  */
 export function registerGetTokenFunction(override: (cluster: string) => string | undefined) {
-  store.dispatch(setFunctionsToOverride({ getToken: override }));
+  store.dispatch(uiSlice.actions.setFunctionsToOverride({ getToken: override }));
 }
 
 /**
@@ -945,6 +985,25 @@ export function clusterAction(
   actionOptions: CallbackActionOptions = {}
 ) {
   store.dispatch(sendClusterAction(callback, actionOptions));
+}
+
+/**
+ * Registers a UI panel in the application's UI.
+ *
+ * See {@link UIPanel} for more details on Panel definition
+ *
+ * @param panel - The UI panel configuration object to be registered
+ * @example
+ * ```tsx
+ * registerUIPanel({
+ *   id: 'my-panel',
+ *   location: 'right'
+ *   component: () => <div style={{ width: '100px', flexShrink: 0 }}>Hello world</div>,
+ * });
+ * ```
+ */
+export function registerUIPanel(panel: UIPanel) {
+  store.dispatch(uiSlice.actions.addUIPanel(panel));
 }
 
 export {

@@ -24,7 +24,15 @@ export interface ClusterSettings {
   allowedNamespaces?: string[];
   /** This is a custom cluster name. If it is '' it is the actual cluster name. */
   currentName?: string;
+  nodeShellTerminal?: {
+    linuxImage?: string;
+    namespace?: string;
+    isEnabled?: boolean;
+  };
 }
+
+export const DEFAULT_NODE_SHELL_LINUX_IMAGE = 'docker.io/library/alpine:latest';
+export const DEFAULT_NODE_SHELL_NAMESPACE = 'kube-system';
 
 /**
  * Stores the cluster settings in local storage.

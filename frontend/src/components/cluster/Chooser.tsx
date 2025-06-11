@@ -15,7 +15,6 @@
  */
 
 import { Icon, InlineIcon } from '@iconify/react';
-import { DialogActions, IconButton } from '@mui/material';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import ButtonBase from '@mui/material/ButtonBase';
@@ -23,9 +22,11 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Container from '@mui/material/Container';
 import Dialog, { DialogProps } from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import Grid from '@mui/material/Grid';
+import IconButton from '@mui/material/IconButton';
 import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
@@ -43,8 +44,8 @@ import { useClustersConf } from '../../lib/k8s';
 import { Cluster } from '../../lib/k8s/cluster';
 import { createRouteURL } from '../../lib/router';
 import { getCluster, getClusterPrefixedPath } from '../../lib/util';
-import { setVersionDialogOpen } from '../../redux/actions/actions';
-import { useTypedSelector } from '../../redux/reducers/reducers';
+import { useTypedSelector } from '../../redux/hooks';
+import { uiSlice } from '../../redux/uiSlice';
 import { AppLogo } from '../App/AppLogo';
 import ActionButton from '../common/ActionButton';
 import { DialogTitle } from '../common/Dialog';
@@ -321,7 +322,7 @@ export function ClusterDialog(props: ClusterDialogProps) {
               aria-label={t('Show build information')}
               onClick={() => {
                 handleClose();
-                dispatch(setVersionDialogOpen(true));
+                dispatch(uiSlice.actions.setVersionDialogOpen(true));
               }}
               size="small"
             >

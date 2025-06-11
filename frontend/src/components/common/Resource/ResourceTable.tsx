@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-import { Box, MenuItem, TableCellProps } from '@mui/material';
+import Box from '@mui/material/Box';
+import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
+import { TableCellProps } from '@mui/material/TableCell';
 import { MRT_FilterFns, MRT_Row, MRT_SortingFn, MRT_TableInstance } from 'material-react-table';
 import { ComponentProps, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -27,7 +29,7 @@ import { useFilterFunc } from '../../../lib/util';
 import { DefaultHeaderAction, RowAction } from '../../../redux/actionButtonsSlice';
 import { useNamespaces } from '../../../redux/filterSlice';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
-import { useTypedSelector } from '../../../redux/reducers/reducers';
+import { useTypedSelector } from '../../../redux/hooks';
 import { useSettings } from '../../App/Settings/hook';
 import { ClusterGroupErrorMessage } from '../../cluster/ClusterGroupErrorMessage';
 import { DateLabel } from '../Label';
@@ -414,7 +416,13 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               filterVariant: 'multi-select',
               Cell: ({ row }: { row: MRT_Row<RowItem> }) =>
                 row.original?.getNamespace() ? (
-                  <Link routeName="namespace" params={{ name: row.original.getNamespace() }}>
+                  <Link
+                    routeName="namespace"
+                    params={{
+                      name: row.original.getNamespace(),
+                    }}
+                    activeCluster={row.original.cluster}
+                  >
                     {row.original.getNamespace()}
                   </Link>
                 ) : (

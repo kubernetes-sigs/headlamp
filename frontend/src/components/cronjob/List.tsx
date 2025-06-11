@@ -17,8 +17,10 @@
 import cronstrue from 'cronstrue/i18n';
 import { useTranslation } from 'react-i18next';
 import CronJob from '../../lib/k8s/cronJob';
-import { DateLabel, HoverInfoLabel, LightTooltip } from '../common';
+import { DateLabel } from '../common/Label';
+import { HoverInfoLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
+import LightTooltip from '../common/Tooltip/TooltipLight';
 
 export function getSchedule(cronJob: CronJob, locale: string) {
   const { schedule } = cronJob.spec;

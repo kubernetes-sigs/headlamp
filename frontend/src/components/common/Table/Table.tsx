@@ -14,8 +14,12 @@
  * limitations under the License.
  */
 
-import { Box, Paper, Table as MuiTable, TableCellProps, TableHead } from '@mui/material';
+import Box from '@mui/material/Box';
+import Paper from '@mui/material/Paper';
 import { useTheme } from '@mui/material/styles';
+import MuiTable from '@mui/material/Table';
+import { TableCellProps } from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
 import { alpha, styled } from '@mui/system';
 import {
   MRT_BottomToolbar,
@@ -342,6 +346,21 @@ export default function Table<RowItem extends Record<string, any>>({
       sx: { padding: 0 },
     },
   });
+
+  // Hide actions column when others are hidden
+  useEffect(() => {
+    const visibility = table.getState().columnVisibility || {};
+
+    const shouldHideActions = tableColumns
+      .filter(col => (col.id ?? '') !== 'actions')
+      .every(col => visibility[col.id ?? ''] === false);
+
+    if (shouldHideActions && visibility['actions'] !== false) {
+      table.setColumnVisibility(prev => ({ ...prev, actions: false }));
+    } else if (!shouldHideActions && visibility['actions'] === false) {
+      table.setColumnVisibility(prev => ({ ...prev, actions: true }));
+    }
+  }, [table.getState().columnVisibility, tableColumns, table]);
 
   const gridTemplateColumns = useMemo(() => {
     let preGridTemplateColumns = tableProps.columns

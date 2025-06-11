@@ -16,18 +16,16 @@
 
 import bellIcon from '@iconify/icons-mdi/bell';
 import { Icon } from '@iconify/react';
-import {
-  Badge,
-  Box,
-  Button,
-  Grid,
-  IconButton,
-  ListItem,
-  Popover,
-  Tooltip,
-  Typography,
-  useTheme,
-} from '@mui/material';
+import Badge from '@mui/material/Badge';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Grid from '@mui/material/Grid';
+import IconButton from '@mui/material/IconButton';
+import ListItem from '@mui/material/ListItem';
+import Popover from '@mui/material/Popover';
+import { useTheme } from '@mui/material/styles';
+import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -36,9 +34,9 @@ import { FixedSizeList, ListChildComponentProps } from 'react-window';
 import { useClustersConf } from '../../../lib/k8s';
 import Event from '../../../lib/k8s/event';
 import { createRouteURL } from '../../../lib/router';
-import { useTypedSelector } from '../../../redux/reducers/reducers';
-import { DateLabel } from '../../common';
+import { useTypedSelector } from '../../../redux/hooks';
 import Empty from '../../common/EmptyContent';
+import { DateLabel } from '../../common/Label';
 import {
   defaultMaxNotificationsStored,
   loadNotifications,

@@ -30,7 +30,7 @@ export interface DrawerModeState {
   };
 }
 
-const getLocalDrawerStatus = (key: string) => localStorage.getItem(key) === 'true';
+const getLocalDrawerStatus = (key: string) => localStorage.getItem(key) !== 'false';
 
 const localStorageName = 'detailDrawerEnabled';
 
@@ -39,7 +39,7 @@ const initialState: DrawerModeState = {
   selectedResource: undefined,
 };
 
-const drawerModeSlice = createSlice({
+export const drawerModeSlice = createSlice({
   name: 'drawerMode',
   initialState,
   reducers: {

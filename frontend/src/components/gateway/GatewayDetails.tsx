@@ -23,7 +23,9 @@ import Gateway, {
   GatewayListenerStatus,
   GatewayStatusAddress,
 } from '../../lib/k8s/gateway';
-import { EmptyContent, StatusLabel, StatusLabelProps } from '../common';
+import EmptyContent from '../common/EmptyContent';
+import { StatusLabel } from '../common/Label';
+import { StatusLabelProps } from '../common/Label';
 import Link from '../common/Link';
 import { ConditionsTable, DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
@@ -89,7 +91,11 @@ export default function GatewayDetails(props: { name?: string; namespace?: strin
           {
             name: t('Class Name'),
             value: gateway.spec?.gatewayClassName ? (
-              <Link routeName="gatewayclass" params={{ name: gateway.spec?.gatewayClassName }}>
+              <Link
+                routeName="gatewayclass"
+                params={{ name: gateway.spec?.gatewayClassName }}
+                activeCluster={gateway.cluster}
+              >
                 {gateway.spec?.gatewayClassName}
               </Link>
             ) : null,

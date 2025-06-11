@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import { Box, Typography, useTheme } from '@mui/material';
+import Box from '@mui/material/Box';
+import { useTheme } from '@mui/material/styles';
+import Typography from '@mui/material/Typography';
 import {
   Background,
   BackgroundVariant,
@@ -29,7 +31,7 @@ import {
 } from '@xyflow/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader } from '../common';
+import Loader from '../common/Loader';
 import { GraphEdgeComponent } from './edges/GraphEdgeComponent';
 import { maxZoom, minZoom } from './graphConstants';
 import { GraphControls } from './GraphControls';

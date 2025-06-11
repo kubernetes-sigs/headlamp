@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { Chip } from '@mui/material';
+import Chip from '@mui/material/Chip';
 import { styled } from '@mui/system';
 import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import HPA from '../../lib/k8s/hpa';
-import { Link } from '../common';
+import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 const RootDiv = styled('div')(({ theme }) => ({

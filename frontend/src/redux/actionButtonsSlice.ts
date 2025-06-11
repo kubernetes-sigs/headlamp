@@ -51,6 +51,7 @@ export enum DefaultHeaderAction {
   POD_ATTACH = 'POD_ATTACH',
   NODE_TOGGLE_CORDON = 'NODE_TOGGLE_CORDON',
   NODE_DRAIN = 'NODE_DRAIN',
+  NODE_SHELL = 'NODE_SHELL',
 }
 
 export enum DefaultAppBarAction {

@@ -1,0 +1,26 @@
+<body>
+  <div>
+    <div
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-e1wsad-MuiPaper-root"
+    >
+      <h6
+        class="MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-r34k9t-MuiTypography-root"
+      >
+        Outer Container Title
+      </h6>
+      <div
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
+      >
+        <div
+          class="MuiBox-root css-19midj6"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+          >
+            No inner data available.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

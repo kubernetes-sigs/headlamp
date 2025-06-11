@@ -15,8 +15,10 @@
  */
 
 import { Icon, IconifyIcon, IconProps } from '@iconify/react';
-import { ListItemIcon, ListItemText, MenuItem } from '@mui/material';
 import IconButton, { IconButtonProps } from '@mui/material/IconButton';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import MenuItem from '@mui/material/MenuItem';
 import Tooltip from '@mui/material/Tooltip';
 import React from 'react';
 

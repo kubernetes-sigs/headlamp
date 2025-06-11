@@ -21,17 +21,15 @@ import { PropsWithChildren } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { AppBarActionsProcessor } from '../../redux/actionButtonsSlice';
-import { INITIAL_STATE as UI_INITIAL_STATE } from '../../redux/reducers/ui';
+import { uiSlice } from '../../redux/uiSlice';
 import { initialState as themeInitialState } from './themeSlice';
 import { processAppBarActions, PureTopBar, PureTopBarProps } from './TopBar';
 
 const store = configureStore({
-  reducer: (state = { config: {}, ui: typeof UI_INITIAL_STATE }) => state,
+  reducer: (state = { config: {}, ui: {} }) => state,
   preloadedState: {
     config: {},
-    ui: {
-      ...UI_INITIAL_STATE,
-    },
+    ui: { ...uiSlice.getInitialState() },
     notifications: {
       notifications: [],
     },

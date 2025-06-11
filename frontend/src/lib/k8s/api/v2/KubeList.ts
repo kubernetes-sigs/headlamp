@@ -45,7 +45,8 @@ export const KubeList = {
   >(
     list: KubeList<KubeObject<ObjectInterface>>,
     update: KubeListUpdateEvent<ObjectInterface>,
-    itemClass: ObjectClass
+    itemClass: ObjectClass,
+    cluster: string
   ): KubeList<KubeObject<ObjectInterface>> {
     // Skip if the update's resource version is older than or equal to what we have
     if (
@@ -63,9 +64,9 @@ export const KubeList = {
       case 'ADDED':
       case 'MODIFIED':
         if (index !== -1) {
-          newItems[index] = new itemClass(update.object);
+          newItems[index] = new itemClass(update.object, cluster);
         } else {
-          newItems.push(new itemClass(update.object));
+          newItems.push(new itemClass(update.object, cluster));
         }
         break;
       case 'DELETED':

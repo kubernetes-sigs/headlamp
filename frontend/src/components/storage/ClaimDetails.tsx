@@ -17,7 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
-import { Link } from '../common';
+import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 import { StatusLabelByPhase } from './utils';
 
@@ -63,7 +63,12 @@ export default function VolumeClaimDetails(props: {
           {
             name: t('Storage Class'),
             value: (
-              <Link routeName="storageClass" params={{ name: item.spec!.storageClassName }} tooltip>
+              <Link
+                routeName="storageClass"
+                params={{ name: item.spec!.storageClassName }}
+                activeCluster={item.cluster}
+                tooltip
+              >
                 {item.spec!.storageClassName}
               </Link>
             ),

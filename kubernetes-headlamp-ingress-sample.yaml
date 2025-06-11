@@ -6,8 +6,8 @@ metadata:
   annotations:
     kubernetes.io/tls-acme: "true"
     cert-manager.io/cluster-issuer: "letsencrypt-production"
-    kubernetes.io/ingress.class: contour
 spec:
+  ingressClassName: contour
   tls:
   - secretName: headlamp
     hosts:

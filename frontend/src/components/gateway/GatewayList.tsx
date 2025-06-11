@@ -37,7 +37,11 @@ export default function GatewayList() {
           getValue: gateway => gateway.spec?.gatewayClassName,
           render: gateway =>
             gateway.spec?.gatewayClassName ? (
-              <Link routeName="gatewayclass" params={{ name: gateway.spec?.gatewayClassName }}>
+              <Link
+                routeName="gatewayclass"
+                params={{ name: gateway.spec?.gatewayClassName }}
+                activeCluster={gateway.cluster}
+              >
                 {gateway.spec?.gatewayClassName}
               </Link>
             ) : null,

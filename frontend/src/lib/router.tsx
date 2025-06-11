@@ -956,6 +956,12 @@ export function getRoutePath(route: Route) {
 }
 
 export interface RouteURLProps {
+  /**
+   * Selected clusters path parameter
+   *
+   * Check out {@link getClusterPathParam} and {@link formatClusterPathParam} function
+   * for working with this parameter
+   */
   cluster?: string;
   [prop: string]: any;
 }

@@ -18,7 +18,7 @@ import _ from 'lodash';
 import React, { useMemo } from 'react';
 import { useHistory } from 'react-router-dom';
 import { ConfigState } from '../../redux/configSlice';
-import { useTypedSelector } from '../../redux/reducers/reducers';
+import { useTypedSelector } from '../../redux/hooks';
 import { getCluster, getSelectedClusters } from '../cluster';
 import { ApiError, clusterRequest } from './apiProxy';
 import { Cluster, LabelSelector, StringDict } from './cluster';

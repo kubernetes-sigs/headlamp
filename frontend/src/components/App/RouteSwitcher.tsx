@@ -29,8 +29,8 @@ import {
   NotFoundRoute,
   Route as RouteType,
 } from '../../lib/router';
-import { setHideAppBar, setIsFullWidth } from '../../redux/actions/actions';
-import { useTypedSelector } from '../../redux/reducers/reducers';
+import { useTypedSelector } from '../../redux/hooks';
+import { uiSlice } from '../../redux/uiSlice';
 import ErrorBoundary from '../common/ErrorBoundary';
 import ErrorComponent from '../common/ErrorPage';
 import { useSidebarItem } from '../Sidebar';
@@ -96,11 +96,11 @@ function RouteComponent({ route }: { route: RouteType }) {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   React.useEffect(() => {
-    dispatch(setHideAppBar(route.hideAppBar));
+    dispatch(uiSlice.actions.setHideAppBar(route.hideAppBar));
   }, [route.hideAppBar]);
 
   React.useEffect(() => {
-    dispatch(setIsFullWidth(route.isFullWidth));
+    dispatch(uiSlice.actions.setIsFullWidth(route.isFullWidth));
   }, [route.isFullWidth]);
 
   return (

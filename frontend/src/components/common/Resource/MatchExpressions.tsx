@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Typography } from '@mui/material';
+import Typography from '@mui/material/Typography';
 import { matchExpressionSimplifier, matchLabelsSimplifier } from '../../../lib/k8s';
 import { LabelSelector } from '../../../lib/k8s/cluster';
 import { metadataStyles } from '.';

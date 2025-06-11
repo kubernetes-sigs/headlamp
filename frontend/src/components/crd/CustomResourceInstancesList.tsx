@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { Alert, AlertTitle } from '@mui/material';
+import Alert from '@mui/material/Alert';
+import AlertTitle from '@mui/material/AlertTitle';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import CRD from '../../lib/k8s/crd';
@@ -111,6 +112,7 @@ function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
                     crd: getCRDForCR(cr).metadata.name,
                     namespace: cr.metadata.namespace ?? '-',
                   }}
+                  activeCluster={cr.cluster}
                 >
                   {cr.metadata.name}
                 </Link>
@@ -129,6 +131,7 @@ function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
                   params={{
                     name: getCRDForCR(cr).metadata.name,
                   }}
+                  activeCluster={cr.cluster}
                 >
                   {cr.kind}
                 </Link>

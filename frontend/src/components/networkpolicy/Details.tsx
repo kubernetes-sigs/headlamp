@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { Box, Typography } from '@mui/material';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 import { matchExpressionSimplifier, matchLabelsSimplifier } from '../../lib/k8s';
@@ -24,7 +25,10 @@ import NetworkPolicy, {
   NetworkPolicyIngressRule,
   NetworkPolicyPort,
 } from '../../lib/k8s/networkpolicy';
-import { DetailsGrid, metadataStyles, NameValueTable, SectionBox } from '../common';
+import NameValueTable from '../common/NameValueTable';
+import { DetailsGrid } from '../common/Resource';
+import { metadataStyles } from '../common/Resource';
+import SectionBox from '../common/SectionBox';
 
 export function NetworkPolicyDetails(props: {
   name?: string;

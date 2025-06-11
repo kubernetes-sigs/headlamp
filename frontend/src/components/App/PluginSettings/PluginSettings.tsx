@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-import { Switch, SwitchProps, Typography, useTheme } from '@mui/material';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Link from '@mui/material/Link';
+import { useTheme } from '@mui/material/styles';
+import { SwitchProps } from '@mui/material/Switch';
+import Switch from '@mui/material/Switch';
+import Typography from '@mui/material/Typography';
 import { MRT_Row } from 'material-react-table';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -25,9 +28,11 @@ import { useDispatch } from 'react-redux';
 import { isElectron } from '../../../helpers/isElectron';
 import { useFilterFunc } from '../../../lib/util';
 import { PluginInfo, reloadPage, setPluginSettings } from '../../../plugin/pluginsSlice';
-import { useTypedSelector } from '../../../redux/reducers/reducers';
-import { Link as HeadlampLink, SectionBox, Table } from '../../common';
+import { useTypedSelector } from '../../../redux/hooks';
+import { Link as HeadlampLink } from '../../common/';
+import SectionBox from '../../common/SectionBox';
 import SectionFilterHeader from '../../common/SectionFilterHeader';
+import Table from '../../common/Table';
 
 /**
  * Interface of the component's props structure.

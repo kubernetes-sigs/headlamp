@@ -15,7 +15,7 @@
  */
 
 import { Icon } from '@iconify/react';
-import { Box } from '@mui/material';
+import Box from '@mui/material/Box';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '../../lib/k8s/apiProxy';
@@ -26,9 +26,11 @@ import { parseCpu, parseRam, unparseCpu, unparseRam } from '../../lib/units';
 import { timeAgo } from '../../lib/util';
 import { useNamespaces } from '../../redux/filterSlice';
 import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
-import { LightTooltip, Link, SimpleTableProps } from '../common';
 import { StatusLabel, StatusLabelProps } from '../common/Label';
+import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
+import { SimpleTableProps } from '../common/SimpleTable';
+import LightTooltip from '../common/Tooltip/TooltipLight';
 
 function getPodStatus(pod: Pod) {
   const phase = pod.status.phase;
@@ -276,7 +278,12 @@ export function PodListRenderer(props: PodListProps) {
           getValue: pod => pod?.spec?.nodeName,
           render: pod =>
             pod?.spec?.nodeName && (
-              <Link routeName="node" params={{ name: pod.spec.nodeName }} tooltip>
+              <Link
+                routeName="node"
+                params={{ name: pod.spec.nodeName }}
+                activeCluster={pod.cluster}
+                tooltip
+              >
                 {pod.spec.nodeName}
               </Link>
             ),
@@ -287,7 +294,12 @@ export function PodListRenderer(props: PodListProps) {
           getValue: pod => pod?.status?.nominatedNodeName,
           render: pod =>
             !!pod?.status?.nominatedNodeName && (
-              <Link routeName="node" params={{ name: pod?.status?.nominatedNodeName }} tooltip>
+              <Link
+                routeName="node"
+                params={{ name: pod?.status?.nominatedNodeName }}
+                activeCluster={pod.cluster}
+                tooltip
+              >
                 {pod?.status?.nominatedNodeName}
               </Link>
             ),

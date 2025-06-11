@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  Input,
-  InputLabel,
-} from '@mui/material';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogTitle from '@mui/material/DialogTitle';
+import Input from '@mui/material/Input';
+import InputLabel from '@mui/material/InputLabel';
 import _ from 'lodash';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -35,7 +33,7 @@ import CronJob from '../../lib/k8s/cronJob';
 import Job from '../../lib/k8s/job';
 import { clusterAction } from '../../redux/clusterActionSlice';
 import { AppDispatch } from '../../redux/stores/store';
-import { ActionButton } from '../common';
+import ActionButton from '../common/ActionButton';
 import { DetailsGrid } from '../common/Resource';
 import AuthVisible from '../common/Resource/AuthVisible';
 import { JobsListRenderer } from '../job/List';

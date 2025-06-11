@@ -1,0 +1,38 @@
+<body>
+  <div>
+    <div
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1ic9gem-MuiPaper-root"
+    >
+      <nav
+        class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
+      >
+        <li
+          class="css-3knmzx"
+        >
+          <a
+            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1c5v89n-MuiButtonBase-root-MuiListItemButton-root"
+            href="/full-width-false"
+            role="button"
+            tabindex="0"
+          >
+            <div
+              class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+            />
+            <div
+              class="MuiListItemText-root css-tlelie-MuiListItemText-root"
+            >
+              <span
+                class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+              >
+                Full Width False
+              </span>
+            </div>
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </a>
+        </li>
+      </nav>
+    </div>
+  </div>
+</body>

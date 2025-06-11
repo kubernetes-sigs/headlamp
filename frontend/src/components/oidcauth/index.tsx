@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Typography } from '@mui/material';
+import Typography from '@mui/material/Typography';
 import { FunctionComponent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';

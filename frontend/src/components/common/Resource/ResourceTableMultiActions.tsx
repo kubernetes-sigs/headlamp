@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Grid } from '@mui/material';
+import Grid from '@mui/material/Grid';
 import { MRT_TableInstance } from 'material-react-table';
 import { useCallback } from 'react';
 import { KubeObject } from '../../../lib/k8s/KubeObject';

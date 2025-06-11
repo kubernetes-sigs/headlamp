@@ -14,8 +14,14 @@
  * limitations under the License.
  */
 
-import { Box, FormControl, InputLabel, MenuItem, Select, styled, Switch } from '@mui/material';
+import Box from '@mui/material/Box';
+import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
+import InputLabel from '@mui/material/InputLabel';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
+import { styled } from '@mui/material/styles';
+import Switch from '@mui/material/Switch';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import { useSnackbar } from 'notistack';
 import React, { useState } from 'react';
@@ -242,7 +248,7 @@ export function LogsButton({ item }: LogsButtonProps) {
     pods.forEach(pod => {
       const cleanup = pod.getLogs(
         container,
-        (newLogs: string[]) => {
+        ({ logs: newLogs }: { logs: string[]; hasJsonLogs?: boolean }) => {
           const podName = pod.getName();
           setAllPodLogs(current => {
             const updated = {
@@ -295,7 +301,7 @@ export function LogsButton({ item }: LogsButtonProps) {
           let lastLogLength = 0;
           cleanup = pod.getLogs(
             selectedContainer,
-            (newLogs: string[]) => {
+            ({ logs: newLogs }: { logs: string[]; hasJsonLogs?: boolean }) => {
               if (!isSubscribed) return;
 
               setLogs(current => {

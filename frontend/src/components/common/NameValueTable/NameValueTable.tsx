@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { Grid, GridProps } from '@mui/material';
+import { GridProps } from '@mui/material/Grid';
+import Grid from '@mui/material/Grid';
 import React, { ReactNode } from 'react';
 import { ValueLabel } from '../Label';
 

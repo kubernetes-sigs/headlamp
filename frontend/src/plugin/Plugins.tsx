@@ -21,8 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { isElectron } from '../helpers/isElectron';
-import { UI_INITIALIZE_PLUGIN_VIEWS } from '../redux/actions/actions';
-import { useTypedSelector } from '../redux/reducers/reducers';
+import { useTypedSelector } from '../redux/hooks';
 import { fetchAndExecutePlugins } from './index';
 import { pluginsLoaded, setPluginSettings } from './pluginsSlice';
 
@@ -46,8 +45,6 @@ export default function Plugins() {
 
   // only run on first load
   useEffect(() => {
-    dispatch({ type: UI_INITIALIZE_PLUGIN_VIEWS });
-
     fetchAndExecutePlugins(
       settingsPlugins,
       updatedSettingsPackages => {

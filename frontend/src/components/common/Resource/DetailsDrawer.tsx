@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-import { Box, Drawer, useMediaQuery, useTheme } from '@mui/material';
-import React from 'react';
+import Box from '@mui/material/Box';
+import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router';
 import { isElectron } from '../../../helpers/isElectron';
 import { setSelectedResource } from '../../../redux/drawerModeSlice';
-import { useTypedSelector } from '../../../redux/reducers/reducers';
+import { useTypedSelector } from '../../../redux/hooks';
 import { KubeObjectDetails } from '../../resourceMap/details/KubeNodeDetails';
 import { ActionButton } from '..';
 
@@ -48,49 +49,49 @@ export default function DetailsDrawer() {
     handleCloseDrawerReset();
   }
 
-  if (!selectedResource || isSmallScreen) {
+  if (!selectedResource || isSmallScreen || !isDetailDrawerEnabled) {
     return null;
   }
 
   return (
-    isDetailDrawerEnabled && (
-      <Drawer
-        variant="persistent"
-        anchor="right"
-        open
-        onClose={closeDrawer}
-        PaperProps={{
-          sx: {
-            marginTop: '64px',
-            boxShadow: '-5px 0 20px rgba(0,0,0,0.08)',
-            borderRadius: '10px',
-            width: '45vw',
-          },
+    <Box
+      sx={{
+        position: 'absolute',
+        backgroundColor: 'background.paper',
+        width: '60vw',
+        right: 0,
+        height: '100%',
+        overflowY: 'auto',
+        boxShadow: '-5px 0 20px rgba(0,0,0,0.08)',
+        borderRadius: '10px 0 0 10px',
+        zIndex: 1,
+        border: '1px solid',
+        borderColor: theme.palette.divider,
+      }}
+      role="complementary"
+      aria-describedby="resource-details-content"
+    >
+      <Box
+        sx={{
+          display: 'flex',
+          padding: '1rem',
+          justifyContent: 'right',
         }}
       >
-        {/* Note: the top margin is needed to not clip into the topbar */}
-        <Box
-          sx={{
-            display: 'flex',
-            padding: '1rem',
-            justifyContent: 'right',
-          }}
-        >
-          <ActionButton onClick={() => closeDrawer()} icon="mdi:close" description={t('Close')} />
-        </Box>
-        <Box>
-          {selectedResource && (
-            <KubeObjectDetails
-              resource={{
-                kind: selectedResource.kind,
-                metadata: selectedResource.metadata,
-                cluster: selectedResource.cluster,
-              }}
-              customResourceDefinition={selectedResource.customResourceDefinition}
-            />
-          )}
-        </Box>
-      </Drawer>
-    )
+        <ActionButton onClick={() => closeDrawer()} icon="mdi:close" description={t('Close')} />
+      </Box>
+      <Box id="resource-details-content">
+        {selectedResource && (
+          <KubeObjectDetails
+            resource={{
+              kind: selectedResource.kind,
+              metadata: selectedResource.metadata,
+              cluster: selectedResource.cluster,
+            }}
+            customResourceDefinition={selectedResource.customResourceDefinition}
+          />
+        )}
+      </Box>
+    </Box>
   );
 }

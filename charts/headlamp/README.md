@@ -229,6 +229,33 @@ env:
     value: "6443"
 ```
 
+## Contributing
+
+We welcome contributions to the Headlamp Helm chart! To contribute:
+
+1. Fork the repository and create your branch from `main`.
+2. Make your changes and test them thoroughly.
+3. Run Helm chart template tests to ensure your changes don't break existing functionality:
+
+   ```console
+   $ make helm-template-test
+   ```
+   This command executes the script at `charts/headlamp/tests/test.sh` to validate Helm chart templates against expected templates.
+
+4. If you've made changes that intentionally affect the rendered templates (like version updates or new features):
+
+   ```console
+   $ make helm-update-template-version
+   ```
+   This updates the expected templates with the current versions from Chart.yaml and only shows files where versions changed.
+
+5. Review the updated templates carefully to ensure they contain only your intended changes.
+
+6. Submit a pull request with a clear description of your changes.
+
+
+For more details, refer to our [contributing guidelines](https://github.com/kubernetes-sigs/headlamp/blob/main/CONTRIBUTING.md).
+
 ## Links
 
 - [GitHub Repository](https://github.com/kubernetes-sigs/headlamp)

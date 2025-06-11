@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { Box, Button } from '@mui/material';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import { Base64 } from 'js-base64';
 import _ from 'lodash';
 import React from 'react';
@@ -24,7 +25,7 @@ import { useParams } from 'react-router-dom';
 import Secret from '../../lib/k8s/secret';
 import { clusterAction } from '../../redux/clusterActionSlice';
 import { AppDispatch } from '../../redux/stores/store';
-import { EmptyContent } from '../common';
+import EmptyContent from '../common/EmptyContent';
 import { DetailsGrid, SecretField } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
 import { NameValueTable, NameValueTableRow } from '../common/SimpleTable';

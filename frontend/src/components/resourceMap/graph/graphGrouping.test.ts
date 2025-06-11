@@ -16,8 +16,40 @@
 
 import { KubeMetadata } from '../../../lib/k8s/KubeMetadata';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-import { groupGraph } from './graphGrouping';
+import { getMainNode, groupGraph } from './graphGrouping';
 import { GraphEdge, GraphNode } from './graphModel';
+
+describe('getMainNode', () => {
+  it('returns undefined for empty array', () => {
+    expect(getMainNode([])).toBeUndefined();
+  });
+
+  it('returns single node for array with one element', () => {
+    const node = { id: 'test', kubeObject: { kind: 'Pod' } as any };
+    expect(getMainNode([node])).toBe(node);
+  });
+
+  it('selects node with highest weight', () => {
+    const nodes: GraphNode[] = [
+      { id: 'pod', kubeObject: { kind: 'Pod' } as any }, // weight: 800
+      { id: 'deployment', kubeObject: { kind: 'Deployment' } as any }, // weight: 980
+      { id: 'service', kubeObject: { kind: 'Service' } as any }, // weight: 760
+    ];
+
+    const mainNode = getMainNode(nodes);
+    expect(mainNode?.id).toBe('deployment');
+  });
+
+  it('prefers explicit weight over kind-based weight', () => {
+    const nodes: GraphNode[] = [
+      { id: 'deployment', kubeObject: { kind: 'Deployment' } as any }, // weight: 980
+      { id: 'high-weight-pod', weight: 1500, kubeObject: { kind: 'Pod' } as any }, // explicit weight: 1500
+    ];
+
+    const mainNode = getMainNode(nodes);
+    expect(mainNode?.id).toBe('high-weight-pod');
+  });
+});
 
 describe('groupGraph', () => {
   const nodes: GraphNode[] = [
@@ -85,7 +117,9 @@ describe('groupGraph', () => {
 
     // Node 2 is grouped into Node-node1 group
     // Nodes 1, 3 and 4 don't have a node and are not grouped
-    expect(nodeNames).toEqual(['Node-node1', '1', '3', '4']);
+    // After sorting by weight (descending) and ID (stable sort),
+    // individual nodes come first, then group because no edges are present
+    expect(nodeNames).toEqual(['1', '3', '4', 'Node-node1']);
   });
 
   it('groups nodes by instance', () => {
@@ -98,20 +132,55 @@ describe('groupGraph', () => {
 
     // Nodes 1 and 3 have the same instance label and grouped into Instance-instance1 group
     // Nodes 2 and 4 don't have instance label
-    expect(instances).toEqual(['Instance-instance1', '2', '4']);
+    // After sorting by weight (descending) and ID (stable sort),
+    // individual nodes come first, then group because no edges are present
+    expect(instances).toEqual(['2', '4', 'Instance-instance1']);
   });
 
-  it('group nodes as connected components when no groupBy is specified', () => {
+  it('groups nodes as connected components when no groupBy is specified', () => {
     const groupedGraph = groupGraph(nodes, [{ id: 'e2', source: '2', target: '4' }], {
       namespaces: [],
       k8sNodes: [],
     });
-    const instances = groupedGraph.nodes?.map(node => node.id);
-    const edgeIds = (groupedGraph.nodes?.[0] as GraphNode).edges?.map(edge => edge.id);
+    const componentIds = groupedGraph.nodes?.map(node => node.id);
 
-    // Nodes 2 and 4 are connected by the egde and so are grouped together
-    // group-2 takes has 2 in it because it's the ID of the first node
-    expect(instances).toEqual(['group-2', '1', '3']);
+    // Find the group node (it will have edges)
+    const groupNode = groupedGraph.nodes?.find(node => node.edges && node.edges.length > 0);
+    const edgeIds = groupNode?.edges?.map(edge => edge.id);
+
+    // Nodes 2 and 4 are connected by the edge and so are grouped together
+    // The group gets an ID based on the main node (determined by weight and ID)
+    // After sorting by weight (descending) and ID (stable sort),
+    // group comes first due to having edges (+10000 weight), then individual nodes
+    expect(componentIds).toEqual(['group-2', '1', '3']);
     expect(edgeIds).toEqual(['e2']);
+  });
+
+  it('handles mixed weight scenarios in connected components', () => {
+    const mixedNodes: GraphNode[] = [
+      { id: 'hpa', kubeObject: { kind: 'HorizontalPodAutoscaler' } as any }, // 1000
+      { id: 'deployment', kubeObject: { kind: 'Deployment' } as any }, // 980
+      { id: 'service', kubeObject: { kind: 'Service' } as any }, // 760
+      { id: 'configmap', kubeObject: { kind: 'ConfigMap' } as any }, // 580
+    ];
+
+    const mixedEdges: GraphEdge[] = [{ id: 'e1', source: 'deployment', target: 'service' }];
+
+    const groupedGraph = groupGraph(mixedNodes, mixedEdges, {
+      namespaces: [],
+      k8sNodes: [],
+    });
+
+    // Find connected component
+    const connectedGroup = groupedGraph.nodes?.find(
+      node => node.id.startsWith('group-') && node.edges && node.edges.length > 0
+    );
+
+    // Should be named after deployment (higher weight than service)
+    expect(connectedGroup?.id).toBe('group-deployment');
+
+    // Individual nodes should be sorted by weight
+    const individualNodes = groupedGraph.nodes?.filter(node => !node.id.startsWith('group-'));
+    expect(individualNodes?.map(n => n.id)).toEqual(['hpa', 'configmap']);
   });
 });

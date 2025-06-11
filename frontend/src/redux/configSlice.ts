@@ -53,6 +53,7 @@ export interface ConfigState {
      * timezone is the timezone to use for displaying dates and times.
      */
     timezone: string;
+    useEvict: boolean;
     [key: string]: any;
   };
 }
@@ -74,6 +75,7 @@ export const initialState: ConfigState = {
       storedSettings.tableRowsPerPageOptions || defaultTableRowsPerPageOptions,
     timezone: storedSettings.timezone || defaultTimezone(),
     sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically || false,
+    useEvict: storedSettings.useEvict || true,
   },
 };
 

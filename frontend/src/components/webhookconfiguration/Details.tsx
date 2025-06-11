@@ -17,9 +17,12 @@
 import { useTranslation } from 'react-i18next';
 import MutatingWebhookConfiguration from '../../lib/k8s/mutatingWebhookConfiguration';
 import ValidatingWebhookConfiguration from '../../lib/k8s/validatingWebhookConfiguration';
-import { Link, NameValueTable, SectionBox, SimpleTable } from '../common';
+import Link from '../common/Link';
+import NameValueTable from '../common/NameValueTable';
 import { DetailsGrid, SecretField } from '../common/Resource';
 import { MatchExpressions } from '../common/Resource/MatchExpressions';
+import SectionBox from '../common/SectionBox';
+import SimpleTable from '../common/SimpleTable';
 
 export interface WebhookConfigurationDetailsProps {
   resourceClass: typeof ValidatingWebhookConfiguration | typeof MutatingWebhookConfiguration;
@@ -86,6 +89,7 @@ export default function WebhookConfigurationDetails(props: WebhookConfigurationD
                                   name: webhook.clientConfig?.service?.name,
                                   namespace: webhook.clientConfig?.service?.namespace,
                                 }}
+                                activeCluster={item.cluster}
                               >
                                 {t('translation|Service: {{namespace}}/{{name}}', {
                                   namespace: webhook.clientConfig?.service?.namespace,

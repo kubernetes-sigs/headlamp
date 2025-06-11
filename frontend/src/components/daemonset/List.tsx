@@ -17,8 +17,8 @@
 import { useTranslation } from 'react-i18next';
 import { KubeContainer } from '../../lib/k8s/cluster';
 import DaemonSet from '../../lib/k8s/daemonSet';
-import { LightTooltip } from '../common';
 import ResourceListView from '../common/Resource/ResourceListView';
+import LightTooltip from '../common/Tooltip/TooltipLight';
 
 export default function DaemonSetList() {
   const { t } = useTranslation(['glossary', 'translation']);

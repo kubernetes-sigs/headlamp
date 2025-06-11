@@ -16,7 +16,7 @@
 
 import { useTranslation } from 'react-i18next';
 import HTTPRoute from '../../lib/k8s/httpRoute';
-import { LabelListItem } from '../common';
+import LabelListItem from '../common/LabelListItem';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 export default function HTTPRouteList() {

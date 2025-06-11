@@ -29,15 +29,7 @@ import (
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "list-plugins" {
-		conf, err := config.Parse(os.Args[2:])
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "fetching config:%v")
-			os.Exit(1)
-		}
-
-		if err := plugins.ListPlugins(conf.StaticDir, conf.PluginsDir); err != nil {
-			logger.Log(logger.LevelError, nil, err, "listing plugins")
-		}
+		runListPlugins()
 
 		return
 	}
@@ -53,26 +45,52 @@ func main() {
 	multiplexer := NewMultiplexer(kubeConfigStore)
 
 	StartHeadlampServer(&HeadlampConfig{
-		useInCluster:          conf.InCluster,
-		kubeConfigPath:        conf.KubeConfigPath,
-		skippedKubeContexts:   conf.SkippedKubeContexts,
-		listenAddr:            conf.ListenAddr,
-		port:                  conf.Port,
-		devMode:               conf.DevMode,
-		staticDir:             conf.StaticDir,
-		insecure:              conf.InsecureSsl,
-		pluginDir:             conf.PluginsDir,
-		oidcClientID:          conf.OidcClientID,
-		oidcClientSecret:      conf.OidcClientSecret,
-		oidcIdpIssuerURL:      conf.OidcIdpIssuerURL,
-		oidcScopes:            strings.Split(conf.OidcScopes, ","),
-		baseURL:               conf.BaseURL,
-		proxyURLs:             strings.Split(conf.ProxyURLs, ","),
-		enableHelm:            conf.EnableHelm,
-		enableDynamicClusters: conf.EnableDynamicClusters,
-		watchPluginsChanges:   conf.WatchPluginsChanges,
-		cache:                 cache,
-		kubeConfigStore:       kubeConfigStore,
-		multiplexer:           multiplexer,
+		useInCluster:              conf.InCluster,
+		kubeConfigPath:            conf.KubeConfigPath,
+		skippedKubeContexts:       conf.SkippedKubeContexts,
+		listenAddr:                conf.ListenAddr,
+		port:                      conf.Port,
+		devMode:                   conf.DevMode,
+		staticDir:                 conf.StaticDir,
+		insecure:                  conf.InsecureSsl,
+		pluginDir:                 conf.PluginsDir,
+		oidcClientID:              conf.OidcClientID,
+		oidcValidatorClientID:     conf.OidcValidatorClientID,
+		oidcClientSecret:          conf.OidcClientSecret,
+		oidcIdpIssuerURL:          conf.OidcIdpIssuerURL,
+		oidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
+		oidcScopes:                strings.Split(conf.OidcScopes, ","),
+		oidcUseAccessToken:        conf.OidcUseAccessToken,
+		baseURL:                   conf.BaseURL,
+		proxyURLs:                 strings.Split(conf.ProxyURLs, ","),
+		enableHelm:                conf.EnableHelm,
+		enableDynamicClusters:     conf.EnableDynamicClusters,
+		watchPluginsChanges:       conf.WatchPluginsChanges,
+		cache:                     cache,
+		kubeConfigStore:           kubeConfigStore,
+		multiplexer:               multiplexer,
+		telemetryConfig: config.Config{
+			ServiceName:        conf.ServiceName,
+			ServiceVersion:     conf.ServiceVersion,
+			TracingEnabled:     conf.TracingEnabled,
+			MetricsEnabled:     conf.MetricsEnabled,
+			JaegerEndpoint:     conf.JaegerEndpoint,
+			OTLPEndpoint:       conf.OTLPEndpoint,
+			UseOTLPHTTP:        conf.UseOTLPHTTP,
+			StdoutTraceEnabled: conf.StdoutTraceEnabled,
+			SamplingRate:       conf.SamplingRate,
+		},
 	})
+}
+
+func runListPlugins() {
+	conf, err := config.Parse(os.Args[2:])
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "fetching config:%v")
+		os.Exit(1)
+	}
+
+	if err := plugins.ListPlugins(conf.StaticDir, conf.PluginsDir); err != nil {
+		logger.Log(logger.LevelError, nil, err, "listing plugins")
+	}
 }

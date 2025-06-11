@@ -48,7 +48,7 @@ jobs:
       env:
         APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
         APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-    - name: Build App Mac
+    - name: Build Signed App Mac
       if: ${{ inputs.signBinaries }}
       env:
         # This will trigger codesign. See app/mac/scripts/codeSign.js
@@ -59,10 +59,10 @@ jobs:
           echo "Error: Mac codesign failed"
           exit 1
         fi
-    - name: Early staple (only if we are not notarizing the app)
+    - name: Build Unsigned App Mac
       if: ${{ ! inputs.signBinaries }}
       run: |
-        xcrun stapler staple ./app/dist/Headlamp*.dmg
+        make app-mac
     - name: Upload artifact
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:

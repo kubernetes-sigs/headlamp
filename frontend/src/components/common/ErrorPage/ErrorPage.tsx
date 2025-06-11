@@ -15,13 +15,14 @@
  */
 
 import { Icon } from '@iconify/react';
-import { Grid, Typography } from '@mui/material';
 import Accordion from '@mui/material/Accordion';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Grid from '@mui/material/Grid';
 import Link from '@mui/material/Link';
+import Typography from '@mui/material/Typography';
 import { styled } from '@mui/system';
 import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';

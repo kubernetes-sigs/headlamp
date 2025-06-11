@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
-import { Button, Grid, ToggleButton as MuiToggledButton, ToggleButtonGroup } from '@mui/material';
+import Button from '@mui/material/Button';
+import Grid from '@mui/material/Grid';
+import MuiToggledButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { styled } from '@mui/system';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath, useHistory } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
 import { getRecentClusters, setRecentCluster } from '../../../helpers/recentClusters';
-import { getClusterPrefixedPath } from '../../../lib/cluster';
+import { formatClusterPathParam, getClusterPrefixedPath } from '../../../lib/cluster';
 import { Cluster } from '../../../lib/k8s/cluster';
 import { createRouteURL } from '../../../lib/router';
 import { MULTI_HOME_ENABLED } from './config';
@@ -119,7 +122,7 @@ export default function RecentClusters(props: RecentClustersProps) {
 
     history.push({
       pathname: generatePath(getClusterPrefixedPath(), {
-        cluster: selectedClusters.map(cluster => cluster.name).join('+'),
+        cluster: formatClusterPathParam(selectedClusters.map(cluster => cluster.name)),
       }),
     });
   }

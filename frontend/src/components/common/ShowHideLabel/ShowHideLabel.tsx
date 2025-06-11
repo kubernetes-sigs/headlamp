@@ -15,7 +15,8 @@
  */
 
 import { Icon } from '@iconify/react';
-import { Box, IconButton } from '@mui/material';
+import Box from '@mui/material/Box';
+import IconButton from '@mui/material/IconButton';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 

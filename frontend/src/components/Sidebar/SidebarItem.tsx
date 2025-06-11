@@ -19,7 +19,7 @@ import List from '@mui/material/List';
 import ListItem, { ListItemProps } from '@mui/material/ListItem';
 import React, { memo } from 'react';
 import { generatePath } from 'react-router';
-import { getClusterPrefixedPath } from '../../lib/cluster';
+import { formatClusterPathParam, getClusterPrefixedPath } from '../../lib/cluster';
 import { useSelectedClusters } from '../../lib/k8s';
 import { createRouteURL, getRoute } from '../../lib/router';
 import ListItemLink from './ListItemLink';
@@ -63,7 +63,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
   let fullURL = url;
   if (fullURL && useClusterURL && clusters.length) {
     fullURL = generatePath(getClusterPrefixedPath(url), {
-      cluster: clusters.length ? clusters.join('+') : '',
+      cluster: clusters.length ? formatClusterPathParam(clusters) : '',
     });
   }
 

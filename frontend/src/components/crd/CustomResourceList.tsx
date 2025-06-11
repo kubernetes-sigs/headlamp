@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Box } from '@mui/material';
+import Box from '@mui/material/Box';
 import { JSONPath } from 'jsonpath-plus';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,11 +22,15 @@ import { useParams } from 'react-router-dom';
 import CRD, { KubeCRD } from '../../lib/k8s/crd';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { localeDate } from '../../lib/util';
-import { CreateResourceButton, Link, Loader, PageGrid, SectionHeader } from '../common';
 import BackLink from '../common/BackLink';
+import { CreateResourceButton } from '../common/CreateResourceButton';
 import Empty from '../common/EmptyContent';
+import Link from '../common/Link';
+import Loader from '../common/Loader';
+import { PageGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { ResourceTableColumn, ResourceTableProps } from '../common/Resource/ResourceTable';
+import SectionHeader from '../common/SectionHeader';
 
 export default function CustomResourceList() {
   const { t } = useTranslation(['glossary', 'translation']);
@@ -70,6 +74,7 @@ function CustomResourceLink(props: {
         crd: crd.metadata.name,
         namespace: resource.metadata.namespace || '-',
       }}
+      activeCluster={resource.cluster}
       {...otherProps}
     >
       {resource.metadata.name}
@@ -97,7 +102,7 @@ function CustomResourceListRenderer(props: CustomResourceListProps) {
         ]}
         actions={[
           <Box mr={2}>
-            <Link routeName="crd" params={{ name: crd.metadata.name }}>
+            <Link routeName="crd" params={{ name: crd.metadata.name }} activeCluster={crd.cluster}>
               {t('glossary|CRD: {{ crdName }}', { crdName: crd.metadata.name })}
             </Link>
           </Box>,

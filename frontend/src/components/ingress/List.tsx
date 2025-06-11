@@ -67,7 +67,11 @@ export default function IngressList() {
           getValue: ingress => ingress.spec?.ingressClassName,
           render: ingress =>
             ingress.spec?.ingressClassName ? (
-              <Link routeName="ingressclass" params={{ name: ingress.spec?.ingressClassName }}>
+              <Link
+                routeName="ingressclass"
+                params={{ name: ingress.spec?.ingressClassName }}
+                activeCluster={ingress.cluster}
+              >
                 {ingress.spec?.ingressClassName}
               </Link>
             ) : null,

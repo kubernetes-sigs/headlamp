@@ -15,8 +15,8 @@
  */
 
 import { InlineIcon } from '@iconify/react';
-import { Button } from '@mui/material';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Drawer from '@mui/material/Drawer';
 import Grid from '@mui/material/Grid';
 import List from '@mui/material/List';
@@ -27,8 +27,8 @@ import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { isElectron } from '../../helpers/isElectron';
 import { createRouteURL } from '../../lib/router';
-import { useTypedSelector } from '../../redux/reducers/reducers';
-import { ActionButton } from '../common';
+import { useTypedSelector } from '../../redux/hooks';
+import ActionButton from '../common/ActionButton';
 import CreateButton from '../common/Resource/CreateButton';
 import NavigationTabs from './NavigationTabs';
 import SidebarItem, { SidebarItemProps } from './SidebarItem';
@@ -120,7 +120,7 @@ function SidebarToggleButton() {
           dispatch(setWhetherSidebarOpen(!isOpen));
         }}
         icon={isOpen ? 'mdi:chevron-left-box-outline' : 'mdi:chevron-right-box-outline'}
-        description={t('translation|Collapse Sidebar')}
+        description={isOpen ? t('translation|Shrink sidebar') : t('translation|Expand sidebar')}
       />
     </Box>
   );
@@ -306,11 +306,6 @@ export const PureSidebar = memo(
 
     const contents = (
       <>
-        <Box
-          sx={theme => ({
-            ...theme.mixins.toolbar,
-          })}
-        />
         <Grid
           ref={listContainerRef}
           sx={{
@@ -379,15 +374,22 @@ export const PureSidebar = memo(
       <Box component="nav" aria-label={t('translation|Navigation')}>
         <Drawer
           variant={isTemporaryDrawer ? 'temporary' : 'permanent'}
+          PaperProps={{
+            sx: {
+              position: 'initial',
+            },
+          }}
           sx={theme => {
             const drawer = {
               width: drawerWidth,
               flexShrink: 0,
+              height: '100%',
               background: theme.palette.sidebar.background,
               color: theme.palette.sidebar.color,
             };
 
             const drawerOpen = {
+              zIndex: 1300,
               width: drawerWidth,
               transition: theme.transitions.create('width', {
                 easing: theme.transitions.easing.sharp,

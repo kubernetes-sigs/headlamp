@@ -240,7 +240,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
           return oldResponse;
         }
 
-        const newList = KubeList.applyUpdate(oldResponse.list, update, kubeObjectClass);
+        const newList = KubeList.applyUpdate(oldResponse.list, update, kubeObjectClass, cluster);
 
         // Only update if the list actually changed
         if (newList === oldResponse.list) {
@@ -338,7 +338,12 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
           client.setQueryData(key, (oldResponse: ListResponse<any> | undefined | null) => {
             if (!oldResponse) return oldResponse;
 
-            const newList = KubeList.applyUpdate(oldResponse.list, update, kubeObjectClass);
+            const newList = KubeList.applyUpdate(
+              oldResponse.list,
+              update,
+              kubeObjectClass,
+              cluster
+            );
             return { ...oldResponse, list: newList };
           });
         },

@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { alpha, Box } from '@mui/material';
-import { useTypedSelector } from '../../../redux/reducers/reducers';
+import Box from '@mui/material/Box';
+import { alpha } from '@mui/system/colorManipulator';
+import { useTypedSelector } from '../../../redux/hooks';
 import CRoleIcon from './img/c-role.svg?react';
 import CmIcon from './img/cm.svg?react';
 import CrbIcon from './img/crb.svg?react';
@@ -105,6 +106,7 @@ const kindGroups = {
   configuration: new Set([
     'ConfigMap',
     'Secret',
+    'HorizontalPodAutoscaler',
     'MutatingWebhookConfiguration',
     'ValidatingWebhookConfiguration',
   ]),

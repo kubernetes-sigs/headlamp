@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { without } from 'lodash';
 import { matchPath } from 'react-router';
 import { getBaseUrl } from '../helpers/getBaseUrl';
 import { isElectron } from '../helpers/isElectron';
@@ -67,6 +68,23 @@ export function getClusterPathParam(maybeUrlPath?: string): string | undefined {
 
   return clusterURLMatch?.params?.cluster;
 }
+
+/**
+ * Format cluster path URL parameter
+ *
+ * Cluster parameter contains selected clusters, with the first one being the current one
+ * usually used for details pages.
+ *
+ * @param selectedClusters - list of all selected clusters
+ * @param currentCluster - (optional) cluster name of the current cluster
+ * @returns formatted cluster parameter
+ */
+export const formatClusterPathParam = (selectedClusters: string[], currentCluster?: string) =>
+  (currentCluster
+    ? // Put current cluster as first
+      [currentCluster, ...without(selectedClusters, currentCluster)]
+    : selectedClusters
+  ).join('+');
 
 /**
  * Gets clusters.

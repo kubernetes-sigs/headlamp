@@ -20,7 +20,7 @@ import React from 'react';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { setNamespaceFilter } from '../../redux/filterSlice';
-import { useTypedSelector } from '../../redux/reducers/reducers';
+import { useTypedSelector } from '../../redux/hooks';
 import { NamespacesAutocomplete } from './NamespacesAutocomplete';
 import SectionHeader, { SectionHeaderProps } from './SectionHeader';
 

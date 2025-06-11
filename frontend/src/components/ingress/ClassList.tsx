@@ -16,7 +16,7 @@
 
 import { useTranslation } from 'react-i18next';
 import IngressClass from '../../lib/k8s/ingressClass';
-import { HoverInfoLabel } from '../common';
+import { HoverInfoLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 export default function IngressClassList() {

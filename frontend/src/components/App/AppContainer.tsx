@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { GlobalStyles } from '@mui/material';
+import GlobalStyles from '@mui/material/GlobalStyles';
 import { SnackbarProvider } from 'notistack';
 import React from 'react';
 import { BrowserRouter, HashRouter } from 'react-router-dom';
