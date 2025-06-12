@@ -83,6 +83,8 @@ type HeadlampConfig struct {
 	telemetryConfig           cfg.Config
 	oidcScopes                []string
 	telemetryHandler          *telemetry.RequestHandler
+	tlsCertPath               string
+	tlsKeyPath                string
 }
 
 const DrainNodeCacheTTL = 20 // seconds
@@ -407,6 +409,11 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 	logger.Log(logger.LevelInfo, nil, nil, "Creating Headlamp handler")
 	logger.Log(logger.LevelInfo, nil, nil, "Listen address: "+fmt.Sprintf("%s:%d", config.ListenAddr, config.Port))
+
+	if config.TLSCertPath != "" && config.TLSKeyPath != "" {
+		logger.Log(logger.LevelInfo, nil, nil, "Listening with TLS using "+config.TLSCertPath+" and "+config.TLSKeyPath)
+	}
+
 	logger.Log(logger.LevelInfo, nil, nil, "Kubeconfig path: "+kubeConfigPath)
 	logger.Log(logger.LevelInfo, nil, nil, "Static plugin dir: "+config.StaticPluginDir)
 	logger.Log(logger.LevelInfo, nil, nil, "Plugins dir: "+config.PluginDir)
@@ -1220,15 +1227,18 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	}
 
 	handler := createHeadlampHandler(config)
-
 	handler = config.OIDCTokenRefreshMiddleware(handler)
 
 	addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
 
-	// Start server
-	if err := http.ListenAndServe(addr, handler); err != nil { //nolint:gosec
-		logger.Log(logger.LevelError, nil, err, "Failed to start server")
+	if config.TLSCertPath != "" && config.TLSKeyPath != "" {
+		err = http.ListenAndServeTLS(addr, config.TLSCertPath, config.TLSKeyPath, handler) //nolint:gosec
+	} else {
+		err = http.ListenAndServe(addr, handler) //nolint:gosec
+	}
 
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to start server")
 		HandleServerStartError(&err)
 	}
 }
