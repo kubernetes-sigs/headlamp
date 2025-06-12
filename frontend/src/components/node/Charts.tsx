@@ -20,8 +20,8 @@ import { useTranslation } from 'react-i18next';
 import { KubeMetrics } from '../../lib/k8s/cluster';
 import Node from '../../lib/k8s/node';
 import { getPercentStr, getResourceMetrics, getResourceStr } from '../../lib/util';
-import { TooltipIcon } from '../common';
 import { PercentageBar } from '../common/Chart';
+import { TooltipIcon } from '../common/Tooltip';
 
 interface UsageBarChartProps {
   node: Node;

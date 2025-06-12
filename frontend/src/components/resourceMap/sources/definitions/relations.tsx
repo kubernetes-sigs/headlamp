@@ -19,6 +19,7 @@ import CronJob from '../../../../lib/k8s/cronJob';
 import DaemonSet from '../../../../lib/k8s/daemonSet';
 import Deployment from '../../../../lib/k8s/deployment';
 import Endpoints from '../../../../lib/k8s/endpoints';
+import HPA from '../../../../lib/k8s/hpa';
 import Ingress from '../../../../lib/k8s/ingress';
 import Job from '../../../../lib/k8s/job';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
@@ -32,6 +33,7 @@ import RoleBinding from '../../../../lib/k8s/roleBinding';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import ServiceAccount from '../../../../lib/k8s/serviceAccount';
+import StatefulSet from '../../../../lib/k8s/statefulSet';
 import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
 import { Relation } from '../../graph/graphModel';
 
@@ -99,6 +101,24 @@ const secretsUsedInJobs = makeRelation(Job, Secret, (job, secret) =>
   job.spec.template.spec.containers?.find(container =>
     container.env?.find(env => secret.metadata.name === env.valueFrom?.secretKeyRef?.name)
   )
+);
+
+const hpaToDeployment = makeRelation(
+  HPA,
+  Deployment,
+  (hpa, deployment) =>
+    hpa.spec.scaleTargetRef?.apiVersion === Deployment.apiVersion &&
+    hpa.spec.scaleTargetRef?.kind === Deployment.kind &&
+    hpa.spec.scaleTargetRef?.name === deployment.metadata.name
+);
+
+const hpaToStatefulSet = makeRelation(
+  HPA,
+  StatefulSet,
+  (hpa, statefulSet) =>
+    hpa.spec.scaleTargetRef?.apiVersion === StatefulSet.apiVersion &&
+    hpa.spec.scaleTargetRef?.kind === StatefulSet.kind &&
+    hpa.spec.scaleTargetRef?.name === statefulSet.metadata.name
 );
 
 const vwcToService = makeRelation(ValidatingWebhookConfiguration, Service, (vwc, service) =>
@@ -177,6 +197,8 @@ export const kubeObjectRelations = [
   configMapUsedInJobs,
   secretsUsedInPods,
   secretsUsedInJobs,
+  hpaToDeployment,
+  hpaToStatefulSet,
   vwcToService,
   mwcToService,
   serviceToPods,

@@ -17,7 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import Node from '../../lib/k8s/node';
 import { getResourceMetrics } from '../../lib/util';
-import { HoverInfoLabel } from '../common';
+import { HoverInfoLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { UsageBarChart } from './Charts';
 import { NodeReadyLabel } from './Details';

@@ -29,7 +29,7 @@ import i18n from './i18n/config';
 import { useElectronI18n } from './i18n/electronI18n';
 import ThemeProviderNexti18n from './i18n/ThemeProviderNexti18n';
 import { createMuiTheme, getThemeName, usePrefersColorScheme } from './lib/themes';
-import { useTypedSelector } from './redux/reducers/reducers';
+import { useTypedSelector } from './redux/hooks';
 import store from './redux/stores/store';
 
 function AppWithRedux(props: React.PropsWithChildren<{}>) {

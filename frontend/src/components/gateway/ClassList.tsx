@@ -17,8 +17,10 @@
 import Box from '@mui/material/Box';
 import { useTranslation } from 'react-i18next';
 import GatewayClass from '../../lib/k8s/gatewayClass';
-import { LightTooltip, StatusLabel, StatusLabelProps } from '../common';
+import { StatusLabel } from '../common/Label';
+import { StatusLabelProps } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
+import LightTooltip from '../common/Tooltip/TooltipLight';
 
 export function makeGatewayStatusLabel(conditions: any[] | null) {
   if (!conditions) {

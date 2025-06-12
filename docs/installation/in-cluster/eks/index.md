@@ -137,6 +137,34 @@ config:
 
 Replace `<YOUR-CLIENT-ID>`,`<YOUR-CLIENT-SECRET>`,`<YOUR_REGION_HERE`, `<USER_POOL_ID>` with your specific Cognito user pool app configuration details.
 
+---
+> **ℹ️ Additional Notes for Other OIDC Providers and Ingress Setups**
+>
+> If you're using an OIDC provider other than Cognito (such as JumpCloud, Auth0, or Okta), or if you're deploying Headlamp behind an ingress controller or load balancer (like AWS NLB or ALB), please review the following:
+>
+> **5.1. Redirect URI construction:**  
+> Headlamp automatically builds the `redirect_uri` using the `Host` and `X-Forwarded-Proto` headers. If the `X-Forwarded-Proto` header is missing, the URI may default to `http`, which can cause a mismatch with the URI registered in your identity provider.
+>
+> If you're using NGINX ingress, you can ensure the correct header is forwarded by adding:
+>
+> ```yaml
+> nginx.ingress.kubernetes.io/configuration-snippet: |
+>   proxy_set_header X-Forwarded-Proto $scheme;
+> ```
+>
+> **5.2. Registering the correct redirect URI:**  
+> In your identity provider, make sure to register the exact redirect URI that Headlamp will use. This is typically:
+>
+> ```
+> https://<your-headlamp-domain>/oidc-callback
+> ```
+>
+> **5.3. EKS OIDC trust configuration:**  
+> Even if you're not using Cognito, you must still associate your OIDC provider with your EKS cluster. This allows Kubernetes to validate tokens issued by your provider. Follow the same steps shown earlier in the "Configuring OIDC provider for EKS" section, using your provider's issuer URL and client ID.
+
+
+---
+
 6. Save the `values.yaml` file and Install Headlamp using helm with the following commands:
 
 ```shell

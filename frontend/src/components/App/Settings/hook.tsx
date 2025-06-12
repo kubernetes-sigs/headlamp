@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useTypedSelector } from '../../../redux/reducers/reducers';
+import { useTypedSelector } from '../../../redux/hooks';
 
 export const useSettings = function (settingName?: string) {
   const storeSettingEntries = useTypedSelector(state =>

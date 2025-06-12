@@ -27,12 +27,16 @@ import { useTranslation } from 'react-i18next';
 import { isDockerDesktop } from '../../helpers/isDockerDesktop';
 import { listPortForward, startPortForward, stopOrDeletePortForward } from '../../lib/k8s/apiProxy';
 import { getCluster } from '../../lib/util';
-import { Link, Loader, SectionBox, SimpleTable, StatusLabel } from '../common';
+import { StatusLabel } from '../common/Label';
+import Link from '../common/Link';
+import Loader from '../common/Loader';
 import {
   PORT_FORWARD_RUNNING_STATUS,
   PORT_FORWARD_STOP_STATUS,
   PORT_FORWARDS_STORAGE_KEY,
 } from '../common/Resource/PortForward';
+import SectionBox from '../common/SectionBox';
+import SimpleTable from '../common/SimpleTable';
 
 const enum PortForwardAction {
   Start = 'Start',

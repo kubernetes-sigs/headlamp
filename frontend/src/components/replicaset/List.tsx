@@ -17,8 +17,8 @@
 import { useTranslation } from 'react-i18next';
 import { KubeContainer } from '../../lib/k8s/cluster';
 import ReplicaSet from '../../lib/k8s/replicaSet';
-import { LightTooltip } from '../common';
 import ResourceListView from '../common/Resource/ResourceListView';
+import LightTooltip from '../common/Tooltip/TooltipLight';
 
 export default function ReplicaSetList() {
   const { t } = useTranslation(['glossary', 'translation']);

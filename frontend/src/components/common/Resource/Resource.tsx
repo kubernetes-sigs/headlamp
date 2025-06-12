@@ -46,7 +46,7 @@ import { createRouteURL, RouteURLProps } from '../../../lib/router';
 import { getThemeName } from '../../../lib/themes';
 import { localeDate, useId } from '../../../lib/util';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
-import { useTypedSelector } from '../../../redux/reducers/reducers';
+import { useTypedSelector } from '../../../redux/hooks';
 import { useHasPreviousRoute } from '../../App/RouteSwitcher';
 import { SectionBox } from '../../common/SectionBox';
 import SimpleTable, { NameValueTable } from '../../common/SimpleTable';

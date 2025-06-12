@@ -1287,7 +1287,7 @@
                         class="MuiBox-root css-xi606m"
                       >
                         <button
-                          aria-label="Collapse Sidebar"
+                          aria-label="Expand sidebar"
                           class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-lr7sro-MuiButtonBase-root-MuiIconButton-root"
                           data-mui-internal-clone-element="true"
                           tabindex="0"

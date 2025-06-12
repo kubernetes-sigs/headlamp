@@ -26,9 +26,11 @@ import { parseCpu, parseRam, unparseCpu, unparseRam } from '../../lib/units';
 import { timeAgo } from '../../lib/util';
 import { useNamespaces } from '../../redux/filterSlice';
 import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
-import { LightTooltip, Link, SimpleTableProps } from '../common';
 import { StatusLabel, StatusLabelProps } from '../common/Label';
+import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
+import { SimpleTableProps } from '../common/SimpleTable';
+import LightTooltip from '../common/Tooltip/TooltipLight';
 
 function getPodStatus(pod: Pod) {
   const phase = pod.status.phase;

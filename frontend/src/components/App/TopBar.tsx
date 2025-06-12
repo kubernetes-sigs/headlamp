@@ -40,7 +40,7 @@ import {
   AppBarActionType,
   DefaultAppBarAction,
 } from '../../redux/actionButtonsSlice';
-import { useTypedSelector } from '../../redux/reducers/reducers';
+import { useTypedSelector } from '../../redux/hooks';
 import { uiSlice } from '../../redux/uiSlice';
 import { SettingsButton } from '../App/Settings';
 import { ClusterTitle } from '../cluster/Chooser';

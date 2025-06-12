@@ -25,7 +25,7 @@ import { useParams } from 'react-router-dom';
 import Secret from '../../lib/k8s/secret';
 import { clusterAction } from '../../redux/clusterActionSlice';
 import { AppDispatch } from '../../redux/stores/store';
-import { EmptyContent } from '../common';
+import EmptyContent from '../common/EmptyContent';
 import { DetailsGrid, SecretField } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
 import { NameValueTable, NameValueTableRow } from '../common/SimpleTable';

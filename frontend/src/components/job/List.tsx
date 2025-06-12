@@ -22,8 +22,11 @@ import { KubeContainer } from '../../lib/k8s/cluster';
 import Job from '../../lib/k8s/job';
 import { formatDuration } from '../../lib/util';
 import { useNamespaces } from '../../redux/filterSlice';
-import { LightTooltip, SimpleTableProps, StatusLabel, StatusLabelProps } from '../common';
+import { StatusLabel } from '../common/Label';
+import { StatusLabelProps } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
+import { SimpleTableProps } from '../common/SimpleTable';
+import LightTooltip from '../common/Tooltip/TooltipLight';
 
 export function makeJobStatusLabel(job: Job) {
   if (!job?.status?.conditions) {

@@ -20,10 +20,14 @@ import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import CustomResourceDefinition, { KubeCRD } from '../../lib/k8s/crd';
 import { localeDate } from '../../lib/util';
-import { HoverInfoLabel, Link, NameValueTableRow, ObjectEventList, SectionBox } from '../common';
 import Empty from '../common/EmptyContent';
+import { HoverInfoLabel } from '../common/Label';
+import Link from '../common/Link';
 import Loader from '../common/Loader';
+import { NameValueTableRow } from '../common/NameValueTable';
+import ObjectEventList from '../common/ObjectEventList';
 import { ConditionsTable, MainInfoSection, PageGrid } from '../common/Resource';
+import SectionBox from '../common/SectionBox';
 import DetailsViewSection from '../DetailsViewSection';
 
 export default function CustomResourceDetailsFromURL() {

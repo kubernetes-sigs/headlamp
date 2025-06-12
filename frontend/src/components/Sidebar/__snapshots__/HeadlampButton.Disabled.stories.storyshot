@@ -1,0 +1,23 @@
+<body>
+  <div>
+    <div
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1if9c89-MuiPaper-root"
+    >
+      <div
+        class="MuiBox-root css-0"
+      >
+        <button
+          aria-label="Shrink sidebar"
+          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-1rafjp7-MuiButtonBase-root-MuiButton-root"
+          disabled=""
+          tabindex="-1"
+          type="button"
+        >
+          <div
+            class="MuiBox-root css-19midj6"
+          />
+        </button>
+      </div>
+    </div>
+  </div>
+</body>

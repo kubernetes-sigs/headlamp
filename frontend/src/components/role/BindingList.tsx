@@ -19,8 +19,8 @@ import { useTranslation } from 'react-i18next';
 import ClusterRoleBinding from '../../lib/k8s/clusterRoleBinding';
 import RoleBinding from '../../lib/k8s/roleBinding';
 import { useNamespaces } from '../../redux/filterSlice';
-import { Link } from '../common';
 import LabelListItem from '../common/LabelListItem';
+import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 function RoleLink(props: { role: string; namespace?: string; cluster: string }) {

@@ -146,9 +146,10 @@
                 class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
               >
                 <span
-                  class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
+                  class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
                 >
                   <input
+                    checked=""
                     class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
                     name="drawerMode"
                     type="checkbox"
@@ -496,6 +497,72 @@
                   class="MuiBox-root css-164r41r"
                 >
                   Headlamp classic
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-ba9uxd"
+                role="button"
+                tabindex="0"
+              >
+                <div
+                  class="MuiBox-root css-161eg9d"
+                >
+                  <div
+                    class="MuiBox-root css-1uehyk8"
+                  />
+                  <div
+                    class="MuiBox-root css-1xynfpy"
+                  />
+                  <div
+                    class="MuiBox-root css-okkunh"
+                  />
+                  <div
+                    class="MuiBox-root css-1fzrvd"
+                  />
+                  <div
+                    class="MuiBox-root css-4usmf5"
+                  />
+                  <div
+                    class="MuiBox-root css-44mj8i"
+                  />
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
+                  Lights out
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-ba9uxd"
+                role="button"
+                tabindex="0"
+              >
+                <div
+                  class="MuiBox-root css-1y7ghyx"
+                >
+                  <div
+                    class="MuiBox-root css-zbyu3o"
+                  />
+                  <div
+                    class="MuiBox-root css-1ajpcw4"
+                  />
+                  <div
+                    class="MuiBox-root css-1c66u4w"
+                  />
+                  <div
+                    class="MuiBox-root css-1o70p9j"
+                  />
+                  <div
+                    class="MuiBox-root css-iszuoz"
+                  />
+                  <div
+                    class="MuiBox-root css-8mvqu"
+                  />
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
+                  Monochrome light
                 </div>
               </div>
             </div>

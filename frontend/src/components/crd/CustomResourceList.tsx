@@ -22,11 +22,15 @@ import { useParams } from 'react-router-dom';
 import CRD, { KubeCRD } from '../../lib/k8s/crd';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { localeDate } from '../../lib/util';
-import { CreateResourceButton, Link, Loader, PageGrid, SectionHeader } from '../common';
 import BackLink from '../common/BackLink';
+import { CreateResourceButton } from '../common/CreateResourceButton';
 import Empty from '../common/EmptyContent';
+import Link from '../common/Link';
+import Loader from '../common/Loader';
+import { PageGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { ResourceTableColumn, ResourceTableProps } from '../common/Resource/ResourceTable';
+import SectionHeader from '../common/SectionHeader';
 
 export default function CustomResourceList() {
   const { t } = useTranslation(['glossary', 'translation']);

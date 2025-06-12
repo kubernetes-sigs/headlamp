@@ -18,12 +18,12 @@ import Box from '@mui/material/Box';
 import CircularProgress, { CircularProgressProps } from '@mui/material/CircularProgress';
 import React from 'react';
 
-export interface LoaderProps {
+export interface LoaderProps extends CircularProgressProps {
   noContainer?: boolean;
   title: string;
 }
 
-export default function Loader(props: LoaderProps & CircularProgressProps) {
+export default function Loader(props: LoaderProps) {
   const { noContainer = false, title, ...other } = props;
   const progress = <CircularProgress title={title} {...other} />;
 

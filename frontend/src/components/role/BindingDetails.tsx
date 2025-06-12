@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import ClusterRoleBinding from '../../lib/k8s/clusterRoleBinding';
 import RoleBinding from '../../lib/k8s/roleBinding';
-import { Link } from '../common';
+import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';

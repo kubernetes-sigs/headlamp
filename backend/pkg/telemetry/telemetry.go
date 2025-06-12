@@ -174,7 +174,22 @@ func createSampler(samplingRate float64) trace.Sampler {
 }
 
 // createTracingExporter creates a span exporter based on cfg.
-func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) {
+func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolint:funlen
+	if cfg.StdoutTraceEnabled == nil {
+		defaultValue := false
+		cfg.StdoutTraceEnabled = &defaultValue
+	}
+
+	if cfg.JaegerEndpoint == nil {
+		defaultValue := ""
+		cfg.JaegerEndpoint = &defaultValue
+	}
+
+	if cfg.OTLPEndpoint == nil {
+		defaultValue := ""
+		cfg.OTLPEndpoint = &defaultValue
+	}
+
 	enabledExporters := 0
 
 	var enabledTypes []string

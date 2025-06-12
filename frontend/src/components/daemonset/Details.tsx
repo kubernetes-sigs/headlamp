@@ -17,13 +17,14 @@
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import DaemonSet from '../../lib/k8s/daemonSet';
-import { SectionBox, SimpleTable } from '../common';
 import {
   ContainersSection,
   DetailsGrid,
   MetadataDictGrid,
   OwnedPodsSection,
 } from '../common/Resource';
+import SectionBox from '../common/SectionBox';
+import SimpleTable from '../common/SimpleTable';
 
 interface TolerationsSection {
   resource: DaemonSet;

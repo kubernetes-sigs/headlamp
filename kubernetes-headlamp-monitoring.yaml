@@ -1,0 +1,197 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  namespace: kube-system
+spec:
+  ports:
+    - port: 16686
+      name: ui
+      targetPort: 16686
+    - port: 4317
+      name: otlp-grpc
+      targetPort: 4317
+    - port: 4318
+      name: otlp-http
+      targetPort: 4318
+  selector:
+    app: jaeger
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+    spec:
+      containers:
+        - name: jaeger
+          image: jaegertracing/all-in-one:latest
+          ports:
+            - containerPort: 16686
+              name: ui
+            - containerPort: 4317
+              name: otlp-grpc
+            - containerPort: 4318
+              name: otlp-http
+          env:
+            - name: COLLECTOR_OTLP_ENABLED
+              value: "true"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: kube-system
+data:
+  otel-collector-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: ":4317"
+          http:
+            endpoint: ":4318"
+
+    processors:
+      batch:
+        timeout: 10s
+
+    exporters:
+      jaeger:
+        endpoint: "jaeger:14250"
+        tls:
+          insecure: true
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [jaeger]
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [prometheus]
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector:latest
+          ports:
+            - containerPort: 4317 # OTLP gRPC
+            - containerPort: 4318 # OTLP HTTP
+            - containerPort: 8889 # Prometheus exporter
+          volumeMounts:
+            - name: otel-collector-config
+              mountPath: /etc/otel-collector/config.yaml
+              subPath: otel-collector-config.yaml
+      volumes:
+        - name: otel-collector-config
+          configMap:
+            name: otel-collector-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: kube-system
+spec:
+  ports:
+    - port: 4317
+      name: otlp-grpc
+      targetPort: 4317
+    - port: 4318
+      name: otlp-http
+      targetPort: 4318
+    - port: 8889
+      name: metrics
+      targetPort: 8889
+  selector:
+    app: otel-collector
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: kube-system
+data:
+  prometheus.yml: |
+    scrape_configs:
+      - job_name: 'headlamp'
+        static_configs:
+          - targets: ['headlamp.kube-system.svc.cluster.local:4466']  # Changed to correct service endpoint
+        metrics_path: '/metrics'  # Added explicit metrics path
+      - job_name: 'otel-collector'
+        static_configs:
+          - targets: ['otel-collector:8889']
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:latest
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus/prometheus.yml
+              subPath: prometheus.yml
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: kube-system
+spec:
+  ports:
+    - port: 9090
+      targetPort: 9090
+  selector:
+    app: prometheus

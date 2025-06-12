@@ -23,6 +23,30 @@ The package is organized into three main components:
    - Exporter configuration
    - Context propagation
 
+## Run Monitoring Stack
+
+```bash
+make run-monitoring
+```
+
+## Stop Monitoring Stack
+
+```bash
+make stop-monitoring
+```
+
+## Run Jaeger
+
+```bash
+make run-jaeger
+```
+
+## Run Prometheus
+
+```bash
+make run-prometheus
+```
+
 ## Testing
 
 Run the test suite:

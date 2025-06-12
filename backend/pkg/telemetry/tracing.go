@@ -63,13 +63,19 @@ func EndSpan(ctx context.Context, err error) {
 // It returns the context containing the new span and the span itself.
 // The returned context should be passed to downstream functions to maintain
 // the trace, and the returned span should be ended using EndSpan or span.End().
-func CreateSpan(ctx context.Context, tracerName string,
+func CreateSpan(ctx context.Context, r *http.Request, tracerName string,
 	operationName string, attributes ...attribute.KeyValue,
 ) (context.Context, trace.Span) {
 	ctx, span := otel.Tracer(tracerName).Start(
 		ctx,
 		operationName,
-		trace.WithAttributes(attributes...),
+		trace.WithAttributes(
+			append(
+				attributes,
+				attribute.String("request.method", r.Method),
+				attribute.String("http.path", r.URL.Path),
+			)...,
+		),
 	)
 
 	return ctx, span

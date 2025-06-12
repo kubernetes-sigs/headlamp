@@ -16,7 +16,9 @@
 
 import { useTranslation } from 'react-i18next';
 import { GatewayParentReference } from '../../lib/k8s/gateway';
-import { Link, SectionBox, SimpleTable } from '../common';
+import Link from '../common/Link';
+import SectionBox from '../common/SectionBox';
+import SimpleTable from '../common/SimpleTable';
 
 export function GatewayParentRefSection(props: { parentRefs: GatewayParentReference[] }) {
   const { parentRefs } = props;

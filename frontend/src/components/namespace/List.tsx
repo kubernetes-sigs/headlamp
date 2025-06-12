@@ -19,8 +19,8 @@ import { useTranslation } from 'react-i18next';
 import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { useCluster } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
-import { Link } from '../common';
 import { StatusLabel } from '../common/Label';
+import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
 import {
   ResourceTableFromResourceClassProps,

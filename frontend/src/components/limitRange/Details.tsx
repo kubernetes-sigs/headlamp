@@ -19,7 +19,8 @@ import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 import { LimitRange } from '../../lib/k8s/limitRange';
-import { DetailsGrid, MetadataDictGrid } from '../common';
+import { DetailsGrid } from '../common/Resource';
+import { MetadataDictGrid } from '../common/Resource';
 
 export function LimitRangeDetails(props: { name?: string; namespace?: string; cluster?: string }) {
   const params = useParams<{ namespace: string; name: string }>();

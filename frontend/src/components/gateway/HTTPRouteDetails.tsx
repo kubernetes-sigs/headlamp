@@ -17,7 +17,9 @@
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import HTTPRoute, { HTTPRouteRule } from '../../lib/k8s/httpRoute';
-import { EmptyContent, LabelListItem, NameValueTable } from '../common';
+import EmptyContent from '../common/EmptyContent';
+import LabelListItem from '../common/LabelListItem';
+import NameValueTable from '../common/NameValueTable';
 import { DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 import { GatewayParentRefSection } from './utils';

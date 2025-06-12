@@ -20,8 +20,8 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { setDetailDrawerEnabled } from '../../../redux/drawerModeSlice';
-import { useTypedSelector } from '../../../redux/reducers/reducers';
-import { TooltipIcon } from '../../common';
+import { useTypedSelector } from '../../../redux/hooks';
+import { TooltipIcon } from '../../common/Tooltip';
 
 export default function DrawerModeSettings() {
   const dispatch = useDispatch();

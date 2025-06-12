@@ -22,8 +22,8 @@ import { useTranslation } from 'react-i18next';
 import { ApiError } from '../../lib/k8s/apiProxy';
 import ResourceQuota from '../../lib/k8s/resourceQuota';
 import { useNamespaces } from '../../redux/filterSlice';
-import { SimpleTableProps } from '../common';
 import ResourceListView from '../common/Resource/ResourceListView';
+import { SimpleTableProps } from '../common/SimpleTable';
 
 const WrappingBox = styled(Box)(({ theme }) => ({
   display: 'flex',

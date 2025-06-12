@@ -3,6 +3,7 @@ package kubeconfig_test
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -84,6 +85,59 @@ func TestLoadContextsFromKubeConfigFile(t *testing.T) {
 		require.Equal(t, 1, len(contexts), "Expected 1 contexts from the partially valid file")
 		require.Equal(t, "valid-context", contexts[0].Name, "Expected context name to be 'valid-context'")
 	})
+}
+
+// TestLoadContextFromFile validates the behavior of the LoadContextsFromFile function.
+//
+// This test ensures that the function correctly processes a valid kubeconfig file
+// and produces the expected metadata results without errors.
+func TestLoadContextFromFile(t *testing.T) {
+	kubeConfigFile := "./test_data/kubeconfig_metadata"
+
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig)
+
+	require.NoError(t, err, "Expected no error for valid file")
+	require.Empty(t, contextErrors, "Expected no context errors for valid file")
+	require.Equal(t, 2, len(contexts), "Expected 3 contexts from valid file")
+
+	expectedNames := []string{"random-cluster-x", "random-cluster-y", ""}
+	expectedClusterIDs := []string{
+		fmt.Sprintf("%s+%s", kubeConfigFile, "random-cluster-x"),
+		fmt.Sprintf("%s+%s", kubeConfigFile, "random-cluster-y"),
+	}
+
+	for _, ctx := range contexts {
+		assert.NotEmpty(t, ctx.Name, "Expected non-empty context name")
+		assert.Contains(t, expectedNames, ctx.Name, "Unexpected context name")
+		assert.Contains(t, expectedClusterIDs, ctx.ClusterID, "Unexpected ClusterID")
+		assert.Equal(t, kubeConfigFile, ctx.KubeConfigPath, "Unexpected kubeconfig path")
+		assert.Equal(t, fmt.Sprintf("%s+%s", kubeConfigFile, ctx.Name), ctx.ClusterID, "Unexpected ClusterID")
+	}
+}
+
+// TestLoadContextsWithDuplicateNames validates the behavior of the LoadContextsFromMultipleFiles function.
+func TestLoadContextsWithDuplicateNames(t *testing.T) {
+	// Simulate two kubeconfig files with duplicate context names
+	kubeConfigFile1 := "./test_data/kubeconfig_metadata"
+	kubeConfigFile2 := "./test_data/kubeconfig_metadata_duplicate"
+
+	// Both files have a context named "random-cluster-x"
+	combined := kubeConfigFile1 + string(os.PathListSeparator) + kubeConfigFile2
+
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromMultipleFiles(combined, kubeconfig.KubeConfig)
+	require.NoError(t, err, "Expected no error for valid file")
+	require.Empty(t, contextErrors, "Expected no context errors for valid file")
+
+	// Should load both contexts, even if names are the same, but may overwrite in store
+	var count int
+
+	for _, ctx := range contexts {
+		if ctx.Name == "random-cluster-x" {
+			count++
+		}
+	}
+
+	assert.Equal(t, 2, count, "Expected 2 contexts with the same name")
 }
 
 func TestContext(t *testing.T) {

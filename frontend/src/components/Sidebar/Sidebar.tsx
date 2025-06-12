@@ -27,8 +27,8 @@ import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { isElectron } from '../../helpers/isElectron';
 import { createRouteURL } from '../../lib/router';
-import { useTypedSelector } from '../../redux/reducers/reducers';
-import { ActionButton } from '../common';
+import { useTypedSelector } from '../../redux/hooks';
+import ActionButton from '../common/ActionButton';
 import CreateButton from '../common/Resource/CreateButton';
 import NavigationTabs from './NavigationTabs';
 import SidebarItem, { SidebarItemProps } from './SidebarItem';
@@ -120,7 +120,7 @@ function SidebarToggleButton() {
           dispatch(setWhetherSidebarOpen(!isOpen));
         }}
         icon={isOpen ? 'mdi:chevron-left-box-outline' : 'mdi:chevron-right-box-outline'}
-        description={t('translation|Collapse Sidebar')}
+        description={isOpen ? t('translation|Shrink sidebar') : t('translation|Expand sidebar')}
       />
     </Box>
   );

@@ -1,0 +1,101 @@
+<body>
+  <div>
+    <div
+      style="padding: 20px; background-color: rgb(245, 245, 245);"
+    >
+      <nav
+        aria-label="Main Navigation"
+        class="MuiBox-root css-1qm1lh"
+      >
+        <div
+          class="MuiTabs-root css-4u6pf8-MuiTabs-root"
+        >
+          <div
+            class="MuiTabs-scrollableX MuiTabs-hideScrollbar css-oqr85h"
+            style="width: 99px; height: 99px; position: absolute; top: -9999px; overflow: scroll;"
+          />
+          <div
+            class="MuiTabs-scroller MuiTabs-hideScrollbar MuiTabs-scrollableX css-69z67c-MuiTabs-scroller"
+            style="margin-bottom: 0px;"
+          >
+            <div
+              aria-label="Navigation Tabs"
+              class="MuiTabs-flexContainer css-heg063-MuiTabs-flexContainer"
+              role="tablist"
+            >
+              <button
+                aria-controls="full-width-tabpanel-0-NavigationTabs-tabs-id"
+                aria-selected="true"
+                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-f00lt7-MuiButtonBase-root-MuiTab-root"
+                id="full-width-tab-0-NavigationTabs-tabs-id"
+                role="tab"
+                tabindex="0"
+                type="button"
+              >
+                Cluster
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-controls="full-width-tabpanel-1-NavigationTabs-tabs-id"
+                aria-selected="false"
+                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
+                id="full-width-tab-1-NavigationTabs-tabs-id"
+                role="tab"
+                tabindex="-1"
+                type="button"
+              >
+                Namespaces
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-controls="full-width-tabpanel-2-NavigationTabs-tabs-id"
+                aria-selected="false"
+                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
+                id="full-width-tab-2-NavigationTabs-tabs-id"
+                role="tab"
+                tabindex="-1"
+                type="button"
+              >
+                Nodes
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+            </div>
+            <span
+              class="MuiTabs-indicator css-1s2zz1g-MuiTabs-indicator"
+              style="left: 0px; width: 0px;"
+            />
+          </div>
+        </div>
+        <div
+          aria-labelledby="full-width-tab-0-NavigationTabs-tabs-id"
+          class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+          id="full-width-tabpanel-0-NavigationTabs-tabs-id"
+          role="tabpanel"
+        />
+        <div
+          aria-labelledby="full-width-tab-1-NavigationTabs-tabs-id"
+          class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+          hidden=""
+          id="full-width-tabpanel-1-NavigationTabs-tabs-id"
+          role="tabpanel"
+        />
+        <div
+          aria-labelledby="full-width-tab-2-NavigationTabs-tabs-id"
+          class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+          hidden=""
+          id="full-width-tabpanel-2-NavigationTabs-tabs-id"
+          role="tabpanel"
+        />
+        <hr
+          class="MuiDivider-root MuiDivider-fullWidth css-9mgopn-MuiDivider-root"
+        />
+      </nav>
+    </div>
+  </div>
+</body>

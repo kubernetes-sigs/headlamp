@@ -25,7 +25,10 @@ import NetworkPolicy, {
   NetworkPolicyIngressRule,
   NetworkPolicyPort,
 } from '../../lib/k8s/networkpolicy';
-import { DetailsGrid, metadataStyles, NameValueTable, SectionBox } from '../common';
+import NameValueTable from '../common/NameValueTable';
+import { DetailsGrid } from '../common/Resource';
+import { metadataStyles } from '../common/Resource';
+import SectionBox from '../common/SectionBox';
 
 export function NetworkPolicyDetails(props: {
   name?: string;

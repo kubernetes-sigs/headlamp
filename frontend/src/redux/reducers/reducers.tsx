@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-import { TypedUseSelectorHook, useSelector } from 'react-redux';
 import { combineReducers } from 'redux';
 import notificationsReducer from '../../components/App/Notifications/notificationsSlice';
 import themeReducer from '../../components/App/themeSlice';
-import { graphViewSlice } from '../../components/resourceMap/graphViewSlice';
+import graphViewReducer from '../../components/resourceMap/graphViewSlice';
 import pluginsReducer from '../../plugin/pluginsSlice';
 import actionButtons from '../actionButtonsSlice';
 import clusterAction from '../clusterActionSlice';
@@ -29,7 +28,7 @@ import filterReducer from '../filterSlice';
 import eventCallbackReducer from '../headlampEventSlice';
 import overviewChartsReducer from '../overviewChartsSlice';
 import routesReducer from '../routesSlice';
-import { uiSlice } from '../uiSlice';
+import uiReducer from '../uiSlice';
 import resourceTableReducer from './../../components/common/Resource/resourceTableSlice';
 import detailsViewSectionReducer from './../../components/DetailsViewSection/detailsViewSectionSlice';
 import sidebarReducer from './../../components/Sidebar/sidebarSlice';
@@ -37,7 +36,7 @@ import pluginConfigReducer from './../../plugin/pluginConfigSlice';
 
 const reducers = combineReducers({
   filter: filterReducer,
-  ui: uiSlice.reducer,
+  ui: uiReducer,
   clusterAction: clusterAction,
   config: configReducer,
   plugins: pluginsReducer,
@@ -53,12 +52,10 @@ const reducers = combineReducers({
   pluginConfigs: pluginConfigReducer,
   overviewCharts: overviewChartsReducer,
   drawerMode: drawerModeSlice,
-  graphView: graphViewSlice.reducer,
+  graphView: graphViewReducer,
   clusterProvider: clusterProviderReducer,
 });
 
 export type RootState = ReturnType<typeof reducers>;
-
-export const useTypedSelector: TypedUseSelectorHook<RootState> = useSelector;
 
 export default reducers;

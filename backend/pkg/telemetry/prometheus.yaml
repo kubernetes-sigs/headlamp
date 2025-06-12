@@ -1,0 +1,4 @@
+scrape_configs:
+  - job_name: "headlamp-server"
+    static_configs:
+      - targets: ["localhost:4466"]

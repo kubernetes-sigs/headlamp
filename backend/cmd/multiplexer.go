@@ -364,7 +364,7 @@ func (m *Multiplexer) dialWebSocket(
 	}
 
 	if token != nil {
-		headers.Set("Authorization", "Bearer"+*token)
+		headers.Set("Authorization", "Bearer "+*token)
 	}
 
 	conn, resp, err := dialer.Dial(

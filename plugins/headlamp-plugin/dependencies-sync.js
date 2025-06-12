@@ -44,6 +44,10 @@ const dependenciesFrontDoesNotHave = new Set([
   'tmp',
   'vite-plugin-css-injected-by-js',
   'vite-plugin-static-copy',
+  '@storybook/addon-webpack5-compiler-swc',
+  '@storybook/react-webpack5',
+  'is-mergeable-object',
+  'ts-loader',
 ]);
 
 // Dependencies from frontend/package.json that aren't wanted by headlamp-plugin.

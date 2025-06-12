@@ -1359,7 +1359,7 @@
                         class="MuiBox-root css-s2uf1z"
                       >
                         <button
-                          aria-label="Collapse Sidebar"
+                          aria-label="Shrink sidebar"
                           class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-lr7sro-MuiButtonBase-root-MuiIconButton-root"
                           data-mui-internal-clone-element="true"
                           tabindex="0"

@@ -20,7 +20,8 @@ import { DEFAULT_NODE_SHELL_NAMESPACE, loadClusterSettings } from '../../helpers
 import { getCluster } from '../../lib/cluster';
 import Node from '../../lib/k8s/node';
 import Pod from '../../lib/k8s/pod';
-import { ActionButton, AuthVisible } from '../common';
+import ActionButton from '../common/ActionButton';
+import { AuthVisible } from '../common/Resource';
 import { NodeShellTerminal } from './NodeShellTerminal';
 
 interface NodeShellTerminalProps {

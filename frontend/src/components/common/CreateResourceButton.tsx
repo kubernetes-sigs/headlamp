@@ -17,7 +17,9 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { KubeObjectClass } from '../../lib/k8s/cluster';
-import { ActionButton, AuthVisible, EditorDialog } from '../common';
+import ActionButton from '../common/ActionButton';
+import { AuthVisible } from '../common/Resource';
+import { EditorDialog } from '../common/Resource';
 
 export interface CreateResourceButtonProps {
   resourceClass: KubeObjectClass;

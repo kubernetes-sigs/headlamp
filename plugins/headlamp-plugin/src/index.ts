@@ -26,28 +26,39 @@ import * as ApiProxy from './lib/k8s/apiProxy';
 import * as Notification from './lib/notification';
 import * as Router from './lib/router';
 import * as Utils from './lib/util';
+import { ConfigStore } from './plugin/configStore';
 import { Headlamp, Plugin } from './plugin/lib';
 import { PluginSettingsDetailsProps } from './plugin/pluginsSlice';
 import Registry, {
   AppLogoProps,
+  clusterAction,
   ClusterChooserProps,
   DefaultSidebars,
   DetailsViewDefaultHeaderActions,
   DetailsViewSectionProps,
   getHeadlampAPIHeaders,
+  PluginManager,
+  registerAddClusterProvider,
   registerAppBarAction,
   registerAppLogo,
+  registerAppTheme,
   registerClusterChooser,
+  registerClusterProviderDialog,
+  registerClusterProviderMenuItem,
   registerDetailsViewHeaderAction,
   registerDetailsViewHeaderActionsProcessor,
   registerDetailsViewSection,
   registerGetTokenFunction,
+  registerKindIcon,
+  registerMapSource,
   registerPluginSettings,
   registerResourceTableColumnsProcessor,
   registerRoute,
   registerRouteFilter,
   registerSidebarEntry,
   registerSidebarEntryFilter,
+  registerUIPanel,
+  runCommand,
 } from './plugin/registry';
 
 // We export k8s (lowercase) since someone may use it as we do in the Headlamp source code.
@@ -77,6 +88,17 @@ export {
   registerGetTokenFunction,
   registerResourceTableColumnsProcessor,
   registerPluginSettings,
+  clusterAction,
+  runCommand,
+  registerAddClusterProvider,
+  registerClusterProviderDialog,
+  registerClusterProviderMenuItem,
+  ConfigStore,
+  registerKindIcon,
+  registerMapSource,
+  PluginManager,
+  registerUIPanel,
+  registerAppTheme,
 };
 
 export type {

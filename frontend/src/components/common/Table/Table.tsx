@@ -347,6 +347,21 @@ export default function Table<RowItem extends Record<string, any>>({
     },
   });
 
+  // Hide actions column when others are hidden
+  useEffect(() => {
+    const visibility = table.getState().columnVisibility || {};
+
+    const shouldHideActions = tableColumns
+      .filter(col => (col.id ?? '') !== 'actions')
+      .every(col => visibility[col.id ?? ''] === false);
+
+    if (shouldHideActions && visibility['actions'] !== false) {
+      table.setColumnVisibility(prev => ({ ...prev, actions: false }));
+    } else if (!shouldHideActions && visibility['actions'] === false) {
+      table.setColumnVisibility(prev => ({ ...prev, actions: true }));
+    }
+  }, [table.getState().columnVisibility, tableColumns, table]);
+
   const gridTemplateColumns = useMemo(() => {
     let preGridTemplateColumns = tableProps.columns
       .filter((it, i) => {

@@ -23,7 +23,9 @@ import Gateway, {
   GatewayListenerStatus,
   GatewayStatusAddress,
 } from '../../lib/k8s/gateway';
-import { EmptyContent, StatusLabel, StatusLabelProps } from '../common';
+import EmptyContent from '../common/EmptyContent';
+import { StatusLabel } from '../common/Label';
+import { StatusLabelProps } from '../common/Label';
 import Link from '../common/Link';
 import { ConditionsTable, DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
