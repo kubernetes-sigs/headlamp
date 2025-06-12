@@ -263,6 +263,12 @@ spec:
             {{- with .Values.config.baseURL }}
             - "-base-url={{ . }}"
             {{- end }}
+            {{- with .Values.config.tlsCertPath }}
+            - "-tls-cert-path={{ . }}"
+            {{- end }}
+            {{- with .Values.config.tlsKeyPath }}
+            - "-tls-key-path={{ . }}"
+            {{- end }}
             {{- with .Values.config.extraArgs }}
               {{- toYaml . | nindent 12 }}
             {{- end }}

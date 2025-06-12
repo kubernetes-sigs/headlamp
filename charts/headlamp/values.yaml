@@ -97,6 +97,8 @@ config:
   # -- directory to look for plugins
   pluginsDir: "/headlamp/plugins"
   watchPlugins: false
+  # tlsCertPath: "/headlamp-cert/headlamp-ca.crt"
+  # tlsKeyPath: "/headlamp-cert/headlamp-tls.key"
   # Extra arguments that can be given to the container. See charts/headlamp/README.md for more information.
   extraArgs: []
 

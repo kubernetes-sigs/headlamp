@@ -377,6 +377,8 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	logger.Log(logger.LevelInfo, nil, nil, "Dynamic clusters support: "+fmt.Sprint(config.EnableDynamicClusters))
 	logger.Log(logger.LevelInfo, nil, nil, "Helm support: "+fmt.Sprint(config.EnableHelm))
 	logger.Log(logger.LevelInfo, nil, nil, "Proxy URLs: "+fmt.Sprint(config.ProxyURLs))
+	logger.Log(logger.LevelInfo, nil, nil, "TLS certificate path: "+config.TLSCertPath)
+	logger.Log(logger.LevelInfo, nil, nil, "TLS key path: "+config.TLSKeyPath)
 
 	plugins.PopulatePluginsCache(config.StaticPluginDir, config.PluginDir, config.cache)
 
@@ -1095,15 +1097,18 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	}
 
 	handler := createHeadlampHandler(config)
-
 	handler = config.OIDCTokenRefreshMiddleware(handler)
 
 	addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
 
-	// Start server
-	if err := http.ListenAndServe(addr, handler); err != nil { //nolint:gosec
-		logger.Log(logger.LevelError, nil, err, "Failed to start server")
+	if config.TLSCertPath != "" && config.TLSKeyPath != "" {
+		err = http.ListenAndServeTLS(addr, config.TLSCertPath, config.TLSKeyPath, handler) //nolint:gosec
+	} else {
+		err = http.ListenAndServe(addr, handler) //nolint:gosec
+	}
 
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to start server")
 		HandleServerStartError(&err)
 	}
 }

@@ -56,6 +56,9 @@ type Config struct {
 	UseOTLPHTTP        *bool    `koanf:"use-otlp-http"`
 	StdoutTraceEnabled *bool    `koanf:"stdout-trace-enabled"`
 	SamplingRate       *float64 `koanf:"sampling-rate"`
+	// TLS config
+	TLSCertPath string `koanf:"tls-cert-path"`
+	TLSKeyPath  string `koanf:"tls-key-path"`
 }
 
 func (c *Config) Validate() error {
@@ -353,6 +356,9 @@ func flagset() *flag.FlagSet {
 	f.Bool("use-otlp-http", false, "Use HTTP instead of gRPC for OTLP export")
 	f.Bool("stdout-trace-enabled", false, "Enable tracing output to stdout")
 	f.Float64("sampling-rate", 1.0, "Sampling rate for traces")
+	// TLS flags
+	f.String("tls-cert-path", "", "Certificate for serving TLS")
+	f.String("tls-key-path", "", "Key for serving TLS")
 
 	return f
 }
