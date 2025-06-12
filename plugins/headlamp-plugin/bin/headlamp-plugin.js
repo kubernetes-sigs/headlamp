@@ -1697,7 +1697,7 @@ yargs(process.argv.slice(2))
 async function validateArtifactHub(file) {
   const yaml = require('js-yaml');
   const Ajv = require('ajv');
-  const schemaPath = require('path').resolve(__dirname, '../artifacthub-pkg.schema.json');
+  const schemaPath = require('path').resolve(__dirname, '../config/artifacthub-pkg.schema.json');
   let data, schema;
   // 1. Load and parse YAML file
   try {
@@ -1746,4 +1746,3 @@ async function validateArtifactHub(file) {
     return 2;
   }
 }
-
