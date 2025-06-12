@@ -606,8 +606,11 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 		oidcAuthConfig, err := kContext.OidcConfig()
 		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
-				err, "failed to get oidc config")
+			// Avoid the noise in the pod log while accessing Headlamp using Service Token
+			if config.oidcIdpIssuerURL != "" {
+				logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+					err, "failed to get oidc config")
+			}
 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
