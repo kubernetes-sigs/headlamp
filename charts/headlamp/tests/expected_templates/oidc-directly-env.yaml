@@ -57,10 +57,10 @@ spec:
   type: ClusterIP
   
   ports:
-    - port: 80
-      targetPort: http
+    - port: 443
+      targetPort: https
       protocol: TCP
-      name: http
+      name: https
   selector:
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
@@ -128,16 +128,18 @@ spec:
             # Check if scopes are non empty either from env or oidc.config
             - "-oidc-scopes=$(OIDC_SCOPES)"
           ports:
-            - name: http
+            - name: https
               containerPort: 4466
               protocol: TCP
           livenessProbe:
             httpGet:
               path: "/"
-              port: http
+              port: https
+              scheme: HTTPS
           readinessProbe:
             httpGet:
               path: "/"
-              port: http
+              port: https
+              scheme: HTTPS
           resources:
             {}
