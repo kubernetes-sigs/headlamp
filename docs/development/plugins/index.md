@@ -38,3 +38,5 @@ project or within a Headlamp fork. Such a setup would require always
 rebuilding/maintaining Headlamp when changing a plugin.
 
 Learn [how to create a Headlamp plugin](./building.md).
+
+Learn how to leverage AI assistants for plugin development using pre-generated context files: [AI-Assisted Plugin Development](./ai-assisted-development.md).
