@@ -25,6 +25,7 @@ export default function DaemonSetList() {
 
   return (
     <ResourceListView
+      reflectInURL
       title={t('Daemon Sets')}
       resourceClass={DaemonSet}
       columns={[
