@@ -16,7 +16,6 @@
 
 import { ComponentType, ReactNode } from 'react';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-
 export type GraphNode = {
   /**
    * Unique ID for this node.
@@ -52,6 +51,8 @@ export type GraphNode = {
   weight?: number;
   /** Any custom data */
   data?: any;
+  /** CustomResourceDefinition for this node */
+  customResourceDefinition?: string;
 };
 
 /**
