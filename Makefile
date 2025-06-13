@@ -3,12 +3,14 @@ export GO111MODULE
 
 SERVER_EXE_EXT ?=
 DOCKER_CMD ?= docker
+DOCKER_BUILDX_CMD ?= buildx
 DOCKER_REPO ?= ghcr.io/headlamp-k8s
 DOCKER_EXT_REPO ?= docker.io/headlamp
 DOCKER_IMAGE_NAME ?= headlamp
 DOCKER_PLUGINS_IMAGE_NAME ?= plugins
 DOCKER_IMAGE_VERSION ?= $(shell git describe --tags --always --dirty)
 DOCKER_PLATFORM ?= local
+DOCKER_PUSH ?= false
 
 ifeq ($(OS), Windows_NT)
 	SERVER_EXE_EXT = .exe
@@ -175,26 +177,28 @@ image:
 	else \
 		BUILD_ARG=""; \
 	fi; \
-	$(DOCKER_CMD) buildx build \
+	$(DOCKER_CMD) $(DOCKER_BUILDX_CMD) build \
 	--pull \
 	--platform=$(DOCKER_PLATFORM) \
 	$$BUILD_ARG \
+	--push=$(DOCKER_PUSH) \
 	-t $(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):$(DOCKER_IMAGE_VERSION) -f \
 	Dockerfile \
 	.
 
 .PHONY: build-plugins-container
 build-plugins-container:
-	$(DOCKER_CMD) buildx build \
+	$(DOCKER_CMD) $(DOCKER_BUILDX_CMD) build \
 	--pull \
 	--platform=linux/amd64 \
+	--push=$(DOCKER_PUSH) \
 	-t $(DOCKER_REPO)/$(DOCKER_PLUGINS_IMAGE_NAME):$(DOCKER_IMAGE_VERSION) -f \
 	Dockerfile.plugins \
 	.
 
 docker-ext:
 	$(eval LATEST_TAG=$(shell git tag --list --sort=version:refname 'v*' | tail -1 | sed 's/^.//'))
-	$(DOCKER_CMD) buildx build \
+	$(DOCKER_CMD) $(DOCKER_BUILDX_CMD) build \
 	--platform=linux/amd64,linux/arm64 \
 	--push \
 	-t $(DOCKER_EXT_REPO)/$(DOCKER_IMAGE_NAME)-docker-extension:${LATEST_TAG} \
