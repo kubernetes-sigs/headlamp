@@ -1,0 +1,9 @@
+<body>
+  <div>
+    <span
+      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+    >
+      This is a very long value string to observe how it behaves with word breaks and potential wrapping within its container, especially focusing on the `wordBreak: break-word` style.
+    </span>
+  </div>
+</body>
