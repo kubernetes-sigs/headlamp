@@ -62,6 +62,9 @@ const dependenciesToNotCopy = [
   'eslint-plugin-license-header',
 ];
 
+// Dependency that can have different versions
+const dontCheckVersion = ['vite'];
+
 const yargs = require('yargs/yargs');
 const fs = require('fs-extra');
 const headlampPluginPkg = require('./package.json');
@@ -185,6 +188,8 @@ function updateDependencies(packageJsonPath, checkOnly) {
     const changed = [];
 
     for (const [key, value] of Object.entries(dependencies)) {
+      if (dontCheckVersion.includes(key)) continue;
+
       if (dependenciesFront[key] !== undefined && dependenciesFront[key] !== value) {
         changed.push({ name: key, frontend: dependenciesFront[key], headlampPlugin: value });
         dependencies[key] = dependenciesFront[key];
