@@ -118,6 +118,7 @@ export function JobsListRenderer(props: JobsListRendererProps) {
           id: 'completions',
           label: t('Completions'),
           gridTemplate: 'min-content',
+          disableFiltering: true,
           getValue: job => getCompletions(job),
           sort: sortByCompletions,
         },
