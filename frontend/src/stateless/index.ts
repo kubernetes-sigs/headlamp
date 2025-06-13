@@ -453,9 +453,13 @@ export async function fetchStatelessClusterKubeConfigs(dispatch: any) {
 /**
  * deleteClusterKubeconfig deletes the kubeconfig for a stateless cluster from indexedDB
  * @param clusterName - The name of the cluster
+ * @param clusterID The ID for a cluster, composed of the kubeconfig path and cluster name
  * @returns A promise that resolves with the kubeconfig, or null if not found.
  */
-export async function deleteClusterKubeconfig(clusterName: string): Promise<string | null> {
+export async function deleteClusterKubeconfig(
+  clusterName: string,
+  clusterID?: string
+): Promise<string | null> {
   return new Promise<string | null>(async (resolve, reject) => {
     try {
       const request = indexedDB.open('kubeconfigs', 1) as any;
@@ -484,12 +488,10 @@ export async function deleteClusterKubeconfig(clusterName: string): Promise<stri
             const kubeconfig = kubeconfigObject.kubeconfig;
 
             const parsedKubeconfig = jsyaml.load(atob(kubeconfig)) as KubeconfigObject;
-            // Find the context with the matching cluster name or custom name in headlamp_info
-            const matchingKubeconfig = parsedKubeconfig.contexts.find(
-              context =>
-                context.name === clusterName ||
-                context.context.extensions?.find(extension => extension.name === 'headlamp_info')
-                  ?.extension.customName === clusterName
+            const { matchingKubeconfig } = findMatchingContexts(
+              clusterName,
+              parsedKubeconfig,
+              clusterID
             );
 
             if (matchingKubeconfig) {
