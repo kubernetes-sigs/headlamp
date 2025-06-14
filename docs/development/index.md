@@ -19,6 +19,16 @@ These are the required dependencies to get started. Other dependencies are pulle
 - [Make](https://www.gnu.org/software/make/) (GNU). Often installed by default. On Windows this can be installed with the "chocolatey" package manager that is installed with node.
 - [Kubernetes](https://kubernetes.io/), we suggest [minikube](https://minikube.sigs.k8s.io/docs/) as one good K8s installation for testing locally. Other k8s installations are supported (see [platforms](../platforms.md).
 
+## Run the app
+
+`npm start`
+
+This will run back the backend, the frontend in development mode, and the app in development mode.
+
+This is the quickest way to get started and see if everything is working. It may take a while to get going the first time as it installs things and warms up.
+
+See below for running the frontend and backend separately to work in the web browser which is more convenient than developing in the app.
+
 ## Build the code
 
 Headlamp is composed of a `backend` and a `frontend`.
