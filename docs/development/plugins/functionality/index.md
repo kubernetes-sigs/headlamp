@@ -187,7 +187,7 @@ After registering your theme it will be available in the General Settings, under
 
 ### UI Panels
 
-Register a side panel using [reigsterUIPanel](../../api/plugin/registry/function/registeruipanel).
+Register a side panel using [registerUIPanel](../../api/plugin/registry/functions/registerUIPanel).
 Side panel is a UI element that renders on one side of the application, you can define more than panel per side.
 Each panel should have a unique ID, a side (top, left, right, bottom) and a React component to render.
 
