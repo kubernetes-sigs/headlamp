@@ -32,7 +32,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -860,23 +859,6 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	return r
 }
 
-func parseClusterAndToken(r *http.Request) (string, string) {
-	cluster := ""
-	re := regexp.MustCompile(`^/clusters/([^/]+)/.*`)
-	urlString := r.URL.RequestURI()
-
-	matches := re.FindStringSubmatch(urlString)
-	if len(matches) > 1 {
-		cluster = matches[1]
-	}
-
-	// get token
-	token := r.Header.Get("Authorization")
-	token = strings.TrimPrefix(token, "Bearer ")
-
-	return cluster, token
-}
-
 func getExpiryTime(payload map[string]interface{}) (time.Time, error) {
 	exp, ok := payload["exp"].(float64)
 	if !ok {
@@ -1123,7 +1105,7 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 		}
 
 		// parse cluster and token
-		cluster, token := parseClusterAndToken(r)
+		cluster, token := auth.ParseClusterAndToken(r)
 		if c.shouldBypassOIDCRefresh(cluster, token, w, r, span, ctx, start, next) {
 			return
 		}
