@@ -185,7 +185,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
       {
         name: 'network',
         label: t('glossary|Network'),
-        icon: 'mdi:lan',
+        icon: 'mdi:folder-network-outline',
         subList: [
           {
             name: 'services',
