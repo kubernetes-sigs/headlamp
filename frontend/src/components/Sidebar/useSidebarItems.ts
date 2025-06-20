@@ -235,6 +235,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'grpcroutes',
             label: t('glossary|GRPC Routes'),
           },
+          {
+            name: 'referencegrants',
+            label: t('glossary|Reference Grants'),
+          },
         ],
       },
       {

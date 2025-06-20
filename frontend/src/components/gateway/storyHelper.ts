@@ -18,6 +18,7 @@ import { KubeGateway } from '../../lib/k8s/gateway';
 import { KubeGatewayClass } from '../../lib/k8s/gatewayClass';
 import { KubeGRPCRoute } from '../../lib/k8s/grpcRoute';
 import { KubeHTTPRoute } from '../../lib/k8s/httpRoute';
+import { KubeReferenceGrant } from '../../lib/k8s/referenceGrant';
 
 export const DEFAULT_GATEWAY: KubeGateway = {
   apiVersion: 'gateway.networking.k8s.io/v1beta1',
@@ -119,6 +120,33 @@ export const DEFAULT_GRPC_ROUTE: KubeGRPCRoute = {
         namespace: 'shared-gateway',
         sectionName: 'test',
         name: 'envoy-gateway-system-test',
+      },
+    ],
+  },
+};
+
+export const DEFAULT_REFERENCE_GRANT: KubeReferenceGrant = {
+  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  kind: 'ReferenceGrant',
+  metadata: {
+    uid: 'abc1234',
+    name: 'example-refgrant',
+    namespace: 'default',
+    creationTimestamp: '2025-06-16T09:18:00Z',
+  },
+  spec: {
+    from: [
+      {
+        group: 'gateway.networking.k8s.io',
+        kind: 'HTTPRoute',
+        namespace: 'default',
+      },
+    ],
+    to: [
+      {
+        group: '',
+        kind: 'Service',
+        name: 'example-service',
       },
     ],
   },

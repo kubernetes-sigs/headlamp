@@ -51,6 +51,8 @@ import GRPCRouteDetails from '../components/gateway/GRPCRouteDetails';
 import GRPCRouteList from '../components/gateway/GRPCRouteList';
 import HTTPRouteDetails from '../components/gateway/HTTPRouteDetails';
 import HTTPRouteList from '../components/gateway/HTTPRouteList';
+import ReferenceGrantDetails from '../components/gateway/ReferenceGrantDetails';
+import ReferenceGrantList from '../components/gateway/ReferenceGrantList';
 import HpaDetails from '../components/horizontalPodAutoscaler/Details';
 import HpaList from '../components/horizontalPodAutoscaler/List';
 import IngressClassDetails from '../components/ingress/ClassDetails';
@@ -409,6 +411,20 @@ const defaultRoutes: {
     exact: true,
     sidebar: 'gatewayclasses',
     component: () => <GatewayClassDetails />,
+  },
+  referencegrants: {
+    path: '/referencegrants',
+    exact: true,
+    name: 'ReferenceGrants',
+    sidebar: 'referencegrants',
+    component: () => <ReferenceGrantList />,
+  },
+  referencegrant: {
+    path: '/referencegrant/:namespace/:name',
+    exact: true,
+    name: 'ReferenceGrants',
+    sidebar: 'referencegrants',
+    component: () => <ReferenceGrantDetails />,
   },
   DaemonSets: {
     path: '/daemonsets',
