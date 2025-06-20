@@ -17,6 +17,7 @@
 import Box from '@mui/material/Box';
 import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
+import Grid from '@mui/material/Grid';
 import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
@@ -47,6 +48,7 @@ const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   margin: 0,
   paddingTop: theme.spacing(2),
   paddingRight: theme.spacing(2),
+  whiteSpace: 'nowrap',
 }));
 
 export function LogsButton({ item }: LogsButtonProps) {
@@ -66,6 +68,8 @@ export function LogsButton({ item }: LogsButtonProps) {
   const [lines, setLines] = useState<number>(100);
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showReconnectButton, setShowReconnectButton] = useState(false);
+
+  const [isTextWrappedEnabled, setIsTextWrappedEnabled] = React.useState(true);
 
   const xtermRef = React.useRef<XTerminal | null>(null);
   const { t } = useTranslation(['glossary', 'translation']);
@@ -374,6 +378,7 @@ export function LogsButton({ item }: LogsButtonProps) {
     clearLogs,
     t,
     pods,
+    isTextWrappedEnabled,
   ]);
 
   // Effect to process logs when allPodLogs changes - only for "All Pods" mode
@@ -383,107 +388,195 @@ export function LogsButton({ item }: LogsButtonProps) {
     }
   }, [allPodLogs, selectedPodIndex, showLogs, processAllLogs]);
 
+  function handleWrapText() {
+    setIsTextWrappedEnabled(!isTextWrappedEnabled);
+  }
+
   const topActions = [
     <Box
       key="container-controls"
-      sx={{ display: 'flex', gap: 2, alignItems: 'center', width: '100%' }}
+      sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', width: '100%' }}
     >
-      {/* Pod selection dropdown */}
-      <FormControl sx={{ minWidth: 200 }}>
-        <InputLabel>{t('translation|Select Pod')}</InputLabel>
-        <Select
-          value={selectedPodIndex}
-          onChange={event => {
-            setSelectedPodIndex(event.target.value as number | 'all');
-            clearLogs();
-          }}
-          label={t('translation|Select Pod')}
-        >
-          <MenuItem value="all">{t('translation|All Pods')}</MenuItem>
-          {pods.map((pod, index) => (
-            <MenuItem key={pod.getName()} value={index}>
-              {pod.getName()}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-
-      {/* Container selection dropdown */}
-      <FormControl sx={{ minWidth: 200 }}>
-        <InputLabel>{t('translation|Container')}</InputLabel>
-        <Select
-          value={selectedContainer}
-          onChange={event => {
-            setSelectedContainer(event.target.value);
-            clearLogs();
-          }}
-          label={t('translation|Container')}
-        >
-          {containers.map(container => (
-            <MenuItem key={container} value={container}>
-              {container}
-              {hasContainerRestarted(
-                pods[selectedPodIndex === 'all' ? 0 : selectedPodIndex]?.getName(),
-                container
-              ) && ` (${t('translation|Restarted')})`}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-
-      {/* Lines selector */}
-      <FormControl sx={{ minWidth: 120 }}>
-        <InputLabel>Lines</InputLabel>
-        <Select value={lines} onChange={handleLinesChange}>
-          {[100, 1000, 2500].map(i => (
-            <MenuItem key={i} value={i}>
-              {i}
-            </MenuItem>
-          ))}
-          <MenuItem value={-1}>All</MenuItem>
-        </Select>
-      </FormControl>
-
-      {/* Show previous logs switch */}
-      <LightTooltip
-        title={
-          hasContainerRestarted(
-            selectedPodIndex === 'all'
-              ? pods[0]?.getName()
-              : pods[selectedPodIndex as number]?.getName(),
-            selectedContainer
-          )
-            ? t('translation|Show logs for previous instances of this container.')
-            : t(
-                'translation|You can only select this option for containers that have been restarted.'
-              )
-        }
+      {/* Upper actions box */}
+      <Grid
+        container
+        spacing={1}
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignSelf: 'flex-start',
+          alignItems: 'flex-start',
+        }}
       >
-        <PaddedFormControlLabel
-          label={t('translation|Show previous')}
-          disabled={
-            !hasContainerRestarted(
-              selectedPodIndex === 'all'
-                ? pods[0]?.getName()
-                : pods[selectedPodIndex as number]?.getName(),
-              selectedContainer
-            )
-          }
-          control={<Switch checked={showPrevious} onChange={handlePreviousChange} />}
-        />
-      </LightTooltip>
+        <Grid item xs={6} sm={'auto'}>
+          {/* Pod selection dropdown */}
+          <FormControl sx={{ minWidth: 200, marginLeft: 1 }}>
+            <InputLabel>{t('translation|Select Pod')}</InputLabel>
+            <Select
+              value={selectedPodIndex}
+              onChange={event => {
+                setSelectedPodIndex(event.target.value as number | 'all');
+                clearLogs();
+              }}
+              label={t('translation|Select Pod')}
+            >
+              <MenuItem value="all">{t('translation|All Pods')}</MenuItem>
+              {pods.map((pod, index) => (
+                <MenuItem key={pod.getName()} value={index}>
+                  {pod.getName()}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Grid>
 
-      {/* Timestamps switch */}
-      <FormControlLabel
-        control={<Switch checked={showTimestamps} onChange={handleTimestampsChange} size="small" />}
-        label={t('translation|Timestamps')}
-      />
+        <Grid item xs={6} sm={'auto'}>
+          {/* Container selection dropdown */}
+          <FormControl sx={{ minWidth: 200, marginLeft: 1 }}>
+            <InputLabel>{t('translation|Container')}</InputLabel>
+            <Select
+              value={selectedContainer}
+              onChange={event => {
+                setSelectedContainer(event.target.value);
+                clearLogs();
+              }}
+              label={t('translation|Container')}
+            >
+              {containers.map(container => (
+                <MenuItem key={container} value={container}>
+                  {container}
+                  {hasContainerRestarted(
+                    pods[selectedPodIndex === 'all' ? 0 : selectedPodIndex]?.getName(),
+                    container
+                  ) && ` (${t('translation|Restarted')})`}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Grid>
 
-      {/* Follow logs switch */}
-      <FormControlLabel
-        control={<Switch checked={follow} onChange={handleFollowChange} size="small" />}
-        label={t('translation|Follow')}
-      />
+        <Grid item xs={6} sm={'auto'}>
+          {/* Lines selector */}
+          <FormControl sx={{ minWidth: 200, marginLeft: 1 }}>
+            <InputLabel>Lines</InputLabel>
+            <Select value={lines} onChange={handleLinesChange}>
+              {[100, 1000, 2500].map(i => (
+                <MenuItem key={i} value={i}>
+                  {i}
+                </MenuItem>
+              ))}
+              <MenuItem value={-1}>All</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+      </Grid>
+
+      {/* Switches */}
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          width: '100%',
+        }}
+      >
+        <Grid container spacing={1} alignItems="flex-start" justifyContent="flex-start">
+          <Grid item xs={7} sm={'auto'}>
+            {/* Show previous logs switch */}
+            <LightTooltip
+              title={
+                hasContainerRestarted(
+                  selectedPodIndex === 'all'
+                    ? pods[0]?.getName()
+                    : pods[selectedPodIndex as number]?.getName(),
+                  selectedContainer
+                )
+                  ? t('translation|Show logs for previous instances of this container.')
+                  : t(
+                      'translation|You can only select this option for containers that have been restarted.'
+                    )
+              }
+            >
+              <PaddedFormControlLabel
+                label={t('translation|Show previous')}
+                disabled={
+                  !hasContainerRestarted(
+                    selectedPodIndex === 'all'
+                      ? pods[0]?.getName()
+                      : pods[selectedPodIndex as number]?.getName(),
+                    selectedContainer
+                  )
+                }
+                control={
+                  <Switch
+                    checked={showPrevious}
+                    onChange={handlePreviousChange}
+                    size="small"
+                    sx={{ transform: 'scale(0.8)' }}
+                  />
+                }
+              />
+            </LightTooltip>
+          </Grid>
+
+          <Grid item xs={7} sm={'auto'}>
+            {/* Timestamps switch */}
+            <LightTooltip title={t('translation|Show timestamps in the logs.')}>
+              <PaddedFormControlLabel
+                control={
+                  <Switch
+                    checked={showTimestamps}
+                    onChange={handleTimestampsChange}
+                    size="small"
+                    sx={{ transform: 'scale(0.8)' }}
+                  />
+                }
+                label={t('translation|Timestamps')}
+                disabled={false}
+              />
+            </LightTooltip>
+          </Grid>
+
+          <Grid item xs={6} sm={'auto'}>
+            {/* Follow logs switch */}
+            <LightTooltip
+              title={t(
+                'translation|Follow logs in real-time. New log lines will be appended as they arrive.'
+              )}
+            >
+              <PaddedFormControlLabel
+                control={
+                  <Switch
+                    checked={follow}
+                    onChange={handleFollowChange}
+                    size="small"
+                    sx={{ transform: 'scale(0.8)' }}
+                  />
+                }
+                label={t('translation|Follow')}
+                disabled={false}
+              />
+            </LightTooltip>
+          </Grid>
+
+          <Grid item xs={6} sm={'auto'}>
+            {/* Wrap text switch */}
+            <LightTooltip title={t('translation|Wrap text in the terminal.')}>
+              <PaddedFormControlLabel
+                control={
+                  <Switch
+                    checked={isTextWrappedEnabled}
+                    onChange={handleWrapText}
+                    size="small"
+                    sx={{ transform: 'scale(0.8)' }}
+                  />
+                }
+                label={t('translation|Wrap lines')}
+                disabled={false}
+              />
+            </LightTooltip>
+          </Grid>
+        </Grid>
+      </Box>
     </Box>,
   ];
 
@@ -512,6 +605,7 @@ export function LogsButton({ item }: LogsButtonProps) {
           xtermRef={xtermRef}
           handleReconnect={handleReconnect}
           showReconnectButton={showReconnectButton}
+          isWrappedTextEnabled={isTextWrappedEnabled}
         />
       )}
     </>
