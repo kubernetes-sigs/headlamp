@@ -22,6 +22,7 @@ import { useSelectedClusters } from '../../lib/k8s';
 import { createRouteURL } from '../../lib/router';
 import { useTypedSelector } from '../../redux/hooks';
 import { DefaultSidebars, SidebarItemProps } from '.';
+import { ClusterChooserAction } from './ClusterChooserAction';
 
 /** Iterates over every entry in the list, including children */
 const forEachEntry = (items: SidebarItemProps[], cb: (item: SidebarItemProps) => void) => {
@@ -67,6 +68,8 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
           ? '/'
           : createRouteURL('cluster', { cluster: Object.keys(clusters)[0] }),
         divider: !shouldShowHomeItem,
+        // Add cluster chooser action to cluster items (when not showing home)
+        endAction: !shouldShowHomeItem ? ClusterChooserAction : undefined,
       },
       {
         name: 'notifications',
@@ -112,6 +115,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         label: selectedClusters.length ? t('Clusters') : t('glossary|Cluster'),
         subtitle: selectedClusters.join('\n') || undefined,
         icon: 'mdi:hexagon-multiple-outline',
+        endAction: ClusterChooserAction,
         subList: [
           {
             name: 'namespaces',
