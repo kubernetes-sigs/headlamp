@@ -31,7 +31,7 @@ import { BASE_WS_URL, useWebSockets, WebSocketManager } from './webSocket';
  * defaults to true. This is a feature flag to enable the websocket multiplexer.
  */
 export function getWebsocketMultiplexerEnabled(): boolean {
-  return import.meta.env.REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER !== 'false';
+  return import.meta.env.REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER === 'true';
 }
 
 /**

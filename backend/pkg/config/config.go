@@ -223,7 +223,7 @@ func flagset() *flag.FlagSet {
 	// Telemetry flags.
 	f.String("service-name", "headlamp", "Service name for telemetry")
 	f.String("service-version", "0.30.0", "Service version for telemetry")
-	f.Bool("tracing-enabled", true, "Enable distributed tracing")
+	f.Bool("tracing-enabled", false, "Enable distributed tracing")
 	f.Bool("metrics-enabled", false, "Enable metrics collection")
 	f.String("otlp-endpoint", "localhost:4317", "OTLP collector endpoint")
 	f.Bool("use-otlp-http", false, "Use HTTP instead of gRPC for OTLP export")

@@ -44,6 +44,12 @@ export type GraphNode = {
   collapsed?: boolean;
   /** Custom component to render details for this node */
   detailsComponent?: ComponentType<{ node: GraphNode }>;
+  /**
+   * Weight determines the priority/importance of this node (higher = more important).
+   * Used for sorting and determining the "main" node in groups.
+   * If not specified, defaults will be used based on node type.
+   */
+  weight?: number;
   /** Any custom data */
   data?: any;
 };
@@ -115,4 +121,83 @@ export interface Relation {
   fromSource: string;
   toSource?: string;
   predicate: (from: GraphNode, to: GraphNode) => boolean;
+}
+
+/**
+ * Default node weight assignments for different Kubernetes resource types.
+ * Higher weight = higher priority/importance in graph layout.
+ */
+const DEFAULT_NODE_WEIGHTS = {
+  // Tier 1: Top-Level Orchestration & Scaling
+  HorizontalPodAutoscaler: 1000,
+
+  // Tier 2: Primary Workload Controllers
+  Deployment: 980,
+  StatefulSet: 960,
+  DaemonSet: 960,
+
+  // Tier 3: Job-based Workloads
+  CronJob: 960,
+  Job: 920,
+
+  // Tier 4: Intermediate Controllers
+  ReplicaSet: 960,
+
+  // Tier 5: Core Runtime & Direct Dependencies
+  Pod: 800,
+
+  // All resources directly connected to Pod at the same level
+  ServiceAccount: 960,
+  Role: 790,
+  ClusterRole: 790,
+  Service: 790,
+  NetworkPolicy: 790,
+  PersistentVolumeClaim: 790,
+  ConfigMap: 790,
+  Secret: 790,
+
+  // Tier 6: Supporting Resources
+  // Network supporting resources (cascading from Service/NetworkPolicy)
+  Endpoints: 780,
+  MutatingWebhookConfiguration: 780,
+  ValidatingWebhookConfiguration: 780,
+  IngressClass: 780,
+  Ingress: 780,
+
+  // RBAC supporting resources (cascading from ServiceAccount/Role/ClusterRole)
+  RoleBinding: 800,
+  ClusterRoleBinding: 800,
+
+  // Storage supporting resources (cascading from PVC)
+  StorageClass: 770,
+  CSIDriver: 760,
+  PersistentVolume: 750,
+
+  // Tier 7: Meta-definitions & Extensions
+  CustomResourceDefinition: 600,
+
+  // Default for unspecified resources
+  default: 500,
+} as const;
+
+/**
+ * Gets the effective weight of a node, considering both explicit weight
+ * and default weights based on Kubernetes resource type.
+ *
+ * @param node - The GraphNode to get weight for
+ * @returns The effective weight (higher = more important)
+ */
+export function getNodeWeight(node: GraphNode): number {
+  // if explicit weight is set, use it
+  if (node.weight !== undefined) {
+    return node.weight;
+  }
+
+  // otherwise, use default weight based on Kubernetes resource kind
+  const kind = node.kubeObject?.kind;
+  if (kind && kind in DEFAULT_NODE_WEIGHTS) {
+    return DEFAULT_NODE_WEIGHTS[kind as keyof typeof DEFAULT_NODE_WEIGHTS];
+  }
+
+  return DEFAULT_NODE_WEIGHTS.default;
 }

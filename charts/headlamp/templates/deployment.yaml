@@ -218,8 +218,14 @@ spec:
             - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
             - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
             - "-oidc-scopes=$(OIDC_SCOPES)"
+            {{- if or (ne $oidc.validatorClientID "") (ne $validatorClientID "") }}
+            # Check if validatorClientID is non empty either from env or oidc.config
             - "-oidc-validator-client-id=$(OIDC_VALIDATOR_CLIENT_ID)"
+            {{- end }}
+            {{- if or (ne $oidc.validatorIssuerURL "") (ne $validatorIssuerURL "") }}
+            # Check if validatorIssuerURL is non empty either from env or oidc.config
             - "-oidc-validator-idp-issuer-url=$(OIDC_VALIDATOR_ISSUER_URL)"
+            {{- end }}
             {{- end }}
             {{- with .Values.config.baseURL }}
             - "-base-url={{ . }}"

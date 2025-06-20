@@ -24,7 +24,7 @@ import { useDispatch } from 'react-redux';
 import LocaleSelect from '../../../i18n/LocaleSelect/LocaleSelect';
 import { setAppSettings } from '../../../redux/configSlice';
 import { defaultTableRowsPerPageOptions } from '../../../redux/configSlice';
-import { useTypedSelector } from '../../../redux/reducers/reducers';
+import { useTypedSelector } from '../../../redux/hooks';
 import { uiSlice } from '../../../redux/uiSlice';
 import ActionButton from '../../common/ActionButton';
 import NameValueTable from '../../common/NameValueTable';

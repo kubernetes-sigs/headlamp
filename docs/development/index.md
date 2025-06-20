@@ -198,7 +198,7 @@ DOCKER_IMAGE_VERSION=development make image
 #### Create a deployment yaml
 
 ```bash
-kubectl create deployment headlamp -n kube-system --image=headlamp-k8s/headlamp:development -o yaml --dry-run -- /headlamp/headlamp-server -html-static-dir /headlamp/frontend -in-cluster -watch-plugins-changes false -plugins-dir=/headlamp/plugins > minikube-headlamp.yaml
+kubectl create deployment headlamp -n kube-system --image=headlamp-k8s/headlamp:development -o yaml --dry-run=client -- /headlamp/headlamp-server -html-static-dir /headlamp/frontend -in-cluster -watch-plugins-changes false -plugins-dir=/headlamp/plugins > minikube-headlamp.yaml
 ```
 
 To use the local container image we change the `imagePullPolicy` to Never.

@@ -30,7 +30,7 @@ import { Cluster } from '../../../lib/k8s/cluster';
 import { createRouteURL } from '../../../lib/router';
 import { useId } from '../../../lib/util';
 import { setConfig } from '../../../redux/configSlice';
-import { useTypedSelector } from '../../../redux/reducers/reducers';
+import { useTypedSelector } from '../../../redux/hooks';
 import { ConfirmDialog } from '../../common/ConfirmDialog';
 import ErrorBoundary from '../../common/ErrorBoundary/ErrorBoundary';
 

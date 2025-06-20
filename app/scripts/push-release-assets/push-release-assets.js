@@ -16,7 +16,7 @@ import process from 'process';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 
-const owner = 'headlamp-k8s';
+const owner = 'kubernetes-sigs';
 const repo = 'headlamp';
 const client = new Octokit({ auth: process.env.GITHUB_TOKEN });
 

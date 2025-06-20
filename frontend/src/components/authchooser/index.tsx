@@ -17,9 +17,8 @@
 import { InlineIcon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import { styled } from '@mui/system';
 import _ from 'lodash';
-import React from 'react';
+import React, { ComponentProps } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation } from 'react-router-dom';
@@ -36,16 +35,13 @@ import Link from '../common/Link';
 import Loader from '../common/Loader';
 import OauthPopup from '../oidcauth/OauthPopup';
 
-const ColorButton = styled(Button)(({ theme }) => ({
-  color: theme.palette.primary.contrastText,
-  backgroundColor: theme.palette.primaryColor,
-  width: '14rem',
-  padding: '0.5rem 2rem',
-  '&:hover': {
-    opacity: '0.8',
-    backgroundColor: theme.palette.text.primary,
-  },
-}));
+function ColorButton({ children, ...rest }: ComponentProps<typeof Button>) {
+  return (
+    <Button variant="contained" sx={{ width: '14rem', padding: '0.5rem 2rem' }} {...rest}>
+      {children}
+    </Button>
+  );
+}
 
 interface ReactRouterLocationStateIface {
   from?: Location;

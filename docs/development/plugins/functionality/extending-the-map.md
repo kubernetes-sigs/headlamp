@@ -160,3 +160,44 @@ This is useful when you want to:
 - Show custom visualizations for your resources
 - Display data from external sources alongside Kubernetes resources
 - Create interactive detail views specific to your use case
+
+## Custom Glance Component
+
+When hovering over a node in the map, a preview (or "glance") is displayed. For Kubernetes resources, Headlamp provides default glance components. You can register a custom glance component for any node type (Kubernetes or custom) using `registerKubeObjectGlance`.
+
+<figure style="text-align: center">
+
+![Screenshot of a node with a Deployment glance showing status](./images/node-glance.png)
+
+<figcaption>Example: "Glance" for a Deployment node (`message-processor`) in Headlamp's graph view</figcaption>
+</figure>
+
+Here's how you can register a custom glance component:
+
+```tsx
+const CustomNodeGlance = ({ node }) => {
+  // Check if the node represents a Kubernetes object
+  if (node.kubeObject) {
+    return (
+      <div>
+        <strong>{node.kubeObject.kind}:</strong>{" "}
+        {node.kubeObject.metadata?.name}
+      </div>
+    );
+  }
+
+  // Handle non-Kubernetes nodes with label or fallback to a default
+  if (node.label) {
+    return (
+      <div>
+        <strong>Node:</strong> {node.label}
+      </div>
+    );
+  }
+
+  // Return null if the node cannot be rendered by this glance
+  return null;
+};
+
+registerKubeObjectGlance({ id: "custom-node", component: CustomNodeGlance });
+```

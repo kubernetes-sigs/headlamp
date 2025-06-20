@@ -179,6 +179,40 @@ func TestDialWebSocket(t *testing.T) {
 	}
 }
 
+func TestDialWebSocket_WithToken(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore())
+
+	var receivedAuth string
+
+	// Create a test server that checks the Authorization header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool { return true },
+		}
+		receivedAuth = r.Header.Get("Authorization")
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Fatalf("WebSocket upgrade failed: %v", err)
+		}
+
+		defer ws.Close()
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	token := "my-test-token"
+	conn, err := m.dialWebSocket(wsURL, &tls.Config{InsecureSkipVerify: true}, server.URL, &token) //nolint:gosec
+	assert.NoError(t, err)
+	assert.NotNil(t, conn)
+
+	if conn != nil {
+		conn.Close()
+	}
+
+	assert.Equal(t, "Bearer "+token, receivedAuth)
+}
+
 func TestDialWebSocket_Errors(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
 	m := NewMultiplexer(contextStore)

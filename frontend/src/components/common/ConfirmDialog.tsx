@@ -77,11 +77,21 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
         </DialogContent>
         <DialogActions>
           {!hideCancelButton && (
-            <Button onClick={handleClose} aria-label="cancel-button" color="primary">
+            <Button
+              onClick={handleClose}
+              aria-label="cancel-button"
+              color="secondary"
+              variant="contained"
+            >
               {cancelLabel || t('No')}
             </Button>
           )}
-          <Button onClick={onConfirmationClicked} aria-label="confirm-button" color="primary">
+          <Button
+            onClick={onConfirmationClicked}
+            aria-label="confirm-button"
+            color="primary"
+            variant="contained"
+          >
             {confirmLabel || t('Yes')}
           </Button>
         </DialogActions>

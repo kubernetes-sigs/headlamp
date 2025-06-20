@@ -34,7 +34,7 @@ import {
   setDetailsViewSection,
 } from '../components/DetailsViewSection/detailsViewSectionSlice';
 import { GraphSource } from '../components/resourceMap/graph/graphModel';
-import { graphViewSlice, IconDefinition } from '../components/resourceMap/graphViewSlice';
+import { Glance, graphViewSlice, IconDefinition } from '../components/resourceMap/graphViewSlice';
 import { DefaultSidebars, SidebarEntryProps } from '../components/Sidebar';
 import { setSidebarItem, setSidebarItemFilter } from '../components/Sidebar/sidebarSlice';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
@@ -295,6 +295,46 @@ export function registerSidebarEntry({
       sidebar,
     })
   );
+}
+
+/**
+ * Custom glance component for Kubernetes objects in Headlamp's graph view.
+ *
+ * @param glance - The glance object with a unique id and a React component to render.
+ *
+ * @example
+ *
+ * ```tsx
+import { registerKubeObjectGlance } from '@kinvolk/headlamp-plugin/lib';
+
+const NodeGlance = ({ node }) => {
+  // Check if the node represents a Kubernetes Node object
+  if (node.kubeObject && node.kubeObject.kind === 'Node') {
+    return (
+      <div>
+        <strong>Node:</strong> {node.kubeObject.metadata?.name} (CPU: {node.kubeObject.status?.capacity?.cpu || 'N/A'})
+      </div>
+    );
+  }
+
+  // Handle non-Kubernetes nodes with label or fallback to a default
+  if (node.label) {
+    return (
+      <div>
+        <strong>Node:</strong> {node.label}
+      </div>
+    );
+  }
+
+  // Return null if the node cannot be rendered by this glance
+  return null;
+};
+
+registerKubeObjectGlance({ id: 'node-glance', component: NodeGlance });
+ * ```
+ */
+export function registerKubeObjectGlance(glance: Glance) {
+  store.dispatch(graphViewSlice.actions.setGlance(glance));
 }
 
 /**

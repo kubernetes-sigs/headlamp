@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { registerMapSource } from '@kinvolk/headlamp-plugin/lib';
+import { registerKubeObjectGlance, registerMapSource } from '@kinvolk/headlamp-plugin/lib';
 import { KubeObject } from '@kinvolk/headlamp-plugin/lib/K8s/cluster';
 import { useMemo } from 'react';
 
@@ -44,6 +44,32 @@ function MyResourceDetails({ node }: { node: any }) {
     </div>
   );
 }
+
+// Custom glance component for rendering hover previews for nodes in Headlamp's graph view.
+const CustomNodeGlance = ({ node }: { node: any }) => {
+  // Check if the node represents a Kubernetes object
+  if (node.kubeObject) {
+    return (
+      <div>
+        <strong>{node.kubeObject.kind}:</strong> {node.kubeObject.metadata?.name}
+      </div>
+    );
+  }
+
+  // Handle non-Kubernetes nodes with label or fallback to a default
+  if (node.label) {
+    return (
+      <div>
+        <strong>Node:</strong> {node.label}
+      </div>
+    );
+  }
+
+  // Return null if the node cannot be rendered by this glance
+  return null;
+};
+
+registerKubeObjectGlance({ id: 'custom-node', component: CustomNodeGlance });
 
 registerMapSource({
   id: 'my-source', // ID of the source should be unique

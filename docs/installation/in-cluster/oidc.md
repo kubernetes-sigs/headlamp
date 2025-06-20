@@ -17,6 +17,38 @@ To use OIDC, Headlamp needs to know how to configure it, so you have to provide 
 and you have to tell the OIDC provider about the callback URL, which in Headlamp it is your URL + the `/oidc-callback` path, e.g.:
 `https://YOUR_URL/oidc-callback`.
 
+### Callback URL
+
+You must tell your OIDC provider the callback URL that Headlamp will use after login. This is your Headlamp URL plus `/oidc-callback`, for example:
+
+```
+https://YOUR_URL/oidc-callback
+```
+
+> **ℹ️ Note:** If you're running Headlamp behind an ingress or load balancer (e.g., NGINX, AWS ALB/NLB), make sure it forwards the `X-Forwarded-Proto` header. Otherwise, Headlamp may generate the callback URL using `http` instead of `https`, which can cause a mismatch with your OIDC provider.
+>
+> For [NGINX ingress](https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/), you can add:
+>
+> ```yaml
+> nginx.ingress.kubernetes.io/configuration-snippet: |
+>   proxy_set_header X-Forwarded-Proto $scheme;
+> ```
+
+### Troubleshooting: Real time updates not working, Large JWT Tokens with Ingress NGINX
+
+If you notice real time updates not working, this could be the cause.
+
+If your OIDC provider issues large JWT tokens (e.g., >8KB), you may encounter issues with WebSocket connections or authentication headers being truncated when using Headlamp behind an Ingress NGINX controller.
+
+To resolve this, increase the header buffer size using the following annotation in your [NGINX Ingress](https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/) resource:
+
+```yaml
+nginx.ingress.kubernetes.io/server-snippet: |-
+  large_client_header_buffers 4 64k;
+```
+
+> **ℹ️ Note:** Regular HTTP requests may still work even with large tokens, but WebSocket connections are more sensitive to header size limits and may fail unless this buffer is increased.
+
 ### Scopes
 
 Besides the mandatory _openid_ scope, Headlamp also requests the optional

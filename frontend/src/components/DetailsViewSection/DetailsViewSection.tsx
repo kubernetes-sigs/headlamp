@@ -17,7 +17,7 @@
 import React, { isValidElement, ReactElement, ReactNode, useMemo } from 'react';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
-import { useTypedSelector } from '../../redux/reducers/reducers';
+import { useTypedSelector } from '../../redux/hooks';
 import ErrorBoundary from '../common/ErrorBoundary';
 
 export interface DetailsViewSectionProps {
