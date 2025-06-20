@@ -23,6 +23,7 @@ export default function ConfigMapList() {
 
   return (
     <ResourceListView
+      reflectInURL
       title={t('glossary|Config Maps')}
       resourceClass={ConfigMap}
       columns={[
