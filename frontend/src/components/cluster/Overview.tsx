@@ -187,6 +187,7 @@ function EventsSection() {
         {
           label: t('Type'),
           gridTemplate: 'min-content',
+          filterVariant: 'multi-select',
           getValue: event => event.involvedObject.kind,
         },
         {
@@ -200,6 +201,7 @@ function EventsSection() {
         {
           label: t('Reason'),
           gridTemplate: 'min-content',
+          filterVariant: 'multi-select',
           getValue: event => event.reason,
           render: event => (
             <LightTooltip title={event.reason} interactive>
