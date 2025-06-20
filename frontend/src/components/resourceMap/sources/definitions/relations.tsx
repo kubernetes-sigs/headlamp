@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+import { useMemo } from 'react';
 import ConfigMap from '../../../../lib/k8s/configMap';
+import CustomResourceDefinition from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
 import DaemonSet from '../../../../lib/k8s/daemonSet';
 import Deployment from '../../../../lib/k8s/deployment';
@@ -35,6 +37,7 @@ import Service from '../../../../lib/k8s/service';
 import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import StatefulSet from '../../../../lib/k8s/statefulSet';
 import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
+import { useNamespaces } from '../../../../redux/filterSlice';
 import { Relation } from '../../graph/graphModel';
 
 /**
@@ -70,6 +73,18 @@ const makeOwnerRelation = (cl: KubeObjectClass): Relation => ({
 
     return (
       obj.metadata.ownerReferences?.find(owner => owner.uid === to.kubeObject?.metadata?.uid) !==
+      undefined
+    );
+  },
+});
+
+const makeOwnerRelationReversed = (cl: KubeObjectClass): Relation => ({
+  fromSource: cl.kind,
+  predicate(from, to) {
+    const obj = to.kubeObject as KubeObject;
+
+    return (
+      obj.metadata.ownerReferences?.find(owner => owner.uid === from.kubeObject?.metadata?.uid) !==
       undefined
     );
   },
@@ -188,30 +203,50 @@ const pvcToPods = makeRelation(PersistentVolumeClaim, Pod, (pvc, pod) =>
 const podToOwner = makeOwnerRelation(Pod);
 const repliaceSetToOwner = makeOwnerRelation(ReplicaSet);
 
+const useGetCRToOwnerRelations = () => {
+  const namespace = useNamespaces();
+  const { items: crds } = CustomResourceDefinition.useList({ namespace });
+
+  return useMemo(() => {
+    if (!crds) return [];
+
+    return crds.map(crd => {
+      const CRClass = crd.makeCRClass(); // or makeCRClass(crd)
+      return makeOwnerRelationReversed(CRClass);
+    });
+  }, [crds]);
+};
+
 const jobToCronJob = makeRelation(Job, CronJob, (job, cronJob) =>
   job.metadata.ownerReferences?.find(owner => owner.uid === cronJob.metadata.uid)
 );
 
-export const kubeObjectRelations = [
-  configMapUsedInPods,
-  configMapUsedInJobs,
-  secretsUsedInPods,
-  secretsUsedInJobs,
-  hpaToDeployment,
-  hpaToStatefulSet,
-  vwcToService,
-  mwcToService,
-  serviceToPods,
-  endpointsToServices,
-  ingressToService,
-  ingressToSecret,
-  networkPolicyToPod,
-  roleBindingsToRole,
-  roleBindingToServiceAccount,
-  serviceAccountToDeployments,
-  serviceAccountToDaemonSets,
-  pvcToPods,
-  podToOwner,
-  repliaceSetToOwner,
-  jobToCronJob,
-];
+export function useGetAllRelations(): Relation[] {
+  const staticRelations = [
+    configMapUsedInPods,
+    configMapUsedInJobs,
+    secretsUsedInPods,
+    secretsUsedInJobs,
+    hpaToDeployment,
+    hpaToStatefulSet,
+    vwcToService,
+    mwcToService,
+    serviceToPods,
+    endpointsToServices,
+    ingressToService,
+    ingressToSecret,
+    networkPolicyToPod,
+    roleBindingsToRole,
+    roleBindingToServiceAccount,
+    serviceAccountToDeployments,
+    serviceAccountToDaemonSets,
+    pvcToPods,
+    podToOwner,
+    repliaceSetToOwner,
+    jobToCronJob,
+  ];
+
+  const crdRelations = useGetCRToOwnerRelations();
+
+  return [...staticRelations, ...crdRelations];
+}
