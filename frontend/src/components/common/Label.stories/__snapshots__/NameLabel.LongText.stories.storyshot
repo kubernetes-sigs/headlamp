@@ -1,0 +1,9 @@
+<body>
+  <div>
+    <span
+      class="MuiTypography-root MuiTypography-body1 css-1ukuq4j-MuiTypography-root"
+    >
+      This is a much longer label name to demonstrate text wrapping or truncation behavior inherent to the component or its typical usage context, if any specific styling is applied by default.
+    </span>
+  </div>
+</body>
