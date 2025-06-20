@@ -26,13 +26,13 @@ import * as ApiProxy from './lib/k8s/apiProxy';
 import * as Notification from './lib/notification';
 import * as Router from './lib/router';
 import * as Utils from './lib/util';
-import { ConfigStore } from './plugin/configStore';
 import { Headlamp, Plugin } from './plugin/lib';
 import { PluginSettingsDetailsProps } from './plugin/pluginsSlice';
 import Registry, {
   AppLogoProps,
   clusterAction,
   ClusterChooserProps,
+  ConfigStore,
   DefaultSidebars,
   DetailsViewDefaultHeaderActions,
   DetailsViewSectionProps,
@@ -50,6 +50,7 @@ import Registry, {
   registerDetailsViewSection,
   registerGetTokenFunction,
   registerKindIcon,
+  registerKubeObjectGlance,
   registerMapSource,
   registerPluginSettings,
   registerResourceTableColumnsProcessor,
@@ -99,6 +100,7 @@ export {
   PluginManager,
   registerUIPanel,
   registerAppTheme,
+  registerKubeObjectGlance,
 };
 
 export type {
