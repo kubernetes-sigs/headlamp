@@ -16,6 +16,7 @@
 
 import { IconProps } from '@iconify/react';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import React from 'react';
 
 export enum DefaultSidebars {
   HOME = 'HOME',
@@ -59,6 +60,11 @@ export interface SidebarEntry {
   /** The sidebar to display this item in. If not specified, it will be displayed in the default sidebar.
    */
   sidebar?: DefaultSidebars | string;
+  /**
+   * An optional React component to render at the end of the sidebar item.
+   * Can be used for actions like favorites, cluster chooser, or navigation indicators.
+   */
+  endAction?: React.ComponentType<any>;
 }
 
 export interface SidebarState {
