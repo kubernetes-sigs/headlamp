@@ -49,9 +49,11 @@ import StatefulSet from '../../lib/k8s/statefulSet';
 import { createRouteURL, getDefaultRoutes } from '../../lib/router';
 import { getClusterPrefixedPath } from '../../lib/util';
 import { useTypedSelector } from '../../redux/hooks';
+import { ADVANCED_SEARCH_QUERY_KEY } from '../advancedSearch/AdvancedSearch';
 import { ThemePreview } from '../App/Settings/ThemePreview';
 import { setTheme, useAppThemes } from '../App/themeSlice';
 import { Delayed } from './Delayed';
+import { useLocalStorageState } from './useLocalStorageState';
 import { useRecent } from './useRecent';
 
 const LazyKubeIcon = lazy(() =>
@@ -247,9 +249,30 @@ export function GlobalSearchContent({
     }));
   }, [appThemes]);
 
+  // Advanced Search
+  const advancedSearchSuggestion = useMemo(() => {
+    if (!query.trim() || selectedClusters.length === 0) return;
+    return {
+      id: 'advanced-search-suggestion',
+      subLabel: t('Advanced Search (Beta)'),
+      icon: <Icon icon="mdi:search" />,
+      label: `Search "${query}" with Advanced Search`,
+      onClick: () => {
+        // Set the search query in localStorage for the Advanced Search
+        useLocalStorageState.update(ADVANCED_SEARCH_QUERY_KEY, `metadata.name === "${query}"`);
+
+        const params = new URLSearchParams(history.location.search);
+        history.push(createRouteURL('advancedSearch') + '?' + params.toString());
+      },
+    };
+  }, [query, selectedClusters]);
+
   const allOptions = useMemo(
-    () => [...themeActions, ...clusterItems, ...routes, ...items],
-    [themeActions, clusterItems, routes, items]
+    () =>
+      [...themeActions, ...clusterItems, ...routes, ...items, advancedSearchSuggestion].filter(
+        Boolean
+      ) as SearchResult[],
+    [themeActions, clusterItems, routes, items, advancedSearchSuggestion]
   );
 
   const fuse = useMemo(
