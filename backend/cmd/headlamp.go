@@ -56,12 +56,11 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/oauth2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
-
-	"golang.org/x/oauth2"
 )
 
 type HeadlampConfig struct {
@@ -1386,6 +1385,59 @@ func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 	http.Error(w, err.Error(), status)
 }
 
+type responseCapture struct {
+	http.ResponseWriter
+	statusCode int
+	body       *bytes.Buffer
+}
+
+func (r *responseCapture) WriteHeader(code int) {
+	r.statusCode = code
+	r.ResponseWriter.WriteHeader(code)
+}
+
+func (r *responseCapture) Write(b []byte) (int, error) {
+	r.body.Write(b) // capture into buffer
+	return r.ResponseWriter.Write(b)
+}
+
+func extractNamespace(rawURL string) (string, error) {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+
+	namespace := parsedURL.Query().Get("namespace")
+
+	return namespace, nil
+}
+
+func getResponseBody(bodyBytes []byte, encoding string) (string, error) {
+	var dcmpBody []byte
+
+	if encoding == "gzip" {
+		reader, err := gzip.NewReader(bytes.NewReader(bodyBytes))
+		if err != nil {
+			return "", fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+
+		decompressedBody, err := io.ReadAll(reader)
+		if err != nil {
+			return "", fmt.Errorf("failed to decompress body: %w", err)
+		}
+
+		dcmpBody = decompressedBody
+
+		reader.Close()
+	} else {
+		dcmpBody = bodyBytes
+	}
+
+	return string(dcmpBody), nil
+}
+
+var k8scache = cache.New[string]()
+
 // handleClusterAPI handles cluster API requests. It is responsible for
 // all the requests made to /clusters/{clusterName}/{api:.*} endpoint.
 // It parses the request and creates a proxy request to the cluster.
@@ -1444,16 +1496,110 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) { //nolint:funlen
 		r.URL.Path = mux.Vars(r)["api"]
 		r.URL.Scheme = clusterURL.Scheme
 
+		rcw := &responseCapture{
+			ResponseWriter: w,
+			body:           &bytes.Buffer{},
+			statusCode:     http.StatusOK,
+		}
+
+		namespace, err := extractNamespace(r.URL.String())
+		if err != nil {
+			c.handleError(w, ctx, span, err, "Failed to extract namespace", http.StatusBadRequest)
+			return
+		}
+
+		k := &cache.Key{
+			Kind:      r.URL.Path,
+			Namespace: namespace,
+			Cluster:   contextKey,
+		}
+
+		key, err := k.SHA()
+		if err != nil {
+			c.handleError(w, ctx, span, err, "Error while computing key", http.StatusInternalServerError)
+			return
+		}
+
 		// Process WebSocket protocol headers if present
 		processWebSocketProtocolHeader(r)
 		plugins.HandlePluginReload(c.cache, w)
 
-		if err = kContext.ProxyRequest(w, r); err != nil {
-			c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "proxy_error"),
-				attribute.String("cluster", contextKey))
-			c.handleError(w, ctx, span, err, "failed to proxy request", http.StatusInternalServerError)
+		var failure bool
 
-			return
+		if strings.Contains(r.URL.Path, "selfsubjectrulesreviews") {
+			ssarResponse := &responseCapture{
+				ResponseWriter: w,
+				statusCode:     http.StatusOK,
+				body:           &bytes.Buffer{},
+			}
+
+			if err := kContext.ProxyRequest(ssarResponse, r); err != nil {
+				c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "proxy_error"),
+					attribute.String("cluster", contextKey))
+				c.handleError(w, ctx, span, err, "failed to proxy request", http.StatusInternalServerError)
+				return
+			}
+
+			encoding := ssarResponse.Header().Get("Context-Encoding")
+			bodyBytes := ssarResponse.body.Bytes()
+
+			dcmp, err := getResponseBody(bodyBytes, encoding)
+			if err != nil {
+				c.handleError(w, ctx, span, err, "failed to get decompressed response body", http.StatusInternalServerError)
+
+				return
+			}
+
+			if failure = strings.Contains(dcmp, "Failure"); failure {
+				authErr := errors.New("User is not authenticated")
+				c.handleError(w, ctx, span, authErr, "User is not authenticated ", http.StatusInternalServerError)
+
+				return
+			}
+		}
+
+		if !failure {
+			k8Resource, err := k8scache.Get(context.Background(), key)
+			if err == nil && strings.TrimSpace(k8Resource) != "" {
+				c.telemetryHandler.RecordEvent(span, "Resource Request is hitting to cache")
+				w.Header().Set("Content-Type", "application/json")
+
+				if _, err := w.Write([]byte(k8Resource)); err != nil {
+					c.handleError(w, ctx, span, err, "failed to write cached response", http.StatusInternalServerError)
+					return
+				}
+				return
+			}
+		}
+
+		c.telemetryHandler.RecordEvent(span, "Cache miss — proxying to Kubernetes API")
+
+		if !strings.Contains(r.URL.Path, "selfsubjectrulesreviews") {
+			c.telemetryHandler.RecordEvent(span, "Making actual API requests  ")
+
+			if err = kContext.ProxyRequest(rcw, r); err != nil {
+				c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "proxy_error"),
+					attribute.String("cluster", contextKey))
+				c.handleError(w, ctx, span, err, "failed to proxy request", http.StatusInternalServerError)
+
+				return
+			}
+		}
+
+		encoding := rcw.Header().Get("Content-Encoding")
+		bodyBytes := rcw.body.Bytes()
+
+		dcmpBody, err := getResponseBody(bodyBytes, encoding)
+		if err != nil {
+			c.handleError(w, ctx, span, err, "Failed to decompressed the resource body", http.StatusInternalServerError)
+		}
+
+		if !strings.Contains(r.URL.Path, "selfsubjectrulesreviews") {
+			if err = k8scache.SetWithTTL(context.Background(), key, dcmpBody, 10*time.Minute); err != nil {
+				c.handleError(w, ctx, span, err,
+					"Failed to store the resource data inside the cache",
+					http.StatusInternalServerError)
+			}
 		}
 
 		if c.telemetry != nil {
