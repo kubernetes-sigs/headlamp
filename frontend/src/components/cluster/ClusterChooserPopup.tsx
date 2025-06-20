@@ -38,7 +38,11 @@ import { Cluster } from '../../lib/k8s/cluster';
 import { createRouteURL } from '../../lib/router';
 import { getCluster, getClusterPrefixedPath } from '../../lib/util';
 
-function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selected?: boolean }) {
+function ClusterListItem(props: {
+  cluster: Cluster;
+  onClick: (event: React.MouseEvent<HTMLElement>) => void;
+  selected?: boolean;
+}) {
   const { cluster, selected, onClick } = props;
   const { t } = useTranslation();
   const theme = useTheme();
@@ -209,6 +213,12 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
     }
   }
 
+  function clusterClicked(event: React.MouseEvent<HTMLElement>, cluster: Cluster) {
+    event.stopPropagation();
+    event.preventDefault();
+    selectCluster(cluster);
+  }
+
   if (!anchor) {
     return null;
   }
@@ -290,7 +300,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
                 <ClusterListItem
                   key={`recent_cluster_${cluster.name}`}
                   cluster={cluster}
-                  onClick={() => selectCluster(cluster)}
+                  onClick={(event: React.MouseEvent<HTMLElement>) => clusterClicked(event, cluster)}
                   selected={cluster.name === getActiveDescendantCluster()?.name}
                 />
               ))}
@@ -301,7 +311,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
             <ClusterListItem
               key={`cluster_button_${cluster.name}`}
               cluster={cluster}
-              onClick={() => selectCluster(cluster)}
+              onClick={(event: React.MouseEvent<HTMLElement>) => clusterClicked(event, cluster)}
               selected={cluster.name === getActiveDescendantCluster()?.name}
             />
           ))}

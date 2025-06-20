@@ -33,7 +33,6 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import _ from 'lodash';
 import React, { isValidElement, PropsWithChildren } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath } from 'react-router';
@@ -51,31 +50,29 @@ import ActionButton from '../common/ActionButton';
 import { DialogTitle } from '../common/Dialog';
 import ErrorBoundary from '../common/ErrorBoundary';
 import Loader from '../common/Loader';
-import ClusterChooser from './ClusterChooser';
-import ClusterChooserPopup from './ClusterChooserPopup';
 
 export interface ClusterTitleProps {
+  /** @deprecated This prop is not used in the current implementation. */
   clusters?: {
     [clusterName: string]: Cluster;
   };
   cluster?: string;
+  /** @deprecated This prop is not used in the current implementation. */
   onClick?: (event?: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
 }
 
+/**
+ * This component renders the cluster chooser button if it's registered by
+ * plugins. Otherwise, it doesn't show anything. This component still exists to
+ * provide compatibility with the plugins that expect a cluster chooser to exist.
+ *
+ * @param props
+ * @returns
+ */
 export function ClusterTitle(props: ClusterTitleProps) {
-  const { cluster, clusters, onClick } = props;
-  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
-  const buttonRef = React.useRef<HTMLButtonElement>(null);
+  const { cluster } = props;
   const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
   const ChooserButton = useTypedSelector(state => state.ui.clusterChooserButtonComponent);
-
-  useHotkeys(
-    'ctrl+shift+l',
-    () => {
-      setAnchorEl(buttonRef.current);
-    },
-    { preventDefault: true }
-  );
 
   if (!cluster) {
     return null;
@@ -85,37 +82,11 @@ export function ClusterTitle(props: ClusterTitleProps) {
     return null;
   }
 
-  if (!ChooserButton && Object.keys(clusters || {}).length <= 1) {
+  if (!ChooserButton || !isValidElement(ChooserButton)) {
     return null;
   }
 
-  return (
-    <ErrorBoundary>
-      {ChooserButton ? (
-        isValidElement(ChooserButton) ? (
-          ChooserButton
-        ) : (
-          <ChooserButton
-            clickHandler={e => {
-              onClick && onClick(e);
-              e?.currentTarget && setAnchorEl(e.currentTarget);
-            }}
-            cluster={cluster}
-          />
-        )
-      ) : (
-        <ClusterChooser
-          ref={buttonRef}
-          clickHandler={e => {
-            onClick && onClick(e);
-            e?.currentTarget && setAnchorEl(e.currentTarget);
-          }}
-          cluster={cluster}
-        />
-      )}
-      <ClusterChooserPopup anchor={anchorEl} onClose={() => setAnchorEl(null)} />
-    </ErrorBoundary>
-  );
+  return <ErrorBoundary>{ChooserButton}</ErrorBoundary>;
 }
 
 interface ClusterButtonProps extends PropsWithChildren<{}> {
