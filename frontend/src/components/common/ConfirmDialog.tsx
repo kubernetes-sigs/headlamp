@@ -31,9 +31,13 @@ export interface ConfirmDialogProps extends MuiDialogProps {
   cancelLabel?: string;
   confirmLabel?: string;
   /**
-   * Disables the Cancel button, defaults to false
+   * Hides the Cancel button, defaults to false
    */
   hideCancelButton?: boolean;
+  /**
+   * Disables the Confirm button, defaults to false
+   */
+  disableConfirmButton?: boolean;
 }
 
 export function ConfirmDialog(props: ConfirmDialogProps) {
@@ -46,6 +50,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
     cancelLabel,
     confirmLabel,
     hideCancelButton = false,
+    disableConfirmButton = false,
   } = props;
   const { t } = useTranslation();
 
@@ -91,6 +96,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
             aria-label="confirm-button"
             color="primary"
             variant="contained"
+            disabled={disableConfirmButton}
           >
             {confirmLabel || t('Yes')}
           </Button>
