@@ -1,0 +1,26 @@
+{
+  "name": "headlamp-releaser",
+  "version": "0.1.0",
+  "description": "Tool for Headlamp release management",
+  "main": "dist/index.js",
+  "bin": {
+    "releaser": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsc && node dist/index.js"
+  },
+  "dependencies": {
+    "@octokit/rest": "^19.0.13",
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "inquirer": "^8.2.6",
+    "semver": "^7.5.4"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^8.2.10",
+    "@types/node": "^20.11.16",
+    "@types/semver": "^7.5.6",
+    "typescript": "^5.3.3"
+  }
+}
