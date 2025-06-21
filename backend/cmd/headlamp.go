@@ -104,7 +104,6 @@ const ContextCacheTTL = 5 * time.Minute // minutes
 
 const ContextUpdateCacheTTL = 20 * time.Second // seconds
 
-const JWTExpirationTTL = 10 * time.Second // seconds
 
 const (
 	// TokenCacheFileMode is the file mode for token cache files.
@@ -877,38 +876,6 @@ func parseClusterAndToken(r *http.Request) (string, string) {
 	return cluster, token
 }
 
-func getExpiryTime(payload map[string]interface{}) (time.Time, error) {
-	exp, ok := payload["exp"].(float64)
-	if !ok {
-		return time.Time{}, errors.New("expiry time not found or invalid")
-	}
-
-	return time.Unix(int64(exp), 0), nil
-}
-
-func isTokenAboutToExpire(token string) bool {
-	const tokenParts = 3
-
-	parts := strings.Split(token, ".")
-	if len(parts) != tokenParts {
-		return false
-	}
-
-	payload, err := auth.DecodeBase64JSON(parts[1])
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "failed to decode payload")
-		return false
-	}
-
-	expiryTime, err := getExpiryTime(payload)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "failed to get expiry time")
-		return false
-	}
-
-	return time.Until(expiryTime) <= JWTExpirationTTL
-}
-
 func refreshAndCacheNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 	tokenType, token, issuerURL string,
 ) (*oauth2.Token, error) {
@@ -1141,7 +1108,7 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 		}
 
 		// skip if token is not about to expire
-		if !isTokenAboutToExpire(token) {
+		if !auth.IsTokenAboutToExpire(token) {
 			c.telemetryHandler.RecordEvent(span, "Token not about to expire, skipping refresh")
 			next.ServeHTTP(w, r)
 			c.telemetryHandler.RecordDuration(ctx, start,
