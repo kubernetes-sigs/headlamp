@@ -1,0 +1,237 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-mhcie6"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1dqop0w-MuiGrid-root"
+      >
+        <div
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        >
+          <div
+            class="MuiBox-root css-70qvj9"
+          >
+            <h1
+              class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+            >
+              Advanced Search (Beta)
+            </h1>
+            <div
+              class="MuiBox-root css-ldp2l3"
+            />
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiBox-root css-10egq61"
+      >
+        <span
+          class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+        >
+          <button
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-14f6w6s-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            <span
+              class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeMedium css-1d6wzja-MuiButton-startIcon"
+            />
+            Select Resources
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <span
+            class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightRectangular MuiBadge-overlapRectangular MuiBadge-colorPrimary css-17ntxqw-MuiBadge-badge"
+            style="top: 4px; right: 4px;"
+          />
+        </span>
+        <button
+          class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-14f6w6s-MuiButtonBase-root-MuiButton-root"
+          tabindex="0"
+          type="button"
+        >
+          <span
+            class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeMedium css-1d6wzja-MuiButton-startIcon"
+          />
+          Settings
+          <span
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+          />
+        </button>
+        <div
+          class="MuiBox-root css-zdpt2t"
+        >
+          <div
+            class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-1x6bjyf-MuiAutocomplete-root"
+          >
+            <div
+              class="MuiBox-root css-1dipl1t"
+            >
+              <div
+                class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                style="margin-top: 0px;"
+              >
+                <label
+                  class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
+                  data-shrink="true"
+                  for="namespaces-filter"
+                  id="namespaces-filter-label"
+                >
+                  Namespaces
+                </label>
+                <div
+                  class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
+                >
+                  <input
+                    aria-autocomplete="both"
+                    aria-expanded="false"
+                    aria-invalid="false"
+                    autocapitalize="none"
+                    autocomplete="off"
+                    class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                    id="namespaces-filter"
+                    placeholder="Filter"
+                    role="combobox"
+                    spellcheck="false"
+                    type="text"
+                    value=""
+                  />
+                  <div
+                    class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
+                  >
+                    <button
+                      aria-label="Open"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-1aav1nn-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
+                      tabindex="-1"
+                      title="Open"
+                      type="button"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                        data-testid="ArrowDropDownIcon"
+                        focusable="false"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="M7 10l5 5 5-5z"
+                        />
+                      </svg>
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                  </div>
+                  <fieldset
+                    aria-hidden="true"
+                    class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                  >
+                    <legend
+                      class="css-14lo706"
+                    >
+                      <span>
+                        Namespaces
+                      </span>
+                    </legend>
+                  </fieldset>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiBox-root css-1akj33x"
+      >
+        <div
+          class="MuiBox-root css-uc5j5g"
+        >
+          Search resources by query
+        </div>
+        <div
+          class="MuiBox-root css-ggi3sa"
+        >
+          <div
+            class="mock-monaco-editor"
+          />
+        </div>
+        <button
+          aria-label="Clear"
+          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-owp46j-MuiButtonBase-root-MuiIconButton-root"
+          data-mui-internal-clone-element="true"
+          tabindex="0"
+          type="button"
+        >
+          <span
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+          />
+        </button>
+      </div>
+      <div
+        class="MuiBox-root css-186y2zl"
+      >
+        <div
+          class="MuiBox-root css-171onha"
+        >
+          No resources selected
+        </div>
+      </div>
+      <div
+        class="MuiBox-root css-13v3rg8"
+      />
+      <div
+        class="MuiBox-root css-1mlbdbs"
+      >
+        <p
+          class="MuiTypography-root MuiTypography-body1 css-wvae53-MuiTypography-root"
+        >
+          Examples
+        </p>
+        <div
+          class="MuiBox-root css-1es6tj9"
+        >
+          <button
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-1l63ozk-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            All Resources
+            <div
+              class="MuiBox-root css-0"
+            >
+              <pre
+                class="css-1uk1gs8"
+              >
+                metadata.labels["kubernetes.io/cluster-service"] === "true"
+              </pre>
+            </div>
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <button
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-1l63ozk-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            All Resources
+            <div
+              class="MuiBox-root css-0"
+            >
+              <pre
+                class="css-1uk1gs8"
+              >
+                metadata.annotations["deployment.kubernetes.io/revision"] &gt; 10
+              </pre>
+            </div>
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

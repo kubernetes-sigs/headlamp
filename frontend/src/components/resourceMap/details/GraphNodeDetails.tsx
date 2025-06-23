@@ -71,7 +71,12 @@ export function GraphNodeDetails({ node, close }: GraphNodeDetailsProps) {
       </Box>
 
       {node.detailsComponent && <node.detailsComponent node={node} />}
-      {node.kubeObject && <KubeObjectDetails resource={node.kubeObject} />}
+      {node.kubeObject && (
+        <KubeObjectDetails
+          resource={node.kubeObject}
+          customResourceDefinition={node.customResourceDefinition}
+        />
+      )}
     </Card>
   );
 }
