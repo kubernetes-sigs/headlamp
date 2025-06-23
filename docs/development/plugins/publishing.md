@@ -63,9 +63,28 @@ annotations:
   headlamp/plugin/archive-checksum: <Checksum of the tarball>
   headlamp/plugin/version-compat: <Version>
   headlamp/plugin/distro-compat: <Compatibility of your plugin>
+  # Optional: Plugin signature for enhanced security (future feature)
+  headlamp/plugin/signature/data: <Plugin signature data>
 ```
 
 Replace the placeholders with appropriate values. For more information, refer to the [Artifact Hub documentation](https://artifacthub.io/docs/topics/annotations/headlamp/). A sample configuration can be found [here](https://github.com/headlamp-k8s/plugins/blob/main/opencost/artifacthub-pkg.yml).
+
+## Plugin Security
+
+Headlamp has built-in security measures for plugins:
+
+- **Platform Security**: Only allows downloads from GitHub, GitLab, and BitBucket
+- **Integrity Verification**: SHA256 checksum validation ensures downloaded files haven't been tampered with
+- **Path Validation**: Prevents malicious file extraction outside designated directories
+
+### Future: Digital Signatures
+
+Plugin signature verification is planned for future releases. The signature field is reserved for this purpose:
+
+```yaml
+annotations:
+  headlamp/plugin/signature/data: <future signature data>
+```
 
 ## Step 4: Push Changes to GitHub
 
