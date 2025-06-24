@@ -183,7 +183,7 @@ export function PureNamespacesAutocomplete({
             fullWidth
             InputLabelProps={{ shrink: true }}
             style={{ marginTop: 0 }}
-            placeholder={[...filter.namespaces.values()].length > 0 ? '' : 'Filter'}
+            placeholder={[...filter.namespaces.values()].length > 0 ? '' : t('Filter')}
           />
         </Box>
       )}
