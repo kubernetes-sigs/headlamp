@@ -5,7 +5,7 @@
       class="MuiBox-root css-0"
     >
       <div
-        class="MuiDrawer-root MuiDrawer-docked css-ohfc2x-MuiDrawer-docked"
+        class="MuiDrawer-root MuiDrawer-docked css-5xlyvt-MuiDrawer-docked"
       >
         <div
           class="MuiPaper-root MuiPaper-outlined MuiDrawer-paper MuiDrawer-paperAnchorLeft MuiDrawer-paperAnchorDockedLeft css-r16dox-MuiPaper-root-MuiDrawer-paper"
@@ -20,7 +20,7 @@
                 class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
               >
                 <li
-                  class="css-3knmzx"
+                  class="css-12kmsq6"
                 >
                   <a
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
@@ -30,7 +30,7 @@
                   >
                     <div
                       aria-label="Home"
-                      class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+                      class="MuiListItemIcon-root css-1wi6jp-MuiListItemIcon-root"
                       data-mui-internal-clone-element="true"
                     />
                     <span
@@ -39,7 +39,7 @@
                   </a>
                 </li>
                 <li
-                  class="css-3knmzx"
+                  class="css-12kmsq6"
                 >
                   <a
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
@@ -49,7 +49,7 @@
                   >
                     <div
                       aria-label="Notifications"
-                      class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+                      class="MuiListItemIcon-root css-1wi6jp-MuiListItemIcon-root"
                       data-mui-internal-clone-element="true"
                     />
                     <span
@@ -58,7 +58,7 @@
                   </a>
                 </li>
                 <li
-                  class="css-3knmzx"
+                  class="css-12kmsq6"
                 >
                   <a
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
@@ -68,7 +68,7 @@
                   >
                     <div
                       aria-label="Settings"
-                      class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+                      class="MuiListItemIcon-root css-1wi6jp-MuiListItemIcon-root"
                       data-mui-internal-clone-element="true"
                     />
                     <span
