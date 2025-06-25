@@ -98,6 +98,19 @@ declare var status: "Available" | "Running";`;
     expect(generateGlobalVarDeclarations(objects)).toBe(expected);
   });
 
+  it('should escape double quotes and backslashes in string literals', () => {
+    const objects = [
+      { value: '"quote"' },
+      { value: 'backslash\\' },
+      { value: 'both\\"' },
+      { value: 'plain' },
+    ];
+    const expected =
+      'declare var value: "\\"quote\\"" | "backslash\\\\" | "both\\\\\\"" | "plain";';
+
+    expect(generateGlobalVarDeclarations(objects)).toBe(expected);
+  });
+
   it('should handle keys that are not valid identifiers by skipping them', () => {
     const objects = [{ 'not-valid': 1, validKey: 2 }];
     const expected = 'declare var validKey: number;';

@@ -138,7 +138,7 @@ function generateTypeString(
       // Add quoted literals
       node.stringLiterals.forEach(literal => {
         // Basic escaping for quotes inside the string literal itself
-        const escapedLiteral = literal.replace(/"/g, '\\"');
+        const escapedLiteral = literal.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         types.push(`"${escapedLiteral}"`);
       });
     } else {
