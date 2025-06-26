@@ -51,7 +51,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/portforward"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/headlamp-k8s/headlamp/backend/pkg/serviceproxy"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
