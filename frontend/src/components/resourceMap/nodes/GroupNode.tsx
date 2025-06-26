@@ -30,22 +30,20 @@ const Container = styled('div')(({ theme }) => ({
   borderRadius: theme.spacing(1.5),
 }));
 
-const Label = styled('div')(({ theme }) => ({
+const Label = styled('div')(() => ({
   display: 'flex',
   alignItems: 'center',
   position: 'absolute',
   gap: '4px',
   fontSize: '16px',
-  top: '-16px',
-  background: theme.palette.background.paper,
-  left: '22px',
-  padding: '8px',
+  top: 0,
+  left: 0,
+  padding: '8px 12px',
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
-  maxWidth: 'calc(100% - 52px)',
-  color: alpha(theme.palette.text.primary, 0.6),
-  borderRadius: 2,
+  width: '100%',
+  borderRadius: 4,
 }));
 
 export const GroupNodeComponent = memo(({ id }: { id: string }) => {
@@ -67,15 +65,17 @@ export const GroupNodeComponent = memo(({ id }: { id: string }) => {
         }
       }}
     >
-      <Label title={node?.label}>
-        {node?.kubeObject ? (
-          <KubeIcon kind={node.kubeObject.kind} width="24px" height="24px" />
-        ) : (
-          node?.icon ?? null
-        )}
-        <Box sx={{ opacity: 0.7 }}>{node?.subtitle}</Box>
-        <Box>{node?.label}</Box>
-      </Label>
+      {(node?.label || node?.subtitle) && (
+        <Label title={node?.label}>
+          {node?.kubeObject ? (
+            <KubeIcon kind={node.kubeObject.kind} width="24px" height="24px" />
+          ) : (
+            node?.icon ?? null
+          )}
+          <Box sx={{ opacity: 0.8 }}>{node?.subtitle}</Box>
+          <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{node?.label}</Box>
+        </Label>
+      )}
     </Container>
   );
 });

@@ -126,7 +126,7 @@ function convertToElkNode(node: GraphNode, aspectRatio: number): ElkNodeWithData
             'elk.rectpacking.packing.compaction.rowHeightReevaluation': 'true',
             'elk.edgeRouting': 'SPLINES',
             'elk.spacing.nodeNode': '20',
-            'elk.padding': '[left=24, top=24, right=24, bottom=24]',
+            'elk.padding': '[left=24, top=48, right=24, bottom=24]',
           };
     elkNode.edges = convertedEdges;
     elkNode.children =
