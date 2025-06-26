@@ -262,6 +262,8 @@ spec:
 
           image: {{ .Values.pluginsManager.baseImage }}
           command: ["/bin/sh", "-c"]
+          env:
+            {{- toYaml .Values.pluginsManager.env | nindent 12 }}
           args:
             - |
               echo "Installing headlamp-plugin globally..."
