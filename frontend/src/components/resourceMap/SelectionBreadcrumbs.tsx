@@ -95,20 +95,35 @@ export function SelectionBreadcrumbs({
 
         const subtitle = it.subtitle ?? it?.kubeObject?.kind;
         const subtitleElement = subtitle ? <Box sx={{ opacity: 0.7 }}>{subtitle}</Box> : null;
+        const label = getLabel(it);
+
         return i === path.length - 1 ? (
           <Box
             key={it.id}
+            title={label}
             sx={{
               display: 'flex',
               gap: 0.5,
+              maxWidth: '200px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
             }}
           >
-            {icon} {subtitleElement} {getLabel(it)}
+            {icon} {subtitleElement}{' '}
+            <Box
+              sx={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {label}
+            </Box>
           </Box>
         ) : (
           <Link
             key={it.id}
             onClick={() => onNodeClick(it.id)}
+            title={label}
             sx={{
               display: 'flex',
               gap: 0.5,
@@ -120,7 +135,15 @@ export function SelectionBreadcrumbs({
               cursor: 'pointer',
             }}
           >
-            {icon} {subtitleElement} {getLabel(it)}
+            {icon} {subtitleElement}{' '}
+            <Box
+              sx={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {label}
+            </Box>
           </Link>
         );
       })}
