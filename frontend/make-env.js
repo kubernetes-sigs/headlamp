@@ -7,6 +7,7 @@ const appInfo = JSON.parse(fs.readFileSync('../app/package.json', 'utf8'));
 const gitVersion = execSync('git rev-parse HEAD').toString().trim();
 
 const envContents = {
+  GENERATE_SOURCEMAP: false,
   REACT_APP_HEADLAMP_VERSION: appInfo.version,
   REACT_APP_HEADLAMP_GIT_VERSION: gitVersion,
   REACT_APP_HEADLAMP_PRODUCT_NAME: appInfo.productName,
