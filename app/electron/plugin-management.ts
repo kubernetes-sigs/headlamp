@@ -119,6 +119,10 @@ export interface ArtifactHubHeadlampPkg {
    * @see ExtraFile
    */
   extraFiles?: Record<string, ExtraFile>;
+  /**
+   * Optional signature for verification
+   */
+  signatureInfo?: string;
 }
 
 /**
@@ -892,6 +896,11 @@ async function fetchPluginInfo(URL, progressCallback, signal): Promise<ArtifactH
       distroCompat: pkgResponse.data['headlamp/plugin/distro-compat'],
       versionCompat: pkgResponse.data['headlamp/plugin/version-compat'],
     };
+
+    // Extract signature information if available (basic check)
+    if (pkgResponse.data['headlamp/plugin/signature/data']) {
+      pkg.signatureInfo = pkgResponse.data['headlamp/plugin/signature/data'];
+    }
 
     const extraFiles = getExtraFiles(pkgResponse.data);
 
