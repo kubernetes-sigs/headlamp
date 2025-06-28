@@ -16,7 +16,8 @@
 
 import { Edge, EdgeMarker, Node } from '@xyflow/react';
 import { ElkExtendedEdge, ElkNode } from 'elkjs';
-import ELK from 'elkjs';
+import ELK from 'elkjs/lib/elk-api';
+import elkWorker from 'elkjs/lib/elk-worker.min.js?url';
 import { forEachNode, getNodeWeight, GraphNode } from './graphModel';
 
 type ElkNodeWithData = Omit<ElkNode, 'edges'> & {
@@ -32,6 +33,7 @@ type ElkEdgeWithData = ElkExtendedEdge & {
 
 const elk = new ELK({
   defaultLayoutOptions: {},
+  workerUrl: elkWorker,
 });
 
 const layoutOptions = {
@@ -124,7 +126,7 @@ function convertToElkNode(node: GraphNode, aspectRatio: number): ElkNodeWithData
             'elk.rectpacking.packing.compaction.rowHeightReevaluation': 'true',
             'elk.edgeRouting': 'SPLINES',
             'elk.spacing.nodeNode': '20',
-            'elk.padding': '[left=24, top=24, right=24, bottom=24]',
+            'elk.padding': '[left=24, top=48, right=24, bottom=24]',
           };
     elkNode.edges = convertedEdges;
     elkNode.children =

@@ -275,9 +275,9 @@ export default function Layout({}: LayoutProps) {
                 <ClusterNotFoundPopup key={clusterName} cluster={clusterName} />
               ))}
               <AlertNotification />
-              <Box>
+              <Box sx={{ height: '100%' }}>
                 <Div />
-                <Container {...containerProps}>
+                <Container {...containerProps} sx={{ height: '100%' }}>
                   <NavigationTabs />
                   {arePluginsLoaded && (
                     <RouteSwitcher
