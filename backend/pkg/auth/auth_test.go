@@ -89,3 +89,41 @@ func TestDecodeBase64JSON(t *testing.T) {
 		})
 	}
 }
+
+func TestIsTokenAboutToExpire(t *testing.T) {
+	tests := []struct {
+		name        string
+		token       string
+		expectTrue  bool
+		description string
+	}{
+		{
+			name:        "Token expiring soon",
+			token:       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MTIzNjE2MDB9.7vl9iBWGDQdXUTbEsqFHiHoaNWxKn4UwLhO9QDhXrpM", // exp: Jan 2021
+			expectTrue:  true,
+			description: "Token has already expired",
+		},
+		{
+			name:        "Malformed token",
+			token:       "bad.token.string",
+			expectTrue:  false,
+			description: "Malformed token should return false",
+		},
+		{
+			name:        "Invalid payload characters",
+			token:       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MTIzNjE2MDB9==.7vl9iBWGDQdXUTbEsqFHiHoaNWxKn4UwLhO9QDhXrpM",
+			expectTrue:  false,
+			description: "Base64 payload with invalid format should return false",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := auth.IsTokenAboutToExpire(tt.token)
+			if result != tt.expectTrue {
+				t.Errorf("%s: expected %v, got %v", tt.description, tt.expectTrue, result)
+			}
+		})
+	}
+}
+
