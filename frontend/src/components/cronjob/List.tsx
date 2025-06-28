@@ -53,6 +53,7 @@ export default function CronJobList() {
     <ResourceListView
       title={t('Cron Jobs')}
       resourceClass={CronJob}
+      reflectInURL
       columns={[
         'name',
         'namespace',
