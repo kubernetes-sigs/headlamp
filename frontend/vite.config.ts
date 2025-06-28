@@ -57,31 +57,5 @@ export default defineConfig({
     commonjsOptions: {
       transformMixedEsModules: true,
     },
-    rollupOptions: {
-      // Exclude @axe-core from production bundle
-      external: ['@axe-core/react'],
-      output: {
-        manualChunks(id: string) {
-          // Build smaller chunks for @mui, lodash, xterm, recharts
-          if (id.includes('node_modules')) {
-            if (id.includes('lodash')) {
-              return 'vendor-lodash';
-            }
-
-            if (id.includes('@mui/material')) {
-              return 'vendor-mui';
-            }
-
-            if (id.includes('xterm')) {
-              return 'vendor-xterm';
-            }
-
-            if (id.includes('recharts')) {
-              return 'vendor-recharts';
-            }
-          }
-        },
-      },
-    },
   },
 });
