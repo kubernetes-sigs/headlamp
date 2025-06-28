@@ -20,6 +20,8 @@ import Container from '@mui/material/Container';
 import CssBaseline from '@mui/material/CssBaseline';
 import Link from '@mui/material/Link';
 import { styled } from '@mui/material/styles';
+import { Dispatch, UnknownAction } from '@reduxjs/toolkit';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -121,6 +123,57 @@ declare global {
   }
 }
 
+/**
+ * Fetches the cluster config from the backend and updates the redux store
+ * if the present stored config is different from the fetched one.
+ */
+const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
+  const clusters = store.getState().config.clusters;
+  const statelessClusters = store.getState().config.statelessClusters;
+
+  return request('/config', {}, false, false).then(config => {
+    const clustersToConfig: ConfigState['clusters'] = {};
+    config?.clusters.forEach((cluster: Cluster) => {
+      if (cluster.meta_data?.extensions?.headlamp_info?.customName) {
+        cluster.name = cluster.meta_data?.extensions?.headlamp_info?.customName;
+      }
+      clustersToConfig[cluster.name] = cluster;
+    });
+
+    const configToStore = { ...config, clusters: clustersToConfig };
+
+    if (clusters === null) {
+      dispatch(setConfig(configToStore));
+    } else {
+      // Check if the config is different
+      const configDifferent = isEqualClusterConfigs(clusters, clustersToConfig);
+
+      if (configDifferent) {
+        // Merge the new config with the current config
+        const mergedClusters = mergeClusterConfigs(
+          configToStore.clusters,
+          clusters,
+          statelessClusters
+        );
+        dispatch(
+          setConfig({
+            ...configToStore,
+            clusters: mergedClusters,
+          })
+        );
+      }
+    }
+
+    /**
+     * Fetches the stateless cluster config from the indexDB and then sends the backend to parse it
+     * only if the stateless cluster config is enabled in the backend.
+     */
+    if (config?.isDynamicClusterEnabled) {
+      fetchStatelessClusterKubeConfigs(dispatch);
+    }
+  });
+};
+
 export default function Layout({}: LayoutProps) {
   const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
   const dispatch = useDispatch();
@@ -134,76 +187,17 @@ export default function Layout({}: LayoutProps) {
    * indexDB and then sends the backend to parse it and then updates the parsed value into redux
    * store on an interval.
    * */
+  useQuery({
+    queryKey: ['cluster-fetch'],
+    queryFn: () => fetchConfig(dispatch),
+    refetchInterval: CLUSTER_FETCH_INTERVAL,
+  });
+
+  // Remove splash screen styles from the body
+  // that are added in frontend/index.html
   useEffect(() => {
-    window.clusterConfigFetchHandler = setInterval(
-      () => {
-        fetchConfig();
-      },
-      CLUSTER_FETCH_INTERVAL,
-      clusters
-    );
-    fetchConfig();
-    return () => {
-      if (window.clusterConfigFetchHandler) {
-        clearInterval(window.clusterConfigFetchHandler);
-      }
-    };
+    document.body.removeAttribute('style');
   }, []);
-
-  /**
-   * Fetches the cluster config from the backend and updates the redux store
-   * if the present stored config is different from the fetched one.
-   */
-  const fetchConfig = () => {
-    const clusters = store.getState().config.clusters;
-    const statelessClusters = store.getState().config.statelessClusters;
-
-    request('/config', {}, false, false)
-      .then(config => {
-        const clustersToConfig: ConfigState['clusters'] = {};
-        config?.clusters.forEach((cluster: Cluster) => {
-          if (cluster.meta_data?.extensions?.headlamp_info?.customName) {
-            cluster.name = cluster.meta_data?.extensions?.headlamp_info?.customName;
-          }
-          clustersToConfig[cluster.name] = cluster;
-        });
-
-        const configToStore = { ...config, clusters: clustersToConfig };
-
-        if (clusters === null) {
-          dispatch(setConfig(configToStore));
-        } else {
-          // Check if the config is different
-          const configDifferent = isEqualClusterConfigs(clusters, clustersToConfig);
-
-          if (configDifferent) {
-            // Merge the new config with the current config
-            const mergedClusters = mergeClusterConfigs(
-              configToStore.clusters,
-              clusters,
-              statelessClusters
-            );
-            dispatch(
-              setConfig({
-                ...configToStore,
-                clusters: mergedClusters,
-              })
-            );
-          }
-        }
-
-        /**
-         * Fetches the stateless cluster config from the indexDB and then sends the backend to parse it
-         * only if the stateless cluster config is enabled in the backend.
-         */
-        if (config?.isDynamicClusterEnabled) {
-          fetchStatelessClusterKubeConfigs(dispatch);
-        }
-      })
-      .catch(err => {
-        console.error('Error getting config:', err);
-      });
-  };
 
   const urlClusters = getSelectedClusters();
   const clustersNotInURL =
