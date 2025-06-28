@@ -1,0 +1,43 @@
+{
+  "name": "platformeng",
+  "author": "Kinvolk GmbH <oss@kinvolk.io>",
+  "license": "Apache-2.0",
+  "version": "0.0.1",
+  "description": "Example Headlamp (Kubernetes GUI) plugin. Gets the number of pods in the cluster and displays that information in the top bar.",
+  "scripts": {
+    "start": "headlamp-plugin start",
+    "build": "headlamp-plugin build",
+    "format": "headlamp-plugin format",
+    "lint": "headlamp-plugin lint",
+    "tsc": "headlamp-plugin tsc",
+    "storybook": "headlamp-plugin storybook",
+    "storybook-build": "headlamp-plugin storybook-build",
+    "test": "headlamp-plugin test"
+  },
+  "keywords": [
+    "headlamp",
+    "headlamp-plugin",
+    "kubernetes",
+    "plugins"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kinvolk/headlamp.git",
+    "directory": "plugins/examples/pod-counter"
+  },
+  "prettier": "@headlamp-k8s/eslint-config/prettier-config",
+  "eslintConfig": {
+    "extends": [
+      "@headlamp-k8s",
+      "prettier",
+      "plugin:jsx-a11y/recommended"
+    ]
+  },
+  "devDependencies": {
+    "@headlamp-k8s/eslint-config": "^0.7.0",
+    "@kinvolk/headlamp-plugin": "^0.10.0"
+  },
+  "overrides": {
+    "typescript": "5.6.2"
+  }
+}
