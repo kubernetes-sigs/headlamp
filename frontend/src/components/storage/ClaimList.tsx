@@ -34,6 +34,7 @@ export default function VolumeClaimList() {
         {
           id: 'className',
           label: t('Class Name'),
+          filterVariant: 'multi-select',
           getValue: volumeClaim => volumeClaim.spec?.storageClassName,
           render: volumeClaim => {
             const name = volumeClaim.spec?.storageClassName;
@@ -67,6 +68,7 @@ export default function VolumeClaimList() {
         {
           id: 'volumeMode',
           label: t('Volume Mode'),
+          filterVariant: 'multi-select',
           getValue: volumeClaim => volumeClaim.spec?.volumeMode,
         },
         {
@@ -93,6 +95,7 @@ export default function VolumeClaimList() {
         {
           id: 'status',
           label: t('translation|Status'),
+          filterVariant: 'multi-select',
           getValue: volume => volume.status?.phase,
           render: volume => makePVCStatusLabel(volume),
           gridTemplate: 0.3,
