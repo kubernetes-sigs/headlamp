@@ -520,21 +520,23 @@ export default function PodDetails(props: PodDetailsProps) {
             id: DefaultHeaderAction.POD_TERMINAL,
             action: (
               <AuthVisible item={item} authVerb="get" subresource="exec">
-                <ActionButton
-                  description={t('Terminal / Exec')}
-                  aria-label={t('terminal')}
-                  icon="mdi:console"
-                  onClick={() => {
-                    setShowTerminal(true);
-                    dispatchHeadlampEvent({
-                      type: HeadlampEventType.TERMINAL,
-                      data: {
-                        resource: item,
-                        status: EventStatus.CLOSED,
-                      },
-                    });
-                  }}
-                />
+                <AuthVisible item={item} authVerb="create" subresource="exec">
+                  <ActionButton
+                    description={t('Terminal / Exec')}
+                    aria-label={t('terminal')}
+                    icon="mdi:console"
+                    onClick={() => {
+                      setShowTerminal(true);
+                      dispatchHeadlampEvent({
+                        type: HeadlampEventType.TERMINAL,
+                        data: {
+                          resource: item,
+                          status: EventStatus.CLOSED,
+                        },
+                      });
+                    }}
+                  />
+                </AuthVisible>
               </AuthVisible>
             ),
           },
@@ -542,21 +544,23 @@ export default function PodDetails(props: PodDetailsProps) {
             id: DefaultHeaderAction.POD_ATTACH,
             action: (
               <AuthVisible item={item} authVerb="get" subresource="attach">
-                <ActionButton
-                  description={t('Attach')}
-                  aria-label={t('attach')}
-                  icon="mdi:connection"
-                  onClick={() => {
-                    setIsAttached(true);
-                    dispatchHeadlampEvent({
-                      type: HeadlampEventType.POD_ATTACH,
-                      data: {
-                        resource: item,
-                        status: EventStatus.OPENED,
-                      },
-                    });
-                  }}
-                />
+                <AuthVisible item={item} authVerb="create" subresource="attach">
+                  <ActionButton
+                    description={t('Attach')}
+                    aria-label={t('attach')}
+                    icon="mdi:connection"
+                    onClick={() => {
+                      setIsAttached(true);
+                      dispatchHeadlampEvent({
+                        type: HeadlampEventType.POD_ATTACH,
+                        data: {
+                          resource: item,
+                          status: EventStatus.OPENED,
+                        },
+                      });
+                    }}
+                  />
+                </AuthVisible>
               </AuthVisible>
             ),
           },
