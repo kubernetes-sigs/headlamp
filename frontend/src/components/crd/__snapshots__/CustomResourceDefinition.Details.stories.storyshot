@@ -500,6 +500,16 @@
                     </button>
                   </div>
                 </div>
+                <p
+                  class="MuiTypography-root MuiTypography-h6 css-1fggqnx-MuiTypography-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                    href="/"
+                  >
+                    CRD: mydefinition.phonyresources.io
+                  </a>
+                </p>
               </div>
               <div
                 class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
@@ -511,104 +521,78 @@
                     class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                   >
                     <div
-                      class="MuiBox-root css-0"
+                      class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-1x6bjyf-MuiAutocomplete-root"
                     >
                       <div
-                        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-1 css-7ldjcq-MuiGrid-root"
+                        class="MuiBox-root css-1dipl1t"
                       >
                         <div
-                          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                          class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                          style="margin-top: 0px;"
                         >
-                          <div
-                            class="MuiBox-root css-1ay9vb9"
+                          <label
+                            class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
+                            data-shrink="true"
+                            for="namespaces-filter"
+                            id="namespaces-filter-label"
                           >
-                            <a
-                              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
-                              href="/"
-                            >
-                              CRD: mydefinition.phonyresources.io
-                            </a>
-                          </div>
-                        </div>
-                        <div
-                          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                        >
+                            Namespaces
+                          </label>
                           <div
-                            class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-1x6bjyf-MuiAutocomplete-root"
+                            class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
                           >
+                            <input
+                              aria-autocomplete="both"
+                              aria-expanded="false"
+                              aria-invalid="false"
+                              autocapitalize="none"
+                              autocomplete="off"
+                              class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                              id="namespaces-filter"
+                              placeholder="Filter"
+                              role="combobox"
+                              spellcheck="false"
+                              type="text"
+                              value=""
+                            />
                             <div
-                              class="MuiBox-root css-1dipl1t"
+                              class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
                             >
-                              <div
-                                class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
-                                style="margin-top: 0px;"
+                              <button
+                                aria-label="Open"
+                                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-1aav1nn-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
+                                tabindex="-1"
+                                title="Open"
+                                type="button"
                               >
-                                <label
-                                  class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
-                                  data-shrink="true"
-                                  for="namespaces-filter"
-                                  id="namespaces-filter-label"
+                                <svg
+                                  aria-hidden="true"
+                                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                                  data-testid="ArrowDropDownIcon"
+                                  focusable="false"
+                                  viewBox="0 0 24 24"
                                 >
-                                  Namespaces
-                                </label>
-                                <div
-                                  class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
-                                >
-                                  <input
-                                    aria-autocomplete="both"
-                                    aria-expanded="false"
-                                    aria-invalid="false"
-                                    autocapitalize="none"
-                                    autocomplete="off"
-                                    class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
-                                    id="namespaces-filter"
-                                    placeholder="Filter"
-                                    role="combobox"
-                                    spellcheck="false"
-                                    type="text"
-                                    value=""
+                                  <path
+                                    d="M7 10l5 5 5-5z"
                                   />
-                                  <div
-                                    class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
-                                  >
-                                    <button
-                                      aria-label="Open"
-                                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-1aav1nn-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
-                                      tabindex="-1"
-                                      title="Open"
-                                      type="button"
-                                    >
-                                      <svg
-                                        aria-hidden="true"
-                                        class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
-                                        data-testid="ArrowDropDownIcon"
-                                        focusable="false"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          d="M7 10l5 5 5-5z"
-                                        />
-                                      </svg>
-                                      <span
-                                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                                      />
-                                    </button>
-                                  </div>
-                                  <fieldset
-                                    aria-hidden="true"
-                                    class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
-                                  >
-                                    <legend
-                                      class="css-14lo706"
-                                    >
-                                      <span>
-                                        Namespaces
-                                      </span>
-                                    </legend>
-                                  </fieldset>
-                                </div>
-                              </div>
+                                </svg>
+                                <span
+                                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                                />
+                              </button>
                             </div>
+                            <fieldset
+                              aria-hidden="true"
+                              class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                            >
+                              <legend
+                                class="css-14lo706"
+                              >
+                                <span>
+                                  Namespaces
+                                </span>
+                              </legend>
+                            </fieldset>
                           </div>
                         </div>
                       </div>

@@ -25,6 +25,25 @@ import { createRouteURL, getRoute } from '../../lib/router';
 import ListItemLink from './ListItemLink';
 import { SidebarEntry } from './sidebarSlice';
 
+export function fullURLOnRoute(
+  name: string,
+  isCR: boolean | undefined,
+  subList: Omit<SidebarItemProps, 'sidebar'>[]
+) {
+  let routeName = name;
+  if (isCR) {
+    if (name.startsWith('group-')) {
+      routeName = subList.length > 0 ? subList[0].name : '';
+    }
+    return createRouteURL('customresources', { crd: routeName });
+  } else {
+    if (!getRoute(name)) {
+      routeName = subList.length > 0 ? subList[0].name : '';
+    }
+    return createRouteURL(routeName);
+  }
+}
+
 /**
  * Adds onto SidebarEntryProps for the display of the sidebars.
  */
@@ -72,18 +91,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
   }
 
   if (!fullURL) {
-    let routeName = name;
-    if (isCR) {
-      if (name.startsWith('group-')) {
-        routeName = subList.length > 0 ? subList[0].name : '';
-      }
-      fullURL = createRouteURL('customresources', { crd: routeName });
-    } else {
-      if (!getRoute(name)) {
-        routeName = subList.length > 0 ? subList[0].name : '';
-      }
-      fullURL = createRouteURL(routeName);
-    }
+    fullURL = fullURLOnRoute(name, isCR, subList);
   }
 
   return hide ? null : (
