@@ -9,15 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParse(t *testing.T) {
+func TestParseBasic(t *testing.T) {
 	tests := []struct {
-		name           string
-		args           []string
-		env            map[string]string
-		expectedError  bool
-		expectedConfig *config.Config
-		errorContains  string
-		verify         func(*testing.T, *config.Config)
+		name   string
+		args   []string
+		verify func(*testing.T, *config.Config)
 	}{
 		{
 			name: "no_args_no_env",
@@ -36,6 +32,26 @@ func TestParse(t *testing.T) {
 				assert.Equal(t, uint(3456), conf.Port)
 			},
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			require.NoError(t, err)
+			require.NotNil(t, conf)
+
+			tt.verify(t, conf)
+		})
+	}
+}
+
+func TestParseWithEnv(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		env    map[string]string
+		verify func(*testing.T, *config.Config)
+	}{
 		{
 			name: "from_env",
 			args: []string{"go run ./cmd", "-in-cluster"},
@@ -58,18 +74,6 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
-			name:          "oidc_settings_without_incluster",
-			args:          []string{"go run ./cmd", "-oidc-client-id=noClient"},
-			expectedError: true,
-			errorContains: "are only meant to be used in inCluster mode",
-		},
-		{
-			name:          "invalid_base_url",
-			args:          []string{"go run ./cmd", "--base-url=testingthis"},
-			expectedError: true,
-			errorContains: "base-url",
-		},
-		{
 			name: "kubeconfig_from_default_env",
 			args: []string{"go run ./cmd"},
 			env: map[string]string{
@@ -79,6 +83,62 @@ func TestParse(t *testing.T) {
 				assert.Equal(t, "~/.kube/test_config.yaml", conf.KubeConfigPath)
 			},
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for key, value := range tt.env {
+				os.Setenv(key, value)
+			}
+			defer func(env map[string]string) {
+				for key := range env {
+					os.Unsetenv(key)
+				}
+			}(tt.env)
+
+			conf, err := config.Parse(tt.args)
+			require.NoError(t, err)
+			require.NotNil(t, conf)
+
+			tt.verify(t, conf)
+		})
+	}
+}
+
+func TestParseErrors(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          []string
+		errorContains string
+	}{
+		{
+			name:          "oidc_settings_without_incluster",
+			args:          []string{"go run ./cmd", "-oidc-client-id=noClient"},
+			errorContains: "are only meant to be used in inCluster mode",
+		},
+		{
+			name:          "invalid_base_url",
+			args:          []string{"go run ./cmd", "--base-url=testingthis"},
+			errorContains: "base-url",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			require.Error(t, err)
+			require.Nil(t, conf)
+			assert.Contains(t, err.Error(), tt.errorContains)
+		})
+	}
+}
+
+func TestParseFlags(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		verify func(*testing.T, *config.Config)
+	}{
 		{
 			name: "enable_dynamic_clusters",
 			args: []string{"go run ./cmd", "--enable-dynamic-clusters"},
@@ -90,28 +150,11 @@ func TestParse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			for key, value := range tt.env {
-				os.Setenv(key, value)
-			}
-			defer func() {
-				for key := range tt.env {
-					os.Unsetenv(key)
-				}
-			}()
-
 			conf, err := config.Parse(tt.args)
+			require.NoError(t, err)
+			require.NotNil(t, conf)
 
-			if tt.expectedError {
-				require.Error(t, err)
-				require.Nil(t, conf)
-				assert.Contains(t, err.Error(), tt.errorContains)
-			} else {
-				require.NoError(t, err)
-				require.NotNil(t, conf)
-				if tt.verify != nil {
-					tt.verify(t, conf)
-				}
-			}
+			tt.verify(t, conf)
 		})
 	}
 }
