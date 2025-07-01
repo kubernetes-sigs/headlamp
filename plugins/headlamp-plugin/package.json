@@ -122,6 +122,7 @@
     "resize-observer-polyfill": "^1.5.1",
     "semver": "^7.3.5",
     "shx": "^0.3.4",
+    "simple-eval": "^2.0.0",
     "spacetime": "^7.4.0",
     "storybook": "^8.5.6",
     "stream-browserify": "^3.0.0",
