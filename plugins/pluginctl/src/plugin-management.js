@@ -21,6 +21,7 @@
  *
  * Used by:
  * - plugins/headlamp-plugin/bin/headlamp-plugin.js cli
+ * - plugins/pluginctl/bin/pluginctl.js cli
  * - app/ to manage plugins.
  */
 const fs = require('fs');

@@ -46,7 +46,7 @@ if (!fs.existsSync(pluginsDir)) {
 }
 
 // List plugins initially
-let output = runCommand('node ../bin/headlamp-plugin.js list --json');
+let output = runCommand('node ../bin/pluginctl.js list --json');
 console.log('Initial list output:', output);
 let plugins = JSON.parse(output);
 console.log('Initial plugins:', plugins);
@@ -58,33 +58,33 @@ assert.strictEqual(pluginExists, false, 'Plugin should not be initially installe
 
 // Install the plugin
 const pluginURL = 'https://artifacthub.io/packages/headlamp/test-123/prometheus_headlamp_plugin';
-output = runCommand(`node ../bin/headlamp-plugin.js install ${pluginURL}`);
+output = runCommand(`node ../bin/pluginctl.js install ${pluginURL}`);
 console.log('Install output:', output);
 
 // List plugins to verify installation
-output = runCommand('node ../bin/headlamp-plugin.js list --json');
+output = runCommand('node ../bin/pluginctl.js list --json');
 plugins = JSON.parse(output);
 console.log('Plugins after install:', plugins);
 pluginExists = plugins.some(plugin => plugin.pluginName === pluginName);
 assert.strictEqual(pluginExists, true, 'Plugin should be installed');
 
 // Update the plugin
-output = runCommand(`node ../bin/headlamp-plugin.js update ${pluginName}`);
+output = runCommand(`node ../bin/pluginctl.js update ${pluginName}`);
 console.log('Update output:', output);
 
 // List plugins to verify update
-output = runCommand('node ../bin/headlamp-plugin.js list --json');
+output = runCommand('node ../bin/pluginctl.js list --json');
 plugins = JSON.parse(output);
 console.log('Plugins after update:', plugins);
 pluginExists = plugins.some(plugin => plugin.pluginName === pluginName);
 assert.strictEqual(pluginExists, true, 'Plugin should still be installed after update');
 
 // Uninstall the plugin
-output = runCommand(`node ../bin/headlamp-plugin.js uninstall ${pluginName}`);
+output = runCommand(`node ../bin/pluginctl.js uninstall ${pluginName}`);
 console.log('Uninstall output:', output);
 
 // List plugins to verify uninstallation
-output = runCommand('node ../bin/headlamp-plugin.js list --json');
+output = runCommand('node ../bin/pluginctl.js list --json');
 console.log('Initial list output:', output);
 plugins = JSON.parse(output);
 console.log('Plugins after uninstall:', plugins);

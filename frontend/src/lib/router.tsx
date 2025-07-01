@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { ReactNode } from 'react';
+import React, { ExoticComponent, ReactNode } from 'react';
 import { generatePath, useHistory } from 'react-router';
 import NotFoundComponent from '../components/404';
 import AuthToken from '../components/account/Auth';
@@ -51,6 +51,8 @@ import GRPCRouteDetails from '../components/gateway/GRPCRouteDetails';
 import GRPCRouteList from '../components/gateway/GRPCRouteList';
 import HTTPRouteDetails from '../components/gateway/HTTPRouteDetails';
 import HTTPRouteList from '../components/gateway/HTTPRouteList';
+import ReferenceGrantDetails from '../components/gateway/ReferenceGrantDetails';
+import ReferenceGrantList from '../components/gateway/ReferenceGrantList';
 import HpaDetails from '../components/horizontalPodAutoscaler/Details';
 import HpaList from '../components/horizontalPodAutoscaler/List';
 import IngressClassDetails from '../components/ingress/ClassDetails';
@@ -140,7 +142,7 @@ export interface Route {
   /** The sidebar entry this Route should enable, or null if it shouldn't enable any. If an object is passed with item and sidebar, it will try to enable the given sidebar and the given item. */
   sidebar: string | null | { item: string | null; sidebar: string | DefaultSidebars };
   /** Shown component for this route. */
-  component: () => ReactNode;
+  component: ExoticComponent<{}> | (() => ReactNode);
   /** Hide the appbar at the top. */
   hideAppBar?: boolean;
   /** Whether the route should be disabled (not registered). */
@@ -174,6 +176,17 @@ const defaultRoutes: {
     useClusterURL: false,
     noAuthRequired: true,
     component: () => <Home />,
+  },
+  advancedSearch: {
+    path: '/advanced-search',
+    exact: true,
+    name: 'Advanced Search',
+    sidebar: 'advancedSearch',
+    component: React.lazy(() =>
+      import('../components/advancedSearch/AdvancedSearch').then(it => ({
+        default: it.AdvancedSearch,
+      }))
+    ),
   },
   namespaces: {
     path: '/namespaces',
@@ -409,6 +422,20 @@ const defaultRoutes: {
     exact: true,
     sidebar: 'gatewayclasses',
     component: () => <GatewayClassDetails />,
+  },
+  referencegrants: {
+    path: '/referencegrants',
+    exact: true,
+    name: 'ReferenceGrants',
+    sidebar: 'referencegrants',
+    component: () => <ReferenceGrantList />,
+  },
+  referencegrant: {
+    path: '/referencegrant/:namespace/:name',
+    exact: true,
+    name: 'ReferenceGrants',
+    sidebar: 'referencegrants',
+    component: () => <ReferenceGrantDetails />,
   },
   DaemonSets: {
     path: '/daemonsets',

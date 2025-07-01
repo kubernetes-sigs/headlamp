@@ -60,7 +60,7 @@ export interface IngressBackend {
 export interface KubeIngress extends KubeObjectInterface {
   spec: {
     ingressClassName?: string;
-    rules: IngressRule[] | LegacyIngressRule[];
+    rules?: IngressRule[] | LegacyIngressRule[];
     tls?: {
       hosts: string[];
       secretName: string;
@@ -130,7 +130,7 @@ class Ingress extends KubeObject<KubeIngress> {
   }
 
   getHosts() {
-    return this.spec!.rules.map(({ host }) => host).join(' | ');
+    return this.spec.rules?.map(({ host }) => host).join(' | ');
   }
 
   getRules(): IngressRule[] {

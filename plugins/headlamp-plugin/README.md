@@ -172,3 +172,16 @@ npm publish kinvolk-headlamp-plugin-0.6.0-alpha.0.tgz --tag alpha
 ```
 
 If you don't specify a tag, npm publish uses the "latest" tag.
+
+## Relationship with @headlamp-k8s/pluginctl
+
+`headlamp-plugin` is built on top of `pluginctl` and provides a superset of its functionality. While `pluginctl` focuses solely on plugin management operations, `headlamp-plugin` adds comprehensive development tooling:
+
+- Plugin creation and scaffolding
+- Development server with hot reloading
+- Build and packaging tools
+- Testing infrastructure with Storybook
+- Code quality tools (linting, formatting, TypeScript)
+- All plugin management features from pluginctl
+
+Choose `headlamp-plugin` if you're developing plugins and need the full development toolchain, or `pluginctl` if you only need plugin management features.

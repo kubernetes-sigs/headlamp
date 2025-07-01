@@ -48,6 +48,7 @@ const dependenciesFrontDoesNotHave = new Set([
   '@storybook/react-webpack5',
   'is-mergeable-object',
   'ts-loader',
+  '@headlamp-k8s/pluginctl',
 ]);
 
 // Dependencies from frontend/package.json that aren't wanted by headlamp-plugin.

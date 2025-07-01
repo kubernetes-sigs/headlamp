@@ -55,7 +55,7 @@ export const useSources = () => useContext(Context);
 /**
  * Returns a flat list of all the sources
  */
-function getFlatSources(sources: GraphSource[], result: GraphSource[] = []): GraphSource[] {
+export function getFlatSources(sources: GraphSource[], result: GraphSource[] = []): GraphSource[] {
   for (const source of sources) {
     if ('sources' in source) {
       getFlatSources(source.sources, result);
@@ -80,9 +80,33 @@ export const kubeOwnersEdges = (obj: KubeObject): GraphEdge[] => {
 };
 
 /**
+ * Create reverse Edges from object's ownerReferences
+ */
+export const kubeOwnersEdgesReversed = (obj: KubeObject): GraphEdge[] => {
+  return (
+    obj.metadata.ownerReferences?.map(owner => ({
+      id: `${owner.uid}-${obj.metadata.uid}`,
+      type: 'kubeRelation',
+      source: owner.uid,
+      target: obj.metadata.uid,
+    })) ?? []
+  );
+};
+
+/**
  * Create an object from any Kube object
  */
 export const makeKubeObjectNode = (obj: KubeObject): GraphNode => {
+  const crd = (obj.constructor as any)?.customResourceDefinition;
+  if (crd && typeof crd.getMainAPIGroup === 'function') {
+    const [group, , plural] = crd.getMainAPIGroup();
+    return {
+      id: obj.metadata.uid,
+      kubeObject: obj,
+      customResourceDefinition: plural + '.' + group,
+    };
+  }
+
   return {
     id: obj.metadata.uid,
     kubeObject: obj,

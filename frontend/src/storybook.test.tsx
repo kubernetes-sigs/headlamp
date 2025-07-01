@@ -69,6 +69,8 @@ vi.mock('@iconify/react', () => ({
 }));
 
 vi.mock('@monaco-editor/react', () => ({
+  Editor: () => <div className="mock-monaco-editor" />,
+  useMonaco: () => null,
   loader: { config: () => null },
   default: () => <div className="mock-monaco-editor" />,
 }));

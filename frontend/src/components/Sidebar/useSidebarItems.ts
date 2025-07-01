@@ -121,6 +121,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'nodes',
             label: t('glossary|Nodes'),
           },
+          {
+            name: 'advancedSearch',
+            label: t('Advanced Search (Beta)'),
+          },
         ],
       },
       {
@@ -234,6 +238,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
           {
             name: 'grpcroutes',
             label: t('glossary|GRPC Routes'),
+          },
+          {
+            name: 'referencegrants',
+            label: t('glossary|Reference Grants'),
           },
         ],
       },

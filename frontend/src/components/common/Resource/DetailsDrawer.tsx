@@ -19,8 +19,6 @@ import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useLocation } from 'react-router';
-import { isElectron } from '../../../helpers/isElectron';
 import { setSelectedResource } from '../../../redux/drawerModeSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { KubeObjectDetails } from '../../resourceMap/details/KubeNodeDetails';
@@ -31,22 +29,11 @@ export default function DetailsDrawer() {
   const selectedResource = useTypedSelector(state => state.drawerMode.selectedResource);
   const dispatch = useDispatch();
   const theme = useTheme();
-  const location = useLocation();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('md'));
   const isDetailDrawerEnabled = useTypedSelector(state => state.drawerMode.isDetailDrawerEnabled);
 
-  function handleCloseDrawerReset() {
-    if (isElectron()) return;
-
-    const currentPlacement = location.pathname;
-    const pathname = currentPlacement;
-
-    window.history.replaceState({}, '', pathname);
-  }
-
   function closeDrawer() {
     dispatch(setSelectedResource(undefined));
-    handleCloseDrawerReset();
   }
 
   if (!selectedResource || isSmallScreen || !isDetailDrawerEnabled) {
