@@ -57,11 +57,13 @@ func IsTokenAboutToExpire(token string) bool {
 		return false
 	}
 
-	expiryTime, err := GetExpiryTime(payload)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "failed to get expiry time")
+	exp, ok := payload["exp"].(float64)
+	if !ok {
+		logger.Log(logger.LevelError, nil, errors.New("expiry time not found or invalid"), "failed to get expiry time")
 		return false
 	}
+
+	expiryTime := time.Unix(int64(exp), 0)
 
 	return time.Until(expiryTime) <= JWTExpirationTTL
 }
