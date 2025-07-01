@@ -16,10 +16,13 @@
 
 import { Icon } from '@iconify/react';
 import { Box, DialogContentText } from '@mui/material';
+import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import Snackbar from '@mui/material/Snackbar';
 import Tooltip from '@mui/material/Tooltip';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -48,6 +51,16 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
   const history = useHistory();
   const dispatch = useDispatch();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [isLoading, setIsLoading] = React.useState<boolean>(false);
+  const [snackbar, setSnackbar] = React.useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
   const menuId = useId('context-menu');
   const [openConfirmDialog, setOpenConfirmDialog] = React.useState<string | null>(null);
   const dialogs = useTypedSelector(state => state.clusterProvider.dialogs);
@@ -56,62 +69,98 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
   const kubeconfigOrigin = cluster.meta_data?.origin?.kubeconfig;
   const deleteFromKubeconfig = cluster.meta_data?.source === 'kubeconfig';
 
-  function removeCluster(cluster: Cluster) {
+  function removeCluster(cluster: Cluster, isPermanentDelete: boolean = false) {
+    setIsLoading(true);
     const clusterID = cluster.meta_data?.clusterID;
     const originalName = cluster.meta_data?.originalName ?? '';
     const clusterName = cluster.name;
 
-    deleteCluster(clusterName, deleteFromKubeconfig, clusterID, kubeconfigOrigin, originalName)
+    deleteCluster(
+      clusterName,
+      isPermanentDelete ? deleteFromKubeconfig : true,
+      clusterID,
+      kubeconfigOrigin,
+      originalName
+    )
       .then(config => {
         dispatch(setConfig(config));
+        setSnackbar({
+          open: true,
+          message: t(
+            isPermanentDelete
+              ? 'translation|Cluster "{{ clusterName }}" deleted successfully'
+              : 'translation|Cluster "{{ clusterName }}" removed successfully',
+            { clusterName: cluster.name }
+          ),
+          severity: 'success',
+        });
       })
       .catch((err: Error) => {
-        if (err.message === 'Not Found') {
-          // TODO: create notification with error message
-        }
+        setSnackbar({
+          open: true,
+          message: t(
+            isPermanentDelete
+              ? 'translation|Failed to delete cluster "{{ clusterName }}": {{ error }}'
+              : 'translation|Failed to remove cluster "{{ clusterName }}": {{ error }}',
+            { clusterName: cluster.name, error: err.message }
+          ),
+          severity: 'error',
+        });
       })
       .finally(() => {
+        setIsLoading(false);
         history.push('/');
       });
   }
 
-  function removeClusterDescription(cluster: Cluster) {
-    const description = deleteFromKubeconfig
-      ? t('translation|This action will delete cluster "{{ clusterName }}" from "{{ source }}"', {
-          clusterName: cluster.name,
-          source: kubeconfigOrigin,
-        })
-      : t('translation|This action will remove cluster "{{ clusterName }}".', {
-          clusterName: cluster.name,
-        });
+  function removeClusterDescription(cluster: Cluster, isPermanentDelete: boolean = false) {
+    if (isPermanentDelete) {
+      const description = deleteFromKubeconfig
+        ? t('translation|This action will delete cluster "{{ clusterName }}" from "{{ source }}"', {
+            clusterName: cluster.name,
+            source: kubeconfigOrigin,
+          })
+        : t('translation|This action will delete cluster "{{ clusterName }}".', {
+            clusterName: cluster.name,
+          });
 
-    const removeFromKubeconfigDes = deleteFromKubeconfig
-      ? t('translation|This action cannot be undone! Do you want to proceed?')
-      : t('translation|Remove this cluster?');
+      const removeFromKubeconfigDes = deleteFromKubeconfig
+        ? t('translation|This action cannot be undone! Do you want to proceed?')
+        : t('translation|Delete this cluster?');
 
-    return (
-      <>
-        {description}
-        {removeFromKubeconfigDes && (
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              marginTop: '1rem',
-              marginBottom: '1rem',
-            }}
-          >
-            <DialogContentText id="alert-dialog-description">
-              {removeFromKubeconfigDes}
-            </DialogContentText>
-          </Box>
-        )}
-      </>
-    );
+      return (
+        <>
+          {description}
+          {removeFromKubeconfigDes && (
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                marginTop: '1rem',
+                marginBottom: '1rem',
+              }}
+            >
+              <DialogContentText id="alert-dialog-description">
+                {removeFromKubeconfigDes}
+              </DialogContentText>
+            </Box>
+          )}
+        </>
+      );
+    } else {
+      return t(
+        'translation|Are you sure you want to remove the cluster context "{{ clusterName }}" from ~/.kube/config? This will not delete the actual cluster.',
+        { clusterName: cluster.name }
+      );
+    }
   }
 
   function handleMenuClose() {
     setAnchorEl(null);
+  }
+
+  function handleSnackbarClose() {
+    setSnackbar({ ...snackbar, open: false });
   }
 
   return (
@@ -125,8 +174,9 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
           aria-haspopup="menu"
           aria-controls={menuId}
           aria-label={t('Actions')}
+          disabled={isLoading}
         >
-          <Icon icon="mdi:more-vert" />
+          {isLoading ? <CircularProgress size={24} /> : <Icon icon="mdi:more-vert" />}
         </IconButton>
       </Tooltip>
       <Menu
@@ -165,7 +215,18 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
               <ListItemText>{t('translation|Delete')}</ListItemText>
             </MenuItem>
           )}
-
+        {helpers.isElectron() && (
+          <Tooltip title={t('translation|Remove cluster context from ~/.kube/config')}>
+            <MenuItem
+              onClick={() => {
+                setOpenConfirmDialog('removeCluster');
+                handleMenuClose();
+              }}
+            >
+              <ListItemText>{t('translation|Remove')}</ListItemText>
+            </MenuItem>
+          </Tooltip>
+        )}
         {menuItems.map((Item, index) => {
           return (
             <Item
@@ -178,15 +239,25 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
         })}
       </Menu>
       <ConfirmDialog
+        open={openConfirmDialog === 'removeCluster'}
+        handleClose={() => setOpenConfirmDialog('')}
+        onConfirm={() => {
+          setOpenConfirmDialog('');
+          removeCluster(cluster, false);
+        }}
+        title={t('translation|Remove Cluster')}
+        description={removeClusterDescription(cluster, false)}
+      />
+      <ConfirmDialog
         open={openConfirmDialog === 'deleteDynamic'}
         handleClose={() => setOpenConfirmDialog('')}
         confirmLabel={t('translation|Delete')}
         onConfirm={() => {
           setOpenConfirmDialog('');
-          removeCluster(cluster);
+          removeCluster(cluster, true);
         }}
         title={t('translation|Delete Cluster')}
-        description={removeClusterDescription(cluster)}
+        description={removeClusterDescription(cluster, true)}
       />
       {openConfirmDialog !== null &&
         dialogs.map((Dialog, index) => {
@@ -201,6 +272,16 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
             </ErrorBoundary>
           );
         })}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={handleSnackbarClose} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </>
   );
 }
