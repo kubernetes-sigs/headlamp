@@ -116,11 +116,11 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
   function removeClusterDescription(cluster: Cluster, isPermanentDelete: boolean = false) {
     if (isPermanentDelete) {
       const description = deleteFromKubeconfig
-        ? t('translation|This action will delete cluster "{{ clusterName }}" from "{{ source }}"', {
+        ? t('translation|This action will remove cluster "{{ clusterName }}" from "{{ source }}"', {
             clusterName: cluster.name,
             source: kubeconfigOrigin,
           })
-        : t('translation|This action will delete cluster "{{ clusterName }}".', {
+        : t('translation|This action will remove cluster "{{ clusterName }}".', {
             clusterName: cluster.name,
           });
 
