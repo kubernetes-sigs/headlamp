@@ -19,6 +19,11 @@ package auth
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"strings"
+	"time"
+
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
 // DecodeBase64JSON decodes a base64 URL-encoded JSON string into a map.
@@ -34,4 +39,29 @@ func DecodeBase64JSON(base64JSON string) (map[string]interface{}, error) {
 	}
 
 	return payloadMap, nil
+}
+
+const JWTExpirationTTL = 10 * time.Second // seconds
+
+func IsTokenAboutToExpire(token string) bool {
+	const tokenParts = 3
+
+	parts := strings.Split(token, ".")
+	if len(parts) != tokenParts {
+		return false
+	}
+
+	payload, err := DecodeBase64JSON(parts[1])
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to decode payload")
+		return false
+	}
+
+	expiryTime, err := GetExpiryTime(payload)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to get expiry time")
+		return false
+	}
+
+	return time.Until(expiryTime) <= JWTExpirationTTL
 }
