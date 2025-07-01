@@ -92,22 +92,52 @@ export async function setCluster(clusterReq: ClusterRequest) {
   );
 }
 
-// @todo: needs documenting.
-
+/**
+ * deleteCluster sends call to backend remove a cluster from the config.
+ *
+ * Note: Currently, the use for the optional clusterID is only for the clusterID for non-dynamic clusters.
+ * It is not needed or used for dynamic clusters.
+ * @param cluster
+ * @param source
+ * @param clusterID
+ */
 export async function deleteCluster(
-  cluster: string
+  /** The name of the cluster to delete */
+  cluster: string,
+  /** Whether to remove the kubeconfig file associated with the cluster */
+  removeKubeConfig?: boolean,
+  /** The ID for a cluster, composed of the kubeconfig path and cluster name */
+  clusterID?: string,
+  // /** The origin of the cluster, e.g., kubeconfig path */
+  kubeconfigOrigin?: string,
+  // /** The original name of the cluster, used for kubeconfig clusters */
+  originalName?: string
 ): Promise<{ clusters: ConfigState['clusters'] }> {
+  let deleteURL;
+  const removeFromKubeConfig = `${!!removeKubeConfig}`; // Convert boolean to string for URL parameter
+
+  // If the clusterID exists and the originalName is provided, and removeKubeConfig is true,
+  // the cluster is non dynamic and we need to construct the URL differently to ensure the correct parameters are passed.
+  if (clusterID && originalName && removeKubeConfig) {
+    // for non dynamic clusters, we need to use the original name as a query parameter to find the actual context in the kubeconfig
+    // and remove it from the kubeconfig file.
+    deleteURL = `/cluster/${cluster}?removeKubeConfig=${removeFromKubeConfig}&clusterID=${clusterID}&configPath=${kubeconfigOrigin}&originalName=${originalName}`;
+  } else {
+    // for other clusters we can use the standard delete URL.
+    deleteURL = `/cluster/${cluster}`;
+  }
+
   if (cluster) {
-    const kubeconfig = await findKubeconfigByClusterName(cluster);
+    const kubeconfig = await findKubeconfigByClusterName(cluster, clusterID);
     if (kubeconfig !== null) {
-      await deleteClusterKubeconfig(cluster);
+      await deleteClusterKubeconfig(cluster, clusterID);
       window.location.reload();
       return { clusters: {} };
     }
   }
 
   return request(
-    `/cluster/${cluster}`,
+    deleteURL,
     { method: 'DELETE', headers: { ...getHeadlampAPIHeaders() } },
     false,
     false

@@ -111,12 +111,12 @@ export default function ClusterTable({
    * @returns A description of where the cluster is picked up from: dynamic, in-cluster, or from a kubeconfig file.
    */
   function getOrigin(cluster: Cluster): string {
-    if (cluster.meta_data?.source === 'kubeconfig') {
-      const sourcePath = cluster.meta_data?.origin?.kubeconfig;
+    if (cluster?.meta_data?.source === 'kubeconfig') {
+      const sourcePath = cluster?.meta_data?.origin?.kubeconfig;
       return sourcePath ? `Kubeconfig: ${sourcePath}` : 'Kubeconfig';
-    } else if (cluster.meta_data?.source === 'dynamic_cluster') {
+    } else if (cluster?.meta_data?.source === 'dynamic_cluster') {
       return t('translation|Plugin');
-    } else if (cluster.meta_data?.source === 'in_cluster') {
+    } else if (cluster?.meta_data?.source === 'in_cluster') {
       return t('translation|In-cluster');
     }
     return 'Unknown';
@@ -146,10 +146,10 @@ export default function ClusterTable({
         {
           header: t('Status'),
           accessorFn: cluster =>
-            errors[cluster.name] === null ? 'Active' : errors[cluster.name]?.message,
+            errors[cluster?.name] === null ? 'Active' : errors[cluster?.name]?.message,
           Cell: ({ row: { original } }) => <ClusterStatus error={errors[original.name]} />,
         },
-        { header: t('Warnings'), accessorFn: cluster => warningLabels[cluster.name] },
+        { header: t('Warnings'), accessorFn: cluster => warningLabels[cluster?.name] },
         {
           header: t('glossary|Kubernetes Version'),
           accessorFn: ({ name }) => versions[name]?.gitVersion || '⋯',
@@ -161,7 +161,7 @@ export default function ClusterTable({
             align: 'right',
           },
           accessorFn: cluster =>
-            errors[cluster.name] === null ? 'Active' : errors[cluster.name]?.message,
+            errors[cluster?.name] === null ? 'Active' : errors[cluster?.name]?.message,
           Cell: ({ row: { original: cluster } }) => {
             return <ClusterContextMenu cluster={cluster} />;
           },

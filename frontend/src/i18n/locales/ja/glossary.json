@@ -9,6 +9,7 @@
   "Nodes": "ノード",
   "Events": "イベント",
   "Namespaces": "ネームスペース",
+  "Filter": "",
   "Namespace": "ネームスペース",
   "toggle field visibility": "フィールド表示の切り替え",
   "Condition": "状態",

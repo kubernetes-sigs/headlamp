@@ -11,7 +11,7 @@
     },
     {
       "name": "prometheus",
-      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/prometheus-0.6.0/prometheus-0.6.0.tar.gz"
+      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/prometheus-0.7.1/prometheus-0.7.1.tar.gz"
     }
   ]
 }

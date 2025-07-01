@@ -265,12 +265,12 @@ spec:
           args:
             - |
               echo "Installing headlamp-plugin globally..."
-              npm install -g @kinvolk/headlamp-plugin@{{ .Values.pluginsManager.version }}
+              npm install -g @headlamp-k8s/pluginctl@{{ .Values.pluginsManager.version }}
               echo "Installed headlamp-plugin successfully."
               if [ -f "/config/plugin.yml" ]; then
                 echo "Installing plugins from config..."
                 cat /config/plugin.yml
-                headlamp-plugin install --config /config/plugin.yml --folderName {{ .Values.config.pluginsDir }} --watch
+                pluginctl install --config /config/plugin.yml --folderName {{ .Values.config.pluginsDir }} --watch
               fi
           volumeMounts:
             - name: plugins-dir

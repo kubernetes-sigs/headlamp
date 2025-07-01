@@ -15,6 +15,7 @@
  */
 
 import { Icon } from '@iconify/react';
+import { Box, DialogContentText } from '@mui/material';
 import IconButton from '@mui/material/IconButton';
 import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
@@ -52,8 +53,15 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
   const dialogs = useTypedSelector(state => state.clusterProvider.dialogs);
   const menuItems = useTypedSelector(state => state.clusterProvider.menuItems);
 
+  const kubeconfigOrigin = cluster.meta_data?.origin?.kubeconfig;
+  const deleteFromKubeconfig = cluster.meta_data?.source === 'kubeconfig';
+
   function removeCluster(cluster: Cluster) {
-    deleteCluster(cluster.name || '')
+    const clusterID = cluster.meta_data?.clusterID;
+    const originalName = cluster.meta_data?.originalName ?? '';
+    const clusterName = cluster.name;
+
+    deleteCluster(clusterName, deleteFromKubeconfig, clusterID, kubeconfigOrigin, originalName)
       .then(config => {
         dispatch(setConfig(config));
       })
@@ -65,6 +73,41 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
       .finally(() => {
         history.push('/');
       });
+  }
+
+  function removeClusterDescription(cluster: Cluster) {
+    const description = deleteFromKubeconfig
+      ? t('translation|This action will delete cluster "{{ clusterName }}" from "{{ source }}"', {
+          clusterName: cluster.name,
+          source: kubeconfigOrigin,
+        })
+      : t('translation|This action will remove cluster "{{ clusterName }}".', {
+          clusterName: cluster.name,
+        });
+
+    const removeFromKubeconfigDes = deleteFromKubeconfig
+      ? t('translation|This action cannot be undone! Do you want to proceed?')
+      : t('translation|Remove this cluster?');
+
+    return (
+      <>
+        {description}
+        {removeFromKubeconfigDes && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              marginTop: '1rem',
+              marginBottom: '1rem',
+            }}
+          >
+            <DialogContentText id="alert-dialog-description">
+              {removeFromKubeconfigDes}
+            </DialogContentText>
+          </Box>
+        )}
+      </>
+    );
   }
 
   function handleMenuClose() {
@@ -110,16 +153,18 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
         >
           <ListItemText>{t('translation|Settings')}</ListItemText>
         </MenuItem>
-        {helpers.isElectron() && cluster.meta_data?.source === 'dynamic_cluster' && (
-          <MenuItem
-            onClick={() => {
-              setOpenConfirmDialog('deleteDynamic');
-              handleMenuClose();
-            }}
-          >
-            <ListItemText>{t('translation|Delete')}</ListItemText>
-          </MenuItem>
-        )}
+        {helpers.isElectron() &&
+          (cluster.meta_data?.source === 'dynamic_cluster' ||
+            cluster.meta_data?.source === 'kubeconfig') && (
+            <MenuItem
+              onClick={() => {
+                setOpenConfirmDialog('deleteDynamic');
+                handleMenuClose();
+              }}
+            >
+              <ListItemText>{t('translation|Delete')}</ListItemText>
+            </MenuItem>
+          )}
 
         {menuItems.map((Item, index) => {
           return (
@@ -135,17 +180,13 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
       <ConfirmDialog
         open={openConfirmDialog === 'deleteDynamic'}
         handleClose={() => setOpenConfirmDialog('')}
+        confirmLabel={t('translation|Delete')}
         onConfirm={() => {
           setOpenConfirmDialog('');
           removeCluster(cluster);
         }}
         title={t('translation|Delete Cluster')}
-        description={t(
-          'translation|Are you sure you want to remove the cluster "{{ clusterName }}"?',
-          {
-            clusterName: cluster.name,
-          }
-        )}
+        description={removeClusterDescription(cluster)}
       />
       {openConfirmDialog !== null &&
         dialogs.map((Dialog, index) => {

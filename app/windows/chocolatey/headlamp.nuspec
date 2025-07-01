@@ -3,7 +3,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>headlamp</id>
-    <version>0.31.1</version>
+    <version>0.32.0</version>
     <packageSourceUrl>https://github.com/kubernetes-sigs/headlamp/tree/main/app/windows/chocolatey</packageSourceUrl>
     <title>Headlamp</title>
     <authors>Kinvolk</authors>

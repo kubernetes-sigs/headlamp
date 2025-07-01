@@ -79,7 +79,7 @@ export function LinkStringFormat({ url, item, urlPath }: LinkStringFormatProps) 
     /*
      * Since we cannot access the prefix from the ingress object, we have to access it from the rules array
      */
-    const rules: any[] = item.spec.rules;
+    const rules: any[] | undefined = item.spec.rules;
     let currentPathType;
     if (rules) {
       for (let i = 0; i < rules.length; i++) {

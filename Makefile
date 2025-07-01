@@ -148,7 +148,7 @@ run-only-app:
 frontend-lint:
 	cd frontend && npm run lint -- --max-warnings 0 && npm run format-check
 
-frontend-fixlint:
+frontend-lint-fix:
 	cd frontend && npm run lint -- --fix && npm run format
 
 .PHONY: frontend-tsc
@@ -162,6 +162,12 @@ frontend-i18n-check:
 
 frontend-test:
 	cd frontend && npm run test -- --coverage
+
+.PHONY: lint
+lint: backend-lint frontend-lint
+
+.PHONY: lint-fix
+lint-fix: backend-lint-fix frontend-lint-fix
 
 plugins-test:
 	cd plugins/headlamp-plugin && npm install && ./test-headlamp-plugin.js
