@@ -112,13 +112,17 @@ Default.parameters = {
   },
 };
 
-export const Error = Template.bind({});
-Error.parameters = {
+export const ErrorWithEndpoints = Template.bind({});
+ErrorWithEndpoints.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/services', () =>
+        http.get('http://localhost:4466/api/v1/namespaces/default/services/example-service', () =>
           HttpResponse.json(serviceMock)
+        ),
+
+        http.get('http://localhost:4466/api/v1/namespaces/default/endpoints', () =>
+          HttpResponse.error()
         ),
       ],
     },
