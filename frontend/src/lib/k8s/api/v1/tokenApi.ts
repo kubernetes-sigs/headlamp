@@ -16,9 +16,7 @@
 
 import { decodeToken } from 'react-jwt';
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
-import { getToken, setToken } from '../../../auth';
 import { getCluster } from '../../../cluster';
-import { KubeToken } from '../../token';
 import {
   BASE_HTTP_URL,
   CLUSTERS_PREFIX,
@@ -29,6 +27,7 @@ import { combinePath } from './formatUrl';
 
 let isTokenRefreshInProgress = false;
 
+// TODO: Figure out how to refresh tokens
 /**
  * Refreshes the token if it is about to expire.
  *
@@ -99,11 +98,6 @@ export async function refreshToken(token: string | null): Promise<void> {
       ...JSON_HEADERS,
     });
 
-    const token = getToken(cluster);
-    if (!!token) {
-      headers.set('Authorization', `Bearer ${token}`);
-    }
-
     const response = await fetch(tokenUrl, {
       method: 'POST',
       headers,
@@ -111,8 +105,8 @@ export async function refreshToken(token: string | null): Promise<void> {
     });
 
     if (response.status === 201) {
-      const token: KubeToken = await response.json();
-      setToken(cluster, token.status.token);
+      // const token: KubeToken = await response.json();
+      // setToken(cluster, token.status.token);
     }
 
     isTokenRefreshInProgress = false;

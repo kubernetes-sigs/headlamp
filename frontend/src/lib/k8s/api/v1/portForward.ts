@@ -16,7 +16,7 @@
 
 import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
-import { getToken } from '../../../auth';
+import { backendFetch } from '../v2/fetch';
 import { JSON_HEADERS } from './constants';
 
 // @todo: the return type is missing for the following functions.
@@ -75,7 +75,6 @@ export async function startPortForward(
 ): Promise<PortForward> {
   const kubeconfig = await findKubeconfigByClusterName(cluster);
   const headers: HeadersInit = {
-    Authorization: `Bearer ${getToken(cluster)}`,
     ...JSON_HEADERS,
   };
 
@@ -95,7 +94,7 @@ export async function startPortForward(
     address,
     port,
   };
-  return fetch(`${getAppUrl()}portforward`, {
+  return backendFetch('/portforward', {
     method: 'POST',
     headers: new Headers(headers),
     body: JSON.stringify(request),

@@ -16100,10 +16100,6 @@
   "Utils": {
     "CLUSTER_ACTION_GRACE_PERIOD": 5000,
     "auth": {
-      "deleteTokens": [Function],
-      "getToken": [Function],
-      "getUserInfo": [Function],
-      "hasToken": [Function],
       "logout": [Function],
       "setToken": [Function],
     },

@@ -18,90 +18,55 @@
  * This module was taken from the k8dash project.
  */
 
-import store from '../redux/stores/store';
+import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
+import { backendFetch } from './k8s/api/v2/fetch';
 
 /**
- * Retrieves the authentication token for a given cluster.
- * If a custom getToken method is defined in the Redux store, it will be used.
- * Otherwise, the token is retrieved from local storage.
+ * Sets token to the cookie via backend
  *
- * @param cluster - The name of the cluster.
- * @returns The authentication token for the specified cluster, or undefined if not set.
+ * @param cluster
+ * @param token
+ * @returns
  */
-export function getToken(cluster: string) {
-  const getTokenMethodToUse = store.getState().ui.functionsToOverride.getToken;
-  const tokenMethodToUse =
-    getTokenMethodToUse ||
-    function () {
-      return getTokens()[cluster];
-    };
-  return tokenMethodToUse(cluster);
-}
+async function setCookieToken(cluster: string, token: string | null) {
+  try {
+    const response = await backendFetch('/auth/set-token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getHeadlampAPIHeaders(),
+      },
+      body: JSON.stringify({ cluster: cluster.trim(), token }),
+    });
 
-/**
- * Retrieves the user information encoded in the authentication token for a given cluster.
- *
- * @param cluster - The name of the cluster.
- * @returns The decoded user information from the token's payload.
- */
-export function getUserInfo(cluster: string) {
-  const user = getToken(cluster).split('.')[1];
-  return JSON.parse(atob(user));
-}
-
-/**
- * Checks whether an authentication token exists for the given cluster.
- *
- * @param cluster - The name of the cluster.
- * @returns True if a token exists, false otherwise.
- */
-export function hasToken(cluster: string) {
-  return !!getToken(cluster);
-}
-
-/**
- * Retrieves all stored cluster authentication tokens from local storage.
- *
- * @returns An object mapping cluster names to their tokens.
- */
-function getTokens() {
-  return JSON.parse(localStorage.tokens || '{}');
-}
-
-/**
- * Sets or updates the token for a given cluster.
- * If a custom setToken method is defined in the Redux store, it will be used.
- * Otherwise, the token is stored in local storage.
- *
- * @param cluster - The name of the cluster.
- * @param token - The authentication token to set.
- * @returns {void}
- */
-export function setToken(cluster: string, token: string | null) {
-  const setTokenMethodToUse = store.getState().ui.functionsToOverride.setToken;
-  if (setTokenMethodToUse) {
-    setTokenMethodToUse(cluster, token);
-  } else {
-    const tokens = getTokens();
-    tokens[cluster] = token;
-    localStorage.tokens = JSON.stringify(tokens);
+    if (!response.ok) {
+      throw new Error(`Failed to set cookie token`);
+    }
+    return true;
+  } catch (error) {
+    console.error('Error setting cookie token:', error);
+    throw error;
   }
 }
 
 /**
- * Deletes all stored authentication tokens from local storage.
+ * Sets or updates the token for a given cluster using cookie-based storage.
+ * The token is stored securely in an HttpOnly cookie on the backend.
  *
- * @returns {void}
+ * @param cluster - The name of the cluster.
+ * @param token - The authentication token to set. Pass null to clear the token.
+ * @throws {Error} When cluster name is invalid or backend request fails
  */
-export function deleteTokens() {
-  delete localStorage.tokens;
+export function setToken(cluster: string, token: string | null) {
+  return setCookieToken(cluster, token);
 }
 
 /**
- * Logs out the user by deleting all tokens.
+ * Logs out the user by clearing the authentication token for the specified cluster.
  *
- * @returns {void}
+ * @param cluster - The name of the cluster to log out from.
+ * @throws {Error} When logout request fails
  */
-export function logout() {
-  deleteTokens();
+export async function logout(cluster: string) {
+  return setToken(cluster, null);
 }
