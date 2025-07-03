@@ -1129,6 +1129,7 @@ function startElecron() {
         contextIsolation: true,
         preload: `${__dirname}/preload.js`,
       },
+      autoHideMenuBar: true,
     });
 
     setMenu(mainWindow, currentMenu);
