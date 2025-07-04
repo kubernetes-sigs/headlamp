@@ -178,6 +178,7 @@
     "VolumeMounts": [Function],
     "VolumeSection": [Function],
     "addResourceTableColumnsProcessor": [Function],
+    "findLongestLine": [Function],
     "isRestartableResource": [Function],
     "makeStatusLabel": [Function],
     "metadataStyles": [Function],
