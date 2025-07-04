@@ -8,6 +8,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 
@@ -17,7 +18,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/exec"
+	headlampexec "github.com/kubernetes-sigs/headlamp/backend/pkg/exec"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/apis/clientauthentication"
@@ -199,42 +200,73 @@ func makeTransportFor(conf *rest.Config) (http.RoundTripper, error) {
 		return nil, fmt.Errorf("configuration cannot be nil")
 	}
 
-	// Use standard transport for non-Windows systems or when ExecProvider is not configured
-	if conf.ExecProvider == nil || runtime.GOOS != "windows" {
-		return rest.TransportFor(conf)
-	}
-
-	confNoExec := *conf
-	confNoExec.ExecProvider = nil
-	// Get the Transport Config but without the ExecProvider because we will set
-	// it up with our version.
-	cfg, err := confNoExec.TransportConfig()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get transport config: %w", err)
-	}
-
-	var cluster *clientauthentication.Cluster
-
-	if conf.ExecProvider.ProvideClusterInfo {
-		var err error
-
-		cluster, err = rest.ConfigToExecCluster(conf)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get cluster info: %w", err)
+	// Handle exec authentication for all platforms
+	if conf.ExecProvider != nil {
+		// For non-Windows systems, use standard transport but with better error handling
+		if runtime.GOOS != "windows" {
+			transport, err := rest.TransportFor(conf)
+			if err != nil {
+				// Provide more detailed error information for exec authentication failures
+				execCmd := conf.ExecProvider.Command
+				logger.Log(logger.LevelError, map[string]string{
+					"command": execCmd,
+					"args": fmt.Sprintf("%v", conf.ExecProvider.Args),
+				}, err, "Failed to create transport with exec authentication")
+				
+				// Get detailed suggestion for the specific command and error
+				suggestion := getExecAuthSuggestion(execCmd, err)
+				
+				return nil, fmt.Errorf("exec authentication failed for command '%s':\n%s\n\nOriginal error: %w", execCmd, suggestion, err)
+			}
+			return transport, nil
 		}
+
+		// Windows-specific handling for exec auth
+		confNoExec := *conf
+		confNoExec.ExecProvider = nil
+		// Get the Transport Config but without the ExecProvider because we will set
+		// it up with our version.
+		cfg, err := confNoExec.TransportConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get transport config: %w", err)
+		}
+
+		var cluster *clientauthentication.Cluster
+
+		if conf.ExecProvider.ProvideClusterInfo {
+			var err error
+
+			cluster, err = rest.ConfigToExecCluster(conf)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get cluster info: %w", err)
+			}
+		}
+
+		// Configure authentication provider using custom authenticator
+		provider, err := headlampexec.GetAuthenticator(conf.ExecProvider, cluster)
+		if err != nil {
+			// Provide more detailed error information for exec authentication failures
+			execCmd := conf.ExecProvider.Command
+			logger.Log(logger.LevelError, map[string]string{
+				"command": execCmd,
+				"args": fmt.Sprintf("%v", conf.ExecProvider.Args),
+			}, err, "Failed to get exec authenticator")
+			
+			// Get detailed suggestion for the specific command and error
+			suggestion := getExecAuthSuggestion(execCmd, err)
+			
+			return nil, fmt.Errorf("exec authentication failed for command '%s':\n%s\n\nOriginal error: %w", execCmd, suggestion, err)
+		}
+
+		if err := provider.UpdateTransportConfig(cfg); err != nil {
+			return nil, fmt.Errorf("failed to update transport config with exec authentication: %w", err)
+		}
+
+		return transport.New(cfg)
 	}
 
-	// Configure authentication provider using custom authenticator
-	provider, err := exec.GetAuthenticator(conf.ExecProvider, cluster)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get authenticator: %w", err)
-	}
-
-	if err := provider.UpdateTransportConfig(cfg); err != nil {
-		return nil, fmt.Errorf("failed to update transport config: %w", err)
-	}
-
-	return transport.New(cfg)
+	// No exec authentication configured, use standard transport
+	return rest.TransportFor(conf)
 }
 
 // OidcConfig returns the oidc config for the context.
@@ -307,17 +339,72 @@ func (c *Context) SetupProxy() error {
 	proxy := httputil.NewSingleHostReverseProxy(URL)
 
 	restConf, err := c.RESTConfig()
-	if err == nil {
-		roundTripper, err := makeTransportFor(restConf)
-		if err == nil {
-			proxy.Transport = roundTripper
-		}
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"context": c.Name, "clusterURL": c.Cluster.Server},
+			err, "Failed to get REST config for proxy setup")
+		return err
 	}
 
+	roundTripper, err := makeTransportFor(restConf)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"context": c.Name, "clusterURL": c.Cluster.Server},
+			err, "Failed to create transport for proxy - authentication may not be properly configured")
+		
+		var suggestion string
+		var errorDescription string
+		
+		// For exec authentication failures, we should still try to set up a basic transport
+		// This allows other authentication methods to work
+		if restConf.ExecProvider != nil {
+			logger.Log(logger.LevelWarn, map[string]string{
+				"context": c.Name, 
+				"command": restConf.ExecProvider.Command,
+			}, nil, "Exec authentication configured but failed - trying fallback transport")
+			
+			// Get detailed suggestion for the error
+			suggestion = getExecAuthSuggestion(restConf.ExecProvider.Command, err)
+			errorDescription = fmt.Sprintf("Exec authentication failed for command '%s'", restConf.ExecProvider.Command)
+			
+			// Create a copy of the config without exec provider for fallback
+			fallbackConf := *restConf
+			fallbackConf.ExecProvider = nil
+			
+			roundTripper, err = rest.TransportFor(&fallbackConf)
+		} else {
+			// For other authentication failures (like invalid certificates), try basic transport
+			logger.Log(logger.LevelWarn, map[string]string{"context": c.Name},
+				nil, "Transport configuration failed - trying basic fallback transport")
+			
+			errorDescription = "Transport configuration failed"
+			suggestion = "Check your cluster configuration and certificates"
+			
+			// Try basic transport without TLS verification as fallback
+			roundTripper, err = http.DefaultTransport, nil
+		}
+		
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"context": c.Name},
+				err, "Failed to create fallback transport")
+			c.Error = fmt.Sprintf("Both primary and fallback authentication failed: %v", err)
+			return err
+		}
+		
+		// Store the error information in the context for user visibility
+		if suggestion != "" {
+			c.Error = fmt.Sprintf("%s:\n%s\n\nUsing fallback authentication.", errorDescription, suggestion)
+		} else {
+			c.Error = fmt.Sprintf("%s. Using fallback authentication.", errorDescription)
+		}
+		
+		logger.Log(logger.LevelInfo, map[string]string{"context": c.Name},
+			nil, "Successfully created fallback transport after authentication failure")
+	}
+
+	proxy.Transport = roundTripper
 	c.proxy = proxy
 
 	logger.Log(logger.LevelInfo, map[string]string{"context": c.Name, "clusterURL": c.Cluster.Server},
-		nil, "Proxy setup")
+		nil, "Proxy setup completed")
 
 	return nil
 }
@@ -999,4 +1086,63 @@ func makeDNSFriendly(name string) string {
 	name = strings.ReplaceAll(name, " ", "__")
 
 	return name
+}
+
+// checkExecCommandAvailability checks if the exec command is available and provides helpful suggestions
+func checkExecCommandAvailability(command string) (bool, string) {
+	// Try to find the command in PATH
+	_, err := exec.LookPath(command)
+	if err == nil {
+		return true, ""
+	}
+
+	// Provide specific suggestions based on the command
+	var suggestion string
+	switch {
+	case strings.Contains(command, "kubelogin"):
+		suggestion = "For AKS clusters using Azure AD authentication:\n" +
+			"  - Install kubelogin: https://azure.github.io/kubelogin/install.html\n" +
+			"  - Or run: kubelogin convert-kubeconfig -l azurecli\n" +
+			"  - Ensure kubelogin is in your PATH"
+	case strings.Contains(command, "gke-gcloud-auth-plugin"):
+		suggestion = "For GKE clusters using Google Cloud authentication:\n" +
+			"  - Install gke-gcloud-auth-plugin: gcloud components install gke-gcloud-auth-plugin\n" +
+			"  - Or follow: https://cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl#install_plugin\n" +
+			"  - Ensure the plugin is in your PATH"
+	case strings.Contains(command, "oci"):
+		suggestion = "For OCI (Oracle Cloud Infrastructure) clusters:\n" +
+			"  - Install OCI CLI: https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm\n" +
+			"  - Ensure oci command is in your PATH\n" +
+			"  - Configure OCI CLI with: oci setup config"
+	case strings.Contains(command, "aws"):
+		suggestion = "For AWS EKS clusters:\n" +
+			"  - Install AWS CLI: https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html\n" +
+			"  - Install aws-iam-authenticator: https://docs.aws.amazon.com/eks/latest/userguide/install-aws-iam-authenticator.html\n" +
+			"  - Ensure commands are in your PATH"
+	default:
+		suggestion = fmt.Sprintf("Exec authentication command '%s' not found.\n"+
+			"  - Ensure the authentication plugin is installed\n"+
+			"  - Make sure the command is available in your PATH\n"+
+			"  - Check if the command works by running it manually: %s --help", command, command)
+	}
+
+	return false, suggestion
+}
+
+// getExecAuthSuggestion provides suggestions for common exec authentication issues
+func getExecAuthSuggestion(command string, originalError error) string {
+	available, suggestion := checkExecCommandAvailability(command)
+	
+	if !available {
+		return suggestion
+	}
+
+	// Command is available but still failing, provide other suggestions
+	return fmt.Sprintf("Command '%s' is available but authentication failed: %v\n"+
+		"Possible causes:\n"+
+		"  - Command may require interactive login (try running: %s get-token)\n"+
+		"  - Authentication tokens may be expired\n"+
+		"  - Command may need additional configuration\n"+
+		"  - Check if the command works manually: %s --help", 
+		command, originalError, command, command)
 }
