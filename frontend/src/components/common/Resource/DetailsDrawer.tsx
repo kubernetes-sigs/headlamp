@@ -15,6 +15,7 @@
  */
 
 import Box from '@mui/material/Box';
+import ClickAwayListener from '@mui/material/ClickAwayListener';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTranslation } from 'react-i18next';
@@ -41,44 +42,46 @@ export default function DetailsDrawer() {
   }
 
   return (
-    <Box
-      sx={{
-        position: 'absolute',
-        backgroundColor: 'background.paper',
-        width: '60vw',
-        right: 0,
-        height: '100%',
-        overflowY: 'auto',
-        boxShadow: '-5px 0 20px rgba(0,0,0,0.08)',
-        borderRadius: '10px 0 0 10px',
-        zIndex: 1,
-        border: '1px solid',
-        borderColor: theme.palette.divider,
-      }}
-      role="complementary"
-      aria-describedby="resource-details-content"
-    >
+    <ClickAwayListener onClickAway={closeDrawer}>
       <Box
         sx={{
-          display: 'flex',
-          padding: '1rem',
-          justifyContent: 'right',
+          position: 'absolute',
+          backgroundColor: 'background.paper',
+          width: '60vw',
+          right: 0,
+          height: '100%',
+          overflowY: 'auto',
+          boxShadow: '-5px 0 20px rgba(0,0,0,0.08)',
+          borderRadius: '10px 0 0 10px',
+          zIndex: 1,
+          border: '1px solid',
+          borderColor: theme.palette.divider,
         }}
+        role="complementary"
+        aria-describedby="resource-details-content"
       >
-        <ActionButton onClick={() => closeDrawer()} icon="mdi:close" description={t('Close')} />
+        <Box
+          sx={{
+            display: 'flex',
+            padding: '1rem',
+            justifyContent: 'right',
+          }}
+        >
+          <ActionButton onClick={() => closeDrawer()} icon="mdi:close" description={t('Close')} />
+        </Box>
+        <Box id="resource-details-content">
+          {selectedResource && (
+            <KubeObjectDetails
+              resource={{
+                kind: selectedResource.kind,
+                metadata: selectedResource.metadata,
+                cluster: selectedResource.cluster,
+              }}
+              customResourceDefinition={selectedResource.customResourceDefinition}
+            />
+          )}
+        </Box>
       </Box>
-      <Box id="resource-details-content">
-        {selectedResource && (
-          <KubeObjectDetails
-            resource={{
-              kind: selectedResource.kind,
-              metadata: selectedResource.metadata,
-              cluster: selectedResource.cluster,
-            }}
-            customResourceDefinition={selectedResource.customResourceDefinition}
-          />
-        )}
-      </Box>
-    </Box>
+    </ClickAwayListener>
   );
 }
