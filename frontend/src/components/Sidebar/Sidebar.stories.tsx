@@ -16,6 +16,7 @@
 
 import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarProvider } from 'notistack';
 import { initialState as THEME_INITIAL_STATE } from '../../components/App/themeSlice';
 import { initialState as CONFIG_INITIAL_STATE } from '../../redux/configSlice';
@@ -63,11 +64,14 @@ const Template: StoryFn<StoryProps> = args => {
       },
     },
   });
+  const queryClient = new QueryClient();
 
   return (
     <TestContext store={sidebarStore}>
       <SnackbarProvider>
-        <Sidebar />
+        <QueryClientProvider client={queryClient}>
+          <Sidebar />
+        </QueryClientProvider>
       </SnackbarProvider>
     </TestContext>
   );
