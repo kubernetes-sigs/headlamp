@@ -323,7 +323,12 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Sort sidebar items alphabetically
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+              id="sort-sidebar-label"
+            >
+              Sort sidebar items alphabetically
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -335,6 +340,7 @@
                 class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
               >
                 <input
+                  aria-labelledby="sort-sidebar-label"
                   class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
                   type="checkbox"
                 />
@@ -353,7 +359,12 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
           >
-            Use evict for pod deletion
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+              id="use-evict-label"
+            >
+              Use evict for deleting resources
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
@@ -365,6 +376,7 @@
                 class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
               >
                 <input
+                  aria-labelledby="use-evict-label"
                   checked=""
                   class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
                   type="checkbox"

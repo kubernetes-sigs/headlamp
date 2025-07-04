@@ -157,6 +157,9 @@ export default function NumRowsInput(props: { defaultValue: number[] }) {
           renderValue={value => `${value}`}
           size="small"
           variant="outlined"
+          inputProps={{
+            'aria-label': `option ${selectedValue}`,
+          }}
         >
           {options.map(option => {
             const isCustom = !defaultTableRowsPerPageOptions.includes(option);

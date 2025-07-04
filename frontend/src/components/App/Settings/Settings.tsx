@@ -124,22 +124,36 @@ export default function Settings() {
             ),
           },
           {
-            name: t('translation|Sort sidebar items alphabetically'),
+            name: (
+              <Typography id="sort-sidebar-label">
+                {t('translation|Sort sidebar items alphabetically')}
+              </Typography>
+            ),
             value: (
               <Switch
                 color="primary"
                 checked={sortSidebar}
                 onChange={e => setSortSidebar(e.target.checked)}
+                inputProps={{
+                  'aria-labelledby': 'sort-sidebar-label',
+                }}
               />
             ),
           },
           {
-            name: t('translation|Use evict for pod deletion'),
+            name: (
+              <Typography id="use-evict-label">
+                {t('translation|Use evict for deleting resources')}
+              </Typography>
+            ),
             value: (
               <Switch
                 color="primary"
                 checked={useEvict}
                 onChange={e => setUseEvict(e.target.checked)}
+                inputProps={{
+                  'aria-labelledby': 'use-evict-label',
+                }}
               />
             ),
           },
