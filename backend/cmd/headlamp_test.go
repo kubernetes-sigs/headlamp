@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -1072,6 +1073,76 @@ func TestStartHeadlampServer(t *testing.T) {
 	}
 
 	client := &http.Client{}
+
+	resp, err := client.Do(req)
+	if err == nil {
+		defer resp.Body.Close()
+	}
+
+	assert.NoError(t, err, "Server should be running and accepting connections")
+
+	// If the server started successfully, we should get a response
+	if resp != nil {
+		assert.Equal(t, http.StatusOK, resp.StatusCode, "Server should return OK status")
+	}
+}
+
+func TestStartHeadlampServerTLS(t *testing.T) {
+	// Create a temporary directory for plugins
+	tempDir, err := os.MkdirTemp("", "headlamp-test")
+	require.NoError(t, err)
+
+	defer os.RemoveAll(tempDir)
+
+	config := &HeadlampConfig{
+		port:            8081,
+		cache:           cache.New[interface{}](),
+		kubeConfigStore: kubeconfig.NewContextStore(),
+		pluginDir:       tempDir,
+		tlsCert:         "headlamp_testdata/headlamp.crt",
+		tlsKey:          "headlamp_testdata/headlamp.key",
+	}
+
+	// Use a channel to signal when the server is ready
+	ready := make(chan struct{})
+
+	// Use a goroutine to start the server
+	go func() {
+		// Signal that the server is about to start
+		close(ready)
+		StartHeadlampServer(config)
+	}()
+
+	// Wait for the server to be ready
+	<-ready
+
+	// Give the server a moment to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Try to connect to the server
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://localhost:8081/config", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	cas, err := x509.SystemCertPool()
+	assert.NoError(t, err, "Could not load system CA pool")
+
+	cert, err := os.ReadFile("headlamp_testdata/headlamp.crt")
+	assert.NoError(t, err, "Could not load test certificate")
+
+	cas.AppendCertsFromPEM(cert)
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs: cas,
+			},
+		},
+	}
 
 	resp, err := client.Do(req)
 	if err == nil {
