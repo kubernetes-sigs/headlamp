@@ -358,8 +358,23 @@ async function createArchive(pluginDir, outputDir) {
     );
     return 1;
   }
+  let folderName;
+  try {
+    const pkgPath = path.join(pluginPath, 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  
+    folderName = pkg.name
+      ? pkg.name.replace(/^@/, '').replace(/\//g, '-')
+      : path.basename(pluginPath);
+  } catch (e) {
+    folderName = path.basename(pluginPath);
+  }
+  const finalPath = path.join(outputDir, folderName);
+if (fs.existsSync(finalPath)) {
+  console.warn(`⚠️ Plugin folder "${folderName}" already exists. Potential duplicate plugin?`);
+}
 
-  const folderName = path.basename(pluginPath);
+
 
   // Create tarball
   await tar.c(
