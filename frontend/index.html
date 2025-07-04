@@ -26,10 +26,67 @@
     <script>
       headlampBaseUrl = '%BASE_URL%';
     </script>
+    <style>
+      .splash {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .loader,
+      .loader:before,
+      .loader:after {
+        border-radius: 50%;
+        width: 2.5em;
+        height: 2.5em;
+        animation-fill-mode: both;
+        animation: bblFadInOut 1.8s infinite ease-in-out;
+      }
+      .loader {
+        font-size: 7px;
+        position: relative;
+        text-indent: -9999em;
+        transform: translateZ(0);
+        animation-delay: -0.16s;
+      }
+      .loader:before,
+      .loader:after {
+        content: '';
+        position: absolute;
+        top: 0;
+      }
+      .loader:before {
+        left: -3.5em;
+        animation-delay: -0.32s;
+      }
+      .loader:after {
+        left: 3.5em;
+      }
+
+      @keyframes bblFadInOut {
+        0%,
+        80%,
+        100% {
+          box-shadow: 0 2.5em 0 -1.3em;
+        }
+        40% {
+          box-shadow: 0 2.5em 0 0;
+        }
+      }
+    </style>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
+    <div id="root">
+      <div class="splash">
+        <span class="loader"></span>
+      </div>
+    </div>
     <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.
@@ -40,6 +97,16 @@
       To begin the development, run `npm start` or `yarn start`.
       To create a production bundle, use `npm run build` or `yarn build`.
     -->
+    <script>
+      // Set the background color to avoid flashing screen
+      const currentThemeCacheKey = 'cached-current-theme';
+      const cachedTheme = JSON.parse(localStorage.getItem(currentThemeCacheKey) ?? 'null');
+
+      if (cachedTheme) {
+        document.body.style.backgroundColor = cachedTheme.background.default;
+        document.body.style.color = cachedTheme.text.primary;
+      }
+    </script>
     <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>
