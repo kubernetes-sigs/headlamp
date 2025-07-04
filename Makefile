@@ -96,7 +96,7 @@ frontend-build:
 frontend-build-storybook:
 	cd frontend && npm run build-storybook
 
-run-backend:
+run-backend: backend
 	@echo "**** Warning: Running with Helm and dynamic-clusters endpoints enabled. ****"
 
 ifeq ($(UNIXSHELL),true)
