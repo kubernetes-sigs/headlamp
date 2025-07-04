@@ -38,6 +38,7 @@ interface ListItemLinkProps {
   hasParent?: boolean;
   fullWidth?: boolean;
   divider?: boolean;
+  endAction?: React.ComponentType<any>;
   containerProps?: {
     [prop: string]: any;
   };
@@ -60,6 +61,7 @@ export default function ListItemLink(props: ListItemLinkProps) {
     subtitle,
     hasParent,
     fullWidth,
+    endAction: EndAction,
     ...other
   } = props;
 
@@ -236,6 +238,7 @@ export default function ListItemLink(props: ListItemLinkProps) {
             secondaryTypographyProps={{ sx: { whiteSpace: 'pre' } }}
           />
         )}
+        {!iconOnly && EndAction && <EndAction />}
       </ListItemButton>
     </StyledLi>
   );
