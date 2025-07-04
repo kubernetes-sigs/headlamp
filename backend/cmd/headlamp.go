@@ -56,12 +56,11 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/oauth2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
-
-	"golang.org/x/oauth2"
 )
 
 type HeadlampConfig struct {
@@ -114,6 +113,8 @@ const (
 	// TokenCacheFileName is the name of the token cache file.
 	TokenCacheFileName = "headlamp-token-cache"
 )
+
+var k8scache = cache.New[string]()
 
 type clientConfig struct {
 	Clusters                []Cluster `json:"clusters"`
@@ -1358,6 +1359,7 @@ func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 // It parses the request and creates a proxy request to the cluster.
 // That proxy is saved in the cache with the context key.
 func handleClusterAPI(c *HeadlampConfig, router *mux.Router) { //nolint:funlen
+	router.Use(CacheMiddleWare(c))
 	router.PathPrefix("/clusters/{clusterName}/{api:.*}").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		ctx := r.Context()
