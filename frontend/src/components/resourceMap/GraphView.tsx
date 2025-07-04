@@ -208,7 +208,10 @@ function GraphViewContent({
   const viewport = useGraphViewport();
 
   useEffect(() => {
+    let isCurrent = true;
     applyGraphLayout(visibleGraph, viewport.aspectRatio).then(layout => {
+      if (!isCurrent) return;
+
       setLayoutedGraph(layout);
 
       // Only fit bounds when user hasn't moved viewport manually
@@ -216,6 +219,10 @@ function GraphViewContent({
         viewport.updateViewport({ nodes: layout.nodes });
       }
     });
+
+    return () => {
+      isCurrent = false;
+    };
   }, [visibleGraph, viewport]);
 
   // Reset after view change
@@ -378,14 +385,12 @@ function GraphViewContent({
               </div>
             </Box>
           </CustomThemeProvider>
-          {maybeSelectedNode && (
-            <GraphNodeDetails
-              node={maybeSelectedNode}
-              close={() => {
-                setSelectedNodeId(selectedGroup?.id ?? defaultNodeSelection);
-              }}
-            />
-          )}
+          <GraphNodeDetails
+            node={maybeSelectedNode}
+            close={() => {
+              setSelectedNodeId(selectedGroup?.id ?? defaultNodeSelection);
+            }}
+          />
         </Box>
       </FullGraphContext.Provider>
     </GraphViewContext.Provider>
