@@ -41,6 +41,7 @@ export default function HpaList() {
 
   return (
     <ResourceListView
+      reflectInURL
       title={t('glossary|Horizontal Pod Autoscalers')}
       resourceClass={HPA}
       columns={[
