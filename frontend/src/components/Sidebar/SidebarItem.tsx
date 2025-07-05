@@ -41,6 +41,7 @@ export interface SidebarItemProps extends ListItemProps, SidebarEntry {
   subList?: Omit<this, 'sidebar'>[];
   /** Whether to hide the sidebar item. */
   hide?: boolean;
+  tabIndex?: number;
 }
 
 const SidebarItem = memo((props: SidebarItemProps) => {
@@ -86,6 +87,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
         subtitle={subtitle}
         search={search}
         iconOnly={!fullWidth}
+        tabIndex={props.tabIndex}
         hasParent={hasParent}
         fullWidth={fullWidth}
         {...other}
@@ -114,6 +116,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
                   isSelected={item.isSelected}
                   hasParent
                   search={search}
+                  tabIndex={props.tabIndex}
                   {...item}
                 />
               ))}
