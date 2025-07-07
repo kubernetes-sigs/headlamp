@@ -13,13 +13,13 @@
     "build": "npm run copy-icons && npm run copy-plugins && npm run compile-electron && npm run prod-deps && electron-builder --dir --publish never",
     "compile-electron": "babel electron --out-dir electron/ --extensions .ts",
     "copy-icons": "mkdirp build/icons && copyfiles -f ../frontend/build/*.png ../frontend/build/*.ico ../frontend/build/*.icns ../frontend/build/*.svg build/icons",
-    "copy-plugins": "npx --no-install rimraf build/.plugins && mkdirp build/.plugins && copyfiles ../.plugins build/.plugins",
+    "copy-plugins": "npx --no-install shx rm -rf build/.plugins && mkdirp build/.plugins && copyfiles ../.plugins build/.plugins",
     "dev": "npm run compile-electron && cross-env ELECTRON_DEV=1 electron .",
     "dev-only-app": "npm run compile-electron && cross-env ELECTRON_DEV=1 ELECTRON_START_URL=http://localhost:3000 EXTERNAL_SERVER=true electron .",
     "i18n": "npx --no-install i18next ./electron/main.ts -c ./electron/i18next-parser.config.js",
     "package": "npm run build && electron-builder build --publish never",
     "package-msi": "npm run build && node windows/msi/build.js",
-    "prod-deps": "mkdirp prod_deps && cd ./prod_deps && copyfiles -f ../package.json ../package-lock.json . && npm i --only=prod && cd .. && npx --no-install rimraf ./prod_deps/node_modules/.bin",
+    "prod-deps": "mkdirp prod_deps && cd ./prod_deps && copyfiles -f ../package.json ../package-lock.json . && npm i --only=prod && cd .. && npx --no-install shx rm -rf ./prod_deps/node_modules/.bin",
     "start": "node scripts/start.js",
     "test": "npm run compile-tests && jest",
     "compile-tests": "babel electron --out-dir electron/ --extensions .ts"
@@ -178,6 +178,7 @@
     "i18next-fs-backend": "^2.3.1",
     "mkdirp": "^3.0.1",
     "nock": "^14.0.5",
+    "shx": "^0.4.0",
     "tar": "^7.4.3",
     "yargs": "^17.7.2"
   }

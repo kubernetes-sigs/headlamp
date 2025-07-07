@@ -15,6 +15,7 @@
  */
 
 import { Icon } from '@iconify/react';
+import { http, HttpResponse } from 'msw';
 import Pod from '../../lib/k8s/pod';
 import { TestContext } from '../../test';
 import { podList } from '../pod/storyHelper';
@@ -25,7 +26,27 @@ export default {
   title: 'GraphView',
   component: GraphView,
   argTypes: {},
-  parameters: {},
+  parameters: {
+    msw: {
+      handlers: {
+        story: [
+          http.get(
+            'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions',
+            () =>
+              HttpResponse.json({
+                kind: 'List',
+                items: [],
+                metadata: {},
+              })
+          ),
+          http.get(
+            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
+            () => HttpResponse.error()
+          ),
+        ],
+      },
+    },
+  },
 };
 
 const mockNodes: GraphNode[] = [

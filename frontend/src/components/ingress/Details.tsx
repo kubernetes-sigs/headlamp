@@ -204,7 +204,7 @@ export default function IngressDetails(props: {
   function getDefaultBackend(item: Ingress) {
     const { service, resource } = item.spec?.defaultBackend || {};
     return (
-      (service && service.name + ':' + service.port.toString()) ||
+      (service && service.name + ':' + (service.port.number ?? service.port.name ?? '-')) ||
       (resource && resource.kind + '/' + resource.name) ||
       '-'
     );
