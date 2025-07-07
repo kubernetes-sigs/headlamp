@@ -25,6 +25,7 @@ import Event from '../../lib/k8s/event';
 import Node from '../../lib/k8s/node';
 import Pod from '../../lib/k8s/pod';
 import { useFilterFunc } from '../../lib/util';
+import { useNamespaces } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { OverviewChart } from '../../redux/overviewChartsSlice';
 import { DateLabel } from '../common/Label';
@@ -117,7 +118,11 @@ function EventsSection() {
       )
     )
   );
-  const { items: events, errors: eventsErrors } = Event.useList({ limit: Event.maxLimit });
+  const namespace = useNamespaces();
+  const { items: events, errors: eventsErrors } = Event.useList({
+    limit: Event.maxLimit,
+    namespace,
+  });
 
   const warningActionFilterFunc = (event: Event, search?: string) => {
     if (!filterFunc(event, search)) {
