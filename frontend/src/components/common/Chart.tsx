@@ -20,6 +20,7 @@ import { useTheme } from '@mui/material/styles';
 import { styled } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 import React, { ReactNode } from 'react';
+import ReactDOM from 'react-dom';
 import {
   Bar,
   BarChart,
@@ -205,10 +206,22 @@ export function PercentageBar(props: PercentageBarProps) {
     return dataItems;
   }
 
+  const barBackground =
+    theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[300];
+
+  const barColor =
+    theme.palette.mode === 'dark' ? theme.palette.primary.light : theme.palette.primary.main;
+
   return (
     <StyledResponsiveContainer width="95%" height={20}>
       <StyledBarChart layout="vertical" maxBarSize={5} data={[formatData()]}>
-        {tooltipFunc && <Tooltip content={<PaperTooltip>{tooltipFunc(data)}</PaperTooltip>} />}
+        {tooltipFunc && (
+          <Tooltip
+            content={props => (
+              <PaperTooltip rechartsProps={props} tooltipFunc={tooltipFunc} data={data} />
+            )}
+          />
+        )}
         <XAxis hide domain={[0, 100]} type="number" />
         <YAxis hide type="category" />
         {data.map((item, index) => {
@@ -217,10 +230,10 @@ export function PercentageBar(props: PercentageBarProps) {
               key={index}
               dataKey={item.name}
               stackId="1"
-              fill={item.fill || theme.palette.primary.main}
+              fill={item.fill || barColor}
               layout="vertical"
               radius={theme.shape.borderRadius}
-              background={{ fill: theme.palette.grey['300'] }}
+              background={{ fill: barBackground }}
             />
           );
         })}
@@ -229,10 +242,35 @@ export function PercentageBar(props: PercentageBarProps) {
   );
 }
 
-function PaperTooltip(props: React.PropsWithChildren<{}>) {
-  return (
-    <Paper className="custom-tooltip">
-      <Box m={1}>{props.children}</Box>
-    </Paper>
+interface PaperTooltipProps {
+  rechartsProps?: any;
+  tooltipFunc: (data: any) => ReactNode;
+  data: any;
+}
+
+function PaperTooltip({ rechartsProps, tooltipFunc, data }: PaperTooltipProps) {
+  if (!rechartsProps || !rechartsProps.active || !rechartsProps.coordinate) return null;
+
+  const chartRect = document.querySelector('.recharts-wrapper')?.getBoundingClientRect();
+
+  const { x, y } = rechartsProps.coordinate;
+  const left = (chartRect?.left || 0) + x;
+  const top = (chartRect?.top || 0) + y;
+
+  return ReactDOM.createPortal(
+    <Paper
+      className="custom-tooltip"
+      style={{
+        position: 'fixed',
+        left,
+        top,
+        zIndex: 1500,
+        pointerEvents: 'none',
+        minWidth: 120,
+      }}
+    >
+      <Box m={1}>{tooltipFunc(data)}</Box>
+    </Paper>,
+    document.body
   );
 }
