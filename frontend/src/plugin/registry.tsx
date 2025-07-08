@@ -92,6 +92,7 @@ import { addOverviewChartsProcessor, OverviewChartsProcessor } from '../redux/ov
 import { setRoute, setRouteFilter } from '../redux/routesSlice';
 import store from '../redux/stores/store';
 import { UIPanel, uiSlice } from '../redux/uiSlice';
+import { ConfigStore } from './configStore';
 import {
   PluginSettingsComponentType,
   PluginSettingsDetailsProps,
@@ -1012,4 +1013,5 @@ export {
   getHeadlampAPIHeaders,
   runCommand,
   PluginManager,
+  ConfigStore,
 };

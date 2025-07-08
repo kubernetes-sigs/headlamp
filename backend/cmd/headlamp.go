@@ -35,6 +35,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	oidc "github.com/coreos/go-oidc/v3/oidc"
@@ -1186,7 +1187,18 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	// Start server
 	if err := http.ListenAndServe(addr, handler); err != nil { //nolint:gosec
 		logger.Log(logger.LevelError, nil, err, "Failed to start server")
-		return
+
+		HandleServerStartError(&err)
+	}
+}
+
+// Handle common server startup errors.
+func HandleServerStartError(err *error) {
+	// Check if the reason server failed because the address is already in use
+	// this might be because backend process is already running
+	if errors.Is(*err, syscall.EADDRINUSE) {
+		// Exit with 98 (address in use) exit code
+		os.Exit(int(syscall.EADDRINUSE))
 	}
 }
 

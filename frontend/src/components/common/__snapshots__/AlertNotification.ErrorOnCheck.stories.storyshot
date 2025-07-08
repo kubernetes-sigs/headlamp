@@ -1,0 +1,68 @@
+<body>
+  <div>
+    <div
+      style="position: relative; min-height: 100px; border: 1px dashed lightgray; padding: 10px;"
+    >
+      <div
+        id="snackbar-container"
+        style="position: absolute; top: 0px; left: 0px; right: 0px; z-index: 1400;"
+      />
+    </div>
+    <div
+      class="notistack-SnackbarContainer go3118922589 go4034260886 go1141946668"
+    >
+      <div
+        class="go1475592160 go1671063245"
+        style="pointer-events: all; overflow: visible; min-height: 0px; transition: height 300ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+      >
+        <div
+          class="notistack-CollapseWrapper"
+          style="display: flex; width: 100%;"
+        >
+          <div
+            class="notistack-Snackbar go3963613292"
+          >
+            <div
+              aria-describedby="notistack-snackbar"
+              class="go1888806478 notistack-MuiContent notistack-MuiContent-error go167266335 go3651055292 go3162094071"
+              role="alert"
+              style="webkit-transform: none; transform: none; webkit-transition: -webkit-transform 225ms cubic-bezier(0.0, 0, 0.2, 1) 0ms; transition: transform 225ms cubic-bezier(0.0, 0, 0.2, 1) 0ms;"
+            >
+              <div
+                class="go946087465"
+                id="notistack-snackbar"
+              >
+                <svg
+                  focusable="false"
+                  style="font-size: 20px; margin-inline-end: 8px; user-select: none; width: 1em; height: 1em; display: inline-block; fill: currentColor; flex-shrink: 0;"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M12,2C17.53,2 22,6.47 22,12C22,17.53 17.53,22 12,22C6.47,22 2,17.53 2,12C2,
+        6.47 6.47,2 12,2M15.59,7L12,10.59L8.41,7L7,8.41L10.59,12L7,15.59L8.41,17L12,
+        13.41L15.59,17L17,15.59L13.41,12L17,8.41L15.59,7Z"
+                  />
+                </svg>
+                Lost connection to the cluster.
+              </div>
+              <div
+                class="go703367398"
+              >
+                <button
+                  class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-ropn2u-MuiButtonBase-root-MuiButton-root"
+                  tabindex="0"
+                  type="button"
+                >
+                  Dismiss (Story Action)
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
