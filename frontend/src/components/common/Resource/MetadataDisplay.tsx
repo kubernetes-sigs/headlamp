@@ -246,7 +246,9 @@ export function MetadataDictGrid(props: MetadataDictGridProps) {
         </IconButton>
       )}
       {/* Limit the size to two entries until the user chooses to expand the whole section */}
-      {keys.slice(0, expanded ? keys.length : defaultNumShown).map(key => makeLabel(key))}
+      {keys.slice(0, expanded ? keys.length : defaultNumShown).map(key => (
+        <React.Fragment key={key}>{makeLabel(key)}</React.Fragment>
+      ))}
     </Box>
   );
 }

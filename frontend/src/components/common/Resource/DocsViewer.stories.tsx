@@ -25,74 +25,76 @@ export default {
   argTypes: {},
   parameters: {
     msw: {
-      handlers: [
-        http.get('http://localhost:4466/openapi/v2', () =>
-          HttpResponse.json({
-            swagger: '2.0',
-            info: { title: 'Test API', version: '1.0.0' },
-            paths: {},
-            definitions: {
-              'io.k8s.api.core.v1.Pod': {
-                'x-kubernetes-group-version-kind': [{ group: '', version: 'v1', kind: 'Pod' }],
-                properties: {
-                  apiVersion: {
-                    type: 'string',
-                    description: `
+      handlers: {
+        story: [
+          http.get('http://localhost:4466/openapi/v2', () =>
+            HttpResponse.json({
+              swagger: '2.0',
+              info: { title: 'Test API', version: '1.0.0' },
+              paths: {},
+              definitions: {
+                'io.k8s.api.core.v1.Pod': {
+                  'x-kubernetes-group-version-kind': [{ group: '', version: 'v1', kind: 'Pod' }],
+                  properties: {
+                    apiVersion: {
+                      type: 'string',
+                      description: `
                         APIVersion defines the versioned schema of this representation of an object. 
                         Servers should convert recognized schemas to the latest internal value, 
                         and may reject unrecognized values. 
                         More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
                       `,
-                  },
-                  kind: {
-                    type: 'string',
-                    description: `
+                    },
+                    kind: {
+                      type: 'string',
+                      description: `
                         Kind is a string value representing the REST resource this object represents. 
                         Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. 
                         More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds',
                       `,
-                  },
-                  metadata: {
-                    type: 'object',
-                    description: `Standard object's metadata. 
+                    },
+                    metadata: {
+                      type: 'object',
+                      description: `Standard object's metadata. 
                       More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata`,
-                    properties: {
-                      annotations: {
-                        type: 'object',
-                        description: `Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata. 
+                      properties: {
+                        annotations: {
+                          type: 'object',
+                          description: `Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata. 
                           They are not queryable and should be preserved when modifying objects. 
                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations`,
-                      },
-                      creationTimestamp: {
-                        type: 'string',
-                        description:
-                          'CreationTimestamp is a timestamp representing the server time when this object was created',
-                      },
-                      deletionTimestamp: {
-                        type: 'string',
-                        description:
-                          'DeletionTimestamp is RFC 3339 date and time at which this resource will be deleted.',
+                        },
+                        creationTimestamp: {
+                          type: 'string',
+                          description:
+                            'CreationTimestamp is a timestamp representing the server time when this object was created',
+                        },
+                        deletionTimestamp: {
+                          type: 'string',
+                          description:
+                            'DeletionTimestamp is RFC 3339 date and time at which this resource will be deleted.',
+                        },
                       },
                     },
-                  },
-                  spec: {
-                    type: 'object',
-                    description: `Specification of the desired behavior of the pod. 
+                    spec: {
+                      type: 'object',
+                      description: `Specification of the desired behavior of the pod. 
                       More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status`,
-                    properties: {
-                      containers: {
-                        type: 'array',
-                        description: `List of containers belonging to the pod. Containers cannot currently be added or removed. 
+                      properties: {
+                        containers: {
+                          type: 'array',
+                          description: `List of containers belonging to the pod. Containers cannot currently be added or removed. 
                           There must be at least one container in a Pod. Cannot be updated.`,
+                        },
                       },
                     },
                   },
                 },
               },
-            },
-          })
-        ),
-      ],
+            })
+          ),
+        ],
+      },
     },
   },
   decorators: [
@@ -127,14 +129,16 @@ ErrorDocumentation.args = {
 };
 ErrorDocumentation.parameters = {
   msw: {
-    handlers: [
-      http.get(
-        'http://localhost:4466/openapi/v2',
-        () =>
-          new HttpResponse(null, {
-            status: 500,
-          })
-      ),
-    ],
+    handlers: {
+      story: [
+        http.get(
+          'http://localhost:4466/openapi/v2',
+          () =>
+            new HttpResponse(null, {
+              status: 500,
+            })
+        ),
+      ],
+    },
   },
 };

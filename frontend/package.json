@@ -90,6 +90,7 @@
     "react-window": "^1.8.11",
     "recharts": "^2.1.4",
     "semver": "^7.3.5",
+    "shx": "^0.4.0",
     "simple-eval": "^2.0.0",
     "spacetime": "^7.4.0",
     "stream-browserify": "^3.0.0",

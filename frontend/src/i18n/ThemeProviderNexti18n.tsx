@@ -30,7 +30,6 @@ import {
 import { createTheme, StyledEngineProvider, Theme, ThemeProvider } from '@mui/material/styles';
 import React, { ReactNode, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader } from '../components/common';
 
 /**
  * Returns the Material-UI locale object for a given language code.
@@ -121,9 +120,7 @@ const ThemeProviderNexti18n: React.FunctionComponent<ThemeProviderNexti18nProps>
 
   return (
     <StyledEngineProvider injectFirst>
-      <ThemeProvider theme={theme}>
-        {!!isI18nReady ? props.children : <Loader title="Loading..." />}
-      </ThemeProvider>
+      <ThemeProvider theme={theme}>{!!isI18nReady ? props.children : null}</ThemeProvider>
     </StyledEngineProvider>
   );
 };
