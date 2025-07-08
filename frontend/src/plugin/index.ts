@@ -47,7 +47,6 @@ import * as Router from '../lib/router';
 import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
-import { ConfigStore } from './configStore';
 import { Headlamp, Plugin } from './lib';
 import { PluginInfo } from './pluginsSlice';
 import Registry, * as registryToExport from './registry';
@@ -61,7 +60,6 @@ window.pluginLib = {
   },
   MonacoEditor,
   K8s,
-  ConfigStore,
   Crd: {
     ...Crd,
     // required for compatibility with plugins built with webpack

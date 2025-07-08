@@ -1,0 +1,12 @@
+<body>
+  <div>
+    <div
+      style="position: relative; min-height: 100px; border: 1px dashed lightgray; padding: 10px;"
+    >
+      <div
+        id="snackbar-container"
+        style="position: absolute; top: 0px; left: 0px; right: 0px; z-index: 1400;"
+      />
+    </div>
+  </div>
+</body>
