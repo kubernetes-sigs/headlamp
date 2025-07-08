@@ -488,7 +488,7 @@
                     class="MuiBox-root css-ldp2l3"
                   >
                     <button
-                      aria-label="Create mycustomresource"
+                      aria-label="Create MyCustomResource"
                       class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
                       data-mui-internal-clone-element="true"
                       tabindex="0"
