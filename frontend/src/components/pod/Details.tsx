@@ -44,9 +44,9 @@ import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
 import Terminal from '../common/Terminal';
 import LightTooltip from '../common/Tooltip/TooltipLight';
+import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
-
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   margin: 0,
   paddingTop: theme.spacing(2),
@@ -61,11 +61,11 @@ export function PodLogViewer(props: PodLogViewerProps) {
   const { item, onClose, open, ...other } = props;
   const [container, setContainer] = React.useState(getDefaultContainer());
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
-  const TIMESTAMP_SETTING_KEY = 'headlamp.logs.showTimestamps';
-  const [showTimestamps, setShowTimestamps] = React.useState<boolean>(() => {
-    const stored = localStorage.getItem(TIMESTAMP_SETTING_KEY);
-    return stored === null ? false : stored === 'true';
-  });
+
+  const [showTimestamps, setShowTimestamps] = useLocalStorageState<boolean>(
+    'headlamp.logs.showTimestamps',
+    false
+  );
 
   const [follow, setFollow] = React.useState<boolean>(true);
   const [prettifyLogs, setPrettifyLogs] = React.useState<boolean>(false);
@@ -197,11 +197,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
   }
 
   function handleTimestampsChange() {
-    setShowTimestamps(prev => {
-      const updated = !prev;
-      localStorage.setItem(TIMESTAMP_SETTING_KEY, String(updated));
-      return updated;
-    });
+    setShowTimestamps(prev => !prev);
   }
 
   function handleFollowChange() {
