@@ -480,6 +480,42 @@ export default function EditorDialog(props: EditorDialogProps) {
                   </FormGroup>
                 </Grid>
               </Grid>
+              <Box display="flex" gap={2} pb={2}>
+                <Button variant="outlined" component="label">
+                  Upload YAML
+                  <input
+                    type="file"
+                    accept=".yaml,.yml"
+                    hidden
+                    onChange={async e => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const text = await file.text();
+                        setCode({ code: text, format: 'yaml' });
+                        setError('');
+                      }
+                    }}
+                  />
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={async () => {
+                    const url = prompt('Enter URL to load YAML from:');
+                    if (url) {
+                      try {
+                        const res = await fetch(url);
+                        const text = await res.text();
+                        setCode({ code: text, format: 'yaml' });
+                        setError('');
+                      } catch (err) {
+                        setError(`Failed to fetch YAML: ${(err as Error).message}`);
+                      }
+                    }
+                  }}
+                >
+                  Load from URL
+                </Button>
+              </Box>
             </Box>
             {isReadOnly() ? (
               makeEditor()
