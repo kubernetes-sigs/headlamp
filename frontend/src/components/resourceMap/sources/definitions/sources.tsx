@@ -123,7 +123,7 @@ export function useGetAllSources(): GraphSource[] {
       label: 'Network',
       icon: (
         <Icon
-          icon="mdi:folder-network-online"
+          icon="mdi:folder-network-outline"
           width="100%"
           height="100%"
           color={getKindGroupColor('network')}
