@@ -95,8 +95,17 @@ frontend-build:
 .PHONY: frontend-build-storybook
 frontend-build-storybook:
 	cd frontend && npm run build-storybook
+.PHONY: backend-check-build
+backend-check-build:
+	@if [ ! -f backend/headlamp-server${SERVER_EXE_EXT} ] || ! git diff --quiet HEAD -- backend/; then \
+		echo "Backend changes detected, rebuilding..."; \
+		make backend; \
+	else \
+		echo "Backend is up to date"; \
+	fi
 
-run-backend: backend
+
+run-backend: backend-check-build
 	@echo "**** Warning: Running with Helm and dynamic-clusters endpoints enabled. ****"
 
 ifeq ($(UNIXSHELL),true)
