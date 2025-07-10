@@ -15,6 +15,7 @@
  */
 
 import React, { ExoticComponent, ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { generatePath, useHistory } from 'react-router';
 import NotFoundComponent from '../components/404';
 import AuthToken from '../components/account/Auth';
@@ -29,6 +30,7 @@ import SettingsClusters from '../components/App/Settings/SettingsClusters';
 import AuthChooser from '../components/authchooser';
 import KubeConfigLoader from '../components/cluster/KubeConfigLoader';
 import Overview from '../components/cluster/Overview';
+import Loader from '../components/common/Loader';
 import { PageGrid } from '../components/common/Resource/Resource';
 import ConfigDetails from '../components/configmap/Details';
 import ConfigMapList from '../components/configmap/List';
@@ -154,6 +156,19 @@ export interface Route {
 const LazyGraphView = React.lazy(() =>
   import('../components/resourceMap/GraphView').then(it => ({ default: it.GraphView }))
 );
+
+/**
+ * Shows a loader whilst it lazy loads the GraphView component.
+ */
+function LazyLoadingGraphView() {
+  const { t } = useTranslation();
+
+  return (
+    <React.Suspense fallback={<Loader title={t('Loading')} />}>
+      <LazyGraphView height="calc(100vh - 64px)" />
+    </React.Suspense>
+  );
+}
 
 const defaultRoutes: {
   [routeName: string]: Route;
@@ -922,7 +937,7 @@ const defaultRoutes: {
     name: 'Map',
     sidebar: 'map',
     isFullWidth: true,
-    component: () => <LazyGraphView height="calc(100vh - 64px)" />,
+    component: () => <LazyLoadingGraphView />,
   },
 };
 
