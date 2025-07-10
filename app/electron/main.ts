@@ -36,6 +36,7 @@ import { userInfo } from 'node:os';
 import { promisify } from 'node:util';
 import { platform } from 'os';
 import path from 'path';
+import process from 'process';
 import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
@@ -48,8 +49,12 @@ import {
   getPluginBinDirectories,
   PluginManager,
 } from './plugin-management';
-import { handleRunCommand } from './runCmd';
+import { runScript, setupRunCmdHandlers } from './runCmd';
 import windowSize from './windowSize';
+
+if (process.env.HEADLAMP_RUN_SCRIPT) {
+  runScript();
+}
 
 dotenv.config({ path: path.join(process.resourcesPath, '.env') });
 
@@ -1103,7 +1108,7 @@ function adjustZoom(delta: number) {
   setZoom(newZoom);
 }
 
-function startElecron() {
+async function startElectron() {
   console.info('App starting...');
 
   let appVersion: string;
@@ -1283,7 +1288,7 @@ function startElecron() {
       mainWindow?.webContents.send('backend-token', backendToken);
     });
 
-    ipcMain.on('run-command', (event, eventData) => handleRunCommand(event, eventData, mainWindow));
+    setupRunCmdHandlers(mainWindow, ipcMain);
 
     new PluginManagerEventListeners().setupEventHandlers();
 
@@ -1465,5 +1470,5 @@ if (isHeadlessMode) {
     }
   );
 } else {
-  startElecron();
+  startElectron();
 }

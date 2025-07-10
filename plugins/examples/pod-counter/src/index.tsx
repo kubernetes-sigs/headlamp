@@ -20,16 +20,64 @@ import {
   K8s,
   registerAppBarAction,
   registerPluginSettings,
+  runCommand,
 } from '@kinvolk/headlamp-plugin/lib';
 import { NameValueTable } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
 import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
 import Message from './Message';
 
+// declare to typescript that pluginPermissionSecrets is a variable that exists
+declare const pluginPermissionSecrets: Record<string, number>;
+
 function PodCounter() {
   const [pods, error] = K8s.ResourceClasses.Pod.useList();
   const msg = pods === null ? 'Loading…' : pods.length.toString();
-  return <Message msg={msg} error={error} />;
+
+  function handleClick() {
+    console.log('Running minikube status command');
+
+    const scriptjs = runCommand(
+      'scriptjs',
+      ['headlamp-pod-counter/bin/manage-minikube.js'],
+      {},
+      pluginPermissionSecrets
+    );
+    scriptjs.stdout.on('data', data => {
+      console.log('scriptjs stdout:', data);
+    });
+    scriptjs.stderr.on('data', data => {
+      console.log('scriptjs stderr:', data);
+    });
+    scriptjs.on('exit', code => {
+      console.log('scriptjs exit code:', code);
+    });
+
+    const minikube = runCommand('minikube', ['status'], {}, pluginPermissionSecrets);
+    minikube.stdout.on('data', data => {
+      console.log('stdout:', data);
+    });
+    minikube.stderr.on('data', data => {
+      console.log('stderr:', data);
+    });
+    minikube.on('exit', code => {
+      console.log('exit code:', code);
+    });
+  }
+  // make a link that shows the msg and error, and when clicked, runs the handleClick function
+  // Use a mui button
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        cursor: 'pointer',
+      }}
+      onClick={handleClick}
+    >
+      <Message msg={msg} error={error} />
+    </Box>
+  );
 }
 
 registerAppBarAction(PodCounter);

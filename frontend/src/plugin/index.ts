@@ -245,9 +245,85 @@ export function updateSettingsPackages(
 }
 
 /**
+ * Asks the main electron process for the permission secrets.
+ *
+ * @returns promise with permissions secrets like { 'runCmd-minikube': 1235555 }
+ */
+export async function permissionSecretsFromApp(): Promise<Record<string, number>> {
+  const { desktopApi } = window;
+  if (desktopApi) {
+    return new Promise(resolve => {
+      desktopApi.receive('plugin-permission-secrets', (secrets: Record<string, number>) => {
+        resolve(secrets);
+      });
+      desktopApi.send('request-plugin-permission-secrets');
+    });
+  } else {
+    return new Promise(resolve => resolve({}));
+  }
+}
+
+/**
+ * Runs a plugin by executing the source code in the global scope.
+ *
+ * @param source source code of plugin
+ * @param pluginPath path to plugin
+ * @param packageName name of package
+ * @param packageVersion version of package
+ * @param permissionSecrets permission secrets are keyed by permission name, valued by secret
+ * @param handleError call back when an execution error occurs in the plugin
+ * @param getAllowedPermissions call back which returns only allowed permission secrets for plugin
+ */
+export function runPlugin({
+  source,
+  pluginPath,
+  packageName,
+  packageVersion,
+  permissionSecrets,
+  handleError,
+  getAllowedPermissions,
+}: {
+  source: string;
+  pluginPath: string;
+  packageName: string;
+  packageVersion: string;
+  permissionSecrets: Record<string, number>;
+  handleError: (error: unknown, packageName: string, packageVersion: string) => void;
+  getAllowedPermissions: (
+    pluginName: string,
+    pluginPath: string,
+    permissionSecrets: Record<string, number>
+  ) => Record<string, number>;
+}) {
+  if (!pluginPath || !packageName || !packageVersion) {
+    console.error(`Either pluginPath, packageName or packageVersion is missing for ${pluginPath}`);
+    return;
+  }
+
+  const sourceMapPathForDebugging = `\n//# sourceURL=//${pluginPath}/dist/main.js`;
+  const allowedPermissions = getAllowedPermissions(packageName, pluginPath, permissionSecrets);
+
+  const executePlugin = new Function('pluginPermissionSecrets', source + sourceMapPathForDebugging);
+
+  try {
+    // This executes in the global scope,
+    //   so the plugin can't access variables in this scope.
+    // Meaning, it can NOT access "permissionSecrets".
+    // Each plugin gets its own "pluginPermissionSecrets" which contains only the secrets
+    //   that it is allowed to access.
+    executePlugin(allowedPermissions);
+  } catch (e) {
+    handleError(e, packageName, packageVersion);
+  }
+}
+
+/**
  * Get the list of plugins,
  *   download all the plugin source,
  *   download all the plugin package.json files,
+ *   ask app for permission secrets,
+ *   filter the sources to execute,
+ *   filter the incompatible plugins and plugins enabled in settings,
  *   execute the plugins,
  *   .initialize() plugins that register (not all do).
  *
@@ -261,6 +337,8 @@ export async function fetchAndExecutePlugins(
   onSettingsChange: (plugins: PluginInfo[]) => void,
   onIncompatible: (plugins: Record<string, PluginInfo>) => void
 ) {
+  const permissionSecretsPromise = permissionSecretsFromApp();
+
   const pluginPaths = (await fetch(`${getAppUrl()}plugins`).then(resp => resp.json())) as string[];
 
   const sourcesPromise = Promise.all(
@@ -296,6 +374,7 @@ export async function fetchAndExecutePlugins(
 
   const sources = await sourcesPromise;
   const packageInfos = await packageInfosPromise;
+  const permissionSecrets = await permissionSecretsPromise;
 
   const updatedSettingsPackages = updateSettingsPackages(packageInfos, settingsPackages);
   const settingsChanged = packageInfos.length !== settingsPackages.length;
@@ -330,29 +409,43 @@ export async function fetchAndExecutePlugins(
   onSettingsChange(packagesIncompatibleSet);
 
   sourcesToExecute.forEach((source, index) => {
-    // Execute plugins inside a context (not in global/window)
-    (function (str: string) {
-      try {
-        const pluginName = packageInfos[index].name.split('/').slice(-1)[0];
-        // Giving an evaled code a filename will make it easier to use source maps
-        const sourceMapPath = `\n//# sourceURL=//${pluginName}/dist/main.js`;
-        const result = eval(str + sourceMapPath);
-        return result;
-      } catch (e) {
-        // We just continue if there is an error.
-        console.error(`Plugin execution error in ${pluginPaths[index]}:`, e);
+    runPlugin({
+      source,
+      pluginPath: pluginPaths[index],
+      packageName: packageInfos[index].name,
+      packageVersion: packageInfos[index].version || '',
+      permissionSecrets,
+      handleError: (error, packageName, packageVersion) => {
+        console.error(`Plugin execution error in ${pluginPaths[index]}:`, error);
         store.dispatch(
           eventAction({
             type: HeadlampEventType.PLUGIN_LOADING_ERROR,
             data: {
-              pluginInfo: { name: packageInfos[index].name, version: packageInfos[index].version },
-              error: e,
+              pluginInfo: { name: packageName, version: packageVersion },
+              error,
             },
           })
         );
-      }
-    }).call({}, source);
+      },
+      getAllowedPermissions: (pluginPath, pluginName, secrets): Record<string, number> => {
+        // pluginPath is like "plugins/headlamp-pod-counter"
+        if (
+          (pluginPath.includes('minikube') && pluginName === '@headlamp-k8s/minikube') ||
+          pluginPath.includes('pod-counter')
+        ) {
+          return {
+            'runCmd-minikube': secrets['runCmd-minikube'],
+            // 'runCmd-scriptjs-headlamp-pod-counter/bin/manage-minikube.js':
+            //   secrets['runCmd-scriptjs-headlamp-pod-counter/bin/manage-minikube.js'],
+            'runCmd-scriptjs-headlamp-k8s-minikube/bin/manage-minikube.js':
+              secrets['runCmd-scriptjs-headlamp-k8s-minikube/bin/manage-minikube.js'],
+          };
+        }
+        return {};
+      },
+    });
   });
+
   await initializePlugins();
 
   const pluginsLoaded = updatedSettingsPackages.map(plugin => ({
