@@ -17,14 +17,12 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import CRD from '../../lib/k8s/crd';
-import { useNamespaces } from '../../redux/filterSlice';
-import Link from '../common/Link';
-import { useThrottle } from '../common/Resource';
+import { Link, useThrottle } from '../common';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 export default function CustomResourceDefinitionList() {
   const { t } = useTranslation(['glossary', 'frequent']);
-  const [items, error] = CRD.useList({ namespace: useNamespaces() });
+  const [items, error] = CRD.useList();
   const throttledItems = useThrottle(items, 1000);
 
   const categories = React.useMemo(() => {
@@ -45,7 +43,7 @@ export default function CustomResourceDefinitionList() {
     <ResourceListView
       title={t('glossary|Custom Resources')}
       headerProps={{
-        noNamespaceFilter: false,
+        noNamespaceFilter: true,
       }}
       data={throttledItems}
       errorMessage={CRD.getErrorMessage(error)}

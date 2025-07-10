@@ -118,18 +118,20 @@ export default {
   ],
   parameters: {
     msw: {
-      handlers: [
-        http.get('http://localhost:4466/apis/apps/v1/statefulsets', () => {
-          return HttpResponse.json({
-            kind: 'StatefulSetList',
-            apiVersion: 'apps/v1',
-            metadata: {
-              resourceVersion: '12345',
-            },
-            items: mockStatefulSets,
-          });
-        }),
-      ],
+      handlers: {
+        story: [
+          http.get('http://localhost:4466/apis/apps/v1/statefulsets', () => {
+            return HttpResponse.json({
+              kind: 'StatefulSetList',
+              apiVersion: 'apps/v1',
+              metadata: {
+                resourceVersion: '12345',
+              },
+              items: mockStatefulSets,
+            });
+          }),
+        ],
+      },
     },
   },
 } as Meta;
@@ -141,63 +143,69 @@ export const Default = Template.bind({});
 export const EmptyList = Template.bind({});
 EmptyList.parameters = {
   msw: {
-    handlers: [
-      http.get('http://localhost:4466/apis/apps/v1/statefulsets', () => {
-        return HttpResponse.json({
-          kind: 'StatefulSetList',
-          apiVersion: 'apps/v1',
-          metadata: {
-            resourceVersion: '12345',
-          },
-          items: [],
-        });
-      }),
-    ],
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/apis/apps/v1/statefulsets', () => {
+          return HttpResponse.json({
+            kind: 'StatefulSetList',
+            apiVersion: 'apps/v1',
+            metadata: {
+              resourceVersion: '12345',
+            },
+            items: [],
+          });
+        }),
+      ],
+    },
   },
 };
 
 export const SingleItem = Template.bind({});
 SingleItem.parameters = {
   msw: {
-    handlers: [
-      http.get('http://localhost:4466/apis/apps/v1/statefulsets', () => {
-        return HttpResponse.json({
-          kind: 'StatefulSetList',
-          apiVersion: 'apps/v1',
-          metadata: {
-            resourceVersion: '12345',
-          },
-          items: [mockStatefulSets[0]],
-        });
-      }),
-    ],
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/apis/apps/v1/statefulsets', () => {
+          return HttpResponse.json({
+            kind: 'StatefulSetList',
+            apiVersion: 'apps/v1',
+            metadata: {
+              resourceVersion: '12345',
+            },
+            items: [mockStatefulSets[0]],
+          });
+        }),
+      ],
+    },
   },
 };
 
 export const WithNotReadyReplicas = Template.bind({});
 WithNotReadyReplicas.parameters = {
   msw: {
-    handlers: [
-      http.get('http://localhost:4466/apis/apps/v1/statefulsets', () => {
-        return HttpResponse.json({
-          kind: 'StatefulSetList',
-          apiVersion: 'apps/v1',
-          metadata: {
-            resourceVersion: '12345',
-          },
-          items: [
-            {
-              ...mockStatefulSets[0],
-              status: {
-                replicas: 3,
-                readyReplicas: 1,
-                currentReplicas: 3,
-                updatedReplicas: 3,
-              },
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/apis/apps/v1/statefulsets', () => {
+          return HttpResponse.json({
+            kind: 'StatefulSetList',
+            apiVersion: 'apps/v1',
+            metadata: {
+              resourceVersion: '12345',
             },
-          ],
-        });
-      }),
-    ],
+            items: [
+              {
+                ...mockStatefulSets[0],
+                status: {
+                  replicas: 3,
+                  readyReplicas: 1,
+                  currentReplicas: 3,
+                  updatedReplicas: 3,
+                },
+              },
+            ],
+          });
+        }),
+      ],
+    },
   },
 };
