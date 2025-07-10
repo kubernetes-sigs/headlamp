@@ -46,6 +46,8 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+
+	headlampcfg "github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -66,34 +68,17 @@ import (
 )
 
 type HeadlampConfig struct {
-	useInCluster              bool
-	listenAddr                string
-	devMode                   bool
-	insecure                  bool
-	enableHelm                bool
-	enableDynamicClusters     bool
-	watchPluginsChanges       bool
-	port                      uint
-	kubeConfigPath            string
-	skippedKubeContexts       string
-	staticDir                 string
-	pluginDir                 string
-	staticPluginDir           string
+	*headlampcfg.HeadlampCFG
 	oidcClientID              string
 	oidcValidatorClientID     string
 	oidcClientSecret          string
 	oidcIdpIssuerURL          string
 	oidcValidatorIdpIssuerURL string
 	oidcUseAccessToken        bool
-	baseURL                   string
-	oidcScopes                []string
-	proxyURLs                 []string
 	cache                     cache.Cache[interface{}]
-	kubeConfigStore           kubeconfig.ContextStore
 	multiplexer               *Multiplexer
-	telemetry                 *telemetry.Telemetry
-	metrics                   *telemetry.Metrics
 	telemetryConfig           cfg.Config
+	oidcScopes                []string
 	telemetryHandler          *telemetry.RequestHandler
 }
 
@@ -262,7 +247,7 @@ func getOidcCallbackURL(r *http.Request, config *HeadlampConfig) string {
 
 	// Clean up + add the base URL to the redirect URL
 	hostWithBaseURL := strings.Trim(r.Host, "/")
-	baseURL := strings.Trim(config.baseURL, "/")
+	baseURL := strings.Trim(config.BaseURL, "/")
 
 	if baseURL != "" {
 		hostWithBaseURL = hostWithBaseURL + "/" + baseURL
@@ -289,25 +274,25 @@ func defaultHeadlampKubeConfigFile() (string, error) {
 func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 	// Delete plugin route.
 	// This is only available when running locally.
-	if !config.useInCluster {
+	if !config.UseInCluster {
 		addPluginDeleteRoute(config, r)
 	}
 
 	addPluginListRoute(config, r)
 
 	// Serve plugins
-	pluginHandler := http.StripPrefix(config.baseURL+"/plugins/", http.FileServer(http.Dir(config.pluginDir)))
+	pluginHandler := http.StripPrefix(config.BaseURL+"/plugins/", http.FileServer(http.Dir(config.PluginDir)))
 	// If we're running locally, then do not cache the plugins. This ensures that reloading them (development,
 	// update) will actually get the new content.
-	if !config.useInCluster {
+	if !config.UseInCluster {
 		pluginHandler = serveWithNoCacheHeader(pluginHandler)
 	}
 
 	r.PathPrefix("/plugins/").Handler(pluginHandler)
 
-	if config.staticPluginDir != "" {
-		staticPluginsHandler := http.StripPrefix(config.baseURL+"/static-plugins/",
-			http.FileServer(http.Dir(config.staticPluginDir)))
+	if config.StaticPluginDir != "" {
+		staticPluginsHandler := http.StripPrefix(config.BaseURL+"/static-plugins/",
+			http.FileServer(http.Dir(config.StaticPluginDir)))
 		r.PathPrefix("/static-plugins/").Handler(staticPluginsHandler)
 	}
 }
@@ -321,7 +306,7 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 		pluginName := mux.Vars(r)["name"]
 
 		// Start tracing for deletePlugin.
-		if config.telemetry != nil {
+		if config.Telemetry != nil {
 			_, span = telemetry.CreateSpan(ctx, r, "plugins", "deletePlugin",
 				attribute.String("plugin.name", pluginName),
 			)
@@ -330,8 +315,8 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 		}
 
 		// Increment deletion attempt metric
-		if config.telemetry != nil && config.metrics != nil {
-			config.metrics.PluginDeleteCount.Add(ctx, 1)
+		if config.Telemetry != nil && config.Metrics != nil {
+			config.Metrics.PluginDeleteCount.Add(ctx, 1)
 		}
 
 		logger.Log(logger.LevelInfo, nil, nil, "Received DELETE request for plugin: "+mux.Vars(r)["name"])
@@ -342,7 +327,7 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 			return
 		}
 
-		err := plugins.Delete(config.pluginDir, pluginName)
+		err := plugins.Delete(config.PluginDir, pluginName)
 		if err != nil {
 			config.telemetryHandler.RecordError(span, err, "Failed to delete plugin")
 
@@ -357,22 +342,22 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 }
 
 // addPluginListRoute registers a GET endpoint handler at "/plugins" that serves the list of available plugins.
-// It handles telemetry, metrics collection, and plugin list caching.
+// It handles Telemetry, metrics collection, and plugin list caching.
 func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 	r.HandleFunc("/plugins", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		var span trace.Span
 
 		// Start tracing for listPlugins.
-		if config.telemetry != nil {
+		if config.Telemetry != nil {
 			_, span = telemetry.CreateSpan(ctx, r, "plugins", "listPlugins")
 
 			defer span.End()
 		}
 
 		// Increment metric for plugin loads
-		if config.telemetry != nil && config.metrics != nil {
-			config.metrics.PluginLoadCount.Add(ctx, 1)
+		if config.Telemetry != nil && config.Metrics != nil {
+			config.Metrics.PluginLoadCount.Add(ctx, 1)
 		}
 
 		logger.Log(logger.LevelInfo, nil, nil, "Received GET request for plugin list")
@@ -382,10 +367,10 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 		if err != nil && err == cache.ErrNotFound {
 			pluginsList = []string{}
 
-			if config.telemetry != nil {
+			if config.Telemetry != nil {
 				span.SetAttributes(attribute.Int("plugins.count", 0))
 			}
-		} else if config.telemetry != nil && pluginsList != nil {
+		} else if config.Telemetry != nil && pluginsList != nil {
 			if list, ok := pluginsList.([]string); ok {
 				span.SetAttributes(attribute.Int("plugins.count", len(list)))
 			}
@@ -398,7 +383,7 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 			if err := config.cache.Set(context.Background(), plugins.PluginCanSendRefreshKey, true); err != nil {
 				config.telemetryHandler.RecordError(span, err, "Failed to set plugin-can-send-refresh key")
 				logger.Log(logger.LevelError, nil, err, "setting plugin-can-send-refresh key failed")
-			} else if config.telemetry != nil {
+			} else if config.Telemetry != nil {
 				span.SetStatus(codes.Ok, "Plugin list retrieved successfully")
 			}
 		}
@@ -407,34 +392,34 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 
 //nolint:gocognit,funlen,gocyclo
 func createHeadlampHandler(config *HeadlampConfig) http.Handler {
-	kubeConfigPath := config.kubeConfigPath
+	kubeConfigPath := config.KubeConfigPath
 
-	config.staticPluginDir = os.Getenv("HEADLAMP_STATIC_PLUGINS_DIR")
+	config.StaticPluginDir = os.Getenv("HEADLAMP_STATIC_PLUGINS_DIR")
 
 	logger.Log(logger.LevelInfo, nil, nil, "Creating Headlamp handler")
-	logger.Log(logger.LevelInfo, nil, nil, "Listen address: "+fmt.Sprintf("%s:%d", config.listenAddr, config.port))
+	logger.Log(logger.LevelInfo, nil, nil, "Listen address: "+fmt.Sprintf("%s:%d", config.ListenAddr, config.Port))
 	logger.Log(logger.LevelInfo, nil, nil, "Kubeconfig path: "+kubeConfigPath)
-	logger.Log(logger.LevelInfo, nil, nil, "Static plugin dir: "+config.staticPluginDir)
-	logger.Log(logger.LevelInfo, nil, nil, "Plugins dir: "+config.pluginDir)
-	logger.Log(logger.LevelInfo, nil, nil, "Dynamic clusters support: "+fmt.Sprint(config.enableDynamicClusters))
-	logger.Log(logger.LevelInfo, nil, nil, "Helm support: "+fmt.Sprint(config.enableHelm))
-	logger.Log(logger.LevelInfo, nil, nil, "Proxy URLs: "+fmt.Sprint(config.proxyURLs))
+	logger.Log(logger.LevelInfo, nil, nil, "Static plugin dir: "+config.StaticPluginDir)
+	logger.Log(logger.LevelInfo, nil, nil, "Plugins dir: "+config.PluginDir)
+	logger.Log(logger.LevelInfo, nil, nil, "Dynamic clusters support: "+fmt.Sprint(config.EnableDynamicClusters))
+	logger.Log(logger.LevelInfo, nil, nil, "Helm support: "+fmt.Sprint(config.EnableHelm))
+	logger.Log(logger.LevelInfo, nil, nil, "Proxy URLs: "+fmt.Sprint(config.ProxyURLs))
 
-	plugins.PopulatePluginsCache(config.staticPluginDir, config.pluginDir, config.cache)
+	plugins.PopulatePluginsCache(config.StaticPluginDir, config.PluginDir, config.cache)
 
-	skipFunc := kubeconfig.SkipKubeContextInCommaSeparatedString(config.skippedKubeContexts)
+	skipFunc := kubeconfig.SkipKubeContextInCommaSeparatedString(config.SkippedKubeContexts)
 
-	if !config.useInCluster || config.watchPluginsChanges {
+	if !config.UseInCluster || config.WatchPluginsChanges {
 		// in-cluster mode is unlikely to want reloading plugins.
 		pluginEventChan := make(chan string)
-		go plugins.Watch(config.pluginDir, pluginEventChan)
-		go plugins.HandlePluginEvents(config.staticPluginDir, config.pluginDir, pluginEventChan, config.cache)
+		go plugins.Watch(config.PluginDir, pluginEventChan)
+		go plugins.HandlePluginEvents(config.StaticPluginDir, config.PluginDir, pluginEventChan, config.cache)
 		// in-cluster mode is unlikely to want reloading kubeconfig.
-		go kubeconfig.LoadAndWatchFiles(config.kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
+		go kubeconfig.LoadAndWatchFiles(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	}
 
 	// In-cluster
-	if config.useInCluster {
+	if config.UseInCluster {
 		context, err := kubeconfig.GetInClusterContext(config.oidcIdpIssuerURL,
 			config.oidcClientID, config.oidcClientSecret,
 			strings.Join(config.oidcScopes, ","))
@@ -449,30 +434,30 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
 		}
 
-		err = config.kubeConfigStore.AddContext(context)
+		err = config.KubeConfigStore.AddContext(context)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
 		}
 	}
 
-	if config.staticDir != "" {
-		baseURLReplace(config.staticDir, config.baseURL)
+	if config.StaticDir != "" {
+		baseURLReplace(config.StaticDir, config.BaseURL)
 	}
 
 	// For when using a base-url, like "/headlamp" with a reverse proxy.
 	var r *mux.Router
-	if config.baseURL == "" {
+	if config.BaseURL == "" {
 		r = mux.NewRouter()
 	} else {
 		baseRoute := mux.NewRouter()
-		r = baseRoute.PathPrefix(config.baseURL).Subrouter()
+		r = baseRoute.PathPrefix(config.BaseURL).Subrouter()
 	}
 
 	fmt.Println("*** Headlamp Server ***")
 	fmt.Println("  API Routers:")
 
 	// load kubeConfig clusters
-	err := kubeconfig.LoadAndStoreKubeConfigs(config.kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
+	err := kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "loading kubeconfig")
 	}
@@ -480,7 +465,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	// Prometheus metrics endpoint
 	// to enable this endpoint, run command run-backend-with-metrics
 	// or set the environment variable HEADLAMP_CONFIG_METRICS_ENABLED=true
-	if config.metrics != nil && config.telemetryConfig.MetricsEnabled != nil && *config.telemetryConfig.MetricsEnabled {
+	if config.Metrics != nil && config.telemetryConfig.MetricsEnabled != nil && *config.telemetryConfig.MetricsEnabled {
 		r.Handle("/metrics", promhttp.Handler())
 		logger.Log(logger.LevelInfo, nil, nil, "prometheus metrics endpoint: /metrics")
 	}
@@ -491,7 +476,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		logger.Log(logger.LevelError, nil, err, "getting default kubeconfig persistence file")
 	}
 
-	err = kubeconfig.LoadAndStoreKubeConfigs(config.kubeConfigStore, kubeConfigPersistenceFile,
+	err = kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, kubeConfigPersistenceFile,
 		kubeconfig.DynamicCluster, skipFunc)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "loading dynamic kubeconfig")
@@ -526,7 +511,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 		isURLContainedInProxyURLs := false
 
-		for _, proxyURL := range config.proxyURLs {
+		for _, proxyURL := range config.ProxyURLs {
 			g := glob.MustCompile(proxyURL)
 			if g.Match(url.String()) {
 				isURLContainedInProxyURLs = true
@@ -624,15 +609,15 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	r.HandleFunc("/oidc", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 		cluster := r.URL.Query().Get("cluster")
-		if config.insecure {
+		if config.Insecure {
 			tr := &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
 			}
-			insecureClient := &http.Client{Transport: tr}
-			ctx = oidc.ClientContext(ctx, insecureClient)
+			InsecureClient := &http.Client{Transport: tr}
+			ctx = oidc.ClientContext(ctx, InsecureClient)
 		}
 
-		kContext, err := config.kubeConfigStore.GetContext(cluster)
+		kContext, err := config.KubeConfigStore.GetContext(cluster)
 		if err != nil {
 			logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
 				err, "failed to get context")
@@ -688,7 +673,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	}).Queries("cluster", "{cluster}")
 
 	r.HandleFunc("/portforward", func(w http.ResponseWriter, r *http.Request) {
-		portforward.StartPortForward(config.kubeConfigStore, config.cache, w, r)
+		portforward.StartPortForward(config.KubeConfigStore, config.cache, w, r)
 	}).Methods("POST")
 
 	r.HandleFunc("/portforward", func(w http.ResponseWriter, r *http.Request) {
@@ -776,13 +761,13 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			}
 
 			var redirectURL string
-			if config.devMode {
+			if config.DevMode {
 				redirectURL = "http://localhost:3000/"
 			} else {
 				redirectURL = "/"
 			}
 
-			baseURL := strings.Trim(config.baseURL, "/")
+			baseURL := strings.Trim(config.BaseURL, "/")
 			if baseURL != "" {
 				redirectURL += baseURL + "/"
 			}
@@ -796,24 +781,24 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	})
 
 	// Serve the frontend if needed
-	if config.staticDir != "" {
-		staticPath := config.staticDir
+	if config.StaticDir != "" {
+		staticPath := config.StaticDir
 
 		if isWindows {
-			// We support unix paths on windows. So "frontend/static" works.
-			if strings.Contains(config.staticDir, "/") {
-				staticPath = filepath.FromSlash(config.staticDir)
+			// We supPort unix paths on windows. So "frontend/static" works.
+			if strings.Contains(config.StaticDir, "/") {
+				staticPath = filepath.FromSlash(config.StaticDir)
 			}
 		}
 
-		spa := spaHandler{staticPath: staticPath, indexPath: "index.html", baseURL: config.baseURL}
+		spa := spaHandler{staticPath: staticPath, indexPath: "index.html", baseURL: config.BaseURL}
 		r.PathPrefix("/").Handler(spa)
 
 		http.Handle("/", r)
 	}
 
 	// On dev mode we're loose about where connections come from
-	if config.devMode {
+	if config.DevMode {
 		headers := handlers.AllowedHeaders([]string{
 			"X-HEADLAMP_BACKEND-TOKEN", "X-Requested-With", "Content-Type",
 			"Authorization", "Forward-To",
@@ -993,8 +978,8 @@ func (c *HeadlampConfig) refreshAndSetToken(oidcAuthConfig *kubeconfig.OidcConfi
 }
 
 func (c *HeadlampConfig) incrementRequestCounter(ctx context.Context) {
-	if c.metrics != nil {
-		c.metrics.RequestCounter.Add(ctx, 1,
+	if c.Metrics != nil {
+		c.Metrics.RequestCounter.Add(ctx, 1,
 			metric.WithAttributes(
 				attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
 				attribute.String("status", "start"),
@@ -1075,7 +1060,7 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 		start := time.Now()
 
 		var span trace.Span
-		if c.telemetry != nil {
+		if c.Telemetry != nil {
 			_, span = telemetry.CreateSpan(ctx, r, "auth", "OIDCTokenRefreshMiddleware")
 
 			c.telemetryHandler.RecordEvent(span, "Middleware started")
@@ -1097,7 +1082,7 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 		}
 
 		// get oidc config
-		kContext, err := c.kubeConfigStore.GetContext(cluster)
+		kContext, err := c.KubeConfigStore.GetContext(cluster)
 		if c.handleGetContextError(err, cluster, w, r, span, ctx, start, next) {
 			return
 		}
@@ -1150,39 +1135,39 @@ func StartHeadlampServer(config *HeadlampConfig) {
 		logger.Log(logger.LevelError, nil, err, "Failed to initialize metrics")
 	}
 
-	config.telemetry = tel
-	config.metrics = metrics
+	config.Telemetry = tel
+	config.Metrics = metrics
 	config.telemetryHandler = telemetry.NewRequestHandler(tel, metrics)
 
 	router := mux.NewRouter()
 
-	if config.telemetry != nil && config.metrics != nil {
+	if config.Telemetry != nil && config.Metrics != nil {
 		router.Use(telemetry.TracingMiddleware("headlamp-server"))
-		router.Use(config.metrics.RequestCounterMiddleware)
+		router.Use(config.Metrics.RequestCounterMiddleware)
 	}
 
 	// Copy static files as squashFS is read-only (AppImage)
-	if config.staticDir != "" {
+	if config.StaticDir != "" {
 		dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "Failed to create static dir")
 			return
 		}
 
-		err = os.CopyFS(dir, os.DirFS(config.staticDir))
+		err = os.CopyFS(dir, os.DirFS(config.StaticDir))
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "Failed to copy files from static dir")
 			return
 		}
 
-		config.staticDir = dir
+		config.StaticDir = dir
 	}
 
 	handler := createHeadlampHandler(config)
 
 	handler = config.OIDCTokenRefreshMiddleware(handler)
 
-	addr := fmt.Sprintf("%s:%d", config.listenAddr, config.port)
+	addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
 
 	// Start server
 	if err := http.ListenAndServe(addr, handler); err != nil { //nolint:gosec
@@ -1216,7 +1201,7 @@ func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (
 	clusterName := mux.Vars(r)["clusterName"]
 	telemetry.AddSpanAttributes(ctx, attribute.String("clusterName", clusterName))
 
-	context, err := c.kubeConfigStore.GetContext(clusterName)
+	context, err := c.KubeConfigStore.GetContext(clusterName)
 	if err != nil {
 		logger.Log(
 			logger.LevelError, map[string]string{"clusterName": clusterName},
@@ -1391,7 +1376,7 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) { //nolint:funlen
 			return
 		}
 
-		kContext, err := c.kubeConfigStore.GetContext(contextKey)
+		kContext, err := c.KubeConfigStore.GetContext(contextKey)
 		if err != nil {
 			c.handleError(w, ctx, span, err, "failed to get context", http.StatusNotFound)
 			return
@@ -1435,7 +1420,7 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) { //nolint:funlen
 			return
 		}
 
-		if c.telemetry != nil {
+		if c.Telemetry != nil {
 			span.SetStatus(codes.Ok, "")
 			c.telemetryHandler.RecordEvent(span, "Cluster API request completed")
 		}
@@ -1521,7 +1506,7 @@ func processTokenProtocol(r *http.Request, protocol, tokenPrefix string) {
 }
 
 func (c *HeadlampConfig) handleClusterRequests(router *mux.Router) {
-	if c.enableHelm {
+	if c.EnableHelm {
 		handleClusterHelm(c, router)
 	}
 
@@ -1531,7 +1516,7 @@ func (c *HeadlampConfig) handleClusterRequests(router *mux.Router) {
 func (c *HeadlampConfig) getClusters() []Cluster {
 	clusters := []Cluster{}
 
-	contexts, err := c.kubeConfigStore.GetContexts()
+	contexts, err := c.KubeConfigStore.GetContexts()
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "failed to get contexts")
 
@@ -1680,7 +1665,7 @@ func parseClusterFromKubeConfig(kubeConfigs []string) ([]Cluster, []error) {
 func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	clientConfig := clientConfig{c.getClusters(), c.enableDynamicClusters}
+	clientConfig := clientConfig{c.getClusters(), c.EnableDynamicClusters}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {
 		logger.Log(logger.LevelError, nil, err, "encoding config")
@@ -1716,7 +1701,7 @@ func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if c.telemetry != nil {
+	if c.Telemetry != nil {
 		if clusterReq.Name != nil {
 			span.SetAttributes(attribute.String("clusterName", *clusterReq.Name))
 		}
@@ -1743,7 +1728,7 @@ func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if c.telemetry != nil {
+	if c.Telemetry != nil {
 		span.SetAttributes(attribute.Int("contexts.added", len(contexts)))
 		span.SetStatus(codes.Ok, "Cluster added successfully")
 	}
@@ -1773,7 +1758,7 @@ func (c *HeadlampConfig) handleSetupErrors(setupErrors []error,
 	if len(setupErrors) > 0 {
 		logger.Log(logger.LevelError, nil, setupErrors, "setting up contexts from kubeconfig")
 
-		if c.telemetry != nil {
+		if c.Telemetry != nil {
 			span.SetStatus(codes.Error, "Failed to setup contexts from kubeconfig")
 
 			errMsg := fmt.Sprintf("%v", setupErrors)
@@ -1878,7 +1863,7 @@ func (c *HeadlampConfig) writeKubeConfig(kubeConfigBase64 string) error {
 func (c *HeadlampConfig) addContextsToStore(contexts []kubeconfig.Context, setupErrors []error) []error {
 	for i := range contexts {
 		contexts[i].Source = kubeconfig.DynamicCluster
-		if err := c.kubeConfigStore.AddContext(&contexts[i]); err != nil {
+		if err := c.KubeConfigStore.AddContext(&contexts[i]); err != nil {
 			setupErrors = append(setupErrors, err)
 		}
 	}
@@ -1915,7 +1900,7 @@ func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := c.kubeConfigStore.RemoveContext(name)
+	err := c.KubeConfigStore.RemoveContext(name)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "failed to delete cluster", http.StatusInternalServerError)
 
@@ -1973,7 +1958,7 @@ func (c *HeadlampConfig) handleRemoveKubeConfig(
 // Get path of kubeconfig we load headlamp with from source.
 func (c *HeadlampConfig) getKubeConfigPath(source string) (string, error) {
 	if source == kubeConfigSource {
-		return c.kubeConfigPath, nil
+		return c.KubeConfigPath, nil
 	}
 
 	return defaultHeadlampKubeConfigFile()
@@ -1992,7 +1977,7 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 
 	defer span.End()
 
-	if err := c.kubeConfigStore.RemoveContext(clusterName); err != nil {
+	if err := c.KubeConfigStore.RemoveContext(clusterName); err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
 			err, "decoding request body")
 		c.telemetryHandler.RecordError(span, err, "decoding request body")
@@ -2060,13 +2045,13 @@ func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterN
 		context := context
 
 		// Remove the old context from the store
-		if err := c.kubeConfigStore.RemoveContext(clusterName); err != nil {
+		if err := c.KubeConfigStore.RemoveContext(clusterName); err != nil {
 			logger.Log(logger.LevelError, nil, err, "Removing context from the store")
 			errs = append(errs, err)
 		}
 
 		// Add the new context to the store
-		if err := c.kubeConfigStore.AddContext(&context); err != nil {
+		if err := c.KubeConfigStore.AddContext(&context); err != nil {
 			logger.Log(logger.LevelError, nil, err, "Adding context to the store")
 			errs = append(errs, err)
 		}
@@ -2249,7 +2234,7 @@ func CheckUniqueName(contexts map[string]*api.Context, currentName string, newNa
 
 func (c *HeadlampConfig) addClusterSetupRoute(r *mux.Router) {
 	// Do not add the route if dynamic clusters are disabled
-	if !c.enableDynamicClusters {
+	if !c.EnableDynamicClusters {
 		return
 	}
 	// Get stateless cluster
@@ -2300,7 +2285,7 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 	// get token from header
 	token := r.Header.Get("Authorization")
 
-	ctxtProxy, err := c.kubeConfigStore.GetContext(drainPayload.Cluster)
+	ctxtProxy, err := c.KubeConfigStore.GetContext(drainPayload.Cluster)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "Cluster not found", http.StatusNotFound)
 

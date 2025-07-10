@@ -22,6 +22,7 @@ import (
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
@@ -45,15 +46,23 @@ func main() {
 	multiplexer := NewMultiplexer(kubeConfigStore)
 
 	StartHeadlampServer(&HeadlampConfig{
-		useInCluster:              conf.InCluster,
-		kubeConfigPath:            conf.KubeConfigPath,
-		skippedKubeContexts:       conf.SkippedKubeContexts,
-		listenAddr:                conf.ListenAddr,
-		port:                      conf.Port,
-		devMode:                   conf.DevMode,
-		staticDir:                 conf.StaticDir,
-		insecure:                  conf.InsecureSsl,
-		pluginDir:                 conf.PluginsDir,
+		HeadlampCFG: &headlampconfig.HeadlampCFG{
+			UseInCluster:          conf.InCluster,
+			KubeConfigPath:        conf.KubeConfigPath,
+			SkippedKubeContexts:   conf.SkippedKubeContexts,
+			ListenAddr:            conf.ListenAddr,
+			Port:                  conf.Port,
+			DevMode:               conf.DevMode,
+			StaticDir:             conf.StaticDir,
+			Insecure:              conf.InsecureSsl,
+			PluginDir:             conf.PluginsDir,
+			EnableHelm:            conf.EnableHelm,
+			EnableDynamicClusters: conf.EnableDynamicClusters,
+			WatchPluginsChanges:   conf.WatchPluginsChanges,
+			KubeConfigStore:       kubeConfigStore,
+			BaseURL:               conf.BaseURL,
+			ProxyURLs:             strings.Split(conf.ProxyURLs, ","),
+		},
 		oidcClientID:              conf.OidcClientID,
 		oidcValidatorClientID:     conf.OidcValidatorClientID,
 		oidcClientSecret:          conf.OidcClientSecret,
@@ -61,13 +70,7 @@ func main() {
 		oidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
 		oidcScopes:                strings.Split(conf.OidcScopes, ","),
 		oidcUseAccessToken:        conf.OidcUseAccessToken,
-		baseURL:                   conf.BaseURL,
-		proxyURLs:                 strings.Split(conf.ProxyURLs, ","),
-		enableHelm:                conf.EnableHelm,
-		enableDynamicClusters:     conf.EnableDynamicClusters,
-		watchPluginsChanges:       conf.WatchPluginsChanges,
 		cache:                     cache,
-		kubeConfigStore:           kubeConfigStore,
 		multiplexer:               multiplexer,
 		telemetryConfig: config.Config{
 			ServiceName:        conf.ServiceName,
