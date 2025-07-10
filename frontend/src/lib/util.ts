@@ -28,7 +28,7 @@ import { KubeEvent } from './k8s/event';
 import { KubeObjectInterface } from './k8s/KubeObject';
 import Node from './k8s/node';
 import { Workload } from './k8s/Workload';
-import { parseCpu, parseRam, unparseCpu, unparseRam } from './units';
+import { formatMetricValueUnit, parseCpu, parseRam } from './units';
 
 // Exported to keep compatibility for plugins that may have used them.
 export { filterGeneric, filterResource, getClusterPrefixedPath, getCluster, getClusterGroup };
@@ -137,12 +137,10 @@ export function getTotalReplicas(item: Workload) {
 
 export function getResourceStr(value: number, resourceType: 'cpu' | 'memory') {
   const resourceFormatters: any = {
-    cpu: unparseCpu,
-    memory: unparseRam,
+    cpu: formatMetricValueUnit(value, '', 'cpu'),
+    memory: formatMetricValueUnit(value, '', 'binary'),
   };
-
-  const valueInfo = resourceFormatters[resourceType](value);
-  return `${valueInfo.value}${valueInfo.unit}`;
+  return resourceFormatters[resourceType];
 }
 
 export function getResourceMetrics(

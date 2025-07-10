@@ -22,7 +22,7 @@ import { ApiError } from '../../lib/k8s/apiProxy';
 import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
 import { METRIC_REFETCH_INTERVAL_MS, PodMetrics } from '../../lib/k8s/PodMetrics';
-import { parseCpu, parseRam, unparseCpu, unparseRam } from '../../lib/units';
+import { formatMetricValueUnit, parseCpu, parseRam } from '../../lib/units';
 import { timeAgo } from '../../lib/util';
 import { useNamespaces } from '../../redux/filterSlice';
 import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
@@ -244,9 +244,7 @@ export function PodListRenderer(props: PodListProps) {
                   const cpu = getCpuUsage(pod);
                   if (cpu === undefined) return;
 
-                  const { value, unit } = unparseCpu(String(cpu));
-
-                  return `${value} ${unit}`;
+                  return formatMetricValueUnit(cpu, '', 'cpu', cpu < 1 ? 0 : 1);
                 },
                 getValue: (pod: Pod) => getCpuUsage(pod) ?? 0,
               },
@@ -257,9 +255,8 @@ export function PodListRenderer(props: PodListProps) {
                 render: (pod: Pod) => {
                   const memory = getMemoryUsage(pod);
                   if (memory === undefined) return;
-                  const { value, unit } = unparseRam(memory);
 
-                  return `${value} ${unit}`;
+                  return formatMetricValueUnit(memory, '', 'binary', memory < 1e9 ? 0 : 1);
                 },
                 getValue: (pod: Pod) => getMemoryUsage(pod) ?? 0,
               },
