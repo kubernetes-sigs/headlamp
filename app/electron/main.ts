@@ -1283,7 +1283,29 @@ function startElecron() {
       mainWindow?.webContents.send('backend-token', backendToken);
     });
 
-    ipcMain.on('run-command', (event, eventData) => handleRunCommand(event, eventData, mainWindow));
+    // We only send the plugin permission secrets once. So any code can't just request them again.
+    // This means that if the secrets are requested before the plugins are loaded, then
+    // they will not be sent until the next time the app is reloaded.
+    let pluginPermissionSecretsSent = false;
+    const permissionSecrets = {
+      'runCmd-minikube': Math.random(),
+    };
+
+    ipcMain.on('request-plugin-permission-secrets', () => {
+      if (!pluginPermissionSecretsSent) {
+        pluginPermissionSecretsSent = true;
+        mainWindow?.webContents.send('plugin-permission-secrets', permissionSecrets);
+      }
+    });
+
+    // If the app reloads the browser then we allow the permission secrets to be sent again.
+    mainWindow?.webContents.on('did-navigate', () => {
+      pluginPermissionSecretsSent = false;
+    });
+
+    ipcMain.on('run-command', (event, eventData) =>
+      handleRunCommand(event, eventData, mainWindow, permissionSecrets)
+    );
 
     new PluginManagerEventListeners().setupEventHandlers();
 

@@ -245,9 +245,31 @@ export function updateSettingsPackages(
 }
 
 /**
+ * Asks the main electron process for the permission secrets.
+ *
+ * @returns promise with permissions secrets like { 'runCmd-minikube': 1235555 }
+ */
+export async function permissionSecretsFromApp(): Promise<Record<string, number>> {
+  const { desktopApi } = window;
+  if (desktopApi) {
+    return new Promise(resolve => {
+      desktopApi.receive('plugin-permission-secrets', (secrets: Record<string, number>) => {
+        resolve(secrets);
+      });
+      desktopApi.send('request-plugin-permission-secrets');
+    });
+  } else {
+    return new Promise(resolve => resolve({}));
+  }
+}
+
+/**
  * Get the list of plugins,
  *   download all the plugin source,
  *   download all the plugin package.json files,
+ *   ask app for permission secrets,
+ *   filter the sources to execute,
+ *   filter the incompatible plugins and plugins enabled in settings,
  *   execute the plugins,
  *   .initialize() plugins that register (not all do).
  *
@@ -261,6 +283,8 @@ export async function fetchAndExecutePlugins(
   onSettingsChange: (plugins: PluginInfo[]) => void,
   onIncompatible: (plugins: Record<string, PluginInfo>) => void
 ) {
+  const permissionSecretsPromise = permissionSecretsFromApp();
+
   const pluginPaths = (await fetch(`${getAppUrl()}plugins`).then(resp => resp.json())) as string[];
 
   const sourcesPromise = Promise.all(
@@ -296,6 +320,7 @@ export async function fetchAndExecutePlugins(
 
   const sources = await sourcesPromise;
   const packageInfos = await packageInfosPromise;
+  const permissionSecrets = await permissionSecretsPromise;
 
   const updatedSettingsPackages = updateSettingsPackages(packageInfos, settingsPackages);
   const settingsChanged = packageInfos.length !== settingsPackages.length;
@@ -330,16 +355,32 @@ export async function fetchAndExecutePlugins(
   onSettingsChange(packagesIncompatibleSet);
 
   sourcesToExecute.forEach((source, index) => {
-    // Execute plugins inside a context (not in global/window)
-    (function (str: string) {
+    (function runPlugin(sourceStr: string) {
       try {
         const pluginName = packageInfos[index].name.split('/').slice(-1)[0];
-        // Giving an evaled code a filename will make it easier to use source maps
+        // Add source map for debugging
         const sourceMapPath = `\n//# sourceURL=//${pluginName}/dist/main.js`;
-        const result = eval(str + sourceMapPath);
-        return result;
+
+        // Create a function with the source code of the plugin.
+        const executePlugin = new Function('pluginPermissionSecrets', sourceStr + sourceMapPath);
+
+        // figure out which permissions the plugin needs
+        const argValues: Record<string, number | undefined>[] = [];
+        if (pluginName.includes('minikube')) {
+          argValues.push({
+            'runCmd-minikube': permissionSecrets['runCmd-minikube'],
+          });
+        } else {
+          argValues.push({});
+        }
+
+        // This executes in the global scope,
+        //   so the plugin can't access variables in this scope.
+        // Meaning, it can NOT access "permissionSecrets".
+        // Each plugin gets its own "pluginPermissionSecrets" which contains only the secrets
+        //   that it is allowed to access.
+        executePlugin(...argValues);
       } catch (e) {
-        // We just continue if there is an error.
         console.error(`Plugin execution error in ${pluginPaths[index]}:`, e);
         store.dispatch(
           eventAction({
@@ -353,6 +394,7 @@ export async function fetchAndExecutePlugins(
       }
     }).call({}, source);
   });
+
   await initializePlugins();
 
   const pluginsLoaded = updatedSettingsPackages.map(plugin => ({
