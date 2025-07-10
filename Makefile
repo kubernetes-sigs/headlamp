@@ -100,6 +100,9 @@ backend-check-build:
 	@if [ ! -f backend/headlamp-server${SERVER_EXE_EXT} ] || ! git diff --quiet HEAD -- backend/; then \
 		echo "Backend changes detected, rebuilding..."; \
 		make backend; \
+	elif ! file backend/headlamp-server${SERVER_EXE_EXT} | grep -q "$(shell uname -m | sed 's/_/-/')"; then \
+		echo "Backend architecture mismatch (expected $(shell uname -m)). Rebuilding"; \
+		make backend;\
 	else \
 		echo "Backend is up to date"; \
 	fi
