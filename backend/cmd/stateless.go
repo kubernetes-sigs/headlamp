@@ -57,19 +57,19 @@ func MarshalCustomObject(info runtime.Object, contextName string) (kubeconfig.Cu
 // setKeyInCache sets the context in the cache with the given key.
 func (c *HeadlampConfig) setKeyInCache(key string, context kubeconfig.Context) error {
 	// check context is present
-	_, err := c.kubeConfigStore.GetContext(key)
+	_, err := c.KubeConfigStore.GetContext(key)
 	if err != nil && err.Error() == "key not found" {
 		// To ensure stateless clusters are not visible to other users, they are marked as internal clusters.
 		// They are stored in the proxy cache and accessed through the /config endpoint.
 		context.Internal = true
-		if err = c.kubeConfigStore.AddContextWithKeyAndTTL(&context, key, ContextCacheTTL); err != nil {
+		if err = c.KubeConfigStore.AddContextWithKeyAndTTL(&context, key, ContextCacheTTL); err != nil {
 			logger.Log(logger.LevelError, map[string]string{"key": key},
 				err, "adding context to cache")
 
 			return err
 		}
 	} else {
-		if err = c.kubeConfigStore.UpdateTTL(key, ContextUpdateCacheTTL); err != nil {
+		if err = c.KubeConfigStore.UpdateTTL(key, ContextUpdateCacheTTL); err != nil {
 			logger.Log(logger.LevelError, map[string]string{"key": key},
 				err, "updating context ttl")
 
@@ -180,7 +180,7 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	clientConfig := clientConfig{contexts, c.enableDynamicClusters}
+	clientConfig := clientConfig{contexts, c.EnableDynamicClusters}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {
 		logger.Log(logger.LevelError, nil, err, "encoding config")
@@ -251,7 +251,7 @@ func (c *HeadlampConfig) getContextKeyForRequest(r *http.Request) (string, error
 	// checking if kubeConfig exists, if not check if the request headers for kubeConfig information
 	kubeConfig := r.Header.Get("KUBECONFIG")
 
-	if kubeConfig != "" && c.enableDynamicClusters {
+	if kubeConfig != "" && c.EnableDynamicClusters {
 		// if kubeConfig is set and dynamic clusters are enabled then handle stateless cluster requests
 		key, err := c.handleStatelessReq(r, kubeConfig)
 		if err != nil {
