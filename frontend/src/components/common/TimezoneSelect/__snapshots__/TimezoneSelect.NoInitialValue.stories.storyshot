@@ -14,6 +14,7 @@
             aria-describedby="cluster-selector-autocomplete-helper-text"
             aria-expanded="false"
             aria-invalid="false"
+            aria-label="Timezone"
             autocapitalize="none"
             autocomplete="off"
             class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"

@@ -148,6 +148,8 @@ export default function NumRowsInput(props: { defaultValue: number[] }) {
     ) : (
       <FormControl>
         <Select
+          labelId="rows-per-page-label"
+          aria-labelledby="rows-per-page-label"
           value={selectedValue}
           style={{ width: '100px' }}
           open={isSelectOpen}

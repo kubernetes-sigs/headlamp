@@ -97,15 +97,23 @@ export default function Settings() {
       <NameValueTable
         rows={[
           {
-            name: t('translation|Language'),
+            name: <Typography>{t('translation|Language')}</Typography>,
             value: <LocaleSelect showFullNames formControlProps={{ className: '' }} />,
           },
           {
-            name: t('translation|Resource details view'),
+            name: (
+              <Typography id="drawer-mode-label">
+                {t('translation|Resource details view')}
+              </Typography>
+            ),
             value: <DrawerModeSettings />,
           },
           {
-            name: t('translation|Number of rows for tables'),
+            name: (
+              <Typography id="rows-per-page-label">
+                {t('translation|Number of rows for tables')}
+              </Typography>
+            ),
             value: (
               <NumRowsInput
                 defaultValue={storedRowsPerPageOptions || defaultTableRowsPerPageOptions}
@@ -124,22 +132,36 @@ export default function Settings() {
             ),
           },
           {
-            name: t('translation|Sort sidebar items alphabetically'),
+            name: (
+              <Typography id="sort-sidebar-label">
+                {t('translation|Sort sidebar items alphabetically')}
+              </Typography>
+            ),
             value: (
               <Switch
                 color="primary"
                 checked={sortSidebar}
                 onChange={e => setSortSidebar(e.target.checked)}
+                inputProps={{
+                  'aria-labelledby': 'sort-sidebar-label',
+                }}
               />
             ),
           },
           {
-            name: t('translation|Use evict for pod deletion'),
+            name: (
+              <Typography id="use-evict-label">
+                {t('translation|Use evict for pod deletion')}
+              </Typography>
+            ),
             value: (
               <Switch
                 color="primary"
                 checked={useEvict}
                 onChange={e => setUseEvict(e.target.checked)}
+                inputProps={{
+                  'aria-labelledby': 'use-evict-label',
+                }}
               />
             ),
           },

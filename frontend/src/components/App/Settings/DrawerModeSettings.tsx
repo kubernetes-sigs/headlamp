@@ -41,6 +41,7 @@ export default function DrawerModeSettings() {
           onClick={drawerModeToggle}
           name="drawerMode"
           color="primary"
+          inputProps={{ 'aria-labelledby': 'drawer-mode-label' }}
         />
       }
       label={

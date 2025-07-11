@@ -51,7 +51,16 @@ export default function TimezoneSelect(props: TimezoneSelectorProps) {
       includeInputInList
       openOnFocus
       renderInput={params => (
-        <TextField {...params} helperText={t('Timezone')} size="small" variant="outlined" />
+        <TextField
+          {...params}
+          helperText={t('Timezone')}
+          size="small"
+          variant="outlined"
+          inputProps={{
+            ...params.inputProps,
+            'aria-label': t('Timezone'),
+          }}
+        />
       )}
       onChange={(_ev, value) => onChange(value.name)}
       value={timezoneOptions.find(option => option.name === initialTimezone)}
