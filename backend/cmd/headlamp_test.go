@@ -258,10 +258,10 @@ func TestDynamicClusters(t *testing.T) {
 					KubeConfigPath:        "",
 					EnableDynamicClusters: true,
 					KubeConfigStore:       kubeConfigStore,
+					TelemetryHandler:      &telemetry.RequestHandler{},
+					TelemetryConfig:       GetDefaultTestTelemetryConfig(),
 				},
-				cache:            cache,
-				telemetryConfig:  GetDefaultTestTelemetryConfig(),
-				telemetryHandler: &telemetry.RequestHandler{},
+				cache: cache,
 			}
 			handler := createHeadlampHandler(&c)
 
@@ -349,10 +349,10 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 			KubeConfigPath:        "",
 			EnableDynamicClusters: true,
 			KubeConfigStore:       kubeConfigStore,
+			TelemetryHandler:      &telemetry.RequestHandler{},
+			TelemetryConfig:       GetDefaultTestTelemetryConfig(),
 		},
-		cache:            cache,
-		telemetryConfig:  GetDefaultTestTelemetryConfig(),
-		telemetryHandler: &telemetry.RequestHandler{},
+		cache: cache,
 	}
 	handler := createHeadlampHandler(&c)
 
@@ -529,13 +529,13 @@ func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
 		{
 			handler: createHeadlampHandler(&HeadlampConfig{
 				HeadlampCFG: &headlampconfig.HeadlampCFG{
-					UseInCluster:    false,
-					KubeConfigPath:  config.GetDefaultKubeConfigPath(),
-					KubeConfigStore: kubeConfigStore,
+					UseInCluster:     false,
+					KubeConfigPath:   config.GetDefaultKubeConfigPath(),
+					KubeConfigStore:  kubeConfigStore,
+					TelemetryHandler: &telemetry.RequestHandler{},
+					TelemetryConfig:  GetDefaultTestTelemetryConfig(),
 				},
-				cache:            cache,
-				telemetryConfig:  GetDefaultTestTelemetryConfig(),
-				telemetryHandler: &telemetry.RequestHandler{},
+				cache: cache,
 			}),
 		},
 	}
@@ -652,13 +652,13 @@ func TestHandleClusterAPI_XForwardedHost(t *testing.T) {
 
 	c := HeadlampConfig{
 		HeadlampCFG: &headlampconfig.HeadlampCFG{
-			UseInCluster:    false,
-			KubeConfigPath:  config.GetDefaultKubeConfigPath(),
-			KubeConfigStore: kubeConfigStore,
+			UseInCluster:     false,
+			KubeConfigPath:   config.GetDefaultKubeConfigPath(),
+			KubeConfigStore:  kubeConfigStore,
+			TelemetryHandler: &telemetry.RequestHandler{},
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
 		},
-		cache:            cache,
-		telemetryConfig:  GetDefaultTestTelemetryConfig(),
-		telemetryHandler: &telemetry.RequestHandler{},
+		cache: cache,
 	}
 
 	handler := createHeadlampHandler(&c)
@@ -774,10 +774,10 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 			KubeConfigPath:        "./headlamp_testdata/kubeconfig",
 			EnableDynamicClusters: true,
 			KubeConfigStore:       kubeConfigStore,
+			TelemetryHandler:      &telemetry.RequestHandler{},
+			TelemetryConfig:       GetDefaultTestTelemetryConfig(),
 		},
-		cache:            cache,
-		telemetryConfig:  GetDefaultTestTelemetryConfig(),
-		telemetryHandler: &telemetry.RequestHandler{},
+		cache: cache,
 	}
 	handler := createHeadlampHandler(&c)
 
@@ -1032,10 +1032,10 @@ func TestOIDCTokenRefreshMiddleware(t *testing.T) {
 	kubeConfigStore := kubeconfig.NewContextStore()
 	config := &HeadlampConfig{
 		HeadlampCFG: &headlampconfig.HeadlampCFG{
-			KubeConfigStore: kubeConfigStore,
+			KubeConfigStore:  kubeConfigStore,
+			TelemetryHandler: &telemetry.RequestHandler{},
 		},
-		cache:            cache.New[interface{}](),
-		telemetryHandler: &telemetry.RequestHandler{},
+		cache: cache.New[interface{}](),
 	}
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1069,9 +1069,9 @@ func TestStartHeadlampServer(t *testing.T) {
 			Port:            8080,
 			PluginDir:       tempDir,
 			KubeConfigStore: kubeconfig.NewContextStore(),
+			TelemetryConfig: GetDefaultTestTelemetryConfig(),
 		},
-		cache:           cache.New[interface{}](),
-		telemetryConfig: GetDefaultTestTelemetryConfig(),
+		cache: cache.New[interface{}](),
 	}
 
 	// Use a channel to signal when the server is ready
@@ -1122,12 +1122,11 @@ func TestHandleClusterHelm(t *testing.T) {
 
 	config := &HeadlampConfig{
 		HeadlampCFG: &headlampconfig.HeadlampCFG{
-			KubeConfigStore: kubeconfig.NewContextStore(),
+			KubeConfigStore:  kubeconfig.NewContextStore(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
 		},
 		cache: cache.New[interface{}](),
-
-		telemetryConfig:  GetDefaultTestTelemetryConfig(),
-		telemetryHandler: &telemetry.RequestHandler{},
 	}
 
 	// Add a mock context to the kubeConfigStore

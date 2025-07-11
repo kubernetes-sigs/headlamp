@@ -20,10 +20,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"regexp"
-	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -189,55 +188,6 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// websocketConnContextKey handles websocket requests. It returns context key
-// which is used to store the context in the cache. The context key is
-// unique for each user. It is found in the "base64url.headlamp.authorization.k8s.io" protocol
-// of the websocket.
-func websocketConnContextKey(r *http.Request, clusterName string) string {
-	// Expected number of submatches in the regular expression
-	const expectedSubmatches = 2
-
-	var contextKey string
-	// Define a regular expression pattern for base64url.headlamp.authorization.k8s.io
-	pattern := `base64url\.headlamp\.authorization\.k8s\.io\.([a-zA-Z0-9_-]+)`
-
-	// Compile the regular expression
-	re := regexp.MustCompile(pattern)
-
-	// Find the match in the header value
-	matches := re.FindStringSubmatch(r.Header.Get("Sec-Websocket-Protocol"))
-
-	// Check if a match is found
-	if len(matches) >= expectedSubmatches {
-		// Extract the value after the specified prefix
-		contextKey = clusterName + matches[1]
-	} else {
-		contextKey = clusterName
-	}
-
-	// Remove the base64url.headlamp.authorization.k8s.io subprotocol from the list
-	// because it is unrecognized by the k8s server.
-	protocols := strings.Split(r.Header.Get("Sec-Websocket-Protocol"), ", ")
-
-	var updatedProtocols []string
-
-	for _, protocol := range protocols {
-		if !strings.HasPrefix(protocol, "base64url.headlamp.authorization.k8s.io.") {
-			updatedProtocols = append(updatedProtocols, protocol)
-		}
-	}
-
-	updatedProtocol := strings.Join(updatedProtocols, ", ")
-
-	// Remove the existing Sec-Websocket-Protocol header
-	r.Header.Del("Sec-Websocket-Protocol")
-
-	// Add the updated Sec-Websocket-Protocol header
-	r.Header.Add("Sec-Websocket-Protocol", updatedProtocol)
-
-	return contextKey
-}
-
 // getContextKeyForRequest handles every requests. It returns context key
 // which is used to store the context in the cache. The context key is
 // unique for each user. It is found in the "X-HEADLAMP-USER-ID" parameter.
@@ -269,7 +219,7 @@ func (c *HeadlampConfig) getContextKeyForRequest(r *http.Request) (string, error
 	// We get the value of X-HEADLAMP-USER-ID from the parameter and append it to the cluster name
 	// to get the context key. This is to ensure that the context key is unique for each user.
 	if r.Header.Get("Upgrade") == "websocket" {
-		contextKey = websocketConnContextKey(r, clusterName)
+		contextKey = headlampconfig.WebsocketConnContextKey(r, clusterName)
 	}
 
 	return contextKey, nil

@@ -62,6 +62,17 @@ func main() {
 			KubeConfigStore:       kubeConfigStore,
 			BaseURL:               conf.BaseURL,
 			ProxyURLs:             strings.Split(conf.ProxyURLs, ","),
+			TelemetryConfig: config.Config{
+				ServiceName:        conf.ServiceName,
+				ServiceVersion:     conf.ServiceVersion,
+				TracingEnabled:     conf.TracingEnabled,
+				MetricsEnabled:     conf.MetricsEnabled,
+				JaegerEndpoint:     conf.JaegerEndpoint,
+				OTLPEndpoint:       conf.OTLPEndpoint,
+				UseOTLPHTTP:        conf.UseOTLPHTTP,
+				StdoutTraceEnabled: conf.StdoutTraceEnabled,
+				SamplingRate:       conf.SamplingRate,
+			},
 		},
 		oidcClientID:              conf.OidcClientID,
 		oidcValidatorClientID:     conf.OidcValidatorClientID,
@@ -72,17 +83,6 @@ func main() {
 		oidcUseAccessToken:        conf.OidcUseAccessToken,
 		cache:                     cache,
 		multiplexer:               multiplexer,
-		telemetryConfig: config.Config{
-			ServiceName:        conf.ServiceName,
-			ServiceVersion:     conf.ServiceVersion,
-			TracingEnabled:     conf.TracingEnabled,
-			MetricsEnabled:     conf.MetricsEnabled,
-			JaegerEndpoint:     conf.JaegerEndpoint,
-			OTLPEndpoint:       conf.OTLPEndpoint,
-			UseOTLPHTTP:        conf.UseOTLPHTTP,
-			StdoutTraceEnabled: conf.StdoutTraceEnabled,
-			SamplingRate:       conf.SamplingRate,
-		},
 	})
 }
 
