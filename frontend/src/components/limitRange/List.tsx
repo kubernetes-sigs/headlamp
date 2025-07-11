@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { ApiError } from '../../lib/k8s/apiProxy';
 import { LimitRange } from '../../lib/k8s/limitRange';
 import { useNamespaces } from '../../redux/filterSlice';
+import { CreateResourceButton } from '../common/CreateResourceButton';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { SimpleTableProps } from '../common/SimpleTable';
 
@@ -46,6 +47,7 @@ export function LimitRangeRenderer(props: LimitRangeProps) {
       hideColumns={hideColumns}
       headerProps={{
         noNamespaceFilter,
+        titleSideActions: [<CreateResourceButton resourceClass={LimitRange} />],
       }}
       errors={errors}
       data={limitRanges}
