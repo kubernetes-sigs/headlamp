@@ -174,6 +174,7 @@ export function TabPanel(props: TabPanelProps) {
       hidden={tabIndex !== index}
       id={id}
       aria-labelledby={labeledBy}
+      sx={{ flexGrow: 1, overflow: 'hidden' }}
     >
       {children}
     </Typography>

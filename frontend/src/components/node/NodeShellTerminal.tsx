@@ -29,7 +29,6 @@ import { getCluster } from '../../lib/cluster';
 import { apply, stream, StreamResultsCb } from '../../lib/k8s/apiProxy';
 import Node from '../../lib/k8s/node';
 import Pod, { KubePod } from '../../lib/k8s/pod';
-import { Dialog, DialogProps } from '../common/Dialog';
 
 const decoder = new TextDecoder('utf-8');
 const encoder = new TextEncoder();
@@ -42,10 +41,8 @@ enum Channel {
   Resize,
 }
 
-interface NodeShellTerminalProps extends DialogProps {
+interface NodeShellTerminalProps {
   item: Node;
-  title: string;
-  open: boolean;
   onClose?: () => void;
 }
 
@@ -151,7 +148,7 @@ async function shell(item: Node, onExec: StreamResultsCb) {
 }
 
 export function NodeShellTerminal(props: NodeShellTerminalProps) {
-  const { item, onClose, title, ...other } = props;
+  const { item, onClose } = props;
   const [terminalContainerRef, setTerminalContainerRef] = useState<HTMLElement | null>(null);
   const xtermRef = useRef<XTerminalConnected | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -327,11 +324,6 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
         return;
       }
 
-      // Don't do anything if the dialog is not open.
-      if (!props.open) {
-        return;
-      }
-
       if (xtermRef.current) {
         xtermRef.current.xterm.dispose();
         streamRef.current?.cancel();
@@ -377,59 +369,46 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [terminalContainerRef, props.open]
+    [terminalContainerRef]
   );
 
   return (
-    <Dialog
-      onClose={wrappedOnClose}
-      onFullScreenToggled={() => {
-        setTimeout(() => {
-          fitAddonRef.current!.fit();
-        }, 1);
-      }}
-      keepMounted
-      withFullScreen
-      title={title}
-      {...other}
+    <DialogContent
+      sx={theme => ({
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        '& .xterm ': {
+          height: '100vh', // So the terminal doesn't stay shrunk when shrinking vertically and maximizing again.
+          '& .xterm-viewport': {
+            width: 'initial !important', // BugFix: https://github.com/xtermjs/xterm.js/issues/3564#issuecomment-1004417440
+          },
+        },
+        '& #xterm-container': {
+          overflow: 'hidden',
+          width: '100%',
+          '& .terminal.xterm': {
+            padding: theme.spacing(1),
+          },
+        },
+      })}
     >
-      <DialogContent
+      <Box
         sx={theme => ({
-          height: '100%',
+          paddingTop: theme.spacing(1),
+          flex: 1,
+          width: '100%',
+          overflow: 'hidden',
           display: 'flex',
-          flexDirection: 'column',
-          '& .xterm ': {
-            height: '100vh', // So the terminal doesn't stay shrunk when shrinking vertically and maximizing again.
-            '& .xterm-viewport': {
-              width: 'initial !important', // BugFix: https://github.com/xtermjs/xterm.js/issues/3564#issuecomment-1004417440
-            },
-          },
-          '& #xterm-container': {
-            overflow: 'hidden',
-            width: '100%',
-            '& .terminal.xterm': {
-              padding: theme.spacing(1),
-            },
-          },
+          flexDirection: 'column-reverse',
         })}
       >
-        <Box
-          sx={theme => ({
-            paddingTop: theme.spacing(1),
-            flex: 1,
-            width: '100%',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column-reverse',
-          })}
-        >
-          <div
-            id="xterm-container"
-            ref={x => setTerminalContainerRef(x)}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse' }}
-          />
-        </Box>
-      </DialogContent>
-    </Dialog>
+        <div
+          id="xterm-container"
+          ref={x => setTerminalContainerRef(x)}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse' }}
+        />
+      </Box>
+    </DialogContent>
   );
 }

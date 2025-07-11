@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -26,13 +27,14 @@ import { Terminal as XTerminal } from '@xterm/xterm';
 import { useSnackbar } from 'notistack';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { request } from '../../../lib/k8s/apiProxy';
+import { clusterFetch } from '../../../lib/k8s/api/v2/fetch';
 import { KubeContainerStatus } from '../../../lib/k8s/cluster';
 import DaemonSet from '../../../lib/k8s/daemonSet';
 import Deployment from '../../../lib/k8s/deployment';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
+import { Activity } from '../../activity/Activity';
 import ActionButton from '../ActionButton';
 import { LogViewer } from '../LogViewer';
 import { LightTooltip } from '../Tooltip';
@@ -103,10 +105,10 @@ export function LogsButton({ item }: LogsButtonProps) {
           );
         }
 
-        const response = await request(
+        const response = await clusterFetch(
           `/api/v1/namespaces/${item.metadata.namespace}/pods?labelSelector=${labelSelector}`,
-          { method: 'GET' }
-        );
+          { cluster: item.cluster }
+        ).then(it => it.json());
 
         if (!response?.items) {
           throw new Error(t('translation|Invalid response from server'));
@@ -156,6 +158,31 @@ export function LogsButton({ item }: LogsButtonProps) {
             autoHideDuration: 3000,
           });
         }
+
+        Activity.launch({
+          id: 'logs-' + item.metadata.uid,
+          title: 'Logs: ' + item.metadata.name,
+          icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
+          location: 'full',
+          content: (
+            <LogViewer
+              noDialog
+              title={item?.getName() || ''}
+              downloadName={`${item?.getName()}_${
+                selectedPodIndex === 'all'
+                  ? 'all_pods'
+                  : pods[selectedPodIndex as number]?.getName()
+              }`}
+              open={showLogs}
+              onClose={handleClose}
+              logs={logs.logs}
+              topActions={topActions}
+              xtermRef={xtermRef}
+              handleReconnect={handleReconnect}
+              showReconnectButton={showReconnectButton}
+            />
+          ),
+        });
       } catch (error) {
         console.error('Error fetching pods:', error);
         enqueueSnackbar(
@@ -495,23 +522,6 @@ export function LogsButton({ item }: LogsButtonProps) {
           icon="mdi:file-document-box-outline"
           onClick={handleClick}
           description={t('translation|Show logs')}
-        />
-      )}
-
-      {/* Logs viewer dialog */}
-      {showLogs && (
-        <LogViewer
-          title={item?.getName() || ''}
-          downloadName={`${item?.getName()}_${
-            selectedPodIndex === 'all' ? 'all_pods' : pods[selectedPodIndex as number]?.getName()
-          }`}
-          open={showLogs}
-          onClose={handleClose}
-          logs={logs.logs}
-          topActions={topActions}
-          xtermRef={xtermRef}
-          handleReconnect={handleReconnect}
-          showReconnectButton={showReconnectButton}
         />
       )}
     </>

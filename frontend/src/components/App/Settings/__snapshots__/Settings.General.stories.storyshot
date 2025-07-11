@@ -139,41 +139,66 @@
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
           >
-            <label
-              class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
+            <div
+              class="MuiBox-root css-k008qs"
             >
-              <span
-                class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
+              <button
+                aria-pressed="true"
+                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-17o2rvr-MuiButtonBase-root-MuiButton-root"
+                tabindex="0"
+                type="button"
               >
-                <span
-                  class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
-                >
-                  <input
-                    checked=""
-                    class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
-                    name="drawerMode"
-                    type="checkbox"
-                  />
-                  <span
-                    class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
-                  />
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
-                </span>
-                <span
-                  class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
-                />
-              </span>
-              <span
-                class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
-              >
-                Overlay
                 <div
-                  class="MuiContainer-root MuiContainer-maxWidthLg css-64uahr-MuiContainer-root"
+                  class="MuiBox-root css-q5uj3p"
+                >
+                  <div
+                    class="MuiBox-root css-10tc75p"
+                  />
+                  <div
+                    class="MuiBox-root css-1tuh5dl"
+                  />
+                  <div
+                    class="MuiBox-root css-1wsar2n"
+                  >
+                    <div
+                      class="MuiBox-root css-flohcj"
+                    />
+                  </div>
+                </div>
+                Window
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
-              </span>
-            </label>
+              </button>
+              <button
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gl7zuq-MuiButtonBase-root-MuiButton-root"
+                tabindex="0"
+                type="button"
+              >
+                <div
+                  class="MuiBox-root css-q5uj3p"
+                >
+                  <div
+                    class="MuiBox-root css-10tc75p"
+                  />
+                  <div
+                    class="MuiBox-root css-1tuh5dl"
+                  />
+                  <div
+                    class="MuiBox-root css-b95qjn"
+                  >
+                    <div
+                      class="MuiBox-root css-y7640i"
+                    />
+                  </div>
+                </div>
+                Full page
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+            </div>
           </dd>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"

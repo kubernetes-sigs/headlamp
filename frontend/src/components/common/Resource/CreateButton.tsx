@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { InlineIcon } from '@iconify/react';
+import { Icon, InlineIcon } from '@iconify/react';
 import Button from '@mui/material/Button';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
@@ -24,6 +24,7 @@ import { alpha } from '@mui/system';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../../lib/k8s';
+import { Activity } from '../../activity/Activity';
 import ActionButton from '../ActionButton';
 import EditorDialog from './EditorDialog';
 
@@ -34,7 +35,6 @@ interface CreateButtonProps {
 export default function CreateButton(props: CreateButtonProps) {
   const { isNarrow } = props;
 
-  const [openDialog, setOpenDialog] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('');
   const { t } = useTranslation(['translation']);
   const clusters = useSelectedClusters();
@@ -53,12 +53,57 @@ export default function CreateButton(props: CreateButtonProps) {
     }
   }, [clusters]);
 
+  const openActivity = () => {
+    Activity.launch({
+      id: 'create-button',
+      title: t('translation|Create / Apply'),
+      icon: <Icon icon="mdi:pencil" />,
+      content: (
+        <EditorDialog
+          item={itemRef.current}
+          open
+          noDialog
+          onClose={() => {}}
+          setOpen={() => {}}
+          saveLabel={t('translation|Apply')}
+          errorMessage={errorMessage}
+          onEditorChanged={() => setErrorMessage('')}
+          title={t('translation|Create / Apply')}
+          actions={
+            clusters.length > 1
+              ? [
+                  <FormControl>
+                    <InputLabel id="edit-dialog-cluster-target">{t('glossary|Cluster')}</InputLabel>
+                    <Select
+                      labelId="edit-dialog-cluster-target"
+                      id="edit-dialog-cluster-target-select"
+                      value={targetCluster}
+                      onChange={event => {
+                        setTargetCluster(event.target.value as string);
+                      }}
+                    >
+                      {clusters.map(cluster => (
+                        <MenuItem key={cluster} value={cluster}>
+                          {cluster}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>,
+                ]
+              : []
+          }
+        />
+      ),
+      location: 'full',
+    });
+  };
+
   return (
     <React.Fragment>
       {isNarrow ? (
         <ActionButton
           description={t('translation|Create / Apply')}
-          onClick={() => setOpenDialog(true)}
+          onClick={openActivity}
           icon="mdi:plus-box"
           width="48"
           iconButtonProps={{
@@ -70,9 +115,7 @@ export default function CreateButton(props: CreateButtonProps) {
         />
       ) : (
         <Button
-          onClick={() => {
-            setOpenDialog(true);
-          }}
+          onClick={openActivity}
           startIcon={<InlineIcon icon="mdi:plus" />}
           color="secondary"
           size="large"
@@ -87,39 +130,6 @@ export default function CreateButton(props: CreateButtonProps) {
           {t('translation|Create')}
         </Button>
       )}
-      <EditorDialog
-        item={itemRef.current}
-        open={openDialog}
-        onClose={() => setOpenDialog(false)}
-        setOpen={setOpenDialog}
-        saveLabel={t('translation|Apply')}
-        errorMessage={errorMessage}
-        onEditorChanged={() => setErrorMessage('')}
-        title={t('translation|Create / Apply')}
-        actions={
-          clusters.length > 1
-            ? [
-                <FormControl>
-                  <InputLabel id="edit-dialog-cluster-target">{t('glossary|Cluster')}</InputLabel>
-                  <Select
-                    labelId="edit-dialog-cluster-target"
-                    id="edit-dialog-cluster-target-select"
-                    value={targetCluster}
-                    onChange={event => {
-                      setTargetCluster(event.target.value as string);
-                    }}
-                  >
-                    {clusters.map(cluster => (
-                      <MenuItem key={cluster} value={cluster}>
-                        {cluster}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>,
-              ]
-            : []
-        }
-      />
     </React.Fragment>
   );
 }

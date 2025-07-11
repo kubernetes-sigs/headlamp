@@ -146,7 +146,7 @@ export const KubeObjectDetails = memo(
     }, [kind, kindComponentMap]);
 
     return (
-      <Box sx={{ overflow: 'hidden' }}>
+      <Box>
         <Box sx={{ marginTop: '-70px' }}>{content}</Box>
       </Box>
     );

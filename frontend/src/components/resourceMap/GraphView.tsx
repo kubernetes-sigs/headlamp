@@ -42,7 +42,6 @@ import K8sNode from '../../lib/k8s/node';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { NamespacesAutocomplete } from '../common/NamespacesAutocomplete';
-import { GraphNodeDetails } from './details/GraphNodeDetails';
 import { filterGraph, GraphFilter } from './graph/graphFiltering';
 import {
   collapseGraph,
@@ -260,10 +259,6 @@ function GraphViewContent({
     };
   }, [visibleGraph]);
 
-  const maybeSelectedNode = selectedNodeId
-    ? fullGraphContext.lookup.getNode(selectedNodeId)
-    : undefined;
-
   return (
     <GraphViewContext.Provider value={contextValue}>
       <FullGraphContext.Provider value={fullGraphContext}>
@@ -378,14 +373,6 @@ function GraphViewContent({
               </div>
             </Box>
           </CustomThemeProvider>
-          {maybeSelectedNode && (
-            <GraphNodeDetails
-              node={maybeSelectedNode}
-              close={() => {
-                setSelectedNodeId(selectedGroup?.id ?? defaultNodeSelection);
-              }}
-            />
-          )}
         </Box>
       </FullGraphContext.Provider>
     </GraphViewContext.Provider>
