@@ -68,6 +68,7 @@
                     tabindex="-1"
                   >
                     <path
+                      aria-labelledby=":mock-test-id:"
                       class="recharts-sector"
                       cx="61"
                       cy="61"
@@ -91,6 +92,7 @@
                     tabindex="-1"
                   >
                     <path
+                      aria-labelledby=":mock-test-id:"
                       class="recharts-sector"
                       cx="61"
                       cy="61"
@@ -116,6 +118,7 @@
                   <text
                     class="recharts-text recharts-label"
                     fill="#808080"
+                    id=":mock-test-id:"
                     offset="5"
                     style="font-size: 16.8px; fill: #000;"
                     text-anchor="middle"

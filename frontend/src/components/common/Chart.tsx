@@ -19,7 +19,7 @@ import Paper from '@mui/material/Paper';
 import { useTheme } from '@mui/material/styles';
 import { styled } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useId } from 'react';
 import ReactDOM from 'react-dom';
 import {
   Bar,
@@ -68,6 +68,15 @@ export function PercentageCircle(props: PercentageCircleProps) {
     thickness = 16,
   } = props;
 
+  console.log('data', props);
+  console.log('title', title);
+  console.log('label', label);
+
+  const chartID = useId();
+  const chartTitleID = `${chartID}-chart-title`;
+  const chartLabelID = `${chartID}-chart-label`;
+  const chartLegendID = `${chartID}-chart-legend`;
+
   const chartSize = size * 0.8;
   const isLoading = total < 0;
 
@@ -112,6 +121,7 @@ export function PercentageCircle(props: PercentageCircleProps) {
     >
       {title && (
         <Typography
+          id={chartTitleID}
           sx={{
             textAlign: 'center',
             fontSize: '1.2em',
@@ -136,6 +146,13 @@ export function PercentageCircle(props: PercentageCircleProps) {
           }}
         >
           <Pie
+            aria-labelledby={[
+              title ? chartTitleID : null,
+              label ? chartLabelID : null,
+              legend ? chartLegendID : null,
+            ]
+              .filter(Boolean)
+              .join(' ')}
             isAnimationActive={false}
             data={formatData()}
             // Center the chart
@@ -151,6 +168,7 @@ export function PercentageCircle(props: PercentageCircleProps) {
             fill={theme.palette.chartStyles.fillColor || theme.palette.common.black}
           >
             <Label
+              id={chartLabelID}
               value={label || ''}
               position="center"
               style={{
@@ -163,6 +181,7 @@ export function PercentageCircle(props: PercentageCircleProps) {
       )}
       {!isLoading && legend !== null && (
         <Typography
+          id={chartLegendID}
           sx={{
             textAlign: 'center',
             fontSize: '1.1em',

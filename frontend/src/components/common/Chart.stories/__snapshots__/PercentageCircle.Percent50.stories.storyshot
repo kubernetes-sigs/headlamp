@@ -7,6 +7,7 @@
     >
       <p
         class="MuiTypography-root MuiTypography-body1 css-b7twky-MuiTypography-root"
+        id=":mock-test-id:"
       >
         Pods
       </p>
@@ -46,6 +47,7 @@
               tabindex="-1"
             >
               <path
+                aria-labelledby=":mock-test-id:"
                 class="recharts-sector"
                 cx="85"
                 cy="85"
@@ -69,6 +71,7 @@
               tabindex="-1"
             >
               <path
+                aria-labelledby=":mock-test-id:"
                 class="recharts-sector"
                 cx="85"
                 cy="85"
@@ -94,6 +97,7 @@
             <text
               class="recharts-text recharts-label"
               fill="#808080"
+              id=":mock-test-id:"
               offset="5"
               style="font-size: 24px; fill: #000;"
               text-anchor="middle"
@@ -112,6 +116,7 @@
       </div>
       <p
         class="MuiTypography-root MuiTypography-body1 css-1linoo0-MuiTypography-root"
+        id=":mock-test-id:"
       >
         5 / 10 Requested
       </p>
