@@ -114,4 +114,42 @@ func TestParse(t *testing.T) {
 
 		assert.Equal(t, true, conf.EnableDynamicClusters)
 	})
+
+	t.Run("use_service_account_token", func(t *testing.T) {
+		args := []string{
+			"go run ./cmd", "--in-cluster", "--use-service-account-token",
+		}
+		conf, err := config.Parse(args)
+
+		require.NoError(t, err)
+		require.NotNil(t, conf)
+
+		assert.Equal(t, true, conf.UseServiceAccountToken)
+		assert.Equal(t, "/var/run/secrets/kubernetes.io/serviceaccount/token", conf.ServiceAccountTokenPath)
+	})
+
+	t.Run("use_service_account_token_without_incluster", func(t *testing.T) {
+		args := []string{
+			"go run ./cmd", "--use-service-account-token",
+		}
+		conf, err := config.Parse(args)
+
+		require.Error(t, err)
+		require.Nil(t, conf)
+
+		assert.Contains(t, err.Error(), "use-service-account-token")
+	})
+
+	t.Run("service_account_token_path", func(t *testing.T) {
+		args := []string{
+			"go run ./cmd", "--in-cluster", "--use-service-account-token", "--service-account-token-path=/tmp/token",
+		}
+		conf, err := config.Parse(args)
+
+		require.NoError(t, err)
+		require.NotNil(t, conf)
+
+		assert.Equal(t, true, conf.UseServiceAccountToken)
+		assert.Equal(t, "/tmp/token", conf.ServiceAccountTokenPath)
+	})
 }
