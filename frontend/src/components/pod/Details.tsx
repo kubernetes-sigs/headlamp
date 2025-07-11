@@ -106,7 +106,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
         xtermRef.current?.write(
           displayLogs
             .slice(current.lastLineShown + 1)
-            .join('')
+            .join('\n')
             .replaceAll('\n', '\r\n')
         );
       }

@@ -18,19 +18,26 @@ export const ANSI_BLUE = '\x1b[34m';
 export const ANSI_GREEN = '\x1b[32m';
 export const ANSI_RESET = '\x1b[0m';
 
-/**
- * Colorizes a JSON log entry with ANSI color codes for better readability.
- * @param logEntry - The log entry to colorize
- * @returns The colorized log entry string
- */
+function stripTimestampPrefix(line: string): string {
+  const timestampRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\s*/;
+  return line.replace(timestampRegex, '').trim();
+}
+
 export function colorizePrettifiedLog(logEntry: string): string {
+  const cleaned = stripTimestampPrefix(logEntry);
+
   try {
-    return logEntry
-      .replace(/"([^"]+)":/g, `${ANSI_BLUE}"$1"${ANSI_RESET}:`) // Color JSON keys
-      .replace(/: "([^"]+)"/g, `: ${ANSI_GREEN}"$1"${ANSI_RESET}`) // Color string values
-      .replace(/: (-?\d*\.?\d+)/g, `: ${ANSI_GREEN}$1${ANSI_RESET}`) // Color numeric values (integers and floats)
-      .replace(/: (true|false|null)/g, `: ${ANSI_GREEN}$1${ANSI_RESET}`); // Color boolean/null
-  } catch {
+    const parsed = JSON.parse(cleaned);
+    const pretty = JSON.stringify(parsed, null, 2);
+
+    return (
+      pretty
+        .replace(/"([^"]+)":/g, `${ANSI_BLUE}"$1"${ANSI_RESET}:`) // Keys
+        .replace(/: "([^"]*)"/g, `: ${ANSI_GREEN}"$1"${ANSI_RESET}`) // String values
+        .replace(/: (-?\d+(?:\.\d+)?)/g, `: ${ANSI_GREEN}$1${ANSI_RESET}`) // Numbers
+        .replace(/: (true|false|null)/g, `: ${ANSI_GREEN}$1${ANSI_RESET}`) + '\n' // Booleans/null with newline
+    );
+  } catch (e) {
     return logEntry;
   }
 }
