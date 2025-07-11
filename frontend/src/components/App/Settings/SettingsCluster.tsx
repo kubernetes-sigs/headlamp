@@ -487,7 +487,11 @@ export default function SettingsCluster() {
         <NameValueTable
           rows={[
             {
-              name: t('translation|Default namespace'),
+              name: (
+                <Typography id="default-namespace-label">
+                  {t('translation|Default namespace')}
+                </Typography>
+              ),
               value: (
                 <TextField
                   onChange={event => {
@@ -498,6 +502,7 @@ export default function SettingsCluster() {
                   value={userDefaultNamespace}
                   placeholder={defaultNamespace}
                   error={!isValidDefaultNamespace}
+                  aria-labelledby="default-namespace-label"
                   helperText={
                     isValidDefaultNamespace
                       ? t(
@@ -523,7 +528,11 @@ export default function SettingsCluster() {
               ),
             },
             {
-              name: t('translation|Allowed namespaces'),
+              name: (
+                <Typography id="allowed-namespaces-label">
+                  {t('translation|Allowed namespaces')}
+                </Typography>
+              ),
               value: (
                 <>
                   <TextField
@@ -581,7 +590,8 @@ export default function SettingsCluster() {
                       },
                       marginTop: theme.spacing(1),
                     }}
-                    aria-label={t('translation|Allowed namespaces')}
+                    role="group"
+                    aria-labelledby="allowed-namespaces-label"
                   >
                     {((clusterSettings || {}).allowedNamespaces || []).map(namespace => (
                       <Chip
