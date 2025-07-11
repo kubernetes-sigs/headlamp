@@ -152,6 +152,8 @@
   "attach": "collega",
   "Restarts": "Riavvii",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} ({{ abbrevTime }} fa)",
+  "Request: {{percent}}% ({{aValue}} {{aUnit}}/{{rValue}} {{rUnit}})": "",
+  "Limit: {{percent}}% ({{aValue}} {{aUnit}}/{{lValue}} {{lUnit}})": "",
   "Nominated Node": "Nodo Nominato",
   "Readiness Gates": "Readiness Gate",
   "Pod Disruption Budget": "Pod Disruption Budget",
