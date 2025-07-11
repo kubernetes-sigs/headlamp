@@ -33,6 +33,7 @@ export default function EndpointList() {
       title={t('glossary|Endpoints')}
       resourceClass={Endpoints}
       filterFunction={filterFunc}
+      reflectInURL
       columns={[
         'name',
         'namespace',
