@@ -316,6 +316,7 @@ export const PureSidebar = memo(
           direction="column"
           justifyContent="space-between"
           wrap="nowrap"
+          aria-hidden={!largeSideBarOpen}
         >
           <Grid item>
             <List
@@ -328,6 +329,7 @@ export const PureSidebar = memo(
                   isSelected={item.isSelected}
                   fullWidth={largeSideBarOpen}
                   search={search}
+                  tabIndex={largeSideBarOpen ? 0 : -1}
                   {...item}
                 />
               ))}

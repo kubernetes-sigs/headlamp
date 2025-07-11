@@ -11,6 +11,7 @@
           class="MuiPaper-root MuiPaper-outlined MuiDrawer-paper MuiDrawer-paperAnchorLeft MuiDrawer-paperAnchorDockedLeft css-r16dox-MuiPaper-root-MuiDrawer-paper"
         >
           <div
+            aria-hidden="true"
             class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column MuiGrid-wrap-xs-nowrap css-opqjvv-MuiGrid-root"
           >
             <div
@@ -26,7 +27,7 @@
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-divider MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-divider css-kgfvfq-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
-                    tabindex="0"
+                    tabindex="-1"
                   >
                     <div
                       aria-label="Home"
@@ -45,7 +46,7 @@
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
-                    tabindex="0"
+                    tabindex="-1"
                   >
                     <div
                       aria-label="Cluster"
@@ -80,7 +81,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -103,7 +104,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -126,7 +127,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -154,7 +155,7 @@
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
-                    tabindex="0"
+                    tabindex="-1"
                   >
                     <div
                       aria-label="Map"
@@ -173,7 +174,7 @@
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
-                    tabindex="0"
+                    tabindex="-1"
                   >
                     <div
                       aria-label="Workloads"
@@ -208,7 +209,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -231,7 +232,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -254,7 +255,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -277,7 +278,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -300,7 +301,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -323,7 +324,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -346,7 +347,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -374,7 +375,7 @@
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
-                    tabindex="0"
+                    tabindex="-1"
                   >
                     <div
                       aria-label="Storage"
@@ -409,7 +410,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -432,7 +433,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -455,7 +456,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -483,7 +484,7 @@
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
-                    tabindex="0"
+                    tabindex="-1"
                   >
                     <div
                       aria-label="Network"
@@ -518,7 +519,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -541,7 +542,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -564,7 +565,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -587,7 +588,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -610,7 +611,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -638,7 +639,7 @@
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
-                    tabindex="0"
+                    tabindex="-1"
                   >
                     <div
                       aria-label="Gateway (beta)"
@@ -673,7 +674,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -696,7 +697,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -719,7 +720,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -742,7 +743,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -765,7 +766,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -793,7 +794,7 @@
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
-                    tabindex="0"
+                    tabindex="-1"
                   >
                     <div
                       aria-label="Security"
@@ -828,7 +829,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -851,7 +852,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -874,7 +875,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -902,7 +903,7 @@
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
-                    tabindex="0"
+                    tabindex="-1"
                   >
                     <div
                       aria-label="Configuration"
@@ -937,7 +938,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -960,7 +961,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -983,7 +984,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -1006,7 +1007,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -1029,7 +1030,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -1052,7 +1053,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -1075,7 +1076,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -1098,7 +1099,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -1121,7 +1122,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -1144,7 +1145,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -1167,7 +1168,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -1190,7 +1191,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
@@ -1218,7 +1219,7 @@
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
-                    tabindex="0"
+                    tabindex="-1"
                   >
                     <div
                       aria-label="Custom Resources"
@@ -1253,7 +1254,7 @@
                               class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
                               href="/"
                               role="button"
-                              tabindex="0"
+                              tabindex="-1"
                             >
                               <div
                                 class="MuiListItemText-root css-tlelie-MuiListItemText-root"
