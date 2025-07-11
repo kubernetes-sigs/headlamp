@@ -24,6 +24,8 @@
  * This function uses the desktopApi.send and desktopApi.receive methods to communicate with the main process.
  * @param command - The command to run.
  * @param args - An array of arguments to pass to the command.
+ * @param options - Options to pass to the command.
+ * @param permissionSecrets - Optional secrets that may be required for the command to run.
  * @returns An object with `stdout`, `stderr`, and `on` properties. You can listen for 'data' events on `stdout` and `stderr`, and 'exit' events with `on`.
  * @example
  *
@@ -38,12 +40,16 @@
  *   minikube.on('exit', (code) => {
  *     console.log('exit code:', code);
  *   });
+ *
+ *   // Some commands may require permission secrets, which can be passed as an optional parameter.
+ *   const minikube2 = runCommand('minikube', ['status'], {}, {'runCmd-minikube': 9827598192755});
  * ```
  */
 export function runCommand(
   command: 'minikube' | 'az',
   args: string[],
-  options: {}
+  options: {},
+  permissionSecrets?: Record<string, number>
 ): {
   stdout: { on: (event: string, listener: (chunk: any) => void) => void };
   stderr: { on: (event: string, listener: (chunk: any) => void) => void };
@@ -61,7 +67,7 @@ export function runCommand(
   const stderr = new EventTarget();
   const exit = new EventTarget();
 
-  window.desktopApi.send('run-command', { id, command, args, options });
+  window.desktopApi.send('run-command', { id, command, args, options, permissionSecrets });
 
   window.desktopApi.receive('command-stdout', (cmdId: string, data: string) => {
     if (cmdId === id) {

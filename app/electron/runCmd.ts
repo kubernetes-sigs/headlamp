@@ -36,6 +36,38 @@ interface CommandData {
    * See https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options
    */
   options: {};
+  /** The permission secrets for the command. */
+  permissionSecrets: Record<string, number>;
+}
+
+type CommandDataPartial = Partial<CommandData>;
+
+/**
+ * Checks to see if it's what we expect.
+ */
+function validateCommandData(eventData: CommandDataPartial) {
+  if (!eventData || typeof eventData !== 'object') {
+    console.error('Invalid eventData data received:', eventData);
+    return false;
+  }
+  if (typeof eventData.command !== 'string' || !eventData.command) {
+    console.error('Invalid eventData.command:', eventData.command);
+    return false;
+  }
+  if (!Array.isArray(eventData.args)) {
+    console.error('Invalid eventData.args:', eventData.args);
+    return false;
+  }
+  if (typeof eventData.options !== 'object') {
+    console.error('Invalid eventData.options:', eventData.options);
+    return false;
+  }
+  if (typeof eventData.permissionSecrets !== 'object') {
+    // Do not log the secrets
+    console.error('Invalid permission secrets');
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -123,46 +155,68 @@ function checkCommandConsent(command: string, mainWindow: BrowserWindow): boolea
  *
  * @param event - The event object.
  * @param eventData - The data sent from the renderer process.
+ * @param mainWindow - The main browser window.
+ * @param permissionSecrets - The permission secrets required for the command to run.
+ *                            Checks against eventData.permissionSecrets.
  */
 export function handleRunCommand(
   event: IpcMainEvent,
-  eventData: CommandData,
-  mainWindow: BrowserWindow | null
+  eventData: CommandDataPartial,
+  mainWindow: BrowserWindow | null,
+  permissionSecrets: Record<string, number>
 ): void {
   if (mainWindow === null) {
-    console.error('Main window is null, cannot show dialog');
+    console.error('Main window is null, cannot run command');
     return;
   }
+
+  if (validateCommandData(eventData) === false) {
+    console.error('Invalid command data received');
+    return;
+  }
+  const commandData = eventData as CommandData;
 
   // Only allow "minikube", and "az" commands
   const validCommands = ['minikube', 'az'];
 
-  if (!validCommands.includes(eventData.command)) {
+  if (!validCommands.includes(commandData.command || '')) {
     console.error(
-      `Invalid command: ${eventData.command}, only valid commands are: ${JSON.stringify(
+      `Invalid command: ${commandData.command}, only valid commands are: ${JSON.stringify(
         validCommands
       )}`
     );
     return;
   }
-  if (!checkCommandConsent(eventData.command, mainWindow)) {
+  if (!checkCommandConsent(commandData.command || '', mainWindow)) {
     return;
   }
 
-  const child: ChildProcessWithoutNullStreams = spawn(eventData.command, eventData.args, {
-    ...eventData.options,
+  // Check if the command has the correct permission secret.
+  console.log({ permissionSecrets, commandData });
+  if (
+    permissionSecrets['runCmd-' + commandData.command] !==
+    commandData.permissionSecrets['runCmd-' + commandData.command]
+  ) {
+    console.error(
+      `No permission secret found for command: ${commandData.command}, cannot run command`
+    );
+    return;
+  }
+
+  const child: ChildProcessWithoutNullStreams = spawn(commandData.command, commandData.args, {
+    ...commandData.options,
     shell: false,
   });
 
   child.stdout.on('data', (data: string | Buffer) => {
-    event.sender.send('command-stdout', eventData.id, data.toString());
+    event.sender.send('command-stdout', commandData.id, data.toString());
   });
 
   child.stderr.on('data', (data: string | Buffer) => {
-    event.sender.send('command-stderr', eventData.id, data.toString());
+    event.sender.send('command-stderr', commandData.id, data.toString());
   });
 
   child.on('exit', (code: number | null) => {
-    event.sender.send('command-exit', eventData.id, code);
+    event.sender.send('command-exit', commandData.id, code);
   });
 }

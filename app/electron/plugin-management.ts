@@ -846,7 +846,9 @@ function getExtraFiles(
     // For testing purposes, we allow localhost URLs.
     const underTest = process.env.NODE_ENV === 'test' && file.url.includes('localhost');
     const validURL =
-      file.url && file.url.startsWith('https://github.com/kubernetes/minikube/releases/download/');
+      file.url &&
+      (file.url.startsWith('https://github.com/kubernetes/minikube/releases/download/') ||
+        file.url.startsWith('https://github.com/headlamp-k8s/plugins/releases/download/'));
 
     if (!underTest && !validURL) {
       throw new Error(`Invalid URL, ${file.url}`);
