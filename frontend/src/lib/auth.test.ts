@@ -15,99 +15,76 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import * as storeModule from '../redux/stores/store';
-import { deleteTokens, getToken, getUserInfo, hasToken, logout, setToken } from './auth';
+import { setToken } from './auth';
+import { backendFetch } from './k8s/api/v2/fetch';
 
-const validToken =
-  'header.' + btoa(JSON.stringify({ username: 'john', email: 'john@example.com' })) + '.signature';
+// Mock the dependencies
+vi.mock('./k8s/api/v2/fetch');
+vi.mock('../helpers/getHeadlampAPIHeaders');
 
-describe('token utils', () => {
+const mockBackendFetch = vi.mocked(backendFetch);
+
+describe('auth', () => {
   beforeEach(() => {
-    localStorage.clear();
-    localStorage.tokens = JSON.stringify({});
     vi.restoreAllMocks();
   });
 
-  describe('getToken', () => {
-    it('returns token from localStorage', () => {
-      const tokens = { clusterA: validToken };
-      localStorage.tokens = JSON.stringify(tokens);
-      expect(getToken('clusterA')).toBe(validToken);
-    });
-
-    it('uses overridden getToken function if provided', () => {
-      const mockToken = 'overridden.token';
-      const mockGetToken = vi.fn().mockReturnValue(mockToken);
-
-      vi.spyOn(storeModule.default, 'getState').mockReturnValue({
-        ui: {
-          functionsToOverride: {
-            getToken: mockGetToken,
-          },
-        },
-      } as unknown as ReturnType<typeof storeModule.default.getState>);
-
-      expect(getToken('anyCluster')).toBe(mockToken);
-      expect(mockGetToken).toHaveBeenCalledWith('anyCluster');
-    });
-  });
-
-  describe('getUserInfo', () => {
-    it('returns parsed user info from token', () => {
-      const tokens = { clusterB: validToken };
-      localStorage.tokens = JSON.stringify(tokens);
-      const userInfo = getUserInfo('clusterB');
-      expect(userInfo).toEqual({ username: 'john', email: 'john@example.com' });
-    });
-  });
-
-  describe('hasToken', () => {
-    it('returns true if token exists', () => {
-      const tokens = { clusterC: validToken };
-      localStorage.tokens = JSON.stringify(tokens);
-      expect(hasToken('clusterC')).toBe(true);
-    });
-
-    it('returns false if token does not exist', () => {
-      expect(hasToken('missingCluster')).toBe(false);
-    });
-  });
-
   describe('setToken', () => {
-    it('stores token in localStorage if no override', () => {
-      setToken('clusterD', 'mock.token');
-      const stored = JSON.parse(localStorage.tokens || '{}');
-      expect(stored.clusterD).toBe('mock.token');
-    });
+    it('should successfully set a token for a cluster', async () => {
+      const cluster = 'test-cluster';
+      const token = 'test-token-123';
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({}),
+      };
+      mockBackendFetch.mockResolvedValue(mockResponse as any);
 
-    it('uses overridden setToken function if provided', () => {
-      const mockSetToken = vi.fn();
-      vi.spyOn(storeModule.default, 'getState').mockReturnValue({
-        ui: {
-          functionsToOverride: {
-            setToken: mockSetToken,
-          },
+      const result = await setToken(cluster, token);
+
+      expect(result).toBe(true);
+      expect(mockBackendFetch).toHaveBeenCalledWith(`/clusters/${cluster}/set-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      } as unknown as ReturnType<typeof storeModule.default.getState>);
-
-      setToken('clusterE', 'override.token');
-      expect(mockSetToken).toHaveBeenCalledWith('clusterE', 'override.token');
+        body: JSON.stringify({ token }),
+      });
     });
-  });
 
-  describe('deleteTokens', () => {
-    it('deletes localStorage tokens', () => {
-      localStorage.tokens = JSON.stringify({ cluster: 'token' });
-      deleteTokens();
-      expect(localStorage.tokens).toBeUndefined();
+    it('should successfully clear a token when token is null', async () => {
+      const cluster = 'test-cluster';
+      const token = null;
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({}),
+      };
+      mockBackendFetch.mockResolvedValue(mockResponse as any);
+
+      const result = await setToken(cluster, token);
+
+      expect(result).toBe(true);
+      expect(mockBackendFetch).toHaveBeenCalledWith(`/clusters/${cluster}/set-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token: null }),
+      });
     });
-  });
 
-  describe('logout', () => {
-    it('removes all tokens', () => {
-      localStorage.tokens = JSON.stringify({ cluster: 'token' });
-      logout();
-      expect(localStorage.tokens).toBeUndefined();
+    it('should throw an error when backend returns error response', async () => {
+      const cluster = 'test-cluster';
+      const token = 'test-token-123';
+      const mockResponse = {
+        ok: false,
+        status: 500,
+        json: vi.fn().mockResolvedValue({}),
+      };
+      mockBackendFetch.mockResolvedValue(mockResponse as any);
+
+      await expect(setToken(cluster, token)).rejects.toThrow('Failed to set cookie token');
     });
   });
 });

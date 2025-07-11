@@ -205,8 +205,7 @@ async function loginWithToken(token: string) {
       return 417;
     }
 
-    setToken(cluster, token);
-
+    await setToken(cluster, token);
     await testAuth();
 
     return 200;
