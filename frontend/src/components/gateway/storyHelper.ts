@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { KubeBackendTLSPolicy } from '../../lib/k8s/backendTLSPolicy';
 import { KubeGateway } from '../../lib/k8s/gateway';
 import { KubeGatewayClass } from '../../lib/k8s/gatewayClass';
 import { KubeGRPCRoute } from '../../lib/k8s/grpcRoute';
@@ -149,5 +150,29 @@ export const DEFAULT_REFERENCE_GRANT: KubeReferenceGrant = {
         name: 'example-service',
       },
     ],
+  },
+};
+
+export const DEFAULT_BACKEND_TLS_POLICY: KubeBackendTLSPolicy = {
+  apiVersion: 'gateway.networking.k8s.io/v1alpha3',
+  kind: 'BackendTLSPolicy',
+  metadata: {
+    uid: 'abc1234',
+    name: 'example-policy',
+    namespace: 'default',
+    creationTimestamp: '2025-06-16T09:18:00Z',
+  },
+  spec: {
+    targetRefs: [
+      {
+        group: '',
+        kind: 'Service',
+        name: 'example-service',
+      },
+    ],
+    validation: {
+      hostname: 'example.com',
+      caCertificateRefs: [],
+    },
   },
 };

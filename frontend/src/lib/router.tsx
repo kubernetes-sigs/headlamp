@@ -43,6 +43,8 @@ import DaemonSetList from '../components/daemonset/List';
 import DeploymentsList from '../components/deployments/List';
 import EndpointDetails from '../components/endpoints/Details';
 import EndpointList from '../components/endpoints/List';
+import BackendTLSPolicyDetails from '../components/gateway/BackendTLSPolicyDetails';
+import BackendTLSPolicyList from '../components/gateway/BackendTLSPolicyList';
 import GatewayClassDetails from '../components/gateway/ClassDetails';
 import GatewayClassList from '../components/gateway/ClassList';
 import GatewayDetails from '../components/gateway/GatewayDetails';
@@ -436,6 +438,20 @@ const defaultRoutes: {
     name: 'ReferenceGrants',
     sidebar: 'referencegrants',
     component: () => <ReferenceGrantDetails />,
+  },
+  backendtlspolicies: {
+    path: '/backendtlspolicies',
+    exact: true,
+    name: 'BackendTLSPolicies',
+    sidebar: 'backendtlspolicies',
+    component: () => <BackendTLSPolicyList />,
+  },
+  backendtlspolicy: {
+    path: '/backendtlspolicy/:namespace/:name',
+    exact: true,
+    name: 'BackendTLSPolicies',
+    sidebar: 'backendtlspolicies',
+    component: () => <BackendTLSPolicyDetails />,
   },
   DaemonSets: {
     path: '/daemonsets',
