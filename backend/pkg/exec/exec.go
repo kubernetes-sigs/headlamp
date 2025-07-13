@@ -541,18 +541,47 @@ func (a *Authenticator) wrapCmdRunErrorLocked(err error) error {
 			}
 		})
 
-		return errors.New(builder.String())
+		// Add specific guidance for common authentication plugins
+		builder.WriteString(a.getInstallationGuidance())
+
+		return &ExecAuthError{
+			Command:     a.cmd,
+			Args:        a.args,
+			Err:         err,
+			Type:        ExecAuthErrorTypeNotFound,
+			Message:     builder.String(),
+			Recoverable: true,
+		}
 
 	case *exec.ExitError: // Binary execution failed (see exec.Cmd.Run()).
 		e := err.(*exec.ExitError)
-		return fmt.Errorf(
-			"exec: executable %s failed with exit code %d",
-			a.cmd,
-			e.ProcessState.ExitCode(),
-		)
+		message := fmt.Sprintf("exec: executable %s failed with exit code %d", a.cmd, e.ProcessState.ExitCode())
+
+		// Add stderr output if available for better debugging
+		if len(e.Stderr) > 0 {
+			message += fmt.Sprintf("\nStderr: %s", string(e.Stderr))
+		}
+
+		return &ExecAuthError{
+			Command:     a.cmd,
+			Args:        a.args,
+			Err:         err,
+			Type:        ExecAuthErrorTypeExitCode,
+			Message:     message,
+			ExitCode:    e.ProcessState.ExitCode(),
+			Recoverable: e.ProcessState.ExitCode() != 1, // Exit code 1 usually means permanent failure
+		}
 
 	default:
-		return fmt.Errorf("exec: %v", err)
+		message := fmt.Sprintf("exec: %v", err)
+		return &ExecAuthError{
+			Command:     a.cmd,
+			Args:        a.args,
+			Err:         err,
+			Type:        ExecAuthErrorTypeGeneric,
+			Message:     message,
+			Recoverable: true,
+		}
 	}
 }
 
@@ -587,4 +616,32 @@ func (e *ExecAuthError) Unwrap() error {
 // IsRecoverable returns true if this error might be recoverable with retry.
 func (e *ExecAuthError) IsRecoverable() bool {
 	return e.Recoverable
+}
+
+// getInstallationGuidance provides specific installation guidance for common authentication tools.
+func (a *Authenticator) getInstallationGuidance() string {
+	switch a.cmd {
+	case "kubelogin":
+		return "\n\nFor Azure AKS clusters:\n" +
+			"  - Install kubelogin: https://azure.github.io/kubelogin/install.html\n" +
+			"  - Alternative: kubelogin convert-kubeconfig -l azurecli\n" +
+			"  - Ensure you're logged in: az login"
+	case "oci":
+		return "\n\nFor Oracle Cloud Infrastructure:\n" +
+			"  - Install OCI CLI: https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm\n" +
+			"  - Configure: oci setup config\n" +
+			"  - Ensure oci command is in your PATH"
+	case "gke-gcloud-auth-plugin":
+		return "\n\nFor Google Kubernetes Engine:\n" +
+			"  - Install: gcloud components install gke-gcloud-auth-plugin\n" +
+			"  - Login: gcloud auth login\n" +
+			"  - Set project: gcloud config set project YOUR_PROJECT_ID"
+	case "aws-iam-authenticator":
+		return "\n\nFor Amazon EKS:\n" +
+			"  - Install aws-iam-authenticator: https://docs.aws.amazon.com/eks/latest/userguide/install-aws-iam-authenticator.html\n" +
+			"  - Configure AWS credentials: aws configure\n" +
+			"  - Alternative: Use AWS CLI v2 with: aws eks update-kubeconfig"
+	default:
+		return ""
+	}
 }
