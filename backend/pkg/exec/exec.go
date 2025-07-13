@@ -555,3 +555,36 @@ func (a *Authenticator) wrapCmdRunErrorLocked(err error) error {
 		return fmt.Errorf("exec: %v", err)
 	}
 }
+
+// ExecAuthErrorType represents the type of exec authentication error.
+type ExecAuthErrorType int
+
+const (
+	ExecAuthErrorTypeNotFound ExecAuthErrorType = iota
+	ExecAuthErrorTypeExitCode
+	ExecAuthErrorTypeGeneric
+)
+
+// ExecAuthError represents a structured error from exec authentication.
+type ExecAuthError struct {
+	Command     string
+	Args        []string
+	Err         error
+	Type        ExecAuthErrorType
+	Message     string
+	ExitCode    int
+	Recoverable bool
+}
+
+func (e *ExecAuthError) Error() string {
+	return e.Message
+}
+
+func (e *ExecAuthError) Unwrap() error {
+	return e.Err
+}
+
+// IsRecoverable returns true if this error might be recoverable with retry.
+func (e *ExecAuthError) IsRecoverable() bool {
+	return e.Recoverable
+}
