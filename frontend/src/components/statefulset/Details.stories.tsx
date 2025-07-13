@@ -98,26 +98,30 @@ export default {
   ],
   parameters: {
     msw: {
-      handlers: [
-        http.get(
-          'http://localhost:4466/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset',
-          () => {
-            return HttpResponse.json(mockStatefulSet);
-          }
-        ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/pods', () => {
-          return HttpResponse.json({
-            kind: 'PodList',
-            items: [],
-          });
-        }),
-        http.get('http://localhost:4466/api/v1/namespaces/default/events', () => {
-          return HttpResponse.json({
-            kind: 'EventList',
-            items: [],
-          });
-        }),
-      ],
+      handlers: {
+        storyBase: [
+          http.get('http://localhost:4466/api/v1/namespaces/default/pods', () => {
+            return HttpResponse.json({
+              kind: 'PodList',
+              items: [],
+            });
+          }),
+          http.get(
+            'http://localhost:4466/apis/metrics.k8s.io/v1beta1/namespaces/default/pods',
+            () =>
+              HttpResponse.json({
+                kind: 'List',
+                items: [],
+              })
+          ),
+          http.get('http://localhost:4466/api/v1/namespaces/default/events', () => {
+            return HttpResponse.json({
+              kind: 'EventList',
+              items: [],
+            });
+          }),
+        ],
+      },
     },
   },
 } as Meta;
@@ -129,6 +133,18 @@ Default.args = {
   name: 'mock-statefulset',
   namespace: 'default',
 };
+Default.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          'http://localhost:4466/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset',
+          () => HttpResponse.json(mockStatefulSet)
+        ),
+      ],
+    },
+  },
+};
 
 export const WithOnDeleteStrategy = Template.bind({});
 WithOnDeleteStrategy.args = {
@@ -137,22 +153,24 @@ WithOnDeleteStrategy.args = {
 };
 WithOnDeleteStrategy.parameters = {
   msw: {
-    handlers: [
-      http.get(
-        'http://localhost:4466/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset',
-        () => {
-          return HttpResponse.json({
-            ...mockStatefulSet,
-            spec: {
-              ...mockStatefulSet.spec,
-              updateStrategy: {
-                type: 'OnDelete',
+    handlers: {
+      story: [
+        http.get(
+          'http://localhost:4466/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset',
+          () => {
+            return HttpResponse.json({
+              ...mockStatefulSet,
+              spec: {
+                ...mockStatefulSet.spec,
+                updateStrategy: {
+                  type: 'OnDelete',
+                },
               },
-            },
-          });
-        }
-      ),
-    ],
+            });
+          }
+        ),
+      ],
+    },
   },
 };
 
@@ -163,26 +181,28 @@ WithComplexSelector.args = {
 };
 WithComplexSelector.parameters = {
   msw: {
-    handlers: [
-      http.get(
-        'http://localhost:4466/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset',
-        () => {
-          return HttpResponse.json({
-            ...mockStatefulSet,
-            spec: {
-              ...mockStatefulSet.spec,
-              selector: {
-                matchLabels: {
-                  app: 'mock-app',
-                  tier: 'backend',
-                  environment: 'production',
+    handlers: {
+      story: [
+        http.get(
+          'http://localhost:4466/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset',
+          () => {
+            return HttpResponse.json({
+              ...mockStatefulSet,
+              spec: {
+                ...mockStatefulSet.spec,
+                selector: {
+                  matchLabels: {
+                    app: 'mock-app',
+                    tier: 'backend',
+                    environment: 'production',
+                  },
                 },
               },
-            },
-          });
-        }
-      ),
-    ],
+            });
+          }
+        ),
+      ],
+    },
   },
 };
 
@@ -193,33 +213,35 @@ WithMultipleContainers.args = {
 };
 WithMultipleContainers.parameters = {
   msw: {
-    handlers: [
-      http.get(
-        'http://localhost:4466/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset',
-        () => {
-          return HttpResponse.json({
-            ...mockStatefulSet,
-            spec: {
-              ...mockStatefulSet.spec,
-              template: {
-                ...mockStatefulSet.spec.template,
-                spec: {
-                  containers: [
-                    {
-                      name: 'main',
-                      image: 'mock-image:latest',
-                    },
-                    {
-                      name: 'sidecar',
-                      image: 'sidecar-image:latest',
-                    },
-                  ],
+    handlers: {
+      story: [
+        http.get(
+          'http://localhost:4466/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset',
+          () => {
+            return HttpResponse.json({
+              ...mockStatefulSet,
+              spec: {
+                ...mockStatefulSet.spec,
+                template: {
+                  ...mockStatefulSet.spec.template,
+                  spec: {
+                    containers: [
+                      {
+                        name: 'main',
+                        image: 'mock-image:latest',
+                      },
+                      {
+                        name: 'sidecar',
+                        image: 'sidecar-image:latest',
+                      },
+                    ],
+                  },
                 },
               },
-            },
-          });
-        }
-      ),
-    ],
+            });
+          }
+        ),
+      ],
+    },
   },
 };

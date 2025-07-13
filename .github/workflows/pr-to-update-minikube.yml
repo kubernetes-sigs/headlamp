@@ -56,19 +56,20 @@ jobs:
             user=yolossn
           fi
           HEADLAMP_VERSION=${LATEST_HEADLAMP_TAG:1}
+          BRANCH_NAME="hl-ci-update_headlamp_$HEADLAMP_VERSION"
           LATEST_HEADLAMP_SHA=$(gh api \
           "/orgs/headlamp-k8s/packages/container/headlamp/versions" --jq "map(select(.metadata.container.tags[] | contains(\"$LATEST_HEADLAMP_TAG\"))) | .[].name")
           echo $LATEST_HEADLAMP_SHA
           cd minikube
-          if git branch -l | grep -q "update_headlamp_$HEADLAMP_VERSION"; then
+          if git branch -l | grep -q "$BRANCH_NAME"; then
             echo "deleting old branch from local to avoid conflict"
-            git branch -D "update_headlamp_$HEADLAMP_VERSION"
+            git branch -D "$BRANCH_NAME"
           fi
-          if git branch -a | grep -q "origin/update_headlamp_$HEADLAMP_VERSION"; then
+          if git branch -a | grep -q "origin/$BRANCH_NAME"; then
             echo "deleting old branch from remote to avoid conflict"
-            git push origin --delete "update_headlamp_$HEADLAMP_VERSION"
+            git push origin --delete "$BRANCH_NAME"
           fi
-          git checkout -b "update_headlamp_$HEADLAMP_VERSION"
+          git checkout -b "$BRANCH_NAME"
           OLD_HEADLAMP_VERSION=$(DEP=headlamp make get-dependency-version)
           sed -i "s/headlamp-k8s\/headlamp:v.*/headlamp-k8s\/headlamp:$LATEST_HEADLAMP_TAG@$LATEST_HEADLAMP_SHA\",/g" ./pkg/minikube/assets/addons.go
           NEW_HEADLAMP_VERSION=$(DEP=headlamp make get-dependency-version)
@@ -78,11 +79,11 @@ jobs:
           git commit --signoff -m "Addon headlamp: Update headlamp-k8s/headlamp image from $OLD_HEADLAMP_VERSION to $NEW_HEADLAMP_VERSION"
           git status
           git log -1
-          git push origin "update_headlamp_$HEADLAMP_VERSION" -f
+          git push origin "$BRANCH_NAME" -f
           gh pr create \
           --title "Addon headlamp: Update headlamp-k8s/headlamp image from $OLD_HEADLAMP_VERSION to $NEW_HEADLAMP_VERSION" \
           --repo "kubernetes/minikube" \
-          --head "headlamp-k8s:update_headlamp_$HEADLAMP_VERSION" \
+          --head "headlamp-k8s:$BRANCH_NAME" \
           --base "master"  \
           --assignee "$user" \
           --body "Upgrade Headlamp version to $HEADLAMP_VERSION

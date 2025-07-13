@@ -30,6 +30,10 @@ if (typeof ResizeObserver === 'undefined' && typeof require !== 'undefined') {
   (global as any).ResizeObserver = require('resize-observer-polyfill');
 }
 
+globalThis.Worker = class {
+  postMessage() {}
+} as any;
+
 if (globalThis.window) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,

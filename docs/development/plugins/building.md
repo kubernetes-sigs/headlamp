@@ -3,257 +3,174 @@ title: Building and Shipping Plugins
 sidebar_label: Building & Shipping
 ---
 
-This section explains how to start developing a Headlamp plugin and how
-to ship it once finished.
+Once you have a plugin ready, you may want to build it for production and
+deploy with Headlamp or publish it for other Headlamp users to enjoy.
 
-## Creating a new plugin
+## Deploying Plugins (General Information)
 
-This is how to start a new plugin:
+Once your plugin is built and tested, you need to deploy it to your Headlamp instances. This section covers all deployment scenarios.
 
-```bash
-npx --yes @kinvolk/headlamp-plugin create headlamp-myfancy
-cd headlamp-myfancy
-npm run start
+Let's assume that Headlamp will be run with the `-plugins-dir` option set to
+`/headlamp/plugins`, which is the default for in-cluster deployments.
+
+### Plugin Directory Structure
+
+Headlamp expects plugins to follow a specific directory structure:
+
+```
+my-plugins/                 # Plugin root directory
+├── MyPlugin1/
+│   ├── main.js             # Built plugin file
+│   └── package.json        # Plugin metadata
+├── MyPlugin2/
+│   ├── main.js
+│   └── package.json
+└── MyPlugin3/
+    ├── main.js
+    └── package.json
 ```
 
-There's some basic code inside src/index.tsx.
+### Extracting Built Plugins
 
-Now run Headlamp (the desktop app or the
-[development version](../index.md#run-the-code)),
-and your plugin should be loaded.
-
-Using the above commands means that Headlamp will **automatically reload**
-whenever to make a change to the plugin.
-
-ℹ️ This automatic reload does not happen when running in-cluster,
-even if the plugins folder is changed. I.e., if you want to serve
-updated plugins, you need to restart the server.
-
-## Code Formatting, Linting, and Type Checking
-
-Your plugin has a few tools built in to help make development easier.
-
-#### Format code with prettier
+To extract a single plugin, you can package it first, then extract the package to the right place:
 
 ```bash
-npm run format
-```
-
-#### Find code lint issues with eslint
-
-```bash
-npm run lint
-```
-
-Eslint also allows you to try and automatically fix issues.
-
-```bash
-npm run lint-fix
-```
-
-#### Run the type checker
-
-```bash
-npm run tsc
-```
-
-#### Run the tests
-
-```bash
-npm run test
-```
-
-## Building for production
-
-To build the previous plugin example for production, run the following
-command:
-
-```bash
-cd headlamp-myfancy
 npm install
 npm run build
+npm run package
+
+# Extract single plugin
+tar xvzf my-first-plugin-0.1.0.tar.gz -C /headlamp/plugins
 ```
 
-This will create a file with the bundled plugin in
-`headlamp-myfancy/dist/main.js`.
+If you prefer to export one or more plugins directly, use the `headlamp-plugin` tool. Run `npm run build` first. Then use the `extract` option on a folder with Headlamp plugins.
 
-### Building a folder of packages at once
+For a directory like this:
 
-For convienience the `headlamp-plugin build` command can build a
-package or folder of packages.
+```
+# Directory structure
+my-plugins/
+├── MyPlugin1/
+│   ├── dist/
+│   │   └── main.js
+│   └── package.json
+└── MyPlugin2/
+    ├── dist/
+    │   └── main.js
+    └── package.json
+```
+
+You can extract the plugins into a target directory like this:
 
 ```bash
-npx @kinvolk/headlamp-plugin build myplugins/headlamp-myfancy
-npx @kinvolk/headlamp-plugin build myplugins
+npx @kinvolk/headlamp-plugin extract ./my-plugins /headlamp/plugins
 ```
 
-## Shipping and Deploying Plugins
+## Plugins in Headlamp Desktop
 
-Once a plugin is ready to be shipped (built for production), it needs to
-be placed in a "plugins directory" for Headlamp to load it.
+Headlamp Desktop has a Plugin Catalog to install plugins easily. It includes plugins from Headlamp developers and the community.
 
-For example, if we have built 3 plugins called MyPlugin1, MyPlugin2, and
-MyPlugin3, they should be added to a directory in the following structure:
+By default, only official plugins in the Plugin Catalog are allowed. The catalog confirms which plugin you want to install. It also shows where the plugin will be downloaded from.
 
-```
-.plugins/
-  MyPlugin1/
-    main.js
-  MyPlugin2/
-    main.js
-  MyPlugin3/
-    main.js
-```
+:::important
+The Plugin Catalog allows users to change the default behavior and instead show all
+plugins. It is however extremely important that you only run plugins that you
+trust, as plugins run in the same JavaScript context as the main application.
+:::
 
-If our plugins are placed in `myplugins`, we can conveniently create that
-folder with the following command:
+To learn how to publish your plugin to make it available in the Plugin Catalog for other users, see the [Publishing Plugins guide](./publishing.md).
+
+### Manual Installation
+
+First, build and package the plugin in the plugin folder:
 
 ```bash
-npx @kinvolk/headlamp-plugin extract ./myplugins /path/to/.plugins
-```
-
-This also works individually (for each plugin):
-
-```bash
-npx @kinvolk/headlamp-plugin extract ./myplugins/MyPlugin1 /path/to/./plugins
-```
-
-### In-cluster deployment with plugins
-
-For in-cluster Headlamp deployments, when running Headlamp's server,
-the `-plugin-dir` option should point to the directory:
-
-```bash
-./headlamp-server -plugins-dir=.plugins
-```
-
-### Using plugins on the desktop version
-
-The Headlamp desktop app will look for the plugins directory (in the format
-mentioned above). This will be either under the user's Headlamp configuration folder
-or within the current folder as `.plugins` if the former doesn't exist.
-
-### Bundling plugins with desktop version
-
-To build a Headlamp app with a set of plugins, first extract some plugins
-into the .plugins folder in the root of the "headlamp" repo.
-
-```bash
-cd plugins/examples/pod-counter
+cd my-plugin/
 npm install
 npm run build
-cd ../..
-
-mkdir .plugins
-npx @kinvolk/headlamp-plugin extract ./plugins/examples/ ./.plugins
-ls -la .plugins
-make app-linux
+npm run package
 ```
 
-For more on how to extract files into there see "Shipping and Deploying Plugins" above.
+You can install the plugin in the Headlamp desktop app by exporting the plugin
+archive to the plugins directory. E.g.:
 
-### More on making a headlamp container image including plugins
-
-See the blog post
-"[Get up to speed deploying Headlamp with plugins](https://headlamp.dev/blog/2022/10/20/best-practices-for-deploying-headlamp-with-plugins)"
-for more information on building a container image with your plugins.
-
-## Writing storybook stories
-
-What is a storybook story?
-
-From <https://storybook.js.org/docs/web-components/get-started/introduction>
-
-> Storybook is a tool for UI development. It makes development faster and
-> easier by isolating components. This allows you to work on one component
-> at a time. You can develop entire UIs without needing to start up a
-> complex dev stack, force certain data into your database,
-> or navigate around your application.
-
-See an example in your browser:
+On Linux/macOS:
 
 ```bash
-$ cd plugins/examples/pod-counter
-$ ls src
-headlamp-plugin.d.ts  index.tsx  Message.stories.tsx  Message.tsx
-$ npm install
-$ npm run storybook
+mkdir -p ~/.config/Headlamp/plugins/
+tar xvf my-first-plugin-0.1.0.tar.gz -C ~/.config/Headlamp/plugins/
 ```
 
-Your browser should open and show you a Message component with three
-different states the component can be in.
+These are the default plugin directory locations for the Headlamp desktop app:
 
-Note that there is a Message.stories.tsx to go along with the Message.tsx
-which has the `<Message>` component defined within it. See that file for an
-example of how to write a story.
+| Operating System | Default Plugin Directory |
+|------------------|--------------------------|
+| **MacOS** | `$HOME/.config/Headlamp/plugins` |
+| **Linux** | `$HOME/.config/Headlamp/plugins` |
+| **Windows** | `%APPDATA%/Headlamp/Config/plugins` |
 
-### Snapshot testing
+## Plugins in Headlamp Deployments
 
-Another benefit of writing storybook stories is that they can act as
-unit tests for regression testing. Storyshots will save snapshots
-of html for the different states that a component can be in. See the
-[Snapshot tests](https://storybook.js.org/docs/react/writing-tests/snapshot-testing)
-guide in the storybook documentation for more information.
+### Using InitContainer with a Plugin Image
 
-This is in addition to the benefit of making sure your components can be
-manually tested and developed quickly in isolation.
+When deploying Headlamp with plugins, it is easier to use a container image with the plugins already installed. Then, use an init container to mount the plugins into the Headlamp container.
 
-See the [storybook documentation](https://storybook.js.org/docs/) for full
-details on storybook.
+Some plugins already have a published container image. For Headlamp's official plugins, see this [list](https://github.com/orgs/headlamp-k8s/packages?tab=packages&q=headlamp-plugin).
 
-## Running tests on a github action
-
-A workflow for testing your plugin on github with actions.
-
-Below is based on the [Building and testing Node.js](https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs) docs from GitHub.
-
-Place this in a file named something like `.github/workflows/headlamp-plugin-github-workflow.yaml` in the root of your repo.
+You can thus deploy Headlamp with an init container, such as the [Flux UI plugin image](ghcr.io/headlamp-k8s/headlamp-plugin-flux:v0.3.0):
 
 ```yaml
-name: Headlamp plugin linting, type checking, and testing
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: ./your-folder-of-plugins
-
-    strategy:
-      matrix:
-        node-version: [18.x]
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ matrix.node-version }}
-      - run: npx @kinvolk/headlamp-plugin lint .
-      - run: npx @kinvolk/headlamp-plugin format --check .
-      - run: npx @kinvolk/headlamp-plugin tsc .
-      - run: npx @kinvolk/headlamp-plugin test .
-      - run: npx @kinvolk/headlamp-plugin build .
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headlamp-with-flux
+  labels:
+    app: headlamp-with-flux
+spec:
+  selector:
+    matchLabels:
+      app: headlamp-with-flux
+  template:
+    metadata:
+      labels:
+        app: headlamp-with-flux
+    spec:
+      initContainers:
+      - name: fetch-plugins
+        image: ghcr.io/headlamp-k8s/headlamp-plugin-flux:latest
+        # Copy the plugins
+        command: ["/bin/sh", "-c"]
+        args: ["cp -r /plugins/* /headlamp/plugins/ && ls -l /headlamp/plugins"]
+        volumeMounts:
+        - name: plugins
+          mountPath: /headlamp/plugins
+      containers:
+      - name: headlamp
+        image: ghcr.io/headlamp-k8s/headlamp:latest
+        args: ["-plugins-dir=/headlamp/plugins"]
+        ports:
+        - containerPort: 4466
+        volumeMounts:
+        - name: plugins
+          mountPath: /headlamp/plugins
+      volumes:
+      - name: plugins
+        emptyDir: {}
 ```
 
-Please see the GitHub documentation for further details on workflows and actions.
+## Creating a Plugin Image
 
-## Upgrading package
-
-There's a command that handles much of the upgrading of plugins to the latest headlamp-plugin version. This upgrade command also audits packages, formats code, lints, and type checks.
-
-Additionally, this handles some code changes needed for plugins. For example, it handles running the material-ui 4 to mui 5 'codemod' code changes and creates missing configuration added in different versions of headlamp-plugin.
-
-Testing is necessary after running the upgrade command.
-Of course, make sure you have a backup of your plugin folder before running it.
+The Headlamp official plugins repository has a [Dockerfile](https://github.com/headlamp-k8s/plugins/blob/main/Dockerfile) to generate an image for a plugin. Here is how to use it with the Kompose plugin:
 
 ```bash
-npx @kinvolk/headlamp-plugin upgrade --headlamp-plugin-version=latest your-plugin-folder
+# Get the plugins
+git clone https://github.com/headlamp-k8s/plugins headlamp-plugins
+
+# Move to the plugins directory
+cd headlamp-plugins
+
+# Build a container image for the kompose plugin
+docker build --build-arg PLUGIN=kompose -t kompose-plugin:latest -f ./Dockerfile .
 ```
+
+After this step you will have a `kompose-plugin:latest` image that you can use in your deployments, with the actual kompose plugin in its /plugins/kompose directory.

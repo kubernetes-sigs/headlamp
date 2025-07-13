@@ -100,7 +100,7 @@ export function GraphRenderer({
       maxZoom={maxZoom}
       connectionMode={ConnectionMode.Loose}
     >
-      <Background variant={BackgroundVariant.Dots} style={{ color: theme.palette.divider }} />
+      <Background variant={BackgroundVariant.Dots} color={theme.palette.divider} size={2} />
       <Controls showInteractive={false} showFitView={false} showZoom={false}>
         <GraphControls>{controlActions}</GraphControls>
       </Controls>

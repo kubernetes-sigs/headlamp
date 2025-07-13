@@ -922,7 +922,7 @@ const defaultRoutes: {
     name: 'Map',
     sidebar: 'map',
     isFullWidth: true,
-    component: () => <LazyGraphView height="calc(100vh - 64px)" />,
+    component: () => <LazyGraphView height="100%" />,
   },
 };
 

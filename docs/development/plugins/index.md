@@ -3,38 +3,55 @@ title: Plugins
 sidebar_position: 6
 ---
 
-Plugins are one of the key features of Headlamp. They allow you to change how and what information is displayed and may serve various use cases. The plugins system aims to allow vendors to add features to Headlamp without having to maintain a fork of the project.
+# Headlamp Plugins
 
-## Using plugins
+Plugins are one of the key features of Headlamp, enabling you to customize and extend the Kubernetes web interface to meet your specific needs. The plugin system allows vendors and developers to add functionality without maintaining a fork of the project.
 
-Headlamp looks for plugins in different places.
-It looks at the Headlamp's configuration folder first:
+## What Can Plugins Do?
 
-On a Mac and Linux desktop, the plugins folder is by default:
-`$HOME/.config/Headlamp/plugins`
+Headlamp plugins can transform your Kubernetes experience by:
 
-On Windows, it is by default:
-`$APPDATA/Headlamp/Config/plugins`
+- **🎨 Customizing the UI**: Add components to the app bar, sidebar, and resource detail views
+- **📊 Creating Dashboards**: Build custom pages with specialized visualizations and metrics
+- **🔗 Integrating External Tools**: Connect with monitoring, CI/CD, and other systems
+- **⚙️ Adding Business Logic**: Implement organization-specific workflows and automation
+- **🎭 Theming & Branding**: Apply custom themes and replace logos to match your brand
+- **📈 Enhancing Resource Views**: Add custom sections and actions to Kubernetes resource pages
 
-In the plugins directory, plugins should be in the following format:
+## Quick Start Guide
 
-```
-MyPlugin1/
-    main.js
-MyPlugin2/
-    main.js
-MyPlugin3/
-    main.js
-```
+New to plugin development? Follow our step-by-step guide:
 
-See the [shipping & deploying plugins](./building.md#shipping-and-deploying-plugins) section
-for more details.
+### 🏗️ [Plugin Architecture](./architecture.md)
+Understand how plugins work, where they're loaded from, and how they integrate with Headlamp.
 
-## Developing Plugins
+### 📚 [Getting Started With Plugin Development](./getting-started.md)
+Complete tutorial from installation to your first working plugin, with practical examples and troubleshooting tips.
 
-Plugins are meant to be build and shipped out-of-tree (i.e., outside of the project and loaded by
-Headlamp). This is opposed to managing the plugins' code within the Headlamp
-project or within a Headlamp fork. Such a setup would require always
-rebuilding/maintaining Headlamp when changing a plugin.
+### 🛠️ [Building & Shipping Plugins](./building.md)
+Learn the development workflow, production builds, and deployment strategies.
 
-Learn [how to create a Headlamp plugin](./building.md).
+### 📖 [Common Patterns](./common-patterns.md)
+Ready-to-use examples for typical plugin scenarios like dashboards, resource extensions, and external integrations.
+
+### 🎯 [Plugin Functionality Reference](./functionality/index.md)
+Comprehensive API documentation covering all available plugin capabilities.
+
+### 🚀 [Publishing Plugins](./publishing.md)
+Share your plugins with the community through Artifact Hub.
+
+### 🤖 [AI-Assisted Development](./ai-assisted-development.md)
+Leverage AI tools to accelerate your plugin development process.
+
+
+## Ready to Start?
+
+👉 **New to plugins?** Start with our [Getting Started Guide](./getting-started.md)
+
+👉 **Want to see examples?** Check out [Common Patterns](./common-patterns.md)
+
+👉 **Ready to build?** Jump into [Building & Shipping](./building.md)
+
+👉 **Need architectural details?** Read about [Plugin Architecture](./architecture.md)
+
+The Headlamp plugin ecosystem is growing rapidly. Whether you're building internal tools or creating plugins for the community, you're contributing to making Kubernetes more accessible and powerful for everyone!

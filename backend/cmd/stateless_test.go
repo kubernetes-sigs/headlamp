@@ -27,6 +27,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
@@ -75,11 +76,13 @@ func TestStatelessClustersKubeConfig(t *testing.T) {
 			cache := cache.New[interface{}]()
 			kubeConfigStore := kubeconfig.NewContextStore()
 			c := HeadlampConfig{
-				useInCluster:          false,
-				kubeConfigPath:        "",
-				enableDynamicClusters: true,
-				cache:                 cache,
-				kubeConfigStore:       kubeConfigStore,
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					UseInCluster:          false,
+					KubeConfigPath:        "",
+					EnableDynamicClusters: true,
+					KubeConfigStore:       kubeConfigStore,
+				},
+				cache: cache,
 			}
 			handler := createHeadlampHandler(&c)
 
@@ -129,20 +132,20 @@ func TestStatelessClusterApiRequest(t *testing.T) {
 			cache := cache.New[interface{}]()
 			kubeConfigStore := kubeconfig.NewContextStore()
 			c := HeadlampConfig{
-				useInCluster:          false,
-				kubeConfigPath:        "",
-				enableDynamicClusters: true,
-				cache:                 cache,
-				kubeConfigStore:       kubeConfigStore,
-				telemetryConfig:       GetDefaultTestTelemetryConfig(),
-				telemetryHandler:      &telemetry.RequestHandler{},
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					UseInCluster: false, KubeConfigPath: "",
+					EnableDynamicClusters: true,
+					KubeConfigStore:       kubeConfigStore,
+				},
+				cache:            cache,
+				telemetryConfig:  GetDefaultTestTelemetryConfig(),
+				telemetryHandler: &telemetry.RequestHandler{},
 			}
 			handler := createHeadlampHandler(&c)
 			headers := map[string]string{
 				"KUBECONFIG":         kubeConfig,
 				"X-HEADLAMP-USER-ID": tc.userID,
 			}
-
 			requestPath := fmt.Sprintf("/clusters/%s/version/", tc.name)
 			req, err := http.NewRequest("GET", requestPath, nil) //nolint:noctx
 			require.NoError(t, err)
