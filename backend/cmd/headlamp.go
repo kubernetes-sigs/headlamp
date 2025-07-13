@@ -46,6 +46,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/exec"
 
 	headlampcfg "github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
@@ -1347,7 +1348,39 @@ func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 	logger.Log(logger.LevelError, nil, err, msg)
 	c.telemetryHandler.RecordError(span, err, msg)
 	c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", msg))
+
+	// Check if this is an exec authentication error and provide better status code and message.
+	if execErr, ok := err.(*exec.ExecAuthError); ok {
+		logFields := map[string]string{
+			"command":     execErr.Command,
+			"error_type":  fmt.Sprintf("%d", execErr.Type),
+			"recoverable": fmt.Sprintf("%t", execErr.Recoverable),
+		}
+		logger.Log(logger.LevelError, logFields, err, "Exec authentication error")
+
+		// Use 502 Bad Gateway for authentication issues to match frontend expectations.
+		errorMsg := fmt.Sprintf("Authentication failed: %s", execErr.Message)
+		http.Error(w, errorMsg, http.StatusBadGateway)
+		return
+	}
+
+	// Check for other authentication-related errors.
+	if c.isAuthenticationError(err) {
+		// Use 502 Bad Gateway for authentication issues.
+		errorMsg := fmt.Sprintf("Authentication failed: %s", err.Error())
+		http.Error(w, errorMsg, http.StatusBadGateway)
+		return
+	}
+
 	http.Error(w, err.Error(), status)
+}
+
+// isAuthenticationError checks if the error is related to authentication.
+func (c *HeadlampConfig) isAuthenticationError(err error) bool {
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "authentication failed") ||
+		strings.Contains(errMsg, "exec: executable") ||
+		strings.Contains(errMsg, "getting credentials")
 }
 
 // handleClusterAPI handles cluster API requests. It is responsible for
