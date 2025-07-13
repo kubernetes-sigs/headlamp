@@ -53,6 +53,7 @@ import (
 	"k8s.io/client-go/transport"
 	"k8s.io/client-go/util/connrotation"
 	"k8s.io/klog/v2"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
 )
 
@@ -391,11 +392,50 @@ func (a *Authenticator) getCreds() (*credentials, error) {
 		return a.cachedCreds, nil
 	}
 
-	if err := a.refreshCredsLocked(); err != nil {
+	if err := a.refreshCredsWithRetry(); err != nil {
 		return nil, err
 	}
 
 	return a.cachedCreds, nil
+}
+
+// refreshCredsWithRetry attempts to refresh credentials with retry logic for recoverable errors.
+func (a *Authenticator) refreshCredsWithRetry() error {
+	maxRetries := 3
+	baseDelay := time.Second
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		err := a.refreshCredsLocked()
+		if err == nil {
+			return nil
+		}
+
+		// Check if this is a recoverable error
+		if execErr, ok := err.(*ExecAuthError); ok {
+			if !execErr.IsRecoverable() {
+				return err // Don't retry non-recoverable errors
+			}
+
+			// For "not found" errors, don't retry immediately
+			if execErr.Type == ExecAuthErrorTypeNotFound && attempt == 0 {
+				return err
+			}
+		}
+
+		// Don't retry on the last attempt
+		if attempt == maxRetries-1 {
+			return err
+		}
+
+		// Exponential backoff
+		delay := baseDelay * time.Duration(1<<uint(attempt))
+		time.Sleep(delay)
+
+		klog.V(4).Infof("Retrying exec authentication (attempt %d/%d) after %v delay",
+			attempt+2, maxRetries, delay)
+	}
+
+	return fmt.Errorf("exec authentication failed after %d attempts", maxRetries)
 }
 
 // maybeRefreshCreds executes the plugin to force a rotation of the
