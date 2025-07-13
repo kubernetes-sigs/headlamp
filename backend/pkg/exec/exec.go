@@ -53,6 +53,7 @@ import (
 	"k8s.io/client-go/transport"
 	"k8s.io/client-go/util/connrotation"
 	"k8s.io/klog/v2"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
 )
 
@@ -391,11 +392,50 @@ func (a *Authenticator) getCreds() (*credentials, error) {
 		return a.cachedCreds, nil
 	}
 
-	if err := a.refreshCredsLocked(); err != nil {
+	if err := a.refreshCredsWithRetry(); err != nil {
 		return nil, err
 	}
 
 	return a.cachedCreds, nil
+}
+
+// refreshCredsWithRetry attempts to refresh credentials with retry logic for recoverable errors.
+func (a *Authenticator) refreshCredsWithRetry() error {
+	maxRetries := 3
+	baseDelay := time.Second
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		err := a.refreshCredsLocked()
+		if err == nil {
+			return nil
+		}
+
+		// Check if this is a recoverable error
+		if execErr, ok := err.(*ExecAuthError); ok {
+			if !execErr.IsRecoverable() {
+				return err // Don't retry non-recoverable errors
+			}
+
+			// For "not found" errors, don't retry immediately
+			if execErr.Type == ExecAuthErrorTypeNotFound && attempt == 0 {
+				return err
+			}
+		}
+
+		// Don't retry on the last attempt
+		if attempt == maxRetries-1 {
+			return err
+		}
+
+		// Exponential backoff
+		delay := baseDelay * time.Duration(1<<uint(attempt))
+		time.Sleep(delay)
+
+		klog.V(4).Infof("Retrying exec authentication (attempt %d/%d) after %v delay",
+			attempt+2, maxRetries, delay)
+	}
+
+	return fmt.Errorf("exec authentication failed after %d attempts", maxRetries)
 }
 
 // maybeRefreshCreds executes the plugin to force a rotation of the
@@ -541,17 +581,107 @@ func (a *Authenticator) wrapCmdRunErrorLocked(err error) error {
 			}
 		})
 
-		return errors.New(builder.String())
+		// Add specific guidance for common authentication plugins
+		builder.WriteString(a.getInstallationGuidance())
+
+		return &ExecAuthError{
+			Command:     a.cmd,
+			Args:        a.args,
+			Err:         err,
+			Type:        ExecAuthErrorTypeNotFound,
+			Message:     builder.String(),
+			Recoverable: true,
+		}
 
 	case *exec.ExitError: // Binary execution failed (see exec.Cmd.Run()).
 		e := err.(*exec.ExitError)
-		return fmt.Errorf(
-			"exec: executable %s failed with exit code %d",
-			a.cmd,
-			e.ProcessState.ExitCode(),
-		)
+		message := fmt.Sprintf("exec: executable %s failed with exit code %d", a.cmd, e.ProcessState.ExitCode())
+
+		// Add stderr output if available for better debugging
+		if len(e.Stderr) > 0 {
+			message += fmt.Sprintf("\nStderr: %s", string(e.Stderr))
+		}
+
+		return &ExecAuthError{
+			Command:     a.cmd,
+			Args:        a.args,
+			Err:         err,
+			Type:        ExecAuthErrorTypeExitCode,
+			Message:     message,
+			ExitCode:    e.ProcessState.ExitCode(),
+			Recoverable: e.ProcessState.ExitCode() != 1, // Exit code 1 usually means permanent failure
+		}
 
 	default:
-		return fmt.Errorf("exec: %v", err)
+		message := fmt.Sprintf("exec: %v", err)
+		return &ExecAuthError{
+			Command:     a.cmd,
+			Args:        a.args,
+			Err:         err,
+			Type:        ExecAuthErrorTypeGeneric,
+			Message:     message,
+			Recoverable: true,
+		}
+	}
+}
+
+// ExecAuthErrorType represents the type of exec authentication error.
+type ExecAuthErrorType int
+
+const (
+	ExecAuthErrorTypeNotFound ExecAuthErrorType = iota
+	ExecAuthErrorTypeExitCode
+	ExecAuthErrorTypeGeneric
+)
+
+// ExecAuthError represents a structured error from exec authentication.
+type ExecAuthError struct {
+	Command     string
+	Args        []string
+	Err         error
+	Type        ExecAuthErrorType
+	Message     string
+	ExitCode    int
+	Recoverable bool
+}
+
+func (e *ExecAuthError) Error() string {
+	return e.Message
+}
+
+func (e *ExecAuthError) Unwrap() error {
+	return e.Err
+}
+
+// IsRecoverable returns true if this error might be recoverable with retry.
+func (e *ExecAuthError) IsRecoverable() bool {
+	return e.Recoverable
+}
+
+// getInstallationGuidance provides specific installation guidance for common authentication tools.
+func (a *Authenticator) getInstallationGuidance() string {
+	switch a.cmd {
+	case "kubelogin":
+		return "\n\nFor Azure AKS clusters:\n" +
+			"  - Install kubelogin: https://azure.github.io/kubelogin/install.html\n" +
+			"  - Alternative: kubelogin convert-kubeconfig -l azurecli\n" +
+			"  - Ensure you're logged in: az login"
+	case "oci":
+		return "\n\nFor Oracle Cloud Infrastructure:\n" +
+			"  - Install OCI CLI: https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm\n" +
+			"  - Configure: oci setup config\n" +
+			"  - Ensure oci command is in your PATH"
+	case "gke-gcloud-auth-plugin":
+		return "\n\nFor Google Kubernetes Engine:\n" +
+			"  - Install: gcloud components install gke-gcloud-auth-plugin\n" +
+			"  - Login: gcloud auth login\n" +
+			"  - Set project: gcloud config set project YOUR_PROJECT_ID"
+	case "aws-iam-authenticator":
+		return "\n\nFor Amazon EKS:\n" +
+			"  - Install aws-iam-authenticator: https://docs.aws.amazon.com/eks/latest/userguide/install-aws-iam-authenticator.html\n" +
+			"  - Configure AWS credentials: aws configure\n" +
+			"  - Alternative: Use AWS CLI v2 with: aws eks update-kubeconfig"
+	default:
+		return ""
 	}
 }
