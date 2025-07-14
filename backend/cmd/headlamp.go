@@ -41,6 +41,8 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/portforward"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	headlampcfg "github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
@@ -458,6 +460,107 @@ func createRouter(config *HeadlampConfig) *mux.Router {
 	baseRoute := mux.NewRouter()
 
 	return baseRoute.PathPrefix(config.BaseURL).Subrouter()
+}
+
+func setupRoutes(config *HeadlampConfig, router *mux.Router) {
+	setupMetricsRoute(config, router)
+	setupKubeconfigRoutes(config)
+	addPluginRoutes(config, router)
+	config.handleClusterRequests(router)
+	setupExternalProxyRoute(config, router)
+	setupConfigRoute(router, config)
+	setupWebsocketRoute(router, config)
+	setupClusterSetupRoute(router, config)
+	setupOIDCRoutes(router, config)
+	setupPortForwardRoutes(router, config)
+	setupNodeDrainRoutes(router, config)
+}
+
+func setupMetricsRoute(config *HeadlampConfig, router *mux.Router) {
+	if config.Metrics != nil && config.telemetryConfig.MetricsEnabled != nil && *config.telemetryConfig.MetricsEnabled {
+		router.Handle("/metrics", promhttp.Handler())
+		logger.Log(logger.LevelInfo, nil, nil, "prometheus metrics endpoint: /metrics")
+	}
+}
+
+func setupKubeconfigRoutes(config *HeadlampConfig) {
+	skipFunc := kubeconfig.SkipKubeContextInCommaSeparatedString(config.SkippedKubeContexts)
+	if err := kubeconfig.LoadAndStoreKubeConfigs(
+		config.KubeConfigStore,
+		config.KubeConfigPath,
+		kubeconfig.KubeConfig,
+		skipFunc,
+	); err != nil {
+		logger.Log(logger.LevelError, nil, err, "loading kubeconfig")
+	}
+
+	kubeConfigPersistenceFile, err := defaultHeadlampKubeConfigFile()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "getting default kubeconfig persistence file")
+	}
+
+	if err := kubeconfig.LoadAndStoreKubeConfigs(
+		config.KubeConfigStore,
+		kubeConfigPersistenceFile,
+		kubeconfig.DynamicCluster,
+		skipFunc,
+	); err != nil {
+		logger.Log(logger.LevelError, nil, err, "loading dynamic kubeconfig")
+	}
+}
+
+func setupExternalProxyRoute(config *HeadlampConfig, router *mux.Router) {
+	router.HandleFunc("/externalproxy", func(w http.ResponseWriter, r *http.Request) {
+		handleExternalProxy(config, w, r)
+	})
+}
+
+func setupConfigRoute(router *mux.Router, config *HeadlampConfig) {
+	router.HandleFunc("/config", config.getConfig).Methods("GET")
+}
+
+func setupWebsocketRoute(router *mux.Router, config *HeadlampConfig) {
+	router.HandleFunc("/wsMultiplexer", config.multiplexer.HandleClientWebSocket)
+}
+
+func setupClusterSetupRoute(router *mux.Router, config *HeadlampConfig) {
+	config.addClusterSetupRoute(router)
+}
+
+func setupOIDCRoutes(router *mux.Router, config *HeadlampConfig) {
+	oauthRequestMap := make(map[string]*OauthConfig)
+
+	router.HandleFunc("/oidc", func(w http.ResponseWriter, r *http.Request) {
+		handleOIDC(config, w, r, oauthRequestMap)
+	}).Queries("cluster", "{cluster}")
+
+	router.HandleFunc("/oidc-callback", func(w http.ResponseWriter, r *http.Request) {
+		handleOIDCCallback(config, w, r, oauthRequestMap)
+	})
+}
+
+func setupPortForwardRoutes(router *mux.Router, config *HeadlampConfig) {
+	router.HandleFunc("/portforward", func(w http.ResponseWriter, r *http.Request) {
+		portforward.StartPortForward(config.KubeConfigStore, config.cache, w, r)
+	}).Methods("POST")
+
+	router.HandleFunc("/portforward", func(w http.ResponseWriter, r *http.Request) {
+		portforward.StopOrDeletePortForward(config.cache, w, r)
+	}).Methods("DELETE")
+
+	router.HandleFunc("/portforward/list", func(w http.ResponseWriter, r *http.Request) {
+		portforward.GetPortForwards(config.cache, w, r)
+	})
+
+	router.HandleFunc("/portforward", func(w http.ResponseWriter, r *http.Request) {
+		portforward.GetPortForwardByID(config.cache, w, r)
+	}).Methods("GET")
+}
+
+func setupNodeDrainRoutes(router *mux.Router, config *HeadlampConfig) {
+	router.HandleFunc("/drain-node", config.handleNodeDrain).Methods("POST")
+	router.HandleFunc("/drain-node-status",
+		config.handleNodeDrainStatus).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
 }
 
 func parseClusterAndToken(r *http.Request) (string, string) {
