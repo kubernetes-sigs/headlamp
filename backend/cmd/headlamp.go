@@ -400,26 +400,27 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 	}).Methods("GET")
 }
 
+// setupPluginHandlers initializes the plugin cache and sets up handlers for plugins.
+func setupPluginHandlers(config *HeadlampConfig, skipFunc kubeconfig.ShouldBeSkippedFunc) {
+	plugins.PopulatePluginsCache(config.StaticPluginDir, config.PluginDir, config.cache)
+
+	if !config.UseInCluster || config.WatchPluginsChanges {
+		pluginEventChan := make(chan string)
+		go plugins.Watch(config.PluginDir, pluginEventChan)
+		go plugins.HandlePluginEvents(config.StaticPluginDir, config.PluginDir, pluginEventChan, config.cache)
+		go kubeconfig.LoadAndWatchFiles(config.KubeConfigStore, config.KubeConfigPath, kubeconfig.KubeConfig, skipFunc)
+	}
+}
+
 //nolint:gocognit,funlen,gocyclo
 func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
 
 	config.StaticPluginDir = os.Getenv("HEADLAMP_STATIC_PLUGINS_DIR")
 
-	logStartupInfo(config);
-
-	plugins.PopulatePluginsCache(config.StaticPluginDir, config.PluginDir, config.cache)
-
+	logStartupInfo(config)
 	skipFunc := kubeconfig.SkipKubeContextInCommaSeparatedString(config.SkippedKubeContexts)
-
-	if !config.UseInCluster || config.WatchPluginsChanges {
-		// in-cluster mode is unlikely to want reloading plugins.
-		pluginEventChan := make(chan string)
-		go plugins.Watch(config.PluginDir, pluginEventChan)
-		go plugins.HandlePluginEvents(config.StaticPluginDir, config.PluginDir, pluginEventChan, config.cache)
-		// in-cluster mode is unlikely to want reloading kubeconfig.
-		go kubeconfig.LoadAndWatchFiles(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
-	}
+	setupPluginHandlers(config, skipFunc)
 
 	// In-cluster
 	if config.UseInCluster {
