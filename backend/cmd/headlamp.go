@@ -18,11 +18,13 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/url"
@@ -36,6 +38,7 @@ import (
 	"time"
 
 	oidc "github.com/coreos/go-oidc/v3/oidc"
+	"github.com/gobwas/glob"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
@@ -575,6 +578,122 @@ func handleExternalProxy(config *HeadlampConfig, w http.ResponseWriter, r *http.
 
 	if err := processAndWriteProxyResponse(w, resp); err != nil {
 		handleProxyError(w, err, "processing response", http.StatusInternalServerError)
+	}
+}
+
+func getProxyURLFromRequest(r *http.Request) string {
+	proxyURL := r.Header.Get("proxy-to")
+	if proxyURL == "" {
+		proxyURL = r.Header.Get("Forward-to")
+	}
+
+	return proxyURL
+}
+
+func handleProxyURLError(w http.ResponseWriter, message string) {
+	logger.Log(logger.LevelError, map[string]string{"proxyURL": message},
+		errors.New(message), message)
+	http.Error(w, message, http.StatusBadRequest)
+}
+
+func parseProxyURL(proxyURL string) (*url.URL, error) {
+	parsedURL, err := url.Parse(proxyURL)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL},
+			err, "The provided proxy URL is invalid")
+
+		return nil, err
+	}
+
+	return parsedURL, nil
+}
+
+func isURLAllowed(allowedURLs []string, targetURL string) bool {
+	for _, allowedURL := range allowedURLs {
+		g := glob.MustCompile(allowedURL)
+		if g.Match(targetURL) {
+			return true
+		}
+	}
+
+	logger.Log(logger.LevelError, nil, nil, "no allowed proxy url match, request denied")
+
+	return false
+}
+
+func createProxyRequest(r *http.Request, proxyURL string) (*http.Request, error) {
+	ctx := context.Background()
+
+	proxyReq, err := http.NewRequestWithContext(ctx, r.Method, proxyURL, r.Body)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "creating request")
+		return nil, err
+	}
+
+	return proxyReq, nil
+}
+
+func handleProxyError(w http.ResponseWriter, err error, context string, statusCode int) {
+	logger.Log(logger.LevelError, nil, err, context)
+	http.Error(w, err.Error(), statusCode)
+}
+
+func copyHeaders(source http.Header, target http.Header) {
+	for h, val := range source {
+		target[h] = val
+	}
+}
+
+func setNoCacheHeaders(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
+	w.Header().Set("Expires", time.Unix(0, 0).Format(http.TimeFormat))
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("X-Accel-Expires", "0")
+}
+
+func executeProxyRequest(proxyReq *http.Request) (*http.Response, error) {
+	client := http.Client{}
+	return client.Do(proxyReq)
+}
+
+func processAndWriteProxyResponse(w http.ResponseWriter, resp *http.Response) error {
+	reader, err := getResponseReader(resp)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if reader != resp.Body {
+			reader.Close()
+		}
+	}()
+
+	respBody, err := io.ReadAll(reader)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "reading response")
+		return err
+	}
+
+	if _, err = w.Write(respBody); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing response")
+		return err
+	}
+
+	return nil
+}
+
+func getResponseReader(resp *http.Response) (io.ReadCloser, error) {
+	switch resp.Header.Get("Content-Encoding") {
+	case "gzip":
+		reader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "reading gzip response")
+			return nil, err
+		}
+
+		return reader, nil
+	default:
+		return resp.Body, nil
 	}
 }
 
