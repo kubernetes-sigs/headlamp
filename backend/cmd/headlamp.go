@@ -41,6 +41,7 @@ import (
 	oidc "github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gobwas/glob"
 	"github.com/google/uuid"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -902,6 +903,40 @@ func processAndWriteProxyResponse(w http.ResponseWriter, resp *http.Response) er
 	}
 
 	return nil
+}
+
+func finalizeHandler(config *HeadlampConfig, router *mux.Router) http.Handler {
+	if config.StaticDir != "" {
+		staticPath := config.StaticDir
+		if isWindows && strings.Contains(config.StaticDir, "/") {
+			staticPath = filepath.FromSlash(config.StaticDir)
+		}
+
+		spa := spaHandler{
+			staticPath: staticPath,
+			indexPath:  "index.html",
+			baseURL:    config.BaseURL,
+		}
+		router.PathPrefix("/").Handler(spa)
+	}
+
+	if config.DevMode {
+		return setupCORS(router)
+	}
+
+	return router
+}
+
+func setupCORS(router *mux.Router) http.Handler {
+	headers := handlers.AllowedHeaders([]string{
+		"X-HEADLAMP_BACKEND-TOKEN", "X-Requested-With", "Content-Type",
+		"Authorization", "Forward-To",
+		"KUBECONFIG", "X-HEADLAMP-USER-ID",
+	})
+	methods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "DELETE", "PATCH", "OPTIONS"})
+	origins := handlers.AllowedOrigins([]string{"*"})
+
+	return handlers.CORS(headers, methods, origins)(router)
 }
 
 func getResponseReader(resp *http.Response) (io.ReadCloser, error) {
