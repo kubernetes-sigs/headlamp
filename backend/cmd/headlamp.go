@@ -542,6 +542,32 @@ func setupOIDCRoutes(router *mux.Router, config *HeadlampConfig) {
 	})
 }
 
+func handleOIDC(
+	config *HeadlampConfig,
+	w http.ResponseWriter,
+	r *http.Request,
+	oauthRequestMap map[string]*OauthConfig,
+) {
+	ctx := createOIDCContext(config)
+	cluster := r.URL.Query().Get("cluster")
+
+	kContext, err := getKubeContext(config, cluster)
+	if err != nil {
+		handleOIDCContextError(w, r, cluster, err)
+		return
+	}
+
+	oidcConfig, err := getOIDCConfig(config, r, kContext, ctx)
+	if err != nil {
+		handleOIDCConfigError(w, cluster, err)
+		return
+	}
+
+	state := createOIDCState(cluster)
+	oauthRequestMap[state] = oidcConfig
+	http.Redirect(w, r, oidcConfig.Config.AuthCodeURL(state), http.StatusFound)
+}
+
 func handleExternalProxy(config *HeadlampConfig, w http.ResponseWriter, r *http.Request) {
 	proxyURL := getProxyURLFromRequest(r)
 	if proxyURL == "" {
