@@ -565,6 +565,104 @@ func handleOIDCCallback(
 	processOIDCCallback(config, w, r, oauthConfig, state)
 }
 
+func writeOIDCError(w http.ResponseWriter, err error, msg string) {
+	if err != nil {
+		msg = fmt.Sprintf("%s: %v", msg, err)
+	}
+
+	http.Error(w, msg, http.StatusBadRequest)
+}
+
+func validateState(state string) error {
+	if _, err := base64.StdEncoding.DecodeString(state); err != nil {
+		return fmt.Errorf("failed to decode state: %w", err)
+	}
+
+	return nil
+}
+
+func getOAuthConfigFromState(
+	state string,
+	oauthRequestMap map[string]*OauthConfig,
+) *OauthConfig {
+	return oauthRequestMap[state]
+}
+
+func processOIDCCallback(
+	config *HeadlampConfig,
+	w http.ResponseWriter,
+	r *http.Request,
+	oauthConfig *OauthConfig,
+	state string,
+) {
+	token, err := exchangeCode(oauthConfig, r)
+	if err != nil {
+		writeOIDCError(w, err, "failed to exchange token")
+		return
+	}
+
+	tokenType := "id_token"
+	if config.oidcUseAccessToken {
+		tokenType = "access_token"
+	}
+
+	rawToken := getRawToken(token, tokenType)
+	if rawToken == "" {
+		writeOIDCError(w, nil, fmt.Sprintf("no %s field", tokenType))
+		return
+	}
+
+	cacheToken(config.cache, rawToken, token.RefreshToken)
+	verifyToken(oauthConfig, rawToken)
+	redirectUser(config, w, r, state, rawToken)
+}
+
+func exchangeCode(oauthConfig *OauthConfig, r *http.Request) (*oauth2.Token, error) {
+	return oauthConfig.Config.Exchange(oauthConfig.Ctx, r.URL.Query().Get("code"))
+}
+
+func getRawToken(token *oauth2.Token, tokenType string) string {
+	rawToken, _ := token.Extra(tokenType).(string)
+	return rawToken
+}
+
+func cacheToken(cache cache.Cache[interface{}], rawToken, refreshToken string) {
+	_ = cache.Set(context.Background(),
+		fmt.Sprintf("oidc-token-%s", rawToken),
+		refreshToken)
+}
+
+func verifyToken(oauthConfig *OauthConfig, rawToken string) {
+	_, _ = oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawToken)
+}
+
+func redirectUser(
+	config *HeadlampConfig,
+	w http.ResponseWriter,
+	r *http.Request,
+	state,
+	rawToken string,
+) {
+	redirectURL := buildRedirectURL(config, state, rawToken)
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+}
+
+func buildRedirectURL(config *HeadlampConfig, state, rawToken string) string {
+	base := "http://localhost:3000/"
+	if !config.DevMode {
+		base = "/"
+	}
+
+	if trimmed := strings.Trim(config.BaseURL, "/"); trimmed != "" {
+		base += trimmed + "/"
+	}
+
+	decodedState, _ := base64.StdEncoding.DecodeString(state)
+
+	return fmt.Sprintf("%sauth?cluster=%s&token=%s",
+		base, decodedState, rawToken)
+}
+
 func handleOIDC(
 	config *HeadlampConfig,
 	w http.ResponseWriter,
