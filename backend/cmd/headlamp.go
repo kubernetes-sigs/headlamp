@@ -419,6 +419,31 @@ func setupPluginHandlers(config *HeadlampConfig) {
 	}
 }
 
+func setupInClusterContext(config *HeadlampConfig) {
+	if config.UseInCluster {
+		context, err := kubeconfig.GetInClusterContext(
+			config.oidcIdpIssuerURL,
+			config.oidcClientID,
+			config.oidcClientSecret,
+			strings.Join(config.oidcScopes, ","),
+		)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
+			return
+		}
+
+		context.Source = kubeconfig.InCluster
+		if err := context.SetupProxy(); err != nil {
+			logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
+			return
+		}
+
+		if err := config.KubeConfigStore.AddContext(context); err != nil {
+			logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+		}
+	}
+}
+
 func parseClusterAndToken(r *http.Request) (string, string) {
 	cluster := ""
 	re := regexp.MustCompile(`^/clusters/([^/]+)/.*`)
