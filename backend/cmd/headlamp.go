@@ -406,14 +406,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 	config.StaticPluginDir = os.Getenv("HEADLAMP_STATIC_PLUGINS_DIR")
 
-	logger.Log(logger.LevelInfo, nil, nil, "Creating Headlamp handler")
-	logger.Log(logger.LevelInfo, nil, nil, "Listen address: "+fmt.Sprintf("%s:%d", config.ListenAddr, config.Port))
-	logger.Log(logger.LevelInfo, nil, nil, "Kubeconfig path: "+kubeConfigPath)
-	logger.Log(logger.LevelInfo, nil, nil, "Static plugin dir: "+config.StaticPluginDir)
-	logger.Log(logger.LevelInfo, nil, nil, "Plugins dir: "+config.PluginDir)
-	logger.Log(logger.LevelInfo, nil, nil, "Dynamic clusters support: "+fmt.Sprint(config.EnableDynamicClusters))
-	logger.Log(logger.LevelInfo, nil, nil, "Helm support: "+fmt.Sprint(config.EnableHelm))
-	logger.Log(logger.LevelInfo, nil, nil, "Proxy URLs: "+fmt.Sprint(config.ProxyURLs))
+	logStartupInfo(config);
 
 	plugins.PopulatePluginsCache(config.StaticPluginDir, config.PluginDir, config.cache)
 
@@ -836,6 +829,18 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	}
 
 	return r
+}
+
+// logStartupInfo logs config information of the Headlamp server.
+func logStartupInfo(config *HeadlampConfig) {
+	logger.Log(logger.LevelInfo, nil, nil, "Creating Headlamp handler")
+	logger.Log(logger.LevelInfo, nil, nil, "Listen address: "+fmt.Sprintf("%s:%d", config.ListenAddr, config.Port))
+	logger.Log(logger.LevelInfo, nil, nil, "Kubeconfig path: "+config.KubeConfigPath)
+	logger.Log(logger.LevelInfo, nil, nil, "Static plugin dir: "+config.StaticPluginDir)
+	logger.Log(logger.LevelInfo, nil, nil, "Plugins dir: "+config.PluginDir)
+	logger.Log(logger.LevelInfo, nil, nil, "Dynamic clusters support: "+fmt.Sprint(config.EnableDynamicClusters))
+	logger.Log(logger.LevelInfo, nil, nil, "Helm support: "+fmt.Sprint(config.EnableHelm))
+	logger.Log(logger.LevelInfo, nil, nil, "Proxy URLs: "+fmt.Sprint(config.ProxyURLs))
 }
 
 func parseClusterAndToken(r *http.Request) (string, string) {
