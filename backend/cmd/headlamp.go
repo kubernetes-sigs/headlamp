@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -566,6 +567,81 @@ func handleOIDC(
 	state := createOIDCState(cluster)
 	oauthRequestMap[state] = oidcConfig
 	http.Redirect(w, r, oidcConfig.Config.AuthCodeURL(state), http.StatusFound)
+}
+
+func createOIDCContext(config *HeadlampConfig) context.Context {
+	ctx := context.Background()
+
+	if config.Insecure {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		}
+		ctx = oidc.ClientContext(ctx, &http.Client{Transport: tr})
+	}
+
+	return ctx
+}
+
+func getKubeContext(config *HeadlampConfig, cluster string) (*kubeconfig.Context, error) {
+	return config.KubeConfigStore.GetContext(cluster)
+}
+
+func handleOIDCContextError(w http.ResponseWriter, r *http.Request, cluster string, err error) {
+	logger.Log(logger.LevelError, map[string]string{"cluster": cluster}, err, "failed to get context")
+	http.NotFound(w, r)
+}
+
+func getOIDCConfig(
+	config *HeadlampConfig,
+	r *http.Request,
+	kContext *kubeconfig.Context,
+	ctx context.Context,
+) (*OauthConfig, error) {
+	oidcAuthConfig, err := kContext.OidcConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get oidc config: %w", err)
+	}
+
+	if config.oidcValidatorIdpIssuerURL != "" {
+		ctx = oidc.InsecureIssuerURLContext(ctx, config.oidcValidatorIdpIssuerURL)
+	}
+
+	provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create provider: %w", err)
+	}
+
+	validatorClientID := getValidatorClientID(config, oidcAuthConfig)
+	verifier := provider.Verifier(&oidc.Config{ClientID: validatorClientID})
+
+	return &OauthConfig{
+		Config: &oauth2.Config{
+			ClientID:     oidcAuthConfig.ClientID,
+			ClientSecret: oidcAuthConfig.ClientSecret,
+			Endpoint:     provider.Endpoint(),
+			RedirectURL:  getOidcCallbackURL(r, config),
+			Scopes:       append([]string{oidc.ScopeOpenID}, oidcAuthConfig.Scopes...),
+		},
+		Verifier: verifier,
+		Ctx:      ctx,
+	}, nil
+}
+
+func handleOIDCConfigError(w http.ResponseWriter, cluster string, err error) {
+	logger.Log(logger.LevelError, map[string]string{"cluster": cluster}, err, "failed to get oidc config")
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+
+func createOIDCState(cluster string) string {
+	return base64.StdEncoding.EncodeToString([]byte(cluster))
+}
+
+func getValidatorClientID(config *HeadlampConfig, oidcAuthConfig *kubeconfig.OidcConfig) string {
+	if config.oidcValidatorClientID != "" {
+		return config.oidcValidatorClientID
+	}
+
+	return oidcAuthConfig.ClientID
 }
 
 func handleExternalProxy(config *HeadlampConfig, w http.ResponseWriter, r *http.Request) {
