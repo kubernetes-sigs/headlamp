@@ -539,6 +539,45 @@ func setupOIDCRoutes(router *mux.Router, config *HeadlampConfig) {
 	})
 }
 
+func handleExternalProxy(config *HeadlampConfig, w http.ResponseWriter, r *http.Request) {
+	proxyURL := getProxyURLFromRequest(r)
+	if proxyURL == "" {
+		handleProxyURLError(w, "proxy URL is empty")
+		return
+	}
+
+	parsedURL, err := parseProxyURL(proxyURL)
+	if err != nil {
+		handleProxyURLError(w, fmt.Sprintf("The provided proxy URL is invalid: %v", err))
+		return
+	}
+
+	if !isURLAllowed(config.ProxyURLs, parsedURL.String()) {
+		handleProxyURLError(w, "no allowed proxy url match, request denied")
+		return
+	}
+
+	proxyReq, err := createProxyRequest(r, proxyURL)
+	if err != nil {
+		handleProxyError(w, err, "creating request", http.StatusInternalServerError)
+		return
+	}
+
+	copyHeaders(r.Header, proxyReq.Header)
+	setNoCacheHeaders(w)
+
+	resp, err := executeProxyRequest(proxyReq)
+	if err != nil {
+		handleProxyError(w, err, "making request", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	if err := processAndWriteProxyResponse(w, resp); err != nil {
+		handleProxyError(w, err, "processing response", http.StatusInternalServerError)
+	}
+}
+
 func setupPortForwardRoutes(router *mux.Router, config *HeadlampConfig) {
 	router.HandleFunc("/portforward", func(w http.ResponseWriter, r *http.Request) {
 		portforward.StartPortForward(config.KubeConfigStore, config.cache, w, r)
