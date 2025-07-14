@@ -444,6 +444,12 @@ func setupInClusterContext(config *HeadlampConfig) {
 	}
 }
 
+func setupStaticFiles(config *HeadlampConfig) {
+	if config.StaticDir != "" {
+		baseURLReplace(config.StaticDir, config.BaseURL)
+	}
+}
+
 func parseClusterAndToken(r *http.Request) (string, string) {
 	cluster := ""
 	re := regexp.MustCompile(`^/clusters/([^/]+)/.*`)
