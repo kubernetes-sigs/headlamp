@@ -395,6 +395,17 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	return finalizeHandler(config, router)
 }
 
+func setupLogger(config *HeadlampConfig) {
+	logger.Log(logger.LevelInfo, nil, nil, "Creating Headlamp handler")
+	logger.Log(logger.LevelInfo, nil, nil, "Listen address: "+fmt.Sprintf("%s:%d", config.ListenAddr, config.Port))
+	logger.Log(logger.LevelInfo, nil, nil, "Kubeconfig path: "+config.KubeConfigPath)
+	logger.Log(logger.LevelInfo, nil, nil, "Static plugin dir: "+config.StaticPluginDir)
+	logger.Log(logger.LevelInfo, nil, nil, "Plugins dir: "+config.PluginDir)
+	logger.Log(logger.LevelInfo, nil, nil, "Dynamic clusters support: "+fmt.Sprint(config.EnableDynamicClusters))
+	logger.Log(logger.LevelInfo, nil, nil, "Helm support: "+fmt.Sprint(config.EnableHelm))
+	logger.Log(logger.LevelInfo, nil, nil, "Proxy URLs: "+fmt.Sprint(config.ProxyURLs))
+}
+
 func parseClusterAndToken(r *http.Request) (string, string) {
 	cluster := ""
 	re := regexp.MustCompile(`^/clusters/([^/]+)/.*`)
