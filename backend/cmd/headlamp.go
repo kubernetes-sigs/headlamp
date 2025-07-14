@@ -543,6 +543,28 @@ func setupOIDCRoutes(router *mux.Router, config *HeadlampConfig) {
 	})
 }
 
+func handleOIDCCallback(
+	config *HeadlampConfig,
+	w http.ResponseWriter,
+	r *http.Request,
+	oauthRequestMap map[string]*OauthConfig,
+) {
+	state := r.URL.Query().Get("state")
+
+	if err := validateState(state); err != nil {
+		writeOIDCError(w, err, "invalid state")
+		return
+	}
+
+	oauthConfig := getOAuthConfigFromState(state, oauthRequestMap)
+	if oauthConfig == nil {
+		writeOIDCError(w, nil, "invalid request")
+		return
+	}
+
+	processOIDCCallback(config, w, r, oauthConfig, state)
+}
+
 func handleOIDC(
 	config *HeadlampConfig,
 	w http.ResponseWriter,
