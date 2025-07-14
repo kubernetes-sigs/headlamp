@@ -450,6 +450,16 @@ func setupStaticFiles(config *HeadlampConfig) {
 	}
 }
 
+func createRouter(config *HeadlampConfig) *mux.Router {
+	if config.BaseURL == "" {
+		return mux.NewRouter()
+	}
+
+	baseRoute := mux.NewRouter()
+
+	return baseRoute.PathPrefix(config.BaseURL).Subrouter()
+}
+
 func parseClusterAndToken(r *http.Request) (string, string) {
 	cluster := ""
 	re := regexp.MustCompile(`^/clusters/([^/]+)/.*`)
