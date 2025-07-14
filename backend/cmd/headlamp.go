@@ -406,6 +406,19 @@ func setupLogger(config *HeadlampConfig) {
 	logger.Log(logger.LevelInfo, nil, nil, "Proxy URLs: "+fmt.Sprint(config.ProxyURLs))
 }
 
+func setupPluginHandlers(config *HeadlampConfig) {
+	plugins.PopulatePluginsCache(config.StaticPluginDir, config.PluginDir, config.cache)
+
+	if !config.UseInCluster || config.WatchPluginsChanges {
+		pluginEventChan := make(chan string)
+		go plugins.Watch(config.PluginDir, pluginEventChan)
+		go plugins.HandlePluginEvents(config.StaticPluginDir, config.PluginDir, pluginEventChan, config.cache)
+
+		skipFunc := kubeconfig.SkipKubeContextInCommaSeparatedString(config.SkippedKubeContexts)
+		go kubeconfig.LoadAndWatchFiles(config.KubeConfigStore, config.KubeConfigPath, kubeconfig.KubeConfig, skipFunc)
+	}
+}
+
 func parseClusterAndToken(r *http.Request) (string, string) {
 	cluster := ""
 	re := regexp.MustCompile(`^/clusters/([^/]+)/.*`)
