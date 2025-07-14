@@ -20,7 +20,7 @@ jobs:
     permissions:
       contents: write # need to write a commit to the repo
       packages: write # need to push chart to ghcr
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
