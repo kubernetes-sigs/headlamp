@@ -25,12 +25,15 @@ import { METRIC_REFETCH_INTERVAL_MS, PodMetrics } from '../../lib/k8s/PodMetrics
 import { parseCpu, parseRam, unparseCpu, unparseRam } from '../../lib/units';
 import { timeAgo } from '../../lib/util';
 import { useNamespaces } from '../../redux/filterSlice';
-import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
+import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
+import ActionButton from '../common/ActionButton';
+import AuthVisible from '../common/AuthVisible';
 import { StatusLabel, StatusLabelProps } from '../common/Label';
 import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { SimpleTableProps } from '../common/SimpleTable';
 import LightTooltip from '../common/Tooltip/TooltipLight';
+import { PodLogViewer } from './Details';
 
 function getPodStatus(pod: Pod) {
   const phase = pod.status.phase;
@@ -161,6 +164,85 @@ export interface PodListProps {
   reflectTableInURL?: SimpleTableProps['reflectInURL'];
   noNamespaceFilter?: boolean;
   errors?: ApiError[] | null;
+}
+
+function PodLogsButton({ pod }: { pod: Pod }) {
+  const [showLogs, setShowLogs] = React.useState(false);
+  const [showPreviousLogs, setShowPreviousLogs] = React.useState(false);
+  const { t } = useTranslation();
+  const dispatchHeadlampEvent = useEventCallback();
+
+  // Check if any container has been restarted (crashed)
+  const hasAnyContainerRestarted = () => {
+    return pod.status?.containerStatuses?.some((container: KubeContainerStatus) =>
+      container.restartCount > 0
+    ) || false;
+  };
+
+  const handleLogsClick = () => {
+    setShowLogs(true);
+    setShowPreviousLogs(false);
+    dispatchHeadlampEvent({
+      type: HeadlampEventType.LOGS,
+      data: {
+        status: EventStatus.OPENED,
+        resource: pod,
+      },
+    });
+  };
+
+  const handlePreviousLogsClick = () => {
+    setShowLogs(true);
+    setShowPreviousLogs(true);
+    dispatchHeadlampEvent({
+      type: HeadlampEventType.LOGS,
+      data: {
+        status: EventStatus.OPENED,
+        resource: pod,
+      },
+    });
+  };
+
+  const handleLogsClose = () => {
+    setShowLogs(false);
+    setShowPreviousLogs(false);
+    dispatchHeadlampEvent({
+      type: HeadlampEventType.LOGS,
+      data: {
+        status: EventStatus.CLOSED,
+        resource: pod,
+      },
+    });
+  };
+
+  return (
+    <>
+      <AuthVisible item={pod} authVerb="get" subresource="log">
+        <ActionButton
+          description={t('translation|Show logs')}
+          icon="mdi:file-document-box-outline"
+          onClick={handleLogsClick}
+        />
+        {hasAnyContainerRestarted() && (
+          <ActionButton
+            description={t('translation|Show previous logs (crashed container)')}
+            icon="mdi:file-document-alert-outline"
+            onClick={handlePreviousLogsClick}
+            color="warning"
+          />
+        )}
+      </AuthVisible>
+      {showLogs && (
+        <PodLogViewer
+          key={`logs-${pod.metadata.uid}`}
+          open={showLogs}
+          item={pod}
+          onClose={handleLogsClose}
+          showPreviousDefault={showPreviousLogs}
+        />
+      )}
+    </>
+  );
 }
 
 export function PodListRenderer(props: PodListProps) {
@@ -371,6 +453,9 @@ export function PodListRenderer(props: PodListProps) {
       data={pods}
       reflectInURL={reflectTableInURL}
       id="headlamp-pods"
+      actions={[
+        (pod: Pod) => <PodLogsButton key={`logs-${pod.metadata.uid}`} pod={pod} />,
+      ]}
     />
   );
 }

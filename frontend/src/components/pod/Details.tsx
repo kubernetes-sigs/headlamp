@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
+import Box from '@mui/material/Box';
 import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import InputLabel from '@mui/material/InputLabel';
@@ -55,12 +57,13 @@ const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
 
 interface PodLogViewerProps extends Omit<LogViewerProps, 'logs'> {
   item: Pod;
+  showPreviousDefault?: boolean;
 }
 
 export function PodLogViewer(props: PodLogViewerProps) {
-  const { item, onClose, open, ...other } = props;
+  const { item, onClose, open, showPreviousDefault = false, ...other } = props;
   const [container, setContainer] = React.useState(getDefaultContainer());
-  const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
+  const [showPrevious, setShowPrevious] = React.useState<boolean>(showPreviousDefault);
   const [showTimestamps, setShowTimestamps] = React.useState<boolean>(true);
   const [follow, setFollow] = React.useState<boolean>(true);
   const [prettifyLogs, setPrettifyLogs] = React.useState<boolean>(false);
@@ -191,6 +194,20 @@ export function PodLogViewer(props: PodLogViewerProps) {
     return cont.restartCount > 0;
   }
 
+  function getContainerStatus() {
+    const cont = item?.status?.containerStatuses?.find(
+      (c: KubeContainerStatus) => c.name === container
+    );
+    return cont;
+  }
+
+  function isPodCrashed() {
+    const containerStatus = getContainerStatus();
+    return containerStatus?.state?.waiting?.reason === 'CrashLoopBackOff' ||
+           containerStatus?.state?.terminated?.reason === 'Error' ||
+           containerStatus?.lastState?.terminated?.reason === 'Error';
+  }
+
   function handleTimestampsChange() {
     setShowTimestamps(timestamps => !timestamps);
   }
@@ -312,30 +329,86 @@ export function PodLogViewer(props: PodLogViewerProps) {
             <MenuItem value={-1}>All</MenuItem>
           </Select>
         </FormControl>,
-        <LightTooltip
-          title={
-            hasContainerRestarted()
-              ? t('translation|Show logs for previous instances of this container.')
-              : t(
-                  'translation|You can only select this option for containers that have been restarted.'
-                )
-          }
-        >
-          <PaddedFormControlLabel
-            label={t('translation|Previous')}
-            disabled={!hasContainerRestarted()}
-            control={
-              <Switch
-                checked={showPrevious}
-                onChange={handlePreviousChange}
-                name="checkPrevious"
-                color="primary"
-                size="small"
-                sx={{ transform: 'scale(0.8)' }}
+        // Enhanced Previous Logs UI
+        hasContainerRestarted() ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <LightTooltip
+              title={
+                isPodCrashed()
+                  ? t('translation|This container has crashed. View previous logs to debug the issue.')
+                  : t('translation|Show logs for previous instances of this container.')
+              }
+            >
+              <PaddedFormControlLabel
+                label={
+                  isPodCrashed()
+                    ? t('translation|Previous Logs (Crashed)')
+                    : t('translation|Previous Logs')
+                }
+                control={
+                  <Switch
+                    checked={showPrevious}
+                    onChange={handlePreviousChange}
+                    name="checkPrevious"
+                    color={isPodCrashed() ? "error" : "warning"}
+                    size="small"
+                    sx={{ transform: 'scale(0.9)' }}
+                  />
+                }
+                sx={{
+                  '& .MuiFormControlLabel-label': {
+                    color: showPrevious
+                      ? (isPodCrashed() ? 'error.main' : 'warning.main')
+                      : 'text.primary',
+                    fontWeight: showPrevious ? 'bold' : 'normal',
+                  },
+                }}
               />
-            }
-          />
-        </LightTooltip>,
+            </LightTooltip>
+            {showPrevious && (
+              <Icon
+                icon={isPodCrashed() ? "mdi:alert-circle" : "mdi:information-outline"}
+                style={{
+                  color: isPodCrashed() ? '#f44336' : '#ff9800',
+                  fontSize: '16px'
+                }}
+                title={
+                  isPodCrashed()
+                    ? t('translation|Viewing logs from crashed container')
+                    : t('translation|Viewing previous container logs')
+                }
+              />
+            )}
+            {isPodCrashed() && !showPrevious && (
+              <LightTooltip title={t('translation|Container has crashed - enable Previous Logs to debug')}>
+                <Icon
+                  icon="mdi:alert"
+                  style={{ color: '#f44336', fontSize: '16px' }}
+                />
+              </LightTooltip>
+            )}
+          </Box>
+        ) : (
+          <LightTooltip
+            title={t(
+              'translation|You can only select this option for containers that have been restarted.'
+            )}
+          >
+            <PaddedFormControlLabel
+              label={t('translation|Previous')}
+              disabled={true}
+              control={
+                <Switch
+                  checked={false}
+                  name="checkPrevious"
+                  color="primary"
+                  size="small"
+                  sx={{ transform: 'scale(0.8)' }}
+                />
+              }
+            />
+          </LightTooltip>
+        ),
         <PaddedFormControlLabel
           label={t('translation|Timestamps')}
           control={
