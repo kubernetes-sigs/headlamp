@@ -421,30 +421,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	logStartupInfo(config)
 	skipFunc := kubeconfig.SkipKubeContextInCommaSeparatedString(config.SkippedKubeContexts)
 	setupPluginHandlers(config, skipFunc)
-
-	// In-cluster
-	if config.UseInCluster {
-		context, err := kubeconfig.GetInClusterContext(config.oidcIdpIssuerURL,
-			config.oidcClientID, config.oidcClientSecret,
-			strings.Join(config.oidcScopes, ","),
-			config.oidcSkipTLSVerify,
-			config.oidcCACert)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
-		}
-
-		context.Source = kubeconfig.InCluster
-
-		err = context.SetupProxy()
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
-		}
-
-		err = config.KubeConfigStore.AddContext(context)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
-		}
-	}
+	setupInClusterContext(config)
 
 	if config.StaticDir != "" {
 		baseURLReplace(config.StaticDir, config.BaseURL)
@@ -842,6 +819,33 @@ func logStartupInfo(config *HeadlampConfig) {
 	logger.Log(logger.LevelInfo, nil, nil, "Dynamic clusters support: "+fmt.Sprint(config.EnableDynamicClusters))
 	logger.Log(logger.LevelInfo, nil, nil, "Helm support: "+fmt.Sprint(config.EnableHelm))
 	logger.Log(logger.LevelInfo, nil, nil, "Proxy URLs: "+fmt.Sprint(config.ProxyURLs))
+}
+
+// setupInClusterContext prepares in-cluster context with OIDC authentication,
+// sets up a proxy and adds it to the kubeconfig store.
+func setupInClusterContext(config *HeadlampConfig) {
+	if config.UseInCluster {
+		context, err := kubeconfig.GetInClusterContext(config.oidcIdpIssuerURL,
+			config.oidcClientID, config.oidcClientSecret,
+			strings.Join(config.oidcScopes, ","),
+			config.oidcSkipTLSVerify,
+			config.oidcCACert)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
+		}
+
+		context.Source = kubeconfig.InCluster
+
+		err = context.SetupProxy()
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
+		}
+
+		err = config.KubeConfigStore.AddContext(context)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+		}
+	}
 }
 
 func parseClusterAndToken(r *http.Request) (string, string) {
