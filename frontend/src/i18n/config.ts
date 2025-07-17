@@ -34,6 +34,7 @@ export const supportedLanguages: { [langCode: string]: string } = {
   ja: '日本語',
   hi: 'हिन्दी',
   ta: 'தமிழ்',
+  bn: 'বাংলা',
 };
 
 i18next
