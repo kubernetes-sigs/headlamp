@@ -157,9 +157,107 @@ const LazyGraphView = React.lazy(() =>
   import('../components/resourceMap/GraphView').then(it => ({ default: it.GraphView }))
 );
 
-const defaultRoutes: {
-  [routeName: string]: Route;
-} = {
+const defaultRoutes: { [routeName: string]: Route } = {
+  projects: {
+    path: '/projects',
+    exact: true,
+    name: 'Projects',
+    sidebar: {
+      item: 'projects',
+      sidebar: DefaultSidebars.HOME,
+    },
+    useClusterURL: false,
+    noAuthRequired: true,
+    component: React.lazy(() => import('../components/project/ProjectList')),
+  },
+  projectsInCluster: {
+    path: '/projects',
+    exact: true,
+    name: 'Projects',
+    sidebar: 'projects',
+    useClusterURL: true,
+    component: React.lazy(() => import('../components/project/ProjectList')),
+  },
+  projectCreate: {
+    path: '/project/create',
+    exact: true,
+    name: 'Create Project',
+    sidebar: {
+      item: 'projects',
+      sidebar: DefaultSidebars.HOME,
+    },
+    useClusterURL: false,
+    noAuthRequired: true,
+    component: React.lazy(() => import('../components/project/ProjectForm')),
+  },
+  projectCreateInCluster: {
+    path: '/project/create',
+    exact: true,
+    name: 'Create Project',
+    sidebar: 'projects',
+    useClusterURL: true,
+    component: React.lazy(() => import('../components/project/ProjectForm')),
+  },
+  projectDetails: {
+    path: '/project/:projectId',
+    exact: true,
+    name: 'Project Details',
+    sidebar: {
+      item: 'projects',
+      sidebar: DefaultSidebars.HOME,
+    },
+    useClusterURL: false,
+    noAuthRequired: true,
+    component: React.lazy(() => import('../components/project/ProjectDetails')),
+  },
+  projectDetailsInCluster: {
+    path: '/project/:projectId',
+    exact: true,
+    name: 'Project Details',
+    sidebar: 'projects',
+    useClusterURL: true,
+    component: React.lazy(() => import('../components/project/ProjectDetails')),
+  },
+  projectEdit: {
+    path: '/project/:projectId/edit',
+    exact: true,
+    name: 'Edit Project',
+    sidebar: {
+      item: 'projects',
+      sidebar: DefaultSidebars.HOME,
+    },
+    useClusterURL: false,
+    noAuthRequired: true,
+    component: React.lazy(() => import('../components/project/ProjectForm')),
+  },
+  projectEditInCluster: {
+    path: '/project/:projectId/edit',
+    exact: true,
+    name: 'Edit Project',
+    sidebar: 'projects',
+    useClusterURL: true,
+    component: React.lazy(() => import('../components/project/ProjectForm')),
+  },
+  projectResources: {
+    path: '/project/:projectId/resources/:category',
+    exact: true,
+    name: 'Project Resources',
+    sidebar: {
+      item: 'projects',
+      sidebar: DefaultSidebars.HOME,
+    },
+    useClusterURL: false,
+    noAuthRequired: true,
+    component: React.lazy(() => import('../components/project/ProjectResourceList')),
+  },
+  projectResourcesInCluster: {
+    path: '/project/:projectId/resources/:category',
+    exact: true,
+    name: 'Project Resources',
+    sidebar: 'projects',
+    useClusterURL: true,
+    component: React.lazy(() => import('../components/project/ProjectResourceList')),
+  },
   cluster: {
     path: '/',
     exact: true,
