@@ -48,8 +48,12 @@ import {
   getPluginBinDirectories,
   PluginManager,
 } from './plugin-management';
-import { handleRunCommand } from './runCmd';
+import { handleRunCommand, runScript } from './runCmd';
 import windowSize from './windowSize';
+
+if (process.env.HEADLAMP_RUN_SCRIPT) {
+  runScript();
+}
 
 dotenv.config({ path: path.join(process.resourcesPath, '.env') });
 

@@ -18,8 +18,10 @@ import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import { app, BrowserWindow, dialog } from 'electron';
 import { IpcMainEvent } from 'electron/main';
 import fs from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import path from 'path';
 import i18n from './i18next.config';
+import { defaultPluginsDir } from './plugin-management';
 
 /**
  * Data sent from the renderer process when a 'run-command' event is emitted.
@@ -165,4 +167,33 @@ export function handleRunCommand(
   child.on('exit', (code: number | null) => {
     event.sender.send('command-exit', eventData.id, code);
   });
+}
+
+/**
+ * Runs a script, using the compiled app, or Electron in dev mode.
+ *
+ * This is needed to run the "scriptjs" commands, as a way of running
+ * node js scripts without requiring node to also be installed.
+ */
+export function runScript() {
+  // If '..' in process.argv[1] or it starts with / or \, then it is not a valid path.
+  if (
+    !process.argv[1] ||
+    process.argv[1].includes('..') ||
+    process.argv[1].startsWith('/') ||
+    process.argv[1].startsWith('\\')
+  ) {
+    console.error(
+      `Invalid script path: ${process.argv[1]}. Must be a relative path within the plugins directory.`
+    );
+    return;
+  }
+
+  const baseDir = path.resolve(defaultPluginsDir());
+  const scriptPath = path.resolve(process.argv[1]);
+  if (!scriptPath.startsWith(baseDir)) {
+    console.error(`Invalid script path: ${scriptPath}. Must be within ${baseDir}.`);
+    return;
+  }
+  import(pathToFileURL(scriptPath).href);
 }
