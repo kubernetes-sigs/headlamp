@@ -23,10 +23,12 @@ import spacetime from 'spacetime';
 export interface TimezoneSelectorProps {
   initialTimezone?: string;
   onChange: (timezone: string) => void;
+  /** The ID to be used when inside a table grid for ARIA labelledby */
+  tableID?: string;
 }
 
 export default function TimezoneSelect(props: TimezoneSelectorProps) {
-  const { onChange, initialTimezone } = props;
+  const { onChange, initialTimezone, tableID } = props;
   const { i18n, t } = useTranslation();
   const timezoneOptions = React.useMemo(() => {
     const timezoneNames = spacetime.timezones();
@@ -51,7 +53,17 @@ export default function TimezoneSelect(props: TimezoneSelectorProps) {
       includeInputInList
       openOnFocus
       renderInput={params => (
-        <TextField {...params} helperText={t('Timezone')} size="small" variant="outlined" />
+        <TextField
+          {...params}
+          helperText={t('Timezone')}
+          size="small"
+          variant="outlined"
+          {...(tableID && {
+            inputProps: {
+              'aria-labelledby': tableID,
+            },
+          })}
+        />
       )}
       onChange={(_ev, value) => onChange(value.name)}
       value={timezoneOptions.find(option => option.name === initialTimezone)}

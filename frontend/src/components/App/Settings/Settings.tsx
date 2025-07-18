@@ -77,6 +77,12 @@ export default function Settings() {
     );
   }, [useEvict]);
 
+  const sidebarLabel = 'sort-sidebar-label';
+  const evictLabel = 'use-evict-label';
+  const tableRowsLabel = 'rows-per-page-label';
+  const timezoneLabel = 'timezone-label';
+  const overviewLabel = 'overview-label';
+
   return (
     <SectionBox
       title={t('translation|General Settings')}
@@ -103,14 +109,17 @@ export default function Settings() {
           {
             name: t('translation|Resource details view'),
             value: <DrawerModeSettings />,
+            nameID: overviewLabel,
           },
           {
             name: t('translation|Number of rows for tables'),
             value: (
               <NumRowsInput
                 defaultValue={storedRowsPerPageOptions || defaultTableRowsPerPageOptions}
+                tableID={tableRowsLabel}
               />
             ),
+            nameID: tableRowsLabel,
           },
           {
             name: t('translation|Timezone to display for dates'),
@@ -119,9 +128,11 @@ export default function Settings() {
                 <TimezoneSelect
                   initialTimezone={selectedTimezone}
                   onChange={name => setSelectedTimezone(name)}
+                  tableID={timezoneLabel}
                 />
               </Box>
             ),
+            nameID: timezoneLabel,
           },
           {
             name: t('translation|Sort sidebar items alphabetically'),
@@ -130,8 +141,12 @@ export default function Settings() {
                 color="primary"
                 checked={sortSidebar}
                 onChange={e => setSortSidebar(e.target.checked)}
+                inputProps={{
+                  'aria-labelledby': sidebarLabel,
+                }}
               />
             ),
+            nameID: sidebarLabel,
           },
           {
             name: t('translation|Use evict for pod deletion'),
@@ -140,8 +155,12 @@ export default function Settings() {
                 color="primary"
                 checked={useEvict}
                 onChange={e => setUseEvict(e.target.checked)}
+                inputProps={{
+                  'aria-labelledby': evictLabel,
+                }}
               />
             ),
+            nameID: evictLabel,
           },
         ]}
       />

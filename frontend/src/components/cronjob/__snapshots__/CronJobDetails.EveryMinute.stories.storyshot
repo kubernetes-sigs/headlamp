@@ -155,7 +155,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Name
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Name
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -169,7 +173,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Namespace
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Namespace
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -184,7 +192,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Creation
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Creation
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -198,7 +210,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Schedule
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Schedule
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -214,7 +230,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Suspend
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Suspend
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -228,7 +248,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
                   >
-                    Last Schedule
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Last Schedule
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"

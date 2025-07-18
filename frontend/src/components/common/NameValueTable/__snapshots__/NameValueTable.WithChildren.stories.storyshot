@@ -6,7 +6,11 @@
       <dt
         class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
       >
-        MyName0
+        <p
+          class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+        >
+          MyName0
+        </p>
       </dt>
       <dd
         class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -20,7 +24,11 @@
       <dt
         class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
       >
-        MyName1
+        <p
+          class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+        >
+          MyName1
+        </p>
       </dt>
       <dd
         class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -34,7 +42,11 @@
       <dt
         class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
       >
-        MyName2
+        <p
+          class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+        >
+          MyName2
+        </p>
       </dt>
       <dd
         class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"

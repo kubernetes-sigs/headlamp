@@ -140,13 +140,14 @@ const OptionButton = ({
   </Button>
 );
 
-export default function DrawerModeSettings() {
+export default function DrawerModeSettings(props: { tableID?: string }) {
   const dispatch = useDispatch();
+  const { tableID } = props;
 
   const isDrawerEnabled = useTypedSelector(state => state.drawerMode.isDetailDrawerEnabled);
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex' }} {...(tableID && { 'aria-labelledby': tableID })}>
       <OptionButton active={isDrawerEnabled} onClick={() => dispatch(setDetailDrawerEnabled(true))}>
         <OverlayPreview variant="overlay" />
         <Trans>Window</Trans>

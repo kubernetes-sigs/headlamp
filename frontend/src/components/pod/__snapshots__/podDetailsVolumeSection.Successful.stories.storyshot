@@ -32,12 +32,20 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 css-pxyi5o-MuiGrid-root"
           >
-            ca-certs
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              ca-certs
+            </p>
           </dt>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Kind
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Kind
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -51,7 +59,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Source
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Source
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -65,7 +77,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            path
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              path
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -79,7 +95,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
           >
-            type
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              type
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
@@ -97,12 +117,20 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 css-pxyi5o-MuiGrid-root"
           >
-            etc-ca-certificates
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              etc-ca-certificates
+            </p>
           </dt>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Kind
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Kind
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -116,7 +144,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Source
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Source
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -130,7 +162,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            path
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              path
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -144,7 +180,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
           >
-            type
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              type
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
@@ -162,12 +202,20 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 css-pxyi5o-MuiGrid-root"
           >
-            flexvolume-dir
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              flexvolume-dir
+            </p>
           </dt>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Kind
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Kind
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -181,7 +229,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Source
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Source
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -195,7 +247,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            path
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              path
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -209,7 +265,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
           >
-            type
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              type
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
@@ -227,12 +287,20 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 css-pxyi5o-MuiGrid-root"
           >
-            k8s-certs
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              k8s-certs
+            </p>
           </dt>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Kind
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Kind
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -246,7 +314,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Source
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Source
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -260,7 +332,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            path
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              path
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -274,7 +350,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
           >
-            type
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              type
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
@@ -292,12 +372,20 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 css-pxyi5o-MuiGrid-root"
           >
-            kubeconfig
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              kubeconfig
+            </p>
           </dt>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Kind
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Kind
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -311,7 +399,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Source
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Source
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -325,7 +417,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            path
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              path
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -339,7 +435,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
           >
-            type
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              type
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
@@ -357,12 +457,20 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 css-pxyi5o-MuiGrid-root"
           >
-            usr-local-share-ca-certificates
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              usr-local-share-ca-certificates
+            </p>
           </dt>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Kind
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Kind
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -376,7 +484,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Source
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Source
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -390,7 +502,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            path
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              path
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -404,7 +520,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
           >
-            type
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              type
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
@@ -422,12 +542,20 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 css-pxyi5o-MuiGrid-root"
           >
-            usr-share-ca-certificates
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              usr-share-ca-certificates
+            </p>
           </dt>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Kind
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Kind
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -441,7 +569,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Source
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Source
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -455,7 +587,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            path
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              path
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -469,7 +605,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
           >
-            type
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              type
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"

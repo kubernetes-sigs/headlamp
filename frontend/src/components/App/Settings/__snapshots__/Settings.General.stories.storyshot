@@ -73,7 +73,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Language
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Language
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -134,7 +138,12 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Resource details view
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+              id="overview-label"
+            >
+              Resource details view
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -203,7 +212,12 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Number of rows for tables
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+              id="rows-per-page-label"
+            >
+              Number of rows for tables
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -212,6 +226,7 @@
               class="MuiFormControl-root css-1nrlq1o-MuiFormControl-root"
             >
               <div
+                aria-labelledby="rows-per-page-label"
                 class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall  css-uwmwwo-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
                 style="width: 100px;"
               >
@@ -219,6 +234,7 @@
                   aria-controls=":mock-test-id:"
                   aria-expanded="false"
                   aria-haspopup="listbox"
+                  aria-labelledby="rows-per-page-label"
                   class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
                   role="combobox"
                   tabindex="0"
@@ -263,7 +279,12 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Timezone to display for dates
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+              id="timezone-label"
+            >
+              Timezone to display for dates
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -281,16 +302,11 @@
                     class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
                   >
                     <input
-                      aria-autocomplete="both"
                       aria-describedby="cluster-selector-autocomplete-helper-text"
-                      aria-expanded="false"
                       aria-invalid="false"
-                      autocapitalize="none"
-                      autocomplete="off"
-                      class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                      aria-labelledby="timezone-label"
+                      class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
                       id="cluster-selector-autocomplete"
-                      role="combobox"
-                      spellcheck="false"
                       type="text"
                       value=""
                     />
@@ -348,7 +364,12 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Sort sidebar items alphabetically
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+              id="sort-sidebar-label"
+            >
+              Sort sidebar items alphabetically
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -360,6 +381,7 @@
                 class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
               >
                 <input
+                  aria-labelledby="sort-sidebar-label"
                   class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
                   type="checkbox"
                 />
@@ -378,7 +400,12 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
           >
-            Use evict for pod deletion
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+              id="use-evict-label"
+            >
+              Use evict for pod deletion
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
@@ -390,6 +417,7 @@
                 class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
               >
                 <input
+                  aria-labelledby="use-evict-label"
                   checked=""
                   class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
                   type="checkbox"
