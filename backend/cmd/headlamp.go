@@ -59,12 +59,11 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/oauth2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
-
-	"golang.org/x/oauth2"
 )
 
 type HeadlampConfig struct {
@@ -100,6 +99,8 @@ const (
 	// TokenCacheFileName is the name of the token cache file.
 	TokenCacheFileName = "headlamp-token-cache"
 )
+
+var k8scache = cache.New[string]()
 
 type clientConfig struct {
 	Clusters                []Cluster `json:"clusters"`
@@ -1350,35 +1351,11 @@ func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 	http.Error(w, err.Error(), status)
 }
 
-// handleClusterAPI handles cluster API requests. It is responsible for
-// all the requests made to /clusters/{clusterName}/{api:.*} endpoint.
-// It parses the request and creates a proxy request to the cluster.
-// That proxy is saved in the cache with the context key.
-func handleClusterAPI(c *HeadlampConfig, router *mux.Router) { //nolint:funlen
-	router.PathPrefix("/clusters/{clusterName}/{api:.*}").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		ctx := r.Context()
-
-		ctx, span := telemetry.CreateSpan(ctx, r, "cluster-api", "handleClusterAPI",
-			attribute.String("cluster", mux.Vars(r)["clusterName"]),
-		)
-		defer span.End()
-
-		c.telemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", mux.Vars(r)["clusterName"]))
-		c.telemetryHandler.RecordEvent(span, "Cluster API request started")
-
-		// A deferred function to record duration metrics & log the request completion
-		defer recordRequestCompletion(c, ctx, start, r)
-
-		contextKey, err := c.getContextKeyForRequest(r)
+func clusterRequestHandler(c *HeadlampConfig) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span, contextKey, kContext, err := GetContextKeyAndKContext(w, r, c)
 		if err != nil {
-			c.handleError(w, ctx, span, err, "failed to get context key", http.StatusBadRequest)
-			return
-		}
-
-		kContext, err := c.KubeConfigStore.GetContext(contextKey)
-		if err != nil {
-			c.handleError(w, ctx, span, err, "failed to get context", http.StatusNotFound)
+			c.handleError(w, ctx, span, err, "error while retrieving context and kContext", http.StatusBadRequest)
 			return
 		}
 
@@ -1425,6 +1402,24 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) { //nolint:funlen
 			c.telemetryHandler.RecordEvent(span, "Cluster API request completed")
 		}
 	})
+}
+
+// handleClusterAPI handles cluster API requests. It is responsible for
+// all the requests made to /clusters/{clusterName}/{api:.*} endpoint.
+// It parses the request and creates a proxy request to the cluster.
+// That proxy is saved in the cache with the context key.
+func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
+	clusterAPIrequest := clusterRequestHandler(c)
+
+	handler := clusterAPIrequest
+
+	cacheMiddleware := CacheMiddleWare(c)
+
+	if c.CacheEnabled {
+		handler = cacheMiddleware(handler)
+	}
+
+	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(handler)
 }
 
 func recordRequestCompletion(c *HeadlampConfig, ctx context.Context,

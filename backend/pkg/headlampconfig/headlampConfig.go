@@ -9,6 +9,7 @@ type HeadlampCFG struct {
 	UseInCluster          bool
 	ListenAddr            string
 	DevMode               bool
+	CacheEnabled          bool
 	Insecure              bool
 	EnableHelm            bool
 	EnableDynamicClusters bool
