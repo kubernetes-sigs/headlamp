@@ -242,5 +242,6 @@
   "Reinvocation Policy": "Wiederanrufungsrichtlinie",
   "API Versions": "API-Versionen",
   "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}": "RollingUpdate. Max Unavailable: {{ maxUnavailable }}, maxSurge: {{ maxSurge }}",
-  "Strategy Type": "Strategie-Typ"
+  "Strategy Type": "Strategie-Typ",
+  "cores": "kerne"
 }

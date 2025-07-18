@@ -520,5 +520,6 @@
   "\"{{metricName}}\" on pods": "\"{{metricName}}\" em pods",
   "resource {{resourceName}} on pods": "resource {{resourceName}} em pods",
   "resource {{resourceName}} of container {{containerName}} on pods": "resource {{resourceName}} do container {{containerName}} em pods",
-  "Warning. Incompatible plugins disabled: ({{ pluginList }})": "Aviso. Plugins incompatíveis desactivados: ({{ pluginList }})"
+  "Warning. Incompatible plugins disabled: ({{ pluginList }})": "Aviso. Plugins incompatíveis desactivados: ({{ pluginList }})",
+  "This value may differ in the container, since the pod is older than {{from}}": "Este valor pode diferir no contêiner, pois o pod é mais antigo que {{from}}"
 }

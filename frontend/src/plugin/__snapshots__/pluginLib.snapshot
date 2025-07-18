@@ -16125,9 +16125,8 @@
     "normalizeUnit": [Function],
     "timeAgo": [Function],
     "units": {
-      "TO_GB": 1073741824,
-      "TO_ONE_CPU": 1000000000,
-      "TO_ONE_M_CPU": 1000000,
+      "divideK8sResources": [Function],
+      "formatMetricValueUnit": [Function],
       "parseCpu": [Function],
       "parseDiskSpace": [Function],
       "parseRam": [Function],

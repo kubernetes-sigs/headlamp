@@ -519,5 +519,6 @@
   "resource {{resourceName}} on pods": "資源 {{resourceName}} 在 pods",
   "resource {{resourceName}} of container {{containerName}} on pods": "容器 {{containerName}} 的資源 {{resourceName}} 在 pods",
   "Warning. Incompatible plugins disabled: ({{ pluginList }})": "警告。不相容的外掛已禁用：（{{ pluginList }}）",
-  "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_one": "{{ eventDate }} (自 {{ firstEventDate }} 起 {{ count }} 次)"
+  "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_one": "{{ eventDate }} (自 {{ firstEventDate }} 起 {{ count }} 次)",
+  "This value may differ in the container, since the pod is older than {{from}}": "此值在容器中可能不同，因為 pod 比 {{from}} 更舊"
 }
