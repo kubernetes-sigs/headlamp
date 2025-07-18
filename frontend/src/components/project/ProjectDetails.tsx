@@ -28,13 +28,16 @@ import {
   CardContent,
   Chip,
   Divider,
-  Tab,
-  Tabs,
   IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  ListItemButton,
 } from '@mui/material';
 import { Icon } from '@iconify/react';
 import LightTooltip from '../common/Tooltip/TooltipLight';
@@ -55,6 +58,15 @@ import Secret from '../../lib/k8s/secret';
 import Ingress from '../../lib/k8s/ingress';
 import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../lib/k8s/pod';
+import ScaleButton from '../common/Resource/ScaleButton';
+import ReplicaSet from '../../lib/k8s/replicaSet';
+import { DeleteButton } from '../common/Resource';
+import ActionButton from '../common/ActionButton';
+import AuthVisible from '../common/Resource/AuthVisible';
+import { Activity } from '../activity/Activity';
+import Terminal from '../common/Terminal';
+import { PodLogViewer } from '../pod/Details';
+import Link from '../common/Link';
 
 interface ProjectDetailsParams {
   projectId: string;
@@ -92,7 +104,8 @@ export default function ProjectDetails() {
   const dispatch = useDispatch();
   const { projectId } = useParams<ProjectDetailsParams>();
 
-  const [activeTab, setActiveTab] = useState(0);
+  const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null);
+  const resourceListRef = React.useRef<HTMLDivElement>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const projectsState = useTypedSelector(state => state.projects.projects);
@@ -127,6 +140,18 @@ export default function ProjectDetails() {
     );
   }
 
+  const handleCategorySelect = (category: string) => {
+    const newCategory = category.toLowerCase();
+    if (selectedCategory === newCategory) {
+      setSelectedCategory(null);
+    } else {
+      setSelectedCategory(newCategory);
+      setTimeout(() => {
+        resourceListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  };
+
   const allResources = [
     ...(deployments || []),
     ...(services || []),
@@ -150,10 +175,6 @@ export default function ProjectDetails() {
   const handleDelete = () => {
     dispatch(deleteProject(projectId));
     history.push(createRouteURL('projects'));
-  };
-
-  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
-    setActiveTab(newValue);
   };
 
   const getResourcesByKind = (kind: string) => {
@@ -321,30 +342,34 @@ export default function ProjectDetails() {
       icon: 'mdi:apps',
       kinds: ['Deployment', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'Pod'],
       description: 'Applications and compute resources',
-      scalingNotice: 'Workloads can be scaled up or down based on demand'
     },
     {
       category: 'Networking',
       icon: 'mdi:network',
       kinds: ['Service', 'Ingress'],
       description: 'Network connectivity and exposure',
-      scalingNotice: 'Network resources typically scale with workloads'
     },
     {
       category: 'Configuration',
       icon: 'mdi:cog',
       kinds: ['ConfigMap', 'Secret'],
       description: 'Configuration data and secrets',
-      scalingNotice: 'Configuration resources are usually static'
     },
     {
       category: 'Storage',
       icon: 'mdi:database',
       kinds: ['PersistentVolumeClaim'],
       description: 'Persistent data storage',
-      scalingNotice: 'Storage can be expanded but rarely shrunk'
-    }
+    },
   ];
+
+  const listCategoryInfo = selectedCategory
+    ? resourceCategories.find(c => c.category.toLowerCase() === selectedCategory)
+    : null;
+
+  const categoryResources = listCategoryInfo
+    ? projectResources.filter(resource => listCategoryInfo.kinds.includes(resource.kind))
+    : [];
 
   return (
     <Box pt={2}>
@@ -379,8 +404,8 @@ export default function ProjectDetails() {
 
         <Grid container spacing={3}>
           {/* Project Overview */}
-          <Grid item xs={12} md={4}>
-            <Card>
+          <Grid item xs={12} md={5}>
+            <Card sx={{ height: '100%' }}>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
                   {t('Project Overview')}
@@ -512,182 +537,366 @@ export default function ProjectDetails() {
           </Grid>
 
           {/* Resource Statistics */}
-          <Grid item xs={12} md={8}>
-            <Card>
+          <Grid item xs={12} md={7}>
+            <Card sx={{ height: '100%' }}>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
                   {t('Resource Categories')}
                 </Typography>
 
-                <Grid container spacing={2}>
-                  {resourceCategories
-                    .filter(({ kinds }) => kinds.some(kind => getResourcesByKind(kind).length > 0))
-                    .map(({ category, icon, kinds, description, scalingNotice }) => {
-                      // Calculate totals for this category
-                      let totalCount = 0;
-                      let totalHealthy = 0;
-                      let totalUnhealthy = 0;
-                      let totalWarning = 0;
+                <List>
+                  {resourceCategories.map(({ category, icon, kinds, description }) => {
+                    // Calculate totals for this category
+                    let totalCount = 0;
+                    let totalHealthy = 0;
+                    let totalUnhealthy = 0;
+                    let totalWarning = 0;
 
-                      kinds.forEach(kind => {
-                        const resources = getResourcesByKind(kind);
-                        totalCount += resources.length;
+                    kinds.forEach(kind => {
+                      const resources = getResourcesByKind(kind);
+                      totalCount += resources.length;
 
-                        if (resources.length > 0) {
-                          const { healthyCount, unhealthyCount, warningCount } = calculateResourceHealth(kind, resources);
-                          totalHealthy += healthyCount;
-                          totalUnhealthy += unhealthyCount;
-                          totalWarning += warningCount;
-                        }
-                      });
+                      if (resources.length > 0) {
+                        const { healthyCount, unhealthyCount, warningCount } =
+                          calculateResourceHealth(kind, resources);
+                        totalHealthy += healthyCount;
+                        totalUnhealthy += unhealthyCount;
+                        totalWarning += warningCount;
+                      }
+                    });
 
-                      const healthColor = totalUnhealthy > 0 ? 'error.main' :
-                                        totalWarning > 0 ? 'warning.main' :
-                                        totalCount > 0 ? 'success.main' : 'grey.500';
+                    const healthColor =
+                      totalUnhealthy > 0
+                        ? 'error.main'
+                        : totalWarning > 0
+                        ? 'warning.main'
+                        : totalCount > 0
+                        ? 'success.main'
+                        : 'grey.500';
 
-                      const hasUnhealthyResources = totalUnhealthy > 0 || totalWarning > 0;
-                      const healthIcon = totalUnhealthy > 0 ? 'mdi:alert-circle' :
-                                        totalWarning > 0 ? 'mdi:alert' : 'mdi:check-circle';
+                    const healthIcon =
+                      totalUnhealthy > 0
+                        ? 'mdi:alert-circle'
+                        : totalWarning > 0
+                        ? 'mdi:alert'
+                        : 'mdi:check-circle';
 
-                      return (
-                        <Grid item xs={12} sm={6} md={6} key={category}>
-                          <LightTooltip title={totalCount > 0 ? t('Click to view {{category}} resources', { category }) : ''}>
-                            <Paper
-                              variant="outlined"
+                    return (
+                      <ListItem
+                        key={category}
+                        disablePadding
+                        secondaryAction={
+                          <Box display="flex" alignItems="center" gap={0.5}>
+                            <Typography
+                              variant="h6"
                               sx={{
-                                p: 2,
-                                cursor: totalCount > 0 ? 'pointer' : 'default',
-                                borderColor: totalCount > 0 ? healthColor : 'grey.300',
-                                borderWidth: totalCount > 0 ? 2 : 1,
-                                '&:hover': totalCount > 0 ? {
-                                  bgcolor: 'action.hover',
-                                  boxShadow: 2,
-                                  transform: 'translateY(-1px)',
-                                  transition: 'all 0.2s ease-in-out'
-                                } : {},
-                                transition: 'all 0.2s ease-in-out'
-                              }}
-                              onClick={() => {
-                                if (totalCount > 0) {
-                                  history.push(createRouteURL('projectResources', {
-                                    projectId,
-                                    category: category.toLowerCase()
-                                  }));
-                                }
+                                color: totalCount > 0 ? healthColor : 'text.primary',
+                                lineHeight: 1,
                               }}
                             >
-                            <Box display="flex" alignItems="flex-start" gap={2}>
-                              <Box display="flex" alignItems="center" justifyContent="center" p={1}>
-                                <Icon icon={icon} style={{ fontSize: 32 }} />
-                              </Box>
-
-                              <Box flex={1}>
-                                <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
-                                  <Typography variant="h6" component="div">
-                                    {category}
-                                  </Typography>
-                                  <Box display="flex" alignItems="center" gap={0.5}>
-                                    <Typography variant="h6" sx={{
-                                      color: totalCount > 0 ? healthColor : 'text.primary',
-                                      lineHeight: 1
-                                    }}>
-                                      {totalCount > 0 ? (
-                                        hasUnhealthyResources ? `${totalHealthy}/${totalCount}` : totalCount
-                                      ) : totalCount}
-                                    </Typography>
-                                    {totalCount > 0 && (
-                                      <Icon
-                                        icon={healthIcon}
-                                        style={{
-                                          fontSize: 20,
-                                          color: healthColor,
-                                          display: 'flex',
-                                          alignItems: 'center'
-                                        }}
-                                      />
-                                    )}
-                                  </Box>
-                                </Box>
-
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                  {description}
-                                </Typography>
-
-                                <Typography variant="caption" color="text.secondary" sx={{
-                                  fontStyle: 'italic',
-                                  display: 'block',
-                                  fontSize: '0.75rem'
-                                }}>
-                                  💡 {scalingNotice}
-                                </Typography>
-
-                                {totalCount > 0 && (
-                                  <Box mt={1}>
-                                    <Typography variant="body2" color="text.secondary">
-                                      {kinds
-                                        .filter(kind => getResourcesByKind(kind).length > 0)
-                                        .map(kind => `${getResourcesByKind(kind).length} ${kind}${getResourcesByKind(kind).length !== 1 ? 's' : ''}`)
-                                        .join(', ')}
-                                    </Typography>
-                                  </Box>
-                                )}
-                              </Box>
-                            </Box>
-                          </Paper>
-                          </LightTooltip>
-                        </Grid>
-                      );
-                    })}
-                </Grid>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {/* Resource Details */}
-          <Grid item xs={12}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  {t('Resource Overview')}
-                </Typography>
-
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  {t('Total resources matching this project: {{count}}', { count: projectResources.length })}
-                </Typography>
-
-                {projectResources.length > 0 && (
-                  <Box mt={2}>
-                    <Grid container spacing={2}>
-                      {resourceCategories.map(({ category, kinds }) => {
-                        const categoryResources = kinds.flatMap(kind => getResourcesByKind(kind));
-                        if (categoryResources.length === 0) return null;
-
-                        return (
-                          <Grid item xs={12} sm={6} md={3} key={category}>
-                            <Box>
-                              <Typography variant="subtitle2" color="primary" gutterBottom>
-                                {category}
-                              </Typography>
-                              {kinds.map(kind => {
-                                const resources = getResourcesByKind(kind);
-                                if (resources.length === 0) return null;
-                                return (
-                                  <Typography key={kind} variant="body2" color="text.secondary">
-                                    {resources.length} {kind}{resources.length !== 1 ? 's' : ''}
-                                  </Typography>
-                                );
-                              })}
-                            </Box>
-                          </Grid>
-                        );
-                      })}
-                    </Grid>
-                  </Box>
-                )}
+                              {totalCount}
+                            </Typography>
+                            {totalCount > 0 && (
+                              <Icon
+                                icon={healthIcon}
+                                style={{
+                                  fontSize: 20,
+                                  color: healthColor,
+                                }}
+                              />
+                            )}
+                          </Box>
+                        }
+                      >
+                        <ListItemButton
+                          onClick={() => handleCategorySelect(category)}
+                          selected={selectedCategory === category.toLowerCase()}
+                        >
+                          <ListItemIcon>
+                            <Icon icon={icon} style={{ fontSize: 32 }} />
+                          </ListItemIcon>
+                          <ListItemText primary={category} secondary={description} />
+                        </ListItemButton>
+                      </ListItem>
+                    );
+                  })}
+                </List>
               </CardContent>
             </Card>
           </Grid>
         </Grid>
+
+        <div ref={resourceListRef} style={{ minHeight: '20px' }} />
+
+        {selectedCategory && listCategoryInfo && (
+          <Box mt={4}>
+            <SectionBox
+              title={
+                <Box
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="space-between"
+                  width="100%"
+                >
+                  <Typography variant="h5">{listCategoryInfo.category}</Typography>
+                  <IconButton onClick={() => setSelectedCategory(null)} size="small">
+                    <Icon icon="mdi:close" />
+                  </IconButton>
+                </Box>
+              }
+            >
+              {categoryResources.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  {t('No {{category}} resources found for this project.', {
+                    category: listCategoryInfo.category.toLowerCase(),
+                  })}
+                </Typography>
+              ) : (
+                <Box>
+                  {listCategoryInfo.kinds.map(kind => {
+                    const kindResources = categoryResources.filter(r => r.kind === kind);
+                    if (kindResources.length === 0) return null;
+
+                    return (
+                      <Box key={kind} mb={3}>
+                        <Typography variant="subtitle1" gutterBottom>
+                          {kind} ({kindResources.length})
+                        </Typography>
+                        <Box display="flex" flexDirection="column" gap={1}>
+                          {kindResources.map((resource, index) => {
+                            // Calculate health for this specific resource
+                            let healthColor = 'success.main';
+                            let healthIcon = 'mdi:check-circle';
+                            let healthText = 'Healthy';
+
+                            if (kind === 'Deployment') {
+                              const deployment = resource as Deployment;
+                              const spec = deployment.spec;
+                              const status = deployment.status;
+                              if (status?.readyReplicas === 0) {
+                                healthColor = 'error.main';
+                                healthIcon = 'mdi:alert-circle';
+                                healthText = 'Unhealthy';
+                              } else if ((status?.readyReplicas || 0) < (spec?.replicas || 0)) {
+                                healthColor = 'warning.main';
+                                healthIcon = 'mdi:alert';
+                                healthText = 'Degraded';
+                              }
+                            } else if (kind === 'StatefulSet') {
+                              const statefulSet = resource as StatefulSet;
+                              const spec = statefulSet.spec;
+                              const status = statefulSet.status;
+                              if (status?.readyReplicas === 0) {
+                                healthColor = 'error.main';
+                                healthIcon = 'mdi:alert-circle';
+                                healthText = 'Unhealthy';
+                              } else if ((status?.readyReplicas || 0) < (spec?.replicas || 0)) {
+                                healthColor = 'warning.main';
+                                healthIcon = 'mdi:alert';
+                                healthText = 'Degraded';
+                              }
+                            } else if (kind === 'DaemonSet') {
+                              const daemonSet = resource as DaemonSet;
+                              const status = daemonSet.status;
+                              if (status?.numberReady === 0) {
+                                healthColor = 'error.main';
+                                healthIcon = 'mdi:alert-circle';
+                                healthText = 'Unhealthy';
+                              } else if (
+                                (status?.numberReady || 0) <
+                                (status?.desiredNumberScheduled || 0)
+                              ) {
+                                healthColor = 'warning.main';
+                                healthIcon = 'mdi:alert';
+                                healthText = 'Degraded';
+                              }
+                            } else if (kind === 'Pod') {
+                              const pod = resource as Pod;
+                              const phase = pod.status?.phase;
+                              const conditions = pod.status?.conditions || [];
+                              const ready =
+                                conditions.find((c: any) => c.type === 'Ready')?.status === 'True';
+
+                              if (phase === 'Failed' || phase === 'CrashLoopBackOff') {
+                                healthColor = 'error.main';
+                                healthIcon = 'mdi:alert-circle';
+                                healthText = 'Failed';
+                              } else if (phase === 'Pending' || !ready) {
+                                healthColor = 'warning.main';
+                                healthIcon = 'mdi:alert';
+                                healthText = 'Pending';
+                              }
+                            }
+
+                            const createdDate = resource.metadata?.creationTimestamp
+                              ? new Date(resource.metadata.creationTimestamp)
+                              : null;
+                            const ageText = createdDate
+                              ? Math.floor(
+                                  (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24)
+                                ) + 'd'
+                              : 'Unknown';
+                            const isScalable = ['Deployment', 'StatefulSet', 'ReplicaSet'].includes(
+                              kind
+                            );
+                            const isPod = kind === 'Pod';
+
+                            return (
+                              <Box
+                                key={`${
+                                  resource.metadata?.namespace || 'default'
+                                }-${resource.metadata?.name}-${index}`}
+                                p={2}
+                                border={1}
+                                borderColor="divider"
+                                borderRadius={1}
+                                sx={{
+                                  '&:hover': { bgcolor: 'action.hover' },
+                                }}
+                              >
+                                <Box
+                                  display="flex"
+                                  justifyContent="space-between"
+                                  alignItems="center"
+                                >
+                                  <Box flex={1}>
+                                    <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                                      <Link kubeObject={resource}>
+                                        <Typography variant="body1" fontWeight="medium" component="span">
+                                          {resource.metadata?.name}
+                                        </Typography>
+                                      </Link>
+                                      <Icon
+                                        icon={healthIcon}
+                                        style={{
+                                          fontSize: 16,
+                                          color: healthColor,
+                                        }}
+                                      />
+                                      <Typography variant="caption" sx={{ color: healthColor }}>
+                                        {healthText}
+                                      </Typography>
+                                    </Box>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {resource.metadata?.namespace &&
+                                        `Namespace: ${resource.metadata.namespace}`}
+                                      {resource.metadata?.namespace && ' • '}
+                                      Cluster: {resource.cluster || 'default'}
+                                      {['Deployment', 'StatefulSet', 'ReplicaSet'].includes(
+                                        kind
+                                      ) &&
+                                        resource.status &&
+                                        ` • Replicas: ${
+                                          resource.status.readyReplicas ||
+                                          resource.status.availableReplicas ||
+                                          0
+                                        }/${resource.spec?.replicas || 0}`}
+                                      {kind === 'DaemonSet' &&
+                                        resource.status &&
+                                        ` • Ready: ${resource.status.numberReady || 0}/${
+                                          resource.status.desiredNumberScheduled || 0
+                                        }`}
+                                      {kind === 'Pod' &&
+                                        resource.status?.phase &&
+                                        ` • Phase: ${resource.status.phase}`}
+                                    </Typography>
+                                  </Box>
+                                  <Box textAlign="right" display="flex" alignItems="center" gap={1}>
+                                    {isScalable && (
+                                      <ScaleButton
+                                        item={
+                                          resource as Deployment | StatefulSet | ReplicaSet
+                                        }
+                                      />
+                                    )}
+                                    {isPod && (
+                                      <>
+                                        <AuthVisible item={resource} authVerb="get" subresource="log">
+                                          <ActionButton
+                                            description={t('Show Logs')}
+                                            icon="mdi:file-document-box-outline"
+                                            onClick={() => {
+                                              Activity.launch({
+                                                id: 'logs-' + resource.metadata.uid,
+                                                title: t('Logs') + ': ' + resource.metadata.name,
+                                                cluster: resource.cluster,
+                                                icon: (
+                                                  <Icon
+                                                    icon="mdi:file-document-box-outline"
+                                                    width="100%"
+                                                    height="100%"
+                                                  />
+                                                ),
+                                                location: 'full',
+                                                content: (
+                                                  <PodLogViewer
+                                                    noDialog
+                                                    open
+                                                    item={resource as Pod}
+                                                    onClose={() => {}}
+                                                  />
+                                                ),
+                                              });
+                                            }}
+                                          />
+                                        </AuthVisible>
+                                        <AuthVisible
+                                          item={resource}
+                                          authVerb="create"
+                                          subresource="exec"
+                                        >
+                                          <ActionButton
+                                            description={t('Terminal / Exec')}
+                                            icon="mdi:console"
+                                            onClick={() => {
+                                              Activity.launch({
+                                                id: 'terminal-' + resource.metadata.uid,
+                                                title: resource.metadata.name,
+                                                cluster: resource.cluster,
+                                                icon: (
+                                                  <Icon
+                                                    icon="mdi:console"
+                                                    width="100%"
+                                                    height="100%"
+                                                  />
+                                                ),
+                                                location: 'full',
+                                                content: (
+                                                  <Terminal
+                                                    item={resource as Pod}
+                                                    onClose={() => {
+                                                      /*needed for the close button to be shown*/
+                                                    }}
+                                                  />
+                                                ),
+                                                onClose: () => {
+                                                  // If we do something here, then the terminal will not be there anymore.
+                                                  // We just want to hide it.
+                                                },
+                                              });
+                                            }}
+                                          />
+                                        </AuthVisible>
+                                        <DeleteButton item={resource as Pod} />
+                                      </>
+                                    )}
+                                    <Typography variant="caption" color="text.secondary">
+                                      {ageText}
+                                    </Typography>
+                                  </Box>
+                                </Box>
+                              </Box>
+                            );
+                          })}
+                        </Box>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              )}
+            </SectionBox>
+          </Box>
+        )}
 
         {/* Delete Confirmation Dialog */}
         <Dialog
