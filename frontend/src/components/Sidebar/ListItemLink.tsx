@@ -43,11 +43,13 @@ interface ListItemLinkProps {
   };
 }
 
-const StyledLi = styled('li')<{ hasParent?: boolean }>(({ hasParent }) => ({
-  marginRight: '5px',
-  marginLeft: hasParent ? '35px' : '5px',
-  marginBottom: '1px',
-}));
+const StyledLi = styled('li')<{ hasParent?: boolean; iconOnly?: boolean }>(
+  ({ hasParent, iconOnly }) => ({
+    marginRight: iconOnly ? '2px' : '5px',
+    marginLeft: hasParent ? '35px' : iconOnly ? '2px' : '5px',
+    marginBottom: '1px',
+  })
+);
 
 export default function ListItemLink(props: ListItemLinkProps) {
   const {
@@ -79,7 +81,12 @@ export default function ListItemLink(props: ListItemLinkProps) {
 
   if (icon) {
     listItemLink = (
-      <ListItemIcon sx={{ minWidth: '24px' }}>
+      <ListItemIcon
+        sx={{
+          minWidth: iconOnly ? '20px' : '24px',
+          justifyContent: iconOnly ? 'center' : 'flex-start',
+        }}
+      >
         <Icon icon={icon} width={iconSize} height={iconSize} />
       </ListItemIcon>
     );
@@ -109,7 +116,7 @@ export default function ListItemLink(props: ListItemLinkProps) {
   const hasSubtitle = Boolean(subtitle);
 
   return (
-    <StyledLi hasParent={hasParent}>
+    <StyledLi hasParent={hasParent} iconOnly={iconOnly}>
       <ListItemButton
         component={renderLink}
         {...other}
