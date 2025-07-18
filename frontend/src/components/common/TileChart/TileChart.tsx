@@ -31,6 +31,8 @@ export interface TileChartProps extends Omit<PercentageCircleProps, 'data'> {
 export function TileChart(props: TileChartProps) {
   const { title, infoTooltip = '', legend, total, data, ...others } = props;
 
+  console.log('TileChart props', props);
+
   return (
     <Paper
       variant="outlined"
