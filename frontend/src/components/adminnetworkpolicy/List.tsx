@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
+import { Tooltip, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
+import { matchLabelsSimplifier } from '../../lib/k8s';
 import AdminNetworkPolicy from '../../lib/k8s/adminnetworkpolicy';
+import { metadataStyles } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
+import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
 
 export default function AdminNetworkPolicyList() {
   const { t } = useTranslation(['glossary']);
@@ -50,12 +54,35 @@ export default function AdminNetworkPolicyList() {
               if (!subject) return 'N/A';
 
               if (subject.namespaces) {
-                const nsKeys = Object.keys(subject.namespaces);
-                return `Namespaces: ${nsKeys.length > 0 ? nsKeys.join(', ') : 'All'}`;
+                // const nsKeys = Object.keys(subject.namespaces);
+                return (
+                  <>
+                    <Typography sx={metadataStyles} display="inline">
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}></span>
+                      <KubeIcon kind="Namespace" width="20px" height="20px" />
+                    </Typography>
+                  </>
+                );
+                // return `Namespaces: ${nsKeys.length > 0 ? nsKeys.join(', ') : 'All'}`;
               }
 
               if (subject.pods) {
-                return `Pods: ${JSON.stringify(subject.pods)}`;
+                return (
+                  <>
+                    <Typography sx={metadataStyles} display="inline">
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <KubeIcon kind="Namespace" width="30px" height="30px" />
+                        <Tooltip title="namespaceSelector">
+                          {matchLabelsSimplifier(subject.pods.namespaceSelector.matchLabels)}
+                        </Tooltip>
+                        <KubeIcon kind="Pod" width="30px" height="30px" />
+                        <Tooltip title="podSelector">
+                          {matchLabelsSimplifier(subject.pods.podSelector.matchLabels)}
+                        </Tooltip>
+                      </span>
+                    </Typography>
+                  </>
+                );
               }
 
               return 'Unknown Subject Format';

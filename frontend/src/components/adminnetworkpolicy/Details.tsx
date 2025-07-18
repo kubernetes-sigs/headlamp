@@ -15,20 +15,21 @@
  */
 
 import Box from '@mui/material/Box';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
-import { matchExpressionSimplifier, matchLabelsSimplifier } from '../../lib/k8s';
+import { matchLabelsSimplifier } from '../../lib/k8s';
 import AdminNetworkPolicy, {
   AdminNetworkPolicyEgressRule,
   AdminNetworkPolicyIngressRule,
   AdminNetworkPolicyPort,
 } from '../../lib/k8s/adminnetworkpolicy';
-import { LabelSelector } from '../../lib/k8s/cluster';
 import NameValueTable from '../common/NameValueTable';
 import { DetailsGrid, MetadataDictGrid } from '../common/Resource';
 import { metadataStyles } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
+import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
 
 export default function AdminNetworkPolicyDetails(props: {
   name?: string;
@@ -38,33 +39,6 @@ export default function AdminNetworkPolicyDetails(props: {
   const params = useParams<{ subject: string; name: string }>();
   const { name = params.name, subject = params.subject, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
-
-  function prepareMatchLabelsAndExpressions(
-    type: 'Pods' | 'Namespaces',
-    matchLabels: LabelSelector['matchLabels'],
-    matchExpressions: LabelSelector['matchExpressions']
-  ) {
-    const matchLabelsSimplified = matchLabelsSimplifier(matchLabels) || [];
-    const matchExpressionsSimplified = matchExpressionSimplifier(matchExpressions) || [];
-    if (matchLabels === undefined && matchExpressions === undefined) {
-      return <>{type}: All</>;
-    }
-
-    return (
-      <>
-        {matchLabelsSimplified.map(label => (
-          <Typography sx={metadataStyles} display="inline">
-            {label}
-          </Typography>
-        ))}
-        {matchExpressionsSimplified.map(expression => (
-          <Typography sx={metadataStyles} display="inline">
-            {expression}
-          </Typography>
-        ))}
-      </>
-    );
-  }
 
   function SubjectSelector(props: { AdminNetworkPolicy: AdminNetworkPolicy }) {
     const { AdminNetworkPolicy } = props;
@@ -77,18 +51,79 @@ export default function AdminNetworkPolicyDetails(props: {
     }
 
     if (AdminNetworkPolicy.jsonData?.spec?.subject?.pods !== undefined) {
-      return prepareMatchLabelsAndExpressions(
-        'Pods',
-        AdminNetworkPolicy.jsonData?.spec?.subject?.pods?.podSelector?.matchLabels,
-        AdminNetworkPolicy.jsonData?.spec?.subject?.pods?.podSelector?.matchExpressions
+      return (
+        <>
+          <KubeIcon kind="Namespace" width="30px" height="30px" />
+          <Tooltip title="namespaceSelector">
+            {(() => {
+              const labels = matchLabelsSimplifier(
+                AdminNetworkPolicy.jsonData?.spec?.subject?.pods?.namespaceSelector?.matchLabels
+              );
+              return Array.isArray(labels) ? (
+                <>
+                  {labels.map((label: string) => (
+                    <Typography sx={metadataStyles} display="inline" key={label}>
+                      {label}
+                    </Typography>
+                  ))}
+                </>
+              ) : (
+                <Typography sx={metadataStyles} display="inline">
+                  All Namespaces
+                </Typography>
+              );
+            })()}
+          </Tooltip>
+          <KubeIcon kind="Pod" width="30px" height="30px" />
+          <Tooltip title="podSelector">
+            {(() => {
+              const labels = matchLabelsSimplifier(
+                AdminNetworkPolicy.jsonData?.spec?.subject?.pods?.podSelector?.matchLabels
+              );
+              return Array.isArray(labels) ? (
+                <>
+                  {labels.map((label: string) => (
+                    <Typography sx={metadataStyles} display="inline" key={label}>
+                      {label}
+                    </Typography>
+                  ))}
+                </>
+              ) : (
+                <Typography sx={metadataStyles} display="inline">
+                  All Pods
+                </Typography>
+              );
+            })()}
+          </Tooltip>
+        </>
       );
     }
 
     if (AdminNetworkPolicy.jsonData?.spec?.subject?.namespaces !== undefined) {
-      return prepareMatchLabelsAndExpressions(
-        'Namespaces',
-        AdminNetworkPolicy.jsonData?.spec?.subject?.namespaces?.podSelector?.matchLabels,
-        AdminNetworkPolicy.jsonData?.spec?.subject?.namespaces?.podSelector?.matchExpressions
+      return (
+        <>
+          <Typography sx={metadataStyles} display="inline">
+            {(() => {
+              const labels = matchLabelsSimplifier(
+                AdminNetworkPolicy.jsonData?.spec?.subject?.namespaces?.namespaceSelector
+                  ?.matchLabels
+              );
+              return Array.isArray(labels) ? (
+                <>
+                  {labels.map((label: string) => (
+                    <Typography sx={metadataStyles} display="inline" key={label}>
+                      {label}
+                    </Typography>
+                  ))}
+                </>
+              ) : (
+                <Typography sx={metadataStyles} display="inline">
+                  All Pods
+                </Typography>
+              );
+            })()}
+          </Typography>
+        </>
       );
     }
   }
