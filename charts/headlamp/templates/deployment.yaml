@@ -256,6 +256,12 @@ spec:
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+            {{- with .Values.config.tlsCert }}
+            - "-tls-cert={{ . }}"
+            {{- end }}
+            {{- with .Values.config.tlsKey }}
+            - "-tls-key={{ . }}"
+            {{- end }}
           {{- end }}
         {{- if .Values.pluginsManager.enabled }}
         - name: headlamp-plugin
