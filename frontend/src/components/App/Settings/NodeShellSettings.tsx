@@ -15,6 +15,7 @@
  */
 
 import { Icon } from '@iconify/react';
+import { Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
@@ -178,9 +179,10 @@ export default function NodeShellSettings(props: SettingsProps) {
       <NameValueTable
         rows={[
           {
-            name: 'Enable Node Shell',
+            name: <Typography id="node-shell-enabled-label">Enable Node Shell</Typography>,
             value: (
               <Switch
+                inputProps={{ 'aria-labelledby': 'node-shell-enabled-label' }}
                 checked={userIsEnabled ?? true}
                 onChange={e => {
                   const newEnabled = e.target.checked;
