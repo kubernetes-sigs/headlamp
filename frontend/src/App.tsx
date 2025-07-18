@@ -16,7 +16,7 @@
 
 import './i18n/config';
 import './components/App/icons';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import React, { useMemo } from 'react';
 import { I18nextProvider } from 'react-i18next';
@@ -28,6 +28,7 @@ import ErrorComponent from './components/common/ErrorPage';
 import i18n from './i18n/config';
 import { useElectronI18n } from './i18n/electronI18n';
 import ThemeProviderNexti18n from './i18n/ThemeProviderNexti18n';
+import { queryClient } from './lib/queryClient';
 import { createMuiTheme, getThemeName, usePrefersColorScheme } from './lib/themes';
 import { useTypedSelector } from './redux/hooks';
 import store from './redux/stores/store';
@@ -50,15 +51,6 @@ function AppWithRedux(props: React.PropsWithChildren<{}>) {
     </I18nextProvider>
   );
 }
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 3 * 60_000,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
 
 // https://vite.dev/guide/env-and-mode
 // if you want to enable the devtools for react-query,

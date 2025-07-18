@@ -16,7 +16,6 @@
 
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
-import { getToken } from '../../../auth';
 import { getCluster } from '../../../cluster';
 import { KubeObjectInterface } from '../../KubeObject';
 import { ApiError } from '../v2/ApiError';
@@ -413,14 +412,9 @@ export async function connectStreamWithParams<T>(
   const { isJson = false, additionalProtocols = [], cluster = '' } = params || {};
   let isClosing = false;
 
-  const token = getToken(cluster || '');
   const userID = getUserIdFromLocalStorage();
 
   const protocols = ['base64.binary.k8s.io', ...additionalProtocols];
-  if (token) {
-    const encodedToken = btoa(token).replace(/=/g, '');
-    protocols.push(`base64url.bearer.authorization.k8s.io.${encodedToken}`);
-  }
 
   let fullPath = path;
   let url = '';
