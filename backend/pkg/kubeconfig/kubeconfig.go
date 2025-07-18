@@ -199,11 +199,16 @@ func makeTransportFor(conf *rest.Config) (http.RoundTripper, error) {
 		return nil, fmt.Errorf("configuration cannot be nil")
 	}
 
-	// Use standard transport for non-Windows systems or when ExecProvider is not configured
+	// Use standard transport for non-Windows systems or when ExecProvider is not configured.
 	if conf.ExecProvider == nil || runtime.GOOS != "windows" {
 		return rest.TransportFor(conf)
 	}
 
+	return makeTransportForWindows(conf)
+}
+
+// makeTransportForWindows creates transport for Windows with exec provider.
+func makeTransportForWindows(conf *rest.Config) (http.RoundTripper, error) {
 	confNoExec := *conf
 	confNoExec.ExecProvider = nil
 	// Get the Transport Config but without the ExecProvider because we will set
@@ -213,6 +218,26 @@ func makeTransportFor(conf *rest.Config) (http.RoundTripper, error) {
 		return nil, fmt.Errorf("failed to get transport config: %w", err)
 	}
 
+	cluster, err := getClusterInfo(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	// Configure authentication provider using custom authenticator.
+	provider, err := exec.GetAuthenticator(conf.ExecProvider, cluster)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get authenticator: %w", err)
+	}
+
+	if err := provider.UpdateTransportConfig(cfg); err != nil {
+		return nil, fmt.Errorf("failed to update transport config: %w", err)
+	}
+
+	return transport.New(cfg)
+}
+
+// getClusterInfo extracts cluster information if required by the exec provider.
+func getClusterInfo(conf *rest.Config) (*clientauthentication.Cluster, error) {
 	var cluster *clientauthentication.Cluster
 
 	if conf.ExecProvider.ProvideClusterInfo {
@@ -224,17 +249,7 @@ func makeTransportFor(conf *rest.Config) (http.RoundTripper, error) {
 		}
 	}
 
-	// Configure authentication provider using custom authenticator
-	provider, err := exec.GetAuthenticator(conf.ExecProvider, cluster)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get authenticator: %w", err)
-	}
-
-	if err := provider.UpdateTransportConfig(cfg); err != nil {
-		return nil, fmt.Errorf("failed to update transport config: %w", err)
-	}
-
-	return transport.New(cfg)
+	return cluster, nil
 }
 
 // OidcConfig returns the oidc config for the context.
@@ -260,7 +275,17 @@ func (c *Context) ProxyRequest(writer http.ResponseWriter, request *http.Request
 	if c.proxy == nil {
 		err := c.SetupProxy()
 		if err != nil {
-			return err
+			// Check if this is an exec authentication error and provide better error message.
+			if execErr, ok := err.(*exec.ExecAuthError); ok {
+				logger.Log(logger.LevelError, map[string]string{
+					"context": c.Name,
+					"command": execErr.Command,
+				}, err, "Exec authentication failed in proxy request")
+
+				// Return a more specific error for the frontend.
+				return fmt.Errorf("authentication failed: %s", execErr.Message)
+			}
+			return fmt.Errorf("failed to setup proxy: %w", err)
 		}
 	}
 
@@ -301,25 +326,70 @@ func (c *Context) SourceStr() string {
 func (c *Context) SetupProxy() error {
 	URL, err := url.Parse(c.Cluster.Server)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse cluster server URL: %w", err)
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(URL)
 
-	restConf, err := c.RESTConfig()
-	if err == nil {
-		roundTripper, err := makeTransportFor(restConf)
-		if err == nil {
-			proxy.Transport = roundTripper
-		}
+	err = c.setupProxyTransport(proxy)
+	if err != nil {
+		return err
 	}
 
 	c.proxy = proxy
-
-	logger.Log(logger.LevelInfo, map[string]string{"context": c.Name, "clusterURL": c.Cluster.Server},
-		nil, "Proxy setup")
+	logFields := map[string]string{"context": c.Name, "clusterURL": c.Cluster.Server}
+	logger.Log(logger.LevelInfo, logFields, nil, "Proxy setup completed successfully")
 
 	return nil
+}
+
+// setupProxyTransport configures the transport for the proxy with fallback behavior.
+func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
+	restConf, err := c.RESTConfig()
+	if err != nil {
+		c.logAndUseBasicProxy("Failed to get REST config for proxy setup", err)
+		return nil
+	}
+
+	roundTripper, err := makeTransportFor(restConf)
+	if err != nil {
+		return c.handleTransportError(err)
+	}
+
+	proxy.Transport = roundTripper
+	return nil
+}
+
+// handleTransportError handles errors during transport creation.
+func (c *Context) handleTransportError(err error) error {
+	if execErr, ok := err.(*exec.ExecAuthError); ok {
+		return c.handleExecAuthError(execErr)
+	}
+
+	c.logAndUseBasicProxy("Failed to create transport for proxy", err)
+	return nil
+}
+
+// handleExecAuthError handles exec authentication errors.
+func (c *Context) handleExecAuthError(execErr *exec.ExecAuthError) error {
+	logger.Log(logger.LevelWarn, map[string]string{
+		"context":   c.Name,
+		"command":   execErr.Command,
+		"errorType": fmt.Sprintf("%d", execErr.Type),
+	}, execErr, "Exec authentication failed during proxy setup")
+
+	// For recoverable errors, use basic proxy and let authentication happen at request time.
+	if execErr.IsRecoverable() {
+		return nil
+	}
+
+	return fmt.Errorf("exec authentication failed: %w", execErr)
+}
+
+// logAndUseBasicProxy logs a warning and continues with basic proxy setup.
+func (c *Context) logAndUseBasicProxy(message string, err error) {
+	logFields := map[string]string{"context": c.Name, "clusterURL": c.Cluster.Server}
+	logger.Log(logger.LevelWarn, logFields, err, message+", using basic proxy")
 }
 
 // AuthType returns the authentication type for the context.
