@@ -36,7 +36,7 @@ const homedir = os.homedir();
 const tmpdir = os.tmpdir();
 const { env } = process;
 
-const macos = name => {
+function macos(name: string) {
   const library = path.join(homedir, 'Library');
 
   return {
@@ -46,9 +46,9 @@ const macos = name => {
     log: path.join(library, 'Logs', name),
     temp: path.join(tmpdir, name),
   };
-};
+}
 
-const windows = name => {
+function windows(name: string) {
   const appData = env.APPDATA || path.join(homedir, 'AppData', 'Roaming');
   const localAppData = env.LOCALAPPDATA || path.join(homedir, 'AppData', 'Local');
 
@@ -60,10 +60,10 @@ const windows = name => {
     log: path.join(localAppData, name, 'Log'),
     temp: path.join(tmpdir, name),
   };
-};
+}
 
 // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-const linux = name => {
+function linux(name: string) {
   const username = path.basename(homedir);
 
   return {
@@ -74,9 +74,9 @@ const linux = name => {
     log: path.join(env.XDG_STATE_HOME || path.join(homedir, '.local', 'state'), name),
     temp: path.join(tmpdir, username, name),
   };
-};
+}
 
-export default function envPaths(name, { suffix = 'nodejs' } = {}) {
+export default function envPaths(name: string, { suffix = 'nodejs' } = {}) {
   if (typeof name !== 'string') {
     throw new TypeError(`Expected a string, got ${typeof name}`);
   }
