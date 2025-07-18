@@ -54,18 +54,32 @@ export default function ProjectList() {
   const projects = Object.values(projectsState);
   const currentCluster = getCluster();
 
+  const allProjectClusters = useMemo(() => {
+    const clusterNames = new Set<string>();
+    projects.forEach(p => {
+      if (p.clusterSelectors && p.clusterSelectors.length > 0) {
+        p.clusterSelectors.forEach(s => {
+          if (s.name) {
+            clusterNames.add(s.name);
+          }
+        });
+      }
+    });
+    return Array.from(clusterNames);
+  }, [projects]);
+
   // Watch all resource types
-  const { items: deployments } = Deployment.useList();
-  const { items: services } = Service.useList();
-  const { items: statefulSets } = StatefulSet.useList();
-  const { items: daemonSets } = DaemonSet.useList();
-  const { items: jobs } = Job.useList();
-  const { items: cronJobs } = CronJob.useList();
-  const { items: configMaps } = ConfigMap.useList();
-  const { items: secrets } = Secret.useList();
-  const { items: ingresses } = Ingress.useList();
-  const { items: pvcs } = PersistentVolumeClaim.useList();
-  const { items: pods } = Pod.useList();
+  const { items: deployments } = Deployment.useList({ clusters: allProjectClusters });
+  const { items: services } = Service.useList({ clusters: allProjectClusters });
+  const { items: statefulSets } = StatefulSet.useList({ clusters: allProjectClusters });
+  const { items: daemonSets } = DaemonSet.useList({ clusters: allProjectClusters });
+  const { items: jobs } = Job.useList({ clusters: allProjectClusters });
+  const { items: cronJobs } = CronJob.useList({ clusters: allProjectClusters });
+  const { items: configMaps } = ConfigMap.useList({ clusters: allProjectClusters });
+  const { items: secrets } = Secret.useList({ clusters: allProjectClusters });
+  const { items: ingresses } = Ingress.useList({ clusters: allProjectClusters });
+  const { items: pvcs } = PersistentVolumeClaim.useList({ clusters: allProjectClusters });
+  const { items: pods } = Pod.useList({ clusters: allProjectClusters });
 
   const allResources = useMemo(() => [
     ...(deployments || []),

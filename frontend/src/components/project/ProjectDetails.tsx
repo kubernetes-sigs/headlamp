@@ -565,6 +565,10 @@ export default function ProjectDetails() {
                       }
                     });
 
+                    if (totalCount === 0) {
+                      return null;
+                    }
+
                     const healthColor =
                       totalUnhealthy > 0
                         ? 'error.main'
