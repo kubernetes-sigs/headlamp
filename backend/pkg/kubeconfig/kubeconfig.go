@@ -887,6 +887,8 @@ func splitKubeConfigPath(path string) []string {
 func GetInClusterContext(oidcIssuerURL string,
 	oidcClientID string, oidcClientSecret string,
 	oidcScopes string,
+	useServiceAccountToken bool,
+	serviceAccountTokenPath string,
 ) (*Context, error) {
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
@@ -905,6 +907,10 @@ func GetInClusterContext(oidcIssuerURL string,
 	}
 
 	inClusterAuthInfo := &api.AuthInfo{}
+
+	if useServiceAccountToken {
+		inClusterAuthInfo.TokenFile = serviceAccountTokenPath
+	}
 
 	var oidcConf *OidcConfig
 
