@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import { Icon } from '@iconify/react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { KubeObject } from '../../../lib/k8s/cluster';
+import { Activity } from '../../activity/Activity';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 import EditorDialog from './EditorDialog';
 
@@ -28,26 +30,43 @@ export interface ViewButtonProps {
   buttonStyle?: ButtonStyle;
 }
 
-function ViewButton({ item, buttonStyle, initialToggle = false }: ViewButtonProps) {
-  const [toggle, setToggle] = React.useState(initialToggle);
+function ViewButton({ item, buttonStyle, initialToggle }: ViewButtonProps) {
   const { t } = useTranslation();
+
+  const launchActivity = () => {
+    Activity.launch({
+      id: 'yaml-' + item.metadata.uid,
+      title: item.metadata.name,
+      cluster: item.cluster,
+      icon: <Icon icon="mdi:eye" />,
+      location: 'window',
+      content: (
+        <EditorDialog
+          noDialog
+          item={item.jsonData}
+          open
+          allowToHideManagedFields
+          onClose={() => {}}
+          onSave={null}
+        />
+      ),
+    });
+  };
+
+  useEffect(() => {
+    if (initialToggle) {
+      launchActivity();
+    }
+  }, []);
+
   return (
     <>
       <ActionButton
         description={t('translation|View YAML')}
         buttonStyle={buttonStyle}
-        onClick={() => {
-          setToggle(true);
-        }}
+        onClick={launchActivity}
         icon="mdi:eye"
         edge="end"
-      />
-      <EditorDialog
-        item={item.jsonData}
-        open={toggle}
-        allowToHideManagedFields
-        onClose={() => setToggle(toggle => !toggle)}
-        onSave={null}
       />
     </>
   );

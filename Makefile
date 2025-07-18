@@ -106,6 +106,10 @@ else
 	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
 endif
 
+run-dev:
+	@echo "Starting Headlamp backend in dev mode with Air..."
+	cd backend && air
+
 run-backend-with-metrics:
 	@echo "**** Running backend with Prometheus metrics enabled ****"
 ifeq ($(UNIXSHELL),true)

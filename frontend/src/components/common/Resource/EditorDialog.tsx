@@ -73,6 +73,8 @@ export interface EditorDialogProps extends DialogProps {
   title?: string;
   /** Extra optional actions. */
   actions?: React.ReactNode[];
+  /** Don't render the editor in the dialog */
+  noDialog?: boolean;
 }
 
 export default function EditorDialog(props: EditorDialogProps) {
@@ -394,7 +396,7 @@ export default function EditorDialog(props: EditorDialogProps) {
           value={code.code}
           options={editorOptions}
           onChange={onChange}
-          height="600px"
+          height="100%"
         />
       </Box>
     );
@@ -411,8 +413,134 @@ export default function EditorDialog(props: EditorDialogProps) {
 
   const dialogTitleId = useId('editor-dialog-title-');
 
+  const content = !item ? (
+    <Loader title={t('Loading editor')} />
+  ) : (
+    <React.Fragment>
+      <DialogContent
+        sx={{
+          height: '80%',
+          overflowY: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <Box py={1}>
+          <Grid container spacing={2} justifyContent="space-between">
+            {
+              actions.length > 0 ? (
+                actions.map((action, i) => (
+                  <Grid item key={`editor_action_${i}`}>
+                    {action}
+                  </Grid>
+                ))
+              ) : (
+                <Grid item></Grid>
+              ) // Just to keep the layout consistent.
+            }
+            <Grid item>
+              <FormGroup row>
+                {allowToHideManagedFields && (
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={hideManagedFields}
+                        onChange={() => setHideManagedFields(() => !hideManagedFields)}
+                        name="hideManagedFields"
+                      />
+                    }
+                    label={t('Hide Managed Fields')}
+                  />
+                )}
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={useSimpleEditor}
+                      onChange={() => setUseSimpleEditor(() => !useSimpleEditor)}
+                      name="useSimpleEditor"
+                    />
+                  }
+                  label={t('Use minimal editor')}
+                />
+              </FormGroup>
+            </Grid>
+          </Grid>
+        </Box>
+        {isReadOnly() ? (
+          makeEditor()
+        ) : (
+          <Tabs
+            onTabChanged={handleTabChange}
+            ariaLabel={t('translation|Editor')}
+            tabs={[
+              {
+                label: t('translation|Editor'),
+                component: makeEditor(),
+              },
+              {
+                label: t('translation|Documentation'),
+                component: (
+                  <Box
+                    p={2}
+                    sx={{
+                      overflowY: 'auto',
+                      overflowX: 'hidden',
+                    }}
+                    maxHeight={600}
+                    height={600}
+                  >
+                    <DocsViewer docSpecs={docSpecs} />
+                  </Box>
+                ),
+              },
+            ]}
+          />
+        )}
+      </DialogContent>
+      <DialogActions>
+        {!isReadOnly() && (
+          <ConfirmButton
+            disabled={originalCodeRef.current.code === code.code}
+            color="secondary"
+            variant="contained"
+            aria-label={t('translation|Undo')}
+            onConfirm={onUndo}
+            confirmTitle={t('translation|Are you sure?')}
+            confirmDescription={t(
+              'This will discard your changes in the editor. Do you want to proceed?'
+            )}
+            // @todo: aria-controls should point to the textarea id
+          >
+            {t('translation|Undo Changes')}
+          </ConfirmButton>
+        )}
+        <div style={{ flex: '1 0 0' }} />
+        {errorLabel && <Typography color="error">{errorLabel}</Typography>}
+        <div style={{ flex: '1 0 0' }} />
+        <Button onClick={onClose} color="secondary" variant="contained">
+          {t('translation|Close')}
+        </Button>
+        {!isReadOnly() && (
+          <Button
+            onClick={handleSave}
+            color="primary"
+            variant="contained"
+            disabled={originalCodeRef.current.code === code.code || !!error}
+            // @todo: aria-controls should point to the textarea id
+          >
+            {saveLabel || t('translation|Save & Apply')}
+          </Button>
+        )}
+      </DialogActions>
+    </React.Fragment>
+  );
+
   if (!other.open && !other.keepMounted) {
     return null;
+  }
+
+  if (other.noDialog) {
+    return content;
   }
 
   return (
@@ -430,125 +558,7 @@ export default function EditorDialog(props: EditorDialogProps) {
         id: dialogTitleId,
       }}
     >
-      {!item ? (
-        <Loader title={t('Loading editor')} />
-      ) : (
-        <React.Fragment>
-          <DialogContent
-            sx={{
-              height: '80%',
-              overflowY: 'hidden',
-            }}
-          >
-            <Box py={1}>
-              <Grid container spacing={2} justifyContent="space-between">
-                {
-                  actions.length > 0 ? (
-                    actions.map((action, i) => (
-                      <Grid item key={`editor_action_${i}`}>
-                        {action}
-                      </Grid>
-                    ))
-                  ) : (
-                    <Grid item></Grid>
-                  ) // Just to keep the layout consistent.
-                }
-                <Grid item>
-                  <FormGroup row>
-                    {allowToHideManagedFields && (
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            checked={hideManagedFields}
-                            onChange={() => setHideManagedFields(() => !hideManagedFields)}
-                            name="hideManagedFields"
-                          />
-                        }
-                        label={t('Hide Managed Fields')}
-                      />
-                    )}
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={useSimpleEditor}
-                          onChange={() => setUseSimpleEditor(() => !useSimpleEditor)}
-                          name="useSimpleEditor"
-                        />
-                      }
-                      label={t('Use minimal editor')}
-                    />
-                  </FormGroup>
-                </Grid>
-              </Grid>
-            </Box>
-            {isReadOnly() ? (
-              makeEditor()
-            ) : (
-              <Tabs
-                onTabChanged={handleTabChange}
-                ariaLabel={t('translation|Editor')}
-                tabs={[
-                  {
-                    label: t('translation|Editor'),
-                    component: makeEditor(),
-                  },
-                  {
-                    label: t('translation|Documentation'),
-                    component: (
-                      <Box
-                        p={2}
-                        sx={{
-                          overflowY: 'auto',
-                          overflowX: 'hidden',
-                        }}
-                        maxHeight={600}
-                        height={600}
-                      >
-                        <DocsViewer docSpecs={docSpecs} />
-                      </Box>
-                    ),
-                  },
-                ]}
-              />
-            )}
-          </DialogContent>
-          <DialogActions>
-            {!isReadOnly() && (
-              <ConfirmButton
-                disabled={originalCodeRef.current.code === code.code}
-                color="secondary"
-                variant="contained"
-                aria-label={t('translation|Undo')}
-                onConfirm={onUndo}
-                confirmTitle={t('translation|Are you sure?')}
-                confirmDescription={t(
-                  'This will discard your changes in the editor. Do you want to proceed?'
-                )}
-                // @todo: aria-controls should point to the textarea id
-              >
-                {t('translation|Undo Changes')}
-              </ConfirmButton>
-            )}
-            <div style={{ flex: '1 0 0' }} />
-            {errorLabel && <Typography color="error">{errorLabel}</Typography>}
-            <div style={{ flex: '1 0 0' }} />
-            <Button onClick={onClose} color="secondary" variant="contained">
-              {t('translation|Close')}
-            </Button>
-            {!isReadOnly() && (
-              <Button
-                onClick={handleSave}
-                color="primary"
-                variant="contained"
-                disabled={originalCodeRef.current.code === code.code || !!error}
-                // @todo: aria-controls should point to the textarea id
-              >
-                {saveLabel || t('translation|Save & Apply')}
-              </Button>
-            )}
-          </DialogActions>
-        </React.Fragment>
-      )}
+      {content}
     </Dialog>
   );
 }

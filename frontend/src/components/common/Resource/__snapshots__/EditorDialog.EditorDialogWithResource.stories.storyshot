@@ -78,7 +78,7 @@
           </div>
         </h2>
         <div
-          class="MuiDialogContent-root css-erhy6c-MuiDialogContent-root"
+          class="MuiDialogContent-root css-1gh0c7s-MuiDialogContent-root"
         >
           <div
             class="MuiBox-root css-1jpm9pd"
@@ -183,7 +183,7 @@
           </div>
           <div
             aria-labelledby="full-width-tab-0-Editor-tabs-id"
-            class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
             id="full-width-tabpanel-0-Editor-tabs-id"
             role="tabpanel"
           >
@@ -197,7 +197,7 @@
           </div>
           <div
             aria-labelledby="full-width-tab-1-Editor-tabs-id"
-            class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
             hidden=""
             id="full-width-tabpanel-1-Editor-tabs-id"
             role="tabpanel"

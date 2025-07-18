@@ -1,5 +1,6 @@
 backend/headlamp-server
 backend/headlamp-server.exe
+backend/tmp
 backend/tools
 backend/coverage.out
 app/electron/src/*
