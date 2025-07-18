@@ -155,6 +155,8 @@
   "Attach": "Adjuntar",
   "Restarts": "Reinicios",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} (hace {{ abbrevTime }})",
+  "Request: {{percent}}% ({{aValue}} {{aUnit}}/{{rValue}} {{rUnit}})": "",
+  "Limit: {{percent}}% ({{aValue}} {{aUnit}}/{{lValue}} {{lUnit}})": "",
   "Nominated Node": "Nodo Nominado",
   "Readiness Gates": "Readiness Gates",
   "Pod Disruption Budget": "Pod Disruption Budget",

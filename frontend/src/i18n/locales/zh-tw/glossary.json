@@ -155,6 +155,8 @@
   "Attach": "附加",
   "Restarts": "重啟",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} ({{ abbrevTime }} 前)",
+  "Request: {{percent}}% ({{aValue}} {{aUnit}}/{{rValue}} {{rUnit}})": "",
+  "Limit: {{percent}}% ({{aValue}} {{aUnit}}/{{lValue}} {{lUnit}})": "",
   "Nominated Node": "提名節點",
   "Readiness Gates": "就緒閘道",
   "Pod Disruption Budget": "Pod 中斷預算",
