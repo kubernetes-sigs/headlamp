@@ -32,10 +32,11 @@ export interface ViewButtonProps {
 
 function ViewButton({ item, buttonStyle, initialToggle }: ViewButtonProps) {
   const { t } = useTranslation();
+  const activityId = 'yaml-' + item.metadata.uid;
 
   const launchActivity = () => {
     Activity.launch({
-      id: 'yaml-' + item.metadata.uid,
+      id: activityId,
       title: item.metadata.name,
       cluster: item.cluster,
       icon: <Icon icon="mdi:eye" />,
@@ -46,7 +47,7 @@ function ViewButton({ item, buttonStyle, initialToggle }: ViewButtonProps) {
           item={item.jsonData}
           open
           allowToHideManagedFields
-          onClose={() => {}}
+          onClose={() => Activity.close(activityId)}
           onSave={null}
         />
       ),
