@@ -143,6 +143,15 @@ export function checkPermissionSecret(
 }
 
 /**
+ * Returns the path to a script in the plugins directory.
+ * @param scriptName script relative to plugins folder. "headlamp-k8s-minikube/bin/manage-minikube.js"
+ */
+function getPluginsScriptPath(scriptName: string) {
+  const userPlugins = defaultPluginsDir();
+  return path.join(userPlugins, scriptName);
+}
+
+/**
  * Handles 'run-command' events from the renderer process.
  *
  * Spawns the requested command and sends 'command-stdout',
@@ -151,17 +160,20 @@ export function checkPermissionSecret(
  *
  * @param event - The event object.
  * @param eventData - The data sent from the renderer process.
+ * @param mainWindow - The main browser window.
+ * @param permissionSecrets - The permission secrets required for the command to run.
+ *                            Checks against eventData.permissionSecrets.
  */
 export function handleRunCommand(
   event: IpcMainEvent,
   eventData: CommandDataPartial,
-  mainWindow: BrowserWindow | null
+  mainWindow: BrowserWindow | null,
+  permissionSecrets: Record<string, number>
 ): void {
   if (mainWindow === null) {
     console.error('Main window is null, cannot run command');
     return;
   }
-
   const [isValid, errorMessage] = validateCommandData(eventData);
   if (!isValid) {
     console.error(errorMessage);
@@ -173,9 +185,27 @@ export function handleRunCommand(
     return;
   }
 
-  const child: ChildProcessWithoutNullStreams = spawn(commandData.command, commandData.args, {
+  const [permissionsValid, permissionError] = checkPermissionSecret(commandData, permissionSecrets);
+  if (!permissionsValid) {
+    console.error(permissionError);
+    return;
+  }
+
+  // Get the command and args to run. With the correct paths for "scriptjs" commands.
+  // scriptjs commands are scripts run with the compiled app, or with "Electron" in dev mode.
+  const command = commandData.command === 'scriptjs' ? process.execPath : commandData.command;
+  const args =
+    commandData.command === 'scriptjs'
+      ? [getPluginsScriptPath(commandData.args[0]), ...commandData.args.slice(1)]
+      : commandData.args;
+
+  const child: ChildProcessWithoutNullStreams = spawn(command, args, {
     ...commandData.options,
     shell: false,
+    env: {
+      ...process.env,
+      ...(commandData.command === 'scriptjs' ? { HEADLAMP_RUN_SCRIPT: 'true' } : {}),
+    },
   });
 
   child.stdout.on('data', (data: string | Buffer) => {
@@ -268,7 +298,9 @@ export function setupRunCmdHandlers(mainWindow: BrowserWindow | null, ipcMain: E
     }
   });
 
-  ipcMain.on('run-command', (event, eventData) => handleRunCommand(event, eventData, mainWindow));
+  ipcMain.on('run-command', (event, eventData) =>
+    handleRunCommand(event, eventData, mainWindow, permissionSecrets)
+  );
 }
 
 /**
