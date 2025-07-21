@@ -153,44 +153,40 @@ export function checkPermissionSecret(
  */
 export function handleRunCommand(
   event: IpcMainEvent,
-  eventData: CommandData,
+  eventData: CommandDataPartial,
   mainWindow: BrowserWindow | null
 ): void {
   if (mainWindow === null) {
-    console.error('Main window is null, cannot show dialog');
+    console.error('Main window is null, cannot run command');
     return;
   }
 
-  // Only allow "minikube", and "az" commands
-  const validCommands = ['minikube', 'az'];
-
-  if (!validCommands.includes(eventData.command)) {
-    console.error(
-      `Invalid command: ${eventData.command}, only valid commands are: ${JSON.stringify(
-        validCommands
-      )}`
-    );
+  const [isValid, errorMessage] = validateCommandData(eventData);
+  if (!isValid) {
+    console.error(errorMessage);
     return;
   }
-  if (!checkCommandConsent(eventData.command, mainWindow)) {
+  const commandData = eventData as CommandData;
+
+  if (!checkCommandConsent(commandData.command, mainWindow)) {
     return;
   }
 
-  const child: ChildProcessWithoutNullStreams = spawn(eventData.command, eventData.args, {
-    ...eventData.options,
+  const child: ChildProcessWithoutNullStreams = spawn(commandData.command, commandData.args, {
+    ...commandData.options,
     shell: false,
   });
 
   child.stdout.on('data', (data: string | Buffer) => {
-    event.sender.send('command-stdout', eventData.id, data.toString());
+    event.sender.send('command-stdout', commandData.id, data.toString());
   });
 
   child.stderr.on('data', (data: string | Buffer) => {
-    event.sender.send('command-stderr', eventData.id, data.toString());
+    event.sender.send('command-stderr', commandData.id, data.toString());
   });
 
   child.on('exit', (code: number | null) => {
-    event.sender.send('command-exit', eventData.id, code);
+    event.sender.send('command-exit', commandData.id, code);
   });
 }
 
@@ -236,4 +232,51 @@ export function setupRunCmdHandlers(mainWindow: BrowserWindow | null, ipcMain: E
     return;
   }
   ipcMain.on('run-command', (event, eventData) => handleRunCommand(event, eventData, mainWindow));
+}
+
+/**
+ * Like CommandData, but everything is optional because it's not validated yet.
+ */
+type CommandDataPartial = Partial<CommandData>;
+
+/**
+ * Checks to see if it's what we expect.
+ */
+export function validateCommandData(eventData: CommandDataPartial): [boolean, string] {
+  if (!eventData || typeof eventData !== 'object' || eventData === null) {
+    return [false, `Invalid eventData data received: ${eventData}`];
+  }
+  if (typeof eventData.command !== 'string' || !eventData.command) {
+    return [false, `Invalid eventData.command: ${eventData.command}`];
+  }
+  if (!Array.isArray(eventData.args)) {
+    return [false, `Invalid eventData.args: ${eventData.args}`];
+  }
+  if (typeof eventData.options !== 'object' || eventData.options === null) {
+    return [false, `Invalid eventData.options: ${eventData.options}`];
+  }
+  if (typeof eventData.permissionSecrets !== 'object' || eventData.permissionSecrets === null) {
+    return [
+      false,
+      `Invalid permission secrets, it is not an object: ${typeof eventData.permissionSecrets}`,
+    ];
+  }
+  for (const [key, value] of Object.entries(eventData.permissionSecrets)) {
+    if (typeof value !== 'number') {
+      return [false, `Invalid permission secret for ${key}: ${typeof value}`];
+    }
+  }
+
+  const validCommands = ['minikube', 'az', 'scriptjs'];
+
+  if (!validCommands.includes(eventData.command)) {
+    return [
+      false,
+      `Invalid command: ${eventData.command}, only valid commands are: ${JSON.stringify(
+        validCommands
+      )}`,
+    ];
+  }
+
+  return [true, ''];
 }

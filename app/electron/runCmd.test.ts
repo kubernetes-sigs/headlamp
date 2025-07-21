@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from '@jest/globals';
-import { checkPermissionSecret } from './runCmd';
+import { checkPermissionSecret, validateCommandData } from './runCmd';
 
 describe('checkPermissionSecret', () => {
   const baseCommandData = {
@@ -84,5 +84,127 @@ describe('checkPermissionSecret', () => {
       permissionSecrets: { 'runCmd-scriptjs-myscript.js': 99 },
     };
     expect(checkPermissionSecret(commandData, permissionSecrets)[0]).toBe(false);
+  });
+});
+
+describe('validateCommandData', () => {
+  it('returns false if eventData is not an object', () => {
+    expect(validateCommandData(null as any)[0]).toBe(false);
+    expect(validateCommandData(undefined as any)[0]).toBe(false);
+    expect(validateCommandData('string' as any)[0]).toBe(false);
+  });
+
+  it('returns false if command is missing or not a string', () => {
+    expect(validateCommandData({ args: [], options: {}, permissionSecrets: {} })[0]).toBe(false);
+    expect(
+      validateCommandData({ command: 123 as any, args: [], options: {}, permissionSecrets: {} })[0]
+    ).toBe(false);
+    expect(
+      validateCommandData({ command: '', args: [], options: {}, permissionSecrets: {} })[0]
+    ).toBe(false);
+  });
+
+  it('returns false if args is not an array', () => {
+    expect(
+      validateCommandData({
+        command: 'minikube',
+        args: 'not-array' as any,
+        options: {},
+        permissionSecrets: {},
+      })[0]
+    ).toBe(false);
+  });
+
+  it('returns false if options is not an object', () => {
+    expect(
+      validateCommandData({
+        command: 'minikube',
+        args: [],
+        options: null as any,
+        permissionSecrets: {},
+      })[0]
+    ).toBe(false);
+    expect(
+      validateCommandData({
+        command: 'minikube',
+        args: [],
+        options: 123 as any,
+        permissionSecrets: {},
+      })[0]
+    ).toBe(false);
+  });
+
+  it('returns false if permissionSecrets is not an object', () => {
+    expect(
+      validateCommandData({
+        command: 'minikube',
+        args: [],
+        options: {},
+        permissionSecrets: null as any,
+      })[0]
+    ).toBe(false);
+    expect(
+      validateCommandData({
+        command: 'minikube',
+        args: [],
+        options: {},
+        permissionSecrets: 123 as any,
+      })[0]
+    ).toBe(false);
+  });
+
+  it('returns false if any permissionSecret value is not a number', () => {
+    expect(
+      validateCommandData({
+        command: 'minikube',
+        args: [],
+        options: {},
+        permissionSecrets: { foo: undefined as any },
+      })[0]
+    ).toBe(false);
+  });
+
+  it('returns false if command is not in validCommands', () => {
+    expect(
+      validateCommandData({
+        command: 'invalidcmd',
+        args: [],
+        options: {},
+        permissionSecrets: {},
+      })[0]
+    ).toBe(false);
+  });
+
+  it('returns true for valid minikube command', () => {
+    expect(
+      validateCommandData({
+        command: 'minikube',
+        args: [],
+        options: {},
+        permissionSecrets: { 'runCmd-minikube': 123 },
+      })[0]
+    ).toBe(true);
+  });
+
+  it('returns true for valid az command', () => {
+    expect(
+      validateCommandData({
+        command: 'az',
+        args: ['arg1'],
+        options: {},
+        permissionSecrets: {},
+      })[0]
+    ).toBe(true);
+  });
+
+  it('returns true for valid scriptjs command', () => {
+    expect(
+      validateCommandData({
+        command: 'scriptjs',
+        args: ['myscript.js'],
+        options: {},
+        permissionSecrets: { 'runCmd-scriptjs-myscript.js': 42 },
+      })[0]
+    ).toBe(true);
   });
 });
