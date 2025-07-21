@@ -17,6 +17,7 @@
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import { app, BrowserWindow, dialog } from 'electron';
 import { IpcMainEvent } from 'electron/main';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import path from 'path';
@@ -220,6 +221,16 @@ export function runScript() {
 }
 
 /**
+ * @returns a random number between 0 and 1, like Math.random(),
+ * but using the web crypto API for better randomness.
+ */
+function cryptoRandom() {
+  const array = new Uint32Array(1);
+  crypto.webcrypto.getRandomValues(array);
+  return array[0] / (0xffffffff + 1);
+}
+
+/**
  * Sets up the IPC handlers for running commands.
  * Called in the main process to handle 'run-command' events.
  *
@@ -231,6 +242,32 @@ export function setupRunCmdHandlers(mainWindow: BrowserWindow | null, ipcMain: E
     console.error('Main window is null, cannot set up run command handlers');
     return;
   }
+
+  // We only send the plugin permission secrets once. So any code can't just request them again.
+  // This means that if the secrets are requested before the plugins are loaded, then
+  // they will not be sent until the next time the app is reloaded.
+  let pluginPermissionSecretsSent = false;
+  const permissionSecrets = {
+    'runCmd-minikube': cryptoRandom(),
+    'runCmd-scriptjs-minikube/manage-minikube.js': cryptoRandom(),
+    'runCmd-scriptjs-headlamp_minikube/manage-minikube.js': cryptoRandom(),
+    'runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js': cryptoRandom(),
+  };
+
+  ipcMain.on('request-plugin-permission-secrets', function giveSecrets() {
+    if (!pluginPermissionSecretsSent) {
+      pluginPermissionSecretsSent = true;
+      mainWindow?.webContents.send('plugin-permission-secrets', permissionSecrets);
+    }
+  });
+
+  // Only allow sending secrets again when the Electron main window reloads (not just URL changes).
+  mainWindow?.webContents.on('did-frame-finish-load', (event, isMainFrame) => {
+    if (isMainFrame) {
+      pluginPermissionSecretsSent = false;
+    }
+  });
+
   ipcMain.on('run-command', (event, eventData) => handleRunCommand(event, eventData, mainWindow));
 }
 
