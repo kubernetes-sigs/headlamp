@@ -125,6 +125,11 @@ const DEFAULT_SORT_COLUMN_ID = 'age';
  */
 const PREFERRED_SORT_COLUMNS = ['age', 'name'] as const;
 
+/**
+ * Maximum length for generated table IDs to avoid overly long localStorage keys.
+ */
+const MAX_TABLE_ID_LENGTH = 50;
+
 export interface ResourceTableProps<RowItem> {
   /** The columns to be rendered, like used in Table, or by name. */
   columns: (ResourceTableColumn<RowItem> | ColumnType)[];
@@ -357,7 +362,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
       })
       .join('-');
 
-    return `table-${columnIds.slice(0, 50)}`; // Limit length to avoid overly long keys
+    return `table-${columnIds.slice(0, MAX_TABLE_ID_LENGTH)}`; // Limit length to avoid overly long keys
   }, [id, columns]);
 
   const [sorting, setSorting] = useLocalStorageState<MRT_SortingState>(
@@ -596,7 +601,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     return ({ closeMenu, row }: { closeMenu: () => void; row: MRT_Row<RowItem> }) => {
       return actionsProcessed.map(action => {
         if (action.action === undefined || action.action === null) {
-          return <MenuItem />;
+          return <MenuItem key={action.id || 'empty'} />;
         }
         return action.action({ item: row.original, closeMenu });
       });
