@@ -496,12 +496,11 @@
                 </div>
               </th>
               <th
-                aria-sort="ascending"
+                aria-sort="none"
                 class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-7mz8xn-MuiTableCell-root"
                 colspan="1"
                 data-can-sort="true"
                 data-index="-1"
-                data-sort="asc"
                 scope="col"
               >
                 <div
@@ -516,25 +515,26 @@
                       Age
                     </div>
                     <span
-                      aria-label="Sorted by Age ascending"
+                      aria-label="Sort by Age descending"
                       class="MuiBadge-root css-1c32n2y-MuiBadge-root"
                       data-mui-internal-clone-element="true"
                     >
                       <span
-                        aria-label="Sorted by Age ascending"
-                        class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-kfi25q-MuiButtonBase-root-MuiTableSortLabel-root"
+                        aria-label="Sort by Age descending"
+                        class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                         role="button"
                         tabindex="0"
                       >
                         <svg
                           aria-hidden="true"
                           class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
-                          data-testid="ArrowDownwardIcon"
+                          data-testid="SyncAltIcon"
                           focusable="false"
+                          style="transform: rotate(-90deg) scaleX(0.9) translateX(-1px);"
                           viewBox="0 0 24 24"
                         >
                           <path
-                            d="m20 12-1.41-1.41L13 16.17V4h-2v12.17l-5.58-5.59L4 12l8 8z"
+                            d="m18 12 4-4-4-4v3H3v2h15zM6 12l-4 4 4 4v-3h15v-2H6z"
                           />
                         </svg>
                       </span>
