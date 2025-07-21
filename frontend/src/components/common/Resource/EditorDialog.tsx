@@ -480,15 +480,7 @@ export default function EditorDialog(props: EditorDialogProps) {
               {
                 label: t('translation|Documentation'),
                 component: (
-                  <Box
-                    p={2}
-                    sx={{
-                      overflowY: 'auto',
-                      overflowX: 'hidden',
-                    }}
-                    maxHeight={600}
-                    height={600}
-                  >
+                  <Box sx={{ height: '100%', overflowY: 'auto' }}>
                     <DocsViewer docSpecs={docSpecs} />
                   </Box>
                 ),
