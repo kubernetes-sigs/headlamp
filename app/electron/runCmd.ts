@@ -222,3 +222,18 @@ export function runScript() {
   }
   import(pathToFileURL(scriptPath).href);
 }
+
+/**
+ * Sets up the IPC handlers for running commands.
+ * Called in the main process to handle 'run-command' events.
+ *
+ * @param mainWindow - The main browser window.
+ * @param ipcMain - The IPC main instance.
+ */
+export function setupRunCmdHandlers(mainWindow: BrowserWindow | null, ipcMain: Electron.IpcMain) {
+  if (mainWindow === null) {
+    console.error('Main window is null, cannot set up run command handlers');
+    return;
+  }
+  ipcMain.on('run-command', (event, eventData) => handleRunCommand(event, eventData, mainWindow));
+}

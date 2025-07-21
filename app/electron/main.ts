@@ -48,7 +48,7 @@ import {
   getPluginBinDirectories,
   PluginManager,
 } from './plugin-management';
-import { handleRunCommand, runScript } from './runCmd';
+import { runScript, setupRunCmdHandlers } from './runCmd';
 import windowSize from './windowSize';
 
 if (process.env.HEADLAMP_RUN_SCRIPT) {
@@ -1272,7 +1272,7 @@ function startElecron() {
       mainWindow?.webContents.send('backend-token', backendToken);
     });
 
-    ipcMain.on('run-command', (event, eventData) => handleRunCommand(event, eventData, mainWindow));
+    setupRunCmdHandlers(mainWindow, ipcMain);
 
     new PluginManagerEventListeners().setupEventHandlers();
 
