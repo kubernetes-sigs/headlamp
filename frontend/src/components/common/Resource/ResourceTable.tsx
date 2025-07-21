@@ -98,6 +98,18 @@ export type ResourceTableColumn<RowItem> = {
 
 export type ColumnType = 'age' | 'name' | 'namespace' | 'type' | 'kind' | 'cluster';
 
+/**
+ * Default column ID to use for sorting when no explicit default is provided.
+ * This provides a consistent fallback behavior across all resource tables.
+ */
+const DEFAULT_SORT_COLUMN_ID = 'age';
+
+/**
+ * Column IDs that are preferred for default sorting, in order of preference.
+ * The first available column from this list will be used as the default sort column.
+ */
+const PREFERRED_SORT_COLUMNS = ['age', 'name'] as const;
+
 export interface ResourceTableProps<RowItem> {
   /** The columns to be rendered, like used in Table, or by name. */
   columns: (ResourceTableColumn<RowItem> | ColumnType)[];
@@ -317,7 +329,10 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     initColumnVisibilityState(columns, id)
   );
 
-  const [sorting, setSorting] = useLocalStorageState(`table_sorting.${id || 'default'}`, []);
+  // Generate a unique table ID for sorting state persistence
+  // This ensures each table has unique sorting state even without explicit id
+  const tableId = id || `table-${Math.random().toString(36).substr(2, 9)}`;
+  const [sorting, setSorting] = useLocalStorageState(`table_sorting.${tableId}`, []);
 
   const [tableSettings] = useState<{ id: string; show: boolean }[]>(
     !!id ? loadTableSettings(id) : []
@@ -466,12 +481,35 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
       sort = sorting[0];
     } else {
       // If no persisted sorting, fall back to default
-      const sortingColumn = defaultSortingColumn ?? allColumns.find(it => it.id === 'age');
-      if (sortingColumn) {
+      if (defaultSortingColumn) {
+        // Use explicitly provided default
         sort = {
-          id: sortingColumn.id!,
-          desc: false,
+          id: defaultSortingColumn.id,
+          desc: defaultSortingColumn.desc,
         };
+      } else {
+        // Fall back to preferred columns in order, or first sortable column
+        let fallbackColumn = null;
+
+        // Try preferred columns in order
+        for (const preferredId of PREFERRED_SORT_COLUMNS) {
+          fallbackColumn = allColumns.find(
+            col => col.id === preferredId && col.enableSorting !== false
+          );
+          if (fallbackColumn) break;
+        }
+
+        // If no preferred column found, use first sortable column
+        if (!fallbackColumn) {
+          fallbackColumn = allColumns.find(col => col.enableSorting !== false);
+        }
+
+        if (fallbackColumn) {
+          sort = {
+            id: fallbackColumn.id!,
+            desc: fallbackColumn.id === DEFAULT_SORT_COLUMN_ID, // Age column defaults to desc (newest first)
+          };
+        }
       }
     }
 
