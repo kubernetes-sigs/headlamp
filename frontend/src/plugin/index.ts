@@ -371,3 +371,22 @@ export async function fetchAndExecutePlugins(
   // Refresh theme name if the theme that was used from a plugin was deleted
   store.dispatch(themeSlice.actions.ensureValidThemeName());
 }
+
+/**
+ * Asks the main electron process for the permission secrets.
+ *
+ * @returns promise with permissions secrets like { 'runCmd-minikube': 1235555 }
+ */
+export async function permissionSecretsFromApp(): Promise<Record<string, number>> {
+  const { desktopApi } = window;
+  if (desktopApi) {
+    return new Promise(resolve => {
+      desktopApi.receive('plugin-permission-secrets', (secrets: Record<string, number>) => {
+        resolve(secrets);
+      });
+      desktopApi.send('request-plugin-permission-secrets');
+    });
+  } else {
+    return new Promise(resolve => resolve({}));
+  }
+}
