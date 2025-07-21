@@ -32,6 +32,7 @@ import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEven
 import { useTypedSelector } from '../../../redux/hooks';
 import { useSettings } from '../../App/Settings/hook';
 import { ClusterGroupErrorMessage } from '../../cluster/ClusterGroupErrorMessage';
+import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import { DateLabel } from '../Label';
 import Link from '../Link';
 import Table, { TableColumn } from '../Table';
@@ -202,26 +203,6 @@ function storeTableSettings(tableId: string, columns: { id?: string; show: boole
 }
 
 /**
- * Store the table sorting settings in local storage.
- *
- * @param tableId - The ID of the table.
- * @param sorting - The sorting state to store.
- * @returns void
- */
-function storeSortingSettings(tableId: string, sorting: { id: string; desc: boolean }[]) {
-  if (!tableId) {
-    console.debug('storeSortingSettings: tableId is empty!', new Error().stack);
-    return;
-  }
-
-  if (sorting.length === 0) {
-    localStorage.removeItem(`table_sorting.${tableId}`);
-    return;
-  }
-  localStorage.setItem(`table_sorting.${tableId}`, JSON.stringify(sorting));
-}
-
-/**
  * Load the table settings from local storage for a given table ID.
  *
  * @param tableId - The ID of the table.
@@ -234,22 +215,6 @@ function loadTableSettings(tableId: string): { id: string; show: boolean }[] {
   }
 
   const settings = JSON.parse(localStorage.getItem(`table_settings.${tableId}`) || '[]');
-  return settings;
-}
-
-/**
- * Load the table sorting settings from local storage for a given table ID.
- *
- * @param tableId - The ID of the table.
- * @returns The sorting settings for the given table ID.
- */
-function loadSortingSettings(tableId: string): { id: string; desc: boolean }[] {
-  if (!tableId) {
-    console.debug('loadSortingSettings: tableId is empty!', new Error().stack);
-    return [];
-  }
-
-  const settings = JSON.parse(localStorage.getItem(`table_sorting.${tableId}`) || '[]');
   return settings;
 }
 
@@ -352,11 +317,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     initColumnVisibilityState(columns, id)
   );
 
-  const [sorting, setSorting] = useState(() => {
-    if (!id) return [];
-    const persistedSorting = loadSortingSettings(id);
-    return persistedSorting;
-  });
+  const [sorting, setSorting] = useLocalStorageState(`table_sorting.${id || 'default'}`, []);
 
   const [tableSettings] = useState<{ id: string; show: boolean }[]>(
     !!id ? loadTableSettings(id) : []
@@ -504,23 +465,13 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     if (sorting && sorting.length > 0) {
       sort = sorting[0];
     } else {
-      // Load persisted sorting settings
-      if (id) {
-        const persistedSorting = loadSortingSettings(id);
-        if (persistedSorting.length > 0) {
-          sort = persistedSorting[0]; // Use the first (primary) sort
-        }
-      }
-
       // If no persisted sorting, fall back to default
-      if (!sort) {
-        const sortingColumn = defaultSortingColumn ?? allColumns.find(it => it.id === 'age');
-        if (sortingColumn) {
-          sort = {
-            id: sortingColumn.id!,
-            desc: false,
-          };
-        }
+      const sortingColumn = defaultSortingColumn ?? allColumns.find(it => it.id === 'age');
+      if (sortingColumn) {
+        sort = {
+          id: sortingColumn.id!,
+          desc: false,
+        };
       }
     }
 
@@ -615,18 +566,6 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     });
   }
 
-  function onSortingChange(updater: any): void {
-    setSorting((oldSorting: any) => {
-      const newSorting = updater(oldSorting);
-
-      if (!!id && newSorting) {
-        storeSortingSettings(id, newSorting);
-      }
-
-      return newSorting;
-    });
-  }
-
   const initialState: ComponentProps<typeof Table>['initialState'] = {
     sorting: sort ? [sort] : undefined,
   };
@@ -659,7 +598,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
         }}
         reflectInURL={reflectInURL}
         onColumnVisibilityChange={onColumnsVisibilityChange as any}
-        onSortingChange={onSortingChange as any}
+        onSortingChange={setSorting as any}
         enableRowActions={enableRowActions}
         renderRowActionMenuItems={renderRowActionMenuItems as any}
         filterFns={{
