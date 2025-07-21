@@ -14,36 +14,36 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import { useHistory, useParams } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { Box, Typography, Chip, Divider } from '@mui/material';
 import { Icon } from '@iconify/react';
-import { useTypedSelector } from '../../redux/hooks';
-import { createRouteURL } from '../../lib/router';
-import { matchesProject } from './projectUtils';
+import { Box, Chip, Divider, Typography } from '@mui/material';
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { useParams } from 'react-router-dom';
 import { getCluster } from '../../lib/cluster';
-import SectionBox from '../common/SectionBox';
-import Link from '../common/Link';
-import Service from '../../lib/k8s/service';
-import Deployment from '../../lib/k8s/deployment';
-import StatefulSet from '../../lib/k8s/statefulSet';
-import DaemonSet from '../../lib/k8s/daemonSet';
-import Job from '../../lib/k8s/job';
-import CronJob from '../../lib/k8s/cronJob';
 import ConfigMap from '../../lib/k8s/configMap';
-import Secret from '../../lib/k8s/secret';
+import CronJob from '../../lib/k8s/cronJob';
+import DaemonSet from '../../lib/k8s/daemonSet';
+import Deployment from '../../lib/k8s/deployment';
 import Ingress from '../../lib/k8s/ingress';
+import Job from '../../lib/k8s/job';
 import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../lib/k8s/pod';
-import ScaleButton from '../common/Resource/ScaleButton';
 import ReplicaSet from '../../lib/k8s/replicaSet';
-import { DeleteButton } from '../common/Resource';
-import ActionButton from '../common/ActionButton';
-import AuthVisible from '../common/Resource/AuthVisible';
+import Secret from '../../lib/k8s/secret';
+import Service from '../../lib/k8s/service';
+import StatefulSet from '../../lib/k8s/statefulSet';
+import { createRouteURL } from '../../lib/router';
+import { useTypedSelector } from '../../redux/hooks';
 import { Activity } from '../activity/Activity';
+import ActionButton from '../common/ActionButton';
+import Link from '../common/Link';
+import { DeleteButton } from '../common/Resource';
+import AuthVisible from '../common/Resource/AuthVisible';
+import ScaleButton from '../common/Resource/ScaleButton';
+import SectionBox from '../common/SectionBox';
 import Terminal from '../common/Terminal';
 import { PodLogViewer } from '../pod/Details';
+import { matchesProject } from './projectUtils';
 
 interface ProjectResourceListParams {
   projectId: string;
@@ -57,7 +57,7 @@ const resourceCategories = [
     icon: 'mdi:apps',
     kinds: ['Deployment', 'StatefulSet', 'DaemonSet', 'Job', 'CronJob', 'Pod'],
     description: 'Applications and compute resources',
-    scalingNotice: 'Workloads can be scaled up or down based on demand'
+    scalingNotice: 'Workloads can be scaled up or down based on demand',
   },
   {
     category: 'networking',
@@ -65,7 +65,7 @@ const resourceCategories = [
     icon: 'mdi:network',
     kinds: ['Service', 'Ingress'],
     description: 'Network connectivity and exposure',
-    scalingNotice: 'Network resources typically scale with workloads'
+    scalingNotice: 'Network resources typically scale with workloads',
   },
   {
     category: 'configuration',
@@ -73,7 +73,7 @@ const resourceCategories = [
     icon: 'mdi:cog',
     kinds: ['ConfigMap', 'Secret'],
     description: 'Configuration data and secrets',
-    scalingNotice: 'Configuration resources are usually static'
+    scalingNotice: 'Configuration resources are usually static',
   },
   {
     category: 'storage',
@@ -81,13 +81,12 @@ const resourceCategories = [
     icon: 'mdi:database',
     kinds: ['PersistentVolumeClaim'],
     description: 'Persistent data storage',
-    scalingNotice: 'Storage can be expanded but rarely shrunk'
-  }
+    scalingNotice: 'Storage can be expanded but rarely shrunk',
+  },
 ];
 
 export default function ProjectResourceList() {
   const { t } = useTranslation();
-  const history = useHistory();
   const { projectId, category } = useParams<ProjectResourceListParams>();
 
   const projectsState = useTypedSelector(state => state.projects.projects);
@@ -99,17 +98,17 @@ export default function ProjectResourceList() {
   }, [project]);
 
   // Watch all resource types
-  const { items: deployments } = Deployment.useList({clusters: projectClusters});
-  const { items: services } = Service.useList({clusters: projectClusters});
-  const { items: statefulSets } = StatefulSet.useList({clusters: projectClusters});
-  const { items: daemonSets } = DaemonSet.useList({clusters: projectClusters});
-  const { items: jobs } = Job.useList({clusters: projectClusters});
-  const { items: cronJobs } = CronJob.useList({clusters: projectClusters});
-  const { items: configMaps } = ConfigMap.useList({clusters: projectClusters});
-  const { items: secrets } = Secret.useList({clusters: projectClusters});
-  const { items: ingresses } = Ingress.useList({clusters: projectClusters});
-  const { items: pvcs } = PersistentVolumeClaim.useList({clusters: projectClusters});
-  const { items: pods } = Pod.useList({clusters: projectClusters});
+  const { items: deployments } = Deployment.useList({ clusters: projectClusters });
+  const { items: services } = Service.useList({ clusters: projectClusters });
+  const { items: statefulSets } = StatefulSet.useList({ clusters: projectClusters });
+  const { items: daemonSets } = DaemonSet.useList({ clusters: projectClusters });
+  const { items: jobs } = Job.useList({ clusters: projectClusters });
+  const { items: cronJobs } = CronJob.useList({ clusters: projectClusters });
+  const { items: configMaps } = ConfigMap.useList({ clusters: projectClusters });
+  const { items: secrets } = Secret.useList({ clusters: projectClusters });
+  const { items: ingresses } = Ingress.useList({ clusters: projectClusters });
+  const { items: pvcs } = PersistentVolumeClaim.useList({ clusters: projectClusters });
+  const { items: pods } = Pod.useList({ clusters: projectClusters });
 
   const categoryInfo = resourceCategories.find(cat => cat.category === category);
 
@@ -141,23 +140,33 @@ export default function ProjectResourceList() {
     ...(ingresses || []),
     ...(pvcs || []),
     ...(pods || []),
-  ];  // Filter resources that match the project and belong to this category
+  ]; // Filter resources that match the project and belong to this category
   const categoryResources = allResources.filter(resource => {
-    return categoryInfo.kinds.includes(resource.kind) &&
-           matchesProject(resource, project, currentCluster || undefined);
+    return (
+      categoryInfo.kinds.includes(resource.kind) &&
+      matchesProject(resource, project, currentCluster || undefined)
+    );
   });
 
   return (
     <SectionBox
       title={
         <Box display="flex" alignItems="center" gap={2}>
-          <Icon icon={project.icon || 'mdi:application'} width={32} height={32} style={{ color: project.color || '#1976d2' }} />
+          <Icon
+            icon={project.icon || 'mdi:application'}
+            width={32}
+            height={32}
+            style={{ color: project.color || '#1976d2' }}
+          />
           <Box>
             <Typography variant="h4" component="span">
               {project.name}
             </Typography>
             <Typography variant="h6" color="text.secondary" component="div">
-              <Icon icon={categoryInfo.icon} style={{ fontSize: 20, marginRight: 8, verticalAlign: 'middle' }} />
+              <Icon
+                icon={categoryInfo.icon}
+                style={{ fontSize: 20, marginRight: 8, verticalAlign: 'middle' }}
+              />
               {categoryInfo.displayName}
             </Typography>
           </Box>
@@ -170,11 +179,15 @@ export default function ProjectResourceList() {
         <Typography variant="body2" color="text.secondary" paragraph>
           {categoryInfo.description}
         </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{
-          fontStyle: 'italic',
-          display: 'block',
-          fontSize: '0.75rem'
-        }}>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{
+            fontStyle: 'italic',
+            display: 'block',
+            fontSize: '0.75rem',
+          }}
+        >
           💡 {categoryInfo.scalingNotice}
         </Typography>
 
@@ -208,12 +221,7 @@ export default function ProjectResourceList() {
                 {t('Namespaces:')}
               </Typography>
               {project.namespaceSelectors.map((selector, index) => (
-                <Chip
-                  key={index}
-                  label={selector.name}
-                  size="small"
-                  variant="outlined"
-                />
+                <Chip key={index} label={selector.name} size="small" variant="outlined" />
               ))}
             </Box>
           )}
@@ -239,13 +247,15 @@ export default function ProjectResourceList() {
         <Typography variant="h6" gutterBottom>
           {t('{{category}} Resources ({{count}})', {
             category: categoryInfo.displayName,
-            count: categoryResources.length
+            count: categoryResources.length,
           })}
         </Typography>
 
         {categoryResources.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
-            {t('No {{category}} resources found for this project.', { category: categoryInfo.displayName.toLowerCase() })}
+            {t('No {{category}} resources found for this project.', {
+              category: categoryInfo.displayName.toLowerCase(),
+            })}
           </Typography>
         ) : (
           <Box>
@@ -298,7 +308,9 @@ export default function ProjectResourceList() {
                           healthColor = 'error.main';
                           healthIcon = 'mdi:alert-circle';
                           healthText = 'Unhealthy';
-                        } else if ((status?.numberReady || 0) < (status?.desiredNumberScheduled || 0)) {
+                        } else if (
+                          (status?.numberReady || 0) < (status?.desiredNumberScheduled || 0)
+                        ) {
                           healthColor = 'warning.main';
                           healthIcon = 'mdi:alert';
                           healthText = 'Degraded';
@@ -307,7 +319,8 @@ export default function ProjectResourceList() {
                         const pod = resource as Pod;
                         const phase = pod.status?.phase;
                         const conditions = pod.status?.conditions || [];
-                        const ready = conditions.find((c: any) => c.type === 'Ready')?.status === 'True';
+                        const ready =
+                          conditions.find((c: any) => c.type === 'Ready')?.status === 'True';
 
                         if (phase === 'Failed' || phase === 'CrashLoopBackOff') {
                           healthColor = 'error.main';
@@ -320,23 +333,27 @@ export default function ProjectResourceList() {
                         }
                       }
 
-                      const createdDate = resource.metadata?.creationTimestamp ?
-                        new Date(resource.metadata.creationTimestamp) : null;
-                      const ageText = createdDate ?
-                        Math.floor((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) + 'd' :
-                        'Unknown';
+                      const createdDate = resource.metadata?.creationTimestamp
+                        ? new Date(resource.metadata.creationTimestamp)
+                        : null;
+                      const ageText = createdDate
+                        ? Math.floor((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) +
+                          'd'
+                        : 'Unknown';
                       const isScalable = ['Deployment', 'StatefulSet', 'ReplicaSet'].includes(kind);
                       const isPod = kind === 'Pod';
 
                       return (
                         <Box
-                          key={`${resource.metadata?.namespace || 'default'}-${resource.metadata?.name}-${index}`}
+                          key={`${resource.metadata?.namespace || 'default'}-${
+                            resource.metadata?.name
+                          }-${index}`}
                           p={2}
                           border={1}
                           borderColor="divider"
                           borderRadius={1}
                           sx={{
-                            '&:hover': { bgcolor: 'action.hover' }
+                            '&:hover': { bgcolor: 'action.hover' },
                           }}
                         >
                           <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -351,7 +368,7 @@ export default function ProjectResourceList() {
                                   icon={healthIcon}
                                   style={{
                                     fontSize: 16,
-                                    color: healthColor
+                                    color: healthColor,
                                   }}
                                 />
                                 <Typography variant="caption" sx={{ color: healthColor }}>
@@ -359,24 +376,31 @@ export default function ProjectResourceList() {
                                 </Typography>
                               </Box>
                               <Typography variant="body2" color="text.secondary">
-                                {resource.metadata?.namespace && `Namespace: ${resource.metadata.namespace}`}
+                                {resource.metadata?.namespace &&
+                                  `Namespace: ${resource.metadata.namespace}`}
                                 {resource.metadata?.namespace && ' • '}
                                 Cluster: {resource.cluster || 'default'}
-                                {['Deployment', 'StatefulSet', 'ReplicaSet'].includes(kind) && resource.status &&
-                                  ` • Replicas: ${resource.status.readyReplicas || resource.status.availableReplicas || 0}/${resource.spec?.replicas || 0}`
-                                }
-                                {kind === 'DaemonSet' && resource.status &&
-                                  ` • Ready: ${resource.status.numberReady || 0}/${resource.status.desiredNumberScheduled || 0}`
-                                }
-                                {kind === 'Pod' && resource.status?.phase &&
-                                  ` • Phase: ${resource.status.phase}`
-                                }
+                                {['Deployment', 'StatefulSet', 'ReplicaSet'].includes(kind) &&
+                                  resource.status &&
+                                  ` • Replicas: ${
+                                    resource.status.readyReplicas ||
+                                    resource.status.availableReplicas ||
+                                    0
+                                  }/${resource.spec?.replicas || 0}`}
+                                {kind === 'DaemonSet' &&
+                                  resource.status &&
+                                  ` • Ready: ${resource.status.numberReady || 0}/${
+                                    resource.status.desiredNumberScheduled || 0
+                                  }`}
+                                {kind === 'Pod' &&
+                                  resource.status?.phase &&
+                                  ` • Phase: ${resource.status.phase}`}
                               </Typography>
                             </Box>
                             <Box textAlign="right" display="flex" alignItems="center" gap={1}>
                               {isScalable && (
                                 <ScaleButton
-                                  item={resource as (Deployment | StatefulSet | ReplicaSet)}
+                                  item={resource as Deployment | StatefulSet | ReplicaSet}
                                 />
                               )}
                               {isPod && (

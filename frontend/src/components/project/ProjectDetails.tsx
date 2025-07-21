@@ -14,88 +14,60 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
-import { useHistory, useParams } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { useDispatch } from 'react-redux';
+import { Icon } from '@iconify/react';
 import {
   Box,
   Button,
-  Typography,
-  Paper,
-  Grid,
   Card,
   CardContent,
   Chip,
-  Divider,
-  IconButton,
   Dialog,
-  DialogTitle,
-  DialogContent,
   DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  Grid,
+  IconButton,
   List,
   ListItem,
-  ListItemText,
-  ListItemIcon,
   ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Typography,
 } from '@mui/material';
-import { Icon } from '@iconify/react';
-import LightTooltip from '../common/Tooltip/TooltipLight';
-import { useTypedSelector } from '../../redux/hooks';
-import { deleteProject } from '../../redux/projectsSlice';
-import { createRouteURL } from '../../lib/router';
-import { getProjectResources } from './projectUtils';
+import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useDispatch } from 'react-redux';
+import { useHistory, useParams } from 'react-router-dom';
 import { getCluster } from '../../lib/cluster';
-import SectionBox from '../common/SectionBox';
-import Service from '../../lib/k8s/service';
-import Deployment from '../../lib/k8s/deployment';
-import StatefulSet from '../../lib/k8s/statefulSet';
-import DaemonSet from '../../lib/k8s/daemonSet';
-import Job from '../../lib/k8s/job';
-import CronJob from '../../lib/k8s/cronJob';
 import ConfigMap from '../../lib/k8s/configMap';
-import Secret from '../../lib/k8s/secret';
+import CronJob from '../../lib/k8s/cronJob';
+import DaemonSet from '../../lib/k8s/daemonSet';
+import Deployment from '../../lib/k8s/deployment';
 import Ingress from '../../lib/k8s/ingress';
+import Job from '../../lib/k8s/job';
 import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../lib/k8s/pod';
-import ScaleButton from '../common/Resource/ScaleButton';
 import ReplicaSet from '../../lib/k8s/replicaSet';
-import { DeleteButton } from '../common/Resource';
-import ActionButton from '../common/ActionButton';
-import AuthVisible from '../common/Resource/AuthVisible';
+import Secret from '../../lib/k8s/secret';
+import Service from '../../lib/k8s/service';
+import StatefulSet from '../../lib/k8s/statefulSet';
+import { createRouteURL } from '../../lib/router';
+import { useTypedSelector } from '../../redux/hooks';
+import { deleteProject } from '../../redux/projectsSlice';
 import { Activity } from '../activity/Activity';
+import ActionButton from '../common/ActionButton';
+import Link from '../common/Link';
+import { DeleteButton } from '../common/Resource';
+import AuthVisible from '../common/Resource/AuthVisible';
+import ScaleButton from '../common/Resource/ScaleButton';
+import SectionBox from '../common/SectionBox';
 import Terminal from '../common/Terminal';
 import { PodLogViewer } from '../pod/Details';
-import Link from '../common/Link';
+import { getProjectResources } from './projectUtils';
 
 interface ProjectDetailsParams {
   projectId: string;
-}
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  value: number;
-  index: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`project-tabpanel-${index}`}
-      aria-labelledby={`project-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Box sx={{ p: 3 }}>
-          {children}
-        </Box>
-      )}
-    </div>
-  );
 }
 
 export default function ProjectDetails() {
@@ -117,17 +89,17 @@ export default function ProjectDetails() {
   }, [project]);
 
   // Watch all resource types
-  const { items: deployments } = Deployment.useList({clusters: projectClusters});
-  const { items: services } = Service.useList({clusters: projectClusters});
-  const { items: statefulSets } = StatefulSet.useList({clusters: projectClusters});
-  const { items: daemonSets } = DaemonSet.useList({clusters: projectClusters});
-  const { items: jobs } = Job.useList({clusters: projectClusters});
-  const { items: cronJobs } = CronJob.useList({clusters: projectClusters});
-  const { items: configMaps } = ConfigMap.useList({clusters: projectClusters});
-  const { items: secrets } = Secret.useList({clusters: projectClusters});
-  const { items: ingresses } = Ingress.useList({clusters: projectClusters});
-  const { items: pvcs } = PersistentVolumeClaim.useList({clusters: projectClusters});
-  const { items: pods } = Pod.useList({clusters: projectClusters});
+  const { items: deployments } = Deployment.useList({ clusters: projectClusters });
+  const { items: services } = Service.useList({ clusters: projectClusters });
+  const { items: statefulSets } = StatefulSet.useList({ clusters: projectClusters });
+  const { items: daemonSets } = DaemonSet.useList({ clusters: projectClusters });
+  const { items: jobs } = Job.useList({ clusters: projectClusters });
+  const { items: cronJobs } = CronJob.useList({ clusters: projectClusters });
+  const { items: configMaps } = ConfigMap.useList({ clusters: projectClusters });
+  const { items: secrets } = Secret.useList({ clusters: projectClusters });
+  const { items: ingresses } = Ingress.useList({ clusters: projectClusters });
+  const { items: pvcs } = PersistentVolumeClaim.useList({ clusters: projectClusters });
+  const { items: pods } = Pod.useList({ clusters: projectClusters });
 
   if (!project) {
     return (
@@ -214,7 +186,10 @@ export default function ProjectDetails() {
     } else if (kind === 'DaemonSet') {
       resources.forEach(daemonSet => {
         const status = daemonSet.status;
-        if (status?.numberReady === status?.desiredNumberScheduled && status?.desiredNumberScheduled > 0) {
+        if (
+          status?.numberReady === status?.desiredNumberScheduled &&
+          status?.desiredNumberScheduled > 0
+        ) {
           healthyCount++;
         } else if (status?.numberReady === 0) {
           unhealthyCount++;
@@ -287,7 +262,10 @@ export default function ProjectDetails() {
     const daemonSetResources = getResourcesByKind('DaemonSet');
     daemonSetResources.forEach(daemonSet => {
       const status = daemonSet.status;
-      if (status?.numberReady === status?.desiredNumberScheduled && status?.desiredNumberScheduled > 0) {
+      if (
+        status?.numberReady === status?.desiredNumberScheduled &&
+        status?.desiredNumberScheduled > 0
+      ) {
         healthy++;
       } else if (status?.numberReady === 0) {
         unhealthy++;
@@ -376,7 +354,12 @@ export default function ProjectDetails() {
       <SectionBox
         title={
           <Box display="flex" alignItems="center" gap={2}>
-            <Icon icon={project.icon || 'mdi:application'} width={48} height={48} style={{ color: project.color || '#1976d2' }} />
+            <Icon
+              icon={project.icon || 'mdi:application'}
+              width={48}
+              height={48}
+              style={{ color: project.color || '#1976d2' }}
+            />
             <Typography variant="h4" component="span">
               {project.name}
             </Typography>
@@ -424,18 +407,40 @@ export default function ProjectDetails() {
                 </Typography>
                 <Box display="flex" alignItems="center" gap={1} mb={1}>
                   <Icon
-                    icon={getHealthIcon(projectHealth.healthy, projectHealth.unhealthy, projectHealth.warning, projectHealth.total)}
+                    icon={getHealthIcon(
+                      projectHealth.healthy,
+                      projectHealth.unhealthy,
+                      projectHealth.warning,
+                      projectHealth.total
+                    )}
                     style={{
-                      color: getHealthColor(projectHealth.healthy, projectHealth.unhealthy, projectHealth.warning, projectHealth.total),
-                      fontSize: 24
+                      color: getHealthColor(
+                        projectHealth.healthy,
+                        projectHealth.unhealthy,
+                        projectHealth.warning,
+                        projectHealth.total
+                      ),
+                      fontSize: 24,
                     }}
                   />
-                  <Typography variant="h6" sx={{
-                    color: getHealthColor(projectHealth.healthy, projectHealth.unhealthy, projectHealth.warning, projectHealth.total)
-                  }}>
-                    {projectHealth.total === 0 ? t('No Workloads') :
-                    projectHealth.unhealthy > 0 ? t('Unhealthy') :
-                    projectHealth.warning > 0 ? t('Degraded') : t('Healthy')}
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      color: getHealthColor(
+                        projectHealth.healthy,
+                        projectHealth.unhealthy,
+                        projectHealth.warning,
+                        projectHealth.total
+                      ),
+                    }}
+                  >
+                    {projectHealth.total === 0
+                      ? t('No Workloads')
+                      : projectHealth.unhealthy > 0
+                      ? t('Unhealthy')
+                      : projectHealth.warning > 0
+                      ? t('Degraded')
+                      : t('Healthy')}
                   </Typography>
                 </Box>
 
@@ -522,12 +527,7 @@ export default function ProjectDetails() {
                     </Typography>
                     <Box display="flex" flexWrap="wrap" gap={1}>
                       {project.namespaceSelectors.map((selector, index) => (
-                        <Chip
-                          key={index}
-                          label={selector.name}
-                          size="small"
-                          variant="outlined"
-                        />
+                        <Chip key={index} label={selector.name} size="small" variant="outlined" />
                       ))}
                     </Box>
                   </>
@@ -548,7 +548,6 @@ export default function ProjectDetails() {
                   {resourceCategories.map(({ category, icon, kinds, description }) => {
                     // Calculate totals for this category
                     let totalCount = 0;
-                    let totalHealthy = 0;
                     let totalUnhealthy = 0;
                     let totalWarning = 0;
 
@@ -557,9 +556,10 @@ export default function ProjectDetails() {
                       totalCount += resources.length;
 
                       if (resources.length > 0) {
-                        const { healthyCount, unhealthyCount, warningCount } =
-                          calculateResourceHealth(kind, resources);
-                        totalHealthy += healthyCount;
+                        const { unhealthyCount, warningCount } = calculateResourceHealth(
+                          kind,
+                          resources
+                        );
                         totalUnhealthy += unhealthyCount;
                         totalWarning += warningCount;
                       }
@@ -636,12 +636,7 @@ export default function ProjectDetails() {
           <Box mt={4}>
             <SectionBox
               title={
-                <Box
-                  display="flex"
-                  alignItems="center"
-                  justifyContent="space-between"
-                  width="100%"
-                >
+                <Box display="flex" alignItems="center" justifyContent="space-between" width="100%">
                   <Typography variant="h5">{listCategoryInfo.category}</Typography>
                   <IconButton onClick={() => setSelectedCategory(null)} size="small">
                     <Icon icon="mdi:close" />
@@ -707,8 +702,7 @@ export default function ProjectDetails() {
                                 healthIcon = 'mdi:alert-circle';
                                 healthText = 'Unhealthy';
                               } else if (
-                                (status?.numberReady || 0) <
-                                (status?.desiredNumberScheduled || 0)
+                                (status?.numberReady || 0) < (status?.desiredNumberScheduled || 0)
                               ) {
                                 healthColor = 'warning.main';
                                 healthIcon = 'mdi:alert';
@@ -747,9 +741,9 @@ export default function ProjectDetails() {
 
                             return (
                               <Box
-                                key={`${
-                                  resource.metadata?.namespace || 'default'
-                                }-${resource.metadata?.name}-${index}`}
+                                key={`${resource.metadata?.namespace || 'default'}-${
+                                  resource.metadata?.name
+                                }-${index}`}
                                 p={2}
                                 border={1}
                                 borderColor="divider"
@@ -766,7 +760,11 @@ export default function ProjectDetails() {
                                   <Box flex={1}>
                                     <Box display="flex" alignItems="center" gap={1} mb={0.5}>
                                       <Link kubeObject={resource}>
-                                        <Typography variant="body1" fontWeight="medium" component="span">
+                                        <Typography
+                                          variant="body1"
+                                          fontWeight="medium"
+                                          component="span"
+                                        >
                                           {resource.metadata?.name}
                                         </Typography>
                                       </Link>
@@ -786,9 +784,7 @@ export default function ProjectDetails() {
                                         `Namespace: ${resource.metadata.namespace}`}
                                       {resource.metadata?.namespace && ' • '}
                                       Cluster: {resource.cluster || 'default'}
-                                      {['Deployment', 'StatefulSet', 'ReplicaSet'].includes(
-                                        kind
-                                      ) &&
+                                      {['Deployment', 'StatefulSet', 'ReplicaSet'].includes(kind) &&
                                         resource.status &&
                                         ` • Replicas: ${
                                           resource.status.readyReplicas ||
@@ -808,14 +804,16 @@ export default function ProjectDetails() {
                                   <Box textAlign="right" display="flex" alignItems="center" gap={1}>
                                     {isScalable && (
                                       <ScaleButton
-                                        item={
-                                          resource as Deployment | StatefulSet | ReplicaSet
-                                        }
+                                        item={resource as Deployment | StatefulSet | ReplicaSet}
                                       />
                                     )}
                                     {isPod && (
                                       <>
-                                        <AuthVisible item={resource} authVerb="get" subresource="log">
+                                        <AuthVisible
+                                          item={resource}
+                                          authVerb="get"
+                                          subresource="log"
+                                        >
                                           <ActionButton
                                             description={t('Show Logs')}
                                             icon="mdi:file-document-box-outline"
@@ -909,20 +907,19 @@ export default function ProjectDetails() {
           maxWidth="sm"
           fullWidth
         >
-          <DialogTitle>
-            {t('Delete Project')}
-          </DialogTitle>
+          <DialogTitle>{t('Delete Project')}</DialogTitle>
           <DialogContent>
             <Typography>
-              {t('Are you sure you want to delete the project "{{name}}"? This action cannot be undone.', {
-                name: project.name,
-              })}
+              {t(
+                'Are you sure you want to delete the project "{{name}}"? This action cannot be undone.',
+                {
+                  name: project.name,
+                }
+              )}
             </Typography>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setDeleteDialogOpen(false)}>
-              {t('Cancel')}
-            </Button>
+            <Button onClick={() => setDeleteDialogOpen(false)}>{t('Cancel')}</Button>
             <Button onClick={handleDelete} color="error" variant="contained">
               {t('Delete')}
             </Button>

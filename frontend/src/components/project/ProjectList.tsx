@@ -14,27 +14,27 @@
  * limitations under the License.
  */
 
-import React, { useMemo } from 'react';
-import { useHistory } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { Box, Button, Typography, Card, CardContent, Grid, Chip } from '@mui/material';
 import { Icon } from '@iconify/react';
-import { useTypedSelector } from '../../redux/hooks';
-import { createRouteURL } from '../../lib/router';
-import { getProjectResources } from './projectUtils';
+import { Box, Button, Card, CardContent, Chip, Grid, Typography } from '@mui/material';
+import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useHistory } from 'react-router-dom';
 import { getCluster } from '../../lib/cluster';
-import SectionBox from '../common/SectionBox';
-import Service from '../../lib/k8s/service';
-import Deployment from '../../lib/k8s/deployment';
-import StatefulSet from '../../lib/k8s/statefulSet';
-import DaemonSet from '../../lib/k8s/daemonSet';
-import Job from '../../lib/k8s/job';
-import CronJob from '../../lib/k8s/cronJob';
 import ConfigMap from '../../lib/k8s/configMap';
-import Secret from '../../lib/k8s/secret';
+import CronJob from '../../lib/k8s/cronJob';
+import DaemonSet from '../../lib/k8s/daemonSet';
+import Deployment from '../../lib/k8s/deployment';
 import Ingress from '../../lib/k8s/ingress';
+import Job from '../../lib/k8s/job';
 import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../lib/k8s/pod';
+import Secret from '../../lib/k8s/secret';
+import Service from '../../lib/k8s/service';
+import StatefulSet from '../../lib/k8s/statefulSet';
+import { createRouteURL } from '../../lib/router';
+import { useTypedSelector } from '../../redux/hooks';
+import SectionBox from '../common/SectionBox';
+import { getProjectResources } from './projectUtils';
 
 interface ProjectSummary {
   id: string;
@@ -81,26 +81,47 @@ export default function ProjectList() {
   const { items: pvcs } = PersistentVolumeClaim.useList({ clusters: allProjectClusters });
   const { items: pods } = Pod.useList({ clusters: allProjectClusters });
 
-  const allResources = useMemo(() => [
-    ...(deployments || []),
-    ...(services || []),
-    ...(statefulSets || []),
-    ...(daemonSets || []),
-    ...(jobs || []),
-    ...(cronJobs || []),
-    ...(configMaps || []),
-    ...(secrets || []),
-    ...(ingresses || []),
-    ...(pvcs || []),
-    ...(pods || []),
-  ], [deployments, services, statefulSets, daemonSets, jobs, cronJobs, configMaps, secrets, ingresses, pvcs, pods]);
+  const allResources = useMemo(
+    () => [
+      ...(deployments || []),
+      ...(services || []),
+      ...(statefulSets || []),
+      ...(daemonSets || []),
+      ...(jobs || []),
+      ...(cronJobs || []),
+      ...(configMaps || []),
+      ...(secrets || []),
+      ...(ingresses || []),
+      ...(pvcs || []),
+      ...(pods || []),
+    ],
+    [
+      deployments,
+      services,
+      statefulSets,
+      daemonSets,
+      jobs,
+      cronJobs,
+      configMaps,
+      secrets,
+      ingresses,
+      pvcs,
+      pods,
+    ]
+  );
 
   const projectSummaries = useMemo((): ProjectSummary[] => {
     return projects.map(project => {
-      const projectResources = getProjectResources(project, allResources, currentCluster || undefined);
-      const namespaces = Array.from(new Set(projectResources.map(r => r.getNamespace()).filter(Boolean)));
-      const labelSelectors = project.labelSelectors.map(sel =>
-        `${sel.key} ${sel.operator} ${sel.value || ''}`
+      const projectResources = getProjectResources(
+        project,
+        allResources,
+        currentCluster || undefined
+      );
+      const namespaces = Array.from(
+        new Set(projectResources.map(r => r.getNamespace()).filter(Boolean))
+      );
+      const labelSelectors = project.labelSelectors.map(
+        sel => `${sel.key} ${sel.operator} ${sel.value || ''}`
       );
 
       return {
@@ -135,7 +156,10 @@ export default function ProjectList() {
           minHeight="400px"
           textAlign="center"
         >
-          <Icon icon="mdi:folder-multiple" style={{ fontSize: 64, color: '#ccc', marginBottom: 16 }} />
+          <Icon
+            icon="mdi:folder-multiple"
+            style={{ fontSize: 64, color: '#ccc', marginBottom: 16 }}
+          />
           <Typography variant="h6" gutterBottom>
             {t('No projects found')}
           </Typography>
@@ -215,12 +239,7 @@ export default function ProjectList() {
                     </Typography>
                     <Box display="flex" flexWrap="wrap" gap={0.5}>
                       {project.namespaces.slice(0, 3).map(namespace => (
-                        <Chip
-                          key={namespace}
-                          label={namespace}
-                          size="small"
-                          variant="outlined"
-                        />
+                        <Chip key={namespace} label={namespace} size="small" variant="outlined" />
                       ))}
                       {project.namespaces.length > 3 && (
                         <Chip
@@ -239,12 +258,7 @@ export default function ProjectList() {
                   </Typography>
                   <Box display="flex" flexWrap="wrap" gap={0.5}>
                     {project.labelSelectors.slice(0, 2).map((selector, index) => (
-                      <Chip
-                        key={index}
-                        label={selector}
-                        size="small"
-                        variant="outlined"
-                      />
+                      <Chip key={index} label={selector} size="small" variant="outlined" />
                     ))}
                     {project.labelSelectors.length > 2 && (
                       <Chip
