@@ -38,6 +38,8 @@ interface CommandData {
    * See https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options
    */
   options: {};
+  /** The permission secrets for the command. */
+  permissionSecrets: Record<string, number>;
 }
 
 /**
@@ -114,6 +116,29 @@ function checkCommandConsent(command: string, mainWindow: BrowserWindow): boolea
     saveSettings(settings);
   }
   return true;
+}
+
+/**
+ * Check if the command has the correct permission secret.
+ * If the command is 'scriptjs', it checks for a specific script path.
+ *
+ * @returns [permissionsValid, permissionError]
+ */
+export function checkPermissionSecret(
+  commandData: CommandData,
+  permissionSecrets: Record<string, number>
+): [boolean, string] {
+  let permissionName = 'runCmd-' + commandData.command;
+  if (commandData.command === 'scriptjs') {
+    permissionName = 'runCmd-' + commandData.command + '-' + commandData.args[0];
+  }
+  if (
+    permissionSecrets[permissionName] === undefined ||
+    permissionSecrets[permissionName] !== commandData.permissionSecrets[permissionName]
+  ) {
+    return [false, `No permission secret found for command: ${permissionName}, cannot run command`];
+  }
+  return [true, ''];
 }
 
 /**
