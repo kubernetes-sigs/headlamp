@@ -329,9 +329,22 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     initColumnVisibilityState(columns, id)
   );
 
-  // Generate a unique table ID for sorting state persistence
+  // Generate a stable table ID for sorting state persistence
   // This ensures each table has unique sorting state even without explicit id
-  const tableId = id || `table-${Math.random().toString(36).substr(2, 9)}`;
+  const tableId = useMemo(() => {
+    if (id) return id;
+
+    // Create a stable fallback ID based on component props
+    const columnIds = columns
+      .map((col, index) => {
+        if (typeof col === 'string') return col;
+        return col.id || col.label || `col-${index}`;
+      })
+      .join('-');
+
+    return `table-${columnIds.slice(0, 50)}`; // Limit length to avoid overly long keys
+  }, [id, columns]);
+
   const [sorting, setSorting] = useLocalStorageState(`table_sorting.${tableId}`, []);
 
   const [tableSettings] = useState<{ id: string; show: boolean }[]>(
