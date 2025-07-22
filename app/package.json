@@ -21,8 +21,9 @@
     "package-msi": "npm run build && node windows/msi/build.js",
     "prod-deps": "mkdirp prod_deps && cd ./prod_deps && copyfiles -f ../package.json ../package-lock.json . && npm i --only=prod && cd .. && npx --no-install shx rm -rf ./prod_deps/node_modules/.bin",
     "start": "node scripts/start.js",
-    "test": "npm run compile-tests && jest",
-    "compile-tests": "babel electron --out-dir electron/ --extensions .ts"
+    "test": "npm run compile-tests && jest electron --testMatch \"**/electron/**/*.test.ts\"",
+    "compile-tests": "babel electron --out-dir electron/ --extensions .ts",
+    "tsc": "tsc"
   },
   "build": {
     "appId": "com.microsoft.Headlamp",
@@ -159,6 +160,7 @@
     "@headlamp-k8s/eslint-config": "^0.6.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.14.0",
+    "@types/semver": "^7.7.0",
     "electron": "^31.2.0",
     "electron-builder": "^24.13.3",
     "i18next-parser": "^9.0.0",

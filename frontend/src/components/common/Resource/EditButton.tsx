@@ -125,9 +125,8 @@ export default function EditButton(props: EditButtonProps) {
         description={t('translation|Edit')}
         buttonStyle={buttonStyle}
         onClick={() => {
-          const id = 'edit-' + item.metadata.uid;
           Activity.launch({
-            id: id,
+            id: activityId,
             title: t('translation|Edit') + ': ' + item.metadata.name,
             icon: <Icon icon="mdi:pencil" />,
             cluster: item.cluster,
@@ -136,7 +135,7 @@ export default function EditButton(props: EditButtonProps) {
                 noDialog
                 item={item.getEditableObject()}
                 open
-                onClose={() => Activity.close(id)}
+                onClose={() => Activity.close(activityId)}
                 onSave={handleSave}
                 allowToHideManagedFields
                 errorMessage={errorMessage}

@@ -55,6 +55,12 @@ app-linux: app-build
 	cd app && npm run package -- --linux
 app-mac: app-build
 	cd app && npm run package -- --mac
+app-test:
+	cd app && npm install
+	cd app && npm run test
+app-tsc:
+	cd app && npm install
+	cd app && npm run tsc
 
 .PHONY: backend
 backend:
