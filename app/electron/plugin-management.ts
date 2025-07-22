@@ -148,9 +148,9 @@ export class PluginManager {
    * @returns {Promise<void>} A promise that resolves when the installation is complete.
    */
   static async install(
-    URL,
-    destinationFolder = defaultPluginsDir(),
-    headlampVersion = '',
+    URL: string,
+    destinationFolder: string = defaultPluginsDir(),
+    headlampVersion: string = '',
     progressCallback: null | ProgressCallback = null,
     signal: AbortSignal | null = null
   ) {
@@ -159,7 +159,7 @@ export class PluginManager {
       pluginInfo = await fetchPluginInfo(URL, progressCallback, signal);
     } catch (e) {
       if (progressCallback) {
-        progressCallback({ type: 'error', message: e.message });
+        progressCallback({ type: 'error', message: e instanceof Error ? e.message : String(e) });
       } else {
         throw e;
       }
@@ -218,7 +218,7 @@ export class PluginManager {
       }
     } catch (e) {
       if (progressCallback) {
-        progressCallback({ type: 'error', message: e.message });
+        progressCallback({ type: 'error', message: e instanceof Error ? e.message : String(e) });
       } else {
         throw e;
       }
@@ -237,9 +237,9 @@ export class PluginManager {
    * @returns {Promise<void>} A promise that resolves when the update is complete.
    */
   static async update(
-    pluginName,
-    destinationFolder = defaultPluginsDir(),
-    headlampVersion = '',
+    pluginName: string,
+    destinationFolder: string = defaultPluginsDir(),
+    headlampVersion: string = '',
     progressCallback: null | ProgressCallback = null,
     signal: AbortSignal | null = null
   ): Promise<void> {
@@ -296,7 +296,7 @@ export class PluginManager {
       }
     } catch (e) {
       if (progressCallback) {
-        progressCallback({ type: 'error', message: e.message });
+        progressCallback({ type: 'error', message: e instanceof Error ? e.message : String(e) });
       } else {
         throw e;
       }
@@ -311,7 +311,7 @@ export class PluginManager {
    * @returns {void}
    */
   static uninstall(
-    name,
+    name: string,
     folder = defaultPluginsDir(),
     progressCallback: null | ProgressCallback = null
   ) {
@@ -341,7 +341,7 @@ export class PluginManager {
       }
     } catch (e) {
       if (progressCallback) {
-        progressCallback({ type: 'error', message: e.message });
+        progressCallback({ type: 'error', message: e instanceof Error ? e.message : String(e) });
       } else {
         throw e;
       }
@@ -402,7 +402,7 @@ export class PluginManager {
       }
     } catch (e) {
       if (progressCallback) {
-        progressCallback({ type: 'error', message: e.message });
+        progressCallback({ type: 'error', message: e instanceof Error ? e.message : String(e) });
       } else {
         throw e;
       }
@@ -410,7 +410,7 @@ export class PluginManager {
   }
 
   static async fetchPluginInfo(
-    URL,
+    URL: string,
     options: { progressCallback?: null | ProgressCallback; signal?: AbortSignal | null } = {}
   ) {
     const { progressCallback = null, signal = null } = options;
@@ -427,7 +427,7 @@ export class PluginManager {
  *
  * @returns true if the name is valid.
  */
-function validatePluginName(pluginName) {
+function validatePluginName(pluginName: string): boolean {
   const invalidPattern = /[\/\\]|(\.\.)/;
   return !invalidPattern.test(pluginName);
 }
@@ -436,7 +436,7 @@ function validatePluginName(pluginName) {
  * @param {string} archiveURL - the one to validate
  * @returns true if the archiveURL looks good.
  */
-function validateArchiveURL(archiveURL) {
+function validateArchiveURL(archiveURL: string): boolean {
   const githubRegex = /^https:\/\/github\.com\/[^/]+\/[^/]+\/(releases|archive)\/.*$/;
   const bitbucketRegex = /^https:\/\/bitbucket\.org\/[^/]+\/[^/]+\/(downloads|get)\/.*$/;
   const gitlabRegex = /^https:\/\/gitlab\.com\/[^/]+\/[^/]+\/(-\/archive|releases)\/.*$/;
@@ -460,18 +460,18 @@ function validateArchiveURL(archiveURL) {
 
 /**
  * Downloads and extracts a plugin archive from the specified plugin package.
- * @param {ArtifactHubHeadlampPkg} pluginInfo - The plugin package data.
- * @param {string} headlampVersion - The version of Headlamp for compatibility checking.
- * @param {function} progressCallback - A callback function for reporting progress.
- * @param {AbortSignal} signal - An optional AbortSignal for cancellation.
+ * @param pluginInfo - The plugin package data.
+ * @param headlampVersion - The version of Headlamp for compatibility checking.
+ * @param progressCallback - A callback function for reporting progress.
+ * @param signal - An optional AbortSignal for cancellation.
  * @returns {Promise<[string, string]>} A promise that resolves to an array containing the plugin name and temporary folder path.
  */
 async function downloadExtractArchive(
   pluginInfo: ArtifactHubHeadlampPkg,
-  headlampVersion,
-  progressCallback,
-  signal
-) {
+  headlampVersion: string,
+  progressCallback: ProgressCallback | null,
+  signal: AbortSignal | null
+): Promise<[string, string]> {
   // fetch plugin metadata
   if (signal && signal.aborted) {
     throw new Error('Download cancelled');
@@ -617,14 +617,16 @@ async function downloadExtraFiles(
         signal,
         0 // tarStrip
       );
-    } catch (error) {
+    } catch (e) {
       if (progressCallback) {
         progressCallback({
           type: 'error',
-          message: `Failed to download extra file ${file.url}: ${error.message}`,
+          message: `Failed to download extra file ${file.url}: ${
+            e instanceof Error ? e.message : String(e)
+          }`,
         });
       } else {
-        throw error;
+        throw e;
       }
     }
 
@@ -633,8 +635,18 @@ async function downloadExtraFiles(
       if (!value.output || !value.input || value.input === value.output) {
         continue;
       }
-      const outputFile = path.join(binDir, value.output);
+      let outputFile = path.join(binDir, value.output);
+      // If on Windows, ensure that the output file ends with .exe
+      // For example, minikube should be minikube.exe
+      // If the extra file is a .js file, we do not add .exe
+      if (os.platform() === 'win32' && !value.output.endsWith('.js')) {
+        outputFile = path.join(binDir, value.output) + '.exe';
+      }
+
       const inputFile = path.join(binDir, value.input);
+      if (inputFile === outputFile) {
+        continue;
+      }
 
       fs.copyFileSync(inputFile, outputFile);
       fs.rmSync(inputFile);
@@ -722,6 +734,7 @@ async function downloadAndExtractSingleArchive(
     throw new Error('Download empty');
   }
 
+  // @ts-ignore this code is using Node.js stream API, and it works.
   for await (const chunk of archResponse.body) {
     archChunks.push(chunk);
     archBufferLength += chunk.length;
@@ -863,7 +876,11 @@ function getExtraFiles(
  * @param {AbortSignal} signal - An optional AbortSignal for cancellation.
  * @returns {Promise<ArtifactHubHeadlampPkg>} A promise that resolves to the fetched plugin metadata.
  */
-async function fetchPluginInfo(URL, progressCallback, signal): Promise<ArtifactHubHeadlampPkg> {
+async function fetchPluginInfo(
+  URL: string,
+  progressCallback: null | ProgressCallback,
+  signal: AbortSignal | null
+): Promise<ArtifactHubHeadlampPkg> {
   try {
     if (!URL.startsWith('https://artifacthub.io/packages/headlamp/')) {
       throw new Error('Invalid URL. Please provide a valid URL from ArtifactHub.');
@@ -908,7 +925,7 @@ async function fetchPluginInfo(URL, progressCallback, signal): Promise<ArtifactH
     return pkg;
   } catch (e) {
     if (progressCallback) {
-      progressCallback({ type: 'error', message: e.message });
+      progressCallback({ type: 'error', message: e instanceof Error ? e.message : String(e) });
     }
 
     throw e;
@@ -920,10 +937,10 @@ async function fetchPluginInfo(URL, progressCallback, signal): Promise<ArtifactH
  * A valid plugin folder must exist, contain 'main.js' and 'package.json' files,
  * and the 'package.json' file must have 'isManagedByHeadlampPlugin' set to true.
  *
- * @param {string} folder - The path to the folder to check.
- * @returns {boolean} True if the folder is a valid Headlamp plugin folder, false otherwise.
+ * @param folder - The path to the folder to check.
+ * @returns True if the folder is a valid Headlamp plugin folder, false otherwise.
  */
-function checkValidPluginFolder(folder) {
+function checkValidPluginFolder(folder: string): boolean {
   if (!fs.existsSync(folder)) {
     return false;
   }

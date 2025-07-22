@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
 import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import InputLabel from '@mui/material/InputLabel';
@@ -30,6 +31,7 @@ import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
 import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
 import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
+import { Activity } from '../activity/Activity';
 import ActionButton from '../common/ActionButton';
 import Link from '../common/Link';
 import { LogViewer, LogViewerProps } from '../common/LogViewer';
@@ -477,13 +479,9 @@ export interface PodDetailsProps {
 }
 
 export default function PodDetails(props: PodDetailsProps) {
-  const { showLogsDefault } = props;
   const params = useParams<{ namespace: string; name: string }>();
   const { name = params.name, namespace = params.namespace, cluster } = props;
-  const [showLogs, setShowLogs] = React.useState(!!showLogsDefault);
-  const [showTerminal, setShowTerminal] = React.useState(false);
   const { t } = useTranslation('glossary');
-  const [isAttached, setIsAttached] = React.useState(false);
   const dispatchHeadlampEvent = useEventCallback();
 
   function prepareExtraInfo(item: Pod | null) {
@@ -592,10 +590,18 @@ export default function PodDetails(props: PodDetailsProps) {
               <AuthVisible item={item} authVerb="get" subresource="log">
                 <ActionButton
                   description={t('Show Logs')}
-                  aria-label={t('logs')}
                   icon="mdi:file-document-box-outline"
                   onClick={() => {
-                    setShowLogs(true);
+                    Activity.launch({
+                      id: 'logs-' + item.metadata.uid,
+                      title: t('Logs') + ': ' + item.metadata.name,
+                      cluster: item.cluster,
+                      icon: (
+                        <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />
+                      ),
+                      location: 'full',
+                      content: <PodLogViewer noDialog open item={item} onClose={() => {}} />,
+                    });
                     dispatchHeadlampEvent({
                       type: HeadlampEventType.LOGS,
                       data: {
@@ -610,24 +616,30 @@ export default function PodDetails(props: PodDetailsProps) {
           {
             id: DefaultHeaderAction.POD_TERMINAL,
             action: (
-              <AuthVisible item={item} authVerb="get" subresource="exec">
-                <AuthVisible item={item} authVerb="create" subresource="exec">
-                  <ActionButton
-                    description={t('Terminal / Exec')}
-                    aria-label={t('terminal')}
-                    icon="mdi:console"
-                    onClick={() => {
-                      setShowTerminal(true);
-                      dispatchHeadlampEvent({
-                        type: HeadlampEventType.TERMINAL,
-                        data: {
-                          resource: item,
-                          status: EventStatus.CLOSED,
-                        },
-                      });
-                    }}
-                  />
-                </AuthVisible>
+              <AuthVisible item={item} authVerb="create" subresource="exec">
+                <ActionButton
+                  description={t('Terminal / Exec')}
+                  icon="mdi:console"
+                  onClick={() => {
+                    Activity.launch({
+                      id: 'terminal-' + item.metadata.uid,
+                      title: item.metadata.name,
+                      cluster: item.cluster,
+                      icon: <Icon icon="mdi:console" width="100%" height="100%" />,
+                      location: 'full',
+                      content: (
+                        <Terminal noDialog open item={item} onClose={() => {}} isAttach={false} />
+                      ),
+                    });
+                    dispatchHeadlampEvent({
+                      type: HeadlampEventType.TERMINAL,
+                      data: {
+                        resource: item,
+                        status: EventStatus.CLOSED,
+                      },
+                    });
+                  }}
+                />
               </AuthVisible>
             ),
           },
@@ -635,23 +647,27 @@ export default function PodDetails(props: PodDetailsProps) {
             id: DefaultHeaderAction.POD_ATTACH,
             action: (
               <AuthVisible item={item} authVerb="get" subresource="attach">
-                <AuthVisible item={item} authVerb="create" subresource="attach">
-                  <ActionButton
-                    description={t('Attach')}
-                    aria-label={t('attach')}
-                    icon="mdi:connection"
-                    onClick={() => {
-                      setIsAttached(true);
-                      dispatchHeadlampEvent({
-                        type: HeadlampEventType.POD_ATTACH,
-                        data: {
-                          resource: item,
-                          status: EventStatus.OPENED,
-                        },
-                      });
-                    }}
-                  />
-                </AuthVisible>
+                <ActionButton
+                  description={t('Attach')}
+                  icon="mdi:connection"
+                  onClick={() => {
+                    dispatchHeadlampEvent({
+                      type: HeadlampEventType.POD_ATTACH,
+                      data: {
+                        resource: item,
+                        status: EventStatus.OPENED,
+                      },
+                    });
+                    Activity.launch({
+                      id: 'attach-' + item.metadata.uid,
+                      title: item.metadata.name,
+                      cluster: item.cluster,
+                      icon: <Icon icon="mdi:console" width="100%" height="100%" />,
+                      location: 'full',
+                      content: <Terminal noDialog open item={item} onClose={() => {}} isAttach />,
+                    });
+                  }}
+                />
               </AuthVisible>
             ),
           },
@@ -675,48 +691,6 @@ export default function PodDetails(props: PodDetailsProps) {
           {
             id: 'headlamp.pod-volumes',
             section: <VolumeSection resource={item?.jsonData} />,
-          },
-          {
-            id: 'headlamp.pod-logs',
-            section: (
-              <PodLogViewer
-                key={'logs-' + item.metadata.uid}
-                open={showLogs}
-                item={item}
-                onClose={() => {
-                  dispatchHeadlampEvent({
-                    type: HeadlampEventType.LOGS,
-                    data: {
-                      resource: item,
-                      status: EventStatus.CLOSED,
-                    },
-                  });
-                  setShowLogs(false);
-                }}
-              />
-            ),
-          },
-          {
-            id: 'headlamp.pod-terminal',
-            section: (
-              <Terminal
-                key="terminal"
-                open={showTerminal || isAttached}
-                item={item}
-                onClose={() => {
-                  setShowTerminal(false);
-                  dispatchHeadlampEvent({
-                    type: HeadlampEventType.TERMINAL,
-                    data: {
-                      resource: item,
-                      status: EventStatus.CLOSED,
-                    },
-                  });
-                  setIsAttached(false);
-                }}
-                isAttach={isAttached}
-              />
-            ),
           },
         ]
       }

@@ -47,6 +47,8 @@ export interface LogViewerProps extends DialogProps {
    * @description This is a boolean that determines whether the reconnect button should be shown or not.
    */
   showReconnectButton?: boolean;
+  /** Don't render in the dialog */
+  noDialog?: boolean;
 }
 
 export function LogViewer(props: LogViewerProps) {
@@ -149,6 +151,93 @@ export function LogViewer(props: LogViewerProps) {
     return logs?.join('').replaceAll('\n', '\r\n');
   }
 
+  const content = (
+    <DialogContent
+      sx={theme => ({
+        height: '80%',
+        minHeight: '80%',
+        display: 'flex',
+        flexDirection: 'column',
+        '& .xterm ': {
+          height: '100vh', // So the terminal doesn't stay shrunk when shrinking vertically and maximizing again.
+          '& .xterm-viewport': {
+            width: 'initial !important', // BugFix: https://github.com/xtermjs/xterm.js/issues/3564#issuecomment-1004417440
+          },
+        },
+        '& #xterm-container': {
+          overflow: 'hidden',
+          width: '100%',
+          height: '100%',
+          '& .terminal.xterm': {
+            padding: theme.spacing(1),
+          },
+        },
+      })}
+    >
+      <Grid container justifyContent="space-between" alignItems="center" wrap="nowrap">
+        <Grid item container spacing={1}>
+          {topActions.map((component, i) => (
+            <Grid item key={i}>
+              {component}
+            </Grid>
+          ))}
+        </Grid>
+        <Grid item xs>
+          <ActionButton
+            description={t('translation|Find')}
+            onClick={() => setShowSearch(show => !show)}
+            icon="mdi:magnify"
+          />
+        </Grid>
+        <Grid item xs>
+          <ActionButton
+            description={t('translation|Clear')}
+            onClick={() => clearPodLogs(xtermRef)}
+            icon="mdi:broom"
+          />
+        </Grid>
+        <Grid item xs>
+          <ActionButton
+            description={t('Download')}
+            onClick={downloadLog}
+            icon="mdi:file-download-outline"
+          />
+        </Grid>
+      </Grid>
+      <Box
+        sx={theme => ({
+          paddingTop: theme.spacing(1),
+          flex: 1,
+          width: '100%',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column-reverse',
+          position: 'relative',
+        })}
+      >
+        {showReconnectButton && (
+          <Button onClick={handleReconnect} color="info" variant="contained">
+            Reconnect
+          </Button>
+        )}
+        <div
+          id="xterm-container"
+          ref={ref => setTerminalContainerRef(ref)}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse' }}
+        />
+        <SearchPopover
+          open={showSearch}
+          onClose={() => setShowSearch(false)}
+          searchAddonRef={searchAddonRef}
+        />
+      </Box>
+    </DialogContent>
+  );
+
+  if (props.noDialog) {
+    return content;
+  }
+
   return (
     <Dialog
       title={title}
@@ -161,86 +250,7 @@ export function LogViewer(props: LogViewerProps) {
       onClose={onClose}
       {...other}
     >
-      <DialogContent
-        sx={theme => ({
-          height: '80%',
-          minHeight: '80%',
-          display: 'flex',
-          flexDirection: 'column',
-          '& .xterm ': {
-            height: '100vh', // So the terminal doesn't stay shrunk when shrinking vertically and maximizing again.
-            '& .xterm-viewport': {
-              width: 'initial !important', // BugFix: https://github.com/xtermjs/xterm.js/issues/3564#issuecomment-1004417440
-            },
-          },
-          '& #xterm-container': {
-            overflow: 'hidden',
-            width: '100%',
-            height: '100%',
-            '& .terminal.xterm': {
-              padding: theme.spacing(1),
-            },
-          },
-        })}
-      >
-        <Grid container justifyContent="space-between" alignItems="center" wrap="nowrap">
-          <Grid item container spacing={1}>
-            {topActions.map((component, i) => (
-              <Grid item key={i}>
-                {component}
-              </Grid>
-            ))}
-          </Grid>
-          <Grid item xs>
-            <ActionButton
-              description={t('translation|Find')}
-              onClick={() => setShowSearch(show => !show)}
-              icon="mdi:magnify"
-            />
-          </Grid>
-          <Grid item xs>
-            <ActionButton
-              description={t('translation|Clear')}
-              onClick={() => clearPodLogs(xtermRef)}
-              icon="mdi:broom"
-            />
-          </Grid>
-          <Grid item xs>
-            <ActionButton
-              description={t('Download')}
-              onClick={downloadLog}
-              icon="mdi:file-download-outline"
-            />
-          </Grid>
-        </Grid>
-        <Box
-          sx={theme => ({
-            paddingTop: theme.spacing(1),
-            flex: 1,
-            width: '100%',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column-reverse',
-            position: 'relative',
-          })}
-        >
-          {showReconnectButton && (
-            <Button onClick={handleReconnect} color="info" variant="contained">
-              Reconnect
-            </Button>
-          )}
-          <div
-            id="xterm-container"
-            ref={ref => setTerminalContainerRef(ref)}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse' }}
-          />
-          <SearchPopover
-            open={showSearch}
-            onClose={() => setShowSearch(false)}
-            searchAddonRef={searchAddonRef}
-          />
-        </Box>
-      </DialogContent>
+      {content}
     </Dialog>
   );
 }
