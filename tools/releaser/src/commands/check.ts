@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { getRelease, checkArtifactsForRelease } from '../utils/github';
+import { getRelease, checkArtifactsForRelease, checkExtendedAssets } from '../utils/github';
 import { sanitizeVersion } from '../utils/version';
 
 export async function checkRelease(releaseVersion: string): Promise<void> {
@@ -40,10 +40,39 @@ export async function checkRelease(releaseVersion: string): Promise<void> {
       process.exit(1);
     }
 
+    // For published releases, also check extended assets
+    let extendedAssetsStatus = null;
+    if (!release.draft) {
+      extendedAssetsStatus = await checkExtendedAssets(version);
+    }
+
     if (release.draft) {
       console.log(chalk.green(`\nRelease draft for v${version} is ready to be published!`));
     } else {
       console.log(chalk.green(`\nRelease v${version} is published and complete!`));
+
+      if (extendedAssetsStatus) {
+        // Get core and additional assets based on the new configuration
+        const coreAssets = ['containerImage', 'homebrew', 'winget', 'chocolatey', 'flatpak', 'dockerExtension'];
+        const additionalAssets = ['helm', 'minikube'];
+
+        const coreExtendedComplete = coreAssets.every(key =>
+          extendedAssetsStatus[key as keyof typeof extendedAssetsStatus]?.available
+        );
+
+        const additionalAssetsComplete = additionalAssets.every(key =>
+          extendedAssetsStatus[key as keyof typeof extendedAssetsStatus]?.available
+        );
+
+        if (coreExtendedComplete && additionalAssetsComplete) {
+          console.log(chalk.green('✅ All extended assets are available'));
+        } else if (coreExtendedComplete) {
+          console.log(chalk.green('✅ Core extended assets are available'));
+          console.log(chalk.yellow('ℹ️  Some additional assets (Helm/Minikube) may still be processing'));
+        } else {
+          console.log(chalk.yellow('⚠️  Some extended assets may still be processing or unavailable'));
+        }
+      }
     }
   } catch (error) {
     console.error(chalk.red('Error checking release:'));
