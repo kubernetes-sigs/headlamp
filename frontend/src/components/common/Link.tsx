@@ -17,15 +17,15 @@
 import MuiLink from '@mui/material/Link';
 import { useQueryClient } from '@tanstack/react-query';
 import React from 'react';
-import { useDispatch } from 'react-redux';
 import { Link as RouterLink } from 'react-router-dom';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../../lib/cluster';
 import { kubeObjectQueryKey, useEndpoints } from '../../lib/k8s/api/v2/hooks';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { createRouteURL, RouteURLProps } from '../../lib/router';
-import { setSelectedResource } from '../../redux/drawerModeSlice';
 import { useTypedSelector } from '../../redux/hooks';
-import { canRenderDetails } from '../resourceMap/details/KubeNodeDetails';
+import { Activity } from '../activity/Activity';
+import { canRenderDetails, KubeObjectDetails } from '../resourceMap/details/KubeNodeDetails';
+import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
 import { LightTooltip } from './Tooltip';
 
 export interface LinkBaseProps {
@@ -142,7 +142,6 @@ function PureLink(
 
 export default function Link(props: React.PropsWithChildren<LinkProps | LinkObjectProps>) {
   const drawerEnabled = useTypedSelector(state => state.drawerMode.isDetailDrawerEnabled);
-  const dispatch = useDispatch();
 
   const { tooltip, ...propsRest } = props as LinkObjectProps;
 
@@ -175,7 +174,31 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
                 }
               : { kind, metadata: { name, namespace }, cluster };
 
-          dispatch(setSelectedResource(selectedResource));
+          Activity.launch({
+            id:
+              'details' +
+              selectedResource.kind +
+              ' ' +
+              selectedResource.metadata.name +
+              selectedResource.cluster,
+            title: selectedResource.kind + ' ' + selectedResource.metadata.name,
+            location: 'split-right',
+            cluster: selectedResource.cluster,
+            temporary: true,
+            content: (
+              <KubeObjectDetails
+                resource={{
+                  kind: selectedResource.kind,
+                  metadata: {
+                    name: selectedResource.metadata.name,
+                    namespace: selectedResource.metadata.namespace,
+                  },
+                  cluster: selectedResource.cluster,
+                }}
+              />
+            ),
+            icon: <KubeIcon kind={selectedResource.kind} width="100%" height="100%" />,
+          });
         }
       : undefined;
 

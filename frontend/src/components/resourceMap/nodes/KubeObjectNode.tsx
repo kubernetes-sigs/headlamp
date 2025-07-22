@@ -20,6 +20,8 @@ import { styled } from '@mui/material/styles';
 import { alpha } from '@mui/system/colorManipulator';
 import { Handle, NodeProps, Position } from '@xyflow/react';
 import { memo, useEffect, useState } from 'react';
+import { Activity } from '../../activity/Activity';
+import { GraphNodeDetails } from '../details/GraphNodeDetails';
 import { getMainNode } from '../graph/graphGrouping';
 import { useGraphView, useNode } from '../GraphView';
 import { KubeIcon } from '../kubeIcon/KubeIcon';
@@ -192,6 +194,23 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
   const openDetails = () => {
     graph.setNodeSelection(id);
     setHovered(false);
+
+    if (!node || node?.nodes) return;
+
+    const hasContent = node.detailsComponent || node.kubeObject;
+    if (!hasContent) return;
+
+    Activity.launch({
+      id: node.id,
+      location: 'split-right',
+      temporary: true,
+      cluster: node.kubeObject?.cluster,
+      icon: node.kubeObject ? (
+        <KubeIcon kind={node.kubeObject.kind} width="100%" height="100%" />
+      ) : null,
+      title: node.label ?? node.kubeObject?.metadata?.name,
+      content: <GraphNodeDetails node={node} />,
+    });
   };
 
   const label = node?.label ?? kubeObject?.metadata?.name;
