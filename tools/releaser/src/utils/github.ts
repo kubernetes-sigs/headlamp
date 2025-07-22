@@ -45,8 +45,16 @@ export async function getRelease(version: string): Promise<GitHubRelease | null>
     repo: REPO
   });
 
-  const draft = releases.find(release => release.name === version);
-  return draft || null;
+  // First try to find by tag name (v{version})
+  const tagName = `v${version}`;
+  let release = releases.find(rel => rel.tag_name === tagName);
+
+  // If not found by tag, try to find by name
+  if (!release) {
+    release = releases.find(rel => rel.name === version);
+  }
+
+  return release || null;
 }
 
 export async function checkArtifactsForRelease(releaseDraft: GitHubRelease): Promise<boolean> {
