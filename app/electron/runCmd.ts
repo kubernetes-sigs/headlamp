@@ -96,24 +96,35 @@ function saveSettings(settings: Record<string, any>) {
  * If the user has not consented, a dialog is shown to ask for consent.
  *
  * @param command - The command to check.
+ * @param args - The arguments to the command.
  * @returns true if the user has consented to running the command, false otherwise.
  */
-function checkCommandConsent(command: string, mainWindow: BrowserWindow): boolean {
+function checkCommandConsent(command: string, args: string[], mainWindow: BrowserWindow): boolean {
   const settings = loadSettings();
   const confirmedCommands = settings?.confirmedCommands;
+
+  console.log(JSON.stringify(settings, null, 2));
+  console.log({ command, args });
+
+  // Build the consent key: command + (first arg if present)
+  let consentKey = command;
+  if (args && args.length > 0) {
+    consentKey += ' ' + args[0];
+  }
+
   const savedCommand: boolean | undefined = confirmedCommands
-    ? confirmedCommands[command]
+    ? confirmedCommands[consentKey]
     : undefined;
 
   if (savedCommand === false) {
-    console.error(`Invalid command: ${command}, command not allowed by users choice`);
+    console.error(`Invalid command: ${consentKey}, command not allowed by users choice`);
     return false;
   } else if (savedCommand === undefined) {
-    const commandChoice = confirmCommandDialog(command, mainWindow);
+    const commandChoice = confirmCommandDialog(consentKey, mainWindow);
     if (settings?.confirmedCommands === undefined) {
       settings.confirmedCommands = {};
     }
-    settings.confirmedCommands[command] = commandChoice;
+    settings.confirmedCommands[consentKey] = commandChoice;
     saveSettings(settings);
   }
   return true;
@@ -181,13 +192,13 @@ export function handleRunCommand(
   }
   const commandData = eventData as CommandData;
 
-  if (!checkCommandConsent(commandData.command, mainWindow)) {
-    return;
-  }
-
   const [permissionsValid, permissionError] = checkPermissionSecret(commandData, permissionSecrets);
   if (!permissionsValid) {
     console.error(permissionError);
+    return;
+  }
+
+  if (!checkCommandConsent(commandData.command, commandData.args, mainWindow)) {
     return;
   }
 
