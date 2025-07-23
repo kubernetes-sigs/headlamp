@@ -43,6 +43,33 @@ export const drawerWidthClosed = 64;
 // exported for backwards compatibility for plugins
 export { DefaultSidebars };
 
+/**
+ * Calculate optimal closed sidebar width based on viewport size.
+ * Optimized for common resolutions like 1366x768 while maintaining usability.
+ */
+function calculateResponsiveClosedWidth(scrollbarWidth: number, viewportWidth: number): number {
+  // Base width for icons and minimal padding
+  const baseWidth = 52;
+
+  // For very wide screens (4K, ultrawide), allow more space
+  if (viewportWidth >= 1920) {
+    return baseWidth + 16 + Math.min(scrollbarWidth, 8);
+  }
+
+  // Specific optimization for 1366x768 and similar laptop resolutions
+  if (viewportWidth >= 1300 && viewportWidth <= 1440) {
+    return baseWidth + 4 + Math.min(scrollbarWidth, 4);
+  }
+
+  // For other medium-wide screens, use moderate spacing
+  if (viewportWidth >= 1200) {
+    return baseWidth + 8 + Math.min(scrollbarWidth, 6);
+  }
+
+  // For smaller screens in the narrow range, minimize width
+  return baseWidth + 6 + Math.min(scrollbarWidth, 4);
+}
+
 export function useSidebarInfo() {
   const isSidebarOpen = useTypedSelector(state => state.sidebar.isSidebarOpen);
   const isSidebarOpenUserSelected = useTypedSelector(
@@ -50,6 +77,9 @@ export function useSidebarInfo() {
   );
   const isTemporary = useMediaQuery('(max-width:599px)');
   const isNarrowOnly = useMediaQuery('(max-width:960px) and (min-width:600px)');
+
+  // Specific optimization for common laptop resolutions like 1366x768
+  const isCompactLaptop = useMediaQuery('(max-width:1440px) and (min-width:1200px)');
   const temporarySideBarOpen =
     isSidebarOpen === true && isTemporary && isSidebarOpenUserSelected === true;
 
@@ -64,6 +94,7 @@ export function useSidebarInfo() {
     canExpand: !isNarrowOnly,
     isTemporary,
     isUserOpened: isSidebarOpenUserSelected,
+    isCompactLaptop,
     width: isOpen ? `${drawerWidth}px` : isTemporary ? '0px' : `${drawerWidthClosed}px`,
   };
 }
@@ -281,7 +312,14 @@ export const PureSidebar = memo(
     const listContainerRef = React.useRef<HTMLDivElement | null>(null);
     const [isOverflowing, setIsOverflowing] = React.useState(false);
     const [scrollbarWidth, setScrollbarWidth] = React.useState(0);
-    const closedWidth = 72 + (isOverflowing ? scrollbarWidth : 0);
+
+    // Use responsive width calculation optimized for different screen sizes
+    const viewportWidth = window.innerWidth || 1920;
+    const closedWidth = calculateResponsiveClosedWidth(
+      isOverflowing ? scrollbarWidth : 0,
+      viewportWidth
+    );
+
     const temporarySideBarOpen = open === true && isTemporaryDrawer && openUserSelected === true;
 
     // The large sidebar does not open in medium view (600-960px).
