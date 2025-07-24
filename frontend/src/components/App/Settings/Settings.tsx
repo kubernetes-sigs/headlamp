@@ -77,6 +77,11 @@ export default function Settings() {
     );
   }, [useEvict]);
 
+  const sidebarLabel = 'sort-sidebar-label';
+  const evictLabel = 'use-evict-label';
+  const tableRowsLabel = 'rows-per-page-label';
+  const timezoneLabel = 'timezone-label';
+
   return (
     <SectionBox
       title={t('translation|General Settings')}
@@ -109,8 +114,10 @@ export default function Settings() {
             value: (
               <NumRowsInput
                 defaultValue={storedRowsPerPageOptions || defaultTableRowsPerPageOptions}
+                nameLabelID={tableRowsLabel}
               />
             ),
+            nameID: tableRowsLabel,
           },
           {
             name: t('translation|Timezone to display for dates'),
@@ -119,9 +126,11 @@ export default function Settings() {
                 <TimezoneSelect
                   initialTimezone={selectedTimezone}
                   onChange={name => setSelectedTimezone(name)}
+                  nameLabelID={timezoneLabel}
                 />
               </Box>
             ),
+            nameID: timezoneLabel,
           },
           {
             name: t('translation|Sort sidebar items alphabetically'),
@@ -130,8 +139,12 @@ export default function Settings() {
                 color="primary"
                 checked={sortSidebar}
                 onChange={e => setSortSidebar(e.target.checked)}
+                inputProps={{
+                  'aria-labelledby': sidebarLabel,
+                }}
               />
             ),
+            nameID: sidebarLabel,
           },
           {
             name: t('translation|Use evict for pod deletion'),
@@ -140,8 +153,12 @@ export default function Settings() {
                 color="primary"
                 checked={useEvict}
                 onChange={e => setUseEvict(e.target.checked)}
+                inputProps={{
+                  'aria-labelledby': evictLabel,
+                }}
               />
             ),
+            nameID: evictLabel,
           },
         ]}
       />

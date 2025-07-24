@@ -116,14 +116,17 @@ const OptionButton = ({
   children,
   active,
   onClick,
+  labelId,
 }: {
   children: ReactNode;
   active: boolean;
   onClick: React.MouseEventHandler<HTMLButtonElement>;
+  labelId: string;
 }) => (
   <Button
     aria-pressed={active}
     onClick={onClick}
+    aria-label={labelId}
     sx={theme => ({
       display: 'flex',
       flexDirection: 'column',
@@ -145,14 +148,22 @@ export default function DrawerModeSettings() {
 
   const isDrawerEnabled = useTypedSelector(state => state.drawerMode.isDetailDrawerEnabled);
 
+  const windowLabelID = `resource-details-view-option-window`;
+  const fullPageLabelID = `resource-details-view-option-full-page`;
+
   return (
     <Box sx={{ display: 'flex' }}>
-      <OptionButton active={isDrawerEnabled} onClick={() => dispatch(setDetailDrawerEnabled(true))}>
+      <OptionButton
+        active={isDrawerEnabled}
+        labelId={windowLabelID}
+        onClick={() => dispatch(setDetailDrawerEnabled(true))}
+      >
         <OverlayPreview variant="overlay" />
         <Trans>Window</Trans>
       </OptionButton>
       <OptionButton
         active={!isDrawerEnabled}
+        labelId={fullPageLabelID}
         onClick={() => dispatch(setDetailDrawerEnabled(false))}
       >
         <OverlayPreview variant="full-page" />

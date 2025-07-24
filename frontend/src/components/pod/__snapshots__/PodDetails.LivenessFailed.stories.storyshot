@@ -170,7 +170,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Name
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Name
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -184,7 +188,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Namespace
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Namespace
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -199,7 +207,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Creation
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Creation
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -213,7 +225,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    State
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      State
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -237,7 +253,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Node
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Node
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -252,7 +272,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Service Account
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Service Account
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -267,7 +291,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Host IP
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Host IP
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -281,7 +309,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Host IPs
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Host IPs
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -293,7 +325,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Pod IPs
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Pod IPs
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -307,7 +343,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    QoS Class
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      QoS Class
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -315,7 +355,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
                   >
-                    Priority
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Priority
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
@@ -761,12 +805,20 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 css-pxyi5o-MuiGrid-root"
                   >
-                    liveness
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      liveness
+                    </p>
                   </dt>
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Status
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Status
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -796,7 +848,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Restart Count
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Restart Count
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -806,7 +862,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Last State
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Last State
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -916,7 +976,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Container ID
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Container ID
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -930,7 +994,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Image Pull Policy
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Image Pull Policy
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -944,7 +1012,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Image
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Image
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -970,7 +1042,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Args
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Args
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -988,7 +1064,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
                   >
-                    Liveness Probes
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Liveness Probes
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
