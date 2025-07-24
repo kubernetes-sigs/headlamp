@@ -73,7 +73,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Language
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Language
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -134,7 +138,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Resource details view
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Resource details view
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -203,7 +211,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Number of rows for tables
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Number of rows for tables
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -263,7 +275,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Timezone to display for dates
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Timezone to display for dates
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -348,7 +364,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Sort sidebar items alphabetically
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Sort sidebar items alphabetically
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -378,7 +398,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
           >
-            Use evict for pod deletion
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Use evict for pod deletion
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"

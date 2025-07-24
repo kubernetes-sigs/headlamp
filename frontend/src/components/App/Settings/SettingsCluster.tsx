@@ -407,6 +407,8 @@ export default function SettingsCluster() {
     );
   }
 
+  const namespaceLabel = 'default-namespace-label';
+
   return (
     <>
       <SectionBox title={t('translation|Cluster Settings')} backLink>
@@ -488,6 +490,7 @@ export default function SettingsCluster() {
           rows={[
             {
               name: t('translation|Default namespace'),
+              nameID: namespaceLabel,
               value: (
                 <TextField
                   onChange={event => {
@@ -496,6 +499,7 @@ export default function SettingsCluster() {
                     setUserDefaultNamespace(value);
                   }}
                   value={userDefaultNamespace}
+                  aria-labelledby={namespaceLabel}
                   placeholder={defaultNamespace}
                   error={!isValidDefaultNamespace}
                   helperText={
@@ -523,7 +527,11 @@ export default function SettingsCluster() {
               ),
             },
             {
-              name: t('translation|Allowed namespaces'),
+              name: (
+                <Typography id="allowed-namespaces-label">
+                  {t('translation|Allowed namespaces')}
+                </Typography>
+              ),
               value: (
                 <>
                   <TextField
@@ -581,7 +589,8 @@ export default function SettingsCluster() {
                       },
                       marginTop: theme.spacing(1),
                     }}
-                    aria-label={t('translation|Allowed namespaces')}
+                    role="group"
+                    aria-labelledby="allowed-namespaces-label"
                   >
                     {((clusterSettings || {}).allowedNamespaces || []).map(namespace => (
                       <Chip

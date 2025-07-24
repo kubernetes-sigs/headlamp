@@ -125,7 +125,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Name
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Name
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -139,7 +143,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Creation
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Creation
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -153,7 +161,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Labels
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Labels
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -171,7 +183,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    API Version
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      API Version
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -179,7 +195,11 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
                   >
-                    Webhooks
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    >
+                      Webhooks
+                    </p>
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
@@ -230,7 +250,11 @@
                 <dt
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                 >
-                  Name
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                  >
+                    Name
+                  </p>
                 </dt>
                 <dd
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -244,7 +268,11 @@
                 <dt
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                 >
-                  Admission Review Versions
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                  >
+                    Admission Review Versions
+                  </p>
                 </dt>
                 <dd
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -258,7 +286,11 @@
                 <dt
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                 >
-                  Client Config: Service
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                  >
+                    Client Config: Service
+                  </p>
                 </dt>
                 <dd
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -275,7 +307,11 @@
                 <dt
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                 >
-                  Client Config: Ca Bundle
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                  >
+                    Client Config: Ca Bundle
+                  </p>
                 </dt>
                 <dd
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -316,7 +352,11 @@
                 <dt
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                 >
-                  Failure Policy
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                  >
+                    Failure Policy
+                  </p>
                 </dt>
                 <dd
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -330,7 +370,11 @@
                 <dt
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                 >
-                  Match Policy
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                  >
+                    Match Policy
+                  </p>
                 </dt>
                 <dd
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -344,7 +388,11 @@
                 <dt
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                 >
-                  Side Effects
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                  >
+                    Side Effects
+                  </p>
                 </dt>
                 <dd
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -358,7 +406,11 @@
                 <dt
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                 >
-                  Timeout Seconds
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                  >
+                    Timeout Seconds
+                  </p>
                 </dt>
                 <dd
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -372,7 +424,11 @@
                 <dt
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                 >
-                  Namespace Selector
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                  >
+                    Namespace Selector
+                  </p>
                 </dt>
                 <dd
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -391,7 +447,11 @@
                 <dt
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                 >
-                  Object Selector
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                  >
+                    Object Selector
+                  </p>
                 </dt>
                 <dd
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -410,7 +470,11 @@
                 <dt
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
                 >
-                  Rules
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                  >
+                    Rules
+                  </p>
                 </dt>
                 <dd
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"

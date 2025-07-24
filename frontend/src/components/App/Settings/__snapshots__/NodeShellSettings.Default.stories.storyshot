@@ -32,7 +32,16 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Enable Node Shell
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                id="node-shell-enabled-label"
+              >
+                Enable Node Shell
+              </p>
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -44,6 +53,7 @@
                 class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
               >
                 <input
+                  aria-labelledby="node-shell-enabled-label"
                   checked=""
                   class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
                   type="checkbox"
@@ -63,7 +73,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
           >
-            Linux Image
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Linux Image
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -109,7 +123,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
           >
-            Namespace
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Namespace
+            </p>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
