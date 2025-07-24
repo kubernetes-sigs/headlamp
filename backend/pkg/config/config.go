@@ -18,6 +18,7 @@ import (
 )
 
 const defaultPort = 4466
+const defaultServiceAccountTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
 type Config struct {
 	InCluster                 bool   `koanf:"in-cluster"`
@@ -41,6 +42,8 @@ type Config struct {
 	OidcValidatorIdpIssuerURL string `koanf:"oidc-validator-idp-issuer-url"`
 	OidcScopes                string `koanf:"oidc-scopes"`
 	OidcUseAccessToken        bool   `koanf:"oidc-use-access-token"`
+	UseServiceAccountToken    bool   `koanf:"use-service-account-token"`
+	ServiceAccountTokenPath   string `koanf:"service-account-token-path"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -55,13 +58,17 @@ type Config struct {
 
 func (c *Config) Validate() error {
 	if !c.InCluster && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
-		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
+		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "" || c.UseServiceAccountToken) {
 		return errors.New(`oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, oidc-validator-client-id, 
-		oidc-validator-idp-issuer-url, flags are only meant to be used in inCluster mode`)
+		oidc-validator-idp-issuer-url, use-service-account-token flags are only meant to be used in inCluster mode`)
 	}
 
 	if c.BaseURL != "" && !strings.HasPrefix(c.BaseURL, "/") {
 		return errors.New("base-url needs to start with a '/' or be empty")
+	}
+
+	if !c.UseServiceAccountToken && c.ServiceAccountTokenPath != defaultServiceAccountTokenPath {
+		return errors.New("service-account-token-path is only meant to be used when use-service-account-token is true")
 	}
 
 	if c.TracingEnabled != nil && *c.TracingEnabled {
@@ -251,7 +258,8 @@ func flagset() *flag.FlagSet {
 	f.String("listen-addr", "", "Address to listen on; default is empty, which means listening to any address")
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
-
+	f.Bool("use-service-account-token", false, "Use service account token for authentication")
+	f.String("service-account-token-path", defaultServiceAccountTokenPath, "Path to the service account token file")
 	f.String("oidc-client-id", "", "ClientID for OIDC")
 	f.String("oidc-client-secret", "", "ClientSecret for OIDC")
 	f.String("oidc-validator-client-id", "", "Override ClientID for OIDC during validation")
