@@ -83,6 +83,8 @@ func main() {
 			StdoutTraceEnabled: conf.StdoutTraceEnabled,
 			SamplingRate:       conf.SamplingRate,
 		},
+		tlsCert: conf.TLSCert,
+		tlsKey:  conf.TLSKey,
 	})
 }
 
