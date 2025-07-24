@@ -242,5 +242,6 @@
   "Reinvocation Policy": "撤銷策略",
   "API Versions": "API 版本",
   "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}": "滾動更新. 最大不可用: {{ maxUnavailable }}, 最大突增: {{ maxSurge }}",
-  "Strategy Type": "策略類型"
+  "Strategy Type": "策略類型",
+  "cores": "核心"
 }

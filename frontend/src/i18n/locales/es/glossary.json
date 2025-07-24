@@ -242,5 +242,6 @@
   "Reinvocation Policy": "Política de Reinvocación",
   "API Versions": "Versiones de API",
   "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}": "RollingUpdate. Máx. indisponibles: {{ maxUnavailable }}, máx. \"surge\": {{ maxSurge }}",
-  "Strategy Type": "Tipo de Estrategia"
+  "Strategy Type": "Tipo de Estrategia",
+  "cores": "núcleos"
 }
