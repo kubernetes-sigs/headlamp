@@ -13,7 +13,7 @@
             class="MuiBox-root css-0"
           >
             <p
-              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-13jp68y-MuiTypography-root"
             />
           </div>
           <p
@@ -39,6 +39,7 @@
                 cx="70"
                 cy="70"
                 height="112"
+                role="presentation"
                 style="width: 100%; height: 100%;"
                 viewBox="0 0 112 112"
                 width="112"
@@ -66,6 +67,8 @@
                     tabindex="-1"
                   >
                     <path
+                      aria-hidden="false"
+                      aria-label=":r1g9:-chart-label"
                       class="recharts-sector"
                       cx="61"
                       cy="61"
@@ -91,6 +94,7 @@
                   <text
                     class="recharts-text recharts-label"
                     fill="#808080"
+                    id=":mock-test-id:"
                     offset="5"
                     style="font-size: 16.8px; fill: #000;"
                     text-anchor="middle"

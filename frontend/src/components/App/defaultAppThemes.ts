@@ -27,6 +27,9 @@ const headlampClassicLightTheme: AppTheme = {
     selectedColor: '#ebe811',
     actionBackground: '#605e5c',
   },
+  link: {
+    color: '#0072c9',
+  },
   navbar: {
     background: '#FFF',
     color: '#202020',
@@ -68,6 +71,9 @@ export const lightTheme: AppTheme = {
   secondary: '#eff2f5',
   text: {
     primary: '#44444f',
+  },
+  link: {
+    color: '#0072c9',
   },
   background: {
     muted: '#f5f5f5',

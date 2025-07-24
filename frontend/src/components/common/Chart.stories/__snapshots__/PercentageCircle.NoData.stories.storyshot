@@ -7,6 +7,7 @@
     >
       <p
         class="MuiTypography-root MuiTypography-body1 css-b7twky-MuiTypography-root"
+        id=":mock-test-id:"
       >
         CPU usage
       </p>

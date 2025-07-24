@@ -37,10 +37,10 @@
                             class="MuiBox-root css-0"
                           >
                             <p
-                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-13jp68y-MuiTypography-root"
                             >
                               <a
-                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                                 href="/"
                               >
                                 Pods
@@ -70,6 +70,7 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="presentation"
                                 style="width: 100%; height: 100%;"
                                 viewBox="0 0 112 112"
                                 width="112"
@@ -101,6 +102,8 @@
                                     tabindex="-1"
                                   >
                                     <path
+                                      aria-hidden="false"
+                                      aria-label=":r1ge:-chart-label"
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
@@ -122,6 +125,7 @@
                                   <text
                                     class="recharts-text recharts-label"
                                     fill="#808080"
+                                    id=":mock-test-id:"
                                     offset="5"
                                     style="font-size: 16.8px; fill: #000;"
                                     text-anchor="middle"
@@ -159,10 +163,10 @@
                             class="MuiBox-root css-0"
                           >
                             <p
-                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-13jp68y-MuiTypography-root"
                             >
                               <a
-                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                                 href="/"
                               >
                                 Deployments
@@ -192,6 +196,7 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="presentation"
                                 style="width: 100%; height: 100%;"
                                 viewBox="0 0 112 112"
                                 width="112"
@@ -219,6 +224,8 @@
                                     tabindex="-1"
                                   >
                                     <path
+                                      aria-hidden="false"
+                                      aria-label=":r1gf:-chart-label"
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
@@ -244,6 +251,7 @@
                                   <text
                                     class="recharts-text recharts-label"
                                     fill="#808080"
+                                    id=":mock-test-id:"
                                     offset="5"
                                     style="font-size: 16.8px; fill: #000;"
                                     text-anchor="middle"
@@ -281,10 +289,10 @@
                             class="MuiBox-root css-0"
                           >
                             <p
-                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-13jp68y-MuiTypography-root"
                             >
                               <a
-                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                                 href="/"
                               >
                                 Stateful Sets
@@ -314,6 +322,7 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="presentation"
                                 style="width: 100%; height: 100%;"
                                 viewBox="0 0 112 112"
                                 width="112"
@@ -345,6 +354,8 @@
                                     tabindex="-1"
                                   >
                                     <path
+                                      aria-hidden="false"
+                                      aria-label=":r1gg:-chart-label"
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
@@ -366,6 +377,7 @@
                                   <text
                                     class="recharts-text recharts-label"
                                     fill="#808080"
+                                    id=":mock-test-id:"
                                     offset="5"
                                     style="font-size: 16.8px; fill: #000;"
                                     text-anchor="middle"
@@ -403,10 +415,10 @@
                             class="MuiBox-root css-0"
                           >
                             <p
-                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-13jp68y-MuiTypography-root"
                             >
                               <a
-                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                                 href="/"
                               >
                                 Daemon Sets
@@ -436,6 +448,7 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="presentation"
                                 style="width: 100%; height: 100%;"
                                 viewBox="0 0 112 112"
                                 width="112"
@@ -463,6 +476,8 @@
                                     tabindex="-1"
                                   >
                                     <path
+                                      aria-hidden="false"
+                                      aria-label=":r1gh:-chart-label"
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
@@ -488,6 +503,7 @@
                                   <text
                                     class="recharts-text recharts-label"
                                     fill="#808080"
+                                    id=":mock-test-id:"
                                     offset="5"
                                     style="font-size: 16.8px; fill: #000;"
                                     text-anchor="middle"
@@ -525,10 +541,10 @@
                             class="MuiBox-root css-0"
                           >
                             <p
-                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-13jp68y-MuiTypography-root"
                             >
                               <a
-                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                                 href="/"
                               >
                                 Replica Sets
@@ -558,6 +574,7 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="presentation"
                                 style="width: 100%; height: 100%;"
                                 viewBox="0 0 112 112"
                                 width="112"
@@ -585,6 +602,8 @@
                                     tabindex="-1"
                                   >
                                     <path
+                                      aria-hidden="false"
+                                      aria-label=":r1gi:-chart-label"
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
@@ -610,6 +629,7 @@
                                   <text
                                     class="recharts-text recharts-label"
                                     fill="#808080"
+                                    id=":mock-test-id:"
                                     offset="5"
                                     style="font-size: 16.8px; fill: #000;"
                                     text-anchor="middle"
@@ -647,10 +667,10 @@
                             class="MuiBox-root css-0"
                           >
                             <p
-                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-13jp68y-MuiTypography-root"
                             >
                               <a
-                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                                 href="/"
                               >
                                 Jobs
@@ -680,6 +700,7 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="presentation"
                                 style="width: 100%; height: 100%;"
                                 viewBox="0 0 112 112"
                                 width="112"
@@ -711,6 +732,8 @@
                                     tabindex="-1"
                                   >
                                     <path
+                                      aria-hidden="false"
+                                      aria-label=":r1gj:-chart-label"
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
@@ -732,6 +755,7 @@
                                   <text
                                     class="recharts-text recharts-label"
                                     fill="#808080"
+                                    id=":mock-test-id:"
                                     offset="5"
                                     style="font-size: 16.8px; fill: #000;"
                                     text-anchor="middle"
@@ -769,10 +793,10 @@
                             class="MuiBox-root css-0"
                           >
                             <p
-                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-13jp68y-MuiTypography-root"
                             >
                               <a
-                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                                 href="/"
                               >
                                 Cron Jobs
@@ -802,6 +826,7 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="presentation"
                                 style="width: 100%; height: 100%;"
                                 viewBox="0 0 112 112"
                                 width="112"
@@ -833,6 +858,8 @@
                                     tabindex="-1"
                                   >
                                     <path
+                                      aria-hidden="false"
+                                      aria-label=":r1gk:-chart-label"
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
@@ -854,6 +881,7 @@
                                   <text
                                     class="recharts-text recharts-label"
                                     fill="#808080"
+                                    id=":mock-test-id:"
                                     offset="5"
                                     style="font-size: 16.8px; fill: #000;"
                                     text-anchor="middle"
@@ -1530,7 +1558,7 @@
                         class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                       >
                         <a
-                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                           href="/"
                         >
                           backup-job
@@ -1540,7 +1568,7 @@
                         class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2bq9ry-MuiTableCell-root"
                       >
                         <a
-                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                           href="/"
                         >
                           default
@@ -1632,7 +1660,7 @@
                         class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                       >
                         <a
-                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                           href="/"
                         >
                           nginx-deployment-abc123
@@ -1642,7 +1670,7 @@
                         class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2bq9ry-MuiTableCell-root"
                       >
                         <a
-                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                           href="/"
                         >
                           default
@@ -1734,7 +1762,7 @@
                         class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                       >
                         <a
-                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                           href="/"
                         >
                           nginx-deployment
@@ -1744,7 +1772,7 @@
                         class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2bq9ry-MuiTableCell-root"
                       >
                         <a
-                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                           href="/"
                         >
                           default
@@ -1836,7 +1864,7 @@
                         class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                       >
                         <a
-                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                           href="/"
                         >
                           mysql-statefulset
@@ -1846,7 +1874,7 @@
                         class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2bq9ry-MuiTableCell-root"
                       >
                         <a
-                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                           href="/"
                         >
                           default
@@ -1938,7 +1966,7 @@
                         class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                       >
                         <a
-                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                           href="/"
                         >
                           fluentd-daemonset
@@ -1948,7 +1976,7 @@
                         class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2bq9ry-MuiTableCell-root"
                       >
                         <a
-                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                           href="/"
                         >
                           kube-system
@@ -2040,7 +2068,7 @@
                         class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                       >
                         <a
-                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                           href="/"
                         >
                           daily-report-cronjob
@@ -2050,7 +2078,7 @@
                         class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2bq9ry-MuiTableCell-root"
                       >
                         <a
-                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                           href="/"
                         >
                           default

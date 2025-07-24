@@ -57,6 +57,9 @@ export function TileChart(props: TileChartProps) {
                 fontSize: theme.typography.pxToRem(16),
                 display: 'inline',
                 fontWeight: 600,
+                color: theme.palette.link?.color
+                  ? theme.palette.link.color
+                  : theme.palette.text.primary,
               })}
               gutterBottom
             >
