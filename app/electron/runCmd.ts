@@ -67,6 +67,7 @@ function confirmCommandDialog(command: string, mainWindow: BrowserWindow): boole
 }
 
 const SETTINGS_PATH = path.join(app?.getPath('userData') || 'testing', 'settings.json');
+console.log(`Settings path: ${SETTINGS_PATH}`);
 
 /**
  * Loads the user settings.
@@ -128,6 +129,75 @@ function checkCommandConsent(command: string, args: string[], mainWindow: Browse
     saveSettings(settings);
   }
   return true;
+}
+
+const COMMANDS_WITH_CONSENT = {
+  headlamp_minikube: [
+    'minikube start',
+    'minikube stop',
+    'minikube delete',
+    'minikube status',
+    'minikube service',
+    'minikube logs',
+    'minikube addons',
+    'minikube ssh',
+    'scriptjs headlamp_minikubeprerelease/manage-minikube.js',
+    'scriptjs headlamp_minikube/manage-minikube.js',
+    'scriptjs minikube/manage-minikube.js',
+  ],
+};
+/**
+ * Adds the runCmd consent for the plugin.
+ *
+ * This is used to give consent to the plugin to run commands when the plugin is installed.
+ * So the user is not presented with many consent requests.
+ *
+ * @param pluginInfo artifacthub plugin info
+ */
+export function addRunCmdConsent(pluginInfo: { name: string }): void {
+  const settings = loadSettings();
+  if (!settings.confirmedCommands) {
+    settings.confirmedCommands = {};
+  }
+  let commands: string[] = [];
+  if (
+    pluginInfo.name === 'minikube' ||
+    pluginInfo.name === 'headlamp_minikube' ||
+    pluginInfo.name === 'headlamp_minikubeprerelease'
+  ) {
+    commands = COMMANDS_WITH_CONSENT.headlamp_minikube;
+  }
+  for (const command of commands) {
+    if (!settings.confirmedCommands[command]) {
+      settings.confirmedCommands[command] = true;
+    }
+  }
+
+  saveSettings(settings);
+}
+
+/**
+ * Adds the runCmd consent for the plugin.
+ *
+ * @param pluginName The package.json name of the plugin.
+ */
+export function removeRunCmdConsent(pluginName: string): void {
+  const settings = loadSettings();
+  if (!settings.confirmedCommands) {
+    return;
+  }
+  let commands: string[] = [];
+  if (
+    pluginName === '@headlamp-k8s/minikubeprerelease' ||
+    pluginName === '@headlamp-k8s/minikube'
+  ) {
+    commands = COMMANDS_WITH_CONSENT.headlamp_minikube;
+  }
+  for (const command of commands) {
+    delete settings.confirmedCommands[command];
+  }
+
+  saveSettings(settings);
 }
 
 /**

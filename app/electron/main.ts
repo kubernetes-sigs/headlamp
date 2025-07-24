@@ -48,7 +48,7 @@ import {
   getPluginBinDirectories,
   PluginManager,
 } from './plugin-management';
-import { runScript, setupRunCmdHandlers } from './runCmd';
+import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
 import windowSize from './windowSize';
 
 if (process.env.HEADLAMP_RUN_SCRIPT) {
@@ -333,6 +333,8 @@ class PluginManagerEventListeners {
       controller,
     };
 
+    addRunCmdConsent(pluginInfo);
+
     PluginManager.installFromPluginPkg(
       pluginInfo,
       destinationFolder,
@@ -402,6 +404,8 @@ class PluginManagerEventListeners {
       action: 'UNINSTALL',
       progress: { type: 'info', message: 'uninstalling plugin' },
     };
+
+    removeRunCmdConsent(pluginName);
 
     PluginManager.uninstall(pluginName, destinationFolder, progress => {
       updateCache(progress);
