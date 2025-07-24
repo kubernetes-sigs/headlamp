@@ -86,7 +86,6 @@ const Template: StoryFn<PureTopBarProps> = args => {
 export const ProcessorAction = Template.bind({});
 ProcessorAction.args = {
   logout: () => {},
-  hasToken: false,
 };
 
 const PureTemplate: StoryFn<PureTopBarProps> = args => {
@@ -97,21 +96,18 @@ export const NoToken = PureTemplate.bind({});
 NoToken.args = {
   appBarActions: [],
   logout: () => {},
-  hasToken: false,
 };
 
 export const Token = PureTemplate.bind({});
 Token.args = {
   appBarActions: [],
   logout: () => {},
-  hasToken: true,
 };
 
 export const OneCluster = PureTemplate.bind({});
 OneCluster.args = {
   appBarActions: [],
   logout: () => {},
-  hasToken: true,
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '' },
 };
@@ -120,7 +116,6 @@ export const TwoCluster = PureTemplate.bind({});
 TwoCluster.args = {
   appBarActions: [],
   logout: () => {},
-  hasToken: true,
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '', 'ak8s-desktop2': '' },
 };

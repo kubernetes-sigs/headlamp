@@ -16,7 +16,6 @@
 
 import { useCallback, useEffect, useMemo } from 'react';
 import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
-import { getToken } from '../../../auth';
 import { getCluster } from '../../../cluster';
 import { BASE_HTTP_URL } from './fetch';
 import { makeUrl } from './makeUrl';
@@ -66,9 +65,6 @@ interface WebSocketMessage {
    * - COMPLETE: Server indicates the watch request has completed (e.g., due to timeout or error)
    */
   type: 'REQUEST' | 'CLOSE' | 'COMPLETE';
-
-  /** Authentication token */
-  token?: string;
 }
 
 /**
@@ -191,7 +187,6 @@ export const WebSocketManager = {
         query,
         userId: userId || '',
         type: 'REQUEST',
-        token: getToken(clusterId), // Include the current token to ensure it's fresh
       };
       socket.send(JSON.stringify(requestMsg));
     });
@@ -230,7 +225,6 @@ export const WebSocketManager = {
       query,
       userId: userId || '',
       type: 'REQUEST',
-      token: getToken(clusterId),
     };
     socket.send(JSON.stringify(requestMsg));
 
@@ -522,12 +516,6 @@ export async function openWebSocket<T>(
 ) {
   const path = [url];
   const protocols = ['base64.binary.k8s.io', ...(moreProtocols ?? [])];
-
-  const token = getToken(cluster);
-  if (token) {
-    const encodedToken = btoa(token).replace(/=/g, '');
-    protocols.push(`base64url.bearer.authorization.k8s.io.${encodedToken}`);
-  }
 
   if (cluster) {
     path.unshift('clusters', cluster);
