@@ -14,20 +14,66 @@
  * limitations under the License.
  */
 
+import { Typography } from '@mui/material';
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import { InfoLabel as InfoLabelComponent, InfoLabelProps } from '../Label';
+import { TestContext } from '../../../test';
+import { InfoLabel, InfoLabelProps } from '../Label';
 
 export default {
-  title: 'Label/InfoLabel',
-  component: InfoLabelComponent,
-  argTypes: {},
-} as Meta;
+  title: 'Labels/InfoLabel',
+  component: InfoLabel,
+  decorators: [
+    Story => (
+      <TestContext>
+        <Story />
+      </TestContext>
+    ),
+  ],
+  argTypes: {
+    name: { control: 'text', description: 'The name/key part of the label (left side).' },
+    value: {
+      control: 'text',
+      description:
+        'The value part of the label (right side). If children are provided, this prop is ignored.',
+    },
+    children: {
+      control: 'object',
+      description: 'Custom React node for the value part. Overrides the `value` prop if provided.',
+    },
+  },
+} as Meta<typeof InfoLabel>;
 
-const Template: StoryFn<InfoLabelProps> = args => <InfoLabelComponent {...args} />;
+const Template: StoryFn<InfoLabelProps> = args => <InfoLabel {...args} />;
 
-export const InfoLabel = Template.bind({});
-InfoLabel.args = {
-  name: 'name',
-  value: 'value',
+export const WithStringValue = Template.bind({});
+WithStringValue.args = {
+  name: 'Property Name',
+  value: 'Property Value',
 };
+WithStringValue.storyName = 'With String Value';
+
+export const WithReactNodeValue = Template.bind({});
+WithReactNodeValue.args = {
+  name: 'Complex Property',
+  children: (
+    <Typography color="secondary.main">
+      This is a <em>custom React node</em> value.
+    </Typography>
+  ),
+};
+WithReactNodeValue.storyName = 'With React Node Value';
+
+export const OnlyName = Template.bind({});
+OnlyName.args = {
+  name: 'Property With No Explicit Value',
+};
+OnlyName.storyName = 'Only Name (Value Undefined)';
+
+export const LongNameAndValue = Template.bind({});
+LongNameAndValue.args = {
+  name: 'This is a very long property name to demonstrate how it behaves within the grid layout used by InfoLabel',
+  value:
+    'This is a correspondingly long property value that should also wrap or be handled appropriately by the layout and typography settings.',
+};
+LongNameAndValue.storyName = 'With Long Name and Value';
