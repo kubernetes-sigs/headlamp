@@ -210,6 +210,9 @@ export default function Table<RowItem extends Record<string, any>>({
   const { t, i18n } = useTranslation();
   const theme = useTheme();
 
+  // State for shift+click range selection
+  const [lastSelectedRowIndex, setLastSelectedRowIndex] = useState<number | null>(null);
+
   // Provide defaults for the columns
   const tableColumns: TableColumn<RowItem>[] = useMemo(
     () =>
@@ -412,6 +415,38 @@ export default function Table<RowItem extends Record<string, any>>({
 
   const rows = useMRT_Rows(table);
 
+  // Handle shift+click range selection
+  const handleRowClick = (e: React.MouseEvent, clickedIndex: number) => {
+    if (!table || !table.getRowModel) return;
+    const rowModel = table.getRowModel();
+    const rowIds = rowModel.rows.map(row => row.id);
+
+    if (e.shiftKey && lastSelectedRowIndex !== null) {
+      const start = Math.min(lastSelectedRowIndex, clickedIndex);
+      const end = Math.max(lastSelectedRowIndex, clickedIndex);
+      const newSelected: Record<string, boolean> = {};
+
+      for (let i = start; i <= end; i++) {
+        const rowId = rowIds[i];
+        if (rowId) {
+          newSelected[rowId] = true;
+        }
+      }
+
+      table.setRowSelection(prev => ({
+        ...prev,
+        ...newSelected,
+      }));
+    } else {
+      const rowId = rowIds[clickedIndex];
+      table.setRowSelection(prev => ({
+        ...prev,
+        [rowId]: !prev[rowId],
+      }));
+      setLastSelectedRowIndex(clickedIndex);
+    }
+  };
+
   if (!!errorMessage) {
     return <Empty color="error">{errorMessage}</Empty>;
   }
@@ -462,12 +497,14 @@ export default function Table<RowItem extends Record<string, any>>({
           </StyledHeadRow>
         </TableHead>
         <StyledBody>
-          {rows.map(row => (
+          {rows.map((row, index) => (
             <Row
               key={row.id}
+              rowIndex={index}
               cells={row.getVisibleCells() as MRT_Cell<Record<string, any>, unknown>[]}
               table={table as MRT_TableInstance<Record<string, any>>}
               isSelected={row.getIsSelected()}
+              onRowClick={handleRowClick}
             />
           ))}
         </StyledBody>
@@ -514,12 +551,16 @@ const Row = memo(
     cells,
     table,
     isSelected,
+    onRowClick,
+    rowIndex,
   }: {
     table: MRT_TableInstance<RowItem>;
     cells: MRT_Cell<RowItem, unknown>[];
     isSelected: boolean;
+    onRowClick?: (e: React.MouseEvent, rowIndex: number) => void;
+    rowIndex: number;
   }) => (
-    <StyledRow data-selected={isSelected}>
+    <StyledRow data-selected={isSelected} onClick={e => onRowClick?.(e, rowIndex)}>
       {cells.map(cell => (
         <MemoCell
           cell={cell as MRT_Cell<Record<string, any>, unknown>}
