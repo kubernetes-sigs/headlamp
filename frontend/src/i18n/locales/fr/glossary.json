@@ -155,6 +155,8 @@
   "Attach": "Attacher",
   "Restarts": "Redémarrages",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} (il y a {{ abbrevTime }})",
+  "Request: {{percent}}% ({{aValue}} {{aUnit}}/{{rValue}} {{rUnit}})": "",
+  "Limit: {{percent}}% ({{aValue}} {{aUnit}}/{{lValue}} {{lUnit}})": "",
   "Nominated Node": "Nœud nommé",
   "Readiness Gates": "Portes de disponibilité",
   "Pod Disruption Budget": "Pod Disruption Budget",

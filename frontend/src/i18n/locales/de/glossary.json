@@ -155,6 +155,8 @@
   "Attach": "Anhängen",
   "Restarts": "Neustarts",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} (vor {{ abbrevTime }})",
+  "Request: {{percent}}% ({{aValue}} {{aUnit}}/{{rValue}} {{rUnit}})": "",
+  "Limit: {{percent}}% ({{aValue}} {{aUnit}}/{{lValue}} {{lUnit}})": "",
   "Nominated Node": "Nominierte Node",
   "Readiness Gates": "Bereitschaftstore",
   "Pod Disruption Budget": "Budget für Pod Disruption",
