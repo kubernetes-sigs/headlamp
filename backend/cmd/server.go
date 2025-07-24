@@ -22,7 +22,7 @@ import (
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
+	headlampconfig "github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
@@ -62,27 +62,27 @@ func main() {
 			KubeConfigStore:       kubeConfigStore,
 			BaseURL:               conf.BaseURL,
 			ProxyURLs:             strings.Split(conf.ProxyURLs, ","),
+			TelemetryConfig: config.Config{
+				ServiceName:        conf.ServiceName,
+				ServiceVersion:     conf.ServiceVersion,
+				TracingEnabled:     conf.TracingEnabled,
+				MetricsEnabled:     conf.MetricsEnabled,
+				JaegerEndpoint:     conf.JaegerEndpoint,
+				OTLPEndpoint:       conf.OTLPEndpoint,
+				UseOTLPHTTP:        conf.UseOTLPHTTP,
+				StdoutTraceEnabled: conf.StdoutTraceEnabled,
+				SamplingRate:       conf.SamplingRate,
+			},
+			OidcClientID:              conf.OidcClientID,
+			OidcValidatorClientID:     conf.OidcValidatorClientID,
+			OidcClientSecret:          conf.OidcClientSecret,
+			OidcIdpIssuerURL:          conf.OidcIdpIssuerURL,
+			OidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
+			OidcScopes:                strings.Split(conf.OidcScopes, ","),
+			OidcUseAccessToken:        conf.OidcUseAccessToken,
+			Cache:                     cache,
 		},
-		oidcClientID:              conf.OidcClientID,
-		oidcValidatorClientID:     conf.OidcValidatorClientID,
-		oidcClientSecret:          conf.OidcClientSecret,
-		oidcIdpIssuerURL:          conf.OidcIdpIssuerURL,
-		oidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
-		oidcScopes:                strings.Split(conf.OidcScopes, ","),
-		oidcUseAccessToken:        conf.OidcUseAccessToken,
-		cache:                     cache,
-		multiplexer:               multiplexer,
-		telemetryConfig: config.Config{
-			ServiceName:        conf.ServiceName,
-			ServiceVersion:     conf.ServiceVersion,
-			TracingEnabled:     conf.TracingEnabled,
-			MetricsEnabled:     conf.MetricsEnabled,
-			JaegerEndpoint:     conf.JaegerEndpoint,
-			OTLPEndpoint:       conf.OTLPEndpoint,
-			UseOTLPHTTP:        conf.UseOTLPHTTP,
-			StdoutTraceEnabled: conf.StdoutTraceEnabled,
-			SamplingRate:       conf.SamplingRate,
-		},
+		multiplexer: multiplexer,
 	})
 }
 
