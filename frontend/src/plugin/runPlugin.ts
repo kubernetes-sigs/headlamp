@@ -122,3 +122,52 @@ export function runPlugin(
     handleError(e, packageName, packageVersion);
   }
 }
+
+/**
+ * Identifies which packages this is, taking into account prereleases, and development mode.
+ *
+ * @param pluginPath is like "plugins/headlamp-pod-counter"
+ * @param pluginName is like "@headlamp-k8s/minikube"
+ * @param isDevelopmentMode
+ * @returns the packages with { '@headlamp-k8s/minikube': true }
+ *
+ * @example
+ * > identifyPackages('plugins/headlamp_minikube', '@headlamp-k8s/minikube', false)
+ * { '@headlamp-k8s/minikube': true }
+ */
+export function identifyPackages(
+  pluginPath: string,
+  pluginName: string,
+  isDevelopmentMode: boolean
+): Record<string, boolean> {
+  // For artifacthub installed packages, the package name is the folder name.
+  const pluginPaths: Record<string, string[]> = {
+    '@headlamp-k8s/minikube': ['plugins/headlamp_minikube', 'plugins/headlamp_minikubeprerelease'],
+  };
+  if (isDevelopmentMode) {
+    pluginPaths['@headlamp-k8s/minikube'][pluginPaths['@headlamp-k8s/minikube'].length] =
+      'plugins/minikube';
+  }
+  const pluginPackageNames: Record<string, string[]> = {
+    '@headlamp-k8s/minikube': ['@headlamp-k8s/minikube', '@headlamp-k8s/minikubeprerelease'],
+  };
+  const isPackage: Record<string, boolean> = {};
+  for (const key in pluginPaths) {
+    let foundPath = false;
+    for (let i = 0; i < pluginPaths[key].length; i++) {
+      if (pluginPaths[key][i] === pluginPath) {
+        foundPath = true;
+        break;
+      }
+    }
+    let foundName = false;
+    for (let i = 0; i < pluginPackageNames[key].length; i++) {
+      if (pluginPackageNames[key][i] === pluginName) {
+        foundName = true;
+        break;
+      }
+    }
+    isPackage[key] = foundPath && foundName;
+  }
+  return isPackage;
+}

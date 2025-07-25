@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { getInfoForRunningPlugins, runPlugin, runPluginProps } from './runPlugin';
+import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
 
 function runPluginInner(info: runPluginProps) {
   const source = info[0];
@@ -319,5 +319,46 @@ describe('runPlugin', () => {
 
     // restore Array.prototype[Symbol.iterator]
     (globalThis as any).Array.prototype[Symbol.iterator] = originalIterator;
+  });
+});
+
+describe('identifyPackages', () => {
+  test('should identify package by path and name in production mode', () => {
+    const result = identifyPackages('plugins/headlamp_minikube', '@headlamp-k8s/minikube', false);
+    expect(result).toEqual({ '@headlamp-k8s/minikube': true });
+  });
+
+  test('should identify package by prerelease path and name in production mode', () => {
+    const result = identifyPackages(
+      'plugins/headlamp_minikubeprerelease',
+      '@headlamp-k8s/minikubeprerelease',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': true });
+  });
+
+  test('should not identify package if path does not match', () => {
+    const result = identifyPackages('plugins/other_plugin', '@headlamp-k8s/minikube', false);
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false });
+  });
+
+  test('should not identify package if name does not match', () => {
+    const result = identifyPackages('plugins/headlamp_minikube', '@other/package', false);
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false });
+  });
+
+  test('should identify package by dev path in development mode', () => {
+    const result = identifyPackages('plugins/minikube', '@headlamp-k8s/minikube', true);
+    expect(result).toEqual({ '@headlamp-k8s/minikube': true });
+  });
+
+  test('should not identify package by dev path if not in development mode', () => {
+    const result = identifyPackages('plugins/minikube', '@headlamp-k8s/minikube', false);
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false });
+  });
+
+  test('should not identify package if neither path nor name match', () => {
+    const result = identifyPackages('plugins/unknown', '@unknown', false);
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false });
   });
 });
