@@ -822,6 +822,11 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
   const history = useTypedSelector(state => state.activity.history) as string[];
   const lastElement = history.at(-1);
   const [isOverview, setIsOverview] = useState(false);
+  useEffect(() => {
+    if (activities.length === 0 && isOverview) {
+      setIsOverview(false);
+    }
+  }, [activities, isOverview]);
 
   useHotkeys('Ctrl+ArrowDown', () => {
     setIsOverview(isOverview => !isOverview);
