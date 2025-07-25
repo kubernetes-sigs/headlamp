@@ -17,11 +17,7 @@
 import { Icon, InlineIcon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
-import FormControl from '@mui/material/FormControl';
 import IconButton from '@mui/material/IconButton';
-import InputLabel from '@mui/material/InputLabel';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
 import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
@@ -46,6 +42,7 @@ import Link from '../../common/Link';
 import Loader from '../../common/Loader';
 import NameValueTable from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
+import ClusterSelector from './ClusterSelector';
 import NodeShellSettings from './NodeShellSettings';
 import { isValidNamespaceFormat } from './util';
 
@@ -59,39 +56,6 @@ function isValidClusterNameFormat(name: string) {
   // https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-label-names
   const regex = new RegExp('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$');
   return regex.test(name);
-}
-
-interface ClusterSelectorProps {
-  currentCluster?: string;
-  clusters: string[];
-}
-
-function ClusterSelector(props: ClusterSelectorProps) {
-  const { currentCluster = '', clusters } = props;
-  const history = useHistory();
-  const { t } = useTranslation('glossary');
-
-  return (
-    <FormControl variant="outlined" margin="normal" size="small" sx={{ minWidth: 250 }}>
-      <InputLabel id="settings--cluster-selector">{t('glossary|Cluster')}</InputLabel>
-      <Select
-        labelId="settings--cluster-selector"
-        value={currentCluster}
-        onChange={event => {
-          history.replace(`/settings/cluster?c=${event.target.value}`);
-        }}
-        label={t('glossary|Cluster')}
-        autoWidth
-        aria-label={t('glossary|Cluster selector')}
-      >
-        {clusters.map(clusterName => (
-          <MenuItem key={clusterName} value={clusterName}>
-            {clusterName}
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
-  );
 }
 
 export default function SettingsCluster() {
@@ -360,7 +324,7 @@ export default function SettingsCluster() {
               }
             )}
           </Typography>
-          <ClusterSelector clusters={clusters} />
+          <ClusterSelector currentCluster={cluster} clusters={clusters} />
         </SectionBox>
       </>
     );
