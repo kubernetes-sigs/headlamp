@@ -41,6 +41,7 @@ type Config struct {
 	OidcValidatorIdpIssuerURL string `koanf:"oidc-validator-idp-issuer-url"`
 	OidcScopes                string `koanf:"oidc-scopes"`
 	OidcUseAccessToken        bool   `koanf:"oidc-use-access-token"`
+	OidcUsePKCE               bool   `koanf:"oidc-use-pkce"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -260,6 +261,7 @@ func flagset() *flag.FlagSet {
 	f.String("oidc-scopes", "profile,email",
 		"A comma separated list of scopes needed from the OIDC provider")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
+	f.Bool("oidc-use-pkce", true, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
 	// Telemetry flags.
 	f.String("service-name", "headlamp", "Service name for telemetry")
 	f.String("service-version", "0.30.0", "Service version for telemetry")

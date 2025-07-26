@@ -70,6 +70,7 @@ func main() {
 		oidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
 		oidcScopes:                strings.Split(conf.OidcScopes, ","),
 		oidcUseAccessToken:        conf.OidcUseAccessToken,
+		oidcUsePKCE:               conf.OidcUsePKCE,
 		cache:                     cache,
 		multiplexer:               multiplexer,
 		telemetryConfig: config.Config{
