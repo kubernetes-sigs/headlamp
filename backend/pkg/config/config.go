@@ -56,6 +56,7 @@ type Config struct {
 	MeUsernamePath            string `koanf:"me-username-path"`
 	MeEmailPath               string `koanf:"me-email-path"`
 	MeGroupsPath              string `koanf:"me-groups-path"`
+	OidcUsePKCE               bool   `koanf:"oidc-use-pkce"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`

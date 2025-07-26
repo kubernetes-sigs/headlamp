@@ -116,6 +116,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		oidcScopes:                strings.Split(conf.OidcScopes, ","),
 		oidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
 		oidcUseAccessToken:        conf.OidcUseAccessToken,
+		oidcUsePKCE:               conf.OidcUsePKCE,
 		meUsernamePaths:           conf.MeUsernamePath,
 		meEmailPaths:              conf.MeEmailPath,
 		meGroupsPaths:             conf.MeGroupsPath,
