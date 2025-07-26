@@ -210,6 +210,7 @@ export function PodListRenderer(props: PodListProps) {
         {
           label: t('Restarts'),
           gridTemplate: 'min-content',
+          disableFiltering: true,
           getValue: pod => {
             const { restarts, lastRestartDate } = pod.getDetailedStatus();
             return lastRestartDate.getTime() !== 0
@@ -224,6 +225,7 @@ export function PodListRenderer(props: PodListProps) {
           id: 'ready',
           gridTemplate: 'min-content',
           label: t('translation|Ready'),
+          disableFiltering: true,
           getValue: pod => {
             const podRow = pod.getDetailedStatus();
             return `${podRow.readyContainers}/${podRow.totalContainers}`;
@@ -232,8 +234,9 @@ export function PodListRenderer(props: PodListProps) {
         {
           id: 'status',
           gridTemplate: 'min-content',
+          filterVariant: 'multi-select',
           label: t('translation|Status'),
-          getValue: pod => getPodStatus(pod) + '' + pod.getDetailedStatus().reason,
+          getValue: pod => getPodStatus(pod) + '/' + pod.getDetailedStatus().reason,
           render: makePodStatusLabel,
         },
         ...(metrics?.length
@@ -242,6 +245,7 @@ export function PodListRenderer(props: PodListProps) {
                 id: 'cpu',
                 label: t('CPU'),
                 gridTemplate: 'min-content',
+                disableFiltering: true,
                 render: (pod: Pod) => {
                   const cpu = getCpuUsage(pod);
                   if (cpu === undefined) return;
@@ -256,6 +260,7 @@ export function PodListRenderer(props: PodListProps) {
                 id: 'memory',
                 label: t('Memory'),
                 gridTemplate: 'min-content',
+                disableFiltering: true,
                 render: (pod: Pod) => {
                   const memory = getMemoryUsage(pod);
                   if (memory === undefined) return;
@@ -277,6 +282,7 @@ export function PodListRenderer(props: PodListProps) {
           id: 'node',
           label: t('glossary|Node'),
           gridTemplate: 'auto',
+          filterVariant: 'multi-select',
           getValue: pod => pod?.spec?.nodeName,
           render: pod =>
             pod?.spec?.nodeName && (
