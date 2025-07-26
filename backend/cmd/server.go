@@ -61,6 +61,7 @@ func main() {
 	StartHeadlampServer(headlampConfig)
 }
 
+//nolint:funlen
 func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
@@ -96,6 +97,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		oidcScopes:                strings.Split(conf.OidcScopes, ","),
 		oidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
 		oidcUseAccessToken:        conf.OidcUseAccessToken,
+		oidcUsePKCE:               conf.OidcUsePKCE,
 		cache:                     cache,
 		multiplexer:               multiplexer,
 		telemetryConfig: config.Config{

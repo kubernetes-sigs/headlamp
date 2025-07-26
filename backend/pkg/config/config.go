@@ -47,6 +47,7 @@ type Config struct {
 	OidcUseAccessToken        bool   `koanf:"oidc-use-access-token"`
 	OidcSkipTLSVerify         bool   `koanf:"oidc-skip-tls-verify"`
 	OidcCAFile                string `koanf:"oidc-ca-file"`
+	OidcUsePKCE               bool   `koanf:"oidc-use-pkce"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
