@@ -101,7 +101,15 @@ export function setInitialSidebarOpen() {
   if (openUserSelected !== undefined) {
     defaultOpen = openUserSelected;
   } else {
-    defaultOpen = window?.innerWidth ? window.innerWidth > 960 : true;
+    // Check for build-time environment variable first
+    const envDefaultOpen = import.meta.env.REACT_APP_HEADLAMP_SIDEBAR_DEFAULT_OPEN;
+    if (envDefaultOpen !== undefined) {
+      // Convert string to boolean, accepting 'true'/'false' or '1'/'0'
+      defaultOpen = envDefaultOpen === 'true' || envDefaultOpen === '1';
+    } else {
+      // Fall back to window width-based logic
+      defaultOpen = window?.innerWidth ? window.innerWidth > 960 : true;
+    }
   }
 
   return {
