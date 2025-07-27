@@ -399,6 +399,7 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.Bool("oidc-skip-tls-verify", false, "Skip TLS verification for OIDC")
 	f.String("oidc-ca-file", "", "CA file for OIDC")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
+	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")
 	f.String("me-email-path", DefaultMeEmailPath,
@@ -408,6 +409,7 @@ func addOIDCFlags(f *flag.FlagSet) {
 }
 
 func addTelemetryFlags(f *flag.FlagSet) {
+	// Telemetry flags.
 	f.String("service-name", "headlamp", "Service name for telemetry")
 	f.String("service-version", "0.30.0", "Service version for telemetry")
 	f.Bool("tracing-enabled", false, "Enable distributed tracing")
