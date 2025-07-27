@@ -78,6 +78,8 @@ config:
     validatorIssuerURL: ""
     # -- Use 'access_token' instead of 'id_token' when authenticating using OIDC
     useAccessToken: false
+    # -- Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow
+    usePKCE: false
 
     # Option 3:
     # @param config.oidc - External OIDC secret configuration
