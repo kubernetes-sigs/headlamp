@@ -261,7 +261,7 @@ func flagset() *flag.FlagSet {
 	f.String("oidc-scopes", "profile,email",
 		"A comma separated list of scopes needed from the OIDC provider")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
-	f.Bool("oidc-use-pkce", true, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
+	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
 	// Telemetry flags.
 	f.String("service-name", "headlamp", "Service name for telemetry")
 	f.String("service-version", "0.30.0", "Service version for telemetry")
