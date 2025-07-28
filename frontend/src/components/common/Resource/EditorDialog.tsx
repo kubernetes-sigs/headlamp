@@ -15,7 +15,9 @@
  */
 
 import '../../../i18n/config';
+import { Icon } from '@iconify/react';
 import Editor, { loader } from '@monaco-editor/react';
+import { InputAdornment, TextField } from '@mui/material';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import DialogActions from '@mui/material/DialogActions';
@@ -123,6 +125,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     'useSimpleEditor',
     false
   );
+  const [uploadYaml, setUploadYaml] = React.useState<boolean>(false);
 
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
@@ -416,6 +419,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     <Loader title={t('Loading editor')} />
   ) : (
     <React.Fragment>
+      {uploadYaml ? <UploadYourYaml setUploadYaml={setUploadYaml} setCode={setCode} /> : ''}
       <DialogContent
         sx={{
           height: '80%',
@@ -461,6 +465,14 @@ export default function EditorDialog(props: EditorDialogProps) {
                   }
                   label={t('Use minimal editor')}
                 />
+                <Button
+                  variant="contained"
+                  onClick={() => {
+                    setUploadYaml(true);
+                  }}
+                >
+                  {t('translation | Upload File/URL')}
+                </Button>
               </FormGroup>
             </Grid>
           </Grid>
@@ -556,4 +568,264 @@ export default function EditorDialog(props: EditorDialogProps) {
 
 export function ViewDialog(props: Omit<EditorDialogProps, 'onSave'>) {
   return <EditorDialog {...props} onSave={null} />;
+}
+
+interface UploadYamlProps {
+  setUploadYaml: (value: boolean) => void;
+  setCode: React.Dispatch<React.SetStateAction<{ code: string; format: string }>>;
+}
+
+function UploadYourYaml(props: UploadYamlProps) {
+  const { setUploadYaml, setCode } = props;
+  const { t } = useTranslation();
+  const [uploadedfile, setUploadedFile] = React.useState<File | null>(null);
+
+  const UploadYamlFromFilesystem = () => {
+    const [dragOver, setDragOver] = React.useState(false);
+
+    const handleLoadFile = () => {
+      if (!uploadedfile) return;
+
+      const reader = new FileReader();
+      reader.onload = e => {
+        const text = e.target?.result as string;
+
+        setCode({ format: 'yaml', code: text });
+
+        setUploadYaml(false);
+      };
+      reader.readAsText(uploadedfile);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+
+      const files = Array.from(e.dataTransfer.files);
+      console.log('Dropped files:', files[0]);
+      setUploadedFile(files[0] || null);
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(true);
+    };
+
+    const handleDragLeave = () => setDragOver(false);
+
+    return (
+      <>
+        <Box
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          sx={theme => ({
+            position: 'relative',
+            borderRadius: 2,
+            p: 4,
+            textAlign: 'center',
+            border: '2px dashed',
+            borderColor: dragOver
+              ? 'primary.main'
+              : theme.palette.mode === 'dark'
+              ? 'grey.300'
+              : 'grey.800',
+            bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.300',
+            cursor: 'pointer',
+            transition: '0.2s',
+          })}
+        >
+          <input
+            type="file"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              opacity: 0,
+              cursor: 'pointer',
+            }}
+            onChange={e => setUploadedFile(e.target.files?.[0] || null)}
+          />
+
+          <Icon icon="mdi:upload" width="40" color="white" />
+          <Typography sx={{ m: 2 }}>
+            {dragOver
+              ? t('translation|Drop the file here...')
+              : t('translation|Select a file or drag and drop here')}
+          </Typography>
+          <Box
+            sx={{
+              p: 1,
+              bgcolor: 'yellow',
+              borderRadius: 1,
+              color: 'black',
+              fontWeight: 'bold',
+              '&:hover': { bgcolor: '#e6d600' },
+            }}
+            component="span"
+          >
+            {t('translation | Select File')}
+          </Box>
+        </Box>
+
+        {uploadedfile && (
+          <Box
+            sx={theme => ({
+              bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.300',
+              color: theme.palette.mode === 'dark' ? 'grey.300' : 'grey.800',
+              borderRadius: 1,
+              mt: 2,
+              p: 1,
+              width: '100%',
+              border: '1px',
+              fontWeight: 'bold',
+            })}
+          >
+            {uploadedfile.name}
+          </Box>
+        )}
+        <Box sx={{ display: 'flex', mt: 2, justifyContent: 'space-between' }}>
+          <Button
+            variant="outlined"
+            sx={{ borderColor: 'grey.500', px: 2 }}
+            onClick={() => setUploadYaml(false)}
+          >
+            <Icon
+              icon="mdi:arrow-left"
+              width="18"
+              height="18"
+              style={{ display: 'inline-block', marginRight: '8px' }}
+            />
+            {t('translation|Back')}
+          </Button>
+          <Button
+            onClick={handleLoadFile}
+            variant="contained"
+            sx={{
+              bgcolor: 'grey.700',
+              color: 'white',
+              px: 5,
+              '&:hover': { bgcolor: 'grey.600' },
+            }}
+          >
+            {t('translation|Load')}
+          </Button>
+        </Box>
+      </>
+    );
+  };
+
+  const UploadYamlFromUrl = () => {
+    const [url, setUrl] = React.useState('');
+
+    const loadFileFromUrl = async () => {
+      if (!url) return;
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch file: ${response.statusText}`);
+        }
+        const text = await response.text();
+        setCode({ format: 'yaml', code: text });
+        setUploadYaml(false);
+      } catch (error) {
+        console.error('Error loading file from URL:', error);
+      }
+    };
+
+    return (
+      <>
+        <Box>
+          <TextField
+            fullWidth
+            variant="outlined"
+            onChange={e => setUrl(e.target.value)}
+            placeholder={t('translation | Paste URL')}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Icon icon="mdi:link-variant" width="20" color="grey" />
+                </InputAdornment>
+              ),
+              sx: theme => ({
+                bgcolor: theme.palette.mode === 'dark' ? '#1c1c1c' : '#f5f5f5',
+                color: theme.palette.mode === 'dark' ? '#f5f5f5' : '#1c1c1c',
+                borderRadius: 1,
+              }),
+            }}
+          />
+        </Box>
+        <Box sx={{ display: 'flex', mt: 2, justifyContent: 'space-between' }}>
+          <Button
+            variant="outlined"
+            sx={{ borderColor: 'grey.500', px: 2 }}
+            onClick={() => setUploadYaml(false)}
+          >
+            <Icon
+              icon="mdi:arrow-left"
+              width="18"
+              height="18"
+              style={{ display: 'inline-block', marginRight: '8px' }}
+            />
+            {t('translation|Back')}
+          </Button>
+          <Button
+            onClick={loadFileFromUrl}
+            variant="contained"
+            sx={{
+              bgcolor: 'grey.700',
+              color: 'white',
+              px: 5,
+              '&:hover': { bgcolor: 'grey.600' },
+            }}
+          >
+            {t('translation|Load')}
+          </Button>
+        </Box>
+      </>
+    );
+  };
+
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 6,
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        bgcolor: 'rgba(0, 0, 0, 0.5)',
+        backdropFilter: 'blur(2px)',
+      }}
+    >
+      <Box
+        sx={theme => ({
+          bgcolor: theme.palette.mode === 'dark' ? '#1c1c1c' : '#f5f5f5',
+          p: 3,
+          width: 600,
+          borderRadius: 1,
+          boxShadow: 4,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 3,
+        })}
+      >
+        <Tabs
+          ariaLabel={t('translation|Upload File/URL')}
+          tabs={[
+            { label: t('translation|Upload File'), component: <UploadYamlFromFilesystem /> },
+            { label: t('translation|Load from URL'), component: <UploadYamlFromUrl /> },
+          ]}
+        />
+      </Box>
+    </Box>
+  );
 }
