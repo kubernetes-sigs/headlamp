@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { getBackstageToken, setupBackstageMessageReceiver } from './backstageMessageReceiver';
 import { loadClusterSettings, storeClusterSettings } from './clusterSettings';
 import { getBaseUrl } from './getBaseUrl';
 import { getHeadlampAPIHeaders } from './getHeadlampAPIHeaders';
@@ -31,6 +32,8 @@ const exportFunctions = {
   isElectron,
   isDockerDesktop,
   isBackstage,
+  getBackstageToken,
+  setupBackstageMessageReceiver,
   setRecentCluster,
   getRecentClusters,
   getTablesRowsPerPage,
