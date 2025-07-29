@@ -474,7 +474,7 @@ export default function EditorDialog(props: EditorDialogProps) {
                 borderRadius: '8px',
                 width: '100%',
                 m: 2,
-                py: 0.5,
+                py: 1,
                 px: 2,
                 display: 'flex',
                 alignItems: 'center',
@@ -599,22 +599,22 @@ function UploadYourYaml(props: UploadYamlProps) {
   const { t } = useTranslation();
   const [uploadedfile, setUploadedFile] = React.useState<File | null>(null);
 
-  const handleLoadFile = () => {
-    if (!uploadedfile) return;
-
-    const reader = new FileReader();
-    reader.onload = e => {
-      const text = e.target?.result as string;
-
-      setCode({ format: 'yaml', code: text });
-
-      setUploadYaml(false);
-    };
-    reader.readAsText(uploadedfile);
-  };
-
   const Uploadyamlfromfilesystem = () => {
     const [dragOver, setDragOver] = React.useState(false);
+
+    const handleLoadFile = () => {
+      if (!uploadedfile) return;
+
+      const reader = new FileReader();
+      reader.onload = e => {
+        const text = e.target?.result as string;
+
+        setCode({ format: 'yaml', code: text });
+
+        setUploadYaml(false);
+      };
+      reader.readAsText(uploadedfile);
+    };
 
     const handleDrop = (e: React.DragEvent) => {
       e.preventDefault();
@@ -633,70 +633,134 @@ function UploadYourYaml(props: UploadYamlProps) {
     const handleDragLeave = () => setDragOver(false);
 
     return (
-      <Box
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        sx={theme => ({
-          position: 'relative',
-          borderRadius: 2,
-          p: 4,
-          textAlign: 'center',
-          border: '2px dashed',
-          borderColor: dragOver
-            ? 'primary.main'
-            : theme.palette.mode === 'dark'
-            ? 'grey.300'
-            : 'grey.800',
-          bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.300',
-          cursor: 'pointer',
-          transition: '0.2s',
-        })}
-      >
-        <input
-          type="file"
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            opacity: 0,
-            cursor: 'pointer',
-          }}
-          onChange={e => setUploadedFile(e.target.files?.[0] || null)}
-        />
-
-        <Icon icon="mdi:upload" width="40" color="white" />
-        <Typography sx={{ m: 2 }}>
-          {dragOver
-            ? t('translation|Drop the file here...')
-            : t('translation|Select a file or drag and drop here')}
-        </Typography>
+      <>
         <Box
-          sx={{
-            p: 1,
-            bgcolor: 'yellow',
-            borderRadius: 1,
-            color: 'black',
-            fontWeight: 'bold',
-            '&:hover': { bgcolor: '#e6d600' },
-          }}
-          component="span"
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          sx={theme => ({
+            position: 'relative',
+            borderRadius: 2,
+            p: 4,
+            textAlign: 'center',
+            border: '2px dashed',
+            borderColor: dragOver
+              ? 'primary.main'
+              : theme.palette.mode === 'dark'
+              ? 'grey.300'
+              : 'grey.800',
+            bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.300',
+            cursor: 'pointer',
+            transition: '0.2s',
+          })}
         >
-          {t('translation | Select File')}
+          <input
+            type="file"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              opacity: 0,
+              cursor: 'pointer',
+            }}
+            onChange={e => setUploadedFile(e.target.files?.[0] || null)}
+          />
+
+          <Icon icon="mdi:upload" width="40" color="white" />
+          <Typography sx={{ m: 2 }}>
+            {dragOver
+              ? t('translation|Drop the file here...')
+              : t('translation|Select a file or drag and drop here')}
+          </Typography>
+          <Box
+            sx={{
+              p: 1,
+              bgcolor: 'yellow',
+              borderRadius: 1,
+              color: 'black',
+              fontWeight: 'bold',
+              '&:hover': { bgcolor: '#e6d600' },
+            }}
+            component="span"
+          >
+            {t('translation | Select File')}
+          </Box>
         </Box>
-      </Box>
+
+        {uploadedfile && (
+          <Box
+            sx={theme => ({
+              bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.300',
+              color: theme.palette.mode === 'dark' ? 'grey.300' : 'grey.800',
+              borderRadius: 1,
+              mt: 2,
+              p: 1,
+              width: '100%',
+              border: '1px',
+              fontWeight: 'bold',
+            })}
+          >
+            {uploadedfile.name}
+          </Box>
+        )}
+        <Box sx={{ display: 'flex', mt: 2, justifyContent: 'space-between' }}>
+          <Button
+            variant="outlined"
+            sx={{ borderColor: 'grey.500', px: 2 }}
+            onClick={() => setUploadYaml(false)}
+          >
+            <Icon
+              icon="mdi:arrow-left"
+              width="18"
+              height="18"
+              style={{ display: 'inline-block', marginRight: '8px' }}
+            />
+            {t('translation|Back')}
+          </Button>
+          <Button
+            onClick={handleLoadFile}
+            variant="contained"
+            sx={{
+              bgcolor: 'grey.700',
+              color: 'white',
+              px: 5,
+              '&:hover': { bgcolor: 'grey.600' },
+            }}
+          >
+            {t('translation|Load')}
+          </Button>
+        </Box>
+      </>
     );
   };
 
   const UploadyamlfromUrl = () => {
+    const [url, setUrl] = React.useState('');
+
+    const loadFileFromUrl = async () => {
+      if (!url) return;
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch file: ${response.statusText}`);
+        }
+        const text = await response.text();
+        setCode({ format: 'yaml', code: text });
+        setUploadYaml(false);
+      } catch (error) {
+        console.error('Error loading file from URL:', error);
+      }
+    };
+
     return (
       <>
         <Box>
           <TextField
             fullWidth
             variant="outlined"
+            onChange={e => setUrl(e.target.value)}
             placeholder={t('translation | Paste URL')}
             InputProps={{
               startAdornment: (
@@ -711,6 +775,33 @@ function UploadYourYaml(props: UploadYamlProps) {
               }),
             }}
           />
+        </Box>
+        <Box sx={{ display: 'flex', mt: 2, justifyContent: 'space-between' }}>
+          <Button
+            variant="outlined"
+            sx={{ borderColor: 'grey.500', px: 2 }}
+            onClick={() => setUploadYaml(false)}
+          >
+            <Icon
+              icon="mdi:arrow-left"
+              width="18"
+              height="18"
+              style={{ display: 'inline-block', marginRight: '8px' }}
+            />
+            {t('translation|Back')}
+          </Button>
+          <Button
+            onClick={loadFileFromUrl}
+            variant="contained"
+            sx={{
+              bgcolor: 'grey.700',
+              color: 'white',
+              px: 5,
+              '&:hover': { bgcolor: 'grey.600' },
+            }}
+          >
+            {t('translation|Load')}
+          </Button>
         </Box>
       </>
     );
@@ -753,48 +844,6 @@ function UploadYourYaml(props: UploadYamlProps) {
             { label: t('translation|Load from URL'), component: <UploadyamlfromUrl /> },
           ]}
         />
-        {uploadedfile && (
-          <Box
-            sx={theme => ({
-              bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.300',
-              color: theme.palette.mode === 'dark' ? 'grey.300' : 'grey.800',
-              borderRadius: 1,
-              p: 1,
-              width: '100%',
-              border: '1px',
-              fontWeight: 'bold',
-            })}
-          >
-            {uploadedfile.name}
-          </Box>
-        )}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Button
-            variant="outlined"
-            sx={{ borderColor: 'grey.500', px: 2 }}
-            onClick={() => setUploadYaml(false)}
-          >
-            <Icon
-              icon="mdi:arrow-left"
-              width="18"
-              height="18"
-              style={{ display: 'inline-block', marginRight: '8px' }}
-            />
-            {t('translation|Back')}
-          </Button>
-          <Button
-            onClick={handleLoadFile}
-            variant="contained"
-            sx={{
-              bgcolor: 'grey.700',
-              color: 'white',
-              px: 5,
-              '&:hover': { bgcolor: 'grey.600' },
-            }}
-          >
-            {t('translation|Load')}
-          </Button>
-        </Box>
       </Box>
     </Box>
   );
