@@ -40,7 +40,7 @@ import React, {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useHotkeys } from 'react-hotkeys-hook';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { useTypedSelector } from '../../redux/hooks';
 import store from '../../redux/stores/store';
 
@@ -157,6 +157,9 @@ export const activitySlice = createSlice({
         window.dispatchEvent(new Event('resize'));
       }, 200);
     },
+    reset() {
+      return initialState;
+    },
   },
 });
 
@@ -174,6 +177,9 @@ export const Activity = {
   /** Update existing activity with a partial changes */
   update(id: string, diff: Partial<Activity>) {
     store.dispatch(activitySlice.actions.update({ ...diff, id }));
+  },
+  reset() {
+    store.dispatch(activitySlice.actions.reset());
   },
 };
 
@@ -208,7 +214,7 @@ export function SingleActivityRenderer({
   /** Click event callback */
   onClick: React.PointerEventHandler<HTMLDivElement>;
 }) {
-  const { id, minimized, location, content, title, hideTitleInHeader, icon } = activity;
+  const { id, minimized, location, content, title, hideTitleInHeader, icon, cluster } = activity;
   const { t } = useTranslation();
   const activityElementRef = useRef<HTMLDivElement>(null);
   const containerElementRef = useRef(document.getElementById('main'));
@@ -446,6 +452,18 @@ export function SingleActivityRenderer({
               )}
               <Box sx={{ marginRight: 'auto' }} />
 
+              {cluster && (
+                <Box
+                  sx={theme => ({
+                    fontSize: '0.875rem',
+                    paddingX: 0.5,
+                    color: theme.palette.text.secondary,
+                  })}
+                >
+                  <Icon icon="mdi:hexagon-multiple-outline" />
+                  {cluster}
+                </Box>
+              )}
               {!isOverview && (
                 <>
                   <IconButton
@@ -854,6 +872,34 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
           }}
         />
       ))}
+      {isOverview && (
+        <Box
+          sx={{
+            zIndex: 1,
+            gridColumn: '2/3',
+            gridRow: '1/2',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+          }}
+        >
+          <Button
+            size="large"
+            variant="contained"
+            startIcon={<Icon icon="mdi:close-box-multiple-outline" />}
+            onClick={() => {
+              Activity.reset();
+              setIsOverview(false);
+            }}
+            sx={{
+              margin: 5,
+              lineHeight: 1,
+            }}
+          >
+            <Trans>Close All</Trans>
+          </Button>
+        </Box>
+      )}
       <ActivityBar setIsOverview={setIsOverview} />
     </>
   );
@@ -882,16 +928,17 @@ export const ActivityBar = React.memo(function ({
         borderColor: theme.palette.divider,
         gridRow: '2 / 3',
         gridColumn: '2 / 3',
-        paddingX: 1,
+        paddingLeft: 1,
         zIndex: 10,
         position: 'relative',
         alignItems: 'center',
         display: 'flex',
         minHeight: '56px',
         overflowX: 'auto',
+        scrollbarWidth: 'thin',
       })}
     >
-      {activities.map(it => (
+      {[...activities.reverse()].map(it => (
         <Box
           key={it.id}
           sx={theme => ({
@@ -914,7 +961,8 @@ export const ActivityBar = React.memo(function ({
               justifyContent: 'start',
             }}
             onClick={() => {
-              Activity.update(it.id, { minimized: false });
+              // Minimize or show Activity, unless it's not active then bring it to front
+              Activity.update(it.id, { minimized: it.id !== lastElement ? false : !it.minimized });
             }}
             onMouseDown={e => {
               if (e.button === 1) {
@@ -962,15 +1010,21 @@ export const ActivityBar = React.memo(function ({
           </IconButton>
         </Box>
       ))}
-      <Tooltip title={t('Overview')}>
-        <IconButton
-          onClick={() => setIsOverview(it => !it)}
-          sx={{ marginLeft: 'auto', flexShrink: 0 }}
-          aria-label={t('Overview')}
-        >
-          <Icon icon="mdi:grid-large" />
-        </IconButton>
-      </Tooltip>
+      <Box
+        sx={theme => ({
+          marginLeft: 'auto',
+          flexShrink: 0,
+          position: 'sticky',
+          right: 0,
+          background: theme.palette.background.muted,
+        })}
+      >
+        <Tooltip title={t('Overview')}>
+          <IconButton onClick={() => setIsOverview(it => !it)} aria-label={t('Overview')}>
+            <Icon icon="mdi:grid-large" />
+          </IconButton>
+        </Tooltip>
+      </Box>
     </Box>
   );
 });
