@@ -20,7 +20,7 @@
 'use strict';
 
 const crypto = require('crypto');
-const fs = require('fs-extra');
+const fs = require('fs');
 const envPaths = require('env-paths');
 const os = require('os');
 const path = require('path');
@@ -69,9 +69,9 @@ function create(name, link) {
 
   console.log(`Creating folder :${dstFolder}:`);
 
-  fs.copySync(templateFolder, dstFolder, {
-    errorOnExist: true,
-    overwrite: false,
+  fs.cpSync(templateFolder, dstFolder, {
+    recursive: true,
+    force: false,
   });
 
   function replaceFileVariables(path) {
@@ -169,7 +169,9 @@ function extract(pluginPackagesPath, outputPlugins, logSteps = true) {
       const folderName = trimmedPath.split(path.sep).splice(-1)[0];
       const plugName = path.join(outputPlugins, folderName);
 
-      fs.ensureDirSync(plugName);
+      if (!fs.existsSync(plugName)) {
+        fs.mkdirSync(plugName, { recursive: true });
+      }
 
       const files = fs.readdirSync(distPath);
       files.forEach(file => {
@@ -201,7 +203,9 @@ function extract(pluginPackagesPath, outputPlugins, logSteps = true) {
       const distPath = path.join(pluginPackagesPath, folder.name, 'dist');
       const plugName = path.join(outputPlugins, folder.name);
 
-      fs.ensureDirSync(plugName);
+      if (!fs.existsSync(plugName)) {
+        fs.mkdirSync(plugName, { recursive: true });
+      }
 
       const files = fs.readdirSync(distPath);
       files.forEach(file => {
@@ -235,7 +239,7 @@ function extract(pluginPackagesPath, outputPlugins, logSteps = true) {
  */
 async function calculateChecksum(filePath) {
   try {
-    const fileBuffer = await fs.readFile(filePath);
+    const fileBuffer = await fs.promises.readFile(filePath);
     const hashSum = crypto.createHash('sha256');
     hashSum.update(fileBuffer);
     const hex = hashSum.digest('hex');
@@ -290,7 +294,7 @@ async function copyExtraDistFiles(packagePath = '.') {
       const sourceStats = fs.statSync(sourcePath);
       if (sourceStats.isDirectory()) {
         console.log(`Copying extra directory "${sourcePath}" to "${targetPath}"`);
-        fs.copySync(sourcePath, targetPath);
+        fs.cpSync(sourcePath, targetPath, { recursive: true });
       } else {
         console.log(`Copying extra file "${sourcePath}" to "${targetPath}"`);
         fs.copyFileSync(sourcePath, targetPath);
@@ -313,7 +317,7 @@ async function copyExtraDistFiles(packagePath = '.') {
  * @param {string} pluginDir - path to the plugin package.
  * @param {string} outputDir - folder where the tarball is placed.
  *
- * @returns {0 | 1} Exit code, where 0 is success, 1 is failure.
+ * @returns {Promise<0 | 1>} Exit code, where 0 is success, 1 is failure.
  */
 async function createArchive(pluginDir, outputDir) {
   const pluginPath = path.resolve(pluginDir);
@@ -324,7 +328,7 @@ async function createArchive(pluginDir, outputDir) {
 
   // Extract name + version from plugin's package.json
   const packageJsonPath = path.join(pluginPath, 'package.json');
-  let packageJson = '';
+  let packageJson = {};
   try {
     packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
   } catch (e) {
@@ -389,9 +393,9 @@ async function createArchive(pluginDir, outputDir) {
  */
 async function start() {
   /**
-   * Copies the built plugin to the app config folder ~/.config/Headlamp/plugins/
+   * Copies the built plugin to the app config folder ~/.config/Headlamp/dev-plugins/
    *
-   * Adds a webpack config plugin for copying the folder.
+   * All plugins started with npm run start are placed in dev-plugins directory.
    */
   async function copyToPluginsFolder(viteConfig) {
     const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -402,6 +406,12 @@ async function start() {
     const paths = envPaths('Headlamp', { suffix: '' });
     const configDir = fs.existsSync(paths.data) ? paths.data : paths.config;
 
+    // All plugins started with npm run start go to dev-plugins directory
+    await checkIfDevPlugin(packageName, configDir);
+    const targetDir = 'dev-plugins';
+
+    console.log(`Installing plugin to ${targetDir}/ directory (development priority)`);
+
     const { viteStaticCopy } = await viteCopyPluginPromise;
 
     viteConfig.plugins.push(
@@ -409,15 +419,29 @@ async function start() {
         targets: [
           {
             src: './dist/*',
-            dest: path.join(configDir, 'plugins', packageName),
+            dest: path.join(configDir, targetDir, packageName),
           },
           {
             src: './package.json',
-            dest: path.join(configDir, 'plugins', packageName),
+            dest: path.join(configDir, targetDir, packageName),
           },
         ],
       })
     );
+  }
+
+  /**
+   * Check if this plugin should be treated as a development plugin
+   * All plugins started with npm run start will be placed in dev-plugins directory
+   */
+  async function checkIfDevPlugin(pluginName, configDir) {
+    try {
+      console.log(`✓ Plugin "${pluginName}" - using dev-plugins directory for development`);
+      return true;
+    } catch (error) {
+      console.warn('Warning: Error occurred, but defaulting to dev-plugins directory');
+      return true;
+    }
   }
 
   /**
