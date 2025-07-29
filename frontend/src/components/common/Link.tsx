@@ -182,6 +182,7 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
               selectedResource.metadata.name +
               selectedResource.cluster,
             title: selectedResource.kind + ' ' + selectedResource.metadata.name,
+            hideTitleInHeader: true,
             location: 'split-right',
             cluster: selectedResource.cluster,
             temporary: true,

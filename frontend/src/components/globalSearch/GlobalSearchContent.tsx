@@ -186,6 +186,7 @@ export function GlobalSearchContent({
           Activity.launch({
             id: item.metadata.uid,
             content: <KubeObjectDetails resource={item} />,
+            hideTitleInHeader: true,
             cluster: item.cluster,
             location: 'split-right',
             title: item.kind + ': ' + item.metadata.name,

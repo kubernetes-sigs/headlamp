@@ -40,6 +40,7 @@ export interface KubePodSpec {
   serviceAccount?: string;
   priority?: string;
   tolerations?: any[];
+  restartPolicy?: string;
 }
 
 export interface KubePod extends KubeObjectInterface {
@@ -434,6 +435,27 @@ class Pod extends KubeObject<KubePod> {
     };
 
     return newDetails;
+  }
+  static getBaseObject(): KubePod {
+    const baseObject = super.getBaseObject() as KubePod;
+    baseObject.metadata = {
+      ...baseObject.metadata,
+      namespace: '',
+      labels: { app: 'headlamp' },
+    };
+    baseObject.spec = {
+      containers: [
+        {
+          name: '',
+          image: '',
+          ports: [{ containerPort: 80 }],
+          imagePullPolicy: 'Always',
+        },
+      ],
+      nodeName: '',
+    };
+
+    return baseObject;
   }
 }
 

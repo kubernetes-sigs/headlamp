@@ -19,6 +19,28 @@ import { describe, expect, it } from 'vitest';
 
 describe('pluginLib variable', () => {
   it('should stay the same for plugin compatibility', async () => {
+    const externalLibs = [
+      'Iconify',
+      'MonacoEditor',
+      'MuiCore',
+      'MuiLab',
+      'MuiMaterial',
+      'MuiStyles',
+      'Notistack',
+      'React',
+      'ReactDOM',
+      'ReactJSX',
+      'ReactMonacoEditor',
+      'ReactRedux',
+      'ReactRouter',
+      'Recharts',
+    ];
+    // External libraries that we bundle can have different values per OS
+    // So we're just going to check if they're present or not
+    externalLibs.forEach(lib => {
+      window.pluginLib[lib] = window.pluginLib[lib] ? 'Present' : 'Missing';
+    });
+
     await expect(window.pluginLib).toMatchFileSnapshot('__snapshots__/pluginLib.snapshot');
   });
 });

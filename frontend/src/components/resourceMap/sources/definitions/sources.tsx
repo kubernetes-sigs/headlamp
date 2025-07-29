@@ -121,7 +121,14 @@ export function useGetAllSources(): GraphSource[] {
     {
       id: 'network',
       label: 'Network',
-      icon: <Icon icon="mdi:lan" width="100%" height="100%" color={getKindGroupColor('network')} />,
+      icon: (
+        <Icon
+          icon="mdi:folder-network-online"
+          width="100%"
+          height="100%"
+          color={getKindGroupColor('network')}
+        />
+      ),
       sources: [
         makeKubeSource(Service),
         makeKubeSource(Endpoints),

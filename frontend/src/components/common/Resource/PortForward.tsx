@@ -35,16 +35,24 @@ import {
   stopOrDeletePortForward,
 } from '../../../lib/k8s/apiProxy';
 import { KubeContainer } from '../../../lib/k8s/cluster';
-import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
+import { KubeObject, KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';
 import Service from '../../../lib/k8s/service';
 import ActionButton from '../ActionButton';
 export { type PortForward as PortForwardState } from '../../../lib/k8s/api/v1/portForward';
 
-interface PortForwardProps {
+interface PortForwardKubeObjectProps {
+  containerPort: number | string;
+  resource?: KubeObject;
+}
+
+/** @deprecated Please use PortForwardKubeObjectProps for better type safety */
+interface PortForwardLegacyProps {
   containerPort: number | string;
   resource?: KubeObjectInterface;
 }
+
+type PortForwardProps = PortForwardKubeObjectProps | PortForwardLegacyProps;
 
 export const PORT_FORWARDS_STORAGE_KEY = 'portforwards';
 export const PORT_FORWARD_STOP_STATUS = 'Stopped';
@@ -102,12 +110,21 @@ function PortForwardContent(props: PortForwardProps) {
   const [error, setError] = React.useState(null);
   const [portForward, setPortForward] = React.useState<PortForwardState | null>(null);
   const [loading, setLoading] = React.useState(false);
-  const cluster = getCluster();
   const { t } = useTranslation(['translation', 'resource']);
   const [pods, podsFetchError] = Pod.useList({
     namespace,
     labelSelector: getPodsSelectorFilter(service),
   });
+
+  const cluster = React.useMemo(() => {
+    if (!resource) {
+      return '';
+    }
+    if (!!resource?.cluster) {
+      return resource.cluster;
+    }
+    return getCluster();
+  }, [resource]);
 
   if (service && podsFetchError && !pods) {
     return null;
@@ -262,7 +279,6 @@ function PortForwardContent(props: PortForwardProps) {
 
   function deletePortForwardHandler() {
     const id = portForward?.id;
-    const cluster = getCluster();
     setLoading(true);
     if (!cluster || !id) {
       return;
