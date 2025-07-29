@@ -61,7 +61,7 @@ export default function StatefulSetDetails(props: {
           },
           {
             id: 'headlamp.statefulset-containers',
-            section: <ContainersSection resource={item?.jsonData} />,
+            section: <ContainersSection resource={item} />,
           },
         ]
       }
