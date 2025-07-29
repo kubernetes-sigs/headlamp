@@ -55,7 +55,7 @@
             class="MuiTypography-root MuiTypography-h6 css-1fggqnx-MuiTypography-root"
           >
             <a
-              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
               href="/"
             >
               CRD: mydefinition.phonyresources.io
@@ -624,7 +624,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1574zbf-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-jyplv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-ayeuvl-MuiTypography-root-MuiLink-root"
                   href="/"
                 >
                   mycustomresource
@@ -634,7 +634,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2bq9ry-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="/"
                 >
                   mynamespace
@@ -721,7 +721,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1574zbf-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-jyplv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-ayeuvl-MuiTypography-root-MuiLink-root"
                   href="/"
                 >
                   myotherresource
@@ -731,7 +731,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2bq9ry-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="/"
                 >
                   mynamespace
