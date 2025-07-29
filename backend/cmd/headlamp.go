@@ -1524,8 +1524,6 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 	}
 
 	for _, context := range contexts {
-		context := context
-
 		if context.Error != "" {
 			clusters = append(clusters, Cluster{
 				Name:  context.Name,
