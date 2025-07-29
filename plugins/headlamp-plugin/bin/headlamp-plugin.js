@@ -452,7 +452,7 @@ async function start() {
     const configDir = fs.existsSync(paths.data) ? paths.data : paths.config;
 
     // All plugins started with npm run start go to dev-plugins directory
-    await checkIfDevPlugin(packageName, configDir);
+    await checkIfDevPlugin(packageName);
     const targetDir = 'dev-plugins';
 
     console.log(`Installing plugin to ${targetDir}/ directory (development priority)`);
@@ -505,7 +505,7 @@ async function start() {
    * Check if this plugin should be treated as a development plugin
    * All plugins started with npm run start will be placed in dev-plugins directory
    */
-  async function checkIfDevPlugin(pluginName, configDir) {
+  async function checkIfDevPlugin(pluginName) {
     try {
       console.log(`✓ Plugin "${pluginName}" - using dev-plugins directory for development`);
       return true;
