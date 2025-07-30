@@ -970,18 +970,57 @@ export const NotFoundRoute = {
   noAuthRequired: true,
 };
 
+// Debug logging function that works in both web and Electron
+function debugLog(level: 'log' | 'warn' | 'error', message: string, ...args: any[]) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] [Router ${level.toUpperCase()}] ${message}`;
+
+  // Always log to console
+  console[level](logMessage, ...args);
+
+  // If in Electron, also try to write to a debug file
+  if (window?.desktopApi?.send) {
+    window.desktopApi.send('debug-log', {
+      level,
+      message: logMessage,
+      args: args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg))),
+    });
+  }
+}
+
 export function getRoute(routeName: string) {
+  if (!routeName) {
+    debugLog('error', 'routeName is undefined/null/empty in getRoute');
+    return undefined;
+  }
+
   let routeKey = routeName;
   for (const key in defaultRoutes) {
-    if (key.toLowerCase() === routeName.toLowerCase()) {
-      // if (key !== routeName) {
-      //   console.warn(`Route name ${routeName} and ${key} are not matching`);
-      // }
-      routeKey = key;
-      break;
+    if (!key || typeof key !== 'string') {
+      debugLog('warn', 'Invalid key in defaultRoutes:', key);
+      continue;
+    }
+
+    try {
+      if (key.toLowerCase() === routeName.toLowerCase()) {
+        routeKey = key;
+        break;
+      }
+    } catch (error) {
+      debugLog(
+        'error',
+        'Error in toLowerCase comparison:',
+        error,
+        'key:',
+        key,
+        'routeName:',
+        routeName
+      );
     }
   }
-  return defaultRoutes[routeKey];
+
+  const route = defaultRoutes[routeKey];
+  return route;
 }
 
 /**
@@ -1026,19 +1065,48 @@ export interface RouteURLProps {
 }
 
 export function createRouteURL(routeName: string, params: RouteURLProps = {}) {
+  if (!routeName) {
+    debugLog('error', 'routeName is undefined/null/empty in createRouteURL');
+    return '/';
+  }
+
+  // Additional validation to ensure routeName is a non-empty string
+  if (typeof routeName !== 'string' || routeName.trim() === '') {
+    debugLog('error', 'routeName is not a valid string:', routeName, 'type:', typeof routeName);
+    return '/';
+  }
+
   const storeRoutes = store.getState().routes.routes;
 
   // First try to find by name
-  const matchingStoredRouteByName =
-    storeRoutes &&
-    Object.entries(storeRoutes).find(
-      ([, route]) => route.name?.toLowerCase() === routeName.toLowerCase()
-    )?.[1];
+  let matchingStoredRouteByName;
+  try {
+    matchingStoredRouteByName =
+      storeRoutes &&
+      Object.entries(storeRoutes).find(([, route]) => {
+        if (!route?.name || typeof route.name !== 'string') {
+          return false;
+        }
+        return route.name.toLowerCase() === routeName.toLowerCase();
+      })?.[1];
+  } catch (error) {
+    debugLog('error', 'Error in matchingStoredRouteByName:', error);
+  }
 
   // Then try to find by path
-  const matchingStoredRouteByPath =
-    storeRoutes &&
-    Object.entries(storeRoutes).find(([key]) => key.toLowerCase() === routeName.toLowerCase())?.[1];
+  let matchingStoredRouteByPath;
+  try {
+    matchingStoredRouteByPath =
+      storeRoutes &&
+      Object.entries(storeRoutes).find(([key]) => {
+        if (!key || typeof key !== 'string') {
+          return false;
+        }
+        return key.toLowerCase() === routeName.toLowerCase();
+      })?.[1];
+  } catch (error) {
+    debugLog('error', 'Error in matchingStoredRouteByPath:', error);
+  }
 
   if (matchingStoredRouteByPath && !matchingStoredRouteByName) {
     console.warn(
@@ -1050,16 +1118,25 @@ export function createRouteURL(routeName: string, params: RouteURLProps = {}) {
   const route = matchingStoredRouteByName || matchingStoredRouteByPath || getRoute(routeName);
 
   if (!route) {
+    debugLog('error', 'No route found for routeName:', routeName);
+    return '';
+  }
+
+  if (!route.path) {
+    debugLog('error', 'Route found but has no path:', route);
     return '';
   }
 
   let cluster = params.cluster;
+
   if (!cluster && getRouteUseClusterURL(route)) {
     cluster = getClusterPathParam();
     if (!cluster) {
+      debugLog('warn', 'No cluster found, returning /');
       return '/';
     }
   }
+
   const fullParams = {
     selected: undefined,
     ...params,
@@ -1072,11 +1149,19 @@ export function createRouteURL(routeName: string, params: RouteURLProps = {}) {
 
   // @todo: Remove this hack once we support redirection in routes
   if (routeName === 'settingsCluster') {
-    return `/settings/cluster?c=${fullParams.cluster}`;
+    const settingsUrl = `/settings/cluster?c=${fullParams.cluster}`;
+    return settingsUrl;
   }
 
   const url = getRoutePath(route);
-  return generatePath(url, fullParams);
+
+  try {
+    const finalUrl = generatePath(url, fullParams);
+    return finalUrl;
+  } catch (error) {
+    debugLog('error', 'Error in generatePath:', error, 'url:', url, 'fullParams:', fullParams);
+    return url; // fallback to basic path
+  }
 }
 
 export function getDefaultRoutes() {
