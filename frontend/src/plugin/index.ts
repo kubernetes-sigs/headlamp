@@ -221,28 +221,29 @@ export function updateSettingsPackages(
 ): PluginInfo[] {
   if (backendPlugins.length === 0) return [];
 
-  const pluginsChanged =
-    backendPlugins.length !== settingsPlugins.length ||
-    backendPlugins.map(p => p.name + p.version).join('') !==
-      settingsPlugins.map(p => p.name + p.version).join('');
-
-  if (!pluginsChanged) {
-    return settingsPlugins;
-  }
-
+  // Always update settings with the latest plugin info (including pluginType)
+  // even if no plugins were added/removed
   return backendPlugins.map(plugin => {
     const index = settingsPlugins.findIndex(x => x.name === plugin.name);
     if (index === -1) {
       // It's a new one settings doesn't know about so we do not enable it by default
-      return {
+      const newPlugin = {
         ...plugin,
         isEnabled: true,
       };
+      console.log(
+        `updateSettingsPackages: New plugin ${plugin.name} with type: ${plugin.pluginType}`
+      );
+      return newPlugin;
     }
-    return {
+    const updatedPlugin = {
       ...settingsPlugins[index],
       ...plugin,
     };
+    console.log(
+      `updateSettingsPackages: Updated plugin ${plugin.name} with type: ${updatedPlugin.pluginType}`
+    );
+    return updatedPlugin;
   });
 }
 
@@ -333,15 +334,52 @@ export async function fetchAndExecutePlugins(
                 ' by running "headlamp-plugin extract" again.' +
                 ' Please use headlamp-plugin >= 0.8.0'
             );
+            // For missing package.json, determine type from path
+            let pluginType: 'dev' | 'catalog' | 'static' = 'static';
+            if (path.startsWith('dev-plugins/')) {
+              pluginType = 'dev';
+            } else if (path.startsWith('plugins/')) {
+              // All plugins in plugins/ directory are catalog plugins
+              pluginType = 'catalog';
+            } else if (path.startsWith('.plugins/') || path.startsWith('static-plugins/')) {
+              // Bundled/shipped plugins are static plugins
+              pluginType = 'static';
+            }
             return {
               name: path.split('/').slice(-1)[0],
               version: '0.0.0',
               author: 'unknown',
               description: '',
+              pluginType,
+              artifacthub: pluginType !== 'dev', // All plugins except dev plugins come from artifacthub
             };
           }
         }
-        return resp.json();
+        return resp.json().then((packageJson: any) => {
+          // Determine plugin type based on path structure
+          let pluginType: 'dev' | 'catalog' | 'static' = 'static';
+
+          if (path.startsWith('dev-plugins/')) {
+            pluginType = 'dev';
+          } else if (path.startsWith('plugins/')) {
+            // All plugins in the plugins/ directory are catalog plugins
+            pluginType = 'catalog';
+          } else if (path.startsWith('.plugins/') || path.startsWith('static-plugins/')) {
+            // Bundled/shipped plugins are static plugins
+            pluginType = 'static';
+          }
+
+          const pluginInfo = {
+            ...packageJson,
+            pluginType,
+            // Set artifacthub property - catalog and static plugins come from artifacthub
+            artifacthub: pluginType !== 'dev',
+          };
+          console.log(
+            `Plugin loaded: ${packageJson.name} with type: ${pluginType} (path: ${path})`
+          );
+          return pluginInfo;
+        });
       })
     )
   );
@@ -351,8 +389,18 @@ export async function fetchAndExecutePlugins(
   const permissionSecrets = await permissionSecretsPromise;
 
   const updatedSettingsPackages = updateSettingsPackages(packageInfos, settingsPackages);
+  console.log(
+    'updatedSettingsPackages:',
+    updatedSettingsPackages.map(p => ({ name: p.name, pluginType: p.pluginType }))
+  );
+
+  // Check if settings changed (new plugins added/removed) to decide whether to call onSettingsChange early
   const settingsChanged = packageInfos.length !== settingsPackages.length;
   if (settingsChanged) {
+    console.log(
+      'First onSettingsChange call with:',
+      updatedSettingsPackages.map(p => ({ name: p.name, pluginType: p.pluginType }))
+    );
     onSettingsChange(updatedSettingsPackages);
   }
 
@@ -379,6 +427,10 @@ export async function fetchAndExecutePlugins(
         isCompatible: !incompatiblePlugins[plugin.name],
       };
     }
+  );
+  console.log(
+    'Second onSettingsChange call with:',
+    packagesIncompatibleSet.map(p => ({ name: p.name, pluginType: p.pluginType }))
   );
   onSettingsChange(packagesIncompatibleSet);
 
