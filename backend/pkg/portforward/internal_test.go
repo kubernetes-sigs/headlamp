@@ -163,11 +163,6 @@ func TestPortForwardRequestValidate(t *testing.T) {
 	req.TargetPort = "targetPort"
 
 	err = req.Validate()
-	assert.EqualError(t, err, "cluster name is required")
-
-	req.Cluster = "cluster"
-
-	err = req.Validate()
 	assert.NoError(t, err)
 }
 
@@ -179,11 +174,6 @@ func TestStopOrDeletePortForwardRequestValidate(t *testing.T) {
 	assert.EqualError(t, err, "invalid request, id is required")
 
 	req.ID = "id"
-
-	err = req.Validate()
-	assert.EqualError(t, err, "invalid request, cluster is required")
-
-	req.Cluster = "cluster"
 
 	err = req.Validate()
 	assert.NoError(t, err)

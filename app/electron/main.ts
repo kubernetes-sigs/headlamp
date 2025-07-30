@@ -1175,6 +1175,24 @@ function startElecron() {
       mainWindow = null;
     });
 
+    // Workaround to cookies to be saved, since file:// protocal and localhost:4466
+    // are treated as a cross site request.
+    mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+      if (details.url.startsWith('http://localhost:4466')) {
+        callback({
+          responseHeaders: {
+            ...details.responseHeaders,
+            'Set-Cookie':
+              details.responseHeaders?.['Set-Cookie']?.map(it =>
+                it.replace('SameSite=Strict', 'SameSite=None;Secure=true')
+              ) ?? [],
+          },
+        });
+      } else {
+        callback(details);
+      }
+    });
+
     // Force Single Instance Application
     const gotTheLock = app.requestSingleInstanceLock();
     if (gotTheLock) {

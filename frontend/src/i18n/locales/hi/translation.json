@@ -134,7 +134,6 @@
   "Are you sure you want to remove the cluster \"{{ clusterName }}\"?": "",
   "Server": "सर्वर",
   "Log out": "लॉग आउट",
-  "(No token set up)": "(कोई टोकन सेट अप नहीं)",
   "Account of current user": "वर्तमान उपयोगकर्ता का खाता",
   "Appbar Tools": "ऐपबार टूल्स",
   "show more": "अधिक दिखाएँ",

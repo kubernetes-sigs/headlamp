@@ -134,7 +134,6 @@
   "Are you sure you want to remove the cluster \"{{ clusterName }}\"?": "",
   "Server": "Servidor",
   "Log out": "Desconectar",
-  "(No token set up)": "(Ningún token asignado)",
   "Account of current user": "Cuenta del usuario actual",
   "Appbar Tools": "Herramientas de la barra de aplicación",
   "show more": "mostrar más",

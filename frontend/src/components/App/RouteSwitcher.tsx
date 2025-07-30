@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
+import { useQuery } from '@tanstack/react-query';
 import React, { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { Redirect, Route, RouteProps, Switch, useHistory } from 'react-router-dom';
-import { getToken } from '../../lib/auth';
 import { getCluster, getSelectedClusters } from '../../lib/cluster';
-import { useClustersConf } from '../../lib/k8s';
+import { useCluster, useClustersConf } from '../../lib/k8s';
+import { testAuth } from '../../lib/k8s/apiProxy';
 import {
   createRouteURL,
   getDefaultRoutes,
@@ -148,16 +149,17 @@ interface AuthRouteProps {
 }
 
 function AuthRoute(props: AuthRouteProps) {
-  const {
-    children,
-    sidebar,
-    requiresAuth = true,
-    requiresCluster = true,
-    requiresToken,
-    ...other
-  } = props;
+  const { children, sidebar, requiresAuth = true, requiresCluster = true, ...other } = props;
+
   const redirectRoute = getCluster() ? 'login' : 'chooser';
   useSidebarItem(sidebar);
+  const cluster = useCluster();
+  const query = useQuery({
+    queryKey: ['auth', cluster],
+    queryFn: () => testAuth(cluster!),
+    enabled: !!cluster && requiresAuth,
+    retry: 0,
+  });
 
   function getRenderer({ location }: RouteProps) {
     if (!requiresAuth) {
@@ -169,24 +171,24 @@ function AuthRoute(props: AuthRouteProps) {
         // In multi-cluster mode, we do not know if one of them requires a token.
         return children;
       }
-
-      const clusterName = getCluster();
-
-      if (!!clusterName) {
-        if (!!getToken(clusterName) || !requiresToken()) {
-          return children;
-        }
-      }
     }
 
-    return (
-      <Redirect
-        to={{
-          pathname: createRouteURL(redirectRoute),
-          state: { from: location },
-        }}
-      />
-    );
+    if (query.isSuccess) {
+      return children;
+    }
+
+    if (query.isError) {
+      return (
+        <Redirect
+          to={{
+            pathname: createRouteURL(redirectRoute),
+            state: { from: location },
+          }}
+        />
+      );
+    }
+
+    return null;
   }
 
   // If no auth is required for the view, or the token is set up, then

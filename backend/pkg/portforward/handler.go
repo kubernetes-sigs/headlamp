@@ -26,11 +26,12 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -60,7 +61,6 @@ type portForwardRequest struct {
 	Service          string `json:"service"`
 	ServiceNamespace string `json:"serviceNamespace"`
 	TargetPort       string `json:"targetPort"`
-	Cluster          string `json:"cluster"`
 	Port             string `json:"port"`
 }
 
@@ -75,10 +75,6 @@ func (p *portForwardRequest) Validate() error {
 
 	if p.TargetPort == "" {
 		return fmt.Errorf("targetPort is required")
-	}
-
-	if p.Cluster == "" {
-		return fmt.Errorf("cluster name is required")
 	}
 
 	return nil
@@ -133,14 +129,6 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		p.ID = uuid.New().String()
 	}
 
-	reqToken := r.Header.Get("Authorization")
-	splitToken := strings.Split(reqToken, "Bearer ")
-
-	var token string
-	if reqToken != "" && len(splitToken) >= 2 {
-		token = splitToken[1]
-	}
-
 	if err := p.Validate(); err != nil {
 		logger.Log(logger.LevelError, nil, err, "validating portforward payload")
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -160,23 +148,25 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		p.Port = strconv.Itoa(freePort)
 	}
 
+	token, _ := auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
+
 	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-	clusterName := p.Cluster
+	clusterName := mux.Vars(r)["clusterName"]
 
 	if userID != "" {
-		clusterName = p.Cluster + userID
+		clusterName += userID
 	}
 
 	kContext, err := kubeConfigStore.GetContext(clusterName)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": p.Cluster},
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
 			err, "getting kubeconfig context")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
 
-	err = startPortForward(kContext, cache, p, token)
+	err = startPortForward(kContext, cache, p, token, clusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -476,7 +466,7 @@ func runAndMonitorPortForward(
 // startPortForward starts a port forward. This is the internal function that was refactored.
 // It sets up Kubernetes clients, initializes the port forwarder, and manages its lifecycle.
 func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{}],
-	p portForwardRequest, token string,
+	p portForwardRequest, token string, clusterName string,
 ) error {
 	clientset, rConf, err := getKubeClientAndConfig(kContext, token)
 	if err != nil {
@@ -511,7 +501,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 		ID:               p.ID,
 		closeChan:        stopChan,
 		Pod:              p.Pod,
-		Cluster:          p.Cluster,
+		Cluster:          clusterName,
 		Namespace:        p.Namespace,
 		Service:          p.Service,
 		ServiceNamespace: p.ServiceNamespace,
@@ -542,17 +532,12 @@ func checkIfPodIsRunning(clientset *kubernetes.Clientset, namespace string, pod 
 // stopOrDeletePortForwardRequest is the payload for stop or delete port forward request handler.
 type stopOrDeletePortForwardRequest struct {
 	ID           string `json:"id"`
-	Cluster      string `json:"cluster"`
 	StopOrDelete bool   `json:"stopOrDelete"`
 }
 
 func (r *stopOrDeletePortForwardRequest) Validate() error {
 	if r.ID == "" {
 		return errors.New("invalid request, id is required")
-	}
-
-	if r.Cluster == "" {
-		return errors.New("invalid request, cluster is required")
 	}
 
 	return nil
@@ -578,10 +563,10 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], w http.ResponseWrit
 	}
 
 	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-	clusterName := p.Cluster
+	clusterName := mux.Vars(r)["clusterName"]
 
 	if userID != "" {
-		clusterName = p.Cluster + userID
+		clusterName += userID
 	}
 
 	err = stopOrDeletePortForward(cache, clusterName, p.ID, p.StopOrDelete)
@@ -599,7 +584,7 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], w http.ResponseWrit
 
 // GetPortForwards handles get port forwards request.
 func GetPortForwards(cache cache.Cache[interface{}], w http.ResponseWriter, r *http.Request) {
-	cluster := r.URL.Query().Get("cluster")
+	cluster := mux.Vars(r)["clusterName"]
 	if cluster == "" {
 		logger.Log(logger.LevelError, nil, errors.New("cluster is required"), "getting portforwards")
 		http.Error(w, "cluster is required", http.StatusBadRequest)
@@ -628,7 +613,7 @@ func GetPortForwards(cache cache.Cache[interface{}], w http.ResponseWriter, r *h
 
 // GetPortForwardByID handles get port forward by id request.
 func GetPortForwardByID(cache cache.Cache[interface{}], w http.ResponseWriter, r *http.Request) {
-	cluster := r.URL.Query().Get("cluster")
+	cluster := mux.Vars(r)["clusterName"]
 	if cluster == "" {
 		logger.Log(logger.LevelError, nil, errors.New("cluster is required"), "getting portforward by id")
 		http.Error(w, "cluster is required", http.StatusBadRequest)

@@ -134,7 +134,6 @@
   "Are you sure you want to remove the cluster \"{{ clusterName }}\"?": "",
   "Server": "服务器",
   "Log out": "登出",
-  "(No token set up)": "（未设置令牌）",
   "Account of current user": "当前使用者的使用者",
   "Appbar Tools": "应用栏工具",
   "show more": "显示更多",

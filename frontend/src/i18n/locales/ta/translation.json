@@ -134,7 +134,6 @@
   "Are you sure you want to remove the cluster \"{{ clusterName }}\"?": "\"{{ clusterName }}\" க்ளஸ்டரை அகற்ற விரும்புகிறீர்களா?",
   "Server": "சர்வர்",
   "Log out": "வெளியேறு",
-  "(No token set up)": "(டோக்கன் அமைக்கப்படவில்லை)",
   "Account of current user": "தற்போதைய பயனரின் கணக்கு",
   "Appbar Tools": "ஆப்பார் கருவிகள்",
   "show more": "மேலும் காட்டு",
