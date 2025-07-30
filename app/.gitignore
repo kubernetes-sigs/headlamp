@@ -12,3 +12,4 @@
 /electron/runCmd.js
 electron/windowSize.test.js
 electron/env-paths.js
+electron/runCmd.test.js

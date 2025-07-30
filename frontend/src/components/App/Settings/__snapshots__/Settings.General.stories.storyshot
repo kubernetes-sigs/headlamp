@@ -202,6 +202,7 @@
           </dd>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+            id="rows-per-page-label"
           >
             Number of rows for tables
           </dt>
@@ -219,6 +220,7 @@
                   aria-controls=":mock-test-id:"
                   aria-expanded="false"
                   aria-haspopup="listbox"
+                  aria-labelledby="rows-per-page-label"
                   class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
                   role="combobox"
                   tabindex="0"
@@ -262,6 +264,7 @@
           </dd>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+            id="timezone-label"
           >
             Timezone to display for dates
           </dt>
@@ -285,6 +288,7 @@
                       aria-describedby="cluster-selector-autocomplete-helper-text"
                       aria-expanded="false"
                       aria-invalid="false"
+                      aria-labelledby="timezone-label"
                       autocapitalize="none"
                       autocomplete="off"
                       class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
@@ -347,6 +351,7 @@
           </dd>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+            id="sort-sidebar-label"
           >
             Sort sidebar items alphabetically
           </dt>
@@ -360,6 +365,7 @@
                 class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
               >
                 <input
+                  aria-labelledby="sort-sidebar-label"
                   class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
                   type="checkbox"
                 />
@@ -377,6 +383,7 @@
           </dd>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
+            id="use-evict-label"
           >
             Use evict for pod deletion
           </dt>
@@ -390,6 +397,7 @@
                 class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
               >
                 <input
+                  aria-labelledby="use-evict-label"
                   checked=""
                   class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
                   type="checkbox"

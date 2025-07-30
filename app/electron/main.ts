@@ -48,8 +48,12 @@ import {
   getPluginBinDirectories,
   PluginManager,
 } from './plugin-management';
-import { handleRunCommand } from './runCmd';
+import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
 import windowSize from './windowSize';
+
+if (process.env.HEADLAMP_RUN_SCRIPT) {
+  runScript();
+}
 
 dotenv.config({ path: path.join(process.resourcesPath, '.env') });
 
@@ -329,6 +333,8 @@ class PluginManagerEventListeners {
       controller,
     };
 
+    addRunCmdConsent(pluginInfo);
+
     PluginManager.installFromPluginPkg(
       pluginInfo,
       destinationFolder,
@@ -398,6 +404,8 @@ class PluginManagerEventListeners {
       action: 'UNINSTALL',
       progress: { type: 'info', message: 'uninstalling plugin' },
     };
+
+    removeRunCmdConsent(pluginName);
 
     PluginManager.uninstall(pluginName, destinationFolder, progress => {
       updateCache(progress);
@@ -1268,7 +1276,7 @@ function startElecron() {
       mainWindow?.webContents.send('backend-token', backendToken);
     });
 
-    ipcMain.on('run-command', (event, eventData) => handleRunCommand(event, eventData, mainWindow));
+    setupRunCmdHandlers(mainWindow, ipcMain);
 
     new PluginManagerEventListeners().setupEventHandlers();
 

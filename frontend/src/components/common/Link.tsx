@@ -196,6 +196,7 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
                   },
                   cluster: selectedResource.cluster,
                 }}
+                customResourceDefinition={selectedResource.customResourceDefinition}
               />
             ),
             icon: <KubeIcon kind={selectedResource.kind} width="100%" height="100%" />,

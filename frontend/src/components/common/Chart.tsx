@@ -136,6 +136,7 @@ export function PercentageCircle(props: PercentageCircleProps) {
           }}
         >
           <Pie
+            aria-label={label || '0%'}
             isAnimationActive={false}
             data={formatData()}
             // Center the chart

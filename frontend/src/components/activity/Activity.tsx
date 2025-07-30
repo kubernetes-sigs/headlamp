@@ -124,7 +124,7 @@ export const activitySlice = createSlice({
       // Dispatch resize event so the content adjusts
       // 200ms delay for animations
       setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
+        window?.dispatchEvent?.(new Event('resize'));
       }, 200);
     },
     close(state, action: PayloadAction<string>) {
@@ -154,7 +154,7 @@ export const activitySlice = createSlice({
       // Dispatch resize event so the content adjusts
       // 200ms delay for animations
       setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
+        window?.dispatchEvent?.(new Event('resize'));
       }, 200);
     },
     reset() {
@@ -568,7 +568,7 @@ function ActivityResizer({ activityElementRef }: { activityElementRef: RefObject
         if (!activityElement) return;
 
         const onMoveCallback = throttle(() => {
-          window.dispatchEvent(new Event('resize'));
+          window?.dispatchEvent?.(new Event('resize'));
         }, 100);
 
         const pointerX = e.clientX;
@@ -822,6 +822,11 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
   const history = useTypedSelector(state => state.activity.history) as string[];
   const lastElement = history.at(-1);
   const [isOverview, setIsOverview] = useState(false);
+  useEffect(() => {
+    if (activities.length === 0 && isOverview) {
+      setIsOverview(false);
+    }
+  }, [activities, isOverview]);
 
   useHotkeys('Ctrl+ArrowDown', () => {
     setIsOverview(isOverview => !isOverview);

@@ -35,6 +35,7 @@ import * as ReactRedux from 'react-redux';
 import * as ReactRouter from 'react-router-dom';
 import * as Recharts from 'recharts';
 import semver from 'semver';
+import { runCommand } from '../components/App/runCommand';
 import { themeSlice } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
 import { getAppUrl } from '../helpers/getAppUrl';
@@ -50,6 +51,7 @@ import store from '../redux/stores/store';
 import { Headlamp, Plugin } from './lib';
 import { PluginInfo } from './pluginsSlice';
 import Registry, * as registryToExport from './registry';
+import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
 
 window.pluginLib = {
   ApiProxy,
@@ -245,9 +247,57 @@ export function updateSettingsPackages(
 }
 
 /**
+ * Runs a plugin with the given info.
+ *
+ * This is not a closure, so it doens't have access to the variables
+ *  in the scope of the function that called it.
+ */
+function runPluginInner(info: runPluginProps) {
+  // We avoid destructuring here in case that is overridden by a plugin.
+  const source = info[0];
+  const packageName = info[1];
+  const packageVersion = info[2];
+  const handleError = info[3];
+  const PrivateFunction = info[4];
+  const args = info[5];
+  const values = info[6];
+  const privateRunPlugin = info[7];
+
+  privateRunPlugin(source, packageName, packageVersion, handleError, PrivateFunction, args, values);
+}
+
+const PLUGIN_LOADING_ERROR = HeadlampEventType.PLUGIN_LOADING_ERROR;
+const consoleError = console.error;
+const storeDispatch = store.dispatch;
+const privateEventAction = eventAction;
+
+/**
+ * Handles the error that occurs when a plugin fails to run.
+ *
+ * @param error The error that occurred.
+ * @param packageName The name of the package that failed.
+ * @param packageVersion The version of the package that failed.
+ */
+function handlePluginRunError(error: unknown, packageName: string, packageVersion: string) {
+  consoleError('Plugin execution error in ' + packageName + ':', error);
+  storeDispatch(
+    privateEventAction({
+      type: PLUGIN_LOADING_ERROR,
+      data: {
+        pluginInfo: { name: packageName, version: packageVersion },
+        error,
+      },
+    })
+  );
+}
+
+/**
  * Get the list of plugins,
  *   download all the plugin source,
  *   download all the plugin package.json files,
+ *   ask app for permission secrets,
+ *   filter the sources to execute,
+ *   filter the incompatible plugins and plugins enabled in settings,
  *   execute the plugins,
  *   .initialize() plugins that register (not all do).
  *
@@ -261,6 +311,8 @@ export async function fetchAndExecutePlugins(
   onSettingsChange: (plugins: PluginInfo[]) => void,
   onIncompatible: (plugins: Record<string, PluginInfo>) => void
 ) {
+  const permissionSecretsPromise = permissionSecretsFromApp();
+
   const pluginPaths = (await fetch(`${getAppUrl()}plugins`).then(resp => resp.json())) as string[];
 
   const sourcesPromise = Promise.all(
@@ -296,6 +348,7 @@ export async function fetchAndExecutePlugins(
 
   const sources = await sourcesPromise;
   const packageInfos = await packageInfosPromise;
+  const permissionSecrets = await permissionSecretsPromise;
 
   const updatedSettingsPackages = updateSettingsPackages(packageInfos, settingsPackages);
   const settingsChanged = packageInfos.length !== settingsPackages.length;
@@ -329,37 +382,109 @@ export async function fetchAndExecutePlugins(
   );
   onSettingsChange(packagesIncompatibleSet);
 
-  sourcesToExecute.forEach((source, index) => {
-    // Execute plugins inside a context (not in global/window)
-    (function (str: string) {
-      try {
-        const pluginName = packageInfos[index].name.split('/').slice(-1)[0];
-        // Giving an evaled code a filename will make it easier to use source maps
-        const sourceMapPath = `\n//# sourceURL=//${pluginName}/dist/main.js`;
-        const result = eval(str + sourceMapPath);
-        return result;
-      } catch (e) {
-        // We just continue if there is an error.
-        console.error(`Plugin execution error in ${pluginPaths[index]}:`, e);
-        store.dispatch(
-          eventAction({
-            type: HeadlampEventType.PLUGIN_LOADING_ERROR,
-            data: {
-              pluginInfo: { name: packageInfos[index].name, version: packageInfos[index].version },
-              error: e,
-            },
-          })
-        );
-      }
-    }).call({}, source);
-  });
-  await initializePlugins();
+  // Save references to the pluginRunCommand and desktopApiSend/Receive.
+  // Plugins can use without worrying about modified global window.desktopApi.
+  // This is to prevent plugins from snooping on the permission secrets.
+  const pluginDesktopApiSend = window?.desktopApi?.send;
+  const pluginDesktopApiReceive = window?.desktopApi?.receive;
+  const internalRunCommand = runCommand;
+  const PrivateFunction = Function;
+  const internalRunPlugin = runPlugin;
+  const isDevelopmentMode = process.env.NODE_ENV === 'development';
+  const consoleError = console.error;
 
   const pluginsLoaded = updatedSettingsPackages.map(plugin => ({
     name: plugin.name,
     version: plugin.version,
     isEnabled: plugin.isEnabled,
   }));
+
+  const infoForRunningPlugins = sourcesToExecute
+    .map((source, index) => {
+      return getInfoForRunningPlugins({
+        source,
+        pluginPath: pluginPaths[index],
+        packageName: packageInfos[index].name,
+        packageVersion: packageInfos[index].version || '',
+        permissionSecrets,
+        handleError: handlePluginRunError,
+        getAllowedPermissions: (pluginName, pluginPath, secrets): Record<string, number> => {
+          const secretsToReturn: Record<string, number> = {};
+          const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
+          if (isPackage['@headlamp-k8s/minikube']) {
+            secretsToReturn['runCmd-minikube'] = secrets['runCmd-minikube'];
+            if (isDevelopmentMode) {
+              secretsToReturn['runCmd-scriptjs-minikube/manage-minikube.js'] =
+                secrets['runCmd-scriptjs-minikube/manage-minikube.js'];
+            }
+            secretsToReturn['runCmd-scriptjs-headlamp_minikube/manage-minikube.js'] =
+              secrets['runCmd-scriptjs-headlamp_minikube/manage-minikube.js'];
+            secretsToReturn['runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js'] =
+              secrets['runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js'];
+          }
+
+          return secretsToReturn;
+        },
+        getArgValues: (pluginName, pluginPath, allowedPermissions) => {
+          // allowedPermissions is the return value of getAllowedPermissions
+          const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
+          if (isPackage['@headlamp-k8s/minikube']) {
+            // We construct a pluginRunCommand that has private
+            //  - permission secrets
+            //  - stored desktopApiSend and desktopApiReceive functions that can't be modified
+            function pluginRunCommand(
+              command: 'minikube' | 'az' | 'scriptjs',
+              args: string[],
+              options: {}
+            ): ReturnType<typeof internalRunCommand> {
+              return internalRunCommand(
+                command,
+                args,
+                options,
+                allowedPermissions,
+                pluginDesktopApiSend,
+                pluginDesktopApiReceive
+              );
+            }
+            return [
+              ['pluginRunCommand', 'pluginPath'],
+              [pluginRunCommand, pluginPath],
+            ];
+          }
+          return [[], []];
+        },
+        PrivateFunction,
+        internalRunPlugin,
+        consoleError,
+      });
+    })
+    .filter(info => info !== undefined);
+
+  // put the ones with args and values at the start
+  infoForRunningPlugins.sort((a, b) => {
+    const aHasArgs = a[5].length > 0 && a[6].length > 0;
+    const bHasArgs = b[5].length > 0 && b[6].length > 0;
+    if (aHasArgs && !bHasArgs) return -1;
+    if (!aHasArgs && bHasArgs) return 1;
+    return 0;
+  });
+
+  infoForRunningPlugins.forEach(runPluginInner);
+  await afterPluginsRun(pluginsLoaded);
+}
+
+/**
+ * This is called after all plugins are loaded.
+ * It initializes the plugins(that need it) and dispatches the PLUGINS_LOADED event.
+ */
+async function afterPluginsRun(
+  pluginsLoaded: {
+    name: string;
+    version: string | undefined;
+    isEnabled: boolean | undefined;
+  }[]
+) {
+  await initializePlugins();
 
   store.dispatch(
     eventAction({
@@ -370,4 +495,23 @@ export async function fetchAndExecutePlugins(
 
   // Refresh theme name if the theme that was used from a plugin was deleted
   store.dispatch(themeSlice.actions.ensureValidThemeName());
+}
+
+/**
+ * Asks the main electron process for the permission secrets.
+ *
+ * @returns promise with permissions secrets like { 'runCmd-minikube': 1235555 }
+ */
+export async function permissionSecretsFromApp(): Promise<Record<string, number>> {
+  const { desktopApi } = window;
+  if (desktopApi) {
+    return new Promise(resolve => {
+      desktopApi.receive('plugin-permission-secrets', (secrets: Record<string, number>) => {
+        resolve(secrets);
+      });
+      desktopApi.send('request-plugin-permission-secrets');
+    });
+  } else {
+    return new Promise(resolve => resolve({}));
+  }
 }

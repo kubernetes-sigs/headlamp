@@ -322,6 +322,7 @@ export default function EditorDialog(props: EditorDialogProps) {
         });
       }
     );
+    onClose();
   };
 
   function handleSave() {
@@ -368,8 +369,6 @@ export default function EditorDialog(props: EditorDialogProps) {
       dispatchCreateEvent({
         status: EventStatus.CONFIRMED,
       });
-
-      onClose();
     } else if (typeof onSave === 'function') {
       onSave!(obj);
     }
