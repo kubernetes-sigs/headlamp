@@ -69,6 +69,7 @@
   "Something went wrong with cluster {{ cluster }}": "Quelque chose s'est mal passé avec le cluster {{ cluster }}",
   "Choose another cluster": "Choisir un autre cluster",
   "Skip to main content": "Aller au contenu principal",
+  "Menu": "",
   "Mark all as read": "Marquer toutes les notifications comme lues",
   "Clear all": "Tout effacer",
   "Notifications": "Notifications",

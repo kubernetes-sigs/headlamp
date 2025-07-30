@@ -69,6 +69,7 @@
   "Something went wrong with cluster {{ cluster }}": "Something went wrong with cluster {{ cluster }}",
   "Choose another cluster": "Choose another cluster",
   "Skip to main content": "Skip to main content",
+  "Menu": "Menu",
   "Mark all as read": "Mark all as read",
   "Clear all": "Clear all",
   "Notifications": "Notifications",

@@ -99,13 +99,30 @@ export async function startPortForward(
     method: 'POST',
     headers: new Headers(headers),
     body: JSON.stringify(request),
-  }).then((response: Response) => {
-    return response.json().then(data => {
+  }).then(async (response: Response) => {
+    const contentType = response.headers.get('content-type');
+
+    // Check if the response is JSON
+    if (contentType && contentType.includes('application/json')) {
+      const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.message);
+        throw new Error(data.message || 'Error starting port forward');
       }
       return data;
-    });
+    } else {
+      // Handle text/plain or other response types because we can get error in text format
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error(text || 'Error starting port forward');
+      }
+      // If successful but not JSON, try to parse it as JSON anyway
+      try {
+        return JSON.parse(text);
+      } catch {
+        // If it's not JSON, return a basic structure
+        throw new Error('Invalid response format from server');
+      }
+    }
   });
 }
 
@@ -142,14 +159,13 @@ export async function stopOrDeletePortForward(
       id,
       stopOrDelete,
     }),
-  }).then(response =>
-    response.text().then(data => {
-      if (!response.ok) {
-        throw new Error('Error deleting port forward');
-      }
-      return data;
-    })
-  );
+  }).then(async response => {
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(text || 'Error deleting port forward');
+    }
+    return text;
+  });
 }
 
 // @todo: needs a return type.

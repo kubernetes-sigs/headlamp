@@ -254,7 +254,9 @@ function PortForwardContent(props: PortForwardProps) {
         parsedPortForwards.push(data);
         localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify(parsedPortForwards));
       })
-      .catch(() => {
+      .catch(error => {
+        setError(error?.message ?? 'An unexpected error occurred.');
+        setLoading(false);
         setPortForward(null);
       });
   }
@@ -269,7 +271,8 @@ function PortForwardContent(props: PortForwardProps) {
         portForward.status = PORT_FORWARD_STOP_STATUS;
         setPortForward(portForward);
       })
-      .catch(() => {
+      .catch(error => {
+        setError(error?.message);
         setPortForward(null);
       })
       .finally(() => {
@@ -304,7 +307,7 @@ function PortForwardContent(props: PortForwardProps) {
   const forwardBaseURL = 'http://127.0.0.1';
 
   return !portForward ? (
-    <Box display="flex">
+    <Box>
       {loading ? (
         <CircularProgress size={18} />
       ) : (
@@ -323,7 +326,7 @@ function PortForwardContent(props: PortForwardProps) {
         </Button>
       )}
       {error && (
-        <Box>
+        <Box mt={1}>
           {
             <Alert
               severity="error"

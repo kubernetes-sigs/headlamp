@@ -418,6 +418,17 @@ export default function Table<RowItem extends Record<string, any>>({
   // Handle shift+click range selection
   const handleRowClick = (e: React.MouseEvent, clickedIndex: number) => {
     if (!table || !table.getRowModel) return;
+    const target = e.target;
+    if (
+      !(target instanceof HTMLInputElement) ||
+      target.tagName !== 'INPUT' ||
+      target.type !== 'checkbox'
+    ) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+
     const rowModel = table.getRowModel();
     const rowIds = rowModel.rows.map(row => row.id);
 
@@ -560,7 +571,7 @@ const Row = memo(
     onRowClick?: (e: React.MouseEvent, rowIndex: number) => void;
     rowIndex: number;
   }) => (
-    <StyledRow data-selected={isSelected} onClick={e => onRowClick?.(e, rowIndex)}>
+    <StyledRow data-selected={isSelected} onClickCapture={e => onRowClick?.(e, rowIndex)}>
       {cells.map(cell => (
         <MemoCell
           cell={cell as MRT_Cell<Record<string, any>, unknown>}

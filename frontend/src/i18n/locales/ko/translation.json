@@ -69,6 +69,7 @@
   "Something went wrong with cluster {{ cluster }}": "{{ cluster }} 클러스터에서 문제가 발생했습니다.",
   "Choose another cluster": "다른 클러스터 선택",
   "Skip to main content": "주요 콘텐츠로 건너뛰기",
+  "Menu": "",
   "Mark all as read": "모두 읽은 것으로 표시",
   "Clear all": "모두 삭제",
   "Notifications": "알림",
