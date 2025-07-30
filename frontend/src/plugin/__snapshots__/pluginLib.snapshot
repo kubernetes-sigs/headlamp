@@ -416,6 +416,7 @@
       "sidebar": null,
     },
     "createRouteURL": [Function],
+    "debugLog": [Function],
     "getDefaultRoutes": [Function],
     "getRoute": [Function],
     "getRoutePath": [Function],

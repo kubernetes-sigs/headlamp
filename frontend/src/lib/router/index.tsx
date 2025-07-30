@@ -988,3 +988,21 @@ export const NotFoundRoute = {
   sidebar: null,
   noAuthRequired: true,
 };
+
+// Debug logging function that works in both web and Electron
+export function debugLog(level: 'log' | 'warn' | 'error', message: string, ...args: any[]) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] [Router ${level.toUpperCase()}] ${message}`;
+
+  // Always log to console
+  console[level](logMessage, ...args);
+
+  // If in Electron, also try to write to a debug file
+  if (window?.desktopApi?.send) {
+    window.desktopApi.send('debug-log', {
+      level,
+      message: logMessage,
+      args: args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg))),
+    });
+  }
+}

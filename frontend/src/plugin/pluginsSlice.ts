@@ -82,6 +82,14 @@ export type PluginInfo = {
    */
   isCompatible?: boolean;
 
+  /**
+   * pluginType indicates the source type of the plugin.
+   * 'dev' for development plugins from dev-plugins directory
+   * 'catalog' for plugins from the plugin catalog (plugins directory)
+   * 'static' for static plugins
+   */
+  pluginType?: 'dev' | 'catalog' | 'static';
+
   version?: string; // unused by PluginSettings
   author?: string; // unused by PluginSettings
   /**

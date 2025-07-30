@@ -14,19 +14,40 @@
  * limitations under the License.
  */
 
+import { debugLog } from '.';
 import { getDefaultRoutes } from './getDefaultRoutes';
 
 export function getRoute(routeName?: string) {
-  if (!routeName) return;
+  if (!routeName) {
+    debugLog('error', 'routeName is undefined/null/empty in getRoute');
+    return;
+  }
 
   let routeKey = routeName;
   for (const key in getDefaultRoutes()) {
-    if (key.toLowerCase() === routeName.toLowerCase()) {
-      // if (key !== routeName) {
-      //   console.warn(`Route name ${routeName} and ${key} are not matching`);
-      // }
-      routeKey = key;
-      break;
+    if (!key || typeof key !== 'string') {
+      debugLog('warn', 'Invalid key in defaultRoutes:', key);
+      continue;
+    }
+
+    try {
+      if (key.toLowerCase() === routeName.toLowerCase()) {
+        // if (key !== routeName) {
+        //   console.warn(`Route name ${routeName} and ${key} are not matching`);
+        // }
+        routeKey = key;
+        break;
+      }
+    } catch (error) {
+      debugLog(
+        'error',
+        'Error in toLowerCase comparison:',
+        error,
+        'key:',
+        key,
+        'routeName:',
+        routeName
+      );
     }
   }
   return getDefaultRoutes()[routeKey];
