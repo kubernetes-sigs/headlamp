@@ -48,13 +48,14 @@ import {
   getPluginBinDirectories,
   PluginManager,
 } from './plugin-management';
-import { handleRunCommand } from './runCmd';
+import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
 import windowSize from './windowSize';
 
-dotenv.config({ path: path.join(process.resourcesPath, '.env') });
+if (process.env.HEADLAMP_RUN_SCRIPT) {
+  runScript();
+}
 
-const pathInfoDebug = false;
-let pathInfo;
+dotenv.config({ path: path.join(process.resourcesPath, '.env') });
 
 const isDev = process.env.ELECTRON_DEV || false;
 let frontendPath = '';
@@ -332,6 +333,8 @@ class PluginManagerEventListeners {
       controller,
     };
 
+    addRunCmdConsent(pluginInfo);
+
     PluginManager.installFromPluginPkg(
       pluginInfo,
       destinationFolder,
@@ -401,6 +404,8 @@ class PluginManagerEventListeners {
       action: 'UNINSTALL',
       progress: { type: 'info', message: 'uninstalling plugin' },
     };
+
+    removeRunCmdConsent(pluginName);
 
     PluginManager.uninstall(pluginName, destinationFolder, progress => {
       updateCache(progress);
@@ -588,10 +593,6 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
 
   const bundledPlugins = path.join(process.resourcesPath, '.plugins');
 
-  function isEmpty(path) {
-    return fs.readdirSync(path).length === 0;
-  }
-
   // Enable the Helm and dynamic cluster endpoints
   process.env.HEADLAMP_CONFIG_ENABLE_HELM = 'true';
   process.env.HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS = 'true';
@@ -600,7 +601,7 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   process.env.HEADLAMP_BACKEND_TOKEN = backendToken;
 
   // Set the bundled plugins in addition to the the user's plugins.
-  if (fs.existsSync(bundledPlugins) && !isEmpty(bundledPlugins)) {
+  if (fs.existsSync(bundledPlugins) && fs.readdirSync(bundledPlugins).length !== 0) {
     process.env.HEADLAMP_STATIC_PLUGINS_DIR = bundledPlugins;
   }
 
@@ -1240,14 +1241,6 @@ function startElecron() {
       loadFullMenu = true;
       console.info('Plugins are loaded. Loading full menu.');
       setMenu(mainWindow, currentMenu);
-
-      if (pathInfoDebug && mainWindow) {
-        dialog.showMessageBoxSync(mainWindow, {
-          type: 'info',
-          title: 'Path debug info',
-          message: JSON.stringify(pathInfo),
-        });
-      }
     });
 
     ipcMain.on('setMenu', (event: IpcMainEvent, menus: any) => {
@@ -1283,7 +1276,7 @@ function startElecron() {
       mainWindow?.webContents.send('backend-token', backendToken);
     });
 
-    ipcMain.on('run-command', (event, eventData) => handleRunCommand(event, eventData, mainWindow));
+    setupRunCmdHandlers(mainWindow, ipcMain);
 
     new PluginManagerEventListeners().setupEventHandlers();
 
@@ -1316,8 +1309,11 @@ function startElecron() {
               runningHeadlamp.forEach(pid => {
                 try {
                   killProcess(pid);
-                } catch (e) {
-                  console.log(`Failed to quit headlamp-servere:`, e.message);
+                } catch (e: unknown) {
+                  const message = e instanceof Error ? e.message : String(e);
+                  console.error(
+                    `Failed to kill headlamp-server process with PID ${pid}: ${message}`
+                  );
                   shouldWaitForKill = false;
                 }
               });

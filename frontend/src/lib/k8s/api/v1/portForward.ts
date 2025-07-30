@@ -74,14 +74,18 @@ export async function startPortForward(
   id: string = ''
 ): Promise<PortForward> {
   const kubeconfig = await findKubeconfigByClusterName(cluster);
-  const headers: HeadersInit = {
-    Authorization: `Bearer ${getToken(cluster)}`,
+  const headers: HeadersInit = new Headers({
     ...JSON_HEADERS,
-  };
+  });
+
+  const token = getToken(cluster);
+  if (!!token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
 
   // This means cluster is dynamically configured.
   if (kubeconfig !== null) {
-    headers['X-HEADLAMP-USER-ID'] = getUserIdFromLocalStorage();
+    headers.set('X-HEADLAMP-USER-ID', getUserIdFromLocalStorage());
   }
 
   const request: PortForwardRequest = {
@@ -97,15 +101,32 @@ export async function startPortForward(
   };
   return fetch(`${getAppUrl()}portforward`, {
     method: 'POST',
-    headers: new Headers(headers),
+    headers: headers,
     body: JSON.stringify(request),
-  }).then((response: Response) => {
-    return response.json().then(data => {
+  }).then(async (response: Response) => {
+    const contentType = response.headers.get('content-type');
+
+    // Check if the response is JSON
+    if (contentType && contentType.includes('application/json')) {
+      const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.message);
+        throw new Error(data.message || 'Error starting port forward');
       }
       return data;
-    });
+    } else {
+      // Handle text/plain or other response types because we can get error in text format
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error(text || 'Error starting port forward');
+      }
+      // If successful but not JSON, try to parse it as JSON anyway
+      try {
+        return JSON.parse(text);
+      } catch {
+        // If it's not JSON, return a basic structure
+        throw new Error('Invalid response format from server');
+      }
+    }
   });
 }
 
@@ -126,30 +147,36 @@ export async function stopOrDeletePortForward(
   stopOrDelete: boolean = true
 ): Promise<string> {
   const kubeconfig = await findKubeconfigByClusterName(cluster);
-  const headers: HeadersInit = {
+
+  const headers: HeadersInit = new Headers({
     'Content-Type': 'application/json',
-  };
+  });
+
+  const token = getToken(cluster);
+  if (!!token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
 
   // This means cluster is dynamically configured.
   if (kubeconfig !== null) {
-    headers['X-HEADLAMP-USER-ID'] = getUserIdFromLocalStorage();
+    headers.set('X-HEADLAMP-USER-ID', getUserIdFromLocalStorage());
   }
 
   return fetch(`${getAppUrl()}portforward`, {
     method: 'DELETE',
+    headers: headers,
     body: JSON.stringify({
       cluster,
       id,
       stopOrDelete,
     }),
-  }).then(response =>
-    response.text().then(data => {
-      if (!response.ok) {
-        throw new Error('Error deleting port forward');
-      }
-      return data;
-    })
-  );
+  }).then(async response => {
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(text || 'Error deleting port forward');
+    }
+    return text;
+  });
 }
 
 // @todo: needs a return type.
@@ -163,14 +190,19 @@ export async function stopOrDeletePortForward(
  */
 export async function listPortForward(cluster: string): Promise<PortForward[]> {
   const kubeconfig = await findKubeconfigByClusterName(cluster);
-  const headers: HeadersInit = {};
+  const headers: HeadersInit = new Headers({});
+
+  const token = getToken(cluster);
+  if (!!token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
 
   // This means cluster is dynamically configured.
   if (kubeconfig !== null) {
-    headers['X-HEADLAMP-USER-ID'] = getUserIdFromLocalStorage();
+    headers.set('X-HEADLAMP-USER-ID', getUserIdFromLocalStorage());
   }
 
   return fetch(`${getAppUrl()}portforward/list?cluster=${cluster}`, {
-    headers: new Headers(headers),
+    headers: headers,
   }).then(response => response.json());
 }

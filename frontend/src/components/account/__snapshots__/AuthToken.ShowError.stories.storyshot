@@ -171,7 +171,7 @@
               >
                 Check out how to generate a
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://headlamp.dev/docs/latest/installation/#create-a-service-account-token"
                   style="cursor: pointer; margin-left: 0.4rem;"
                   target="_blank"
@@ -189,7 +189,7 @@
             class="MuiBox-root css-1dj2o51"
           >
             <a
-              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
               href="/"
             >
               Cluster settings

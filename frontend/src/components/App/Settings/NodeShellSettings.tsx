@@ -15,6 +15,7 @@
  */
 
 import { Icon } from '@iconify/react';
+import { Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
@@ -49,6 +50,8 @@ export default function NodeShellSettings(props: SettingsProps) {
   const [userNamespace, setUserNamespace] = useState('');
   const [userImage, setUserImage] = useState('');
   const [userIsEnabled, setUserIsEnabled] = useState<boolean | null>(null);
+
+  const nodeShellLabelID = 'node-shell-enabled-label';
 
   useEffect(() => {
     setClusterSettings(!!cluster ? loadClusterSettings(cluster || '') : null);
@@ -178,9 +181,10 @@ export default function NodeShellSettings(props: SettingsProps) {
       <NameValueTable
         rows={[
           {
-            name: 'Enable Node Shell',
+            name: <Typography id={nodeShellLabelID}>Enable Node Shell</Typography>,
             value: (
               <Switch
+                inputProps={{ 'aria-labelledby': nodeShellLabelID }}
                 checked={userIsEnabled ?? true}
                 onChange={e => {
                   const newEnabled = e.target.checked;

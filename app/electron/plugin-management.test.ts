@@ -26,6 +26,7 @@ import fs from 'fs';
 import nock from 'nock';
 import os from 'os';
 import path from 'path';
+import * as tar from 'tar';
 import { PluginManager } from './plugin-management';
 
 const TEST_DATA_BASE_DIR = path.join(os.tmpdir(), 'headlamp-test-data');
@@ -193,13 +194,11 @@ async function createMinimalPluginTarball(testDataDir: string) {
     )
   );
 
-  // Create a tarball (using child_process to run tar)
-  const { execSync } = require('child_process');
   const tarballPath = path.join(testDataDir, 'plugin-tarball.tar.gz');
 
   let errToThrow = null;
   try {
-    execSync(`tar -czf "${tarballPath}" -C "${tempDir}" .`);
+    await tar.c({ gzip: true, file: tarballPath, cwd: tempDir }, ['.']);
   } catch (error) {
     console.error('Failed to create test tarball:', error);
     errToThrow = error;
@@ -238,11 +237,10 @@ async function createPlatformSpecificTarball(testDataDir: string) {
   }
 
   // Create a tarball
-  const { execSync } = require('child_process');
   const tarballPath = path.join(testDataDir, 'platform-specific.tar.gz');
 
   try {
-    execSync(`tar -czf "${tarballPath}" -C "${tempDir}" .`);
+    await tar.c({ gzip: true, file: tarballPath, cwd: tempDir }, ['.']);
   } catch (error) {
     console.error('Failed to create platform-specific tarball:', error);
     throw error;

@@ -1,6 +1,6 @@
 import chalk from 'chalk';
-import { getRelease, checkArtifactsForRelease } from '../utils/github';
-import { sanitizeVersion } from '../utils/version';
+import { getRelease, checkArtifactsForRelease } from '../utils/github.js';
+import { sanitizeVersion } from '../utils/version.js';
 
 export async function checkRelease(releaseVersion: string): Promise<void> {
   const version = sanitizeVersion(releaseVersion);

@@ -40,6 +40,7 @@ export interface KubePodSpec {
   serviceAccount?: string;
   priority?: string;
   tolerations?: any[];
+  restartPolicy?: string;
 }
 
 export interface KubePod extends KubeObjectInterface {
@@ -225,6 +226,7 @@ class Pod extends KubeObject<KubePod> {
     }
 
     const { cancel } = stream(url, onResults, {
+      cluster: this.cluster,
       isJson: false,
       connectCb: () => {
         logs = [];
@@ -260,7 +262,12 @@ class Pod extends KubeObject<KubePod> {
       'channel.k8s.io',
     ];
 
-    return stream(url, onAttach, { additionalProtocols, isJson: false, ...options });
+    return stream(url, onAttach, {
+      cluster: this.cluster,
+      additionalProtocols,
+      isJson: false,
+      ...options,
+    });
   }
 
   exec(container: string, onExec: StreamResultsCb, options: ExecOptions = {}) {
@@ -277,7 +284,12 @@ class Pod extends KubeObject<KubePod> {
       'channel.k8s.io',
     ];
 
-    return stream(url, onExec, { additionalProtocols, isJson: false, ...streamOpts });
+    return stream(url, onExec, {
+      cluster: this.cluster,
+      additionalProtocols,
+      isJson: false,
+      ...streamOpts,
+    });
   }
 
   private getLastRestartDate(container: KubeContainerStatus, lastRestartDate: Date): Date {
@@ -423,6 +435,27 @@ class Pod extends KubeObject<KubePod> {
     };
 
     return newDetails;
+  }
+  static getBaseObject(): KubePod {
+    const baseObject = super.getBaseObject() as KubePod;
+    baseObject.metadata = {
+      ...baseObject.metadata,
+      namespace: '',
+      labels: { app: 'headlamp' },
+    };
+    baseObject.spec = {
+      containers: [
+        {
+          name: '',
+          image: '',
+          ports: [{ containerPort: 80 }],
+          imagePullPolicy: 'Always',
+        },
+      ],
+      nodeName: '',
+    };
+
+    return baseObject;
   }
 }
 

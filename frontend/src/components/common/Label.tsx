@@ -112,7 +112,7 @@ export const StatusLabel = forwardRef<HTMLSpanElement, StatusLabelProps>((props,
   } else {
     params = {
       backgroundColor: alpha(baseColor, 0.2),
-      color: base[400],
+      color: base[200],
       borderColor: alpha(base[400], 0.5),
     };
   }

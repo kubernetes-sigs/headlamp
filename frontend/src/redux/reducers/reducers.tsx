@@ -15,6 +15,7 @@
  */
 
 import { combineReducers } from 'redux';
+import { activityReducer } from '../../components/activity/Activity';
 import notificationsReducer from '../../components/App/Notifications/notificationsSlice';
 import themeReducer from '../../components/App/themeSlice';
 import graphViewReducer from '../../components/resourceMap/graphViewSlice';
@@ -54,6 +55,7 @@ const reducers = combineReducers({
   drawerMode: drawerModeSlice,
   graphView: graphViewReducer,
   clusterProvider: clusterProviderReducer,
+  activity: activityReducer,
 });
 
 export type RootState = ReturnType<typeof reducers>;

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Tool for Headlamp release management",
   "main": "dist/index.js",
+  "type": "module",
   "bin": {
     "releaser": "./dist/index.js"
   },

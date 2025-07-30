@@ -55,6 +55,12 @@ app-linux: app-build
 	cd app && npm run package -- --linux
 app-mac: app-build
 	cd app && npm run package -- --mac
+app-test:
+	cd app && npm install
+	cd app && npm run test
+app-tsc:
+	cd app && npm install
+	cd app && npm run tsc
 
 .PHONY: backend
 backend:
@@ -105,6 +111,10 @@ else
 	@echo "**** Running on Windows without bash or zsh. ****"
 	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
 endif
+
+run-dev:
+	@echo "Starting Headlamp backend in dev mode with Air..."
+	cd backend && air
 
 run-backend-with-metrics:
 	@echo "**** Running backend with Prometheus metrics enabled ****"
