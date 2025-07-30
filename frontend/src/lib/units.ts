@@ -17,79 +17,201 @@
 /*
  * This module was taken from the k8dash project.
  */
+import _, { round } from 'lodash';
 
-import _ from 'lodash';
+export type K8sResource = {
+  value: number;
+  unit: string;
+};
 
-const RAM_TYPES = ['Bi', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei'];
-const UNITS = ['B', 'K', 'M', 'G', 'T', 'P', 'E'];
+const BINARY_SUFFIXES = new Map<string, number>([
+  ['', 1],
+  ['Ki', Math.pow(2, 10)],
+  ['Mi', Math.pow(2, 20)],
+  ['Gi', Math.pow(2, 30)],
+  ['Ti', Math.pow(2, 40)],
+  ['Pi', Math.pow(2, 50)],
+  ['Ei', Math.pow(2, 60)],
+]);
 
-export const TO_GB = 1024 * 1024 * 1024;
-export const TO_ONE_M_CPU = 1000000;
-export const TO_ONE_CPU = 1000000000;
+const DECIMAL_SUFFIXES = new Map<string, number>([
+  ['', 1],
+  ['k', Math.pow(10, 3)],
+  ['K', Math.pow(10, 3)],
+  ['M', Math.pow(10, 6)],
+  ['G', Math.pow(10, 9)],
+  ['T', Math.pow(10, 12)],
+  ['P', Math.pow(10, 15)],
+  ['E', Math.pow(10, 18)],
+]);
 
-export function parseDiskSpace(value: string) {
-  return parseUnitsOfBytes(value);
-}
+const CPU_SUFFIXES = new Map<string, number>([
+  ['n', 1e-9],
+  ['u', 1e-6],
+  ['m', 1e-3],
+  ['', 1],
+]);
 
-export function parseRam(value: string) {
-  return parseUnitsOfBytes(value);
-}
-
-function parseUnitsOfBytes(value: string): number {
+function parseK8sResource(value: string): number {
   if (!value) return 0;
 
-  const groups = value.match(/(\d+)([BKMGTPEe])?(i)?(\d+)?/) || [];
-  const number = parseInt(groups[1], 10);
+  const match = value.match(/^([\d.]+(?:e[+-]?\d+)?)([KMGTPE]i?|[kKMGTPE]?)$/i);
+  if (!match) throw new Error('Invalid resource quantity format');
 
-  // number ex. 1000
-  if (groups[2] === undefined) {
-    return number;
-  }
+  const [, num, suffix] = match;
+  const quantity = parseFloat(num);
 
-  // number with exponent ex. 1e3
-  if (groups[4] !== undefined) {
-    return number * 10 ** parseInt(groups[4], 10);
-  }
+  if (isNaN(quantity)) throw new Error('Invalid number format');
 
-  const unitIndex = _.indexOf(UNITS, groups[2]);
+  const multiplier = BINARY_SUFFIXES.get(suffix) || DECIMAL_SUFFIXES.get(suffix);
+  if (multiplier === undefined) throw new Error('Invalid suffix');
 
-  // Unit + i ex. 1Ki
-  if (groups[3] !== undefined) {
-    return number * 1024 ** unitIndex;
-  }
-
-  // Unit ex. 1K
-  return number * 1000 ** unitIndex;
+  return quantity * multiplier;
 }
 
-export function unparseRam(value: number) {
-  let i = 0;
-  while (value >= 1024 && i < RAM_TYPES.length - 1) {
-    i++;
-    value /= 1024; // eslint-disable-line no-param-reassign
+function parseDiskSpace(value: string): number {
+  return parseK8sResource(value);
+}
+
+function parseRam(value: string): number {
+  return parseK8sResource(value);
+}
+
+function unparseRam(value: number, decimals: number = 1): K8sResource {
+  let unit = '';
+  for (const [suffix, multiplier] of [...BINARY_SUFFIXES.entries()].reverse()) {
+    if (value >= multiplier) {
+      value /= multiplier;
+      unit = suffix;
+      break;
+    }
   }
 
   return {
-    value: _.round(value, 1),
-    unit: RAM_TYPES[i],
+    value: _.round(value, decimals),
+    unit,
   };
 }
 
-export function parseCpu(value: string) {
+function parseCpu(value: string): number {
   if (!value) return 0;
 
-  const number = parseInt(value, 10);
-  if (value.endsWith('n')) return number;
-  if (value.endsWith('u')) return number * 1000;
-  if (value.endsWith('m')) return number * 1000 * 1000;
-  return number * 1000 * 1000 * 1000;
+  const match = value.match(/^([\d.]+)([num]?)$/);
+  if (!match) throw new Error('Invalid CPU quantity format');
+
+  const [, num, suffix] = match;
+  const quantity = parseFloat(num);
+
+  if (suffix && CPU_SUFFIXES.has(suffix)) {
+    return quantity * (CPU_SUFFIXES.get(suffix) as number);
+  }
+
+  return quantity;
 }
 
-export function unparseCpu(value: string) {
-  const result = parseFloat(value);
+function unparseCpu(value: number, decimals: number = 3): K8sResource {
+  let numericValue = value;
+  let unit = '';
+
+  for (const [suffix, multiplier] of [...CPU_SUFFIXES.entries()].reverse()) {
+    if (numericValue >= multiplier) {
+      numericValue /= multiplier;
+      unit = suffix;
+      break;
+    }
+  }
 
   return {
-    value: _.round(result / 1000000, 2),
-    unit: 'm',
+    value: _.round(numericValue, decimals),
+    unit,
   };
 }
+
+function divideK8sResources(a: string, b: string): number {
+  return parseK8sResource(a) / parseK8sResource(b);
+}
+
+// Helper function to determine the appropriate suffix and multiplier
+function getSuffixAndMultiplier(
+  value: number,
+  unitType: string,
+  suffixes: Map<string, number>
+): { suffix: string; multiplier: number } {
+  let suffix = unitType;
+  let multiplier = suffixes.get(unitType) || 1;
+
+  for (const [currentSuffix, currentMultiplier] of suffixes.entries()) {
+    if (value / currentMultiplier < 1) {
+      break;
+    }
+    multiplier = currentMultiplier;
+    suffix = currentSuffix;
+  }
+
+  return { suffix, multiplier };
+}
+
+function formatMetricValueUnit(
+  value: number,
+  fromUnit: string,
+  toUnit: string,
+  decimals: number = 1
+): string {
+  // If no conversion is needed
+  if (fromUnit === toUnit) {
+    return `${value}${fromUnit}`;
+    // Comparison with zero
+  } else if (Math.abs(value) < Number.EPSILON) {
+    return `${value}`;
+  }
+
+  // Determine fromMultiplier
+  const fromMultiplier = BINARY_SUFFIXES.get(fromUnit) || DECIMAL_SUFFIXES.get(fromUnit) || 1;
+  if (!fromMultiplier) throw new Error('Invalid fromUnit');
+
+  // Determine toSuffix and toMultiplier based on the target unit
+  let toSuffix = toUnit;
+  let toMultiplier: number | undefined;
+
+  switch (toUnit) {
+    case 'binary':
+      ({ suffix: toSuffix, multiplier: toMultiplier } = getSuffixAndMultiplier(
+        value * fromMultiplier,
+        toUnit,
+        BINARY_SUFFIXES
+      ));
+      break;
+    case 'decimal':
+      ({ suffix: toSuffix, multiplier: toMultiplier } = getSuffixAndMultiplier(
+        value * fromMultiplier,
+        toUnit,
+        DECIMAL_SUFFIXES
+      ));
+      break;
+    case 'cpu':
+      ({ suffix: toSuffix, multiplier: toMultiplier } = getSuffixAndMultiplier(
+        value * fromMultiplier,
+        toUnit,
+        CPU_SUFFIXES
+      ));
+      break;
+    default:
+      toMultiplier = BINARY_SUFFIXES.get(toUnit) || DECIMAL_SUFFIXES.get(toUnit);
+      if (!toMultiplier) throw new Error('Invalid toUnit');
+      break;
+  }
+
+  // Perform the conversion and rounding
+  const result = round((value * fromMultiplier) / toMultiplier, decimals);
+  return `${result}${toSuffix}`;
+}
+
+export {
+  parseDiskSpace,
+  parseRam,
+  unparseRam,
+  parseCpu,
+  unparseCpu,
+  divideK8sResources,
+  formatMetricValueUnit,
+};
