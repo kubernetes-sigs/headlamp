@@ -145,12 +145,17 @@ export default function PortForwardingList() {
         port,
         address,
         id
-      ).then(() => {
-        portForwardInAction.loading = false;
-        setPortForwardInAction(portForwardInAction);
-        // update portforward list item
-        fetchPortForwardList(true);
-      });
+      )
+        .then(() => {
+          portForwardInAction.loading = false;
+          setPortForwardInAction(portForwardInAction);
+          // update portforward list item
+          fetchPortForwardList(true);
+        })
+        .catch(error => {
+          portForwardInAction.loading = false;
+          console.log('Error starting port forward:', error);
+        });
     }
     if (option === PortForwardAction.Stop) {
       // stop portforward

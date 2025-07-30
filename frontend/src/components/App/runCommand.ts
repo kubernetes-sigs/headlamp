@@ -24,11 +24,18 @@
  * This function uses the desktopApi.send and desktopApi.receive methods to communicate with the main process.
  * @param command - The command to run.
  * @param args - An array of arguments to pass to the command.
+ * @param options - Additional options for the command.
+ * @param permissionSecrets - Internal use. A record of permission secrets that may be required for the command.
+ * @param desktopApiSend - Internal use. The function to send data to the main process.
+ * @param desktopApiReceive - Internal use. The function to receive data from the main process.
  * @returns An object with `stdout`, `stderr`, and `on` properties. You can listen for 'data' events on `stdout` and `stderr`, and 'exit' events with `on`.
  * @example
  *
+ * How it can be used in a plugin:
  * ```ts
- *   const minikube = runCommand('minikube', ['status']);
+ *   declare const pluginRunCommand: typeof runCommand;
+ *   const minikube = pluginRunCommand('minikube', ['status'], {});
+ *
  *   minikube.stdout.on('data', (data) => {
  *     console.log('stdout:', data);
  *   });
@@ -41,9 +48,24 @@
  * ```
  */
 export function runCommand(
-  command: 'minikube' | 'az',
+  command: 'minikube' | 'az' | 'scriptjs',
   args: string[],
-  options: {}
+  options: {},
+  permissionSecrets?: Record<string, number>,
+  desktopApiSend?: (
+    channel: string,
+    data: {
+      id: string;
+      command: string;
+      args: string[];
+      options: {};
+      permissionSecrets: Record<string, number>;
+    }
+  ) => void,
+  desktopApiReceive?: (
+    channel: string,
+    listener: (cmdId: string, data: string | number) => void
+  ) => void
 ): {
   stdout: { on: (event: string, listener: (chunk: any) => void) => void };
   stderr: { on: (event: string, listener: (chunk: any) => void) => void };
@@ -52,37 +74,46 @@ export function runCommand(
   if (!window.desktopApi) {
     throw new Error('runCommand only works in Headlamp app mode.');
   }
+  if (!desktopApiSend || !desktopApiReceive || !permissionSecrets) {
+    // these are only optional for the pluginRunCommand
+    throw new Error(
+      'Do not use runCommand directly. Use pluginRunCommand via:' +
+        '  `declare const pluginRunCommand: typeof runCommand;`'
+    );
+  }
 
   // Generate a unique ID for the command, so that we can distinguish between
   // multiple commands running at the same time.
   const id = `${new Date().getTime()}-${Math.random().toString(36)}`;
 
   const stdout = new EventTarget();
-  const stderr = new EventTarget();
-  const exit = new EventTarget();
-
-  window.desktopApi.send('run-command', { id, command, args, options });
-
-  window.desktopApi.receive('command-stdout', (cmdId: string, data: string) => {
+  desktopApiReceive('command-stdout', (cmdId: string, data: string | number) => {
     if (cmdId === id) {
       const event = new CustomEvent('data', { detail: data });
       stdout.dispatchEvent(event);
     }
   });
 
-  window.desktopApi.receive('command-stderr', (cmdId: string, data: string) => {
+  const stderr = new EventTarget();
+  desktopApiReceive('command-stderr', (cmdId: string, data: string | number) => {
     if (cmdId === id) {
       const event = new CustomEvent('data', { detail: data });
       stderr.dispatchEvent(event);
     }
   });
 
-  window.desktopApi.receive('command-exit', (cmdId: string, code: number) => {
+  const exit = new EventTarget();
+  desktopApiReceive('command-exit', (cmdId: string, code: string | number) => {
     if (cmdId === id) {
       const event = new CustomEvent('exit', { detail: code });
       exit.dispatchEvent(event);
     }
   });
+
+  // We use desktopApiReceive and desktopApiSend to communicate with the main process.
+  // Because other plugins may change the global window.desktopApi functions
+  // to snoop on the secrets that plugins are sending.
+  desktopApiSend('run-command', { id, command, args, options, permissionSecrets });
 
   return {
     stdout: {

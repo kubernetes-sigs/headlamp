@@ -32,6 +32,8 @@ export interface NameValueTableRow {
   valueCellProps?: GridProps;
   /** Whether to highlight the row (used for titles, separators, etc.). */
   withHighlightStyle?: boolean;
+  /** The ID to use for the name element, useful for accessibility */
+  nameID?: string;
 }
 
 export interface NameValueTableProps {
@@ -87,7 +89,10 @@ export default function NameValueTable(props: NameValueTableProps) {
       })}
     >
       {visibleRows.flatMap(
-        ({ name, value, hide = false, withHighlightStyle = false, valueCellProps = {} }, i) => {
+        (
+          { name, nameID, value, hide = false, withHighlightStyle = false, valueCellProps = {} },
+          i
+        ) => {
           let shouldHide = false;
           if (typeof hide === 'function') {
             shouldHide = hide(value);
@@ -112,6 +117,7 @@ export default function NameValueTable(props: NameValueTableProps) {
               sm={hideValueGridItem ? 12 : 4}
               component="dt"
               className={className}
+              id={nameID}
               sx={theme => {
                 const extra = withHighlightStyle
                   ? {

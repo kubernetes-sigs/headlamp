@@ -69,6 +69,7 @@
   "Something went wrong with cluster {{ cluster }}": "集群 {{ cluster }} 出现问题",
   "Choose another cluster": "选择其他集群",
   "Skip to main content": "跳至主要內容",
+  "Menu": "",
   "Mark all as read": "全部标记为已读",
   "Clear all": "全部清除",
   "Notifications": "通知",

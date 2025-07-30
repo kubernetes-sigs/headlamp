@@ -31,9 +31,9 @@ import { useDispatch } from 'react-redux';
 import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { defaultTableRowsPerPageOptions, setAppSettings } from '../../../redux/configSlice';
 
-export default function NumRowsInput(props: { defaultValue: number[] }) {
+export default function NumRowsInput(props: { defaultValue: number[]; nameLabelID?: string }) {
   const { t } = useTranslation(['frequent']);
-  const { defaultValue } = props;
+  const { defaultValue, nameLabelID } = props;
   const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [options, setOptions] = useState(defaultValue);
   const focusedRef = useCallback((node: HTMLElement) => {
@@ -157,6 +157,7 @@ export default function NumRowsInput(props: { defaultValue: number[] }) {
           renderValue={value => `${value}`}
           size="small"
           variant="outlined"
+          labelId={nameLabelID}
         >
           {options.map(option => {
             const isCustom = !defaultTableRowsPerPageOptions.includes(option);

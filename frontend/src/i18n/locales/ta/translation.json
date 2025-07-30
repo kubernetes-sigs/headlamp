@@ -69,6 +69,7 @@
   "Something went wrong with cluster {{ cluster }}": "{{ cluster }} க்ளஸ்டரில் ஏதோ பிழை நேர்ந்தது",
   "Choose another cluster": "மற்றொரு க்ளஸ்டரைத் தேர்ந்தெடுக்கவும்",
   "Skip to main content": "முக்கிய உள்ளடக்கத்திற்கு செல்",
+  "Menu": "",
   "Mark all as read": "அனைத்தையும் படித்ததாகக் குறி",
   "Clear all": "அனைத்தையும் அழி",
   "Notifications": "அறிவிப்புகள்",
