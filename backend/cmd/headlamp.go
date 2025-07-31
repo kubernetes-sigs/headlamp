@@ -2040,8 +2040,6 @@ func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterN
 	}
 
 	for _, context := range contexts {
-		context := context
-
 		// Remove the old context from the store
 		if err := c.KubeConfigStore.RemoveContext(clusterName); err != nil {
 			logger.Log(logger.LevelError, nil, err, "Removing context from the store")
