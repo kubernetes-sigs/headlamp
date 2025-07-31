@@ -168,10 +168,10 @@
         class="MuiBox-root css-3ykv34"
       >
         <div
-          class="MuiBox-root css-m8w5bx"
+          class="MuiBox-root css-16dgwon"
         >
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-byj3tg-MuiButtonBase-root-MuiButton-root"
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-1jy96qb-MuiButtonBase-root-MuiButton-root"
             tabindex="0"
             type="button"
           >
@@ -194,7 +194,7 @@
           </button>
           <button
             aria-label="Close"
-            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvi60f-MuiButtonBase-root-MuiIconButton-root"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-w7a3k1-MuiButtonBase-root-MuiIconButton-root"
             tabindex="0"
             type="button"
           >
@@ -204,10 +204,10 @@
           </button>
         </div>
         <div
-          class="MuiBox-root css-1fzmwbo"
+          class="MuiBox-root css-15k1pc3"
         >
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-byj3tg-MuiButtonBase-root-MuiButton-root"
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-1jy96qb-MuiButtonBase-root-MuiButton-root"
             tabindex="0"
             type="button"
           >
@@ -230,7 +230,7 @@
           </button>
           <button
             aria-label="Close"
-            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvi60f-MuiButtonBase-root-MuiIconButton-root"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-w7a3k1-MuiButtonBase-root-MuiIconButton-root"
             tabindex="0"
             type="button"
           >
