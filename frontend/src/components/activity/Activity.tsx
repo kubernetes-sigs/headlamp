@@ -948,6 +948,8 @@ export const ActivityBar = React.memo(function ({
           key={it.id}
           sx={theme => ({
             display: 'flex',
+            alignItems: 'center',
+            padding: '3px',
             height: '100%',
             position: 'relative',
             border: '1px solid',
@@ -958,6 +960,7 @@ export const ActivityBar = React.memo(function ({
         >
           <Button
             sx={{
+              height: '100%',
               padding: '0px 5px 0 10px',
               lineHeight: 1,
               whiteSpace: 'nowrap',
@@ -1008,7 +1011,7 @@ export const ActivityBar = React.memo(function ({
               e.stopPropagation();
               Activity.close(it.id);
             }}
-            sx={{ width: '42px', flexShrink: 0 }}
+            sx={{ width: '42px', height: '42px', flexShrink: 0 }}
             aria-label="Close"
           >
             <Icon icon="mdi:close" />
