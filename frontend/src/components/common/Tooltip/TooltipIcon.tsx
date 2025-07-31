@@ -20,7 +20,7 @@ import React from 'react';
 import TooltipLight from './TooltipLight';
 
 export interface TooltipIconProps {
-  children: string;
+  children: string | React.ReactNode;
   /** A materialui/core icon. */
   icon?: IconProps['icon'];
 }

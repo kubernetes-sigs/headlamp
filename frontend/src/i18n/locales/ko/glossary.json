@@ -160,6 +160,8 @@
   "Attach": "연결",
   "Restarts": "재시작",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} ({{ abbrevTime }} 전)",
+  "Request": "",
+  "Limit": "",
   "Nominated Node": "할당된 노드",
   "Readiness Gates": "준비 상태 게이트",
   "Pod Disruption Budget": "파드 중단 예산",

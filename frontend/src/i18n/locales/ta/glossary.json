@@ -160,6 +160,8 @@
   "Attach": "இணை",
   "Restarts": "மறுதொடக்கம்",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} ({{ abbrevTime }} முன்பு)",
+  "Request": "",
+  "Limit": "",
   "Nominated Node": "நாமினேடட் நோட்",
   "Readiness Gates": "ரெடினெஸ் கேட்ஸ்",
   "Pod Disruption Budget": "பாட் டிஸ்ரப்ஷன் பட்ஜெட்",

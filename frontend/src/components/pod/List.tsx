@@ -31,6 +31,7 @@ import { StatusLabel, StatusLabelProps } from '../common/Label';
 import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { SimpleTableProps } from '../common/SimpleTable';
+import { TooltipIcon } from '../common/Tooltip';
 import LightTooltip from '../common/Tooltip/TooltipLight';
 
 function getPodStatus(pod: Pod) {
@@ -246,9 +247,43 @@ export function PodListRenderer(props: PodListProps) {
                   const cpu = getCpuUsage(pod);
                   if (cpu === undefined) return;
 
-                  const { value, unit } = unparseCpu(String(cpu));
+                  const { value: aValue, unit: aUnit } = unparseCpu(String(cpu));
 
-                  return `${value} ${unit}`;
+                  const request = pod.spec.containers
+                    .map(c => parseCpu(c.resources?.requests?.cpu || '0'))
+                    .reduce((a, b) => a + b, 0);
+
+                  const limit = pod.spec.containers
+                    .map(c => parseCpu(c.resources?.limits?.cpu || '0'))
+                    .reduce((a, b) => a + b, 0);
+
+                  const tooltipLines = [];
+                  if (request > 0) {
+                    const { value: rValue, unit: rUnit } = unparseCpu(String(request));
+                    const percentOfRequest = ((cpu / request) * 100).toFixed(1);
+                    tooltipLines.push(
+                      t('Request') +
+                        `: ${percentOfRequest}% (${aValue} ${aUnit}/${rValue} ${rUnit})`
+                    );
+                  }
+                  if (limit > 0) {
+                    const { value: lValue, unit: lUnit } = unparseCpu(String(limit));
+                    const percentOfLimit = ((cpu / limit) * 100).toFixed(1);
+                    tooltipLines.push(
+                      t('Limit') + `: ${percentOfLimit}% (${aValue} ${aUnit}/${lValue} ${lUnit})`
+                    );
+                  }
+
+                  return (
+                    <Box display="flex" alignItems="center">
+                      <span style={{ whiteSpace: 'nowrap' }}>{`${aValue} ${aUnit}`}</span>
+                      {tooltipLines.length > 0 && (
+                        <TooltipIcon>
+                          <span style={{ whiteSpace: 'pre-line' }}>{tooltipLines.join('\n')}</span>
+                        </TooltipIcon>
+                      )}
+                    </Box>
+                  );
                 },
                 getValue: (pod: Pod) => getCpuUsage(pod) ?? 0,
               },
@@ -259,9 +294,43 @@ export function PodListRenderer(props: PodListProps) {
                 render: (pod: Pod) => {
                   const memory = getMemoryUsage(pod);
                   if (memory === undefined) return;
-                  const { value, unit } = unparseRam(memory);
+                  const { value: aValue, unit: aUnit } = unparseRam(memory);
 
-                  return `${value} ${unit}`;
+                  const request = pod.spec.containers
+                    .map(c => parseRam(c.resources?.requests?.memory || '0'))
+                    .reduce((a, b) => a + b, 0);
+
+                  const limit = pod.spec.containers
+                    .map(c => parseRam(c.resources?.limits?.memory || '0'))
+                    .reduce((a, b) => a + b, 0);
+
+                  const tooltipLines = [];
+                  if (request > 0) {
+                    const { value: rValue, unit: rUnit } = unparseRam(request);
+                    const percentOfRequest = ((memory / request) * 100).toFixed(1);
+                    tooltipLines.push(
+                      t('Request') +
+                        `: ${percentOfRequest}% (${aValue} ${aUnit}/${rValue} ${rUnit})`
+                    );
+                  }
+                  if (limit > 0) {
+                    const { value: lValue, unit: lUnit } = unparseRam(limit);
+                    const percentOfLimit = ((memory / limit) * 100).toFixed(1);
+                    tooltipLines.push(
+                      t('Limit') + `: ${percentOfLimit}% (${aValue} ${aUnit}/${lValue} ${lUnit})`
+                    );
+                  }
+
+                  return (
+                    <Box display="flex" alignItems="center">
+                      <span style={{ whiteSpace: 'nowrap' }}>{`${aValue} ${aUnit}`}</span>
+                      {tooltipLines.length > 0 && (
+                        <TooltipIcon>
+                          <span style={{ whiteSpace: 'pre-line' }}>{tooltipLines.join('\n')}</span>
+                        </TooltipIcon>
+                      )}
+                    </Box>
+                  );
                 },
                 getValue: (pod: Pod) => getMemoryUsage(pod) ?? 0,
               },

@@ -160,6 +160,8 @@
   "Attach": "Attach",
   "Restarts": "Restarts",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} ({{ abbrevTime }} ago)",
+  "Request": "Request",
+  "Limit": "Limit",
   "Nominated Node": "Nominated Node",
   "Readiness Gates": "Readiness Gates",
   "Pod Disruption Budget": "Pod Disruption Budget",

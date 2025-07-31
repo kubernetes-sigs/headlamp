@@ -160,6 +160,8 @@
   "Attach": "Anexar",
   "Restarts": "Reinícios",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} (há {{ abbrevTime }})",
+  "Request": "",
+  "Limit": "",
   "Nominated Node": "Node Nomeado",
   "Readiness Gates": "Portais de Prontidão",
   "Pod Disruption Budget": "Pod Disruption Budget",

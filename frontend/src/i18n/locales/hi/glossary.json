@@ -160,6 +160,8 @@
   "Attach": "अटैच",
   "Restarts": "रीस्टार्ट",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} ({{ abbrevTime }} पहले)",
+  "Request": "",
+  "Limit": "",
   "Nominated Node": "नामांकित नोड",
   "Readiness Gates": "रेडीनेस गेट्स",
   "Pod Disruption Budget": "Pod डिसरप्शन बजट",
