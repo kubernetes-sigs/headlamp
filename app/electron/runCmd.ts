@@ -19,7 +19,6 @@ import { app, BrowserWindow, dialog } from 'electron';
 import { IpcMainEvent } from 'electron/main';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { pathToFileURL } from 'node:url';
 import path from 'path';
 import i18n from './i18next.config';
 import { defaultPluginsDir } from './plugin-management';
@@ -209,7 +208,8 @@ export function checkPermissionSecret(
 ): [boolean, string] {
   let permissionName = 'runCmd-' + commandData.command;
   if (commandData.command === 'scriptjs') {
-    permissionName = 'runCmd-' + commandData.command + '-' + commandData.args[0];
+    const pluginPathNormalized = commandData.args[0]?.replace(/plugins[\\/]/, 'plugins/');
+    permissionName = 'runCmd-' + commandData.command + '-' + pluginPathNormalized;
   }
   if (
     permissionSecrets[permissionName] === undefined ||
@@ -308,26 +308,14 @@ export function handleRunCommand(
  * node js scripts without requiring node to also be installed.
  */
 export function runScript() {
-  // If '..' in process.argv[1] or it starts with / or \, then it is not a valid path.
-  if (
-    !process.argv[1] ||
-    process.argv[1].includes('..') ||
-    process.argv[1].startsWith('/') ||
-    process.argv[1].startsWith('\\')
-  ) {
-    console.error(
-      `Invalid script path: ${process.argv[1]}. Must be a relative path within the plugins directory.`
-    );
-    return;
-  }
-
   const baseDir = path.resolve(defaultPluginsDir());
   const scriptPath = path.resolve(process.argv[1]);
+
   if (!scriptPath.startsWith(baseDir)) {
     console.error(`Invalid script path: ${scriptPath}. Must be within ${baseDir}.`);
     return;
   }
-  import(pathToFileURL(scriptPath).href);
+  import(scriptPath);
 }
 
 /**

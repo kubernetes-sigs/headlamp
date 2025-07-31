@@ -184,6 +184,9 @@ export function identifyPackages(
   pluginName: string,
   isDevelopmentMode: boolean
 ): Record<string, boolean> {
+  // Normalize path for Windows compatibility
+  const pluginPathNormalized = pluginPath.replace(/plugins[\\/]/, 'plugins/');
+
   // For artifacthub installed packages, the package name is the folder name.
   const pluginPaths: Record<string, string[]> = {
     '@headlamp-k8s/minikube': ['plugins/headlamp_minikube', 'plugins/headlamp_minikubeprerelease'],
@@ -199,7 +202,7 @@ export function identifyPackages(
   for (const key in pluginPaths) {
     let foundPath = false;
     for (let i = 0; i < pluginPaths[key].length; i++) {
-      if (pluginPaths[key][i] === pluginPath) {
+      if (pluginPaths[key][i] === pluginPathNormalized) {
         foundPath = true;
         break;
       }

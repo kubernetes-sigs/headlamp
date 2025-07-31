@@ -74,14 +74,18 @@ export async function startPortForward(
   id: string = ''
 ): Promise<PortForward> {
   const kubeconfig = await findKubeconfigByClusterName(cluster);
-  const headers: HeadersInit = {
-    Authorization: `Bearer ${getToken(cluster)}`,
+  const headers: HeadersInit = new Headers({
     ...JSON_HEADERS,
-  };
+  });
+
+  const token = getToken(cluster);
+  if (!!token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
 
   // This means cluster is dynamically configured.
   if (kubeconfig !== null) {
-    headers['X-HEADLAMP-USER-ID'] = getUserIdFromLocalStorage();
+    headers.set('X-HEADLAMP-USER-ID', getUserIdFromLocalStorage());
   }
 
   const request: PortForwardRequest = {
@@ -97,7 +101,7 @@ export async function startPortForward(
   };
   return fetch(`${getAppUrl()}portforward`, {
     method: 'POST',
-    headers: new Headers(headers),
+    headers: headers,
     body: JSON.stringify(request),
   }).then(async (response: Response) => {
     const contentType = response.headers.get('content-type');
@@ -143,17 +147,24 @@ export async function stopOrDeletePortForward(
   stopOrDelete: boolean = true
 ): Promise<string> {
   const kubeconfig = await findKubeconfigByClusterName(cluster);
-  const headers: HeadersInit = {
+
+  const headers: HeadersInit = new Headers({
     'Content-Type': 'application/json',
-  };
+  });
+
+  const token = getToken(cluster);
+  if (!!token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
 
   // This means cluster is dynamically configured.
   if (kubeconfig !== null) {
-    headers['X-HEADLAMP-USER-ID'] = getUserIdFromLocalStorage();
+    headers.set('X-HEADLAMP-USER-ID', getUserIdFromLocalStorage());
   }
 
   return fetch(`${getAppUrl()}portforward`, {
     method: 'DELETE',
+    headers: headers,
     body: JSON.stringify({
       cluster,
       id,
@@ -179,14 +190,19 @@ export async function stopOrDeletePortForward(
  */
 export async function listPortForward(cluster: string): Promise<PortForward[]> {
   const kubeconfig = await findKubeconfigByClusterName(cluster);
-  const headers: HeadersInit = {};
+  const headers: HeadersInit = new Headers({});
+
+  const token = getToken(cluster);
+  if (!!token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
 
   // This means cluster is dynamically configured.
   if (kubeconfig !== null) {
-    headers['X-HEADLAMP-USER-ID'] = getUserIdFromLocalStorage();
+    headers.set('X-HEADLAMP-USER-ID', getUserIdFromLocalStorage());
   }
 
   return fetch(`${getAppUrl()}portforward/list?cluster=${cluster}`, {
-    headers: new Headers(headers),
+    headers: headers,
   }).then(response => response.json());
 }

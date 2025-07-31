@@ -160,6 +160,8 @@
   "Attach": "Adjuntar",
   "Restarts": "Reinicios",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} (hace {{ abbrevTime }})",
+  "Request": "",
+  "Limit": "",
   "Nominated Node": "Nodo Nominado",
   "Readiness Gates": "Readiness Gates",
   "Pod Disruption Budget": "Pod Disruption Budget",

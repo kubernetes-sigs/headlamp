@@ -160,6 +160,8 @@
   "Attach": "附加",
   "Restarts": "重启",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} ({{ abbrevTime }} 前)",
+  "Request": "",
+  "Limit": "",
   "Nominated Node": "提名节点",
   "Readiness Gates": "就绪网关",
   "Pod Disruption Budget": "Pod 中断预算",

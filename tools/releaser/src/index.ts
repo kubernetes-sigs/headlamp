@@ -2,11 +2,15 @@
 
 import { Command } from 'commander';
 import { readFileSync } from 'fs';
-import { join } from 'path';
-import { checkRelease } from './commands/check';
-import { startRelease } from './commands/start';
-import { tagRelease } from './commands/tag';
-import { publishRelease } from './commands/publish';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { checkRelease } from './commands/check.js';
+import { startRelease } from './commands/start.js';
+import { tagRelease } from './commands/tag.js';
+import { publishRelease } from './commands/publish.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Read version from package.json
 const packageJsonPath = join(__dirname, '..', 'package.json');

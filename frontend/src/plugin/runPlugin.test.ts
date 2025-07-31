@@ -361,4 +361,28 @@ describe('identifyPackages', () => {
     const result = identifyPackages('plugins/unknown', '@unknown', false);
     expect(result).toEqual({ '@headlamp-k8s/minikube': false });
   });
+
+  test('should handle windows paths correctly', () => {
+    const result = identifyPackages('plugins\\headlamp_minikube', '@headlamp-k8s/minikube', false);
+    expect(result).toEqual({ '@headlamp-k8s/minikube': true });
+  });
+
+  test('should handle windows paths with prerelease', () => {
+    const result = identifyPackages(
+      'plugins\\headlamp_minikubeprerelease',
+      '@headlamp-k8s/minikubeprerelease',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': true });
+  });
+
+  test('should handle windows paths in development mode', () => {
+    const result = identifyPackages('plugins\\minikube', '@headlamp-k8s/minikube', true);
+    expect(result).toEqual({ '@headlamp-k8s/minikube': true });
+  });
+
+  test('should handle windows paths not in development mode', () => {
+    const result = identifyPackages('plugins\\minikube', '@headlamp-k8s/minikube', false);
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false });
+  });
 });

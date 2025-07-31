@@ -160,6 +160,8 @@
   "Attach": "アタッチ",
   "Restarts": "再起動",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} ({{ abbrevTime }} 前)",
+  "Request": "",
+  "Limit": "",
   "Nominated Node": "指名ノード",
   "Readiness Gates": "準備ゲート",
   "Pod Disruption Budget": "ポッド中断バジェット",

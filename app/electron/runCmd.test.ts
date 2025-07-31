@@ -85,6 +85,18 @@ describe('checkPermissionSecret', () => {
     };
     expect(checkPermissionSecret(commandData, permissionSecrets)[0]).toBe(false);
   });
+
+  // it works for windows paths in like plugins\minikube/myscript.js
+  it('handles Windows paths in scriptjs command', () => {
+    const permissionSecrets = { 'runCmd-scriptjs-plugins/minikube/myscript.js': 42 };
+    const commandData = {
+      ...baseCommandData,
+      command: 'scriptjs',
+      args: ['plugins\\minikube/myscript.js'],
+      permissionSecrets: { 'runCmd-scriptjs-plugins/minikube/myscript.js': 42 },
+    };
+    expect(checkPermissionSecret(commandData, permissionSecrets)[0]).toBe(true);
+  });
 });
 
 describe('validateCommandData', () => {
