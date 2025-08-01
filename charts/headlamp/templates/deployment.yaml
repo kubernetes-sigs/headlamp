@@ -138,6 +138,13 @@ spec:
                   name: {{ $oidc.secret.name }}
                   key: useAccessToken
             {{- end }}
+            {{- if $oidc.usePKCE }}
+            - name: OIDC_USE_PKCE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: usePKCE
+            {{- end }}
             {{- else }}
             {{- if $oidc.clientID }}
             - name: OIDC_CLIENT_ID
@@ -166,6 +173,10 @@ spec:
             {{- if $oidc.useAccessToken }}
             - name: OIDC_USE_ACCESS_TOKEN
               value: {{ $oidc.useAccessToken }}
+            {{- end }}
+            {{- if $oidc.usePKCE }}
+            - name: OIDC_USE_PKCE
+              value: {{ $oidc.usePKCE }}
             {{- end }}
             {{- end }}
             {{- if .Values.env }}
@@ -212,6 +223,10 @@ spec:
             {{- if or (ne ($oidc.useAccessToken | toString) "false") (ne $useAccessToken "") }}
             # Check if useAccessToken is non false either from env or oidc.config
             - "-oidc-use-access-token=$(OIDC_USE_ACCESS_TOKEN)"
+            {{- end }}
+            {{- if or (ne ($oidc.usePKCE | toString) "false") (ne $usePKCE "") }}
+            # Check if usePKCE is non false either from env or oidc.config
+            - "-oidc-use-pkce=$(OIDC_USE_PKCE)"
             {{- end }}
             {{- else }}
             - "-oidc-client-id=$(OIDC_CLIENT_ID)"
