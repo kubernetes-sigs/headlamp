@@ -453,6 +453,11 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		r = baseRoute.PathPrefix(config.BaseURL).Subrouter()
 	}
 
+	if config.Telemetry != nil && config.Metrics != nil {
+		r.Use(telemetry.TracingMiddleware("headlamp-server"))
+		r.Use(config.Metrics.RequestCounterMiddleware)
+	}
+
 	fmt.Println("*** Headlamp Server ***")
 	fmt.Println("  API Routers:")
 
@@ -1138,13 +1143,6 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	config.Telemetry = tel
 	config.Metrics = metrics
 	config.telemetryHandler = telemetry.NewRequestHandler(tel, metrics)
-
-	router := mux.NewRouter()
-
-	if config.Telemetry != nil && config.Metrics != nil {
-		router.Use(telemetry.TracingMiddleware("headlamp-server"))
-		router.Use(config.Metrics.RequestCounterMiddleware)
-	}
 
 	// Copy static files as squashFS is read-only (AppImage)
 	if config.StaticDir != "" {
