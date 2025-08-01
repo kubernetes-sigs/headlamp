@@ -1118,6 +1118,94 @@ function startElecron() {
   console.log('Check for updates: ', shouldCheckForUpdates);
 
   async function createWindow() {
+    if (!useExternalServer) {
+      serverProcess = await startServer();
+      attachServerEventHandlers(serverProcess);
+
+      serverProcess.addListener('exit', async e => {
+        const ERROR_ADDRESS_IN_USE = 98;
+        if (e === ERROR_ADDRESS_IN_USE) {
+          const runningHeadlamp = await getRunningHeadlampPIDs();
+          let shouldWaitForKill = true;
+
+          if (!mainWindow) {
+            return;
+          }
+
+          if (!!runningHeadlamp) {
+            const resp = dialog.showMessageBoxSync(mainWindow, {
+              // Avoiding mentioning Headlamp here because it may run under a different name depending on branding (plugins).
+              title: i18n.t('Another process is running'),
+              message: i18n.t(
+                'Looks like another process is already running. Continue by terminating that process automatically, or quit?'
+              ),
+              type: 'question',
+              buttons: [i18n.t('Continue'), i18n.t('Quit')],
+            });
+
+            if (resp === 0) {
+              runningHeadlamp.forEach(pid => {
+                try {
+                  killProcess(pid);
+                } catch (e: unknown) {
+                  const message = e instanceof Error ? e.message : String(e);
+                  console.error(
+                    `Failed to kill headlamp-server process with PID ${pid}: ${message}`
+                  );
+                  shouldWaitForKill = false;
+                }
+              });
+            } else {
+              mainWindow.close();
+              return;
+            }
+          }
+
+          // If we reach here, then we attempted to kill headlamp-server. Let's make sure it's killed
+          // before starting our own, or else we may end up in a race condition (failing to start the
+          // new one before the existing one is fully killed).
+          if (!!runningHeadlamp && shouldWaitForKill) {
+            let stillRunning = true;
+            let timeWaited = 0;
+            const maxWaitTime = 3000; // ms
+            // @todo: Use an iterative back-off strategy for the wait (so we can start by waiting for shorter times).
+            for (let tries = 1; timeWaited < maxWaitTime && stillRunning; tries++) {
+              console.debug(
+                `Checking if Headlamp is still running after we asked it to be killed; ${tries} ${timeWaited}/${maxWaitTime}ms wait.`
+              );
+
+              // Wait (10 * powers of 2) ms with a max of 250 ms
+              const waitTime = Math.min(10 * tries ** 2, 250); // ms
+              await new Promise(f => setTimeout(f, waitTime));
+
+              timeWaited += waitTime;
+
+              stillRunning = !!(await getRunningHeadlampPIDs());
+              console.debug(stillRunning ? 'Still running...' : 'No longer running!');
+            }
+          }
+
+          // If we couldn't kill the process, warn the user and quit.
+          const processes = await getRunningHeadlampPIDs();
+          if (!!processes) {
+            dialog.showMessageBoxSync({
+              type: 'warning',
+              title: i18n.t('Failed to quit the other running process'),
+              message: i18n.t(
+                `Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.`,
+                { process_list: processes }
+              ),
+            });
+
+            mainWindow.close();
+            return;
+          }
+          serverProcess = await startServer();
+          attachServerEventHandlers(serverProcess);
+        }
+      });
+    }
+
     // WSL has a problem with full size window placement, so make it smaller.
     const withMargin = isWSL();
     const { width, height } = windowSize(screen.getPrimaryDisplay().workAreaSize, withMargin);
@@ -1279,94 +1367,6 @@ function startElecron() {
     setupRunCmdHandlers(mainWindow, ipcMain);
 
     new PluginManagerEventListeners().setupEventHandlers();
-
-    if (!useExternalServer) {
-      serverProcess = await startServer();
-      attachServerEventHandlers(serverProcess);
-
-      serverProcess.addListener('exit', async e => {
-        const ERROR_ADDRESS_IN_USE = 98;
-        if (e === ERROR_ADDRESS_IN_USE) {
-          const runningHeadlamp = await getRunningHeadlampPIDs();
-          let shouldWaitForKill = true;
-
-          if (!mainWindow) {
-            return;
-          }
-
-          if (!!runningHeadlamp) {
-            const resp = dialog.showMessageBoxSync(mainWindow, {
-              // Avoiding mentioning Headlamp here because it may run under a different name depending on branding (plugins).
-              title: i18n.t('Another process is running'),
-              message: i18n.t(
-                'Looks like another process is already running. Continue by terminating that process automatically, or quit?'
-              ),
-              type: 'question',
-              buttons: [i18n.t('Continue'), i18n.t('Quit')],
-            });
-
-            if (resp === 0) {
-              runningHeadlamp.forEach(pid => {
-                try {
-                  killProcess(pid);
-                } catch (e: unknown) {
-                  const message = e instanceof Error ? e.message : String(e);
-                  console.error(
-                    `Failed to kill headlamp-server process with PID ${pid}: ${message}`
-                  );
-                  shouldWaitForKill = false;
-                }
-              });
-            } else {
-              mainWindow.close();
-              return;
-            }
-          }
-
-          // If we reach here, then we attempted to kill headlamp-server. Let's make sure it's killed
-          // before starting our own, or else we may end up in a race condition (failing to start the
-          // new one before the existing one is fully killed).
-          if (!!runningHeadlamp && shouldWaitForKill) {
-            let stillRunning = true;
-            let timeWaited = 0;
-            const maxWaitTime = 3000; // ms
-            // @todo: Use an iterative back-off strategy for the wait (so we can start by waiting for shorter times).
-            for (let tries = 1; timeWaited < maxWaitTime && stillRunning; tries++) {
-              console.debug(
-                `Checking if Headlamp is still running after we asked it to be killed; ${tries} ${timeWaited}/${maxWaitTime}ms wait.`
-              );
-
-              // Wait (10 * powers of 2) ms with a max of 250 ms
-              const waitTime = Math.min(10 * tries ** 2, 250); // ms
-              await new Promise(f => setTimeout(f, waitTime));
-
-              timeWaited += waitTime;
-
-              stillRunning = !!(await getRunningHeadlampPIDs());
-              console.debug(stillRunning ? 'Still running...' : 'No longer running!');
-            }
-          }
-
-          // If we couldn't kill the process, warn the user and quit.
-          const processes = await getRunningHeadlampPIDs();
-          if (!!processes) {
-            dialog.showMessageBoxSync({
-              type: 'warning',
-              title: i18n.t('Failed to quit the other running process'),
-              message: i18n.t(
-                `Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.`,
-                { process_list: processes }
-              ),
-            });
-
-            mainWindow.close();
-            return;
-          }
-          serverProcess = await startServer();
-          attachServerEventHandlers(serverProcess);
-        }
-      });
-    }
 
     // Also add bundled plugin bin directories to PATH
     const bundledPlugins = path.join(process.resourcesPath, '.plugins');
