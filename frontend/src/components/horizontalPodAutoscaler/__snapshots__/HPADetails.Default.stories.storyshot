@@ -398,7 +398,7 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                         >
                           AbleToScale
                         </span>
@@ -443,7 +443,7 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                         >
                           ScalingActive
                         </span>
@@ -488,7 +488,7 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                         >
                           ScalingLimited
                         </span>

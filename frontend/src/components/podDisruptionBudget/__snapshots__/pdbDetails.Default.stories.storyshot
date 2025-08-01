@@ -231,7 +231,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <span
-                      class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                     >
                       k8s-app: kube-dns
                     </span>
@@ -245,7 +245,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
                   >
                     <span
-                      class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                     >
                       Allowed disruptions
                       :
@@ -253,7 +253,7 @@
                     </span>
                     <br />
                     <span
-                      class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                     >
                       Current
                       :
@@ -261,7 +261,7 @@
                     </span>
                     <br />
                     <span
-                      class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                     >
                       Desired
                       :
@@ -269,7 +269,7 @@
                     </span>
                     <br />
                     <span
-                      class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                     >
                       Total
                       :

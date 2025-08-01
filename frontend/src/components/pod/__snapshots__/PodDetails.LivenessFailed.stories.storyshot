@@ -227,7 +227,7 @@
                         data-mui-internal-clone-element="true"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-op46cf-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1cqtycm-MuiTypography-root"
                         >
                           CrashLoopBackOff
                         </span>
@@ -552,7 +552,7 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                         >
                           Initialized
                         </span>
@@ -591,7 +591,7 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                         >
                           Ready
                         </span>
@@ -636,7 +636,7 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                         >
                           ContainersReady
                         </span>
@@ -681,7 +681,7 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                         >
                           PodScheduled
                         </span>
@@ -779,7 +779,7 @@
                       >
                         <span
                           aria-describedby="container-state-message-liveness"
-                          class="MuiTypography-root MuiTypography-body1 css-op46cf-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1cqtycm-MuiTypography-root"
                         >
                           Waiting (CrashLoopBackOff)
                         </span>
@@ -824,7 +824,7 @@
                             class="MuiBox-root css-0"
                           >
                             <span
-                              class="MuiTypography-root MuiTypography-body1 css-1y9cgfq-MuiTypography-root"
+                              class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
                             >
                               Error (Error)
                             </span>

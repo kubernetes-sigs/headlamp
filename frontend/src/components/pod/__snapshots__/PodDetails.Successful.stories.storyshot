@@ -227,7 +227,7 @@
                         data-mui-internal-clone-element="true"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-1ybpqju-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1aajmzw-MuiTypography-root"
                         >
                           Completed
                         </span>
@@ -560,7 +560,7 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                         >
                           Initialized
                         </span>
@@ -605,7 +605,7 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                         >
                           Ready
                         </span>
@@ -650,7 +650,7 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                         >
                           ContainersReady
                         </span>
@@ -695,7 +695,7 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                         >
                           PodScheduled
                         </span>
@@ -792,7 +792,7 @@
                         class="MuiBox-root css-0"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                         >
                           Completed (Completed)
                         </span>
