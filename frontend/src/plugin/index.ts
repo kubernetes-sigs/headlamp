@@ -292,6 +292,30 @@ function handlePluginRunError(error: unknown, packageName: string, packageVersio
 }
 
 /**
+ * Retry 8 times starting at 0.05 seconds, doubling the delay each time.
+ * The total wait time is 0.05 + 0.1 + 0.2 + 0.4 + 0.8 + 1.6 + 3.2 + 6.4 = 12.75 seconds.
+ *
+ * @param url The URL to fetch.
+ * @param retries The number of retries to attempt.
+ * @param delay The initial delay in milliseconds.
+ * @returns A promise that resolves to the response of the fetch request.
+ */
+async function fetchWithRetry(url: string, retries = 8, delay = 50): Promise<any> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      // const brokenFiveTimes = i < 5 ? 'xx' + url : url; // for debugging
+      // const resp = await fetch(brokenFiveTimes);
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP error: ${resp.status}`);
+      return resp;
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
+    }
+  }
+}
+
+/**
  * Get the list of plugins,
  *   download all the plugin source,
  *   download all the plugin package.json files,
@@ -313,7 +337,9 @@ export async function fetchAndExecutePlugins(
 ) {
   const permissionSecretsPromise = permissionSecretsFromApp();
 
-  const pluginPaths = (await fetch(`${getAppUrl()}plugins`).then(resp => resp.json())) as string[];
+  const pluginPaths = (await fetchWithRetry(`${getAppUrl()}plugins`).then(resp =>
+    resp.json()
+  )) as string[];
 
   const sourcesPromise = Promise.all(
     pluginPaths.map(path => fetch(`${getAppUrl()}${path}/main.js`).then(resp => resp.text()))
