@@ -24,7 +24,7 @@ program.name('releaser')
   .version(version, '-v, --version', 'display version number');
 
 program.command('check')
-  .description('Check if a release draft exists with all artifacts')
+  .description('Check if a release exists and verify all artifacts are present')
   .argument('<release-version>', 'Version to check (e.g., 0.30.0)')
   .action(checkRelease);
 
