@@ -14,7 +14,7 @@ import (
 const watchInterval = 10 * time.Second
 
 // LoadAndWatchFiles loads kubeconfig files and watches them for changes.
-func LoadAndWatchFiles(kubeConfigStore ContextStore, paths string, source int, ignoreFunc shouldBeSkippedFunc) {
+func LoadAndWatchFiles(kubeConfigStore ContextStore, paths string, source int, ignoreFunc ShouldBeSkippedFunc) {
 	// create ticker
 	ticker := time.NewTicker(watchInterval)
 
@@ -106,7 +106,7 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 }
 
 // syncContexts synchronizes the contexts in the store with the ones in the kubeconfig files.
-func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignoreFunc shouldBeSkippedFunc) error {
+func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignoreFunc ShouldBeSkippedFunc) error {
 	// First read all kubeconfig files to get new contexts
 	newContexts, _, err := LoadContextsFromMultipleFiles(paths, source)
 	if err != nil {
