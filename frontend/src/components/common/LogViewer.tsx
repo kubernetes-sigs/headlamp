@@ -427,6 +427,7 @@ export function SearchPopover(props: SearchPopoverProps) {
           right: 15,
           padding: '4px 8px',
           zIndex: theme.zIndex.modal,
+          marginRight: '7px',
           display: 'flex',
           flexDirection: 'row',
           alignItems: 'center',
