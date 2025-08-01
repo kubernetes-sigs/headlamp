@@ -51,7 +51,9 @@ import {
 import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
 import windowSize from './windowSize';
 
+let isRunningScript = false;
 if (process.env.HEADLAMP_RUN_SCRIPT) {
+  isRunningScript = true;
   runScript();
 }
 
@@ -1417,7 +1419,9 @@ function startElecron() {
   });
 }
 
-app.on('quit', quitServerProcess);
+if (!isRunningScript) {
+  app.on('quit', quitServerProcess);
+}
 
 /**
  * add some error handlers to the serverProcess.
@@ -1461,5 +1465,7 @@ if (isHeadlessMode) {
     }
   );
 } else {
-  startElecron();
+  if (!isRunningScript) {
+    startElecron();
+  }
 }
