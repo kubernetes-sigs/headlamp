@@ -91,11 +91,12 @@ function getValueWithJSONPath(item: { jsonData: object }, jsonPath: string): str
 export interface CustomResourceTableProps {
   crd: CRD;
   title?: string;
+  includeCRDLink?: boolean;
 }
 
 export function CustomResourceListTable(props: CustomResourceTableProps) {
   const { t } = useTranslation(['glossary', 'translation']);
-  const { crd, title = crd.spec.names.kind } = props;
+  const { crd, title = crd.spec.names.kind, includeCRDLink } = props;
 
   const apiGroup = React.useMemo(() => {
     return crd.getMainAPIGroup();
@@ -161,10 +162,9 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
   return (
     <ResourceListView
       title={title}
-      backLink
       headerProps={{
         noNamespaceFilter: !crd.isNamespacedScope,
-        subtitle: (
+        subtitle: (includeCRDLink ?? true) && (
           <Link routeName="crd" params={{ name: crd.metadata.name }} activeCluster={crd.cluster}>
             {t('glossary|CRD: {{ crdName }}', { crdName: crd.metadata.name })}
           </Link>
