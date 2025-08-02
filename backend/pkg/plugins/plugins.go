@@ -99,7 +99,8 @@ func periodicallyWatchSubfolders(watcher *fsnotify.Watcher, path string, interva
 }
 
 // generateSeparatePluginPaths takes the staticPluginDir and pluginDir and returns separate lists of plugin paths.
-func generateSeparatePluginPaths(staticPluginDir, pluginDir string) ([]string, []string, error) {
+// Returns (staticPlugins, devPlugins, catalogPlugins, error) with proper priority ordering.
+func generateSeparatePluginPaths(staticPluginDir, pluginDir string) ([]string, []string, []string, error) {
 	var pluginListURLStatic []string
 
 	if staticPluginDir != "" {
@@ -107,36 +108,83 @@ func generateSeparatePluginPaths(staticPluginDir, pluginDir string) ([]string, [
 
 		pluginListURLStatic, err = pluginBasePathListForDir(staticPluginDir, "static-plugins")
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
 
-	pluginListURL, err := pluginBasePathListForDir(pluginDir, "plugins")
-	if err != nil {
-		return nil, nil, err
+	// Get development plugins (highest priority)
+	// dev-plugins is a sibling directory to plugins, not a subdirectory
+	devPluginDir := filepath.Join(filepath.Dir(pluginDir), "dev-plugins")
+	pluginListURLDev, err := pluginBasePathListForDir(devPluginDir, "dev-plugins")
+	if err != nil && !os.IsNotExist(err) {
+		return nil, nil, nil, err
 	}
 
-	return pluginListURLStatic, pluginListURL, nil
+	// Get catalog/installed plugins
+	pluginListURL, err := pluginBasePathListForDir(pluginDir, "plugins")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return pluginListURLStatic, pluginListURLDev, pluginListURL, nil
 }
 
 // GeneratePluginPaths generates a concatenated list of plugin paths from the staticPluginDir and pluginDir.
+// Priority order: dev-plugins > plugins > static-plugins (dev overrides catalog, catalog overrides static)
 func GeneratePluginPaths(staticPluginDir, pluginDir string) ([]string, error) {
-	pluginListURLStatic, pluginListURL, err := generateSeparatePluginPaths(staticPluginDir, pluginDir)
+	pluginListURLStatic, pluginListURLDev, pluginListURL, err := generateSeparatePluginPaths(staticPluginDir, pluginDir)
 	if err != nil {
 		return nil, err
 	}
 
-	// Concatenate the static and user plugin lists.
+	// Create a map to track plugin names and ensure proper priority
+	pluginMap := make(map[string]string)
+	var finalPluginList []string
+
+	// Add static plugins first (lowest priority)
 	if pluginListURLStatic != nil {
-		pluginListURL = append(pluginListURLStatic, pluginListURL...)
+		for _, pluginPath := range pluginListURLStatic {
+			pluginName := getPluginNameFromPath(pluginPath)
+			pluginMap[pluginName] = pluginPath
+		}
 	}
 
-	return pluginListURL, nil
+	// Add catalog plugins (medium priority) - can override static
+	if pluginListURL != nil {
+		for _, pluginPath := range pluginListURL {
+			pluginName := getPluginNameFromPath(pluginPath)
+			pluginMap[pluginName] = pluginPath
+		}
+	}
+
+	// Add dev plugins (highest priority) - can override both catalog and static
+	if pluginListURLDev != nil {
+		for _, pluginPath := range pluginListURLDev {
+			pluginName := getPluginNameFromPath(pluginPath)
+			pluginMap[pluginName] = pluginPath
+		}
+	}
+
+	// Convert map back to slice
+	for _, pluginPath := range pluginMap {
+		finalPluginList = append(finalPluginList, pluginPath)
+	}
+
+	return finalPluginList, nil
+}
+
+// getPluginNameFromPath extracts the plugin name from a plugin path
+func getPluginNameFromPath(pluginPath string) string {
+	parts := strings.Split(pluginPath, "/")
+	if len(parts) >= 2 {
+		return parts[len(parts)-1] // Return the last part (plugin name)
+	}
+	return pluginPath
 }
 
 // ListPlugins lists the plugins in the static and user-added plugin directories.
 func ListPlugins(staticPluginDir, pluginDir string) error {
-	staticPlugins, userPlugins, err := generateSeparatePluginPaths(staticPluginDir, pluginDir)
+	staticPlugins, devPlugins, userPlugins, err := generateSeparatePluginPaths(staticPluginDir, pluginDir)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "listing plugins")
 		return fmt.Errorf("listing plugins: %w", err)
@@ -171,6 +219,18 @@ func ListPlugins(staticPluginDir, pluginDir string) error {
 		}
 	} else {
 		fmt.Println("No static plugins found.")
+	}
+
+	if len(devPlugins) > 0 {
+		devPluginDir := filepath.Join(pluginDir, "dev-plugins")
+		fmt.Printf("\nDevelopment Plugins (%s):\n", devPluginDir)
+
+		for _, plugin := range devPlugins {
+			pluginName := getPluginName(filepath.Join(devPluginDir, plugin))
+			fmt.Println(" -", pluginName, "(dev)")
+		}
+	} else {
+		fmt.Printf("No development plugins found.")
 	}
 
 	if len(userPlugins) > 0 {
