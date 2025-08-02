@@ -7,6 +7,11 @@
       "description": "Number of replicas to deploy",
       "minimum": 1
     },
+    "revisionHistoryLimit": {
+      "type": "integer",
+      "description": "Number of historical ReplicaSets to keep before pruning",
+      "minimum": 1
+    },
     "image": {
       "type": "object",
       "title": "Image",

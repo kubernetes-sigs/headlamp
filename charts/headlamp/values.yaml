@@ -4,6 +4,8 @@
 
 # -- Number of desired pods
 replicaCount: 1
+# -- Number of historical ReplicaSets to keep before pruning
+revisionHistoryLimit: 3
 
 image:
   # -- Container image registry
@@ -86,6 +88,14 @@ config:
     #     externalSecret:
     #       enabled: true
     #       name: oidc
+    # When using an existing secret for OIDC, the key names are different
+    # OIDC_CLIENT_ID: "<Your Application (client) ID>"
+    # OIDC_CLIENT_SECRET: "<Your Application (client) Secret>"
+    # OIDC_ISSUER_URL: "https://login.microsoftonline.com/<Your Directory (tenant) ID>/v2.0"
+    # OIDC_SCOPES: "6dae42f8-4368-4678-94ff-3960e28e3630/user.read openid email profile"
+    # OIDC_USE_ACCESS_TOKEN: "true"
+    # OIDC_VALIDATOR_CLIENT_ID: "6dae42f8-4368-4678-94ff-3960e28e3630"
+    # OIDC_VALIDATOR_ISSUER_URL: "https://sts.windows.net/<Your Directory (tenant) ID>/"
     externalSecret:
       enabled: false
       name: ""
