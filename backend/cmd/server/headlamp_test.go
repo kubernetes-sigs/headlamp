@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package server
 
 import (
 	"bytes"
@@ -1211,14 +1211,14 @@ func TestHandleClusterHelm(t *testing.T) {
 func GetDefaultTestTelemetryConfig() config.Config {
 	return config.Config{
 		ServiceName:        "headlamp-test",
-		ServiceVersion:     &[]string{"0.30.0"}[0],
-		TracingEnabled:     &[]bool{false}[0],
-		MetricsEnabled:     &[]bool{false}[0],
-		JaegerEndpoint:     &[]string{""}[0],
-		OTLPEndpoint:       &[]string{""}[0],
-		UseOTLPHTTP:        &[]bool{false}[0],
-		StdoutTraceEnabled: &[]bool{false}[0],
-		SamplingRate:       &[]float64{0}[0],
+		ServiceVersion:     []string{"0.30.0"}[0],
+		TracingEnabled:     false,
+		MetricsEnabled:     false,
+		JaegerEndpoint:     "",
+		OTLPEndpoint:       "",
+		UseOTLPHTTP:        false,
+		StdoutTraceEnabled: false,
+		SamplingRate:       0,
 	}
 }
 

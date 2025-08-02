@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package server
 
 import (
 	"bytes"
@@ -35,7 +35,6 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	oidc "github.com/coreos/go-oidc/v3/oidc"
@@ -465,7 +464,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	// Prometheus metrics endpoint
 	// to enable this endpoint, run command run-backend-with-metrics
 	// or set the environment variable HEADLAMP_CONFIG_METRICS_ENABLED=true
-	if config.Metrics != nil && config.telemetryConfig.MetricsEnabled != nil && *config.telemetryConfig.MetricsEnabled {
+	if config.Metrics != nil && config.telemetryConfig.MetricsEnabled {
 		r.Handle("/metrics", promhttp.Handler())
 		logger.Log(logger.LevelInfo, nil, nil, "prometheus metrics endpoint: /metrics")
 	}
@@ -1114,11 +1113,11 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 	})
 }
 
-func StartHeadlampServer(config *HeadlampConfig) {
+func StartHeadlampServer(config *HeadlampConfig) error {
 	tel, err := telemetry.NewTelemetry(config.telemetryConfig)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to initialize telemetry")
-		os.Exit(1)
+		return err
 	}
 
 	defer func() {
@@ -1133,6 +1132,7 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	metrics, err := telemetry.NewMetrics()
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to initialize metrics")
+		return err
 	}
 
 	config.Telemetry = tel
@@ -1151,13 +1151,13 @@ func StartHeadlampServer(config *HeadlampConfig) {
 		dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "Failed to create static dir")
-			return
+			return err
 		}
 
 		err = os.CopyFS(dir, os.DirFS(config.StaticDir))
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "Failed to copy files from static dir")
-			return
+			return err
 		}
 
 		config.StaticDir = dir
@@ -1173,18 +1173,9 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	if err := http.ListenAndServe(addr, handler); err != nil { //nolint:gosec
 		logger.Log(logger.LevelError, nil, err, "Failed to start server")
 
-		HandleServerStartError(&err)
+		return err
 	}
-}
-
-// Handle common server startup errors.
-func HandleServerStartError(err *error) {
-	// Check if the reason server failed because the address is already in use
-	// this might be because backend process is already running
-	if errors.Is(*err, syscall.EADDRINUSE) {
-		// Exit with 98 (address in use) exit code
-		os.Exit(int(syscall.EADDRINUSE))
-	}
+	return nil
 }
 
 // Returns the helm.Handler given the config and request. Writes http.NotFound if clusterName is not there.

@@ -11,9 +11,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/knadh/koanf"
-	"github.com/knadh/koanf/providers/basicflag"
-	"github.com/knadh/koanf/providers/env"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
@@ -42,15 +39,15 @@ type Config struct {
 	OidcScopes                string `koanf:"oidc-scopes"`
 	OidcUseAccessToken        bool   `koanf:"oidc-use-access-token"`
 	// telemetry configs
-	ServiceName        string   `koanf:"service-name"`
-	ServiceVersion     *string  `koanf:"service-version"`
-	TracingEnabled     *bool    `koanf:"tracing-enabled"`
-	MetricsEnabled     *bool    `koanf:"metrics-enabled"`
-	JaegerEndpoint     *string  `koanf:"jaeger-endpoint"`
-	OTLPEndpoint       *string  `koanf:"otlp-endpoint"`
-	UseOTLPHTTP        *bool    `koanf:"use-otlp-http"`
-	StdoutTraceEnabled *bool    `koanf:"stdout-trace-enabled"`
-	SamplingRate       *float64 `koanf:"sampling-rate"`
+	ServiceName        string  `koanf:"service-name"`
+	ServiceVersion     string  `koanf:"service-version"`
+	TracingEnabled     bool    `koanf:"tracing-enabled"`
+	MetricsEnabled     bool    `koanf:"metrics-enabled"`
+	JaegerEndpoint     string  `koanf:"jaeger-endpoint"`
+	OTLPEndpoint       string  `koanf:"otlp-endpoint"`
+	UseOTLPHTTP        bool    `koanf:"use-otlp-http"`
+	StdoutTraceEnabled bool    `koanf:"stdout-trace-enabled"`
+	SamplingRate       float64 `koanf:"sampling-rate"`
 }
 
 func (c *Config) Validate() error {
@@ -64,133 +61,21 @@ func (c *Config) Validate() error {
 		return errors.New("base-url needs to start with a '/' or be empty")
 	}
 
-	if c.TracingEnabled != nil && *c.TracingEnabled {
+	if c.TracingEnabled {
 		if c.ServiceName == "" {
 			return errors.New("service-name is required when tracing is enabled")
 		}
 
-		if (c.JaegerEndpoint != nil && *c.JaegerEndpoint == "") &&
-			(c.OTLPEndpoint != nil && *c.OTLPEndpoint == "") &&
-			(c.StdoutTraceEnabled != nil && *c.StdoutTraceEnabled) {
+		if c.JaegerEndpoint == "" && c.OTLPEndpoint == "" && c.StdoutTraceEnabled {
 			return errors.New("at least one tracing exporter (jaeger, otlp, or stdout) must be configured")
 		}
 
-		if (c.UseOTLPHTTP != nil && *c.UseOTLPHTTP) &&
-			(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
+		if c.UseOTLPHTTP && c.OTLPEndpoint == "" {
 			return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
 		}
 	}
 
 	return nil
-}
-
-// Parse Loads the config from flags and env.
-// env vars should start with HEADLAMP_CONFIG_ and use _ as separator
-// If a value is set both in flags and env then flag takes priority.
-// eg:
-// export HEADLAMP_CONFIG_PORT=2344
-// go run ./cmd --port=3456
-// the value of port will be 3456.
-
-//nolint:funlen
-func Parse(args []string) (*Config, error) {
-	var config Config
-
-	f := flagset()
-
-	k := koanf.New(".")
-
-	if args == nil {
-		args = []string{}
-	} else if len(args) > 0 {
-		args = args[1:]
-	}
-
-	// First Load default args from flags
-	if err := k.Load(basicflag.Provider(f, "."), nil); err != nil {
-		logger.Log(logger.LevelError, nil, err, "loading default config from flags")
-
-		return nil, fmt.Errorf("error loading default config from flags: %w", err)
-	}
-
-	// Parse args
-	if err := f.Parse(args); err != nil {
-		logger.Log(logger.LevelError, nil, err, "parsing flags")
-
-		return nil, fmt.Errorf("error parsing flags: %w", err)
-	}
-
-	explicitFlags := make(map[string]bool)
-
-	// Record which flags were explicitly set by the user
-	f.Visit(func(f *flag.Flag) {
-		explicitFlags[f.Name] = true
-	})
-
-	// Load config from env
-	if err := k.Load(env.Provider("HEADLAMP_CONFIG_", ".", func(s string) string {
-		return strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(s, "HEADLAMP_CONFIG_")), "_", "-")
-	}), nil); err != nil {
-		logger.Log(logger.LevelError, nil, err, "loading config from env")
-
-		return nil, fmt.Errorf("error loading config from env: %w", err)
-	}
-
-	// Load only the flags that were set
-	if err := k.Load(basicflag.ProviderWithValue(f, ".", func(key string, value string) (string, interface{}) {
-		flagSet := false
-		f.Visit(func(f *flag.Flag) {
-			if f.Name == key {
-				flagSet = true
-			}
-		})
-		if flagSet {
-			return key, value
-		}
-		return "", nil
-	}), nil); err != nil {
-		logger.Log(logger.LevelError, nil, err, "loading config from flags")
-
-		return nil, fmt.Errorf("error loading config from flags: %w", err)
-	}
-
-	if err := k.Unmarshal("", &config); err != nil {
-		logger.Log(logger.LevelError, nil, err, "unmarshalling config")
-
-		return nil, fmt.Errorf("error unmarshal config: %w", err)
-	}
-
-	// If running in-cluster and the user did not explicitly set the watch flag,
-	// then force WatchPluginsChanges to false.
-	if config.InCluster && !explicitFlags["watch-plugins-changes"] {
-		config.WatchPluginsChanges = false
-	}
-
-	// Validate parsed config
-	if err := config.Validate(); err != nil {
-		logger.Log(logger.LevelError, nil, err, "validating config")
-
-		return nil, err
-	}
-
-	kubeConfigPath := ""
-
-	// If we don't have a specified kubeConfig path, and we are not running
-	// in-cluster, then use the default path.
-	if config.KubeConfigPath != "" {
-		kubeConfigPath = config.KubeConfigPath
-	} else if !config.InCluster {
-		kubeConfigEnv := os.Getenv("KUBECONFIG")
-		if kubeConfigEnv != "" {
-			kubeConfigPath = kubeConfigEnv
-		} else {
-			kubeConfigPath = GetDefaultKubeConfigPath()
-		}
-	}
-
-	config.KubeConfigPath = kubeConfigPath
-
-	return &config, nil
 }
 
 // MakeHeadlampKubeConfigsDir returns the default directory to store kubeconfig
