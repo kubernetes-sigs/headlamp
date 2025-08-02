@@ -9,8 +9,7 @@
     },
     "revisionHistoryLimit": {
       "type": "integer",
-      "description": "Number of historical ReplicaSets to keep before pruning",
-      "minimum": 1
+      "description": "Number of historical ReplicaSets to keep before pruning"
     },
     "image": {
       "type": "object",
