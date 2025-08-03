@@ -52,7 +52,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   type: ClusterIP
-  
+
   ports:
     - port: 80
       targetPort: http
@@ -78,6 +78,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app.kubernetes.io/name: headlamp
@@ -100,7 +101,7 @@ spec:
             runAsUser: 100
           image: "ghcr.io/headlamp-k8s/headlamp:v0.33.0"
           imagePullPolicy: IfNotPresent
-          
+
           env:
           args:
             - "-in-cluster"
