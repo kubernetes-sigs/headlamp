@@ -64,7 +64,7 @@ app-tsc:
 
 .PHONY: backend
 backend:
-	cd backend && go build -o ./headlamp-server${SERVER_EXE_EXT} ./cmd
+	cd backend && go build -o ./headlamp${SERVER_EXE_EXT} .
 
 .PHONY: backend-test
 backend-test:
