@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package server
 
 import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"

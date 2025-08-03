@@ -16,6 +16,10 @@ limitations under the License.
 
 package utils
 
+import (
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+)
+
 // Contains returns true if the slice contains the value.
 func Contains[T comparable](elems []T, v T) bool {
 	for _, s := range elems {
@@ -25,4 +29,23 @@ func Contains[T comparable](elems []T, v T) bool {
 	}
 
 	return false
+}
+
+type errorAggerator struct {
+	errors []error
+}
+
+func NewErrorAggerator() *errorAggerator {
+	return &errorAggerator{
+		errors: make([]error, 0),
+	}
+}
+
+func (ea *errorAggerator) Append(err ...error) *errorAggerator {
+	ea.errors = append(ea.errors, err...)
+	return ea
+}
+
+func (ea *errorAggerator) Aggregate() error {
+	return utilerrors.NewAggregate(ea.errors)
 }

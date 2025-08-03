@@ -50,14 +50,14 @@ func NewTelemetry(cfg cfg.Config) (*Telemetry, error) {
 	}
 
 	// Initialize trace provider if tracing is enabled
-	if *cfg.TracingEnabled {
+	if cfg.TracingEnabled {
 		if err := setupTracing(t, res, cfg); err != nil {
 			return nil, fmt.Errorf("failed to setup tracing %w", err)
 		}
 	}
 
 	// Initialize metrics provider if metrics are enabled
-	if *cfg.MetricsEnabled {
+	if cfg.MetricsEnabled {
 		if err := setupMetrics(t, res); err != nil {
 			// Clean up trace provider if metrics setup fails
 			if t.tracerProvider != nil {
@@ -87,7 +87,7 @@ func createResource(cfg cfg.Config) (*resource.Resource, error) {
 		ctx,
 		resource.WithAttributes(
 			semconv.ServiceName(cfg.ServiceName),
-			semconv.ServiceVersion(*cfg.ServiceVersion),
+			semconv.ServiceVersion(cfg.ServiceVersion),
 			attribute.String("environment", "production"),
 		),
 	)
@@ -131,7 +131,7 @@ func setupTracing(t *Telemetry, res *resource.Resource, cfg cfg.Config) error {
 		return err
 	}
 
-	sampler := createSampler(*cfg.SamplingRate)
+	sampler := createSampler(cfg.SamplingRate)
 
 	tp := trace.NewTracerProvider(
 		trace.WithSampler(sampler),
@@ -175,33 +175,19 @@ func createSampler(samplingRate float64) trace.Sampler {
 
 // createTracingExporter creates a span exporter based on cfg.
 func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolint:funlen
-	if cfg.StdoutTraceEnabled == nil {
-		defaultValue := false
-		cfg.StdoutTraceEnabled = &defaultValue
-	}
-
-	if cfg.JaegerEndpoint == nil {
-		defaultValue := ""
-		cfg.JaegerEndpoint = &defaultValue
-	}
-
-	if cfg.OTLPEndpoint == nil {
-		defaultValue := ""
-		cfg.OTLPEndpoint = &defaultValue
-	}
 
 	enabledExporters := 0
 
 	var enabledTypes []string
 
-	if *cfg.StdoutTraceEnabled {
+	if cfg.StdoutTraceEnabled {
 		enabledExporters++
 
 		enabledTypes = append(enabledTypes, "stdout")
 	}
 
-	isJaegerConfigured := *cfg.JaegerEndpoint != ""
-	isOTLPConfigured := *cfg.OTLPEndpoint != ""
+	isJaegerConfigured := cfg.JaegerEndpoint != ""
+	isOTLPConfigured := cfg.OTLPEndpoint != ""
 
 	if isJaegerConfigured {
 		enabledExporters++
@@ -224,7 +210,7 @@ func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolin
 			strings.Join(enabledTypes, ", "), enabledTypes[0])
 	}
 
-	if *cfg.StdoutTraceEnabled {
+	if cfg.StdoutTraceEnabled {
 		exporter, err := createStdoutExporter()
 		if err != nil {
 			return nil, fmt.Errorf("failed to create stdout exporter: %w", err)
@@ -237,7 +223,7 @@ func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolin
 		exporter, err := createOTLPExporter(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create OTLP exporter with endpoint %s: %w",
-				*cfg.OTLPEndpoint, err)
+				cfg.OTLPEndpoint, err)
 		}
 
 		return exporter, nil
@@ -257,14 +243,14 @@ func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolin
 func createOTLPExporter(cfg cfg.Config) (trace.SpanExporter, error) {
 	var client otlptrace.Client
 
-	if *cfg.UseOTLPHTTP {
+	if cfg.UseOTLPHTTP {
 		client = otlptracehttp.NewClient(
-			otlptracehttp.WithEndpoint(*cfg.OTLPEndpoint),
+			otlptracehttp.WithEndpoint(cfg.OTLPEndpoint),
 			otlptracehttp.WithInsecure(),
 		)
 	} else {
 		client = otlptracegrpc.NewClient(
-			otlptracegrpc.WithEndpoint(*cfg.OTLPEndpoint),
+			otlptracegrpc.WithEndpoint(cfg.OTLPEndpoint),
 			otlptracegrpc.WithInsecure(),
 		)
 	}
