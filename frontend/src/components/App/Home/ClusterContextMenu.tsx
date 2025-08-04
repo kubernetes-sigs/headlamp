@@ -153,7 +153,8 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
         >
           <ListItemText>{t('translation|Settings')}</ListItemText>
         </MenuItem>
-        {helpers.isElectron() &&
+        {(!menuItems || menuItems.length === 0) &&
+          helpers.isElectron() &&
           (cluster.meta_data?.source === 'dynamic_cluster' ||
             cluster.meta_data?.source === 'kubeconfig') && (
             <MenuItem
@@ -165,7 +166,6 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
               <ListItemText>{t('translation|Delete')}</ListItemText>
             </MenuItem>
           )}
-
         {menuItems.map((Item, index) => {
           return (
             <Item
