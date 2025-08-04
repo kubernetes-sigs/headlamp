@@ -39,6 +39,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "headlamp.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "headlamp.labels" . | nindent 4 }}
   {{- with .Values.deploymentAnnotations }}
@@ -177,6 +178,9 @@ spec:
             {{- if .Values.config.inCluster }}
             - "-in-cluster"
             {{- end }}
+            {{- with .Values.config.enableHelm}}
+            - "-enable-helm"
+            {{- end }}
             {{- if .Values.config.watchPlugins }}
             - "-watch-plugins-changes"
             {{- end }}
@@ -234,17 +238,19 @@ spec:
               {{- toYaml . | nindent 12 }}
             {{- end }}
           ports:
-            - name: http
+            - name: https
               containerPort: 4466
               protocol: TCP
           livenessProbe:
             httpGet:
               path: "{{ .Values.config.baseURL }}/"
-              port: http
+              port: https
+              scheme: HTTPS
           readinessProbe:
             httpGet:
               path: "{{ .Values.config.baseURL }}/"
-              port: http
+              port: https
+              scheme: HTTPS
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           {{- if or .Values.pluginsManager.enabled .Values.volumeMounts }}

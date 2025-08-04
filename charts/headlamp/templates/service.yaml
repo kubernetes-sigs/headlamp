@@ -2,6 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "headlamp.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "headlamp.labels" . | nindent 4 }}
 spec:
@@ -20,9 +21,9 @@ spec:
   {{- end }}
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: http
+      targetPort: https
       protocol: TCP
-      name: http
+      name: https
       {{- if and (or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) (not (empty .Values.service.nodePort)) }}
       nodePort: {{ .Values.service.nodePort }}
       {{- end }}
