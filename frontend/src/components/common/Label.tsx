@@ -26,6 +26,7 @@ import { LightTooltip, TooltipIcon } from './Tooltip';
 export interface InfoLabelProps {
   name: string;
   value?: string | null;
+  children?: React.ReactNode;
 }
 
 export function InfoLabel(props: React.PropsWithChildren<InfoLabelProps>) {
