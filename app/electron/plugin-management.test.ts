@@ -428,7 +428,7 @@ describe('getExtraFiles', () => {
   it('should extract extra-files with valid github.com/crc-org/vfkit URL', () => {
     const annotations = {
       'headlamp/plugin/extra-files/0/url':
-        'https://github.com/crc-org/vfkit/releases/download/v0.0.1/vfkit-linux-amd64.tar.gz',
+        'https://github.com/crc-org/vfkit/releases/download/v0.0.1/vfkit',
       'headlamp/plugin/extra-files/0/checksum': 'sha256:def456',
       'headlamp/plugin/extra-files/0/arch': 'linux/x64',
       'headlamp/plugin/extra-files/0/output/vfkit/output': 'vfkit',

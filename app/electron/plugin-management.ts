@@ -563,7 +563,7 @@ export function getMatchingExtraFiles(extraFiles: ArtifactHubHeadlampPkg['extraF
 /**
  * Downloads and extracts platform-specific extra files if they match the current platform and architecture.
  *
- * @param extraFiles - List of extra files
+ * @param extraFiles - The extra files to download and extract. @see ExtraFile
  * @param extractFolder - Folder where files should be extracted
  * @param progressCallback - Callback for progress updates
  * @param signal - Signal for cancellation
@@ -677,12 +677,14 @@ async function downloadExtraFiles(
 /**
  * Downloads and extracts a single archive file.
  *
- * @param archiveURL - URL of the archive to download
- * @param checksum - Expected checksum of the archive
- * @param extractFolder - Folder where the archive should be extracted
+ * Supports both tar.gz archives and plain files (e.g., binaries).
+ *
+ * @param archiveURL - URL of the archive or file to download
+ * @param checksum - Expected checksum of the archive or file
+ * @param extractFolder - Folder where the archive or file should be extracted/saved
  * @param progressCallback - Callback for progress updates
  * @param signal - Signal for cancellation
- * @param tarStrip - Number of leading path components to strip from the archive
+ * @param tarStrip - Number of leading path components to strip from the archive (only for tar.gz)
  */
 async function downloadAndExtractSingleArchive(
   archiveURL: string,
@@ -720,7 +722,7 @@ async function downloadAndExtractSingleArchive(
   }
 
   if (!archResponse.ok) {
-    throw new Error(`Failed to download tarball. Status code: ${archResponse.status}`);
+    throw new Error(`Failed to download file. Status code: ${archResponse.status}`);
   }
 
   if (signal && signal.aborted) {
@@ -751,39 +753,64 @@ async function downloadAndExtractSingleArchive(
     throw new Error('Download cancelled');
   }
 
-  if (progressCallback) {
-    progressCallback({
-      type: 'info',
-      message: 'Extracting plugin',
+  // Determine if this is a tar.gz archive or a plain file
+  const isTarGz =
+    archiveURL.endsWith('.tar.gz') ||
+    archiveURL.endsWith('.tgz') ||
+    archiveURL.endsWith('.tar') ||
+    archiveURL.includes('.tar.gz?') ||
+    archiveURL.includes('.tgz?') ||
+    archiveURL.includes('.tar?');
+
+  if (isTarGz) {
+    if (progressCallback) {
+      progressCallback({
+        type: 'info',
+        message: 'Extracting plugin',
+      });
+    }
+    // Extract the archive
+    const archStream = new stream.PassThrough();
+    archStream.end(archBuffer);
+
+    const extractStream: stream.Writable = archStream.pipe(zlib.createGunzip()).pipe(
+      tar.extract({
+        cwd: extractFolder,
+        strip: tarStrip,
+        sync: true,
+      }) as unknown as stream.Writable
+    );
+
+    await new Promise<void>((resolve, reject) => {
+      extractStream.on('finish', () => {
+        resolve();
+      });
+      extractStream.on('error', err => {
+        reject(err);
+      });
     });
-  }
-  // Extract the archive
-  const archStream = new stream.PassThrough();
-  archStream.end(archBuffer);
 
-  const extractStream: stream.Writable = archStream.pipe(zlib.createGunzip()).pipe(
-    tar.extract({
-      cwd: extractFolder,
-      strip: tarStrip,
-      sync: true,
-    }) as unknown as stream.Writable
-  );
+    if (progressCallback) {
+      progressCallback({ type: 'info', message: 'Plugin extracted' });
+    }
+  } else {
+    // Just save the file as-is
+    // Use the last part of the URL as the filename
+    const fileName = path.basename(archiveURL.split('?')[0]);
+    const outPath = path.join(extractFolder, fileName);
 
-  await new Promise<void>((resolve, reject) => {
-    extractStream.on('finish', () => {
-      resolve();
-    });
-    extractStream.on('error', err => {
-      reject(err);
-    });
-  });
+    if (progressCallback) {
+      progressCallback({
+        type: 'info',
+        message: `Saving file to ${outPath}`,
+      });
+    }
 
-  if (signal && signal.aborted) {
-    throw new Error('Download cancelled');
-  }
+    fs.writeFileSync(outPath, archBuffer, { mode: 0o755 });
 
-  if (progressCallback) {
-    progressCallback({ type: 'info', message: 'Plugin extracted' });
+    if (progressCallback) {
+      progressCallback({ type: 'info', message: 'File downloaded' });
+    }
   }
 }
 
