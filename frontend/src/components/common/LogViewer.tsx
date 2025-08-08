@@ -174,36 +174,62 @@ export function LogViewer(props: LogViewerProps) {
         },
       })}
     >
-      <Grid container justifyContent="space-between" alignItems="center" wrap="nowrap">
-        <Grid item container spacing={1}>
-          {topActions.map((component, i) => (
-            <Grid item key={i}>
-              {component}
-            </Grid>
-          ))}
-        </Grid>
-        <Grid item xs>
-          <ActionButton
-            description={t('translation|Find')}
-            onClick={() => setShowSearch(show => !show)}
-            icon="mdi:magnify"
-          />
-        </Grid>
-        <Grid item xs>
-          <ActionButton
-            description={t('translation|Clear')}
-            onClick={() => clearPodLogs(xtermRef)}
-            icon="mdi:broom"
-          />
-        </Grid>
-        <Grid item xs>
-          <ActionButton
-            description={t('Download')}
-            onClick={downloadLog}
-            icon="mdi:file-download-outline"
-          />
-        </Grid>
-      </Grid>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: 'flex-end',
+          justifyContent: 'space-between',
+          width: '100%',
+        }}
+      >
+        <Box
+          sx={{
+            width: '100%',
+          }}
+        >
+          {/* Main Actions */}
+          <Grid item container spacing={2} sx={{ width: '100%' }}>
+            {topActions.map((component, i) => (
+              <Grid item xs={10} key={i}>
+                {component}
+              </Grid>
+            ))}
+          </Grid>
+        </Box>
+
+        {/* Side Actions */}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            alignItems: 'flex-end',
+            maxWidth: '30%',
+          }}
+        >
+          <Grid item xs>
+            <ActionButton
+              description={t('translation|Find')}
+              onClick={() => setShowSearch(show => !show)}
+              icon="mdi:magnify"
+            />
+          </Grid>
+          <Grid item xs>
+            <ActionButton
+              description={t('translation|Clear')}
+              onClick={() => clearPodLogs(xtermRef)}
+              icon="mdi:broom"
+            />
+          </Grid>
+          <Grid item xs>
+            <ActionButton
+              description={t('Download')}
+              onClick={downloadLog}
+              icon="mdi:file-download-outline"
+            />
+          </Grid>
+        </Box>
+      </Box>
       <Box
         sx={theme => ({
           paddingTop: theme.spacing(1),
