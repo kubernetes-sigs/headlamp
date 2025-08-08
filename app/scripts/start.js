@@ -6,7 +6,7 @@
  */
 const { spawn } = require('child_process');
 
-const serverProcess = spawn('cd ../ && make backend && make run-backend', [], {
+const serverProcess = spawn('cd .. && npm run build:backend && npm run backend', [], {
   stdio: 'inherit',
   shell: true,
 });
