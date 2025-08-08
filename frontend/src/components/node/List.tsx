@@ -43,6 +43,7 @@ export default function NodeList() {
           id: 'cpu',
           label: t('CPU'),
           gridTemplate: 'min-content',
+          disableFiltering: true,
           getValue: node => {
             const [used] = getResourceMetrics(node, nodeMetrics || [], 'cpu');
             return used;
@@ -59,6 +60,7 @@ export default function NodeList() {
         {
           id: 'memory',
           label: t('Memory'),
+          disableFiltering: true,
           getValue: node => {
             const [used] = getResourceMetrics(node, nodeMetrics || [], 'memory');
             return used;
@@ -75,6 +77,7 @@ export default function NodeList() {
         {
           id: 'ready',
           label: t('translation|Ready'),
+          filterVariant: 'multi-select',
           getValue: node => {
             const isReady = !!node.status.conditions?.find(
               condition => condition.type === 'Ready' && condition.status === 'True'
@@ -115,6 +118,7 @@ export default function NodeList() {
           label: t('translation|Version'),
           gridTemplate: 'minmax(150px, .5fr)',
           getValue: node => node.status.nodeInfo?.kubeletVersion,
+          filterVariant: 'multi-select',
         },
         {
           id: 'software',
