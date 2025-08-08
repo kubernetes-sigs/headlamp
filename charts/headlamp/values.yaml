@@ -142,6 +142,8 @@ securityContext:
   runAsGroup: 101
 
 service:
+  # -- Annotations to add to the service
+  annotations: {}
   # -- Kubernetes Service type
   type: ClusterIP
   # -- Kubernetes Service port
