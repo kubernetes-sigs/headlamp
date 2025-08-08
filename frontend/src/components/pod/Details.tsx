@@ -33,6 +33,7 @@ import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
 import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { Activity } from '../activity/Activity';
 import ActionButton from '../common/ActionButton';
+import { DefinitionToolTip } from '../common/DefinitionToolTip/DefinitionToolTip';
 import Link from '../common/Link';
 import { LogViewer, LogViewerProps } from '../common/LogViewer';
 import {
@@ -489,7 +490,7 @@ export default function PodDetails(props: PodDetailsProps) {
 
   function prepareExtraInfo(item: Pod | null) {
     let extraInfo: {
-      name: string;
+      name: string | React.ReactNode;
       value: React.ReactNode;
       hideLabel?: boolean;
     }[] = [];
@@ -500,7 +501,7 @@ export default function PodDetails(props: PodDetailsProps) {
           value: makePodStatusLabel(item, false),
         },
         {
-          name: t('Node'),
+          name: <DefinitionToolTip keyword={t('Node')} />,
           value: item.spec.nodeName ? (
             <Link
               routeName="node"
@@ -514,7 +515,8 @@ export default function PodDetails(props: PodDetailsProps) {
           ),
         },
         {
-          name: t('Service Account'),
+          // name: t('Service Account'),
+          name: <DefinitionToolTip keyword={t('Service Account')} isResource />,
           value:
             !!item.spec.serviceAccountName || !!item.spec.serviceAccount ? (
               <Link
@@ -536,13 +538,13 @@ export default function PodDetails(props: PodDetailsProps) {
           ? []
           : [
               {
-                name: t('Host IP'),
+                name: <DefinitionToolTip keyword={t('Host IP')} />,
                 value: item.status.hostIP ?? '',
               },
             ]),
         // Always include Host IPs, but hide if empty
         {
-          name: t('Host IPs'),
+          name: <DefinitionToolTip keyword={t('Host IPs')} isPlural />,
           value: item.status.hostIPs
             ? item.status.hostIPs.map((ipObj: { ip: string }) => ipObj.ip).join(', ')
             : '',
@@ -553,24 +555,24 @@ export default function PodDetails(props: PodDetailsProps) {
           ? []
           : [
               {
-                name: t('Pod IP'),
+                name: <DefinitionToolTip keyword={t('Pod IPs')} isPlural />,
                 value: item.status.podIP ?? '',
               },
             ]),
         // Always include Pod IPs, but hide if empty
         {
-          name: t('Pod IPs'),
+          name: <DefinitionToolTip keyword={t('Pod IPs')} isPlural />,
           value: item.status.podIPs
             ? item.status.podIPs.map((ipObj: { ip: string }) => ipObj.ip).join(', ')
             : '',
           hideLabel: !item.status.podIPs || item.status.podIPs.length === 0,
         },
         {
-          name: t('QoS Class'),
+          name: <DefinitionToolTip keyword={t('QoS Class')} />,
           value: item.status.qosClass,
         },
         {
-          name: t('Priority'),
+          name: <DefinitionToolTip keyword={t('Priority')} />,
           value: item.spec.priority,
         },
       ];
