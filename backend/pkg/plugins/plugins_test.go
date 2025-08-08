@@ -497,7 +497,6 @@ func TestDelete(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.pluginName, func(t *testing.T) {
 			err := plugins.Delete(tt.pluginDir, tt.pluginName)
 			if tt.expectErr {

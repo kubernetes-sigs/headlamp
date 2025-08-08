@@ -2,8 +2,8 @@ import chalk from 'chalk';
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
-import { getRepoRoot, commitVersionChange } from '../utils/git';
-import { sanitizeVersion } from '../utils/version';
+import { getRepoRoot, commitVersionChange } from '../utils/git.js';
+import { sanitizeVersion } from '../utils/version.js';
 
 export function startRelease(releaseVersion: string): void {
   const version = sanitizeVersion(releaseVersion);

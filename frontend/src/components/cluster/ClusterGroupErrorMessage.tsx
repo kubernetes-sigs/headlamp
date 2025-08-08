@@ -18,6 +18,7 @@ import Alert from '@mui/material/Alert';
 import AlertTitle from '@mui/material/AlertTitle';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import { useTheme } from '@mui/material/styles';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../lib/k8s';
@@ -39,6 +40,7 @@ export function ClusterGroupErrorMessage({ errors }: ClusterGroupErrorMessagePro
 }
 
 function ErrorMessage({ error }: { error: ApiError }) {
+  const theme = useTheme();
   const { t } = useTranslation();
   const showClusterName = useSelectedClusters().length > 1;
   const [showMessage, setShowMessage] = useState(false);
@@ -73,7 +75,14 @@ function ErrorMessage({ error }: { error: ApiError }) {
         </Button>
       }
     >
-      <AlertTitle sx={{ mb: showMessage ? undefined : 0 }}>{title}</AlertTitle>
+      <AlertTitle
+        sx={{
+          mb: showMessage ? undefined : 0,
+          color: theme.palette.text.primary,
+        }}
+      >
+        {title}
+      </AlertTitle>
       {showMessage && (
         <>
           {showClusterName ? <Box>Cluster: {error.cluster}</Box> : null}

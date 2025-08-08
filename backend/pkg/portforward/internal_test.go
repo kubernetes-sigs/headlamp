@@ -46,7 +46,6 @@ func TestPortforwardKeyGenerator(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		testname := tt.name
 		t.Run(testname, func(t *testing.T) {
 			key := portforwardKeyGenerator(tt.p)

@@ -16,7 +16,7 @@
 
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
-import IconButton from '@mui/material/IconButton';
+import Button from '@mui/material/Button';
 import { Theme } from '@mui/material/styles';
 import Typography, { TypographyProps } from '@mui/material/Typography';
 import React from 'react';
@@ -81,6 +81,7 @@ export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProp
             <>
               <Link
                 routeName={routeName}
+                activeCluster={resource.cluster}
                 params={{ name: ownerRef.name, namespace: resource.metadata.namespace }}
               >
                 {ownerRef.kind}: {ownerRef.name}
@@ -116,7 +117,11 @@ export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProp
       {
         name: t('glossary|Namespace'),
         value: resource.metadata.namespace && (
-          <Link routeName={'namespace'} params={{ name: resource.metadata.namespace }}>
+          <Link
+            routeName={'namespace'}
+            params={{ name: resource.metadata.namespace }}
+            activeCluster={resource.cluster}
+          >
             {resource.metadata.namespace}
           </Link>
         ),
@@ -173,6 +178,7 @@ interface MetadataDictGridProps {
 
 export function MetadataDictGrid(props: MetadataDictGridProps) {
   const { dict, showKeys = true, gridProps } = props;
+  const { t } = useTranslation();
   const [expanded, setExpanded] = React.useState(false);
   const defaultNumShown = 20;
 
@@ -232,23 +238,34 @@ export function MetadataDictGrid(props: MetadataDictGridProps) {
   }
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 0.5,
-      }}
-      {...gridProps}
-    >
+    <Box>
+      <Box
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 0.5,
+        }}
+        {...gridProps}
+      >
+        {/* Limit the size to two entries until the user chooses to expand the whole section */}
+        {keys.slice(0, expanded ? keys.length : defaultNumShown).map(key => (
+          <React.Fragment key={key}>{makeLabel(key)}</React.Fragment>
+        ))}
+      </Box>
       {keys.length > defaultNumShown && (
-        <IconButton onClick={() => setExpanded(!expanded)} size="small">
-          <Icon icon={expanded ? 'mdi:menu-up' : 'mdi:menu-down'} />
-        </IconButton>
+        <Button
+          onClick={() => setExpanded(!expanded)}
+          size="small"
+          startIcon={<Icon icon={expanded ? 'mdi:menu-up' : 'mdi:menu-down'} />}
+          sx={{ mt: 1, mb: 1 }}
+        >
+          {!expanded
+            ? t('translation|Show all labels (+{{count}} more)', {
+                count: keys.length - defaultNumShown,
+              })
+            : t('translation|Show fewer')}
+        </Button>
       )}
-      {/* Limit the size to two entries until the user chooses to expand the whole section */}
-      {keys.slice(0, expanded ? keys.length : defaultNumShown).map(key => (
-        <React.Fragment key={key}>{makeLabel(key)}</React.Fragment>
-      ))}
     </Box>
   );
 }

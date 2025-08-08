@@ -43,6 +43,10 @@ import DaemonSetList from '../components/daemonset/List';
 import DeploymentsList from '../components/deployments/List';
 import EndpointDetails from '../components/endpoints/Details';
 import EndpointList from '../components/endpoints/List';
+import BackendTLSPolicyDetails from '../components/gateway/BackendTLSPolicyDetails';
+import BackendTLSPolicyList from '../components/gateway/BackendTLSPolicyList';
+import BackendTrafficPolicyDetails from '../components/gateway/BackendTrafficPolicyDetails';
+import BackendTrafficPolicyList from '../components/gateway/BackendTrafficPolicyList';
 import GatewayClassDetails from '../components/gateway/ClassDetails';
 import GatewayClassList from '../components/gateway/ClassList';
 import GatewayDetails from '../components/gateway/GatewayDetails';
@@ -436,6 +440,34 @@ const defaultRoutes: {
     name: 'ReferenceGrants',
     sidebar: 'referencegrants',
     component: () => <ReferenceGrantDetails />,
+  },
+  backendtlspolicies: {
+    path: '/backendtlspolicies',
+    exact: true,
+    name: 'BackendTLSPolicies',
+    sidebar: 'backendtlspolicies',
+    component: () => <BackendTLSPolicyList />,
+  },
+  backendtlspolicy: {
+    path: '/backendtlspolicy/:namespace/:name',
+    exact: true,
+    name: 'BackendTLSPolicies',
+    sidebar: 'backendtlspolicies',
+    component: () => <BackendTLSPolicyDetails />,
+  },
+  backendtrafficpolicies: {
+    path: '/backendtrafficpolicies',
+    exact: true,
+    name: 'BackendTrafficPolicies',
+    sidebar: 'backendtrafficpolicies',
+    component: () => <BackendTrafficPolicyList />,
+  },
+  xbackendtrafficpolicy: {
+    path: '/backendtrafficpolicy/:namespace/:name',
+    exact: true,
+    name: 'BackendTrafficPolicies',
+    sidebar: 'backendtrafficpolicies',
+    component: () => <BackendTrafficPolicyDetails />,
   },
   DaemonSets: {
     path: '/daemonsets',
@@ -922,7 +954,7 @@ const defaultRoutes: {
     name: 'Map',
     sidebar: 'map',
     isFullWidth: true,
-    component: () => <LazyGraphView height="calc(100vh - 64px)" />,
+    component: () => <LazyGraphView height="100%" />,
   },
 };
 

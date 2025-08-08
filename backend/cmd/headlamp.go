@@ -453,6 +453,11 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		r = baseRoute.PathPrefix(config.BaseURL).Subrouter()
 	}
 
+	if config.Telemetry != nil && config.Metrics != nil {
+		r.Use(telemetry.TracingMiddleware("headlamp-server"))
+		r.Use(config.Metrics.RequestCounterMiddleware)
+	}
+
 	fmt.Println("*** Headlamp Server ***")
 	fmt.Println("  API Routers:")
 
@@ -1139,13 +1144,6 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	config.Metrics = metrics
 	config.telemetryHandler = telemetry.NewRequestHandler(tel, metrics)
 
-	router := mux.NewRouter()
-
-	if config.Telemetry != nil && config.Metrics != nil {
-		router.Use(telemetry.TracingMiddleware("headlamp-server"))
-		router.Use(config.Metrics.RequestCounterMiddleware)
-	}
-
 	// Copy static files as squashFS is read-only (AppImage)
 	if config.StaticDir != "" {
 		dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
@@ -1524,8 +1522,6 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 	}
 
 	for _, context := range contexts {
-		context := context
-
 		if context.Error != "" {
 			clusters = append(clusters, Cluster{
 				Name:  context.Name,
@@ -1580,8 +1576,6 @@ func parseCustomNameClusters(contexts []kubeconfig.Context) ([]Cluster, []error)
 	var setupErrors []error
 
 	for _, context := range contexts {
-		context := context
-
 		info := context.KubeContext.Extensions["headlamp_info"]
 		if info != nil {
 			// Convert the runtime.Unknown object to a byte slice
@@ -2042,8 +2036,6 @@ func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterN
 	}
 
 	for _, context := range contexts {
-		context := context
-
 		// Remove the old context from the store
 		if err := c.KubeConfigStore.RemoveContext(clusterName); err != nil {
 			logger.Log(logger.LevelError, nil, err, "Removing context from the store")

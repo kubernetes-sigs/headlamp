@@ -68,8 +68,6 @@ func LoadAndWatchFiles(kubeConfigStore ContextStore, paths string, source int, i
 
 func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 	for _, path := range paths {
-		path := path
-
 		// if path is relative, make it absolute
 		if !filepath.IsAbs(path) {
 			absPath, err := filepath.Abs(path)

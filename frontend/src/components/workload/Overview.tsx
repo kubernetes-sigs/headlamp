@@ -138,6 +138,7 @@ export default function Overview() {
       </SectionBox>
       <ResourceListView
         title={t('Workloads')}
+        reflectInURL
         columns={[
           'kind',
           {

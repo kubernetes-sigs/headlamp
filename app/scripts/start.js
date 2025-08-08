@@ -16,6 +16,8 @@ let frontendCmd =
 if (process.platform !== 'win32') {
   // to prevent clearing the screen
   frontendCmd += ' | cat';
+} else {
+  frontendCmd = frontendCmd.replace(/\//g, '\\');
 }
 const frontendProcess = spawn(frontendCmd, [], {
   stdio: 'inherit',

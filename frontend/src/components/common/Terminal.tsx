@@ -44,6 +44,8 @@ enum Channel {
 interface TerminalProps extends DialogProps {
   item: Pod;
   isAttach?: boolean;
+  /** Don't render the terminal in the dialog */
+  noDialog?: boolean;
   onClose?: () => void;
 }
 
@@ -56,7 +58,7 @@ interface XTerminalConnected {
 type execReturn = ReturnType<Pod['exec']>;
 
 export default function Terminal(props: TerminalProps) {
-  const { item, onClose, isAttach, ...other } = props;
+  const { item, onClose, isAttach, noDialog, ...other } = props;
   const [terminalContainerRef, setTerminalContainerRef] = React.useState<HTMLElement | null>(null);
   const [container, setContainer] = useState<string | null>(getDefaultContainer());
   const execOrAttachRef = React.useRef<execReturn | null>(null);
@@ -399,6 +401,94 @@ export default function Terminal(props: TerminalProps) {
     return false;
   }
 
+  const content = (
+    <DialogContent
+      sx={theme => ({
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        '& .xterm ': {
+          height: '100vh', // So the terminal doesn't stay shrunk when shrinking vertically and maximizing again.
+          '& .xterm-viewport': {
+            width: 'initial !important', // BugFix: https://github.com/xtermjs/xterm.js/issues/3564#issuecomment-1004417440
+          },
+        },
+        '& #xterm-container': {
+          overflow: 'hidden',
+          width: '100%',
+          '& .terminal.xterm': {
+            padding: theme.spacing(1),
+          },
+        },
+      })}
+    >
+      <Box>
+        <FormControl sx={{ minWidth: '11rem' }}>
+          <InputLabel shrink id="container-name-chooser-label">
+            {t('glossary|Container')}
+          </InputLabel>
+          <Select
+            labelId="container-name-chooser-label"
+            id="container-name-chooser"
+            value={container !== null ? container : getDefaultContainer()}
+            onChange={handleContainerChange}
+          >
+            {item?.spec?.containers && (
+              <MenuItem disabled value="">
+                {t('glossary|Containers')}
+              </MenuItem>
+            )}
+            {item?.spec?.containers.map(({ name }) => (
+              <MenuItem value={name} key={name}>
+                {name}
+              </MenuItem>
+            ))}
+            {item?.spec?.initContainers && (
+              <MenuItem disabled value="">
+                {t('translation|Init Containers')}
+              </MenuItem>
+            )}
+            {item.spec.initContainers?.map(({ name }) => (
+              <MenuItem value={name} key={`init_container_${name}`}>
+                {name}
+              </MenuItem>
+            ))}
+            {item?.spec?.ephemeralContainers && (
+              <MenuItem disabled value="">
+                {t('glossary|Ephemeral Containers')}
+              </MenuItem>
+            )}
+            {item.spec.ephemeralContainers?.map(({ name }) => (
+              <MenuItem value={name} key={`eph_container_${name}`}>
+                {name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </Box>
+      <Box
+        sx={theme => ({
+          paddingTop: theme.spacing(1),
+          flex: 1,
+          width: '100%',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column-reverse',
+        })}
+      >
+        <div
+          id="xterm-container"
+          ref={x => setTerminalContainerRef(x)}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse' }}
+        />
+      </Box>
+    </DialogContent>
+  );
+
+  if (noDialog) {
+    return content;
+  }
+
   return (
     <Dialog
       onClose={onClose}
@@ -415,87 +505,7 @@ export default function Terminal(props: TerminalProps) {
       }
       {...other}
     >
-      <DialogContent
-        sx={theme => ({
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          '& .xterm ': {
-            height: '100vh', // So the terminal doesn't stay shrunk when shrinking vertically and maximizing again.
-            '& .xterm-viewport': {
-              width: 'initial !important', // BugFix: https://github.com/xtermjs/xterm.js/issues/3564#issuecomment-1004417440
-            },
-          },
-          '& #xterm-container': {
-            overflow: 'hidden',
-            width: '100%',
-            '& .terminal.xterm': {
-              padding: theme.spacing(1),
-            },
-          },
-        })}
-      >
-        <Box>
-          <FormControl sx={{ minWidth: '11rem' }}>
-            <InputLabel shrink id="container-name-chooser-label">
-              {t('glossary|Container')}
-            </InputLabel>
-            <Select
-              labelId="container-name-chooser-label"
-              id="container-name-chooser"
-              value={container !== null ? container : getDefaultContainer()}
-              onChange={handleContainerChange}
-            >
-              {item?.spec?.containers && (
-                <MenuItem disabled value="">
-                  {t('glossary|Containers')}
-                </MenuItem>
-              )}
-              {item?.spec?.containers.map(({ name }) => (
-                <MenuItem value={name} key={name}>
-                  {name}
-                </MenuItem>
-              ))}
-              {item?.spec?.initContainers && (
-                <MenuItem disabled value="">
-                  {t('translation|Init Containers')}
-                </MenuItem>
-              )}
-              {item.spec.initContainers?.map(({ name }) => (
-                <MenuItem value={name} key={`init_container_${name}`}>
-                  {name}
-                </MenuItem>
-              ))}
-              {item?.spec?.ephemeralContainers && (
-                <MenuItem disabled value="">
-                  {t('glossary|Ephemeral Containers')}
-                </MenuItem>
-              )}
-              {item.spec.ephemeralContainers?.map(({ name }) => (
-                <MenuItem value={name} key={`eph_container_${name}`}>
-                  {name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Box>
-        <Box
-          sx={theme => ({
-            paddingTop: theme.spacing(1),
-            flex: 1,
-            width: '100%',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column-reverse',
-          })}
-        >
-          <div
-            id="xterm-container"
-            ref={x => setTerminalContainerRef(x)}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse' }}
-          />
-        </Box>
-      </DialogContent>
+      {content}
     </Dialog>
   );
 }

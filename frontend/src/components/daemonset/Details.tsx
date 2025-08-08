@@ -125,7 +125,7 @@ export default function DaemonSetDetails(props: {
         },
         {
           id: 'headlamp.daemonset-containers',
-          section: <ContainersSection resource={item?.jsonData} />,
+          section: <ContainersSection resource={item} />,
         },
       ]}
     />

@@ -117,8 +117,6 @@ func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) 
 	}
 
 	for _, context := range contexts {
-		context := context
-
 		info := context.KubeContext.Extensions["headlamp_info"]
 		if info != nil {
 			customObj, err := MarshalCustomObject(info, context.Name)

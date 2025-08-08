@@ -19,7 +19,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('desktopApi', {
-  send: (channel, data) => {
+  send: (channel: string, data: unknown) => {
     // allowed channels
     const validChannels = [
       'setMenu',
@@ -29,12 +29,13 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'run-command',
       'plugin-manager',
       'request-backend-token',
+      'request-plugin-permission-secrets',
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }
   },
-  receive: (channel, func) => {
+  receive: (channel: string, func: (...args: unknown[]) => void) => {
     const validChannels = [
       'currentMenu',
       'setMenu',
@@ -45,6 +46,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'command-exit',
       'plugin-manager',
       'backend-token',
+      'plugin-permission-secrets',
     ];
     if (validChannels.includes(channel)) {
       // Deliberately strip event as it includes `sender`
@@ -52,7 +54,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
     }
   },
 
-  removeListener: (channel, func) => {
+  removeListener: (channel: string, func: (...args: unknown[]) => void) => {
     ipcRenderer.removeListener(channel, func);
   },
 });
