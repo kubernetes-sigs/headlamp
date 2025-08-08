@@ -20,6 +20,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -75,6 +77,7 @@ type HeadlampConfig struct {
 	oidcIdpIssuerURL          string
 	oidcValidatorIdpIssuerURL string
 	oidcUseAccessToken        bool
+	oidcUsePKCE               bool
 	cache                     cache.Cache[interface{}]
 	multiplexer               *Multiplexer
 	telemetryConfig           cfg.Config
@@ -113,9 +116,29 @@ type spaHandler struct {
 }
 
 type OauthConfig struct {
-	Config   *oauth2.Config
-	Verifier *oidc.IDTokenVerifier
-	Ctx      context.Context
+	Config       *oauth2.Config
+	Verifier     *oidc.IDTokenVerifier
+	Ctx          context.Context
+	CodeVerifier string // PKCE code verifier
+}
+
+// generateCodeVerifier generates a PKCE code verifier (high-entropy cryptographic random string).
+func generateCodeVerifier() (string, error) {
+	// RFC 7636 recommends 43-128 characters for code verifier. We use 43 characters.
+	// Each character is a base64url character, so we need 32 random bytes to get 43 chars
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	// Use base64url encoding without padding
+	return base64.RawURLEncoding.EncodeToString(bytes), nil
+}
+
+// generateCodeChallenge generates a PKCE code challenge from the verifier using SHA256.
+func generateCodeChallenge(verifier string) string {
+	hash := sha256.Sum256([]byte(verifier))
+	// Use base64url encoding without padding
+	return base64.RawURLEncoding.EncodeToString(hash[:])
 }
 
 func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -669,12 +692,53 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			RedirectURL:  getOidcCallbackURL(r, config),
 			Scopes:       append([]string{oidc.ScopeOpenID}, oidcAuthConfig.Scopes...),
 		}
-		/* we encode the cluster to base64 and set it as state so that when getting redirected
-		by oidc we can use this state value to get cluster name
-		*/
-		state := base64.StdEncoding.EncodeToString([]byte(cluster))
-		oauthRequestMap[state] = &OauthConfig{Config: oauthConfig, Verifier: verifier, Ctx: ctx}
-		http.Redirect(w, r, oauthConfig.AuthCodeURL(state), http.StatusFound)
+
+		var codeVerifier string
+		var authURL string
+
+		// Generate PKCE parameters if enabled
+		if config.oidcUsePKCE {
+			var err error
+			codeVerifier, err = generateCodeVerifier()
+			if err != nil {
+				logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+					err, "failed to generate PKCE code verifier")
+				http.Error(w, "Failed to generate PKCE parameters: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			codeChallenge := generateCodeChallenge(codeVerifier)
+
+			/* we encode the cluster to base64 and set it as state so that when getting redirected
+			by oidc we can use this state value to get cluster name
+			*/
+			state := base64.StdEncoding.EncodeToString([]byte(cluster))
+			oauthRequestMap[state] = &OauthConfig{
+				Config:       oauthConfig,
+				Verifier:     verifier,
+				Ctx:          ctx,
+				CodeVerifier: codeVerifier,
+			}
+
+			// Create authorization URL with PKCE parameters
+			authURL = oauthConfig.AuthCodeURL(state,
+				oauth2.SetAuthURLParam("code_challenge", codeChallenge),
+				oauth2.SetAuthURLParam("code_challenge_method", "S256"))
+		} else {
+			/* we encode the cluster to base64 and set it as state so that when getting redirected
+			by oidc we can use this state value to get cluster name
+			*/
+			state := base64.StdEncoding.EncodeToString([]byte(cluster))
+			oauthRequestMap[state] = &OauthConfig{
+				Config:   oauthConfig,
+				Verifier: verifier,
+				Ctx:      ctx,
+			}
+
+			// Create standard authorization URL
+			authURL = oauthConfig.AuthCodeURL(state)
+		}
+
+		http.Redirect(w, r, authURL, http.StatusFound)
 	}).Queries("cluster", "{cluster}")
 
 	r.HandleFunc("/portforward", func(w http.ResponseWriter, r *http.Request) {
@@ -716,7 +780,26 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 		//nolint:nestif
 		if oauthConfig, ok := oauthRequestMap[state]; ok {
-			oauth2Token, err := oauthConfig.Config.Exchange(oauthConfig.Ctx, r.URL.Query().Get("code"))
+			var oauth2Token *oauth2.Token
+
+			var err error
+
+			// Exchange authorization code for token, with or without PKCE
+			if config.oidcUsePKCE && oauthConfig.CodeVerifier != "" {
+				// Use PKCE code verifier for token exchange
+				oauth2Token, err = oauthConfig.Config.Exchange(
+					oauthConfig.Ctx,
+					r.URL.Query().Get("code"),
+					oauth2.SetAuthURLParam("code_verifier", oauthConfig.CodeVerifier),
+				)
+			} else {
+				// Standard token exchange without PKCE
+				oauth2Token, err = oauthConfig.Config.Exchange(
+					oauthConfig.Ctx,
+					r.URL.Query().Get("code"),
+				)
+			}
+
 			if err != nil {
 				logger.Log(logger.LevelError, nil, err, "failed to exchange token")
 				http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
@@ -778,6 +861,10 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			}
 
 			redirectURL += fmt.Sprintf("auth?cluster=%1s&token=%2s", decodedState, rawUserToken)
+
+			// Clean up the OAuth state to prevent memory leaks
+			delete(oauthRequestMap, state)
+
 			http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 		} else {
 			http.Error(w, "invalid request", http.StatusBadRequest)
