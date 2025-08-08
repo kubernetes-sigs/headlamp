@@ -92,6 +92,8 @@ config:
   # -- directory to look for plugins
   pluginsDir: "/headlamp/plugins"
   watchPlugins: false
+  tlsCert: "/headlamp-cert/headlamp-ca.crt"
+  tlsKey: "/headlamp-cert/headlamp-tls.key"
   # Extra arguments that can be given to the container. See charts/headlamp/README.md for more information.
   extraArgs: []
 
@@ -156,10 +158,21 @@ service:
   nodePort: null
 
 # -- Headlamp containers volume mounts
-volumeMounts: []
+volumeMounts:
+  - name: "ui-cert"
+    mountPath: "/headlamp-cert"
+
 
 # -- Headlamp pod's volumes
-volumes: []
+volumes:
+  - name: "ui-cert"
+    secret:
+      secretName: "ui-tls"
+      items:
+        - key: "tls.crt"
+          path: "headlamp-ca.crt"
+        - key: "tls.key"
+          path: "headlamp-tls.key"
 
 persistentVolumeClaim:
   # -- Enable Persistent Volume Claim
