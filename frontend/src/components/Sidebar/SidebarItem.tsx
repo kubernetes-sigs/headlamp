@@ -25,6 +25,25 @@ import { createRouteURL, getRoute } from '../../lib/router';
 import ListItemLink from './ListItemLink';
 import { SidebarEntry } from './sidebarSlice';
 
+export function getFullURLOnRoute(
+  name: string,
+  isCR: boolean | undefined,
+  subList: Omit<SidebarItemProps, 'sidebar'>[]
+) {
+  let routeName = name;
+  if (isCR) {
+    if (name.startsWith('group-')) {
+      routeName = subList.length > 0 ? subList[0].name : '';
+    }
+    return createRouteURL('customresources', { crd: routeName });
+  } else {
+    if (!getRoute(name)) {
+      routeName = subList.length > 0 ? subList[0].name : '';
+    }
+    return createRouteURL(routeName);
+  }
+}
+
 /**
  * Adds onto SidebarEntryProps for the display of the sidebars.
  */
@@ -41,6 +60,8 @@ export interface SidebarItemProps extends ListItemProps, SidebarEntry {
   subList?: Omit<this, 'sidebar'>[];
   /** Whether to hide the sidebar item. */
   hide?: boolean;
+  level?: number;
+  isCR?: boolean;
 }
 
 const SidebarItem = memo((props: SidebarItemProps) => {
@@ -54,9 +75,11 @@ const SidebarItem = memo((props: SidebarItemProps) => {
     subList = [],
     isSelected,
     hasParent = false,
+    level = 0,
     icon,
     fullWidth = true,
     hide,
+    isCR,
     ...other
   } = props;
   const clusters = useSelectedClusters();
@@ -68,11 +91,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
   }
 
   if (!fullURL) {
-    let routeName = name;
-    if (!getRoute(name)) {
-      routeName = subList.length > 0 ? subList[0].name : '';
-    }
-    fullURL = createRouteURL(routeName);
+    fullURL = getFullURLOnRoute(name, isCR, subList);
   }
 
   return hide ? null : (
@@ -87,6 +106,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
         search={search}
         iconOnly={!fullWidth}
         hasParent={hasParent}
+        level={level}
         fullWidth={fullWidth}
         {...other}
       />
@@ -113,6 +133,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
                   key={item.name}
                   isSelected={item.isSelected}
                   hasParent
+                  level={level + 1}
                   search={search}
                   {...item}
                 />
