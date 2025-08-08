@@ -32,6 +32,7 @@ type Cache[T any] interface {
 	Get(ctx context.Context, key string) (T, error)
 	GetAll(ctx context.Context, selectFunc Matcher) (map[string]T, error)
 	UpdateTTL(ctx context.Context, key string, ttl time.Duration) error
+	// Size(ctx context.Context) int
 }
 
 // Matcher is a function that returns true if the key matches.
@@ -168,4 +169,21 @@ func (c *cache[T]) UpdateTTL(ctx context.Context, key string, ttl time.Duration)
 	}
 
 	return nil
+}
+
+// Size returns the number of unexpired items in the cache.
+func (c *cache[T]) Size(ctx context.Context) int {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	count := 0
+	now := time.Now()
+
+	for _, value := range c.store {
+		if value.expiresAt.IsZero() || value.expiresAt.After(now) {
+			count++
+		}
+	}
+
+	return count
 }

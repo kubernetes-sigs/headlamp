@@ -21,6 +21,7 @@ const defaultPort = 4466
 
 type Config struct {
 	InCluster                 bool   `koanf:"in-cluster"`
+	CacheEnabled              bool   `koanf:"cache-enabled"`
 	DevMode                   bool   `koanf:"dev"`
 	InsecureSsl               bool   `koanf:"insecure-ssl"`
 	EnableHelm                bool   `koanf:"enable-helm"`
@@ -237,6 +238,7 @@ func flagset() *flag.FlagSet {
 	f := flag.NewFlagSet("config", flag.ContinueOnError)
 
 	f.Bool("in-cluster", false, "Set when running from a k8s cluster")
+	f.Bool("cache-enabled", false, "To cache k8s resources")
 	f.Bool("dev", false, "Allow connections from other origins")
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
 	f.Bool("enable-dynamic-clusters", false, "Enable dynamic clusters, which stores stateless clusters in the frontend.")
