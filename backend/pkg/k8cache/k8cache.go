@@ -14,6 +14,9 @@ package k8cache
 
 import (
 	"bytes"
+	"compress/gzip"
+	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -44,4 +47,30 @@ func CreateResponseCapture(w http.ResponseWriter) *responseCapture {
 		Body:           &bytes.Buffer{},
 		StatusCode:     http.StatusOK,
 	}
+}
+
+// GetResponseBody is used to convert the captured response from gzip to string which can be easily convert
+// []byte form for sending to client.
+func GetResponseBody(bodyBytes []byte, encoding string) (string, error) {
+	var dcmpBody []byte
+
+	if encoding == "gzip" {
+		reader, err := gzip.NewReader(bytes.NewReader(bodyBytes))
+		if err != nil {
+			return "", fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+
+		decompressedBody, err := io.ReadAll(reader)
+		if err != nil {
+			return "", fmt.Errorf("failed to decompress body: %w", err)
+		}
+
+		dcmpBody = decompressedBody
+
+		reader.Close()
+	} else {
+		dcmpBody = bodyBytes
+	}
+
+	return string(dcmpBody), nil
 }
