@@ -453,11 +453,6 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		r = baseRoute.PathPrefix(config.BaseURL).Subrouter()
 	}
 
-	if config.Telemetry != nil && config.Metrics != nil {
-		r.Use(telemetry.TracingMiddleware("headlamp-server"))
-		r.Use(config.Metrics.RequestCounterMiddleware)
-	}
-
 	fmt.Println("*** Headlamp Server ***")
 	fmt.Println("  API Routers:")
 
@@ -695,6 +690,18 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		oauthRequestMap[state] = &OauthConfig{Config: oauthConfig, Verifier: verifier, Ctx: ctx}
 		http.Redirect(w, r, oauthConfig.AuthCodeURL(state), http.StatusFound)
 	}).Queries("cluster", "{cluster}")
+
+	r.HandleFunc("/portforward", func(w http.ResponseWriter, r *http.Request) {
+		portforward.StartPortForward(config.KubeConfigStore, config.cache, w, r)
+	}).Methods("POST")
+
+	r.HandleFunc("/portforward", func(w http.ResponseWriter, r *http.Request) {
+		portforward.StopOrDeletePortForward(config.cache, w, r)
+	}).Methods("DELETE")
+
+	r.HandleFunc("/portforward/list", func(w http.ResponseWriter, r *http.Request) {
+		portforward.GetPortForwards(config.cache, w, r)
+	})
 
 	r.HandleFunc("/drain-node", config.handleNodeDrain).Methods("POST")
 	r.HandleFunc("/drain-node-status",
@@ -1166,6 +1173,13 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	config.Metrics = metrics
 	config.telemetryHandler = telemetry.NewRequestHandler(tel, metrics)
 
+  router := mux.NewRouter()
+
+	if config.Telemetry != nil && config.Metrics != nil {
+		router.Use(telemetry.TracingMiddleware("headlamp-server"))
+		router.Use(config.Metrics.RequestCounterMiddleware)
+	}
+  
 	// Copy static files as squashFS is read-only (AppImage)
 	if config.StaticDir != "" {
 		dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
