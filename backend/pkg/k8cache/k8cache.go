@@ -15,6 +15,7 @@ package k8cache
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,6 +29,12 @@ type responseCapture struct {
 	http.ResponseWriter
 	StatusCode int
 	Body       *bytes.Buffer
+}
+
+type CachedResponseData struct {
+	StatusCode int         `json:"statusCode"`
+	Headers    http.Header `json:"headers"`
+	Body       string      `json:"body"`
 }
 
 // WriteHeader write the headers that to the Headers property in CachedResponseData struct.
@@ -138,4 +145,19 @@ func GenerateKey(url *url.URL, contextID string) (string, error) {
 	key := apiGroup + "+" + kind + "+" + namespace + "+" + contextID
 
 	return key, nil
+}
+
+// UnmarshalCachedData deserialize a JSON string received from cache
+// back into a CachedResposeData struct. This function is used to recontructing
+// the full HTTP response (status, headers, body) when serving the k8's to the client.
+// this is the essential part as it gives the clarity about the incoming k8;s requests.
+func UnmarshalCacheData(cacheResource string,
+	cachedData CachedResponseData,
+) (CachedResponseData, error) {
+	err := json.Unmarshal([]byte(cacheResource), &cachedData)
+	if err != nil {
+		return CachedResponseData{}, err
+	}
+
+	return cachedData, nil
 }
