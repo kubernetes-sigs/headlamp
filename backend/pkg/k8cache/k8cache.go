@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 )
 
 // CachedResponseData is a struct that will capture statusCode, Headers and Body
@@ -73,4 +75,67 @@ func GetResponseBody(bodyBytes []byte, encoding string) (string, error) {
 	}
 
 	return string(dcmpBody), nil
+}
+
+func GetAPIGroup(path string) (apiGroup, version string) {
+	parts := strings.Split(path, "/")
+
+	if len(parts) < 4 {
+		return "", ""
+	}
+
+	if parts[3] == "api" {
+		// Core API group
+		apiGroup = ""
+		version = parts[4]
+	} else if parts[3] == "apis" {
+		// Named API group
+		apiGroup = parts[4]
+		version = parts[5]
+	}
+
+	return
+}
+
+// ExtractNamespace extracts the namespace from the parameter from the given raw URL. This is used to make
+// cache key more specific to a particular namespace.
+func ExtractNamespace(rawURL string) (string, string) {
+	if idx := strings.Index(rawURL, "?"); idx != -1 {
+		rawURL = rawURL[:idx]
+	}
+
+	var namespace, kind string
+
+	urls := strings.Split(rawURL, "/")
+	n := len(urls)
+
+	for i := 0; i < n-1; i++ {
+		if urls[i] == "namespaces" {
+			namespace = urls[i+1]
+		}
+	}
+
+	if len(urls) > 2 {
+		kind = urls[n-1]
+	}
+
+	return namespace, kind
+}
+
+// GenerateKey function helps to generate a unique key based on the request from the client
+// The function accepts url( which includes all the information of request ) and contextID which
+// helps to differentiate in multiple contexts.
+func GenerateKey(url *url.URL, contextID string) (string, error) {
+	namespace, kind := ExtractNamespace(url.Path)
+	apiGroup, _ := GetAPIGroup(url.Path)
+	// k := CacheKey{Kind: url.Path, Namespace: namespace, Context: contextID}
+
+	// key, err := k.SHA()
+	// if err != nil {
+	// 	return "", err
+	// }
+
+	key := apiGroup + "+" + kind + "+" + namespace + "+" + contextID
+
+	return key, nil
 }
