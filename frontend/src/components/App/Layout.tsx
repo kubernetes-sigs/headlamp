@@ -36,6 +36,7 @@ import { useTypedSelector } from '../../redux/hooks';
 import store from '../../redux/stores/store';
 import { useUIPanelsGroupedBySide } from '../../redux/uiSlice';
 import { fetchStatelessClusterKubeConfigs, isEqualClusterConfigs } from '../../stateless/';
+import { ActivitiesRenderer } from '../activity/Activity';
 import ActionsNotifier from '../common/ActionsNotifier';
 import AlertNotification from '../common/AlertNotification';
 import DetailsDrawer from '../common/Resource/DetailsDrawer';
@@ -250,28 +251,32 @@ export default function Layout({}: LayoutProps) {
           <TopBar />
           <Box
             sx={{
-              display: 'flex',
+              display: 'grid',
               overflow: 'hidden',
               flexGrow: 1,
               position: 'relative',
+              gridTemplateRows: '1fr min-content',
+              gridTemplateColumns: 'min-content 1fr',
             }}
           >
             <Sidebar />
             <Main
               id="main"
               sx={{
-                flexGrow: 1,
-                marginLeft: 'initial',
                 overflow: 'auto',
+                position: 'relative',
+                minHeight: 0,
+                gridColumn: '2 / 3',
+                gridRow: '1 / 2',
               }}
             >
               {clustersNotInURL.slice(0, MAXIMUM_NUM_ALERTS).map(clusterName => (
                 <ClusterNotFoundPopup key={clusterName} cluster={clusterName} />
               ))}
               <AlertNotification />
-              <Box>
+              <Box sx={{ height: '100%' }}>
                 <Div />
-                <Container {...containerProps}>
+                <Container {...containerProps} sx={{ height: '100%' }}>
                   <NavigationTabs />
                   {arePluginsLoaded && (
                     <RouteSwitcher
@@ -285,6 +290,7 @@ export default function Layout({}: LayoutProps) {
                 </Container>
               </Box>
             </Main>
+            <ActivitiesRenderer />
             <DetailsDrawer />
           </Box>
           {panels.bottom.map(it => (

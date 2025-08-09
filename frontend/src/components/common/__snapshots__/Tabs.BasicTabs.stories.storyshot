@@ -53,7 +53,7 @@
     </div>
     <div
       aria-labelledby="full-width-tab-0-BasicTabs-tabs-id"
-      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+      class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
       id="full-width-tabpanel-0-BasicTabs-tabs-id"
       role="tabpanel"
     >
@@ -63,7 +63,7 @@
     </div>
     <div
       aria-labelledby="full-width-tab-1-BasicTabs-tabs-id"
-      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+      class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
       hidden=""
       id="full-width-tabpanel-1-BasicTabs-tabs-id"
       role="tabpanel"

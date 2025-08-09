@@ -70,7 +70,6 @@ func TestLog(t *testing.T) {
 
 	// Call the Log function
 	for _, test := range tests {
-		test := test // Assign test to a local variable
 		t.Run(test.name, func(t *testing.T) {
 			logger.Log(test.level, test.str, test.err, test.msg)
 

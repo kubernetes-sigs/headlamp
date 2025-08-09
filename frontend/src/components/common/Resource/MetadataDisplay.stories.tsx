@@ -97,3 +97,16 @@ WithExtraRows.args = {
     },
   ],
 };
+
+export const WithManyLabels = Template.bind({});
+WithManyLabels.args = {
+  resource: {
+    ...mockResource,
+    metadata: {
+      ...mockResource.metadata,
+      labels: Object.fromEntries(
+        Array.from({ length: 25 }, (_, i) => [`label${i + 1}`, `Value ${i + 1}`])
+      ),
+    },
+  },
+};

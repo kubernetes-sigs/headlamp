@@ -364,7 +364,7 @@
                   class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-1rz8yre-MuiTypography-root-MuiLink-root"
+                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                     href="/settings/plugins/plugin%20a%200"
                   >
                     plugin a 0
@@ -383,7 +383,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/plugin-link-0"
                 >
                   Unknown
@@ -406,7 +406,7 @@
                   class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-1rz8yre-MuiTypography-root-MuiLink-root"
+                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                     href="/settings/plugins/plugin%20a%201"
                   >
                     plugin a 1
@@ -425,7 +425,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/plugin-link-1"
                 >
                   Unknown
@@ -448,7 +448,7 @@
                   class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-1rz8yre-MuiTypography-root-MuiLink-root"
+                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                     href="/settings/plugins/plugin%20a%202"
                   >
                     plugin a 2
@@ -467,7 +467,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/plugin-link-2"
                 >
                   Unknown
@@ -490,7 +490,7 @@
                   class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-1rz8yre-MuiTypography-root-MuiLink-root"
+                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                     href="/settings/plugins/plugin%20a%203"
                   >
                     plugin a 3
@@ -509,7 +509,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/plugin-link-3"
                 >
                   Unknown
@@ -532,7 +532,7 @@
                   class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-1rz8yre-MuiTypography-root-MuiLink-root"
+                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                     href="/settings/plugins/plugin%20a%204"
                   >
                     plugin a 4
@@ -551,7 +551,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/plugin-link-4"
                 >
                   Unknown
@@ -574,7 +574,7 @@
                   class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-1rz8yre-MuiTypography-root-MuiLink-root"
+                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                     href="/settings/plugins/plugin%20a%205"
                   >
                     plugin a 5
@@ -593,7 +593,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/plugin-link-5"
                 >
                   Unknown
@@ -616,7 +616,7 @@
                   class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-1rz8yre-MuiTypography-root-MuiLink-root"
+                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                     href="/settings/plugins/plugin%20a%206"
                   >
                     plugin a 6
@@ -635,7 +635,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/plugin-link-6"
                 >
                   Unknown
@@ -658,7 +658,7 @@
                   class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-1rz8yre-MuiTypography-root-MuiLink-root"
+                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                     href="/settings/plugins/plugin%20a%207"
                   >
                     plugin a 7
@@ -677,7 +677,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/plugin-link-7"
                 >
                   Unknown
@@ -700,7 +700,7 @@
                   class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-1rz8yre-MuiTypography-root-MuiLink-root"
+                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                     href="/settings/plugins/plugin%20a%208"
                   >
                     plugin a 8
@@ -719,7 +719,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/plugin-link-8"
                 >
                   Unknown
@@ -742,7 +742,7 @@
                   class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-1rz8yre-MuiTypography-root-MuiLink-root"
+                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                     href="/settings/plugins/plugin%20a%209"
                   >
                     plugin a 9
@@ -761,7 +761,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/plugin-link-9"
                 >
                   Unknown
@@ -784,7 +784,7 @@
                   class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-1rz8yre-MuiTypography-root-MuiLink-root"
+                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                     href="/settings/plugins/plugin%20a%2010"
                   >
                     plugin a 10
@@ -803,7 +803,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/plugin-link-10"
                 >
                   Unknown
@@ -826,7 +826,7 @@
                   class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-1rz8yre-MuiTypography-root-MuiLink-root"
+                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                     href="/settings/plugins/plugin%20a%2011"
                   >
                     plugin a 11
@@ -845,7 +845,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/plugin-link-11"
                 >
                   Unknown
@@ -868,7 +868,7 @@
                   class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-1rz8yre-MuiTypography-root-MuiLink-root"
+                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                     href="/settings/plugins/plugin%20a%2012"
                   >
                     plugin a 12
@@ -887,7 +887,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/plugin-link-12"
                 >
                   Unknown
@@ -910,7 +910,7 @@
                   class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-1rz8yre-MuiTypography-root-MuiLink-root"
+                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                     href="/settings/plugins/plugin%20a%2013"
                   >
                     plugin a 13
@@ -929,7 +929,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/plugin-link-13"
                 >
                   Unknown
@@ -952,7 +952,7 @@
                   class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-1rz8yre-MuiTypography-root-MuiLink-root"
+                    class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                     href="/settings/plugins/plugin%20a%2014"
                   >
                     plugin a 14
@@ -971,7 +971,7 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
                 <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/plugin-link-14"
                 >
                   Unknown

@@ -26,7 +26,9 @@ import fs from 'fs';
 import nock from 'nock';
 import os from 'os';
 import path from 'path';
+import * as tar from 'tar';
 import { PluginManager } from './plugin-management';
+import { getExtraFiles } from './plugin-management';
 
 const TEST_DATA_BASE_DIR = path.join(os.tmpdir(), 'headlamp-test-data');
 const PLUGIN_DEST_BASE_DIR = path.join(os.tmpdir(), 'headlamp-test-plugins');
@@ -193,13 +195,11 @@ async function createMinimalPluginTarball(testDataDir: string) {
     )
   );
 
-  // Create a tarball (using child_process to run tar)
-  const { execSync } = require('child_process');
   const tarballPath = path.join(testDataDir, 'plugin-tarball.tar.gz');
 
   let errToThrow = null;
   try {
-    execSync(`tar -czf "${tarballPath}" -C "${tempDir}" .`);
+    await tar.c({ gzip: true, file: tarballPath, cwd: tempDir }, ['.']);
   } catch (error) {
     console.error('Failed to create test tarball:', error);
     errToThrow = error;
@@ -238,11 +238,10 @@ async function createPlatformSpecificTarball(testDataDir: string) {
   }
 
   // Create a tarball
-  const { execSync } = require('child_process');
   const tarballPath = path.join(testDataDir, 'platform-specific.tar.gz');
 
   try {
-    execSync(`tar -czf "${tarballPath}" -C "${tempDir}" .`);
+    await tar.c({ gzip: true, file: tarballPath, cwd: tempDir }, ['.']);
   } catch (error) {
     console.error('Failed to create platform-specific tarball:', error);
     throw error;
@@ -410,3 +409,65 @@ function calculateSHA256(filePath: string): string {
     throw error;
   }
 }
+
+describe('getExtraFiles', () => {
+  it('should extract extra-files with valid github.com/kubernetes/minikube URL', () => {
+    const annotations = {
+      'headlamp/plugin/extra-files/0/url':
+        'https://github.com/kubernetes/minikube/releases/download/v1.0.0/minikube-linux-amd64.tar.gz',
+      'headlamp/plugin/extra-files/0/checksum': 'sha256:abc123',
+      'headlamp/plugin/extra-files/0/arch': 'linux/x64',
+      'headlamp/plugin/extra-files/0/output/minikube/output': 'minikube',
+      'headlamp/plugin/extra-files/0/output/minikube/input': 'minikube-linux-amd64',
+    };
+    const extraFiles = getExtraFiles(annotations);
+    expect(extraFiles).toBeDefined();
+    expect(Object.values(extraFiles!)[0].url).toContain('minikube');
+  });
+
+  it('should extract extra-files with valid github.com/crc-org/vfkit URL', () => {
+    const annotations = {
+      'headlamp/plugin/extra-files/0/url':
+        'https://github.com/crc-org/vfkit/releases/download/v0.0.1/vfkit',
+      'headlamp/plugin/extra-files/0/checksum': 'sha256:def456',
+      'headlamp/plugin/extra-files/0/arch': 'linux/x64',
+      'headlamp/plugin/extra-files/0/output/vfkit/output': 'vfkit',
+      'headlamp/plugin/extra-files/0/output/vfkit/input': 'vfkit-linux-amd64',
+    };
+    const extraFiles = getExtraFiles(annotations);
+    expect(extraFiles).toBeDefined();
+    expect(Object.values(extraFiles!)[0].url).toContain('vfkit');
+  });
+
+  it('should reject extra-files with invalid URL', () => {
+    const annotations = {
+      'headlamp/plugin/extra-files/0/url': 'https://malicious.com/bad.tar.gz',
+      'headlamp/plugin/extra-files/0/checksum': 'sha256:badbad',
+      'headlamp/plugin/extra-files/0/arch': 'linux/x64',
+      'headlamp/plugin/extra-files/0/output/bad/output': 'bad',
+      'headlamp/plugin/extra-files/0/output/bad/input': 'bad-linux-amd64',
+    };
+    expect(() => getExtraFiles(annotations)).toThrow();
+  });
+
+  it('should allow localhost URLs in test environment', () => {
+    process.env.NODE_ENV = 'test';
+    const annotations = {
+      'headlamp/plugin/extra-files/0/url': 'http://localhost:1234/test.tar.gz',
+      'headlamp/plugin/extra-files/0/checksum': 'sha256:dummy',
+      'headlamp/plugin/extra-files/0/arch': 'linux/x64',
+      'headlamp/plugin/extra-files/0/output/test/output': 'test',
+      'headlamp/plugin/extra-files/0/output/test/input': 'test-linux-amd64',
+    };
+    expect(() => getExtraFiles(annotations)).not.toThrow();
+    process.env.NODE_ENV = '';
+  });
+
+  it('should return undefined if no extra-files annotation present', () => {
+    const annotations = {
+      'headlamp/plugin/archive-url':
+        'https://github.com/kubernetes/minikube/releases/download/v1.0.0/minikube-linux-amd64.tar.gz',
+    };
+    expect(getExtraFiles(annotations)).toBeUndefined();
+  });
+});

@@ -68,6 +68,7 @@
                     tabindex="-1"
                   >
                     <path
+                      aria-label="10%"
                       class="recharts-sector"
                       cx="61"
                       cy="61"
@@ -91,6 +92,7 @@
                     tabindex="-1"
                   >
                     <path
+                      aria-label="10%"
                       class="recharts-sector"
                       cx="61"
                       cy="61"

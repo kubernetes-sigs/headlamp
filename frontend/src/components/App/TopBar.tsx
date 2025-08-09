@@ -29,9 +29,9 @@ import { has } from 'lodash';
 import React, { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useHistory, useLocation } from 'react-router-dom';
+import { useHistory } from 'react-router-dom';
 import { getProductName, getVersion } from '../../helpers/getProductInfo';
-import { getToken, setToken } from '../../lib/auth';
+import { logout } from '../../lib/auth';
 import { useCluster, useClustersConf } from '../../lib/k8s';
 import { createRouteURL } from '../../lib/router';
 import {
@@ -87,17 +87,9 @@ export default function TopBar({}: TopBarProps) {
   const history = useHistory();
   const { appBarActions, appBarActionsProcessors } = useAppBarActionsProcessed();
 
-  // getToken may return stale value so we need to rerender on navigation
-  // TODO: create a useToken hook that always returns latest token
-  // eslint-disable-next-line no-unused-vars
-  const _location = useLocation();
-  function hasToken() {
-    return !!cluster ? !!getToken(cluster) : false;
-  }
-
-  const logout = useCallback(() => {
+  const logoutCallback = useCallback(async () => {
     if (!!cluster) {
-      setToken(cluster, null);
+      await logout(cluster);
     }
     history.push('/');
   }, [cluster]);
@@ -120,8 +112,7 @@ export default function TopBar({}: TopBarProps) {
     <PureTopBar
       appBarActions={appBarActions}
       appBarActionsProcessors={appBarActionsProcessors}
-      logout={logout}
-      hasToken={hasToken()}
+      logout={logoutCallback}
       isSidebarOpen={isSidebarOpen}
       isSidebarOpenUserSelected={isSidebarOpenUserSelected}
       onToggleOpen={handletoggleOpen}
@@ -136,8 +127,7 @@ export interface PureTopBarProps {
   appBarActions: AppBarAction[];
   /** functions which filter the app bar action buttons */
   appBarActionsProcessors?: AppBarActionsProcessor[];
-  logout: () => void;
-  hasToken: boolean;
+  logout: () => Promise<any> | void;
   clusters?: {
     [clusterName: string]: any;
   };
@@ -215,7 +205,6 @@ export const PureTopBar = memo(
     appBarActions,
     appBarActionsProcessors = [],
     logout,
-    hasToken,
     cluster,
     clusters,
     isSidebarOpen,
@@ -275,19 +264,15 @@ export const PureTopBar = memo(
       >
         <MenuItem
           component="a"
-          onClick={() => {
-            logout();
+          onClick={async () => {
+            await logout();
             handleMenuClose();
           }}
-          disabled={!hasToken}
         >
           <ListItemIcon>
             <Icon icon="mdi:logout" />
           </ListItemIcon>
-          <ListItemText
-            primary={t('Log out')}
-            secondary={hasToken ? null : t('(No token set up)')}
-          />
+          <ListItemText primary={t('Log out')} />
         </MenuItem>
         <MenuItem
           component="a"

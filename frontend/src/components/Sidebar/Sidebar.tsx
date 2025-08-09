@@ -371,7 +371,11 @@ export const PureSidebar = memo(
     }, [items]);
 
     return (
-      <Box component="nav" aria-label={t('translation|Navigation')}>
+      <Box
+        component="nav"
+        aria-label={t('translation|Navigation')}
+        sx={{ minHeight: 0, gridColumn: '1 / 2', gridRow: '1 / 3' }}
+      >
         <Drawer
           variant={isTemporaryDrawer ? 'temporary' : 'permanent'}
           PaperProps={{

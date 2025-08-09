@@ -1,0 +1,15 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-y7vegm"
+    >
+      <div
+        class="MuiBox-root css-5lww48"
+        id="main"
+      />
+      <div
+        class="MuiBox-root css-11hh78l"
+      />
+    </div>
+  </div>
+</body>

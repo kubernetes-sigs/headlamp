@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { getCurrentVersion, createReleaseTag } from '../utils/git';
+import { getCurrentVersion, createReleaseTag } from '../utils/git.js';
 
 export function tagRelease(): void {
   const currentVersion = getCurrentVersion();

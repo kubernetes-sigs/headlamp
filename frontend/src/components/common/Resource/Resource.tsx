@@ -677,11 +677,20 @@ export function LivenessProbes(props: { liveness: KubeContainer['livenessProbe']
   );
 }
 
-export interface ContainerInfoProps {
+/** @deprecated Please use `ContainerInfoKubeObjectProps` for better type safety */
+export interface ContainerInfoLegacyProps {
   container: KubeContainer;
   resource: KubeObjectInterface | null;
   status?: Omit<KubePod['status']['KubeContainerStatus'], 'name'>;
 }
+
+export interface ContainerInfoKubeObjectProps {
+  container: KubeContainer;
+  resource: KubeObject | null;
+  status?: Omit<KubePod['status']['KubeContainerStatus'], 'name'>;
+}
+
+export type ContainerInfoProps = ContainerInfoKubeObjectProps | ContainerInfoLegacyProps;
 
 export function ContainerInfo(props: ContainerInfoProps) {
   const { container, status, resource } = props;

@@ -145,7 +145,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <a
-                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="/"
                     >
                       default
@@ -174,16 +174,20 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <div
-                      class="MuiBox-root css-yi3mkw"
+                      class="MuiBox-root css-0"
                     >
-                      <p
-                        aria-label="kubectl.kubernetes.io/last-applied-configuration: {"apiVersion":"autoscaling/v2","kind":"HorizontalPodAutoscaler","metadata":{"annotations":{},"creationTimestamp":"2022-10-17T08:04:30Z","name":"php-apache","namespace":"default","resourceVersion":"4488138","uid":"a98be011-f69e-404a-bcfa-d76d78d24884"},"spec":{"maxReplicas":10,"metrics":[{"resource":{"name":"cpu","target":{"averageUtilization":50,"type":"Utilization"}},"type":"Resource"},{"resource":{"name":"memory","target":{"averageValue":"100Mi","type":"AverageValue"}},"type":"Resource"}],"minReplicas":1,"scaleTargetRef":{"apiVersion":"apps/v1","kind":"Deployment","name":"php-apache"}},"status":{"conditions":[{"lastTransitionTime":"2022-10-17T08:04:45Z","message":"recommended size matches current size","reason":"ReadyForNewScale","status":"True","type":"AbleToScale"},{"lastTransitionTime":"2022-10-17T21:57:14Z","message":"the HPA was able to successfully calculate a replica count from cpu resource utilization (percentage of request)","reason":"ValidMetricFound","status":"True","type":"ScalingActive"},{"lastTransitionTime":"2022-10-20T10:11:08Z","message":"the desired replica count is less than the minimum replica count","reason":"TooFewReplicas","status":"True","type":"ScalingLimited"}],"currentMetrics":[{"resource":{"current":{"averageUtilization":0,"averageValue":"1m"},"name":"cpu"},"type":"Resource"}],"currentReplicas":1,"desiredReplicas":1,"lastScaleTime":"2022-10-20T10:11:08Z"}}
-"
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                        data-mui-internal-clone-element="true"
+                      <div
+                        class="MuiBox-root css-yi3mkw"
                       >
-                        kubectl.kubernetes.io/last-applied-configuration: …
-                      </p>
+                        <p
+                          aria-label="kubectl.kubernetes.io/last-applied-configuration: {"apiVersion":"autoscaling/v2","kind":"HorizontalPodAutoscaler","metadata":{"annotations":{},"creationTimestamp":"2022-10-17T08:04:30Z","name":"php-apache","namespace":"default","resourceVersion":"4488138","uid":"a98be011-f69e-404a-bcfa-d76d78d24884"},"spec":{"maxReplicas":10,"metrics":[{"resource":{"name":"cpu","target":{"averageUtilization":50,"type":"Utilization"}},"type":"Resource"},{"resource":{"name":"memory","target":{"averageValue":"100Mi","type":"AverageValue"}},"type":"Resource"}],"minReplicas":1,"scaleTargetRef":{"apiVersion":"apps/v1","kind":"Deployment","name":"php-apache"}},"status":{"conditions":[{"lastTransitionTime":"2022-10-17T08:04:45Z","message":"recommended size matches current size","reason":"ReadyForNewScale","status":"True","type":"AbleToScale"},{"lastTransitionTime":"2022-10-17T21:57:14Z","message":"the HPA was able to successfully calculate a replica count from cpu resource utilization (percentage of request)","reason":"ValidMetricFound","status":"True","type":"ScalingActive"},{"lastTransitionTime":"2022-10-20T10:11:08Z","message":"the desired replica count is less than the minimum replica count","reason":"TooFewReplicas","status":"True","type":"ScalingLimited"}],"currentMetrics":[{"resource":{"current":{"averageUtilization":0,"averageValue":"1m"},"name":"cpu"},"type":"Resource"}],"currentReplicas":1,"desiredReplicas":1,"lastScaleTime":"2022-10-20T10:11:08Z"}}
+"
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          kubectl.kubernetes.io/last-applied-configuration: …
+                        </p>
+                      </div>
                     </div>
                   </dd>
                   <dt
@@ -195,7 +199,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <a
-                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="/"
                     >
                       Deployment
@@ -398,7 +402,7 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                         >
                           AbleToScale
                         </span>
@@ -443,7 +447,7 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                         >
                           ScalingActive
                         </span>
@@ -488,7 +492,7 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                         >
                           ScalingLimited
                         </span>

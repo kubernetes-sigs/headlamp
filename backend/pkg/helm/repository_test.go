@@ -64,7 +64,6 @@ func checkRepoExists(t *testing.T, helmHandler *helm.Handler, repoName string) b
 	require.NoError(t, err)
 
 	for _, repo := range listRepoResponse.Repositories {
-		repo := repo
 		if repo.Name == repoName {
 			return true
 		}
@@ -186,7 +185,6 @@ func TestUpdateRepo(t *testing.T) {
 		assert.NoError(t, err)
 
 		for _, repo := range listRepoResponse.Repositories {
-			repo := repo
 			if repo.Name == "headlamp_test_repo" {
 				assert.Equal(t, "https://kubernetes-sigs-update-url.github.io/headlamp/", repo.URL)
 			}

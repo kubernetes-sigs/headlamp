@@ -71,7 +71,6 @@ func TestStatelessClustersKubeConfig(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			cache := cache.New[interface{}]()
 			kubeConfigStore := kubeconfig.NewContextStore()
@@ -127,7 +126,6 @@ func TestStatelessClusterApiRequest(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			cache := cache.New[interface{}]()
 			kubeConfigStore := kubeconfig.NewContextStore()

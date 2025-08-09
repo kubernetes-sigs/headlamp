@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, Page } from '@playwright/test';
 
@@ -59,8 +60,8 @@ spec:
       return;
     }
 
-    await expect(page.getByRole('button', { name: 'Create' })).toBeVisible();
-    await page.getByRole('button', { name: 'Create' }).click();
+    await expect(page.getByRole('button', { name: 'Create', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Create', exact: true }).click();
 
     await page.waitForLoadState('load');
 
@@ -70,8 +71,8 @@ spec:
     await page.waitForLoadState('load');
     await page.fill('textarea[aria-label="yaml Code"]', yaml);
 
-    await expect(page.getByRole('button', { name: 'Apply' })).toBeVisible();
-    await page.getByRole('button', { name: 'Apply' }).click();
+    await expect(page.getByRole('button', { name: 'Apply', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Apply', exact: true }).click();
 
     await page.waitForSelector(`text=Applied ${name}`);
 
@@ -90,8 +91,6 @@ spec:
   async deletePod(name) {
     const page = this.page;
 
-    await page.click('span:has-text("Pods")');
-    await page.waitForLoadState('load');
     await page.waitForSelector(`a:has-text("${name}")`);
 
     await expect(page.getByRole('link', { name: name })).toBeVisible();
@@ -121,19 +120,6 @@ spec:
     await expect(podLink).toBeVisible();
 
     console.log(`Pod ${name} is running`);
-    await this.a11y();
-  }
-
-  async confirmPodDeletion(name) {
-    const podLink = this.page.locator(`a:has-text("${name}")`);
-    try {
-      await podLink.waitFor({ state: 'hidden', timeout: 10000 });
-    } catch (error) {
-      await this.page.reload({ waitUntil: 'networkidle' });
-    }
-    await expect(podLink).not.toBeVisible();
-
-    console.log(`Pod ${name} is deleted`);
     await this.a11y();
   }
 }

@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_NODE_SHELL_NAMESPACE, loadClusterSettings } from '../../helpers/clusterSettings';
 import { getCluster } from '../../lib/cluster';
 import Node from '../../lib/k8s/node';
 import Pod from '../../lib/k8s/pod';
+import { Activity } from '../activity/Activity';
 import ActionButton from '../common/ActionButton';
 import { AuthVisible } from '../common/Resource';
 import { NodeShellTerminal } from './NodeShellTerminal';
@@ -47,7 +47,6 @@ function nodeTerminalNamespace(cluster: string | null) {
 export function NodeShellAction(props: NodeShellTerminalProps) {
   const { item } = props;
   const { t } = useTranslation(['glossary']);
-  const [showShell, setShowShell] = useState(false);
   if (item === null) {
     return <></>;
   }
@@ -56,6 +55,7 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
     return item?.status?.nodeInfo?.operatingSystem === 'linux';
   }
   const namepsace = nodeTerminalNamespace(cluster);
+  const activityId = 'node-shell-' + item.metadata.uid;
 
   if (!isNodeTerminalEnabled(cluster)) {
     return <></>;
@@ -73,14 +73,28 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
                   })
             }
             icon="mdi:console"
-            onClick={() => setShowShell(true)}
+            onClick={() => {
+              Activity.launch({
+                id: activityId,
+                location: 'full',
+                title: t('Shell: {{ itemName }}', { itemName: item.metadata.name }),
+                cluster: item.cluster,
+                content: (
+                  <NodeShellTerminal
+                    key="terminal"
+                    item={item}
+                    onClose={() => Activity.close(activityId)}
+                  />
+                ),
+              });
+            }}
             iconButtonProps={{
               disabled: !isLinux(item),
             }}
           />
         </AuthVisible>
       </AuthVisible>
-      <NodeShellTerminal
+      {/* <NodeShellTerminal
         key="terminal"
         open={showShell}
         title={t('Shell: {{ itemName }}', { itemName: item.metadata.name })}
@@ -88,7 +102,7 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
         onClose={() => {
           setShowShell(false);
         }}
-      />
+      /> */}
     </>
   );
 }

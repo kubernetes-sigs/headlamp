@@ -165,12 +165,23 @@ export function useSelectedClusters(): string[] {
   return clusterGroup;
 }
 
+/**
+ * Gets the version of the cluster given by the parameter.
+ *
+ * @param clusterName - the name of the cluster to query, or the currently selected cluster.
+ * @returns a promise that resolves to a dictionary containing version info.
+ */
 export function getVersion(clusterName: string = ''): Promise<StringDict> {
   return clusterRequest('/version', { cluster: clusterName || getCluster() });
 }
 
 export type CancellablePromise = Promise<() => void>;
 
+/**
+ * Hook to manage multiple cancellable API calls tied to the active cluster.
+ *
+ * @param apiCalls - functions returning cancellable promises for API calls.
+ */
 export function useConnectApi(...apiCalls: (() => CancellablePromise)[]) {
   // Use the location to make sure the API calls are changed, as they may depend on the cluster
   // (defined in the URL ATM).
@@ -214,6 +225,13 @@ export function labelSelectorToQuery(labelSelector: LabelSelector) {
   return segments.join(',');
 }
 
+/**
+ * Simplifies a matchLabels object into an array of string expressions.
+ *
+ * @param matchLabels - the matchLabels object from a LabelSelector.
+ * @param isEqualSeperator - whether to use "=" as the separator instead of ":".
+ * @returns an array of simplified label strings, or an empty string.
+ */
 export function matchLabelsSimplifier(
   matchLabels: LabelSelector['matchLabels'],
   isEqualSeperator = false
@@ -234,6 +252,12 @@ export function matchLabelsSimplifier(
   return segments;
 }
 
+/**
+ * Simplifies a matchExpressions array into an array of string representations.
+ *
+ * @param matchExpressions - the matchExpressionss array from a LabelSelector.
+ * @returns an array of simplified expression strings, or an empty string.
+ */
 export function matchExpressionSimplifier(
   matchExpressions: LabelSelector['matchExpressions']
 ): string[] | '' {

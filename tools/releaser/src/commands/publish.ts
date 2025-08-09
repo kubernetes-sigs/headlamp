@@ -1,8 +1,8 @@
 import chalk from 'chalk';
 import inquirer from 'inquirer';
-import { getRelease, publishDraftRelease, associateTagWithRelease } from '../utils/github';
-import { pushTag } from '../utils/git';
-import { sanitizeVersion } from '../utils/version';
+import { getRelease, publishDraftRelease, associateTagWithRelease } from '../utils/github.js';
+import { pushTag } from '../utils/git.js';
+import { sanitizeVersion } from '../utils/version.js';
 
 interface PublishOptions {
   force?: boolean;

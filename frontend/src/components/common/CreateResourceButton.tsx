@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSelectedClusters } from '../../lib/k8s';
 import { KubeObjectClass } from '../../lib/k8s/cluster';
+import { Activity } from '../activity/Activity';
 import ActionButton from '../common/ActionButton';
 import { AuthVisible } from '../common/Resource';
 import { EditorDialog } from '../common/Resource';
@@ -29,11 +32,12 @@ export interface CreateResourceButtonProps {
 export function CreateResourceButton(props: CreateResourceButtonProps) {
   const { resourceClass, resourceName } = props;
   const { t } = useTranslation(['glossary', 'translation']);
-  const [openDialog, setOpenDialog] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('');
+  const clusters = useSelectedClusters();
 
   const baseObject = resourceClass.getBaseObject();
   const name = resourceName ?? baseObject.kind;
+  const activityId = 'create-resource-' + resourceClass.apiName;
 
   return (
     <AuthVisible item={resourceClass} authVerb="create">
@@ -42,19 +46,28 @@ export function CreateResourceButton(props: CreateResourceButtonProps) {
         description={t('translation|Create {{ name }}', { name })}
         icon={'mdi:plus-circle'}
         onClick={() => {
-          setOpenDialog(true);
+          Activity.launch({
+            id: activityId,
+            title: t('translation|Create {{ name }}', { name }),
+            location: 'full',
+            cluster: clusters[0],
+            icon: <Icon icon="mdi:plus-circle" />,
+            content: (
+              <EditorDialog
+                noDialog
+                item={baseObject}
+                open
+                setOpen={() => {}}
+                onClose={() => Activity.close(activityId)}
+                saveLabel={t('translation|Apply')}
+                errorMessage={errorMessage}
+                onEditorChanged={() => setErrorMessage('')}
+                title={t('translation|Create {{ name }}', { name })}
+                aria-label={t('translation|Create {{ name }}', { name })}
+              />
+            ),
+          });
         }}
-      />
-      <EditorDialog
-        item={baseObject}
-        open={openDialog}
-        setOpen={setOpenDialog}
-        onClose={() => setOpenDialog(false)}
-        saveLabel={t('translation|Apply')}
-        errorMessage={errorMessage}
-        onEditorChanged={() => setErrorMessage('')}
-        title={t('translation|Create {{ name }}', { name })}
-        aria-label={t('translation|Create {{ name }}', { name })}
       />
     </AuthVisible>
   );

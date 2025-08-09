@@ -50,6 +50,7 @@ import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { useURLState } from '../../../lib/util';
 import { useSettings } from '../../App/Settings/hook';
+import { useQueryParamsState } from '../../resourceMap/useQueryParamsState';
 import Empty from '../EmptyContent';
 import Loader from '../Loader';
 
@@ -192,6 +193,11 @@ export default function Table<RowItem extends Record<string, any>>({
   const shouldReflectInURL = reflectInURL !== undefined && reflectInURL !== false;
   const prefix = reflectInURL === true ? '' : reflectInURL || '';
   const [page, setPage] = usePageURLState(shouldReflectInURL ? 'p' : '', prefix, initialPage);
+  const filterKey = prefix ? `${prefix}filter` : 'filter';
+  const [globalFilter, setGlobalFilter] = useQueryParamsState<string | undefined>(
+    shouldReflectInURL ? filterKey : '',
+    shouldReflectInURL ? '' : undefined
+  );
 
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = rowsPerPage || storeRowsPerPageOptions;
@@ -203,6 +209,9 @@ export default function Table<RowItem extends Record<string, any>>({
 
   const { t, i18n } = useTranslation();
   const theme = useTheme();
+
+  // State for shift+click range selection
+  const [lastSelectedRowIndex, setLastSelectedRowIndex] = useState<number | null>(null);
 
   // Provide defaults for the columns
   const tableColumns: TableColumn<RowItem>[] = useMemo(
@@ -258,6 +267,7 @@ export default function Table<RowItem extends Record<string, any>>({
       setPage(pagination.pageIndex + 1);
       setPageSize(pagination.pageSize);
     },
+    onGlobalFilterChange: setGlobalFilter,
     renderToolbarInternalActions: props => {
       const isSomeRowsSelected =
         tableProps.enableRowSelection && props.table.getSelectedRowModel().rows.length !== 0;
@@ -269,18 +279,27 @@ export default function Table<RowItem extends Record<string, any>>({
       }
       return null;
     },
-    initialState: {
-      density: 'compact',
-      ...(tableProps.initialState ?? {}),
-    },
-    state: {
-      ...(tableProps.state ?? {}),
-      columnOrder: columnOrder,
-      pagination: {
-        pageIndex: page - 1,
-        pageSize: pageSize,
-      },
-    },
+    initialState: useMemo(
+      () => ({
+        density: 'compact',
+        globalFilter: globalFilter || '',
+        ...(tableProps.initialState ?? {}),
+      }),
+      [tableProps.initialState, globalFilter]
+    ),
+    state: useMemo(
+      () => ({
+        ...(tableProps.state ?? {}),
+        columnOrder,
+        pagination: {
+          pageIndex: page - 1,
+          pageSize: pageSize,
+        },
+        globalFilter,
+        ...(globalFilter ? { showGlobalFilter: true } : {}),
+      }),
+      [tableProps.state, columnOrder, page, pageSize, globalFilter]
+    ),
     positionActionsColumn: 'last',
     layoutMode: 'grid',
     // Need to provide our own empty message
@@ -396,6 +415,49 @@ export default function Table<RowItem extends Record<string, any>>({
 
   const rows = useMRT_Rows(table);
 
+  // Handle shift+click range selection
+  const handleRowClick = (e: React.MouseEvent, clickedIndex: number) => {
+    if (!table || !table.getRowModel) return;
+    const target = e.target;
+    if (
+      !(target instanceof HTMLInputElement) ||
+      target.tagName !== 'INPUT' ||
+      target.type !== 'checkbox'
+    ) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rowModel = table.getRowModel();
+    const rowIds = rowModel.rows.map(row => row.id);
+
+    if (e.shiftKey && lastSelectedRowIndex !== null) {
+      const start = Math.min(lastSelectedRowIndex, clickedIndex);
+      const end = Math.max(lastSelectedRowIndex, clickedIndex);
+      const newSelected: Record<string, boolean> = {};
+
+      for (let i = start; i <= end; i++) {
+        const rowId = rowIds[i];
+        if (rowId) {
+          newSelected[rowId] = true;
+        }
+      }
+
+      table.setRowSelection(prev => ({
+        ...prev,
+        ...newSelected,
+      }));
+    } else {
+      const rowId = rowIds[clickedIndex];
+      table.setRowSelection(prev => ({
+        ...prev,
+        [rowId]: !prev[rowId],
+      }));
+      setLastSelectedRowIndex(clickedIndex);
+    }
+  };
+
   if (!!errorMessage) {
     return <Empty color="error">{errorMessage}</Empty>;
   }
@@ -440,17 +502,20 @@ export default function Table<RowItem extends Record<string, any>>({
                 sorting={header.column.getIsSorted()}
                 showColumnFilters={table.getState().showColumnFilters}
                 selected={table.getSelectedRowModel().flatRows.length}
+                filterValue={header.column.getFilterValue()}
               />
             ))}
           </StyledHeadRow>
         </TableHead>
         <StyledBody>
-          {rows.map(row => (
+          {rows.map((row, index) => (
             <Row
               key={row.id}
+              rowIndex={index}
               cells={row.getVisibleCells() as MRT_Cell<Record<string, any>, unknown>[]}
               table={table as MRT_TableInstance<Record<string, any>>}
               isSelected={row.getIsSelected()}
+              onRowClick={handleRowClick}
             />
           ))}
         </StyledBody>
@@ -471,6 +536,7 @@ const MemoHeadCell = memo(
     isFiltered: boolean;
     selected: number;
     showColumnFilters: boolean;
+    filterValue: any;
   }) => {
     return (
       <MRT_TableHeadCell
@@ -487,7 +553,8 @@ const MemoHeadCell = memo(
     a.sorting === b.sorting &&
     a.isFiltered === b.isFiltered &&
     a.showColumnFilters === b.showColumnFilters &&
-    (a.header.column.id === 'mrt-row-select' ? a.selected === b.selected : true)
+    (a.header.column.id === 'mrt-row-select' ? a.selected === b.selected : true) &&
+    a.filterValue === b.filterValue
 );
 
 const Row = memo(
@@ -495,12 +562,16 @@ const Row = memo(
     cells,
     table,
     isSelected,
+    onRowClick,
+    rowIndex,
   }: {
     table: MRT_TableInstance<RowItem>;
     cells: MRT_Cell<RowItem, unknown>[];
     isSelected: boolean;
+    onRowClick?: (e: React.MouseEvent, rowIndex: number) => void;
+    rowIndex: number;
   }) => (
-    <StyledRow data-selected={isSelected}>
+    <StyledRow data-selected={isSelected} onClickCapture={e => onRowClick?.(e, rowIndex)}>
       {cells.map(cell => (
         <MemoCell
           cell={cell as MRT_Cell<Record<string, any>, unknown>}

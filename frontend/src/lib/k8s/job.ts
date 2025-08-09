@@ -21,7 +21,7 @@ import { KubePodSpec } from './pod';
 
 export interface KubeJob extends KubeObjectInterface {
   spec: {
-    selector: LabelSelector;
+    selector?: LabelSelector;
     template: {
       metadata?: KubeMetadata;
       spec: KubePodSpec;
@@ -60,6 +60,35 @@ class Job extends KubeObject<KubeJob> {
       return duration;
     }
     return -1;
+  }
+  static getBaseObject(): KubeJob {
+    const baseObject = super.getBaseObject() as KubeJob;
+    baseObject.metadata = {
+      ...baseObject.metadata,
+      namespace: '',
+      labels: { app: 'headlamp' },
+    };
+    baseObject.spec = {
+      selector: {
+        matchLabels: { app: 'headlamp' },
+      },
+      template: {
+        spec: {
+          containers: [
+            {
+              name: '',
+              image: '',
+              command: [],
+              imagePullPolicy: 'Always',
+            },
+          ],
+          restartPolicy: 'Never',
+          nodeName: '',
+        },
+      },
+    };
+
+    return baseObject;
   }
 }
 

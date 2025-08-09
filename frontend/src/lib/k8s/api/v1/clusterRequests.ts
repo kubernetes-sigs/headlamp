@@ -19,14 +19,13 @@
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import store from '../../../../redux/stores/store';
 import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
-import { getToken, logout, setToken } from '../../../auth';
+import { logout } from '../../../auth';
 import { getCluster } from '../../../cluster';
 import { KubeObjectInterface } from '../../KubeObject';
 import { ApiError } from '../v2/ApiError';
 import { BASE_HTTP_URL, CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
 import { asQuery, combinePath } from './formatUrl';
 import { QueryParameters } from './queryParameters';
-import { refreshToken } from './tokenApi';
 
 /**
  * Options for the request.
@@ -142,20 +141,10 @@ export async function clusterRequest(
 
   let fullPath = path;
   if (cluster) {
-    const token = getToken(cluster);
     const kubeconfig = await findKubeconfigByClusterName(cluster);
     if (kubeconfig !== null) {
       opts.headers['KUBECONFIG'] = kubeconfig;
       opts.headers['X-HEADLAMP-USER-ID'] = userID;
-    }
-
-    // Refresh service account token only if the cluster auth type is not OIDC
-    if (getClusterAuthType(cluster) !== 'oidc') {
-      await refreshToken(token);
-    }
-
-    if (!!token) {
-      opts.headers.Authorization = `Bearer ${token}`;
     }
 
     fullPath = combinePath(`/${CLUSTERS_PREFIX}/${cluster}`, path);
@@ -166,7 +155,11 @@ export async function clusterRequest(
 
   let url = combinePath(BASE_HTTP_URL, fullPath);
   url += asQuery(queryParams);
-  const requestData = { signal: controller.signal, ...opts };
+  const requestData = {
+    signal: controller.signal,
+    credentials: 'include' as RequestCredentials,
+    ...opts,
+  };
   let response: Response = new Response(undefined, { status: 502, statusText: 'Unreachable' });
   try {
     response = await fetch(url, requestData);
@@ -187,18 +180,11 @@ export async function clusterRequest(
     window.location.reload();
   }
 
-  // In case of OIDC auth if the token is about to expire the backend
-  // sends a refreshed token in the response header.
-  const newToken = response.headers.get('X-Authorization');
-  if (newToken) {
-    setToken(cluster, newToken);
-  }
-
   if (!response.ok) {
     const { status, statusText } = response;
     if (autoLogoutOnAuthError && status === 401 && opts.headers.Authorization) {
       console.error('Logging out due to auth error', { status, statusText, path });
-      logout();
+      logout(cluster);
     }
 
     let message = statusText;
