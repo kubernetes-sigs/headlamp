@@ -22,9 +22,12 @@ package k8cache
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 )
 
 // ResponseCapture is a struct that will capture statusCode, Headers and Body
@@ -33,6 +36,12 @@ type ResponseCapture struct {
 	http.ResponseWriter
 	StatusCode int
 	Body       *bytes.Buffer
+}
+
+type CachedResponseData struct {
+	StatusCode int         `json:"statusCode"`
+	Headers    http.Header `json:"headers"`
+	Body       string      `json:"body"`
 }
 
 // WriteHeader write the headers that to the Headers property in CachedResponseData struct.
@@ -82,4 +91,97 @@ func GetResponseBody(bodyBytes []byte, encoding string) (string, error) {
 	}
 
 	return string(dcmpBody), nil
+}
+
+// GetAPIGroup parse the urlPath and return apiGroup and version
+// that can be used while generating key for cache.
+func GetAPIGroup(path string) (apiGroup, version string) {
+	parts := strings.Split(path, "/")
+
+	if len(parts) < 4 {
+		return "", ""
+	}
+
+	if parts[3] == "api" {
+		// Core API group
+		apiGroup = ""
+		version = parts[4]
+	} else if parts[3] == "apis" {
+		// Named API group
+		apiGroup = parts[4]
+		version = parts[5]
+	}
+
+	return
+}
+
+// ExtractNamespace extracts the namespace from the parameter from the given raw URL. This is used to make
+// cache key more specific to a particular namespace.
+func ExtractNamespace(rawURL string) (string, string) {
+	if idx := strings.Index(rawURL, "?"); idx != -1 {
+		rawURL = rawURL[:idx]
+	}
+
+	var namespace, kind string
+
+	urls := strings.Split(rawURL, "/")
+	n := len(urls)
+
+	for i := 0; i < n-1; i++ {
+		if urls[i] == "namespaces" {
+			namespace = urls[i+1]
+		}
+	}
+
+	if len(urls) > 2 {
+		kind = urls[n-1]
+	}
+
+	return namespace, kind
+}
+
+// GenerateKey function helps to generate a unique key based on the request from the client
+// The function accepts url( which includes all the information of request ) and contextID which
+// helps to differentiate in multiple contexts.
+func GenerateKey(url *url.URL, contextID string) (string, error) {
+	namespace, kind := ExtractNamespace(url.Path)
+	apiGroup, _ := GetAPIGroup(url.Path)
+
+	k := CacheKey{
+		Kind:      kind,
+		Namespace: namespace,
+		Context:   contextID,
+	}
+
+	// Create a stable representation
+	raw := fmt.Sprintf("%s+%s+%s+%s", apiGroup, k.Kind, k.Namespace, k.Context)
+
+	return raw, nil
+}
+
+// UnmarshalCachedData deserialize a JSON string received from cache
+// back into a CachedResponseData struct. This function is used to reconstructing
+// the full HTTP response (status, headers, body) when serving the k8s to the client.
+// this is the essential part as it gives the clarity about the incoming k8s requests.
+func UnmarshalCacheData(cacheResource string,
+) (CachedResponseData, error) {
+	var cachedData CachedResponseData
+
+	err := json.Unmarshal([]byte(cacheResource), &cachedData)
+	if err != nil {
+		return CachedResponseData{}, err
+	}
+
+	return cachedData, nil
+}
+
+// SetHeader function help to serve response from cache to ensure the client
+// receives correct metadata about the response.
+func SetHeader(cacheData CachedResponseData, w http.ResponseWriter) {
+	for idx, header := range cacheData.Headers {
+		w.Header()[idx] = header
+	}
+
+	w.Header().Set("X-HEADLAMP-CACHE", "true")
+	w.WriteHeader(cacheData.StatusCode)
 }

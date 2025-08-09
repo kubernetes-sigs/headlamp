@@ -19,6 +19,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"reflect"
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
@@ -226,6 +228,199 @@ func TestGetResponseBody(t *testing.T) {
 			body, err := k8cache.GetResponseBody(buf.Bytes(), tc.contentEncoding)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.responseBody, body)
+		})
+	}
+}
+
+// TestGetAPIGroup tests whether the GetAPIGroup returning correct
+// apiGroup and version from the URL.
+func TestGetAPIGroup(t *testing.T) {
+	tests := []struct {
+		name             string
+		urlPath          *url.URL
+		expectedAPIGroup string
+		expectedVersion  string
+	}{
+		{
+			name:             "return non-empty apiGroup and version",
+			urlPath:          &url.URL{Path: "/clusters/kind-kind/apis/metrics.k8s.io/v1beta1/pods"},
+			expectedAPIGroup: "metrics.k8s.io",
+			expectedVersion:  "v1beta1",
+		},
+		{
+			name:             "return empty apiGroup",
+			urlPath:          &url.URL{Path: "/clusters/kind-kind/api/v1/pods"},
+			expectedAPIGroup: "",
+			expectedVersion:  "v1",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			apiGroup, version := k8cache.GetAPIGroup(tc.urlPath.Path)
+			assert.Equal(t, tc.expectedAPIGroup, apiGroup)
+			assert.Equal(t, tc.expectedVersion, version)
+		})
+	}
+}
+
+// TestExtractNamespace verifies namespace extraction from different kinds
+// of URLs, including valid, empty, and malformed ones.
+func TestExtractNamespace(t *testing.T) {
+	tests := []struct {
+		name       string
+		urlPath    url.URL
+		namespaces string
+		kind       string
+	}{
+		{
+			name:       "return empty namespaces",
+			urlPath:    url.URL{Path: "/clusters/kind-kind/api/v1/pods"},
+			namespaces: "",
+			kind:       "pods",
+		},
+		{
+			name:       "return namespace and kind",
+			urlPath:    url.URL{Path: "/clusters/kind-kind/api/v1/namespaces/test-namespace/pods"},
+			namespaces: "test-namespace",
+			kind:       "pods",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			namespace, kind := k8cache.ExtractNamespace(tc.urlPath.Path)
+			assert.Equal(t, tc.namespaces, namespace)
+			assert.Equal(t, tc.kind, kind)
+		})
+	}
+}
+
+// TestGenerateKey ensures the generated key is valid for both normal
+// and empty cluster name scenarios.
+func TestGenerateKey(t *testing.T) {
+	tests := []struct {
+		name        string
+		urlPath     url.URL
+		contextKey  string
+		expectedKey string
+	}{
+		{
+			name:        "key with non-empty apiGroup, kind , namespace, contextId",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/k8s.metrics.io/v1beta1/namespaces/test-kube/pods"},
+			contextKey:  "kind-kind",
+			expectedKey: "k8s.metrics.io+pods+test-kube+kind-kind",
+		},
+		{
+			name:        "key with empty apiGroup",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/api/v1/namespaces/test-kube/pods"},
+			contextKey:  "kind-kind",
+			expectedKey: "+pods+test-kube+kind-kind",
+		},
+		{
+			name:        "key with empty apiGroup and namespace",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/api/v1/pods"},
+			contextKey:  "kind-kind",
+			expectedKey: "+pods++kind-kind",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			key, _ := k8cache.GenerateKey(&tc.urlPath, tc.contextKey)
+			assert.Equal(t, tc.expectedKey, key)
+		})
+	}
+}
+
+// TestUnMarshallCacheData tests whether the resource Data unserialized correctly.
+// It contains different test cases where the inputs empty , valid and invalid.
+func TestUnMarshallCacheData(t *testing.T) {
+	tests := []struct {
+		name                   string
+		cacheResource          string
+		cacheData              k8cache.CachedResponseData
+		expectedCachedResponse k8cache.CachedResponseData
+		expectedError          error
+	}{
+		{
+			name:          "cache Resource is valid",
+			cacheResource: `{"key": "1234" , "body":"testing-data"}`,
+			cacheData:     k8cache.CachedResponseData{},
+			expectedCachedResponse: k8cache.CachedResponseData{
+				Body: "testing-data",
+			},
+			expectedError: nil,
+		},
+		{
+			name:                   "cache Resource input is valid but cacheResponse is empty",
+			cacheResource:          `{"key" :"1234" , "value": "testing-data"}`,
+			cacheData:              k8cache.CachedResponseData{},
+			expectedCachedResponse: k8cache.CachedResponseData{},
+			expectedError:          nil,
+		},
+		{
+			name:                   "cache Resource is invalid",
+			cacheResource:          "testing-string",
+			cacheData:              k8cache.CachedResponseData{},
+			expectedCachedResponse: k8cache.CachedResponseData{},
+			expectedError:          errors.New("invalid character 'e' in literal true (expecting 'r')"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := k8cache.UnmarshalCacheData(tc.cacheResource)
+			assert.Equal(t, tc.expectedCachedResponse, result)
+
+			if err != nil {
+				assert.ErrorContains(t, err, tc.expectedError.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestSetHeader tests whether the SetHeader is providing correct metadata for
+// the given cacheData that will going to be served to the client.
+func TestSetHeader(t *testing.T) {
+	tests := []struct {
+		name              string
+		cacheData         k8cache.CachedResponseData
+		expectedCacheData k8cache.CachedResponseData
+	}{
+		{
+			name: "cache data is valid",
+			cacheData: k8cache.CachedResponseData{
+				StatusCode: 200,
+				Headers: http.Header{
+					"Content-Type": {"application/json"},
+					"X-Test":       {"true"},
+				},
+				Body: `{"message": "OK"}`,
+			},
+		},
+		{
+			name: "cache return X-HEADLAMP-CACHE as true",
+			cacheData: k8cache.CachedResponseData{
+				StatusCode: 200,
+				Headers: http.Header{
+					"Content-Type":     {"application/json"},
+					"X-HEADLAMP-CACHE": {"true"},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			k8cache.SetHeader(tc.cacheData, rr)
+
+			for key, expectedValue := range tc.cacheData.Headers {
+				actualValues := rr.Header().Values(key)
+				if !reflect.DeepEqual(actualValues, expectedValue) {
+					t.Errorf("Header %s: expected %v, got %v", key, expectedValue, actualValues)
+				}
+			}
 		})
 	}
 }
