@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestResponseCapture_WriteHeader tests that WriteHeader sets the status code and calls the underlying ResponseWriter.
@@ -160,4 +161,20 @@ func TestResponseCapture_Write_BodySuccess(t *testing.T) {
 	if rec.Body.String() != "body success" {
 		t.Errorf("expected recorder body %q, got %q", "body success", rec.Body.String())
 	}
+}
+
+// TestInitialize verifies that responseCapture is initialized with
+// the original http.ResponseWriter and an empty buffer.
+func TestInitialize(t *testing.T) {
+	t.Run("initializes responseCapture with defaults", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+
+		rc := k8cache.CreateResponseCapture(recorder)
+
+		assert.NotNil(t, rc)
+		assert.Equal(t, http.StatusOK, rc.StatusCode)
+		assert.Equal(t, recorder, rc.ResponseWriter)
+		assert.NotNil(t, rc.Body)
+		assert.Equal(t, 0, rc.Body.Len())
+	})
 }

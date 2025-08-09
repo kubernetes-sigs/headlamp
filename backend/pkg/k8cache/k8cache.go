@@ -43,3 +43,12 @@ func (r *ResponseCapture) Write(b []byte) (int, error) {
 	r.Body.Write(b)
 	return r.ResponseWriter.Write(b)
 }
+
+// CreateResponseCapture initializes responseCapture with a http.ResponseWriter and empty bytes.Buffer for the body.
+func CreateResponseCapture(w http.ResponseWriter) *ResponseCapture {
+	return &ResponseCapture{
+		ResponseWriter: w,
+		Body:           &bytes.Buffer{},
+		StatusCode:     http.StatusOK,
+	}
+}
