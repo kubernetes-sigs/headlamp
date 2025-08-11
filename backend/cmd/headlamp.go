@@ -1434,7 +1434,6 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) { //nolint:funlen
 		if err == nil && token != "" {
 			r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 		}
-		handlePagination(r)
 
 		// Process WebSocket protocol headers if present
 		processWebSocketProtocolHeader(r)
