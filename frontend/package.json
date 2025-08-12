@@ -80,7 +80,6 @@
     "react-dropzone": "^14.2.9",
     "react-hotkeys-hook": "^4.5.1",
     "react-i18next": "^15.0.2",
-    "react-jwt": "^1.1.6",
     "react-markdown": "^9.0.1",
     "react-redux": "^9.1.2",
     "react-router": "^5.3.0",
