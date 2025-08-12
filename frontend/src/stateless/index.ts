@@ -16,6 +16,8 @@
 
 import * as jsyaml from 'js-yaml';
 import _ from 'lodash';
+import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
+import { JSON_HEADERS } from '../lib/k8s/api/v1/constants';
 import { request } from '../lib/k8s/apiProxy';
 import { Cluster } from '../lib/k8s/cluster';
 import { KubeconfigObject } from '../lib/k8s/kubeconfig';
@@ -446,7 +448,7 @@ export function isEqualClusterConfigs(
 export async function fetchStatelessClusterKubeConfigs(dispatch: any) {
   const config = await getStatelessClusterKubeConfigs();
   const statelessClusters = store.getState().config.statelessClusters;
-  const JSON_HEADERS = { Accept: 'application/json', 'Content-Type': 'application/json' };
+  const headers = addBackstageAuthHeaders(JSON_HEADERS);
   const clusterReq = {
     kubeconfigs: config,
   };
@@ -458,7 +460,7 @@ export async function fetchStatelessClusterKubeConfigs(dispatch: any) {
       method: 'POST',
       body: JSON.stringify(clusterReq),
       headers: {
-        ...JSON_HEADERS,
+        ...headers,
       },
     },
     false,

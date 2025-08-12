@@ -16,7 +16,9 @@
 
 // @todo: Params is a confusing name for options, because params are also query params.
 
+import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
+import { isBackstage } from '../../../../helpers/isBackstage';
 import store from '../../../../redux/stores/store';
 import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
 import { logout } from '../../../auth';
@@ -160,6 +162,9 @@ export async function clusterRequest(
     credentials: 'include' as RequestCredentials,
     ...opts,
   };
+  if (isBackstage()) {
+    requestData.headers = addBackstageAuthHeaders(requestData.headers);
+  }
   let response: Response = new Response(undefined, { status: 502, statusText: 'Unreachable' });
   try {
     response = await fetch(url, requestData);
