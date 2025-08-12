@@ -372,92 +372,145 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   const topActions = [
     <Box
       key="container-controls"
-      sx={{ display: 'flex', gap: 2, alignItems: 'center', width: '100%' }}
+      sx={{
+        display: 'flex',
+        gap: 2,
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        width: '100%',
+        backgroundColor: 'black',
+        padding: 2,
+      }}
     >
       {/* Upper actions box */}
-      <Grid
-        container
-        spacing={1}
+      <Box
         sx={{
-          display: 'flex',
-          flexDirection: { xs: 'column', sm: 'row' },
-          alignSelf: 'flex-start',
-          alignItems: 'flex-start',
+          width: {
+            xs: 'auto',
+            lg: '80%',
+          },
+          backgroundColor: {
+            xs: 'purple',
+            sm: 'blue',
+            md: 'gray',
+            lg: 'green',
+            xl: 'orange',
+          },
         }}
       >
-        {/* Pod selection dropdown */}
-        <Grid item xs={3} sm={'auto'}>
-          <FormControl sx={{ minWidth: 200 }}>
-            <InputLabel>{t('translation|Select Pod')}</InputLabel>
-            <Select
-              value={selectedPodIndex}
-              onChange={event => {
-                setSelectedPodIndex(event.target.value as number | 'all');
-                clearLogs();
-              }}
-              label={t('translation|Select Pod')}
-            >
-              <MenuItem value="all">{t('translation|All Pods')}</MenuItem>
-              {pods.map((pod, index) => (
-                <MenuItem key={pod.getName()} value={index}>
-                  {pod.getName()}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Grid>
+        <Grid
+          container
+          spacing={4}
+          sx={{
+            display: 'flex',
+            flexDirection: { sm: 'column', lg: 'row' },
+            justifyContent: 'flex-start',
+            alignSelf: 'flex-start',
+            alignItems: 'flex-start',
+            width: '100%',
+          }}
+        >
+          {/* Pod selection dropdown */}
+          <Grid item xs={7} sm={4} md={5} lg={3}>
+            <FormControl sx={{ minWidth: 200 }}>
+              <InputLabel>{t('translation|Select Pod')}</InputLabel>
+              <Select
+                value={selectedPodIndex}
+                onChange={event => {
+                  setSelectedPodIndex(event.target.value as number | 'all');
+                  clearLogs();
+                }}
+                label={t('translation|Select Pod')}
+              >
+                <MenuItem value="all">{t('translation|All Pods')}</MenuItem>
+                {pods.map((pod, index) => (
+                  <MenuItem key={pod.getName()} value={index}>
+                    {pod.getName()}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
 
-        {/* Container selection dropdown */}
-        <Grid item xs={3} sm={'auto'}>
-          <FormControl sx={{ minWidth: 200 }}>
-            <InputLabel>{t('translation|Container')}</InputLabel>
-            <Select
-              value={selectedContainer}
-              onChange={event => {
-                setSelectedContainer(event.target.value);
-                clearLogs();
-              }}
-              label={t('translation|Container')}
-            >
-              {containers.map(container => (
-                <MenuItem key={container} value={container}>
-                  {container}
-                  {hasContainerRestarted(
-                    pods[selectedPodIndex === 'all' ? 0 : selectedPodIndex]?.getName(),
-                    container
-                  ) && ` (${t('translation|Restarted')})`}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Grid>
+          {/* Container selection dropdown */}
+          <Grid
+            item
+            xs={7}
+            sm={4}
+            md={5}
+            lg={3}
+            sx={{
+              marginLeft: { lg: 2 },
+            }}
+          >
+            <FormControl sx={{ minWidth: 200 }}>
+              <InputLabel>{t('translation|Container')}</InputLabel>
+              <Select
+                value={selectedContainer}
+                onChange={event => {
+                  setSelectedContainer(event.target.value);
+                  clearLogs();
+                }}
+                label={t('translation|Container')}
+              >
+                {containers.map(container => (
+                  <MenuItem key={container} value={container}>
+                    {container}
+                    {hasContainerRestarted(
+                      pods[selectedPodIndex === 'all' ? 0 : selectedPodIndex]?.getName(),
+                      container
+                    ) && ` (${t('translation|Restarted')})`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
 
-        {/* Lines selector */}
-        <Grid item xs={3} sm={'auto'}>
-          <FormControl sx={{ minWidth: 120 }}>
-            <InputLabel>Lines</InputLabel>
-            <Select value={lines} onChange={handleLinesChange}>
-              {[100, 1000, 2500].map(i => (
-                <MenuItem key={i} value={i}>
-                  {i}
-                </MenuItem>
-              ))}
-              <MenuItem value={-1}>All</MenuItem>
-            </Select>
-          </FormControl>
+          {/* Lines selector */}
+          <Grid
+            item
+            xs={7}
+            sm={4}
+            md={4}
+            lg={3}
+            sx={{
+              marginLeft: { lg: 2 },
+            }}
+          >
+            <FormControl sx={{ minWidth: 120 }}>
+              <InputLabel>Lines</InputLabel>
+              <Select value={lines} onChange={handleLinesChange}>
+                {[100, 1000, 2500].map(i => (
+                  <MenuItem key={i} value={i}>
+                    {i}
+                  </MenuItem>
+                ))}
+                <MenuItem value={-1}>All</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
         </Grid>
-      </Grid>
+      </Box>
 
       {/* Switches */}
       <Box
         sx={{
           display: 'flex',
-          flexDirection: { xs: 'column', sm: 'row' },
-          width: '100%',
+          justifyContent: 'flex-start',
+          flexDirection: { xs: 'column', lg: 'row' },
+          width: 'auto',
         }}
       >
-        <Grid container spacing={1} alignItems="flex-start" justifyContent="flex-start">
-          <Grid item xs={7} sm={'auto'}>
+        <Grid
+          container
+          spacing={1}
+          alignItems="flex-start"
+          justifyContent="flex-start"
+          sx={{
+            flexDirection: { sm: 'column', lg: 'row' },
+          }}
+        >
+          <Grid item xs={12} sm={7} md={6} lg={3}>
             {/* Show previous logs switch */}
             <LightTooltip
               title={
@@ -496,7 +549,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
           </Grid>
 
           {/* Timestamps switch */}
-          <Grid item xs={7} sm={'auto'}>
+          <Grid item xs={12} sm={7} md={6} lg={3}>
             <LightTooltip title={t('translation|Show timestamps in the logs.')}>
               <PaddedFormControlLabel
                 control={
@@ -514,7 +567,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
           </Grid>
 
           {/* Follow logs switch */}
-          <Grid item xs={6} sm={'auto'}>
+          <Grid item xs={12} sm={7} md={6} lg={3}>
             <LightTooltip
               title={t(
                 'translation|Follow logs in real-time. New log lines will be appended as they arrive.'
