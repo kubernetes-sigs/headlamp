@@ -67,7 +67,6 @@
     "@xyflow/react": "^12.2.0",
     "ajv": "^8.12.0",
     "buffer": "^6.0.3",
-    "console-browserify": "^1.2.0",
     "cronstrue": "^2.50.0",
     "cross-env": "^7.0.3",
     "crypto-browserify": "^3.12.0",
