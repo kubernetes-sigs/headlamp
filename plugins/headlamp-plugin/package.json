@@ -119,7 +119,6 @@
     "simple-eval": "^2.0.0",
     "spacetime": "^7.4.0",
     "storybook": "^8.5.6",
-    "stream-browserify": "^3.0.0",
     "table": "^6.8.2",
     "tar": "^7.4.3",
     "tmp": "^0.2.3",
