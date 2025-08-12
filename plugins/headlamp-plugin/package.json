@@ -14,7 +14,6 @@
   "prettier": "@headlamp-k8s/eslint-config/prettier-config",
   "dependencies": {
     "@apidevtools/swagger-parser": "^10.0.3",
-    "@dagrejs/dagre": "^1.1.2",
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
     "@headlamp-k8s/eslint-config": "^0.6.0",
