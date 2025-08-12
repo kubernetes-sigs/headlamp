@@ -50,12 +50,13 @@ export default function CustomResourceDefinitionList() {
       columns={[
         {
           label: t('glossary|Resource'),
-          getValue: (crd: CRD) => crd.spec.names.kind,
+          getValue: (crd: CRD) => `${crd.spec.names.kind} (${crd.spec.group})`,
           render: crd => (
             <Link
               routeName="customresources"
               params={{
-                crd: crd.metadata.name,
+                group: crd.spec.group,
+                crd: crd.spec.names.plural,
               }}
               activeCluster={crd.cluster}
             >
