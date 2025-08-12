@@ -104,7 +104,6 @@
     "notistack": "^3.0.2",
     "openapi-types": "^9.3.0",
     "prettier": "^2.7.1",
-    "process": "^0.11.10",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-dropzone": "^14.2.9",
