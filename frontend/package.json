@@ -49,7 +49,6 @@
     "buffer": "^6.0.3",
     "cronstrue": "^2.50.0",
     "cross-env": "^7.0.3",
-    "crypto-browserify": "^3.12.0",
     "elkjs": "^0.9.3",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
