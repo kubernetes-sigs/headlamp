@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { addBackstageAuthHeaders } from './addBackstageAuthHeaders';
 import { getBackstageToken, setupBackstageMessageReceiver } from './backstageMessageReceiver';
 import { loadClusterSettings, storeClusterSettings } from './clusterSettings';
 import { getBaseUrl } from './getBaseUrl';
@@ -33,6 +34,7 @@ const exportFunctions = {
   isDockerDesktop,
   isBackstage,
   getBackstageToken,
+  addBackstageAuthHeaders,
   setupBackstageMessageReceiver,
   setRecentCluster,
   getRecentClusters,
