@@ -419,7 +419,7 @@
                           <p
                             class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
                           >
-                            1 Failed / 1 Running
+                            1 Running
                           </p>
                         </div>
                         <div
@@ -464,9 +464,13 @@
                                   <g
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
+                                  />
+                                  <g
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
                                   >
                                     <path
-                                      aria-label="0 %"
+                                      aria-label="100 %"
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
@@ -478,17 +482,13 @@
             A 33.800000000000004,33.800000000000004,0,
             1,0,
             61,27.199999999999996 Z"
-                                      fill="#c62828"
-                                      name="failed"
+                                      fill="#000"
+                                      name="total"
                                       role="img"
                                       stroke="#e0e0e0"
                                       tabindex="-1"
                                     />
                                   </g>
-                                  <g
-                                    class="recharts-layer recharts-pie-sector"
-                                    tabindex="-1"
-                                  />
                                   <text
                                     class="recharts-text recharts-label"
                                     fill="#808080"
@@ -502,7 +502,7 @@
                                       dy="0.355em"
                                       x="61"
                                     >
-                                      0 %
+                                      100 %
                                     </tspan>
                                   </text>
                                 </g>
@@ -1964,7 +1964,7 @@
                       <td
                         class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1s3kq9u-MuiTableCell-root"
                       >
-                        1/0
+                        1/1
                       </td>
                       <td
                         class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
