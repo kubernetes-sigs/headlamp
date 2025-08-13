@@ -25,6 +25,11 @@ export type GraphFilter =
   | {
       type: 'namespace';
       namespaces: Set<string>;
+    }
+  | {
+      type: 'label';
+      key: string;
+      value: string;
     };
 
 /**
@@ -104,6 +109,10 @@ export function filterGraph(nodes: GraphNode[], edges: GraphEdge[], filters: Gra
           node.kubeObject !== undefined &&
           !!node.kubeObject.metadata?.namespace &&
           filter.namespaces.has(node.kubeObject?.metadata?.namespace);
+      }
+      if (filter.type === 'label') {
+        keep &&=
+          'kubeObject' in node && node.kubeObject?.metadata?.labels?.[filter.key] === filter.value;
       }
     });
 
