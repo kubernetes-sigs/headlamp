@@ -43,6 +43,25 @@
                 >
                   <a
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
+                    href="/projects"
+                    role="button"
+                    tabindex="0"
+                  >
+                    <div
+                      aria-label="Projects"
+                      class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+                      data-mui-internal-clone-element="true"
+                    />
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </a>
+                </li>
+                <li
+                  class="css-3knmzx"
+                >
+                  <a
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
                     href="/notifications"
                     role="button"
                     tabindex="0"
