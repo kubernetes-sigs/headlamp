@@ -39,6 +39,7 @@ import { DefaultSidebars, SidebarEntryProps } from '../components/Sidebar';
 import { setSidebarItem, setSidebarItemFilter } from '../components/Sidebar/sidebarSlice';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import { AppTheme } from '../lib/AppTheme';
+import { ApiResource } from '../lib/k8s/api/v2/ApiResource';
 import { KubeObject } from '../lib/k8s/KubeObject';
 import { Route } from '../lib/router';
 import {
@@ -89,6 +90,16 @@ import {
   TerminalEvent,
 } from '../redux/headlampEventSlice';
 import { addOverviewChartsProcessor, OverviewChartsProcessor } from '../redux/overviewChartsSlice';
+import {
+  addCustomCreateProject,
+  addDetailsTab,
+  addOverviewSection,
+  createOrUpdateProjectAction,
+  CustomCreateProject,
+  ProjectDefinition,
+  ProjectDetailsTab,
+  ProjectOverviewSection,
+} from '../redux/projectsSlice';
 import { setRoute, setRouteFilter } from '../redux/routesSlice';
 import store from '../redux/stores/store';
 import { UIPanel, uiSlice } from '../redux/uiSlice';
@@ -1005,6 +1016,92 @@ export function clusterAction(
  */
 export function registerUIPanel(panel: UIPanel) {
   store.dispatch(uiSlice.actions.addUIPanel(panel));
+}
+
+/**
+ * Register a new way to create Headlamp 'Projects'
+ *
+ * @param customCreateProject - Definition for custom creator
+ *
+ * @example
+ * ```tsx
+ * registerCustomCreateProject({
+ *   id: "custom-create",
+ *   name: "Create Helm Project",
+ *   description: "Create new project from Helm chart",
+ *   Component: ({onBack}) => <div>
+ *     Create project
+ *     <input name="helm-chart-id" />
+ *     <button>Create</button>
+ *     <button onClick={onBack}>Back</button>
+ *   </div>,
+ * })
+ * ```
+ */
+export function registerCustomCreateProject(customCreateProject: CustomCreateProject) {
+  store.dispatch(addCustomCreateProject(customCreateProject));
+}
+
+/**
+ * Register a new tab in the project details view.
+ *
+ * This allows plugins to add custom tabs to the project details page,
+ * extending the information displayed about a project.
+ *
+ * @param projectDetailsTab - The tab configuration to register
+ * @param projectDetailsTab.id - Unique identifier for the tab
+ * @param projectDetailsTab.label - Display label for the tab
+ * @param projectDetailsTab.icon - Display icon for the tab
+ * @param projectDetailsTab.component - React component to render in the tab content
+ *
+ * @example
+ * ```tsx
+ * registerProjectDetailsTab({
+ *   id: 'custom-metrics',
+ *   label: 'Metrics',
+ *   component: ({ project }) => <ProjectMetrics project={project} />
+ * });
+ * ```
+ */
+export function registerProjectDetailsTab(projectDetailsTab: ProjectDetailsTab) {
+  store.dispatch(addDetailsTab(projectDetailsTab));
+}
+
+/**
+ * Register a new section in the project overview page.
+ *
+ * This allows plugins to add custom sections to the project overview,
+ * providing additional information or functionality on the main project page.
+ *
+ * @param projectOverviewSection - The section configuration to register
+ * @param projectOverviewSection.id - Unique identifier for the section
+ * @param projectOverviewSection.component - React component to render in the section
+ *
+ * @example
+ * ```tsx
+ * reigsterProjectOverviewSection({
+ *   id: 'resource-usage',
+ *   component: ({ project }) => <ResourceUsageChart project={project} />
+ * });
+ * ```
+ */
+export function registerProjectOverviewSection(projectOverviewSection: ProjectOverviewSection) {
+  store.dispatch(addOverviewSection(projectOverviewSection));
+}
+
+/**
+ * Create new or update existing Headlamp project
+ *
+ * @param project - Project definition
+ */
+export function createOrUpdateProject(
+  project: Omit<ProjectDefinition, 'id' | 'createdAt' | 'apiResources'> & {
+    id?: string;
+    createdAt?: string;
+    apiResources?: ApiResource[];
+  }
+) {
+  store.dispatch(createOrUpdateProjectAction(project));
 }
 
 export {
