@@ -484,6 +484,8 @@
   "registerMapSource": [Function],
   "registerOverviewChartsProcessor": [Function],
   "registerPluginSettings": [Function],
+  "registerProjectDetailsTab": [Function],
+  "registerProjectOverviewSection": [Function],
   "registerResourceTableColumnsProcessor": [Function],
   "registerRoute": [Function],
   "registerRouteFilter": [Function],
