@@ -123,6 +123,7 @@ const createMockStoryStore = (sidebarConfig: Partial<SidebarState>) => {
       filter: (state = { namespaces: new Set() }) => state,
       routes: (state = { routes: {}, routeFilters: [] }) => state,
       ui: (state = { functionsToOverride: {} }) => state,
+      projects: (state = { projects: {} }) => state,
     },
   });
 };

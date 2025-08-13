@@ -104,9 +104,9 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         icon: 'mdi:home',
         label: t('translation|Home'),
         url: '/',
-        divider: true,
         hide: !shouldShowHomeItem,
       },
+
       {
         name: 'cluster',
         label: selectedClusters.length ? t('Clusters') : t('glossary|Cluster'),
