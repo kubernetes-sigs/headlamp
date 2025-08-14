@@ -296,6 +296,8 @@
   "Forward port": "ポートを転送",
   "Delete port forward": "ポートフォワードを削除",
   "Stop port forward": "ポートフォワードを停止",
+  "Copied": "",
+  "Copy to clipboard": "",
   "Mount Path": "マウントパス",
   "from": "から",
   "I/O": "I/O",

@@ -296,6 +296,8 @@
   "Forward port": "포트 포워딩",
   "Delete port forward": "포트 포워딩 삭제",
   "Stop port forward": "포트 포워딩 중지",
+  "Copied": "",
+  "Copy to clipboard": "",
   "Mount Path": "마운트 경로",
   "from": "from",
   "I/O": "I/O",

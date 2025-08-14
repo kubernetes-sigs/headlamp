@@ -300,6 +300,8 @@
   "Forward port": "Transférer le port",
   "Delete port forward": "Supprimer le transfert de port",
   "Stop port forward": "Arrêter le transfert de port",
+  "Copied": "",
+  "Copy to clipboard": "",
   "Mount Path": "Chemin de montage",
   "from": "de",
   "I/O": "Entrées/Sorties",

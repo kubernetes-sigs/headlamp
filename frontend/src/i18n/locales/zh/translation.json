@@ -296,6 +296,8 @@
   "Forward port": "转发端口",
   "Delete port forward": "刪除端口转发",
   "Stop port forward": "停止端口转发",
+  "Copied": "",
+  "Copy to clipboard": "",
   "Mount Path": "挂载路径",
   "from": "来自",
   "I/O": "I/O",
