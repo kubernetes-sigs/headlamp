@@ -56,6 +56,9 @@ const Template: StoryFn<StoryProps> = args => {
         ...FILTER_INITIAL_STATE,
       },
       ui: { ...uiSlice.getInitialState() },
+      projects: {
+        projects: {},
+      },
       sidebar: {
         ...SIDEBAR_INITIAL_STATE,
         isVisible: true,

@@ -48,6 +48,34 @@ const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
   }));
 };
 
+/**
+ * Create dynamic list of projects
+ *
+ * @returns sidebar item for projects
+ */
+const useProjects = () => {
+  const { t } = useTranslation();
+  const projects = useTypedSelector(state => state.projects.projects);
+
+  return useMemo(() => {
+    const list = Object.values(projects);
+    const projectItems = list.map(project => ({
+      name: project.name,
+      icon: project.icon,
+      label: project.name,
+      url: createRouteURL('projectDetails', { projectId: project.id }),
+    }));
+
+    return {
+      name: 'projects',
+      icon: 'mdi:folder-multiple',
+      label: t('Projects'),
+      url: '/projects',
+      subList: projectItems,
+    };
+  }, [projects]);
+};
+
 export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER) => {
   const clusters = useTypedSelector(state => state.config.clusters) ?? {};
   const settings = useTypedSelector(state => state.config.settings);
@@ -55,6 +83,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
   const shouldShowHomeItem = isElectron() || Object.keys(clusters).length !== 1;
   const selectedClusters = useSelectedClusters();
+  const projects = useProjects();
   const { t } = useTranslation();
 
   const sidebars = useMemo(() => {
@@ -68,6 +97,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
           : createRouteURL('cluster', { cluster: Object.keys(clusters)[0] }),
         divider: !shouldShowHomeItem,
       },
+      projects,
       {
         name: 'notifications',
         icon: 'mdi:bell',
@@ -104,8 +134,11 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         icon: 'mdi:home',
         label: t('translation|Home'),
         url: '/',
-        divider: true,
         hide: !shouldShowHomeItem,
+      },
+      {
+        ...projects,
+        divider: true,
       },
       {
         name: 'cluster',
@@ -407,6 +440,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     Object.keys(clusters).join(','),
     selectedClusters.join(','),
     t,
+    projects,
   ]);
 
   const unsortedItems =

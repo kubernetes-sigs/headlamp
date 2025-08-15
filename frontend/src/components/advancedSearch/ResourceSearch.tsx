@@ -298,7 +298,7 @@ export function ResourceSearch({
   );
 }
 
-function ViewYaml({ item }: { item: KubeObject }) {
+export function ViewYaml({ item }: { item: KubeObject }) {
   return (
     <>
       <Button

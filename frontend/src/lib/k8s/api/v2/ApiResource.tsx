@@ -28,5 +28,7 @@ export interface ApiResource {
 }
 
 /** Unique identifier for an API Resource */
-export const apiResourceId = (resource: ApiResource) =>
-  (resource.groupName ?? '') + resource.apiVersion + resource.pluralName;
+export const apiResourceId = (resource: ApiResource) => JSON.stringify(resource);
+
+/** Deserialize ApiResource ID */
+export const parseFromId = (id: string): ApiResource => JSON.parse(id);
