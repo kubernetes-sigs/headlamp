@@ -49,6 +49,7 @@ const dependenciesFrontDoesNotHave = new Set([
   'is-mergeable-object',
   'ts-loader',
   '@headlamp-k8s/pluginctl',
+  'react-jwt',
 ]);
 
 // Dependencies from frontend/package.json that aren't wanted by headlamp-plugin.
