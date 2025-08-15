@@ -185,3 +185,15 @@ func SetHeader(cacheData CachedResponseData, w http.ResponseWriter) {
 	w.Header().Set("X-HEADLAMP-CACHE", "true")
 	w.WriteHeader(cacheData.StatusCode)
 }
+
+// MarshallToStore serialize a cacheResponseData struct into JSON []byte.
+// This function is used before storing the K8's response data into cache.
+// ensuring a consistent and structured format for all cached entries.
+func MarshalToStore(cacheData CachedResponseData) ([]byte, error) {
+	jsonByte, err := json.Marshal(cacheData)
+	if err != nil {
+		return nil, err
+	}
+
+	return jsonByte, nil
+}
