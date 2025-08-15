@@ -778,3 +778,23 @@ func TestStoreK8sResponseInCache(t *testing.T) {
 		})
 	}
 }
+
+// ServeFromCacheOrForwardToK8s test whether it is returning from the cache if availables or
+// storing the in cache when getting error while authorizing user.
+func TestServeFromCacheOrForwardToK8s(t *testing.T) {
+	t.Run("storing in cache and serving from cache", func(t *testing.T) {
+		urlObj := url.URL{Path: "/clusters/kind-headlamp-admin/api/v1/pods"}
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, urlObj.Path, nil)
+		cache := NewMockCache()
+		rcw := k8cache.CreateResponseCapture(w)
+
+		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusTeapot) // Just an example response
+			_, err := w.Write([]byte("next handler called"))
+			assert.NoError(t, err)
+		})
+
+		k8cache.ServeFromCacheOrForwardToK8s(cache, true, next, "key", w, r, rcw)
+	})
+}
