@@ -51,6 +51,7 @@ func main() {
 			KubeConfigPath:        conf.KubeConfigPath,
 			SkippedKubeContexts:   conf.SkippedKubeContexts,
 			ListenAddr:            conf.ListenAddr,
+			CacheEnabled:          conf.CacheEnabled,
 			Port:                  conf.Port,
 			DevMode:               conf.DevMode,
 			StaticDir:             conf.StaticDir,
