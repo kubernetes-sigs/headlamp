@@ -16,11 +16,16 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
+
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"k8s.io/client-go/kubernetes"
 )
 
 // CachedResponseData is a struct that will capture statusCode, Headers and Body
@@ -202,4 +207,37 @@ func FilterHeaderForCache(responseHeaders http.Header, encoding string) http.Hea
 	}
 
 	return cacheHeader
+}
+
+var (
+	clientsetCache = make(map[string]*kubernetes.Clientset)
+	mu             sync.Mutex
+)
+
+// getClientMD is used to get a clientset for the given context and token.
+// It will reuse clientsets if a matching one is already cached.
+func getClientSet(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
+	contextKey := strings.Split(k.ClusterID, "+")
+	if len(contextKey) < 2 {
+		// log and handle gracefully
+		return nil, errors.New("unexpected format in getClientSet")
+	}
+
+	cacheKey := fmt.Sprintf("%s-%s", contextKey[1], token)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if cs, found := clientsetCache[cacheKey]; found {
+		return cs, nil
+	}
+
+	cs, err := k.ClientSetWithToken(token)
+	if err != nil {
+		return nil, fmt.Errorf("error while creating clientset for key %s: %w", cacheKey, err)
+	}
+
+	clientsetCache[cacheKey] = cs
+
+	return cs, nil
 }
