@@ -26,6 +26,7 @@ import { useClustersConf, useClustersVersion } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/apiProxy';
 import { Cluster } from '../../../lib/k8s/cluster';
 import { getClusterPrefixedPath } from '../../../lib/util';
+import { useTypedSelector } from '../../../redux/hooks';
 import Link from '../../common/Link';
 import Table from '../../common/Table';
 import ClusterContextMenu from './ClusterContextMenu';
@@ -39,9 +40,17 @@ import { getCustomClusterNames } from './customClusterNames';
  * @param {Object} props - The component props.
  * @param {ApiError|null} [props.error] - The error object if there is an error with the cluster.
  */
-function ClusterStatus({ error }: { error?: ApiError | null }) {
+function ClusterStatus({ error, cluster }: { error?: ApiError | null; cluster: Cluster }) {
   const { t } = useTranslation(['translation']);
   const theme = useTheme();
+  const customStatuses = useTypedSelector(state => state.clusterProvider.clusterStatuses);
+
+  for (const Status of customStatuses) {
+    const renderedStatus = <Status cluster={cluster} error={error} />;
+    if (renderedStatus) {
+      return renderedStatus;
+    }
+  }
 
   const stateUnknown = error === undefined;
   const hasReachError = error && error.status !== 401 && error.status !== 403;
@@ -147,7 +156,9 @@ export default function ClusterTable({
           header: t('Status'),
           accessorFn: cluster =>
             errors[cluster?.name] === null ? 'Active' : errors[cluster?.name]?.message,
-          Cell: ({ row: { original } }) => <ClusterStatus error={errors[original.name]} />,
+          Cell: ({ row: { original } }) => (
+            <ClusterStatus error={errors[original.name]} cluster={original} />
+          ),
         },
         { header: t('Warnings'), accessorFn: cluster => warningLabels[cluster?.name] },
         {
