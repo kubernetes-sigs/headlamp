@@ -163,3 +163,45 @@ func TestSetHeader(t *testing.T) {
 		})
 	}
 }
+
+// TestMarshalToStore tests whether the MarshallToStore
+// serialized correctly that will be stored into the cache.
+func TestMarshalToStore(t *testing.T) {
+	tests := []struct {
+		name          string
+		cacheData     k8cache.CachedResponseData
+		expectedData  string
+		expectedError error
+	}{
+		{
+			name: "cache data is valid",
+			cacheData: k8cache.CachedResponseData{
+				StatusCode: 200,
+				Headers: http.Header{
+					"Context-Type": {"application/json"},
+					"X-Test":       {"true"},
+				},
+				Body: "test-body",
+			},
+			expectedData: `{"statusCode":200,"headers":{"Context-Type":["application/json"],"X-Test":["true"]},` +
+				`"body":"test-body"}`,
+
+			expectedError: nil,
+		},
+
+		{
+			name:          "cache data is invalid",
+			cacheData:     k8cache.CachedResponseData{},
+			expectedData:  "{\"statusCode\":0,\"headers\":null,\"body\":\"\"}",
+			expectedError: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := k8cache.MarshalToStore(tc.cacheData)
+			assert.Equal(t, tc.expectedData, string(data))
+			assert.NoError(t, err)
+		})
+	}
+}
