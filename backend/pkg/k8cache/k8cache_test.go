@@ -445,3 +445,31 @@ func TestLoadFromCache(t *testing.T) {
 		})
 	}
 }
+
+// TestRequestToCache tests whether the cache storing the response data.
+func TestRequestToK8AndStore(t *testing.T) {
+	tests := []struct {
+		name          string
+		urlObj        *url.URL
+		key           string
+		expectedError error
+	}{
+		{
+			name:          "valid workflow",
+			urlObj:        &url.URL{Path: "/api/v1/pods"},
+			key:           "1234",
+			expectedError: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rw := httptest.NewRecorder()
+			rcw := k8cache.CreateResponseCapture(rw)
+			r := httptest.NewRequest(http.MethodGet, tc.urlObj.Path, nil)
+			newCache := NewMockCache()
+			err := k8cache.RequestK8ClusterAPIAndStore(newCache, tc.urlObj, rcw, r, tc.key)
+			assert.NoError(t, err)
+		})
+	}
+}

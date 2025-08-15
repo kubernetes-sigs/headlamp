@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -330,4 +331,47 @@ func LoadFromCache(k8scache cache.Cache[string], isAllowed bool,
 	}
 
 	return false, nil
+}
+
+// RequestK8ClusterAPIAndStore ensures if the key was not found inside the cache then this will make actual call to k8's
+// and this will capture the response body and convert the captured response to string.
+// After converting it will store the response with the key and TTL of 10*min.
+func RequestK8ClusterAPIAndStore(k8scache cache.Cache[string],
+	url *url.URL,
+	rcw *responseCapture,
+	r *http.Request,
+	key string,
+) error {
+	capturedHeaders := rcw.Header()
+	encoding := capturedHeaders.Get("Content-Encoding")
+	bodyBytes := rcw.Body.Bytes()
+
+	dcmpBody, err := GetResponseBody(bodyBytes, encoding)
+	if err != nil {
+		return err
+	}
+
+	headersToCache := FilterHeaderForCache(capturedHeaders, encoding)
+
+	if !strings.Contains(url.Path, "selfsubjectrulesreviews") {
+		cachedData := CachedResponseData{
+			StatusCode: rcw.StatusCode,
+			Headers:    headersToCache,
+			Body:       dcmpBody,
+		}
+
+		jsonBytes, err := MarshalToStore(cachedData)
+		if err != nil {
+			return err
+		}
+
+		if !strings.Contains(string(jsonBytes), "Failure") {
+			fmt.Println("Making Actual API request: ")
+			if err = k8scache.SetWithTTL(context.Background(), key, string(jsonBytes), 10*time.Minute); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
