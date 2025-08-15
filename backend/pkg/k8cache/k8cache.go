@@ -15,6 +15,7 @@ package k8cache
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,7 +25,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	authorizationv1 "k8s.io/api/authorization/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -240,4 +244,62 @@ func getClientSet(k *kubeconfig.Context, token string) (*kubernetes.Clientset, e
 	clientsetCache[cacheKey] = cs
 
 	return cs, nil
+}
+
+// GetKindAndVerb returns Kind and Verb ( get , watch etc ) from the requested URL.
+func GetKindAndVerb(r *http.Request) (string, string) {
+	apiPath := mux.Vars(r)["api"]
+	parts := strings.Split(apiPath, "/")
+
+	last := parts[len(parts)-1]
+
+	var kubeVerb string
+
+	switch r.Method {
+	case "GET":
+		if r.URL.Query().Get("watch") == "1" {
+			kubeVerb = "watch"
+		} else {
+			kubeVerb = "get"
+		}
+	default:
+		kubeVerb = "unknown"
+	}
+
+	return last, kubeVerb
+}
+
+// IsAllowed checks the user's permission to access the resource.
+// If the user is authorized and has permission to view the resources, it returns true.
+// Otherwise, it returns false if authorization fails.
+func IsAllowed(url *url.URL,
+	k *kubeconfig.Context,
+	w http.ResponseWriter,
+	r *http.Request,
+) (bool, error) {
+	token := r.Header.Get("Authorization")
+
+	clientset, err := getClientSet(k, token)
+	if err != nil {
+		return false, err
+	}
+
+	last, kubeVerb := GetKindAndVerb(r)
+
+	review := &authorizationv1.SelfSubjectAccessReview{
+		Spec: authorizationv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{
+				Resource: last,
+				Verb:     kubeVerb,
+			},
+		},
+	}
+
+	result, err := clientset.AuthorizationV1().SelfSubjectAccessReviews().Create(
+		context.TODO(),
+		review,
+		metav1.CreateOptions{},
+	)
+
+	return result.Status.Allowed, nil
 }

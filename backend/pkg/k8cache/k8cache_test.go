@@ -4,13 +4,18 @@ import (
 	"bytes"
 	"compress/gzip"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"testing"
 
+	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 // TestInitialize verifies that responseCapture is initialized with
@@ -235,6 +240,68 @@ func TestFilterToCache(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			header := k8cache.FilterHeaderForCache(tc.responseHeader, tc.encoding)
 			assert.Equal(t, tc.expectedHeader, header)
+		})
+	}
+}
+
+func TestGetKindAndVerb(t *testing.T) {
+	t.Run("get kind and verb from url", func(t *testing.T) {
+		urlObj := url.URL{Path: "/clusters/kind-headlamp-admin/api/v1/pods"}
+		// Simulate mux.Vars
+		r := httptest.NewRequest(http.MethodGet, urlObj.Path, nil)
+
+		// Simulate mux.Vars
+		vars := map[string]string{
+			"api": "v1/pods", // Whatever you'd expect to be captured by the route
+		}
+		r = mux.SetURLVars(r, vars)
+		kind, verb := k8cache.GetKindAndVerb(r)
+		fmt.Println("Kind and Verb: ", kind, verb)
+	})
+}
+
+func TestIsAllowed(t *testing.T) {
+	tests := []struct {
+		name      string
+		urlObj    *url.URL
+		token     string
+		mockK     MockKubeConfig
+		isAllowed bool
+	}{
+		{
+			name:   "user is not allowed",
+			urlObj: &url.URL{Path: "/clusters/kind-headlamp-admin/api/v1/pods"},
+			token:  "token-example",
+			mockK: MockKubeConfig{
+				&kubeconfig.Context{
+					ClusterID: "/home/saurav/.kubeconfig+kind-headlamp-admin",
+					Cluster: &api.Cluster{
+						Server: "https://example.com",
+					},
+					AuthInfo: &api.AuthInfo{
+						Token: "abcdef",
+					},
+					KubeContext: &api.Context{
+						Cluster: "kind-headlamp-admin",
+					},
+				},
+			},
+			isAllowed: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodGet, tc.urlObj.Path, nil)
+			_, err := tc.mockK.ClientSetWithToken(tc.token)
+			_, _ = tc.mockK.ClientConfig()
+
+			assert.NoError(t, err)
+
+			isAllowed, err := k8cache.IsAllowed(tc.urlObj, tc.mockK.Context, w, r)
+			assert.Equal(t, tc.isAllowed, isAllowed)
+			assert.NotEmpty(t, err)
 		})
 	}
 }
