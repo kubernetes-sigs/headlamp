@@ -24,6 +24,7 @@ import actionButtons from '../actionButtonsSlice';
 import clusterAction from '../clusterActionSlice';
 import clusterProviderReducer from '../clusterProviderSlice';
 import configReducer from '../configSlice';
+import docsReducer from '../docsSlice';
 import drawerModeSlice from '../drawerModeSlice';
 import filterReducer from '../filterSlice';
 import eventCallbackReducer from '../headlampEventSlice';
@@ -56,6 +57,7 @@ const reducers = combineReducers({
   graphView: graphViewReducer,
   clusterProvider: clusterProviderReducer,
   activity: activityReducer,
+  docs: docsReducer,
 });
 
 export type RootState = ReturnType<typeof reducers>;
