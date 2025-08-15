@@ -166,6 +166,8 @@ func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 				return
 			}
 
+			go k8cache.CheckForChanges(k8scache, contextKey, r, rcw)
+
 			next.ServeHTTP(rcw, r)
 
 			err = k8cache.RequestK8ClusterAPIAndStore(k8scache, r.URL, rcw, r, key)

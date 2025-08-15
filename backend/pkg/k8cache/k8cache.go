@@ -31,7 +31,14 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/kubernetes"
+	watchCache "k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 // CachedResponseData is a struct that will capture statusCode, Headers and Body
@@ -390,4 +397,141 @@ func StoreAfterAuthError(k8scache cache.Cache[string], isAllowed bool, next http
 	if err != nil {
 		return
 	}
+}
+
+func contains(slice []string, str string) bool {
+	for _, v := range slice {
+		if v == str {
+			return true
+		}
+	}
+
+	return false
+}
+
+//nolint:all
+func CheckForChanges(k8scache cache.Cache[string],
+	contextKey string, r *http.Request, rcw *responseCapture,
+) {
+	skipKinds := map[string]bool{
+		"Lease": true,
+		"Event": true,
+	}
+
+	config, err := clientcmd.BuildConfigFromFlags("", clientcmd.RecommendedHomeFile)
+	if err != nil {
+		fmt.Println("error while building kubeconfig: ", err)
+		return
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		fmt.Println("error creating dynamic client: ", err)
+		return
+	}
+
+	discoveryClient := discovery.NewDiscoveryClientForConfigOrDie(config)
+
+	apiResourceLists, err := discoveryClient.ServerPreferredResources()
+	if apiResourceLists == nil && err != nil {
+		fmt.Println("error fetching resource list:", err)
+		return
+	}
+
+	// Build list of GVRs to watch
+	var gvrList []schema.GroupVersionResource
+
+	for _, apiResource := range apiResourceLists {
+		for _, resource := range apiResource.APIResources {
+			if strings.Contains(resource.Name, "/") {
+				continue
+			}
+
+			// fmt.Println("resource.Kind", resource.Kind)
+			if skipKinds[resource.Kind] {
+				continue
+			}
+
+			if contains(resource.Verbs, "list") && contains(resource.Verbs, "watch") {
+				gv, err := schema.ParseGroupVersion(apiResource.GroupVersion)
+				if err != nil {
+					continue
+				}
+
+				gvrList = append(gvrList, schema.GroupVersionResource{
+					Group:    gv.Group,
+					Version:  gv.Version,
+					Resource: resource.Name,
+				})
+			}
+		}
+	}
+
+	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, 0, "", nil)
+
+	keys := make(map[string]bool)
+
+	var mu sync.Mutex
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
+	for _, gvr := range gvrList {
+		informer := factory.ForResource(gvr).Informer()
+
+		informer.AddEventHandler(watchCache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				unstructuredObj := obj.(*unstructured.Unstructured)
+				// Optional: filter by recent creation (comment out to disable)
+				if time.Since(unstructuredObj.GetCreationTimestamp().Time) > time.Minute {
+					return
+				}
+				mu.Lock()
+				key := gvr.Group + "+" + strings.ToLower(unstructuredObj.GetKind()) + "s" + "+" + "" + "+" + contextKey
+				fmt.Println(unstructuredObj.GetKind())
+				keys[key] = true
+				mu.Unlock()
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				unstructuredObj := newObj.(*unstructured.Unstructured)
+				mu.Lock()
+				key := gvr.Group + "+" + strings.ToLower(unstructuredObj.GetKind()) + "s" + "+" + "" + "+" + contextKey
+				fmt.Println(unstructuredObj.GetKind())
+				if _, ok := skipKinds[strings.ToLower(unstructuredObj.GetKind())+"s"]; !ok {
+					keys[key] = true
+				}
+				mu.Unlock()
+			},
+			DeleteFunc: func(obj interface{}) {
+				unstructuredObj := obj.(*unstructured.Unstructured)
+				mu.Lock()
+				key := gvr.Group + "+" + strings.ToLower(unstructuredObj.GetKind()) + "s" + "+" + "" + "+" + contextKey
+				fmt.Println(unstructuredObj.GetKind())
+				keys[key] = true
+
+				mu.Unlock()
+			},
+		})
+
+		go informer.Run(stopCh)
+
+		// Wait for informer to sync
+		if !watchCache.WaitForCacheSync(stopCh, informer.HasSynced) {
+			fmt.Printf("timed out waiting for cache to sync for %s\n", gvr.Resource)
+			continue
+		}
+	}
+
+	// Wait for events
+	time.Sleep(5 * time.Second)
+
+	mu.Lock()
+
+	fmt.Println("keys to be deleted: ", keys)
+	if len(keys) > 0 {
+		for key := range keys {
+			k8scache.Delete(context.Background(), key)
+		}
+	}
+	mu.Unlock()
 }

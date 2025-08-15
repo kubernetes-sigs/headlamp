@@ -1459,7 +1459,7 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 
 	handler := clusterAPIrequest
 
-	if !c.CacheEnabled {
+	if c.CacheEnabled {
 		cacheMiddleware := CacheMiddleWare(c)
 
 		handler = cacheMiddleware(handler)
