@@ -473,3 +473,21 @@ func TestRequestToK8AndStore(t *testing.T) {
 		})
 	}
 }
+
+func TestStoreAfterAuthError(t *testing.T) {
+	t.Run("storing in cache and serving from cache", func(t *testing.T) {
+		urlObj := url.URL{Path: "/clusters/kind-headlamp-admin/api/v1/pods"}
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, urlObj.Path, nil)
+		cache := NewMockCache()
+		rcw := k8cache.CreateResponseCapture(w)
+
+		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusTeapot) // Just an example response
+			_, err := w.Write([]byte("next handler called"))
+			assert.NoError(t, err)
+		})
+
+		k8cache.StoreAfterAuthError(cache, true, next, "key", w, r, rcw)
+	})
+}

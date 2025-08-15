@@ -375,3 +375,21 @@ func RequestK8ClusterAPIAndStore(k8scache cache.Cache[string],
 
 	return nil
 }
+
+// StoreAfterAuthError Stores resource(pods , nodes , etc) and returns to client
+// if we get error while Authorizing user's permissions for every resources.
+func StoreAfterAuthError(k8scache cache.Cache[string], isAllowed bool, next http.Handler, key string,
+	w http.ResponseWriter, r *http.Request, rcw *responseCapture,
+) {
+	served, _ := LoadFromCache(k8scache, isAllowed, key, w, r)
+	if served {
+		return
+	}
+
+	next.ServeHTTP(rcw, r)
+
+	err := RequestK8ClusterAPIAndStore(k8scache, r.URL, rcw, r, key)
+	if err != nil {
+		return
+	}
+}
