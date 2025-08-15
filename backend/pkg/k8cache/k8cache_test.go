@@ -466,3 +466,36 @@ func TestMarshalToStore(t *testing.T) {
 		})
 	}
 }
+
+// TestSetHeaderToCache test whether the extracted header while capturing
+// adding up headers that will going to store in the cache with their corresponding
+// response body.
+func TestFilterToCache(t *testing.T) {
+	tests := []struct {
+		name           string
+		responseHeader http.Header
+		encoding       string
+		expectedHeader http.Header
+	}{
+		{
+			name: "headers are valid",
+			responseHeader: http.Header{
+				"Content-Type":     {"application/json"},
+				"Content-Encoding": {"gzip"},
+				"X-Test":           {"test"},
+			},
+			encoding: "gzip",
+			expectedHeader: http.Header{
+				"Content-Type": {"application/json"},
+				"X-Test":       {"test"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			header := k8cache.FilterHeaderForCache(tc.responseHeader, tc.encoding)
+			assert.Equal(t, tc.expectedHeader, header)
+		})
+	}
+}
