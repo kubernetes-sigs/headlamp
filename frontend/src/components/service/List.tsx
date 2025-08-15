@@ -34,6 +34,7 @@ export default function ServiceList() {
           id: 'type',
           label: t('translation|Type'),
           gridTemplate: 'min-content',
+          filterVariant: 'multi-select',
           getValue: service => service.spec.type,
         },
         {
