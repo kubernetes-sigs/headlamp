@@ -38,6 +38,7 @@ import semver from 'semver';
 import { runCommand } from '../components/App/runCommand';
 import { themeSlice } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
+import helpers from '../helpers';
 import { getAppUrl } from '../helpers/getAppUrl';
 import { isElectron } from '../helpers/isElectron';
 import * as K8s from '../lib/k8s';
@@ -300,12 +301,17 @@ function handlePluginRunError(error: unknown, packageName: string, packageVersio
  * @param delay The initial delay in milliseconds.
  * @returns A promise that resolves to the response of the fetch request.
  */
-async function fetchWithRetry(url: string, retries = 8, delay = 50): Promise<any> {
+async function fetchWithRetry(
+  url: string,
+  headers: HeadersInit,
+  retries = 8,
+  delay = 50
+): Promise<any> {
   for (let i = 0; i < retries; i++) {
     try {
       // const brokenFiveTimes = i < 5 ? 'xx' + url : url; // for debugging
       // const resp = await fetch(brokenFiveTimes);
-      const resp = await fetch(url);
+      const resp = await fetch(url, { headers: new Headers(headers) });
       if (!resp.ok) throw new Error(`HTTP error: ${resp.status}`);
       return resp;
     } catch (err) {
@@ -337,17 +343,23 @@ export async function fetchAndExecutePlugins(
 ) {
   const permissionSecretsPromise = permissionSecretsFromApp();
 
-  const pluginPaths = (await fetchWithRetry(`${getAppUrl()}plugins`).then(resp =>
+  const headers = helpers.addBackstageAuthHeaders();
+
+  const pluginPaths = (await fetchWithRetry(`${getAppUrl()}plugins`, headers).then(resp =>
     resp.json()
   )) as string[];
 
   const sourcesPromise = Promise.all(
-    pluginPaths.map(path => fetch(`${getAppUrl()}${path}/main.js`).then(resp => resp.text()))
+    pluginPaths.map(path =>
+      fetch(`${getAppUrl()}${path}/main.js`, { headers: new Headers(headers) }).then(resp =>
+        resp.text()
+      )
+    )
   );
 
   const packageInfosPromise = await Promise.all<PluginInfo>(
     pluginPaths.map(path =>
-      fetch(`${getAppUrl()}${path}/package.json`).then(resp => {
+      fetch(`${getAppUrl()}${path}/package.json`, { headers: new Headers(headers) }).then(resp => {
         if (!resp.ok) {
           if (resp.status !== 404) {
             return Promise.reject(resp);

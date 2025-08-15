@@ -18,6 +18,7 @@ import { isEqual } from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router-dom';
+import helpers from '../../../helpers';
 import { isElectron } from '../../../helpers/isElectron';
 import { useClustersConf, useClustersVersion } from '../../../lib/k8s';
 import { Cluster } from '../../../lib/k8s/cluster';
@@ -91,6 +92,13 @@ function HomeComponent(props: HomeComponentProps) {
   const warningLabels = useWarningSettingsPerCluster(
     Object.values(customNameClusters).map(c => c.name)
   );
+
+  React.useEffect(() => {
+    if (helpers.isBackstage()) {
+      window.parent.postMessage({ type: 'HEADLAMP_READY' }, '*');
+      helpers.setupBackstageMessageReceiver();
+    }
+  }, []);
 
   React.useEffect(() => {
     setCustomNameClusters(currentNames => {
