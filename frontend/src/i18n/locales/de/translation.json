@@ -298,6 +298,8 @@
   "Forward port": "Port weiterleiten",
   "Delete port forward": "Portweiterleitung löschen",
   "Stop port forward": "Portweiterleitung stoppen",
+  "Copied": "",
+  "Copy to clipboard": "",
   "Mount Path": "Mount Path",
   "from": "von",
   "I/O": "I/O",

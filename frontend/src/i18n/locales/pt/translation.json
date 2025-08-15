@@ -300,6 +300,8 @@
   "Forward port": "Redir. porta",
   "Delete port forward": "Eliminar redir. de porta",
   "Stop port forward": "Parar redir. de porta",
+  "Copied": "",
+  "Copy to clipboard": "",
   "Mount Path": "Cam. de montagem",
   "from": "desde",
   "I/O": "I/O",

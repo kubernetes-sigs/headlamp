@@ -300,6 +300,8 @@
   "Forward port": "Inoltra porta",
   "Delete port forward": "Elimina port forwarding",
   "Stop port forward": "Ferma port forwarding",
+  "Copied": "",
+  "Copy to clipboard": "",
   "Mount Path": "Percorso di montaggio",
   "from": "da",
   "I/O": "I/O",

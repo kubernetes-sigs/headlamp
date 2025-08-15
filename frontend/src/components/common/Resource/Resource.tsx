@@ -501,15 +501,47 @@ export function DataField(props: DataFieldProps) {
 export function SecretField(props: InputProps) {
   const { value, ...other } = props;
   const [showPassword, setShowPassword] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
   const { t } = useTranslation();
+
+  const secret = String(value ?? '');
 
   function handleClickShowPassword() {
     setShowPassword(!showPassword);
   }
 
+  async function onCopy() {
+    if (!secret) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(secret);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch (err) {
+      console.error(`Error copying secret to clipboard: ${err}`);
+    }
+  }
+
+  const tooltipTitle = copied ? t('translation|Copied') : t('translation|Copy to clipboard');
+  const copyButton: JSX.Element = (
+    <IconButton
+      edge="start"
+      aria-label={t('copy to clipboard')}
+      onClick={onCopy}
+      onMouseDown={e => e.preventDefault()}
+      size="medium"
+      disabled={!secret}
+    >
+      <Icon icon={'mdi:content-copy'} />
+    </IconButton>
+  );
+
   return (
     <Grid container alignItems="stretch" spacing={2}>
       <Grid item>
+        {!!secret ? <LightTooltip title={tooltipTitle}>{copyButton}</LightTooltip> : copyButton}
         <IconButton
           edge="end"
           aria-label={t('toggle field visibility')}

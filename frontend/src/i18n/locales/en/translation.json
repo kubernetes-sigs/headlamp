@@ -298,6 +298,8 @@
   "Forward port": "Forward port",
   "Delete port forward": "Delete port forward",
   "Stop port forward": "Stop port forward",
+  "Copied": "Copied",
+  "Copy to clipboard": "Copy to clipboard",
   "Mount Path": "Mount Path",
   "from": "from",
   "I/O": "I/O",
