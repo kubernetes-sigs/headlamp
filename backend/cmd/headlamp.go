@@ -1377,7 +1377,11 @@ func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 func handleClusterAPI(c *HeadlampConfig, router *mux.Router) { //nolint:funlen
 	router.HandleFunc("/clusters/{clusterName}/set-token", c.handleSetToken).Methods("POST")
 
-	router.PathPrefix("/clusters/{clusterName}/{api:.*}").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	subRouter := router.PathPrefix("/clusters/{clusterName}/{api:.*}").Subrouter()
+
+	subRouter.Use(CacheMiddleWare(c))
+
+	subRouter.Path("").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		ctx := r.Context()
 

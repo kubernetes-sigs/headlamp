@@ -303,7 +303,7 @@ func IsAllowed(url *url.URL,
 		metav1.CreateOptions{},
 	)
 
-	return result.Status.Allowed, nil
+	return result.Status.Allowed, err
 }
 
 // LoadFromCache ensure that if the user has the permission to view the resources then
@@ -312,7 +312,6 @@ func IsAllowed(url *url.URL,
 func LoadFromCache(k8scache cache.Cache[string], isAllowed bool,
 	key string, w http.ResponseWriter, r *http.Request,
 ) (bool, error) {
-
 	k8Resource, err := k8scache.Get(context.Background(), key)
 	if err == nil && strings.TrimSpace(k8Resource) != "" && isAllowed {
 		var cachedData CachedResponseData
@@ -366,7 +365,6 @@ func RequestK8ClusterAPIAndStore(k8scache cache.Cache[string],
 		}
 
 		if !strings.Contains(string(jsonBytes), "Failure") {
-			fmt.Println("Making Actual API request: ")
 			if err = k8scache.SetWithTTL(context.Background(), key, string(jsonBytes), 10*time.Minute); err != nil {
 				return err
 			}

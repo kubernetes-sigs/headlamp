@@ -400,7 +400,7 @@ func TestIsAllowed(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			isAllowed, err := k8cache.IsAllowed(tc.urlObj, tc.mockK.Context, w, r)
+			isAllowed, _ := k8cache.IsAllowed(tc.urlObj, tc.mockK.Context, w, r)
 			assert.Equal(t, tc.isAllowed, isAllowed)
 		})
 	}
