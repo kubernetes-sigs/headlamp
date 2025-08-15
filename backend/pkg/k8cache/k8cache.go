@@ -36,11 +36,18 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/kubernetes"
+	watchCache "k8s.io/client-go/tools/cache"
 )
 
 // ResponseCapture is a struct that will capture statusCode, Headers and Body
@@ -406,5 +413,171 @@ func ServeFromCacheOrForwardToK8s(k8scache cache.Cache[string], isAllowed bool, 
 	err := StoreK8sResponseInCache(k8scache, r.URL, rcw, r, key)
 	if err != nil {
 		return
+	}
+}
+
+func contains(slice []string, str string) bool {
+	for _, v := range slice {
+		if v == str {
+			return true
+		}
+	}
+
+	return false
+}
+
+// returnGVRList return gvrList which is group, version, resource which is all the supported resources
+// that are supported by the k8s server.
+func returnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.GroupVersionResource {
+	skipKinds := map[string]bool{
+		"Lease": true,
+		"Event": true,
+	}
+
+	var gvrList []schema.GroupVersionResource
+
+	for _, apiResource := range apiResourceLists {
+		for _, resource := range apiResource.APIResources {
+			if strings.Contains(resource.Name, "/") || skipKinds[resource.Kind] {
+				continue
+			}
+
+			if contains(resource.Verbs, "list") && contains(resource.Verbs, "watch") {
+				gv, err := schema.ParseGroupVersion(apiResource.GroupVersion)
+				if err != nil {
+					continue
+				}
+
+				gvrList = append(gvrList, schema.GroupVersionResource{
+					Group:    gv.Group,
+					Version:  gv.Version,
+					Resource: resource.Name,
+				})
+			}
+		}
+	}
+
+	return gvrList
+}
+
+// Corrected CheckForChanges.
+var (
+	watcherRegistry sync.Map
+	contextCancel   sync.Map
+)
+
+// CheckForChanges lets 1 go routine to run for a contextKey which prevents
+// running go routines for every requests which can become performance issue if
+// there are many resource and events are going on.
+func CheckForChanges(
+	k8scache cache.Cache[string],
+	contextKey string,
+	kContext kubeconfig.Context,
+) {
+	if _, loaded := watcherRegistry.Load(contextKey); loaded {
+		return
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	contextCancel.Store(contextKey, cancel)
+
+	watcherRegistry.Store(contextKey, struct{}{})
+
+	go runWatcher(ctx, k8scache, contextKey, kContext)
+}
+
+// runWatcher is a long-lived goroutine that sets up and runs Kubernetes informers.
+// It watches for resource changes and invalidates corresponding cache entries.
+// This function will only exit when its context is cancelled.
+func runWatcher(
+	ctx context.Context,
+	k8scache cache.Cache[string],
+	contextKey string,
+	kContext kubeconfig.Context,
+) {
+	logger.Log(logger.LevelInfo, nil, nil, "running runWatcher for watching k8s resource: "+contextKey)
+
+	config, err := kContext.RESTConfig()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "error getting REST config for context:")
+		return
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "error creating dynamic client for context: "+contextKey)
+		return
+	}
+
+	discoveryClient := discovery.NewDiscoveryClientForConfigOrDie(config)
+
+	apiResourceLists, err := discoveryClient.ServerPreferredResources()
+	if apiResourceLists == nil && err != nil {
+		logger.Log(logger.LevelError, nil, err, "error fetching resource list for context: "+contextKey)
+		return
+	}
+
+	gvrList := returnGVRList(apiResourceLists)
+	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, 0, "", nil)
+
+	runInformerToWatch(gvrList, factory, contextKey, k8scache)
+
+	factory.Start(ctx.Done())
+
+	factory.WaitForCacheSync(ctx.Done())
+
+	<-ctx.Done()
+	logger.Log(logger.LevelInfo, nil, nil, "Watcher for context"+contextKey+"is shutting down...")
+}
+
+// runInformerToWatch watches changes such as Addition, Deletion and Updation of a resource
+// and if so capture the data into the key and store all unique keys, and return unique
+// keys which will be delete in runWatcher.
+func runInformerToWatch(gvrList []schema.GroupVersionResource,
+	factory dynamicinformer.DynamicSharedInformerFactory,
+	contextKey string, k8scache cache.Cache[string],
+) {
+	for _, gvr := range gvrList {
+		informer := factory.ForResource(gvr).Informer()
+
+		if _, err := informer.AddEventHandler(watchCache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				unstructuredObj := obj.(*unstructured.Unstructured)
+				if time.Since(unstructuredObj.GetCreationTimestamp().Time) > time.Minute {
+					return
+				}
+				namespace := unstructuredObj.GetNamespace()
+				key := fmt.Sprintf("%s+%s+%s+%s", gvr.Group, gvr.Resource, namespace, contextKey)
+				logger.Log(logger.LevelInfo, nil, nil, key+"while going to be deleted from the cache")
+				if err := k8scache.Delete(context.Background(), key); err != nil {
+					logger.Log(logger.LevelError, nil, err, "error while deleting key "+key)
+					return
+				}
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				unstructuredObj := newObj.(*unstructured.Unstructured)
+				namespace := unstructuredObj.GetNamespace()
+				key := fmt.Sprintf("%s+%s+%s+%s", gvr.Group, gvr.Resource, namespace, contextKey)
+				logger.Log(logger.LevelInfo, nil, nil, key+"while going to be deleted from the cache")
+				if err := k8scache.Delete(context.Background(), key); err != nil {
+					logger.Log(logger.LevelError, nil, err, "error while deleting key "+key)
+					return
+				}
+			},
+			DeleteFunc: func(obj interface{}) {
+				unstructuredObj := obj.(*unstructured.Unstructured)
+				namespace := unstructuredObj.GetNamespace()
+				key := fmt.Sprintf("%s+%s+%s+%s", gvr.Group, gvr.Resource, namespace, contextKey)
+				logger.Log(logger.LevelInfo, nil, nil, key+"while going to be deleted from the cache")
+				if err := k8scache.Delete(context.Background(), key); err != nil {
+					logger.Log(logger.LevelError, nil, err, "error while deleting key "+key)
+					return
+				}
+			},
+		}); err != nil {
+			logger.Log(logger.LevelError, nil, err, "failed to add event handler for resource: "+gvr.Resource)
+			return
+		}
 	}
 }
