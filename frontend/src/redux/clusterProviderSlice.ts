@@ -15,6 +15,7 @@
  */
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import type { ApiError } from '../lib/k8s/apiProxy';
 
 export interface DialogProps {
   cluster: any;
@@ -28,8 +29,14 @@ export interface MenuItemProps {
   setOpenConfirmDialog: (value: string) => void;
 }
 
+export interface ClusterStatusProps {
+  cluster: any;
+  error: ApiError | null | undefined;
+}
+
 export type DialogComponent = (props: DialogProps) => React.ReactElement | null;
 export type MenuItemComponent = (props: MenuItemProps) => React.ReactElement | null;
+export type ClusterStatusComponent = (props: ClusterStatusProps) => React.ReactElement | null;
 
 /**
  * Information about a cluster provider, that is shown on the add cluster page.
@@ -52,12 +59,15 @@ export interface ClusterProviderSliceState {
   menuItems: MenuItemComponent[];
   /** Cluster providers for the Add Cluster page. */
   clusterProviders: ClusterProviderInfo[];
+  /** Cluster statuses for the Home page. */
+  clusterStatuses: ClusterStatusComponent[];
 }
 
 export const initialState: ClusterProviderSliceState = {
   menuItems: [],
   dialogs: [],
   clusterProviders: [],
+  clusterStatuses: [],
 };
 
 const clusterProviderSlice = createSlice({
@@ -73,9 +83,13 @@ const clusterProviderSlice = createSlice({
     addAddClusterProvider(state, action: PayloadAction<ClusterProviderInfo>) {
       state.clusterProviders.push(action.payload);
     },
+    addClusterStatus(state, action: PayloadAction<ClusterStatusComponent>) {
+      state.clusterStatuses.push(action.payload);
+    },
   },
 });
 
-export const { addDialog, addMenuItem, addAddClusterProvider } = clusterProviderSlice.actions;
+export const { addDialog, addMenuItem, addAddClusterProvider, addClusterStatus } =
+  clusterProviderSlice.actions;
 
 export default clusterProviderSlice.reducer;
