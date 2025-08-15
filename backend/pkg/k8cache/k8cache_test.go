@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
@@ -122,6 +123,42 @@ func TestUnMarshallCacheData(t *testing.T) {
 				assert.ErrorContains(t, err, tc.expectedError.Error())
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestSetHeader tests whether the SetHeader is providing correct metadata for
+// the given cacheData that will going to be served to the client.
+func TestSetHeader(t *testing.T) {
+	tests := []struct {
+		name              string
+		cacheData         k8cache.CachedResponseData
+		expectedCacheData k8cache.CachedResponseData
+	}{
+		{
+			name: "cache data is valid",
+			cacheData: k8cache.CachedResponseData{
+				StatusCode: 200,
+				Headers: http.Header{
+					"Content-Type": {"application/json"},
+					"X-Test":       {"true"},
+				},
+				Body: `{"message": "OK"}`,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			k8cache.SetHeader(tc.cacheData, rr)
+
+			for key, expectedValue := range tc.cacheData.Headers {
+				actualValues := rr.Header().Values(key)
+				if !reflect.DeepEqual(actualValues, expectedValue) {
+					t.Errorf("Header %s: expected %v, got %v", key, expectedValue, actualValues)
+				}
 			}
 		})
 	}
