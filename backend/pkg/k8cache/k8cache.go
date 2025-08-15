@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -302,4 +303,31 @@ func IsAllowed(url *url.URL,
 	)
 
 	return result.Status.Allowed, nil
+}
+
+// LoadFromCache ensure that if the user has the permission to view the resources then
+// it will check if the generated key is found in the cache if the key is present in the cache
+// then it will return directly to the client in []byte form and returns true ,Otherwise it will return false.
+func LoadFromCache(k8scache cache.Cache[string], isAllowed bool,
+	key string, w http.ResponseWriter, r *http.Request,
+) (bool, error) {
+
+	k8Resource, err := k8scache.Get(context.Background(), key)
+	if err == nil && strings.TrimSpace(k8Resource) != "" && isAllowed {
+		var cachedData CachedResponseData
+
+		cachedData, err := UnmarshalCacheData(k8Resource, cachedData)
+		if err != nil {
+			return false, err
+		}
+
+		SetHeader(cachedData, w)
+
+		_, writeErr := w.Write([]byte(cachedData.Body))
+		if writeErr == nil {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }

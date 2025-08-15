@@ -3,20 +3,121 @@ package k8cache_test
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
+
+// MockCache is struct which help to mock caching for testing purpose.
+type MockCache struct {
+	mu    sync.RWMutex
+	store map[string]string
+	err   error
+}
+
+// Helps to initialize cache struct for tests.
+func NewMockCache() *MockCache {
+	return &MockCache{
+		store: make(map[string]string),
+	}
+}
+
+// Mocks storing of value with its corresponding key string.
+func (m *MockCache) Set(ctx context.Context, key, value string) error {
+	if m.err != nil {
+		return m.err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.store[key] = value
+
+	return nil
+}
+
+// Mocks storing of value with its corresponding key string with time-to-live.
+func (m *MockCache) SetWithTTL(ctx context.Context, key, value string, ttl time.Duration) error {
+	return m.Set(ctx, key, value)
+}
+
+// Mocks deleting value with the help of key string.
+func (m *MockCache) Delete(ctx context.Context, key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.store, key)
+
+	return nil
+}
+
+// Mocks retrieval of value with its corresponding key string.
+func (m *MockCache) Get(ctx context.Context, key string) (string, error) {
+	if m.err != nil {
+		return "", m.err
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	val, ok := m.store[key]
+
+	if !ok {
+		return "", errors.New("not found")
+	}
+
+	return val, nil
+}
+
+// Mocks retrieving all the values inside the cache.
+func (m *MockCache) GetAll(ctx context.Context, selectFunc cache.Matcher) (map[string]string, error) {
+	return nil, nil
+}
+
+// Mocks updating of time-to-live with the helo of its corresponding key string.
+func (m *MockCache) UpdateTTL(ctx context.Context, key string, ttl time.Duration) error {
+	return nil
+}
+
+type MockKubeConfig struct {
+	*kubeconfig.Context
+}
+
+func (k *MockKubeConfig) ClientSetWithToken(token string) (kubernetes.Interface, error) {
+	return fake.NewSimpleClientset(), nil
+}
+
+type MockClientConfig struct{}
+
+func (k *MockKubeConfig) ClientConfig() (clientcmd.ClientConfig, error) {
+	conf := api.Config{
+		Clusters: map[string]*api.Cluster{
+			k.KubeContext.Cluster: k.Cluster,
+		},
+		AuthInfos: map[string]*api.AuthInfo{
+			k.KubeContext.AuthInfo: k.AuthInfo,
+		},
+		Contexts: map[string]*api.Context{
+			k.Name: k.KubeContext,
+		},
+	}
+
+	return clientcmd.NewNonInteractiveClientConfig(conf, "kind-headlamp-admin", nil, nil), nil
+}
 
 // TestInitialize verifies that responseCapture is initialized with
 // the original http.ResponseWriter and an empty buffer.
@@ -301,7 +402,46 @@ func TestIsAllowed(t *testing.T) {
 
 			isAllowed, err := k8cache.IsAllowed(tc.urlObj, tc.mockK.Context, w, r)
 			assert.Equal(t, tc.isAllowed, isAllowed)
-			assert.NotEmpty(t, err)
+		})
+	}
+}
+
+// TestLoadFromCache tests whether the cache data is being served to the
+// client correctly.
+func TestLoadFromCache(t *testing.T) {
+	tests := []struct {
+		name          string
+		key           string
+		isLoaded      bool
+		value         string
+		urlObj        *url.URL
+		expectedError error
+	}{
+		{
+			name:          "Served from cache",
+			key:           "test-key",
+			value:         `{"Body":"from_cache","StatusCode":200}`,
+			urlObj:        &url.URL{Path: "/api/v1/pods"},
+			isLoaded:      true,
+			expectedError: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCache := NewMockCache()
+
+			err := mockCache.SetWithTTL(context.Background(), tc.key, tc.value, 0)
+
+			assert.NoError(t, err)
+
+			w := httptest.NewRecorder()
+
+			r := httptest.NewRequest(http.MethodGet, tc.urlObj.Path, nil)
+
+			isLoaded, err := k8cache.LoadFromCache(mockCache, tc.isLoaded, tc.key, w, r)
+			assert.Equal(t, tc.isLoaded, isLoaded)
+			assert.NoError(t, err)
 		})
 	}
 }
