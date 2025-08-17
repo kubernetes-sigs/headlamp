@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"strings"
@@ -35,6 +36,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -657,4 +659,62 @@ func WriteResponseToClient(response []byte, w http.ResponseWriter) error {
 	_, err := w.Write(response)
 
 	return err
+}
+
+// DeleteKeys deletes keys from the cache if data is present
+// in cache, this delete keys having namespace non-empty and
+// also empty namespace.
+func DeleteKeys(key string, k8scache cache.Cache[string]) {
+	_ = k8scache.Delete(context.Background(), key)
+	keyPart := strings.Split(key, "+")
+	keyPart[2] = ""
+	key = strings.Join(keyPart, "+")
+	_ = k8scache.Delete(context.Background(), key)
+}
+
+// handleNonGetInvalidation handle request which are modifying eg. POST/DELETE/PUT and delete keys if
+// the data is present in the cache, if present PURGE the keys from the cache and make a fresh new
+// request to k8s server and store into the cache, the cache has now latest changes.
+func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.ResponseWriter, r *http.Request,
+	next http.Handler, contextKey string,
+) error {
+	if r.Method == http.MethodGet || !AllowAuthError(r.URL.Path) {
+		return nil // if request is non-modifying then return nil
+	}
+
+	key, _ := GenerateKey(r.URL, contextKey)
+	DeleteKeys(key, k8scache)
+
+	freshURL := *r.URL
+
+	freshReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, freshURL.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	freshReq.Header = r.Header.Clone()
+	next.ServeHTTP(w, r)
+
+	rr := httptest.NewRecorder()
+	freshRcw := CreateResponseCapture(rr)
+	next.ServeHTTP(freshRcw, freshReq)
+
+	if err := StoreK8sResponseInCache(k8scache, freshReq.URL, freshRcw, freshReq, key); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// skipWebSocket skip all the websocket requests coming from the client/ frontend to ensure
+// real time data updation in the frontend.
+func SkipWebSocket(r *http.Request, next http.Handler, w http.ResponseWriter) bool {
+	if strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade") {
+		logger.Log(logger.LevelInfo, nil, nil, "skipping websocket url")
+		next.ServeHTTP(w, r)
+
+		return true
+	}
+
+	return false
 }

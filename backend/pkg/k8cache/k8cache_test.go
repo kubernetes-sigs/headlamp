@@ -798,3 +798,66 @@ func TestServeFromCacheOrForwardToK8s(t *testing.T) {
 		k8cache.ServeFromCacheOrForwardToK8s(cache, true, next, "key", w, r, rcw)
 	})
 }
+
+func TestDeleteKeys(t *testing.T) {
+	tests := []struct {
+		name            string
+		beforemockCache *MockCache
+		key             string
+		aftermockCache  *MockCache
+	}{
+		{
+			name: "both keys with empty namespace and non-empty are present in cache",
+			beforemockCache: &MockCache{
+				store: map[string]string{
+					"+pods+default+test-context":            "value-1",
+					"apps+deployments+default+test-context": "value-2",
+					"+pods++test-context":                   "value-3",
+				},
+			},
+			key: "+pods+default+test-context",
+			aftermockCache: &MockCache{
+				store: map[string]string{
+					"apps+deployments+default+test-context": "value-2",
+				},
+			},
+		},
+		{
+			name: "only key with only empty namespace present in cache",
+			beforemockCache: &MockCache{
+				store: map[string]string{
+					"apps+deployments+default+test-context": "value-2", "+pods++test-context": "value-3",
+				},
+			},
+			key: "+pods+default+test-context",
+			aftermockCache: &MockCache{
+				store: map[string]string{
+					"apps+deployments+default+test-context": "value-2",
+				},
+			},
+		},
+		{
+			name: "only key with only non-empty namespace present in cache",
+			beforemockCache: &MockCache{
+				store: map[string]string{
+					"apps+deployments+default+test-context": "value-2",
+					"+pods+default+test-context":            "value-3",
+				},
+			},
+			key: "+pods+default+test-context",
+			aftermockCache: &MockCache{
+				store: map[string]string{
+					"apps+deployments+default+test-context": "value-2",
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCache := tc.beforemockCache
+			k8cache.DeleteKeys(tc.key, mockCache)
+			assert.Equal(t, tc.aftermockCache, mockCache)
+		})
+	}
+}

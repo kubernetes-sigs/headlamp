@@ -129,13 +129,17 @@ func GetContextKeyAndKContext(w http.ResponseWriter,
 func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if k8cache.SkipWebSocket(r, next, w) {
+				return
+			}
+
 			ctx, span, contextKey, kContext, err := GetContextKeyAndKContext(w, r, c)
 			if err != nil {
 				return
 			}
 
-			if kContext.Error != "" {
-				c.handleError(w, ctx, span, errors.New(kContext.Error), "context has error", http.StatusBadRequest)
+			if err := k8cache.HandleNonGETCacheInvalidation(k8scache, w, r, next, contextKey); err != nil {
+				c.handleError(w, ctx, span, err, "error while invalidating keys", http.StatusInternalServerError)
 				return
 			}
 
