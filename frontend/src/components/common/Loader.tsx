@@ -69,6 +69,23 @@ function injectLoaderStyle(theme: any) {
         border-bottom-color: transparent;
         animation: hl-custom-loader-spin 0.8s linear infinite;
       }
+      @media (prefers-reduced-motion: reduce) {
+        @keyframes hl-custom-loader-spin-reduced {
+          0%   { transform: rotate(0deg); }
+          13%  { transform: rotate(0deg); }
+          23%  { transform: rotate(90deg); }
+          36%  { transform: rotate(90deg); }
+          46%  { transform: rotate(180deg); }
+          59%  { transform: rotate(180deg); }
+          69%  { transform: rotate(270deg); }
+          82%  { transform: rotate(270deg); }
+          92%  { transform: rotate(360deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .hl-custom-loader-circle {
+          animation: hl-custom-loader-spin-reduced 8s linear infinite;
+        }
+      }
     `;
     document.head.appendChild(style);
   }
