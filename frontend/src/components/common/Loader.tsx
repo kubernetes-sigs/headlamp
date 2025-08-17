@@ -15,7 +15,7 @@
  */
 
 import Box from '@mui/material/Box';
-import { useTheme } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import React from 'react';
 
 /**
@@ -103,6 +103,16 @@ function getMuiColorClass(color?: LoaderProps['color']) {
 }
 
 /**
+ * Gets the color with supplied opacity.
+ * If the color is 'inherit' or 'currentColor', it returns null.
+ */
+function withOpacity(color: string, opacity = 0.5) {
+  if (!color) return null;
+  if (color === 'inherit' || color === 'currentColor') return null;
+  return alpha(color, opacity);
+}
+
+/**
  * CustomLoader component that renders a circular loader with custom styles.
  */
 function CustomLoader({
@@ -120,6 +130,10 @@ function CustomLoader({
   }, [theme]);
   const loaderColor = getColor(theme, color);
   const muiColorClass = getMuiColorClass(color);
+  let fadedLoaderColor = React.useMemo(() => withOpacity(loaderColor, 0.1), [loaderColor, theme]);
+  if (!fadedLoaderColor) {
+    fadedLoaderColor = 'transparent';
+  }
 
   return (
     <span
@@ -137,7 +151,7 @@ function CustomLoader({
           height: '100%',
           borderWidth: Math.max(2, Math.round(size / 10)),
           borderStyle: 'solid',
-          borderColor: `${loaderColor} transparent transparent transparent`,
+          borderColor: `${loaderColor} ${fadedLoaderColor} ${fadedLoaderColor} ${fadedLoaderColor}`,
         }}
       />
     </span>
