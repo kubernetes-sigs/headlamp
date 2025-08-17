@@ -152,6 +152,10 @@ func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 				k8cache.ServeFromCacheOrForwardToK8s(k8scache, isAllowed, next, key, w, r, rcw)
 
 				return
+			} else if !isAllowed && k8cache.AllowAuthError(r.URL.Path) {
+				_ = k8cache.ReturnAuthErrorResponse(w, r, contextKey)
+
+				return
 			}
 
 			served, err := k8cache.LoadFromCache(k8scache, isAllowed, key, w, r)
