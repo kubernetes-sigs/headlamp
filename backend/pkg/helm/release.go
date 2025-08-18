@@ -606,9 +606,15 @@ func (h *Handler) installRelease(req InstallRequest) {
 		return
 	}
 
-	_, err = cs.AuthenticationV1().SelfSubjectReviews().Create(context.Background(), &authv1.SelfSubjectReview{}, metav1.CreateOptions{})
+	review, err = cs.AuthenticationV1().SelfSubjectReviews().Create(context.Background(), &authv1.SelfSubjectReview{}, metav1.CreateOptions{})
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name}, err, "getting chart")
+		return
+	}
+
+	if review.Status.Allowed != true {
+		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
+			errors.New("insufficient privileges"), "getting chart: user is not authorized to perform this operation")
 		return
 	}
 
