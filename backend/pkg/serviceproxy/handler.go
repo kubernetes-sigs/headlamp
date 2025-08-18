@@ -15,7 +15,7 @@ import (
 func RequestHandler(kubeConfigStore kubeconfig.ContextStore, w http.ResponseWriter, r *http.Request) { //nolint:funlen
 	name := mux.Vars(r)["name"]
 	namespace := mux.Vars(r)["namespace"]
-	requestURI := mux.Vars(r)["request"]
+	requestURI := r.URL.Query().Get("request")
 
 	// Disable caching
 	w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
