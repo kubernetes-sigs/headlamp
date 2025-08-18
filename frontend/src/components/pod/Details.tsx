@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
 import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import InputLabel from '@mui/material/InputLabel';
@@ -30,6 +31,7 @@ import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
 import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
 import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
+import { Activity } from '../activity/Activity';
 import ActionButton from '../common/ActionButton';
 import Link from '../common/Link';
 import { LogViewer, LogViewerProps } from '../common/LogViewer';
@@ -44,9 +46,9 @@ import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
 import Terminal from '../common/Terminal';
 import LightTooltip from '../common/Tooltip/TooltipLight';
+import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
-
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   margin: 0,
   paddingTop: theme.spacing(2),
@@ -61,7 +63,10 @@ export function PodLogViewer(props: PodLogViewerProps) {
   const { item, onClose, open, ...other } = props;
   const [container, setContainer] = React.useState(getDefaultContainer());
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
-  const [showTimestamps, setShowTimestamps] = React.useState<boolean>(true);
+  const [showTimestamps, setShowTimestamps] = useLocalStorageState<boolean>(
+    'headlamp.logs.showTimestamps',
+    true
+  );
   const [follow, setFollow] = React.useState<boolean>(true);
   const [prettifyLogs, setPrettifyLogs] = React.useState<boolean>(false);
   const [formatJsonValues, setFormatJsonValues] = React.useState<boolean>(false);
@@ -192,7 +197,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
   }
 
   function handleTimestampsChange() {
-    setShowTimestamps(timestamps => !timestamps);
+    setShowTimestamps(prev => !prev);
   }
 
   function handleFollowChange() {
@@ -477,14 +482,101 @@ export interface PodDetailsProps {
 }
 
 export default function PodDetails(props: PodDetailsProps) {
-  const { showLogsDefault } = props;
   const params = useParams<{ namespace: string; name: string }>();
   const { name = params.name, namespace = params.namespace, cluster } = props;
-  const [showLogs, setShowLogs] = React.useState(!!showLogsDefault);
-  const [showTerminal, setShowTerminal] = React.useState(false);
   const { t } = useTranslation('glossary');
-  const [isAttached, setIsAttached] = React.useState(false);
   const dispatchHeadlampEvent = useEventCallback();
+
+  function prepareExtraInfo(item: Pod | null) {
+    let extraInfo: {
+      name: string;
+      value: React.ReactNode;
+      hideLabel?: boolean;
+    }[] = [];
+    if (item) {
+      extraInfo = [
+        {
+          name: t('State'),
+          value: makePodStatusLabel(item, false),
+        },
+        {
+          name: t('Node'),
+          value: item.spec.nodeName ? (
+            <Link
+              routeName="node"
+              params={{ name: item.spec.nodeName }}
+              activeCluster={item.cluster}
+            >
+              {item.spec.nodeName}
+            </Link>
+          ) : (
+            ''
+          ),
+        },
+        {
+          name: t('Service Account'),
+          value:
+            !!item.spec.serviceAccountName || !!item.spec.serviceAccount ? (
+              <Link
+                routeName="serviceAccount"
+                params={{
+                  namespace: item.metadata.namespace,
+                  name: item.spec.serviceAccountName || item.spec.serviceAccount,
+                }}
+                activeCluster={item.cluster}
+              >
+                {item.spec.serviceAccountName || item.spec.serviceAccount}
+              </Link>
+            ) : (
+              ''
+            ),
+        },
+        // Show Host IP only if Host IPs doesn't exist or is empty
+        ...(item.status.hostIPs && item.status.hostIPs.length > 0
+          ? []
+          : [
+              {
+                name: t('Host IP'),
+                value: item.status.hostIP ?? '',
+              },
+            ]),
+        // Always include Host IPs, but hide if empty
+        {
+          name: t('Host IPs'),
+          value: item.status.hostIPs
+            ? item.status.hostIPs.map((ipObj: { ip: string }) => ipObj.ip).join(', ')
+            : '',
+          hideLabel: !item.status.hostIPs || item.status.hostIPs.length === 0,
+        },
+        // Show Pod IP only if Pod IPs doesn't exist or is empty
+        ...(item.status.podIPs && item.status.podIPs.length > 0
+          ? []
+          : [
+              {
+                name: t('Pod IP'),
+                value: item.status.podIP ?? '',
+              },
+            ]),
+        // Always include Pod IPs, but hide if empty
+        {
+          name: t('Pod IPs'),
+          value: item.status.podIPs
+            ? item.status.podIPs.map((ipObj: { ip: string }) => ipObj.ip).join(', ')
+            : '',
+          hideLabel: !item.status.podIPs || item.status.podIPs.length === 0,
+        },
+        {
+          name: t('QoS Class'),
+          value: item.status.qosClass,
+        },
+        {
+          name: t('Priority'),
+          value: item.spec.priority,
+        },
+      ];
+    }
+    return extraInfo;
+  }
 
   return (
     <DetailsGrid
@@ -501,10 +593,18 @@ export default function PodDetails(props: PodDetailsProps) {
               <AuthVisible item={item} authVerb="get" subresource="log">
                 <ActionButton
                   description={t('Show Logs')}
-                  aria-label={t('logs')}
                   icon="mdi:file-document-box-outline"
                   onClick={() => {
-                    setShowLogs(true);
+                    Activity.launch({
+                      id: 'logs-' + item.metadata.uid,
+                      title: t('Logs') + ': ' + item.metadata.name,
+                      cluster: item.cluster,
+                      icon: (
+                        <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />
+                      ),
+                      location: 'full',
+                      content: <PodLogViewer noDialog open item={item} onClose={() => {}} />,
+                    });
                     dispatchHeadlampEvent({
                       type: HeadlampEventType.LOGS,
                       data: {
@@ -519,24 +619,30 @@ export default function PodDetails(props: PodDetailsProps) {
           {
             id: DefaultHeaderAction.POD_TERMINAL,
             action: (
-              <AuthVisible item={item} authVerb="get" subresource="exec">
-                <AuthVisible item={item} authVerb="create" subresource="exec">
-                  <ActionButton
-                    description={t('Terminal / Exec')}
-                    aria-label={t('terminal')}
-                    icon="mdi:console"
-                    onClick={() => {
-                      setShowTerminal(true);
-                      dispatchHeadlampEvent({
-                        type: HeadlampEventType.TERMINAL,
-                        data: {
-                          resource: item,
-                          status: EventStatus.CLOSED,
-                        },
-                      });
-                    }}
-                  />
-                </AuthVisible>
+              <AuthVisible item={item} authVerb="create" subresource="exec">
+                <ActionButton
+                  description={t('Terminal / Exec')}
+                  icon="mdi:console"
+                  onClick={() => {
+                    Activity.launch({
+                      id: 'terminal-' + item.metadata.uid,
+                      title: item.metadata.name,
+                      cluster: item.cluster,
+                      icon: <Icon icon="mdi:console" width="100%" height="100%" />,
+                      location: 'full',
+                      content: (
+                        <Terminal noDialog open item={item} onClose={() => {}} isAttach={false} />
+                      ),
+                    });
+                    dispatchHeadlampEvent({
+                      type: HeadlampEventType.TERMINAL,
+                      data: {
+                        resource: item,
+                        status: EventStatus.CLOSED,
+                      },
+                    });
+                  }}
+                />
               </AuthVisible>
             ),
           },
@@ -544,84 +650,33 @@ export default function PodDetails(props: PodDetailsProps) {
             id: DefaultHeaderAction.POD_ATTACH,
             action: (
               <AuthVisible item={item} authVerb="get" subresource="attach">
-                <AuthVisible item={item} authVerb="create" subresource="attach">
-                  <ActionButton
-                    description={t('Attach')}
-                    aria-label={t('attach')}
-                    icon="mdi:connection"
-                    onClick={() => {
-                      setIsAttached(true);
-                      dispatchHeadlampEvent({
-                        type: HeadlampEventType.POD_ATTACH,
-                        data: {
-                          resource: item,
-                          status: EventStatus.OPENED,
-                        },
-                      });
-                    }}
-                  />
-                </AuthVisible>
+                <ActionButton
+                  description={t('Attach')}
+                  icon="mdi:connection"
+                  onClick={() => {
+                    dispatchHeadlampEvent({
+                      type: HeadlampEventType.POD_ATTACH,
+                      data: {
+                        resource: item,
+                        status: EventStatus.OPENED,
+                      },
+                    });
+                    Activity.launch({
+                      id: 'attach-' + item.metadata.uid,
+                      title: item.metadata.name,
+                      cluster: item.cluster,
+                      icon: <Icon icon="mdi:console" width="100%" height="100%" />,
+                      location: 'full',
+                      content: <Terminal noDialog open item={item} onClose={() => {}} isAttach />,
+                    });
+                  }}
+                />
               </AuthVisible>
             ),
           },
         ]
       }
-      extraInfo={item =>
-        item && [
-          {
-            name: t('State'),
-            value: makePodStatusLabel(item, false),
-          },
-          {
-            name: t('Node'),
-            value: item.spec.nodeName ? (
-              <Link
-                routeName="node"
-                params={{ name: item.spec.nodeName }}
-                activeCluster={item.cluster}
-              >
-                {item.spec.nodeName}
-              </Link>
-            ) : (
-              ''
-            ),
-          },
-          {
-            name: t('Service Account'),
-            value:
-              !!item.spec.serviceAccountName || !!item.spec.serviceAccount ? (
-                <Link
-                  routeName="serviceAccount"
-                  params={{
-                    namespace: item.metadata.namespace,
-                    name: item.spec.serviceAccountName || item.spec.serviceAccount,
-                  }}
-                  activeCluster={item.cluster}
-                >
-                  {item.spec.serviceAccountName || item.spec.serviceAccount}
-                </Link>
-              ) : (
-                ''
-              ),
-          },
-          {
-            name: t('Host IP'),
-            value: item.status.hostIP ?? '',
-          },
-          {
-            name: t('Pod IP'),
-            value: item.status.podIP ?? '',
-          },
-          {
-            name: t('QoS Class'),
-            value: item.status.qosClass,
-          },
-          {
-            name: t('Priority'),
-            value: item.spec.priority,
-          },
-        ]
-      }
+      extraInfo={item => prepareExtraInfo(item)}
       extraSections={item =>
         item && [
           {
@@ -634,53 +689,11 @@ export default function PodDetails(props: PodDetailsProps) {
           },
           {
             id: 'headlamp.pod-containers',
-            section: <ContainersSection resource={item?.jsonData} />,
+            section: <ContainersSection resource={item} />,
           },
           {
             id: 'headlamp.pod-volumes',
             section: <VolumeSection resource={item?.jsonData} />,
-          },
-          {
-            id: 'headlamp.pod-logs',
-            section: (
-              <PodLogViewer
-                key={'logs-' + item.metadata.uid}
-                open={showLogs}
-                item={item}
-                onClose={() => {
-                  dispatchHeadlampEvent({
-                    type: HeadlampEventType.LOGS,
-                    data: {
-                      resource: item,
-                      status: EventStatus.CLOSED,
-                    },
-                  });
-                  setShowLogs(false);
-                }}
-              />
-            ),
-          },
-          {
-            id: 'headlamp.pod-terminal',
-            section: (
-              <Terminal
-                key="terminal"
-                open={showTerminal || isAttached}
-                item={item}
-                onClose={() => {
-                  setShowTerminal(false);
-                  dispatchHeadlampEvent({
-                    type: HeadlampEventType.TERMINAL,
-                    data: {
-                      resource: item,
-                      status: EventStatus.CLOSED,
-                    },
-                  });
-                  setIsAttached(false);
-                }}
-                isAttach={isAttached}
-              />
-            ),
           },
         ]
       }

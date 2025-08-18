@@ -1,5 +1,6 @@
 backend/headlamp-server
 backend/headlamp-server.exe
+backend/tmp
 backend/tools
 backend/coverage.out
 app/electron/src/*
@@ -9,3 +10,4 @@ node_modules
 .idea/
 plugins/headlamp-plugin/headlamp-myfancy/
 plugins/examples/*/dist/
+.DS_Store

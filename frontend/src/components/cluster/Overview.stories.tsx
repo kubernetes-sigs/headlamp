@@ -192,3 +192,53 @@ const Template: StoryFn = () => {
 };
 
 export const Events = Template.bind({});
+
+export const EmptyState = Template.bind({});
+EmptyState.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/api/v1/events', () =>
+          HttpResponse.json({
+            kind: 'EventsList',
+            items: [],
+            metadata: {},
+          })
+        ),
+        http.get('http://localhost:4466/api/v1/pods', () =>
+          HttpResponse.json({
+            kind: 'PodList',
+            apiVersion: 'v1',
+            metadata: {},
+            items: [],
+          })
+        ),
+      ],
+    },
+  },
+};
+
+export const LoadingState = Template.bind({});
+LoadingState.parameters = {
+  storyshots: { disable: true },
+  msw: {
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/api/v1/events', () => new Promise(() => {})),
+        http.get('http://localhost:4466/api/v1/pods', () => new Promise(() => {})),
+      ],
+    },
+  },
+};
+
+export const ErrorState = Template.bind({});
+ErrorState.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/api/v1/events', () => HttpResponse.error()),
+        http.get('http://localhost:4466/api/v1/pods', () => HttpResponse.error()),
+      ],
+    },
+  },
+};

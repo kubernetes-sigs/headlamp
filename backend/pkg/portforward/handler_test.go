@@ -33,6 +33,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/portforward"
@@ -118,9 +119,9 @@ func TestStartPortForward(t *testing.T) {
 		Header: make(http.Header),
 	}
 	resp := httptest.NewRecorder()
+	req = mux.SetURLVars(req, map[string]string{"clusterName": minikubeName})
 
 	reqPayload := map[string]interface{}{
-		"cluster":    minikubeName,
 		"pod":        podName,
 		"namespace":  "headlamp",
 		"targetPort": targetPort,
@@ -190,7 +191,6 @@ func TestStartPortForward(t *testing.T) {
 	stopResp := httptest.NewRecorder()
 
 	stopReqPayload := map[string]interface{}{
-		"cluster":      minikubeName,
 		"id":           id,
 		"stopOrDelete": true,
 	}
@@ -200,6 +200,7 @@ func TestStartPortForward(t *testing.T) {
 
 	stopReq.Body = io.NopCloser(bytes.NewReader(jsonStopReq))
 	stopReq.Header.Set("Content-Type", "application/json")
+	stopReq = mux.SetURLVars(stopReq, map[string]string{"clusterName": minikubeName})
 
 	portforward.StopOrDeletePortForward(ch, stopResp, stopReq)
 
@@ -224,7 +225,7 @@ func TestStartPortForward(t *testing.T) {
 	listResp := httptest.NewRecorder()
 
 	listReq.URL = &url.URL{}
-	listReq.URL.RawQuery = "cluster=" + minikubeName
+	listReq = mux.SetURLVars(listReq, map[string]string{"clusterName": minikubeName})
 
 	portforward.GetPortForwards(ch, listResp, listReq)
 
@@ -270,7 +271,8 @@ func TestStartPortForward(t *testing.T) {
 	getResp := httptest.NewRecorder()
 
 	getReq.URL = &url.URL{}
-	getReq.URL.RawQuery = "cluster=" + minikubeName + "&id=" + id
+	getReq.URL.RawQuery = "id=" + id
+	getReq = mux.SetURLVars(getReq, map[string]string{"clusterName": minikubeName})
 
 	portforward.GetPortForwardByID(ch, getResp, getReq)
 
@@ -293,7 +295,6 @@ func TestStartPortForward(t *testing.T) {
 	deleteResp := httptest.NewRecorder()
 
 	deleteReqPayload := map[string]interface{}{
-		"cluster":      minikubeName,
 		"id":           id,
 		"stopOrDelete": false,
 	}
@@ -303,6 +304,7 @@ func TestStartPortForward(t *testing.T) {
 
 	deleteReq.Body = io.NopCloser(bytes.NewReader(jsonDeleteReq))
 	deleteReq.Header.Set("Content-Type", "application/json")
+	deleteReq = mux.SetURLVars(deleteReq, map[string]string{"clusterName": minikubeName})
 
 	portforward.StopOrDeletePortForward(ch, deleteResp, deleteReq)
 

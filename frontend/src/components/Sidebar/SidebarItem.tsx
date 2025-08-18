@@ -57,6 +57,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
     icon,
     fullWidth = true,
     hide,
+    tabIndex,
     ...other
   } = props;
   const clusters = useSelectedClusters();
@@ -86,6 +87,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
         subtitle={subtitle}
         search={search}
         iconOnly={!fullWidth}
+        tabIndex={tabIndex}
         hasParent={hasParent}
         fullWidth={fullWidth}
         {...other}

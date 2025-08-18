@@ -24,7 +24,7 @@
     -->
     <title>Headlamp</title>
     <script>
-      headlampBaseUrl = '%BASE_URL%';
+      headlampBaseUrl = '%BASE_URL%<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');
     </script>
     <style>
       .splash {
@@ -45,14 +45,14 @@
         width: 2.5em;
         height: 2.5em;
         animation-fill-mode: both;
-        animation: bblFadInOut 1.8s infinite ease-in-out;
+        animation: bblFadInOut 1.8s infinite ease-in-out 1s;
       }
       .loader {
         font-size: 7px;
         position: relative;
         text-indent: -9999em;
         transform: translateZ(0);
-        animation-delay: -0.16s;
+        animation-delay: 0.84s;
       }
       .loader:before,
       .loader:after {
@@ -62,10 +62,18 @@
       }
       .loader:before {
         left: -3.5em;
-        animation-delay: -0.32s;
+        animation-delay: 0.68s;
       }
       .loader:after {
         left: 3.5em;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .loader,
+        .loader:before,
+        .loader:after {
+          animation: none;
+        }
       }
 
       @keyframes bblFadInOut {
@@ -84,7 +92,7 @@
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root">
       <div class="splash">
-        <span class="loader"></span>
+        <span class="loader" role="status" aria-live="polite" aria-label="Loading"></span>
       </div>
     </div>
     <!--

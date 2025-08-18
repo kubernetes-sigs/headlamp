@@ -2,7 +2,7 @@
   <div>
     <nav
       aria-label="Navigation"
-      class="MuiBox-root css-0"
+      class="MuiBox-root css-qnyptn"
     >
       <div
         class="MuiDrawer-root MuiDrawer-docked css-ohfc2x-MuiDrawer-docked"
@@ -11,6 +11,7 @@
           class="MuiPaper-root MuiPaper-outlined MuiDrawer-paper MuiDrawer-paperAnchorLeft MuiDrawer-paperAnchorDockedLeft css-r16dox-MuiPaper-root-MuiDrawer-paper"
         >
           <div
+            aria-hidden="true"
             class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column MuiGrid-wrap-xs-nowrap css-opqjvv-MuiGrid-root"
           >
             <div
@@ -26,7 +27,7 @@
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
-                    tabindex="0"
+                    tabindex="-1"
                   >
                     <div
                       aria-label="Home"
@@ -45,7 +46,7 @@
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
                     href="/notifications"
                     role="button"
-                    tabindex="0"
+                    tabindex="-1"
                   >
                     <div
                       aria-label="Notifications"
@@ -64,7 +65,7 @@
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
                     href="/settings/general"
                     role="button"
-                    tabindex="0"
+                    tabindex="-1"
                   >
                     <div
                       aria-label="Settings"

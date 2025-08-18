@@ -290,6 +290,9 @@ export const PureSidebar = memo(
 
     const adjustedDrawerWidth = largeSideBarOpen ? drawerWidth : closedWidth;
 
+    // Remove items from tab order when the sidebar is collapsed.
+    const tabIndex = largeSideBarOpen ? undefined : -1;
+
     /**
      * For closing the sidebar if temporaryDrawer on mobile.
      */
@@ -316,6 +319,7 @@ export const PureSidebar = memo(
           direction="column"
           justifyContent="space-between"
           wrap="nowrap"
+          aria-hidden={!largeSideBarOpen}
         >
           <Grid item>
             <List
@@ -328,6 +332,7 @@ export const PureSidebar = memo(
                   isSelected={item.isSelected}
                   fullWidth={largeSideBarOpen}
                   search={search}
+                  tabIndex={tabIndex}
                   {...item}
                 />
               ))}
@@ -371,7 +376,11 @@ export const PureSidebar = memo(
     }, [items]);
 
     return (
-      <Box component="nav" aria-label={t('translation|Navigation')}>
+      <Box
+        component="nav"
+        aria-label={t('translation|Navigation')}
+        sx={{ minHeight: 0, gridColumn: '1 / 2', gridRow: '1 / 3' }}
+      >
         <Drawer
           variant={isTemporaryDrawer ? 'temporary' : 'permanent'}
           PaperProps={{

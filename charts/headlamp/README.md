@@ -137,6 +137,7 @@ config:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| automountServiceAccountToken | bool | `true` | Mount Service Account token in pod |
 | serviceAccount.create | bool | `true` | Create service account |
 | serviceAccount.name | string | `""` | Service account name |
 | serviceAccount.annotations | object | `{}` | Service account annotations |

@@ -69,7 +69,9 @@ export default function SectionHeader(props: SectionHeaderProps) {
             )}
             {!!titleSideActions && (
               <Box ml={1} justifyContent="center">
-                {titleSideActions}
+                {titleSideActions.map((action, i) => (
+                  <React.Fragment key={i}>{action}</React.Fragment>
+                ))}
               </Box>
             )}
           </Box>

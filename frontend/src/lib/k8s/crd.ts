@@ -128,6 +128,7 @@ class CustomResourceDefinition extends KubeObject<KubeCRD> {
       singularName: this.spec.names.singular,
       pluralName: this.spec.names.plural,
       customResourceDefinition: this,
+      kind: this.spec.names.kind,
     });
   }
 
@@ -141,6 +142,7 @@ export interface CRClassArgs {
     group: string;
     version: string;
   }[];
+  kind: string;
   pluralName: string;
   singularName: string;
   isNamespaced: boolean;
@@ -181,7 +183,7 @@ export function makeCustomResourceClass(
 
   const apiFunc = !!objArgs.isNamespaced ? apiFactoryWithNamespace : apiFactory;
   return class CRClass extends KubeObject<any> {
-    static kind = objArgs.singleName;
+    static kind = crClassArgs.kind;
     static apiName = crClassArgs.pluralName;
     static apiVersion = apiInfoArgs.map(([group, version]) =>
       group ? `${group}/${version}` : version

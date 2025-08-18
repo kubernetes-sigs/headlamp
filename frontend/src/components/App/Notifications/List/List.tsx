@@ -100,8 +100,8 @@ export default function NotificationList() {
 
     return (
       <>
-        <IconButton size="medium">
-          <Icon icon="mdi:dots-vertical" onClick={handleClick} />
+        <IconButton aria-label={t('translation|Menu')} size="medium" onClick={handleClick}>
+          <Icon icon="mdi:dots-vertical" />
         </IconButton>
         <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
           <MenuItem onClick={markAllAsRead} disabled={!hasUnseenNotifications}>

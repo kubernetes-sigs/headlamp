@@ -17,7 +17,6 @@
 import nock from 'nock';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
-import { getToken, setToken } from '../../../auth';
 import { getClusterAuthType } from '../v1/clusterRequests';
 import { BASE_HTTP_URL, clusterFetch } from './fetch';
 
@@ -43,14 +42,11 @@ describe('clusterFetch', () => {
   const clusterName = 'test-cluster';
   const testUrl = '/test/url';
   const mockResponse = { message: 'mock response' };
-  const token = 'test-token';
-  const newToken = 'new-token';
   const kubeconfig = 'mock-kubeconfig';
   const userID = 'mock-user-id';
 
   beforeEach(() => {
     vi.resetAllMocks();
-    (getToken as Mock).mockReturnValue(token);
     (findKubeconfigByClusterName as Mock).mockResolvedValue(kubeconfig);
     (getUserIdFromLocalStorage as Mock).mockReturnValue(userID);
     (getClusterAuthType as Mock).mockReturnValue('serviceAccount');
@@ -69,15 +65,6 @@ describe('clusterFetch', () => {
     expect(responseBody).toEqual(mockResponse);
   });
 
-  it('Sets Authorization header with token', async () => {
-    nock(BASE_HTTP_URL)
-      .get(`/clusters/${clusterName}${testUrl}`)
-      .matchHeader('Authorization', `Bearer ${token}`)
-      .reply(200, mockResponse);
-
-    await clusterFetch(testUrl, { cluster: clusterName });
-  });
-
   it('Sets KUBECONFIG and X-HEADLAMP-USER-ID headers if kubeconfig exists', async () => {
     nock(BASE_HTTP_URL)
       .get(`/clusters/${clusterName}${testUrl}`)
@@ -86,16 +73,6 @@ describe('clusterFetch', () => {
       .reply(200, mockResponse);
 
     await clusterFetch(testUrl, { cluster: clusterName });
-  });
-
-  it('Sets new token if X-Authorization header is present in response', async () => {
-    nock(BASE_HTTP_URL)
-      .get(`/clusters/${clusterName}${testUrl}`)
-      .reply(200, mockResponse, { 'X-Authorization': newToken });
-
-    await clusterFetch(testUrl, { cluster: clusterName });
-
-    expect(setToken).toHaveBeenCalledWith(clusterName, newToken);
   });
 
   it('Throws an error if response is not ok', async () => {

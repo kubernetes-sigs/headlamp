@@ -1,0 +1,185 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-0"
+    >
+      <dl
+        class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+      >
+        <dt
+          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+        >
+          Name
+        </dt>
+        <dd
+          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+        >
+          <span
+            class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+          >
+            my-new-kind
+          </span>
+        </dd>
+        <dt
+          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+        >
+          Namespace
+        </dt>
+        <dd
+          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+        >
+          <a
+            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+            href="/"
+          >
+            kube-system
+          </a>
+        </dd>
+        <dt
+          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+        >
+          Creation
+        </dt>
+        <dd
+          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
+        >
+          <span
+            class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+          >
+            2021-06-02T00:00:00.000Z
+          </span>
+        </dd>
+        <dt
+          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
+        >
+          Labels
+        </dt>
+        <dd
+          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
+        >
+          <div
+            class="MuiBox-root css-0"
+          >
+            <div
+              class="MuiBox-root css-yi3mkw"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label1: Value 1
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label2: Value 2
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label3: Value 3
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label4: Value 4
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label5: Value 5
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label6: Value 6
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label7: Value 7
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label8: Value 8
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label9: Value 9
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label10: Value 10
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label11: Value 11
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label12: Value 12
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label13: Value 13
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label14: Value 14
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label15: Value 15
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label16: Value 16
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label17: Value 17
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label18: Value 18
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label19: Value 19
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+              >
+                label20: Value 20
+              </p>
+            </div>
+            <button
+              class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-15swmp6-MuiButtonBase-root-MuiButton-root"
+              tabindex="0"
+              type="button"
+            >
+              <span
+                class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+              />
+              Show all labels (+5 more)
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+          </div>
+        </dd>
+      </dl>
+    </div>
+  </div>
+</body>

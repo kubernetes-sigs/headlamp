@@ -33,3 +33,4 @@ Note, it runs the development servers for the backend and the frontend as well. 
 - `npm run prod-deps`: Creates production dependencies for built apps in a prod_deps/ folder.
 - `npm start`: Starts the app in dev mode along with the backend server, and the frontend development server.
 - `npm run test`: Runs the tests. See the \*.test.js files in the electron/ folder.
+- `npm run tsc`: Runs the type checker.

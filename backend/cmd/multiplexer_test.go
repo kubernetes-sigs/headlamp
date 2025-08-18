@@ -542,7 +542,9 @@ func TestGetOrCreateConnection(t *testing.T) {
 		UserID:    "test-user",
 	}
 
-	conn, err := m.getOrCreateConnection(msg, clientConn)
+	token := "token"
+
+	conn, err := m.getOrCreateConnection(msg, clientConn, &token)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
 	assert.Equal(t, "test-cluster", conn.ClusterID)
@@ -551,13 +553,13 @@ func TestGetOrCreateConnection(t *testing.T) {
 	assert.Equal(t, "watch=true", conn.Query)
 
 	// Test getting an existing connection
-	conn2, err := m.getOrCreateConnection(msg, clientConn)
+	conn2, err := m.getOrCreateConnection(msg, clientConn, &token)
 	assert.NoError(t, err)
 	assert.Equal(t, conn, conn2, "Should return the same connection instance")
 
 	// Test with invalid cluster
 	msg.ClusterID = "non-existent-cluster"
-	conn3, err := m.getOrCreateConnection(msg, clientConn)
+	conn3, err := m.getOrCreateConnection(msg, clientConn, &token)
 	assert.Error(t, err)
 	assert.Nil(t, conn3)
 }
@@ -1146,20 +1148,18 @@ func TestGetOrCreateConnection_TokenRefresh(t *testing.T) {
 		Path:      "/api/v1/pods",
 		Query:     "watch=true",
 		UserID:    "test-user",
-		Token:     &originalToken,
 	}
 
-	conn, err := m.getOrCreateConnection(msg, clientConn)
+	conn, err := m.getOrCreateConnection(msg, clientConn, &originalToken)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
 	assert.Equal(t, &originalToken, conn.Token)
 
 	// Now send a new message with a new token
 	newToken := "new-refreshed-token"
-	msg.Token = &newToken
 
 	// Get the same connection, but with a new token
-	conn2, err := m.getOrCreateConnection(msg, clientConn)
+	conn2, err := m.getOrCreateConnection(msg, clientConn, &newToken)
 	assert.NoError(t, err)
 	assert.Equal(t, conn, conn2, "Should return the same connection instance")
 

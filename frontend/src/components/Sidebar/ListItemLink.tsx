@@ -33,6 +33,7 @@ interface ListItemLinkProps {
   search?: string;
   name: string;
   subtitle?: string;
+  tabIndex?: number;
   icon?: IconProps['icon'];
   iconOnly?: boolean;
   hasParent?: boolean;

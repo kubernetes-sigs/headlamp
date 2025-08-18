@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"k8s.io/client-go/rest"
@@ -108,8 +109,6 @@ type Message struct {
 	Binary bool `json:"binary,omitempty"`
 	// Type is the type of the message.
 	Type string `json:"type"`
-	// Authentication token.
-	Token *string `json:"token"`
 }
 
 // Multiplexer manages multiple WebSocket connections.
@@ -468,7 +467,12 @@ func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Reque
 			continue
 		}
 
-		conn, err := m.getOrCreateConnection(msg, lockClientConn)
+		token, err := auth.GetTokenFromCookie(r, msg.ClusterID)
+		if err != nil {
+			break
+		}
+
+		conn, err := m.getOrCreateConnection(msg, lockClientConn, &token)
 		if err != nil {
 			m.handleConnectionError(lockClientConn, msg, err)
 
@@ -509,7 +513,7 @@ func (m *Multiplexer) readClientMessage(clientConn *websocket.Conn) (Message, er
 
 // getOrCreateConnection gets an existing connection or creates a new one if it doesn't exist.
 // If a connection exists and a new token is provided, it updates the token to ensure it's fresh.
-func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock) (*Connection, error) {
+func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock, token *string) (*Connection, error) {
 	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
 
 	m.mutex.RLock()
@@ -519,7 +523,7 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock)
 	if !exists {
 		var err error
 
-		conn, err = m.establishClusterConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, msg.Token)
+		conn, err = m.establishClusterConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
 		if err != nil {
 			logger.Log(
 				logger.LevelError,
@@ -532,12 +536,12 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock)
 		}
 
 		go m.handleClusterMessages(conn, clientConn)
-	} else if msg.Token != nil {
+	} else if token != nil {
 		// Check if the token is different before updating
 		conn.mu.Lock()
-		if conn.Token == nil || *conn.Token != *msg.Token {
+		if conn.Token == nil || *conn.Token != *token {
 			// Update the token only if it's new
-			conn.Token = msg.Token
+			conn.Token = token
 		}
 		conn.mu.Unlock()
 	}

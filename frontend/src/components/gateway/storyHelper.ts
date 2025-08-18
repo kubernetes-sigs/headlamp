@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { KubeBackendTLSPolicy } from '../../lib/k8s/backendTLSPolicy';
+import { KubeBackendTrafficPolicy } from '../../lib/k8s/backendTrafficPolicy';
 import { KubeGateway } from '../../lib/k8s/gateway';
 import { KubeGatewayClass } from '../../lib/k8s/gatewayClass';
 import { KubeGRPCRoute } from '../../lib/k8s/grpcRoute';
@@ -149,5 +151,63 @@ export const DEFAULT_REFERENCE_GRANT: KubeReferenceGrant = {
         name: 'example-service',
       },
     ],
+  },
+};
+
+export const DEFAULT_BACKEND_TLS_POLICY: KubeBackendTLSPolicy = {
+  apiVersion: 'gateway.networking.k8s.io/v1alpha3',
+  kind: 'BackendTLSPolicy',
+  metadata: {
+    uid: 'abc1234',
+    name: 'example-policy',
+    namespace: 'default',
+    creationTimestamp: '2025-06-16T09:18:00Z',
+  },
+  spec: {
+    targetRefs: [
+      {
+        group: '',
+        kind: 'Service',
+        name: 'example-service',
+      },
+    ],
+    validation: {
+      hostname: 'example.com',
+      caCertificateRefs: [],
+    },
+  },
+};
+
+export const DEFAULT_BACKEND_TRAFFIC_POLICY: KubeBackendTrafficPolicy = {
+  apiVersion: 'gateway.networking.x-k8s.io/v1alpha1',
+  kind: 'XBackendTrafficPolicy',
+  metadata: {
+    uid: 'abc1234',
+    name: 'example-traffic-policy',
+    namespace: 'default',
+    creationTimestamp: '2025-07-24T12:00:00Z',
+  },
+  spec: {
+    targetRefs: [
+      {
+        group: 'gateway.networking.k8s.io',
+        kind: 'Service',
+        name: 'example-service',
+      },
+    ],
+    retryConstraint: {
+      budget: {
+        percent: 10,
+        interval: '30s',
+      },
+      minRetryRate: {
+        count: 1,
+        interval: '10s',
+      },
+    },
+    sessionPersistence: {
+      type: 'Cookie',
+      cookieName: 'session-id',
+    },
   },
 };
