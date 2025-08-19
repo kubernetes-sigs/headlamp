@@ -109,6 +109,7 @@ export function useGetAllSources(): GraphSource[] {
         makeKubeSource(Job),
         makeKubeSource(CronJob),
       ],
+      isEnabledByDefault: false,
     },
     {
       id: 'storage',
@@ -117,6 +118,7 @@ export function useGetAllSources(): GraphSource[] {
         <Icon icon="mdi:database" width="100%" height="100%" color={getKindGroupColor('storage')} />
       ),
       sources: [makeKubeSource(PersistentVolumeClaim)],
+      isEnabledByDefault: false,
     },
     {
       id: 'network',
@@ -129,6 +131,7 @@ export function useGetAllSources(): GraphSource[] {
         makeKubeSource(IngressClass),
         makeKubeSource(NetworkPolicy),
       ],
+      isEnabledByDefault: false,
     },
     {
       id: 'security',

@@ -132,7 +132,7 @@ function PageTitle({
   children: React.ReactNode;
 }) {
   React.useEffect(() => {
-    document.title = title || '';
+    document.title = title ? `${title} - Syntasso Kratix Enterprise` : 'Syntasso Kratix Enterprise';
   }, [title]);
 
   return <>{children}</>;

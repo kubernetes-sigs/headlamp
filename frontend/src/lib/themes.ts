@@ -191,7 +191,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
       },
     },
     typography: {
-      fontFamily: ['Overpass', 'sans-serif'].join(', '),
+      fontFamily: ['Roboto', 'comic sans'].join(', '),
       h1: {
         fontWeight: 700,
         fontSize: '1.87rem',
@@ -449,18 +449,18 @@ export function getThemeName(): string {
   const themePreference = localStorage.headlampThemePreference;
 
   if (typeof window.matchMedia !== 'function') {
-    return 'light';
+    return 'syntasso';
   }
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
 
-  let themeName = 'light';
+  let themeName = 'syntasso';
   if (themePreference) {
     // A selected theme preference takes precedence.
     themeName = themePreference;
   } else {
     if (prefersLight) {
-      themeName = 'light';
+      themeName = 'syntasso';
     } else if (prefersDark) {
       themeName = 'dark';
     }

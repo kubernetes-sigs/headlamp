@@ -16,24 +16,6 @@
 
 import { AppTheme } from '../../lib/AppTheme';
 
-const headlampClassicLightTheme: AppTheme = {
-  name: 'Headlamp Classic',
-  primary: '#222',
-  secondary: '#eaeaea',
-  sidebar: {
-    background: '#242424',
-    color: '#FFF',
-    selectedBackground: '#ebe811',
-    selectedColor: '#ebe811',
-    actionBackground: '#605e5c',
-  },
-  navbar: {
-    background: '#FFF',
-    color: '#202020',
-  },
-  radius: 4,
-};
-
 export const darkTheme: AppTheme = {
   name: 'dark',
   base: 'dark',
@@ -149,12 +131,35 @@ export const monochromeLightTheme: AppTheme = {
   buttonTextTransform: 'none',
 };
 
-const defaultAppThemes = [
-  lightTheme,
-  darkTheme,
-  headlampClassicLightTheme,
-  lightsOutTheme,
-  monochromeLightTheme,
-];
+export const syntassoTheme: AppTheme = {
+  name: 'syntasso',
+  base: 'light',
+  primary: '#a726bc',
+  secondary: '#eff2f5',
+  text: {
+    primary: '#44444f',
+  },
+  background: {
+    muted: '#f5f5f5',
+  },
+  sidebar: {
+    background: '#514da1',
+    color: '#f5f5f5',
+    selectedBackground: '#a726bc',
+    selectedColor: '#f5f5f5',
+    actionBackground: '#a726bc',
+  },
+  navbar: {
+    background: '#514da1',
+    color: '#f5f5f5',
+  },
+  link: {
+    color: '#a726bc',
+  },
+  buttonTextTransform: 'none',
+  radius: 6,
+};
+
+const defaultAppThemes = [syntassoTheme, darkTheme, lightsOutTheme];
 
 export default defaultAppThemes;

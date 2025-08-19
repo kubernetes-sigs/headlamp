@@ -368,7 +368,16 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
           entryLookup.set(sidebar, sidebarEntry);
         }
 
-        sidebarEntry.subList?.push(item);
+        if (item.name === 'Kratix') {
+          const existingEntries = sidebarEntry.subList ?? [];
+          sidebarEntry.subList = [
+            ...existingEntries.slice(0, 2),
+            item,
+            ...existingEntries.slice(2),
+          ];
+        } else {
+          sidebarEntry.subList?.push(item);
+        }
       }
     });
 
