@@ -15,7 +15,7 @@
  */
 
 import _ from 'lodash';
-import React, { useMemo } from 'react';
+import React, { useContext, useMemo } from 'react';
 import { useHistory } from 'react-router-dom';
 import { ConfigState } from '../../redux/configSlice';
 import { useTypedSelector } from '../../redux/hooks';
@@ -54,6 +54,7 @@ import Role from './role';
 import RoleBinding from './roleBinding';
 import { RuntimeClass } from './runtime';
 import Secret from './secret';
+import { SelectedClustersContext } from './SelectedClustersContext';
 import Service from './service';
 import ServiceAccount from './serviceAccount';
 import StatefulSet from './statefulSet';
@@ -157,12 +158,15 @@ export function useCluster() {
 export function useSelectedClusters(): string[] {
   const clusterInURL = useCluster();
   const history = useHistory();
+  const maybeSelectedClusters = useContext(SelectedClustersContext);
 
   const clusterGroup = React.useMemo(() => {
     return getSelectedClusters([], history.location.pathname);
   }, [clusterInURL]);
 
-  return clusterGroup;
+  return maybeSelectedClusters && maybeSelectedClusters.length > 0
+    ? maybeSelectedClusters
+    : clusterGroup;
 }
 
 /**

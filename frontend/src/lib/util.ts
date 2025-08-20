@@ -132,7 +132,12 @@ export function getReadyReplicas(item: Workload) {
 }
 
 export function getTotalReplicas(item: Workload) {
-  return item.spec.replicas || item.status.currentNumberScheduled || 0;
+  return (
+    item.spec.replicas ||
+    item.status.currentNumberScheduled ||
+    item.status.desiredNumberScheduled ||
+    0
+  );
 }
 
 export function getResourceStr(value: number, resourceType: 'cpu' | 'memory') {

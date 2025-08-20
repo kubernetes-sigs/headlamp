@@ -207,3 +207,21 @@ right, bottom), and a React component.
 Check the
 [example plugin](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/ui-panels)
 for the full code.
+
+### Projects customization
+
+Customize Headlamp's Projects feature with several registration functions:
+
+Add a custom project creation workflow with
+[registerCustomCreateProject](../../api/plugin/registry/functions/registerCustomCreateProject).
+This lets you provide a custom UI and logic for creating projects.
+
+Add custom tabs to the project details view with
+[registerProjectDetailsTab](../../api/plugin/registry/functions/registerProjectDetailsTab).
+Each tab needs a unique ID, a label, and a React component that receives the project as a prop.
+
+Add custom sections to the project overview page with
+[registerProjectOverviewSection](../../api/plugin/registry/functions/registerProjectOverviewSection).
+These sections appear in the project's main overview area.
+
+Example plugin: [How to customize projects](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/projects)
