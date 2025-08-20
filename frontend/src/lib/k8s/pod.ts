@@ -303,6 +303,19 @@ class Pod extends KubeObject<KubePod> {
     return lastRestartDate;
   }
 
+  private isRestartableInitContainer(spec?: KubeContainer): boolean {
+    return !!spec && (spec as any).restartPolicy === 'Always';
+  }
+
+  private isPodInitializedConditionTrue(status?: KubePod['status']): boolean {
+    for (const c of status?.conditions ?? []) {
+      if (c.type === 'Initialized' && c.status === 'True') {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private hasPodReadyCondition(conditions: any): boolean {
     for (const condition of conditions) {
       if (condition.type === 'Ready' && condition.Status === 'True') {
@@ -330,11 +343,21 @@ class Pod extends KubeObject<KubePod> {
       return this.detailedStatusCache.details;
     }
 
+    const initSpecByName: Record<string, KubeContainer> = {};
+    let totalContainers = (this.spec.containers ?? []).length;
+    for (const ic of this.spec.initContainers ?? []) {
+      initSpecByName[ic.name] = ic;
+      if (this.isRestartableInitContainer(ic)) {
+        totalContainers++;
+      }
+    }
+
     let restarts = 0;
-    const totalContainers = (this.spec.containers ?? []).length;
+    // let restartableInitContainerRestarts = 0;
     let readyContainers = 0;
     let message = '';
     let lastRestartDate = new Date(0);
+    let lastRestartableInitContainerRestartDate = new Date(0);
 
     let reason = this.status.reason || this.status.phase;
 
@@ -343,6 +366,14 @@ class Pod extends KubeObject<KubePod> {
       const container = this.status.initContainerStatuses![i];
       restarts += container.restartCount;
       lastRestartDate = this.getLastRestartDate(container, lastRestartDate);
+
+      if (this.getLastRestartDate(container, lastRestartDate)) {
+        // restartableInitContainerRestarts += container.restartCount;
+        lastRestartableInitContainerRestartDate = this.getLastRestartDate(
+          container,
+          lastRestartableInitContainerRestartDate
+        );
+      }
 
       switch (true) {
         case container.state.terminated?.exitCode === 0:
@@ -373,8 +404,9 @@ class Pod extends KubeObject<KubePod> {
       break;
     }
 
-    if (!initializing) {
+    if (!initializing || this.isPodInitializedConditionTrue(this.status)) {
       restarts = 0;
+      lastRestartDate = lastRestartableInitContainerRestartDate;
       let hasRunning = false;
       for (let i = (this.status?.containerStatuses?.length || 0) - 1; i >= 0; i--) {
         const container = this.status?.containerStatuses[i];
