@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -603,6 +604,7 @@ func TestFilterToCache(t *testing.T) {
 		})
 	}
 }
+
 func TestGetClientSet(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -648,6 +650,131 @@ func TestGetClientSet(t *testing.T) {
 			} else {
 				assert.Equal(t, tc.expectedError, err)
 			}
+		})
+	}
+}
+
+func TestGetKindAndVerb(t *testing.T) {
+	t.Run("get kind and verb from url", func(t *testing.T) {
+		urlObj := url.URL{Path: "/clusters/kind-headlamp-admin/api/v1/pods"}
+		expectedVerb := "get"
+		expectedKind := "pods"
+		// Simulate mux.Vars
+		r := httptest.NewRequest(http.MethodGet, urlObj.Path, nil)
+		// Simulate mux.Vars
+		vars := map[string]string{
+			"api": "v1/pods", // Whatever you'd expect to be captured by the route
+		}
+		r = mux.SetURLVars(r, vars)
+		kind, verb := k8cache.GetKindAndVerb(r)
+		assert.Equal(t, expectedVerb, verb)
+		assert.Equal(t, expectedKind, kind)
+	})
+}
+
+func TestIsAllowed(t *testing.T) {
+	tests := []struct {
+		name      string
+		urlObj    *url.URL
+		token     string
+		mockK     MockKubeConfig
+		isAllowed bool
+	}{
+		{
+			name:   "user is not allowed",
+			urlObj: &url.URL{Path: "/clusters/kind-headlamp-admin/api/v1/pods"},
+			token:  "token-example",
+			mockK: MockKubeConfig{
+				&kubeconfig.Context{
+					ClusterID: "/home/saurav/.kubeconfig+kind-headlamp-admin",
+					Cluster: &api.Cluster{
+						Server: "https://example.com",
+					},
+					AuthInfo: &api.AuthInfo{
+						Token: "abcdef",
+					},
+					KubeContext: &api.Context{
+						Cluster: "kind-headlamp-admin",
+					},
+				},
+			},
+			isAllowed: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodGet, tc.urlObj.Path, nil)
+
+			_, err := tc.mockK.ClientSetWithToken(tc.token)
+			_, _ = tc.mockK.ClientConfig()
+
+			assert.NoError(t, err)
+
+			isAllowed, _ := k8cache.IsAllowed(tc.mockK.Context, w, r)
+			assert.Equal(t, tc.isAllowed, isAllowed)
+		})
+	}
+}
+
+// TestLoadFromCache tests whether the cache data is being served to the
+// client correctly.
+func TestLoadFromCache(t *testing.T) {
+	tests := []struct {
+		name          string
+		key           string
+		isLoaded      bool
+		value         string
+		urlObj        *url.URL
+		expectedError error
+	}{
+		{
+			name:          "Served from cache",
+			key:           "test-key",
+			value:         `{"Body":"from_cache","StatusCode":200}`,
+			urlObj:        &url.URL{Path: "/api/v1/pods"},
+			isLoaded:      true,
+			expectedError: nil,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCache := NewMockCache()
+			err := mockCache.SetWithTTL(context.Background(), tc.key, tc.value, 0)
+			assert.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodGet, tc.urlObj.Path, nil)
+			isLoaded, err := k8cache.LoadFromCache(mockCache, tc.isLoaded, tc.key, w, r)
+			assert.Equal(t, tc.isLoaded, isLoaded)
+			assert.NoError(t, err)
+		})
+	}
+}
+
+// TestStoreK8sResponseInCache tests whether the cache storing the response data.
+func TestStoreK8sResponseInCache(t *testing.T) {
+	tests := []struct {
+		name          string
+		urlObj        *url.URL
+		key           string
+		expectedError error
+	}{
+		{
+			name:          "valid workflow",
+			urlObj:        &url.URL{Path: "/api/v1/pods"},
+			key:           "1234",
+			expectedError: nil,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rw := httptest.NewRecorder()
+			rcw := k8cache.CreateResponseCapture(rw)
+			r := httptest.NewRequest(http.MethodGet, tc.urlObj.Path, nil)
+			newCache := NewMockCache()
+			err := k8cache.StoreK8sResponseInCache(newCache, tc.urlObj, rcw, r, tc.key)
+			assert.NoError(t, err)
 		})
 	}
 }
