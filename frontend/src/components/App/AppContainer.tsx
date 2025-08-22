@@ -23,6 +23,7 @@ import { setBackendToken } from '../../helpers/getHeadlampAPIHeaders';
 import { isElectron } from '../../helpers/isElectron';
 import Plugins from '../../plugin/Plugins';
 import ReleaseNotes from '../common/ReleaseNotes/ReleaseNotes';
+import { MonacoEditorLoaderInitializer } from '../monaco/MonacoEditorLoaderInitializer';
 import Layout from './Layout';
 import { PreviousRouteProvider } from './RouteSwitcher';
 
@@ -62,8 +63,10 @@ export default function AppContainer() {
       />
       <Router>
         <PreviousRouteProvider>
-          <Plugins />
-          <Layout />
+          <MonacoEditorLoaderInitializer>
+            <Plugins />
+            <Layout />
+          </MonacoEditorLoaderInitializer>
         </PreviousRouteProvider>
       </Router>
       <ReleaseNotes />
