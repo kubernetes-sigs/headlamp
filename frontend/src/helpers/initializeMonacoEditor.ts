@@ -15,8 +15,8 @@
  */
 
 import { loader } from '@monaco-editor/react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-// Vite supports a ?worker suffix which means each worker file will be emitted as a separate chunk
+import * as monaco from 'monaco-editor';
+// Vite supports a ?worker suffix which means each worker file will be emitted as a separate chunk and loaded upon first use
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
 import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
@@ -29,23 +29,26 @@ export function initializeMonacoEditor() {
     getWorker(_, label) {
       // these are the current LSP workers that exist, and they can be shared amongst similar languages,
       // otherwise use the default "editor worker"
-      if (label === 'json') {
-        return new jsonWorker();
+      switch (label) {
+        case 'json':
+          return new jsonWorker();
+        case 'css':
+        case 'scss':
+        case 'less':
+          return new cssWorker();
+        case 'html':
+        case 'handlebars':
+        case 'razor':
+          return new htmlWorker();
+        case 'typescript':
+        case 'javascript':
+          return new tsWorker();
+        default:
+          return new editorWorker();
       }
-      if (label === 'css' || label === 'scss' || label === 'less') {
-        return new cssWorker();
-      }
-      if (label === 'html' || label === 'handlebars' || label === 'razor') {
-        return new htmlWorker();
-      }
-      if (label === 'typescript' || label === 'javascript') {
-        return new tsWorker();
-      }
-      return new editorWorker();
     },
   };
 
-  // set the loader configuration, this only happens once during the application, and must happen after we've setup
-  // the MonacoEnvironment global above
+  // provide the monico module explicitly so that the loader isn't downloaded as a separate script
   loader.config({ monaco });
 }
