@@ -28,6 +28,10 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
+
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"k8s.io/client-go/kubernetes"
 )
 
 // ResponseCapture is a struct that will capture statusCode, Headers and Body
@@ -215,4 +219,39 @@ func FilterHeaderForCache(responseHeaders http.Header, encoding string) http.Hea
 	}
 
 	return cacheHeader
+}
+
+var (
+	clientsetCache = make(map[string]*kubernetes.Clientset)
+	mu             sync.Mutex
+)
+
+// GetClientSet return *kubernetes.ClientSet and error which further used for creating
+// SSAR requests to k8s server to authorize user. getClientSet uses kubeconfig.Context and
+// authentication bearer token  which will help to create clientSet based on the user's
+// identity.
+func GetClientSet(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
+	contextKey := strings.Split(k.ClusterID, "+")
+	if len(contextKey) < 2 {
+		// log and handle gracefully
+		return nil, fmt.Errorf("unexpected ClusterID format in getClientSet: %q", k.ClusterID)
+	}
+
+	cacheKey := fmt.Sprintf("%s-%s", contextKey[1], token)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if cs, found := clientsetCache[cacheKey]; found {
+		return cs, nil
+	}
+
+	cs, err := k.ClientSetWithToken(token)
+	if err != nil {
+		return nil, fmt.Errorf("error while creating clientset for key %s: %w", cacheKey, err)
+	}
+
+	clientsetCache[cacheKey] = cs
+
+	return cs, nil
 }

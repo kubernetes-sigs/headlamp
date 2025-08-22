@@ -16,15 +16,25 @@ package k8cache_test
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 // TestResponseCapture_WriteHeader tests that WriteHeader sets the status code and calls the underlying ResponseWriter.
@@ -164,6 +174,100 @@ func TestResponseCapture_Write_BodySuccess(t *testing.T) {
 	if rec.Body.String() != "body success" {
 		t.Errorf("expected recorder body %q, got %q", "body success", rec.Body.String())
 	}
+}
+
+// MockCache is struct which help to mock caching for testing purpose.
+type MockCache struct {
+	mu    sync.RWMutex
+	store map[string]string
+	err   error
+}
+
+// NewMockCache Helps to initialize cache struct for tests.
+func NewMockCache() *MockCache {
+	return &MockCache{
+		store: make(map[string]string),
+	}
+}
+
+// Set mocks storing of value with its corresponding key string.
+func (m *MockCache) Set(ctx context.Context, key, value string) error {
+	if m.err != nil {
+		return m.err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.store[key] = value
+
+	return nil
+}
+
+// SetWithTTL Mocks storing of value with its corresponding key string with time-to-live.
+func (m *MockCache) SetWithTTL(ctx context.Context, key, value string, ttl time.Duration) error {
+	return m.Set(ctx, key, value)
+}
+
+// Delete Mocks deleting value with the help of key string.
+func (m *MockCache) Delete(ctx context.Context, key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.store, key)
+
+	return nil
+}
+
+// Get Mocks retrieval of value with its corresponding key string.
+func (m *MockCache) Get(ctx context.Context, key string) (string, error) {
+	if m.err != nil {
+		return "", m.err
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	val, ok := m.store[key]
+
+	if !ok {
+		return "", errors.New("not found")
+	}
+
+	return val, nil
+}
+
+// GetAll Mocks retrieving all the values inside the cache.
+func (m *MockCache) GetAll(ctx context.Context, selectFunc cache.Matcher) (map[string]string, error) {
+	return nil, nil
+}
+
+// UpdateTTL Mocks updating of time-to-live with the helo of its corresponding key string.
+func (m *MockCache) UpdateTTL(ctx context.Context, key string, ttl time.Duration) error {
+	return nil
+}
+
+type MockKubeConfig struct {
+	*kubeconfig.Context
+}
+
+func (k *MockKubeConfig) ClientSetWithToken(token string) (kubernetes.Interface, error) {
+	return fake.NewSimpleClientset(), nil
+}
+
+type MockClientConfig struct{}
+
+func (k *MockKubeConfig) ClientConfig() (clientcmd.ClientConfig, error) {
+	conf := api.Config{
+		Clusters: map[string]*api.Cluster{
+			k.KubeContext.Cluster: k.Cluster,
+		},
+		AuthInfos: map[string]*api.AuthInfo{
+			k.KubeContext.AuthInfo: k.AuthInfo,
+		},
+		Contexts: map[string]*api.Context{
+			k.Name: k.KubeContext,
+		},
+	}
+
+	return clientcmd.NewNonInteractiveClientConfig(conf, "kind-headlamp-admin", nil, nil), nil
 }
 
 // TestInitialize verifies that responseCapture is initialized with
@@ -496,6 +600,54 @@ func TestFilterToCache(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			header := k8cache.FilterHeaderForCache(tc.responseHeader, tc.encoding)
 			assert.Equal(t, tc.expectedHeader, header)
+		})
+	}
+}
+func TestGetClientSet(t *testing.T) {
+	tests := []struct {
+		name          string
+		mockK         MockKubeConfig
+		token         string
+		clientSet     *kubernetes.Clientset
+		expectedError error
+	}{
+		{
+			name: "return non-empty clientset",
+			mockK: MockKubeConfig{
+				&kubeconfig.Context{
+					ClusterID:   "/home/user/.kubeconfig+kind-headlamp-admin",
+					Cluster:     &api.Cluster{Server: "https://example.com"},
+					AuthInfo:    &api.AuthInfo{Token: "abcdef"},
+					KubeContext: &api.Context{Cluster: "kind-headlamp-admin"},
+				},
+			},
+			token:         "token-1245",
+			expectedError: nil,
+		},
+		{
+			name: "return unexpected ClusterID format",
+			mockK: MockKubeConfig{
+				&kubeconfig.Context{
+					ClusterID:   "/home/user/.kubeconfig/kind-headlamp-admin",
+					Cluster:     &api.Cluster{Server: "https://example.com"},
+					AuthInfo:    &api.AuthInfo{Token: "abcdef"},
+					KubeContext: &api.Context{Cluster: "kind-headlamp-admin"},
+				},
+			},
+			token: "token-54321",
+			expectedError: fmt.Errorf("unexpected ClusterID format in getClientSet: " +
+				"\"/home/user/.kubeconfig/kind-headlamp-admin\""),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cs, err := k8cache.GetClientSet(tc.mockK.Context, tc.token)
+			if tc.clientSet != nil {
+				assert.NotEmpty(t, cs)
+				assert.NoError(t, err)
+			} else {
+				assert.Equal(t, tc.expectedError, err)
+			}
 		})
 	}
 }
