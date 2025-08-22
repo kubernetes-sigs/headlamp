@@ -48,7 +48,7 @@
  * ```
  */
 export function runCommand(
-  command: 'minikube' | 'az' | 'scriptjs',
+  command: 'minikube' | 'az' | 'kubectl' | 'scriptjs',
   args: string[],
   options: {},
   permissionSecrets?: Record<string, number>,

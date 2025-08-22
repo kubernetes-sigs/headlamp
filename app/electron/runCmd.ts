@@ -140,6 +140,14 @@ const COMMANDS_WITH_CONSENT = {
     'scriptjs headlamp_minikube/manage-minikube.js',
     'scriptjs minikube/manage-minikube.js',
   ],
+  aks_plugin: [
+    'az aks',
+    'az aks get-credentials',
+    'az aks list',
+    'az aks show',
+    'az aks create',
+    'kubectl config current-context',
+  ],
 };
 /**
  * Adds the runCmd consent for the plugin.
@@ -350,6 +358,8 @@ export function setupRunCmdHandlers(mainWindow: BrowserWindow | null, ipcMain: E
     'runCmd-scriptjs-minikube/manage-minikube.js': cryptoRandom(),
     'runCmd-scriptjs-headlamp_minikube/manage-minikube.js': cryptoRandom(),
     'runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js': cryptoRandom(),
+    'runCmd-az': cryptoRandom(),
+    'runCmd-kubectl': cryptoRandom(),
   };
 
   ipcMain.on('request-plugin-permission-secrets', function giveSecrets() {
@@ -404,7 +414,7 @@ export function validateCommandData(eventData: CommandDataPartial): [boolean, st
     }
   }
 
-  const validCommands = ['minikube', 'az', 'scriptjs'];
+  const validCommands = ['minikube', 'az', 'scriptjs', 'kubectl'];
 
   if (!validCommands.includes(eventData.command)) {
     return [
