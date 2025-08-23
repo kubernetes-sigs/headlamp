@@ -1056,7 +1056,7 @@ func TestOIDCTokenRefreshMiddleware(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
-func TestStartHeadlampServer(t *testing.T) {
+func TestStartHeadlampServer(t *testing_t) {
 	// Create a temporary directory for plugins
 	tempDir, err := os.MkdirTemp("", "headlamp-test")
 	require.NoError(t, err)
@@ -1114,7 +1114,7 @@ func TestStartHeadlampServer(t *testing.T) {
 }
 
 //nolint:funlen
-func TestHandleClusterHelm(t *testing.T) {
+func TestHandleClusterHelm(t *testing_t) {
 	// Set up test environment
 	os.Setenv("HEADLAMP_BACKEND_TOKEN", "test-token")
 	defer os.Unsetenv("HEADLAMP_BACKEND_TOKEN")
@@ -1338,4 +1338,30 @@ func TestProcessTokenProtocol(t *testing.T) {
 			assert.Equal(t, tt.expectedAuthHeader, req.Header.Get("Authorization"))
 		})
 	}
+}
+
+func TestInitTLSConfigFromEnv(t *testing.T) {
+	config := &HeadlampConfig{}
+	os.Setenv("HEADLAMP_ENABLE_TLS", "true")
+	os.Setenv("HEADLAMP_TLS_CERT_FILE", "/tmp/test.crt")
+	os.Setenv("HEADLAMP_TLS_KEY_FILE", "/tmp/test.key")
+	defer os.Unsetenv("HEADLAMP_ENABLE_TLS")
+	defer os.Unsetenv("HEADLAMP_TLS_CERT_FILE")
+	defer os.Unsetenv("HEADLAMP_TLS_KEY_FILE")
+
+	initTLSConfigFromEnv(config)
+	assert.True(t, config.EnableTLS)
+	assert.Equal(t, "/tmp/test.crt", config.TLSCertFile)
+	assert.Equal(t, "/tmp/test.key", config.TLSKeyFile)
+}
+
+func TestInitTLSConfigFromEnv_Disabled(t *testing.T) {
+	config := &HeadlampConfig{}
+	os.Unsetenv("HEADLAMP_ENABLE_TLS")
+	os.Unsetenv("HEADLAMP_TLS_CERT_FILE")
+	os.Unsetenv("HEADLAMP_TLS_KEY_FILE")
+	initTLSConfigFromEnv(config)
+	assert.False(t, config.EnableTLS)
+	assert.Equal(t, "", config.TLSCertFile)
+	assert.Equal(t, "", config.TLSKeyFile)
 }
