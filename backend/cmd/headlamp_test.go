@@ -1056,7 +1056,7 @@ func TestOIDCTokenRefreshMiddleware(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
-func TestStartHeadlampServer(t *testing_t) {
+func TestStartHeadlampServer(t *testing.T) {
 	// Create a temporary directory for plugins
 	tempDir, err := os.MkdirTemp("", "headlamp-test")
 	require.NoError(t, err)
@@ -1114,7 +1114,7 @@ func TestStartHeadlampServer(t *testing_t) {
 }
 
 //nolint:funlen
-func TestHandleClusterHelm(t *testing_t) {
+func TestHandleClusterHelm(t *testing.T) {
 	// Set up test environment
 	os.Setenv("HEADLAMP_BACKEND_TOKEN", "test-token")
 	defer os.Unsetenv("HEADLAMP_BACKEND_TOKEN")
