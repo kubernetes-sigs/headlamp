@@ -1,0 +1,54 @@
+# Example Headlamp deployment with TLS termination at the backend
+---
+kind: Secret
+apiVersion: v1
+metadata:
+  name: headlamp-tls
+  namespace: kube-system
+  labels:
+    app: headlamp
+  annotations:
+    kubernetes.io/tls-acme: "true"
+type: kubernetes.io/tls
+data:
+  tls.crt: <base64-encoded-cert>
+  tls.key: <base64-encoded-key>
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: headlamp
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: headlamp
+  template:
+    metadata:
+      labels:
+        k8s-app: headlamp
+    spec:
+      containers:
+        - name: headlamp
+          image: ghcr.io/headlamp-k8s/headlamp:latest
+          args:
+            - "-in-cluster"
+            - "-plugins-dir=/headlamp/plugins"
+          env:
+            - name: HEADLAMP_ENABLE_TLS
+              value: "true"
+            - name: HEADLAMP_TLS_CERT_FILE
+              value: "/certs/tls.crt"
+            - name: HEADLAMP_TLS_KEY_FILE
+              value: "/certs/tls.key"
+          ports:
+            - containerPort: 4466
+              name: https
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+      volumes:
+        - name: certs
+          secret:
+            secretName: headlamp-tls

@@ -69,6 +69,9 @@ import (
 
 type HeadlampConfig struct {
 	*headlampcfg.HeadlampCFG
+	EnableTLS   bool   // Enable TLS termination at backend
+	TLSCertFile string // Path to TLS certificate file
+	TLSKeyFile  string // Path to TLS private key file
 	oidcClientID              string
 	oidcValidatorClientID     string
 	oidcClientSecret          string
@@ -1196,14 +1199,25 @@ func StartHeadlampServer(config *HeadlampConfig) {
 
 	handler = config.OIDCTokenRefreshMiddleware(handler)
 
-	addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
+       addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
 
-	// Start server
-	if err := http.ListenAndServe(addr, handler); err != nil { //nolint:gosec
-		logger.Log(logger.LevelError, nil, err, "Failed to start server")
+       // Load TLS config from environment variables (if set)
+       initTLSConfigFromEnv(config)
 
-		HandleServerStartError(&err)
-	}
+       // Start server with optional TLS
+       if config.EnableTLS && config.TLSCertFile != "" && config.TLSKeyFile != "" {
+	       logger.Log(logger.LevelInfo, nil, nil, "Starting Headlamp server with TLS on "+addr)
+	       if err := http.ListenAndServeTLS(addr, config.TLSCertFile, config.TLSKeyFile, handler); err != nil { //nolint:gosec
+		       logger.Log(logger.LevelError, nil, err, "Failed to start TLS server")
+		       HandleServerStartError(&err)
+	       }
+       } else {
+	       logger.Log(logger.LevelInfo, nil, nil, "Starting Headlamp server without TLS on "+addr)
+	       if err := http.ListenAndServe(addr, handler); err != nil { //nolint:gosec
+		       logger.Log(logger.LevelError, nil, err, "Failed to start server")
+		       HandleServerStartError(&err)
+	       }
+       }
 }
 
 // Handle common server startup errors.
@@ -1978,6 +1992,7 @@ func (c *HeadlampConfig) handleRemoveKubeConfig(
 
 	if originalName != "" && clusterID != "" {
 		configName = originalName
+
 	} else {
 		configName = name
 	}
@@ -2486,4 +2501,18 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+// Initialize HeadlampConfig with TLS options from environment variables
+func initTLSConfigFromEnv(config *HeadlampConfig) {
+    // HEADLAMP_ENABLE_TLS: "true" to enable TLS
+    if os.Getenv("HEADLAMP_ENABLE_TLS") == "true" {
+        config.EnableTLS = true
+    }
+    if cert := os.Getenv("HEADLAMP_TLS_CERT_FILE"); cert != "" {
+        config.TLSCertFile = cert
+    }
+    if key := os.Getenv("HEADLAMP_TLS_KEY_FILE"); key != "" {
+        config.TLSKeyFile = key
+    }
 }
