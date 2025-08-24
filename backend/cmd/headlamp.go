@@ -69,9 +69,9 @@ import (
 
 type HeadlampConfig struct {
 	*headlampcfg.HeadlampCFG
-	EnableTLS   bool   // Enable TLS termination at backend
-	TLSCertFile string // Path to TLS certificate file
-	TLSKeyFile  string // Path to TLS private key file
+	EnableTLS                 bool   // Enable TLS termination at backend
+	TLSCertFile               string // Path to TLS certificate file
+	TLSKeyFile                string // Path to TLS private key file
 	oidcClientID              string
 	oidcValidatorClientID     string
 	oidcClientSecret          string
@@ -1147,37 +1147,53 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 }
 
 func StartHeadlampServer(config *HeadlampConfig) {
+	tel := setupTelemetry(config)
+	defer shutdownTelemetry(tel)
+
+	setupMetrics(config)
+
+	setupStaticDir(config)
+
+	handler := createHeadlampHandler(config)
+	handler = config.OIDCTokenRefreshMiddleware(handler)
+
+	addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
+
+	initTLSConfigFromEnv(config)
+
+	startServer(config, addr, handler)
+}
+
+// --- Helper functions ---
+
+func setupTelemetry(config *HeadlampConfig) *telemetry.Telemetry {
 	tel, err := telemetry.NewTelemetry(config.telemetryConfig)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to initialize telemetry")
 		os.Exit(1)
 	}
+	config.Telemetry = tel
+	return tel
+}
 
-	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+func shutdownTelemetry(tel *telemetry.Telemetry) {
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := tel.Shutdown(shutdownCtx); err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to properly shutdown telemetry")
+	}
+}
 
-		if err := tel.Shutdown(shutdownCtx); err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to properly shutdown telemetry")
-		}
-	}()
-
+func setupMetrics(config *HeadlampConfig) {
 	metrics, err := telemetry.NewMetrics()
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to initialize metrics")
 	}
-
-	config.Telemetry = tel
 	config.Metrics = metrics
-	config.telemetryHandler = telemetry.NewRequestHandler(tel, metrics)
+	config.telemetryHandler = telemetry.NewRequestHandler(config.Telemetry, metrics)
+}
 
-	router := mux.NewRouter()
-
-	if config.Telemetry != nil && config.Metrics != nil {
-		router.Use(telemetry.TracingMiddleware("headlamp-server"))
-		router.Use(config.Metrics.RequestCounterMiddleware)
-	}
-
+func setupStaticDir(config *HeadlampConfig) {
 	// Copy static files as squashFS is read-only (AppImage)
 	if config.StaticDir != "" {
 		dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
@@ -1194,30 +1210,27 @@ func StartHeadlampServer(config *HeadlampConfig) {
 
 		config.StaticDir = dir
 	}
+}
 
-	handler := createHeadlampHandler(config)
-
-	handler = config.OIDCTokenRefreshMiddleware(handler)
-
-       addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
-
-       // Load TLS config from environment variables (if set)
-       initTLSConfigFromEnv(config)
-
-       // Start server with optional TLS
-       if config.EnableTLS && config.TLSCertFile != "" && config.TLSKeyFile != "" {
-	       logger.Log(logger.LevelInfo, nil, nil, "Starting Headlamp server with TLS on "+addr)
-	       if err := http.ListenAndServeTLS(addr, config.TLSCertFile, config.TLSKeyFile, handler); err != nil { //nolint:gosec
-		       logger.Log(logger.LevelError, nil, err, "Failed to start TLS server")
-		       HandleServerStartError(&err)
-	       }
-       } else {
-	       logger.Log(logger.LevelInfo, nil, nil, "Starting Headlamp server without TLS on "+addr)
-	       if err := http.ListenAndServe(addr, handler); err != nil { //nolint:gosec
-		       logger.Log(logger.LevelError, nil, err, "Failed to start server")
-		       HandleServerStartError(&err)
-	       }
-       }
+func startServer(config *HeadlampConfig, addr string, handler http.Handler) {
+	if config.EnableTLS && config.TLSCertFile != "" && config.TLSKeyFile != "" {
+		logger.Log(logger.LevelInfo, nil, nil, "Starting Headlamp server with TLS on "+addr)
+		if err := http.ListenAndServeTLS(
+			addr,
+			config.TLSCertFile,
+			config.TLSKeyFile,
+			handler,
+		); err != nil { //nolint:gosec
+			logger.Log(logger.LevelError, nil, err, "Failed to start TLS server")
+			HandleServerStartError(&err)
+		}
+	} else {
+		logger.Log(logger.LevelInfo, nil, nil, "Starting Headlamp server without TLS on "+addr)
+		if err := http.ListenAndServe(addr, handler); err != nil { //nolint:gosec
+			logger.Log(logger.LevelError, nil, err, "Failed to start server")
+			HandleServerStartError(&err)
+		}
+	}
 }
 
 // Handle common server startup errors.
@@ -2503,16 +2516,16 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 }
 
-// Initialize HeadlampConfig with TLS options from environment variables
+// initTLSConfigFromEnv initializes HeadlampConfig with TLS options from environment variables.
 func initTLSConfigFromEnv(config *HeadlampConfig) {
-    // HEADLAMP_ENABLE_TLS: "true" to enable TLS
-    if os.Getenv("HEADLAMP_ENABLE_TLS") == "true" {
-        config.EnableTLS = true
-    }
-    if cert := os.Getenv("HEADLAMP_TLS_CERT_FILE"); cert != "" {
-        config.TLSCertFile = cert
-    }
-    if key := os.Getenv("HEADLAMP_TLS_KEY_FILE"); key != "" {
-        config.TLSKeyFile = key
-    }
+	// HEADLAMP_ENABLE_TLS: "true" to enable TLS
+	if os.Getenv("HEADLAMP_ENABLE_TLS") == "true" {
+		config.EnableTLS = true
+	}
+	if cert := os.Getenv("HEADLAMP_TLS_CERT_FILE"); cert != "" {
+		config.TLSCertFile = cert
+	}
+	if key := os.Getenv("HEADLAMP_TLS_KEY_FILE"); key != "" {
+		config.TLSKeyFile = key
+	}
 }
