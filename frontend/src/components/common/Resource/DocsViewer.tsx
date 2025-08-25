@@ -19,7 +19,6 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import { TreeView } from '@mui/x-tree-view/TreeView';
-// import * as buffer from 'buffer';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import getDocDefinitions from '../../../lib/docs';
