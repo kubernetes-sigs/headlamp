@@ -16,8 +16,8 @@
 
 import GlobalStyles from '@mui/material/GlobalStyles';
 import { SnackbarProvider } from 'notistack';
-import React from 'react';
-import { BrowserRouter, HashRouter } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, HashRouter, useHistory, useLocation } from 'react-router-dom';
 import { getBaseUrl } from '../../helpers/getBaseUrl';
 import { setBackendToken } from '../../helpers/getHeadlampAPIHeaders';
 import { isElectron } from '../../helpers/isElectron';
@@ -31,6 +31,39 @@ window.desktopApi?.receive('backend-token', (token: string) => {
   setBackendToken(token);
 });
 
+/**
+ * QueryParamRedirect is a component that checks for a 'to' query parameter and redirects accordingly
+ * This should be placed near the top of your component hierarchy,
+ * typically in your main App component
+ * @returns
+ */
+const QueryParamRedirect = () => {
+  const history = useHistory();
+  const location = useLocation();
+
+  useEffect(() => {
+    // Get the current URL search params
+    const searchParams = new URLSearchParams(location.search);
+
+    // Check if 'to' parameter exists
+    const redirectPath = searchParams.get('to');
+
+    if (redirectPath) {
+      // Create a new URLSearchParams without the 'to' parameter
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('to');
+
+      // Construct the new URL without the 'to' parameter
+      const newSearch = newSearchParams.toString();
+      const newPathWithSearch = redirectPath + (newSearch ? `?${newSearch}` : '');
+
+      // Perform the redirect
+      history.replace(newPathWithSearch);
+    }
+  }, [location.search, history]);
+
+  return null;
+};
 export default function AppContainer() {
   const Router = ({ children }: React.PropsWithChildren<{}>) =>
     isElectron() ? (
@@ -62,6 +95,7 @@ export default function AppContainer() {
       />
       <Router>
         <PreviousRouteProvider>
+          <QueryParamRedirect />
           <Plugins />
           <Layout />
         </PreviousRouteProvider>

@@ -16,6 +16,8 @@
 
 import * as jsyaml from 'js-yaml';
 import _ from 'lodash';
+import helpers from '../helpers';
+import { JSON_HEADERS } from '../lib/k8s/api/v1/constants';
 import { request } from '../lib/k8s/apiProxy';
 import { Cluster } from '../lib/k8s/cluster';
 import { KubeconfigObject } from '../lib/k8s/kubeconfig';
@@ -265,6 +267,46 @@ function findMatchingContexts(
 }
 
 /**
+ * Finds and replaces a kubeconfig by cluster name.
+ * @param clusterName - The name of the cluster to find and replace.
+ * @param kubeconfig - The base64 encoded kubeconfig to replace the existing one with.
+ * @param create - If true, create a new kubeconfig if it doesn't exist. If false, only replace existing kubeconfigs.
+ * @returns A promise that resolves when the kubeconfig is successfully replaced.
+ */
+export function findAndReplaceKubeconfig(
+  clusterName: string,
+  kubeconfig: string,
+  create: boolean = false
+): Promise<void> {
+  return new Promise<void>(async (resolve, reject) => {
+    try {
+      // First try to find the existing kubeconfig
+      const existingKubeconfig = await findKubeconfigByClusterName(clusterName);
+
+      if (existingKubeconfig) {
+        // If found, delete the old one
+        await deleteClusterKubeconfig(clusterName);
+        // Store the new kubeconfig
+        await storeStatelessClusterKubeconfig(kubeconfig);
+        resolve();
+      } else if (create) {
+        // If not found and create is true, store the new kubeconfig
+        await storeStatelessClusterKubeconfig(kubeconfig);
+        resolve();
+      } else {
+        // If not found and create is false, reject
+        reject(
+          new Error(`No existing kubeconfig found for cluster ${clusterName} and create is false`)
+        );
+      }
+    } catch (error) {
+      console.error('Error in findAndReplaceKubeconfig:', error);
+      reject(error);
+    }
+  });
+}
+
+/**
  * Finds a kubeconfig by cluster name.
  * @param clusterName The name of the cluster to find.
  * @param clusterID The ID for a cluster, composed of the kubeconfig path and cluster name
@@ -410,7 +452,7 @@ export function isEqualClusterConfigs(
 export async function fetchStatelessClusterKubeConfigs(dispatch: any) {
   const config = await getStatelessClusterKubeConfigs();
   const statelessClusters = store.getState().config.statelessClusters;
-  const JSON_HEADERS = { Accept: 'application/json', 'Content-Type': 'application/json' };
+  const headers = helpers.addBackstageAuthHeaders(JSON_HEADERS);
   const clusterReq = {
     kubeconfigs: config,
   };
@@ -422,7 +464,7 @@ export async function fetchStatelessClusterKubeConfigs(dispatch: any) {
       method: 'POST',
       body: JSON.stringify(clusterReq),
       headers: {
-        ...JSON_HEADERS,
+        ...headers,
       },
     },
     false,

@@ -21,12 +21,14 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/tls"
+	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -165,6 +167,76 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// The file does exist, so we serve that.
 	http.ServeFile(w, r, path)
+}
+
+// embeddedSpaHandler serves the static files embedded in the binary.
+type embeddedSpaHandler struct {
+	staticFS  embed.FS
+	indexPath string
+	baseURL   string
+}
+
+// ServeHTTP serves the static files embedded in the binary.
+func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, h.baseURL)
+
+	if path == "" || path == "/" {
+		path = h.indexPath
+	}
+
+	// Prepend "static" to the path as that's the root in our embed.FS
+	fullPath := filepath.Join("static", path)
+
+	content, err := h.serveFile(fullPath)
+	if err != nil {
+		// If there's any error, serve the index file
+		content, err = h.serveFile(filepath.Join("static", h.indexPath))
+		if err != nil {
+			http.Error(w, "Unable to read index file", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// if request is for / or index.html replace the headlampBaseUrl with the baseURL in the index.html file
+	if path == h.indexPath || path == "/"+h.indexPath || path == "/"+h.indexPath+"/" {
+		content = bytes.ReplaceAll(content, []byte("headlampBaseUrl = './"), []byte("headlampBaseUrl = '"+h.baseURL+""))
+		content = bytes.ReplaceAll(content, []byte("'./'"), []byte(h.baseURL+"/"))
+		content = bytes.ReplaceAll(content, []byte("url("), []byte("url("+h.baseURL+"/"))
+	}
+
+	// Set the correct Content-Type header
+	ext := filepath.Ext(fullPath)
+
+	contentType := mime.TypeByExtension(ext)
+	if contentType == "" {
+		contentType = http.DetectContentType(content)
+	}
+
+	w.Header().Set("Content-Type", contentType)
+
+	_, err = w.Write(content)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing content")
+	}
+}
+
+func (h embeddedSpaHandler) serveFile(path string) ([]byte, error) {
+	f, err := h.staticFS.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	if stat.IsDir() {
+		return nil, fs.ErrNotExist
+	}
+
+	return io.ReadAll(f)
 }
 
 // returns True if a file exists.
@@ -795,11 +867,13 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	})
 
 	// Serve the frontend if needed
-	if config.StaticDir != "" {
+	if useEmbeddedFiles {
+		r.PathPrefix("/").Handler(embeddedSpaHandler{staticFS: staticFiles, indexPath: "index.html", baseURL: config.BaseURL})
+	} else if config.StaticDir != "" {
 		staticPath := config.StaticDir
 
 		if isWindows {
-			// We supPort unix paths on windows. So "frontend/static" works.
+			// We support unix paths on windows. So "frontend/static" works.
 			if strings.Contains(config.StaticDir, "/") {
 				staticPath = filepath.FromSlash(config.StaticDir)
 			}
