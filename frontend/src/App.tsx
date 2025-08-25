@@ -25,6 +25,7 @@ import AppContainer from './components/App/AppContainer';
 import { useCurrentAppTheme } from './components/App/themeSlice';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import ErrorComponent from './components/common/ErrorPage';
+import { MonacoEditorProvider } from './helpers/initializeMonacoEditor';
 import i18n from './i18n/config';
 import { useElectronI18n } from './i18n/electronI18n';
 import ThemeProviderNexti18n from './i18n/ThemeProviderNexti18n';
@@ -47,7 +48,9 @@ function AppWithRedux(props: React.PropsWithChildren<{}>) {
 
   return (
     <I18nextProvider i18n={i18n}>
-      <ThemeProviderNexti18n theme={muiTheme}>{props.children}</ThemeProviderNexti18n>
+      <MonacoEditorProvider>
+        <ThemeProviderNexti18n theme={muiTheme}>{props.children}</ThemeProviderNexti18n>
+      </MonacoEditorProvider>
     </I18nextProvider>
   );
 }
