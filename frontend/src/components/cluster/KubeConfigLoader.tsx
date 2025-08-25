@@ -99,7 +99,7 @@ function configWithSelectedClusters(config: kubeconfig, selectedClusters: string
   return newConfig;
 }
 
-const DropZoneBox = styled(Box)({
+export const DropZoneBox = styled(Box)({
   border: 1,
   borderRadius: 1,
   borderWidth: 2,
