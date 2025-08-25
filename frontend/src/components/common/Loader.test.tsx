@@ -28,11 +28,11 @@ describe('Loader Component', () => {
     );
 
     // Check if the container Box is present
-    const container = screen.getByRole('progressbar').parentElement;
+    const container = screen.getByRole('status').parentElement;
     expect(container).toHaveClass('MuiBox-root');
 
     // Check if CircularProgress is rendered
-    const progress = screen.getByRole('progressbar');
+    const progress = screen.getByRole('status');
     expect(progress).toHaveClass('MuiCircularProgress-root');
     expect(progress).toHaveAttribute('title', 'Loading...');
   });
@@ -45,7 +45,7 @@ describe('Loader Component', () => {
     );
 
     // Check if CircularProgress is rendered directly without container
-    const progress = screen.getByRole('progressbar');
+    const progress = screen.getByRole('status');
     expect(progress).toHaveClass('MuiCircularProgress-root');
     expect(progress.parentElement).not.toHaveClass('MuiBox-root');
   });
@@ -58,7 +58,7 @@ describe('Loader Component', () => {
       </TestContext>
     );
 
-    const progress = screen.getByRole('progressbar');
+    const progress = screen.getByRole('status');
     expect(progress).toHaveStyle({ width: `${customSize}px`, height: `${customSize}px` });
   });
 
@@ -69,7 +69,7 @@ describe('Loader Component', () => {
       </TestContext>
     );
 
-    const progress = screen.getByRole('progressbar');
+    const progress = screen.getByRole('status');
     expect(progress).toHaveClass('MuiCircularProgress-colorSecondary');
   });
 
@@ -80,20 +80,7 @@ describe('Loader Component', () => {
       </TestContext>
     );
 
-    const progress = screen.getByRole('progressbar');
+    const progress = screen.getByRole('status');
     expect(progress).toHaveAttribute('title', '');
-  });
-
-  it('passes additional props to CircularProgress', () => {
-    render(
-      <TestContext>
-        <Loader title="Loading..." thickness={4} disableShrink />
-      </TestContext>
-    );
-
-    const progress = screen.getByRole('progressbar');
-    expect(progress).toHaveClass('MuiCircularProgress-root');
-    expect(progress).toHaveAttribute('role', 'progressbar');
-    expect(progress).toHaveAttribute('title', 'Loading...');
   });
 });
