@@ -67,6 +67,8 @@ import (
 	"golang.org/x/oauth2"
 )
 
+const strTrue = "true"
+
 type HeadlampConfig struct {
 	*headlampcfg.HeadlampCFG
 	EnableTLS                 bool   // Enable TLS termination at backend
@@ -1172,13 +1174,16 @@ func setupTelemetry(config *HeadlampConfig) *telemetry.Telemetry {
 		logger.Log(logger.LevelError, nil, err, "Failed to initialize telemetry")
 		os.Exit(1)
 	}
+
 	config.Telemetry = tel
+
 	return tel
 }
 
 func shutdownTelemetry(tel *telemetry.Telemetry) {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
 	if err := tel.Shutdown(shutdownCtx); err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to properly shutdown telemetry")
 	}
@@ -1189,7 +1194,9 @@ func setupMetrics(config *HeadlampConfig) {
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to initialize metrics")
 	}
+
 	config.Metrics = metrics
+
 	config.telemetryHandler = telemetry.NewRequestHandler(config.Telemetry, metrics)
 }
 
@@ -1213,23 +1220,35 @@ func setupStaticDir(config *HeadlampConfig) {
 }
 
 func startServer(config *HeadlampConfig, addr string, handler http.Handler) {
+	// Use an http.Server with timeouts to avoid using ListenAndServe* directly
+	// which has no timeout configuration. This addresses the gosec G114 finding
+	// by providing explicit Read/Write/Idle timeouts on the server instance.
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      handler,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
 	if config.EnableTLS && config.TLSCertFile != "" && config.TLSKeyFile != "" {
 		logger.Log(logger.LevelInfo, nil, nil, "Starting Headlamp server with TLS on "+addr)
-		if err := http.ListenAndServeTLS(
-			addr,
-			config.TLSCertFile,
-			config.TLSKeyFile,
-			handler,
-		); err != nil { //nolint:gosec
+
+		err := srv.ListenAndServeTLS(config.TLSCertFile, config.TLSKeyFile)
+		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "Failed to start TLS server")
 			HandleServerStartError(&err)
 		}
-	} else {
-		logger.Log(logger.LevelInfo, nil, nil, "Starting Headlamp server without TLS on "+addr)
-		if err := http.ListenAndServe(addr, handler); err != nil { //nolint:gosec
-			logger.Log(logger.LevelError, nil, err, "Failed to start server")
-			HandleServerStartError(&err)
-		}
+
+		return
+	}
+
+	logger.Log(logger.LevelInfo, nil, nil, "Starting Headlamp server without TLS on "+addr)
+
+	err := srv.ListenAndServe()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to start server")
+		HandleServerStartError(&err)
 	}
 }
 
@@ -1979,7 +1998,7 @@ func (c *HeadlampConfig) handleDeleteCluster(
 	span trace.Span,
 	name string,
 ) {
-	removeKubeConfig := r.URL.Query().Get("removeKubeConfig") == "true"
+	removeKubeConfig := r.URL.Query().Get("removeKubeConfig") == strTrue
 	if removeKubeConfig {
 		c.handleRemoveKubeConfig(w, r, ctx, span, name)
 		return
@@ -2005,7 +2024,6 @@ func (c *HeadlampConfig) handleRemoveKubeConfig(
 
 	if originalName != "" && clusterID != "" {
 		configName = originalName
-
 	} else {
 		configName = name
 	}
@@ -2519,13 +2537,17 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 // initTLSConfigFromEnv initializes HeadlampConfig with TLS options from environment variables.
 func initTLSConfigFromEnv(config *HeadlampConfig) {
 	// HEADLAMP_ENABLE_TLS: "true" to enable TLS
-	if os.Getenv("HEADLAMP_ENABLE_TLS") == "true" {
+	if os.Getenv("HEADLAMP_ENABLE_TLS") == strTrue {
 		config.EnableTLS = true
 	}
-	if cert := os.Getenv("HEADLAMP_TLS_CERT_FILE"); cert != "" {
+
+	cert := os.Getenv("HEADLAMP_TLS_CERT_FILE")
+	if cert != "" {
 		config.TLSCertFile = cert
 	}
-	if key := os.Getenv("HEADLAMP_TLS_KEY_FILE"); key != "" {
+
+	key := os.Getenv("HEADLAMP_TLS_KEY_FILE")
+	if key != "" {
 		config.TLSKeyFile = key
 	}
 }
