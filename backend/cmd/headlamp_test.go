@@ -999,17 +999,6 @@ func TestGetOidcCallbackURL(t *testing.T) {
 	}
 }
 
-func TestParseClusterAndToken(t *testing.T) {
-	ctx := context.Background()
-	req, err := http.NewRequestWithContext(ctx, "GET", "/clusters/test-cluster/api", nil)
-	require.NoError(t, err)
-	req.Header.Set("Authorization", "Bearer test-token")
-
-	cluster, token := parseClusterAndToken(req)
-	assert.Equal(t, "test-cluster", cluster)
-	assert.Equal(t, "test-token", token)
-}
-
 func TestIsTokenAboutToExpire(t *testing.T) {
 	// Token that expires in 4 minutes
 	header := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
