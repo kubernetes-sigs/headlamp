@@ -21,7 +21,7 @@ import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Switch from '@mui/material/Switch';
-import { styled } from '@mui/system';
+import { Box, styled } from '@mui/system';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
 import React from 'react';
@@ -257,150 +257,220 @@ export function PodLogViewer(props: PodLogViewerProps) {
       handleReconnect={handleReconnect}
       showReconnectButton={showReconnectButton}
       topActions={[
-        <FormControl sx={{ minWidth: '11rem' }}>
-          <InputLabel shrink id="container-name-chooser-label">
-            {t('glossary|Container')}
-          </InputLabel>
-          <Select
-            labelId="container-name-chooser-label"
-            id="container-name-chooser"
-            value={container}
-            onChange={handleContainerChange}
-          >
-            {item?.spec?.containers && (
-              <MenuItem disabled value="">
-                {t('glossary|Containers')}
-              </MenuItem>
-            )}
-            {item?.spec?.containers.map(({ name }) => (
-              <MenuItem value={name} key={name}>
-                {name}
-              </MenuItem>
-            ))}
-            {item?.spec?.initContainers && (
-              <MenuItem disabled value="">
-                {t('translation|Init Containers')}
-              </MenuItem>
-            )}
-            {item.spec.initContainers?.map(({ name }) => (
-              <MenuItem value={name} key={`init_container_${name}`}>
-                {name}
-              </MenuItem>
-            ))}
-            {item?.spec?.ephemeralContainers && (
-              <MenuItem disabled value="">
-                {t('glossary|Ephemeral Containers')}
-              </MenuItem>
-            )}
-            {item.spec.ephemeralContainers?.map(({ name }) => (
-              <MenuItem value={name} key={`eph_container_${name}`}>
-                {name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>,
-        <FormControl sx={{ minWidth: '6rem' }}>
-          <InputLabel shrink id="container-lines-chooser-label">
-            {t('translation|Lines')}
-          </InputLabel>
-          <Select
-            labelId="container-lines-chooser-label"
-            id="container-lines-chooser"
-            value={lines}
-            onChange={handleLinesChange}
-          >
-            {[100, 1000, 2500].map(i => (
-              <MenuItem value={i} key={i}>
-                {i}
-              </MenuItem>
-            ))}
-            <MenuItem value={-1}>All</MenuItem>
-          </Select>
-        </FormControl>,
-        <LightTooltip
-          title={
-            hasContainerRestarted()
-              ? t('translation|Show logs for previous instances of this container.')
-              : t(
-                  'translation|You can only select this option for containers that have been restarted.'
-                )
-          }
+        <Box
+          key="container-controls"
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'row', lg: 'row' },
+            wrap: {
+              xs: 'wrap',
+              lg: 'nowrap',
+            },
+          }}
         >
-          <PaddedFormControlLabel
-            label={t('translation|Previous')}
-            disabled={!hasContainerRestarted()}
-            control={
-              <Switch
-                checked={showPrevious}
-                onChange={handlePreviousChange}
-                name="checkPrevious"
-                color="primary"
-                size="small"
-                sx={{ transform: 'scale(0.8)' }}
-              />
-            }
-          />
-        </LightTooltip>,
-        <PaddedFormControlLabel
-          label={t('translation|Timestamps')}
-          control={
-            <Switch
-              checked={showTimestamps}
-              onChange={handleTimestampsChange}
-              name="checkTimestamps"
-              color="primary"
-              size="small"
-              sx={{ transform: 'scale(0.8)' }}
-            />
-          }
-        />,
-        <PaddedFormControlLabel
-          label={t('translation|Follow')}
-          control={
-            <Switch
-              checked={follow}
-              onChange={handleFollowChange}
-              name="follow"
-              color="primary"
-              size="small"
-              sx={{ transform: 'scale(0.8)' }}
-            />
-          }
-        />,
-        hasJsonLogs && (
-          <PaddedFormControlLabel
-            label={t('translation|Prettify')}
-            control={
-              <Switch
-                checked={prettifyLogs}
-                onChange={handlePrettifyChange}
-                name="prettifyLogs"
-                color="primary"
-                size="small"
-                sx={{ transform: 'scale(0.8)' }}
-              />
-            }
-          />
-        ),
-        hasJsonLogs && (
-          <LightTooltip
-            title={t('translation|Show JSON values in plain text by removing escape characters.')}
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', lg: 'row' },
+              justifyContent: 'flex-start',
+              alignSelf: 'flex-start',
+              alignItems: {
+                md: 'flex-start',
+                lg: 'flex-end',
+              },
+              marginTop: 3,
+            }}
           >
+            <Box
+              sx={{
+                maxWidth: 400,
+                flexGrow: 0,
+              }}
+            >
+              <FormControl sx={{ minWidth: '11rem' }}>
+                <InputLabel shrink id="container-name-chooser-label">
+                  {t('glossary|Container')}
+                </InputLabel>
+                <Select
+                  labelId="container-name-chooser-label"
+                  id="container-name-chooser"
+                  value={container}
+                  onChange={handleContainerChange}
+                >
+                  {item?.spec?.containers && (
+                    <MenuItem disabled value="">
+                      {t('glossary|Containers')}
+                    </MenuItem>
+                  )}
+                  {item?.spec?.containers.map(({ name }) => (
+                    <MenuItem value={name} key={name}>
+                      {name}
+                    </MenuItem>
+                  ))}
+                  {item?.spec?.initContainers && (
+                    <MenuItem disabled value="">
+                      {t('translation|Init Containers')}
+                    </MenuItem>
+                  )}
+                  {item.spec.initContainers?.map(({ name }) => (
+                    <MenuItem value={name} key={`init_container_${name}`}>
+                      {name}
+                    </MenuItem>
+                  ))}
+                  {item?.spec?.ephemeralContainers && (
+                    <MenuItem disabled value="">
+                      {t('glossary|Ephemeral Containers')}
+                    </MenuItem>
+                  )}
+                  {item.spec.ephemeralContainers?.map(({ name }) => (
+                    <MenuItem value={name} key={`eph_container_${name}`}>
+                      {name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+
+            <Box
+              sx={{
+                maxWidth: 400,
+                marginLeft: {
+                  xs: 0,
+                  lg: 2,
+                },
+                flexGrow: 0,
+              }}
+            >
+              <FormControl sx={{ minWidth: '6rem' }}>
+                <InputLabel shrink id="container-lines-chooser-label">
+                  {t('translation|Lines')}
+                </InputLabel>
+                <Select
+                  labelId="container-lines-chooser-label"
+                  id="container-lines-chooser"
+                  value={lines}
+                  onChange={handleLinesChange}
+                >
+                  {[100, 1000, 2500].map(i => (
+                    <MenuItem value={i} key={i}>
+                      {i}
+                    </MenuItem>
+                  ))}
+                  <MenuItem value={-1}>All</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+          </Box>
+
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', lg: 'row' },
+              justifyContent: 'flex-start',
+              alignSelf: 'flex-start',
+              alignItems: {
+                md: 'flex-start',
+                lg: 'flex-end',
+              },
+              marginTop: 3,
+              marginLeft: {
+                xs: 0,
+                md: 2,
+              },
+            }}
+          >
+            <LightTooltip
+              title={
+                hasContainerRestarted()
+                  ? t('translation|Show logs for previous instances of this container.')
+                  : t(
+                      'translation|You can only select this option for containers that have been restarted.'
+                    )
+              }
+            >
+              <PaddedFormControlLabel
+                label={t('translation|Previous')}
+                disabled={!hasContainerRestarted()}
+                control={
+                  <Switch
+                    checked={showPrevious}
+                    onChange={handlePreviousChange}
+                    name="checkPrevious"
+                    color="primary"
+                    size="small"
+                    sx={{ transform: 'scale(0.8)' }}
+                  />
+                }
+              />
+            </LightTooltip>
+
             <PaddedFormControlLabel
-              label={t('translation|Format')}
+              label={t('translation|Timestamps')}
               control={
                 <Switch
-                  checked={formatJsonValues}
-                  onChange={handleFormatJsonValuesChange}
-                  name="formatJsonValues"
+                  checked={showTimestamps}
+                  onChange={handleTimestampsChange}
+                  name="checkTimestamps"
                   color="primary"
                   size="small"
                   sx={{ transform: 'scale(0.8)' }}
                 />
               }
             />
-          </LightTooltip>
-        ),
+
+            <PaddedFormControlLabel
+              label={t('translation|Follow')}
+              control={
+                <Switch
+                  checked={follow}
+                  onChange={handleFollowChange}
+                  name="follow"
+                  color="primary"
+                  size="small"
+                  sx={{ transform: 'scale(0.8)' }}
+                />
+              }
+            />
+
+            {hasJsonLogs && (
+              <PaddedFormControlLabel
+                label={t('translation|Prettify')}
+                control={
+                  <Switch
+                    checked={prettifyLogs}
+                    onChange={handlePrettifyChange}
+                    name="prettifyLogs"
+                    color="primary"
+                    size="small"
+                    sx={{ transform: 'scale(0.8)' }}
+                  />
+                }
+              />
+            )}
+
+            {hasJsonLogs && (
+              <LightTooltip
+                title={t(
+                  'translation|Show JSON values in plain text by removing escape characters.'
+                )}
+              >
+                <PaddedFormControlLabel
+                  label={t('translation|Format')}
+                  control={
+                    <Switch
+                      checked={formatJsonValues}
+                      onChange={handleFormatJsonValuesChange}
+                      name="formatJsonValues"
+                      color="primary"
+                      size="small"
+                      sx={{ transform: 'scale(0.8)' }}
+                    />
+                  }
+                />
+              </LightTooltip>
+            )}
+          </Box>
+        </Box>,
       ].filter(Boolean)}
       {...other}
     />
