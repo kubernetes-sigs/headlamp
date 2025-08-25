@@ -16,6 +16,8 @@
 
 import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { http, HttpResponse } from 'msw';
 import { SnackbarProvider } from 'notistack';
 import { initialState as THEME_INITIAL_STATE } from '../../components/App/themeSlice';
 import { initialState as CONFIG_INITIAL_STATE } from '../../redux/configSlice';
@@ -28,6 +30,32 @@ import { initialState as SIDEBAR_INITIAL_STATE, SidebarState } from './sidebarSl
 export default {
   title: 'Sidebar/Sidebar',
   component: PureSidebar,
+  parameters: {
+    msw: {
+      handlers: {
+        story: [
+          http.get(
+            'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions',
+            () =>
+              HttpResponse.json({
+                kind: 'List',
+                items: [],
+                metadata: {},
+              })
+          ),
+          http.get(
+            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
+            () =>
+              HttpResponse.json({
+                kind: 'List',
+                items: [],
+                metadata: {},
+              })
+          ),
+        ],
+      },
+    },
+  },
   argTypes: {
     dispatch: { action: 'dispatch' },
   },
@@ -66,11 +94,14 @@ const Template: StoryFn<StoryProps> = args => {
       },
     },
   });
+  const queryClient = new QueryClient();
 
   return (
     <TestContext store={sidebarStore}>
       <SnackbarProvider>
-        <Sidebar />
+        <QueryClientProvider client={queryClient}>
+          <Sidebar />
+        </QueryClientProvider>
       </SnackbarProvider>
     </TestContext>
   );
