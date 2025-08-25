@@ -31,7 +31,6 @@ import (
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "list-plugins" {
 		runListPlugins()
-
 		return
 	}
 
@@ -41,11 +40,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	headlampConfig := createHeadlampConfig(conf)
+	StartHeadlampServer(headlampConfig)
+}
+
+func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
 	multiplexer := NewMultiplexer(kubeConfigStore)
 
-	StartHeadlampServer(&HeadlampConfig{
+	headlampConfig := &HeadlampConfig{
 		HeadlampCFG: &headlampconfig.HeadlampCFG{
 			UseInCluster:          conf.InCluster,
 			KubeConfigPath:        conf.KubeConfigPath,
@@ -70,6 +74,7 @@ func main() {
 		oidcCallbackURL:           conf.OidcCallbackURL,
 		oidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
 		oidcScopes:                strings.Split(conf.OidcScopes, ","),
+		oidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
 		oidcUseAccessToken:        conf.OidcUseAccessToken,
 		cache:                     cache,
 		multiplexer:               multiplexer,
@@ -84,7 +89,19 @@ func main() {
 			StdoutTraceEnabled: conf.StdoutTraceEnabled,
 			SamplingRate:       conf.SamplingRate,
 		},
-	})
+	}
+
+	if conf.OidcCAFile != "" {
+		caFileContents, err := os.ReadFile(conf.OidcCAFile)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "reading oidc ca file")
+			os.Exit(1)
+		}
+
+		headlampConfig.oidcCACert = string(caFileContents)
+	}
+
+	return headlampConfig
 }
 
 func runListPlugins() {

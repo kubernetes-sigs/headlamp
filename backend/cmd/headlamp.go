@@ -21,6 +21,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -76,6 +77,8 @@ type HeadlampConfig struct {
 	oidcCallbackURL           string
 	oidcValidatorIdpIssuerURL string
 	oidcUseAccessToken        bool
+	oidcSkipTLSVerify         bool
+	oidcCACert                string
 	cache                     cache.Cache[interface{}]
 	multiplexer               *Multiplexer
 	telemetryConfig           cfg.Config
@@ -429,7 +432,9 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	if config.UseInCluster {
 		context, err := kubeconfig.GetInClusterContext(config.oidcIdpIssuerURL,
 			config.oidcClientID, config.oidcClientSecret,
-			strings.Join(config.oidcScopes, ","))
+			strings.Join(config.oidcScopes, ","),
+			config.oidcSkipTLSVerify,
+			config.oidcCACert)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
 		}
@@ -661,6 +666,8 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			return
 		}
 
+		ctx = configureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
+
 		if config.oidcValidatorIdpIssuerURL != "" {
 			ctx = oidc.InsecureIssuerURLContext(ctx, config.oidcValidatorIdpIssuerURL)
 		}
@@ -887,16 +894,62 @@ func isTokenAboutToExpire(token string) bool {
 	return time.Until(expiryTime) <= JWTExpirationTTL
 }
 
-func refreshAndCacheNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
+// configureTLSContext configures TLS settings for the HTTP client in the context.
+// If skipTLSVerify is true, TLS verification will be skipped.
+// If caCert is provided, it will be added to the certificate pool for TLS verification.
+func configureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *string) context.Context {
+	if skipTLSVerify != nil && *skipTLSVerify {
+		tlsSkipTransport := &http.Transport{
+			// the gosec linter is disabled here because we are explicitly requesting to skip TLS verification.
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		}
+		ctx = oidc.ClientContext(ctx, &http.Client{Transport: tlsSkipTransport})
+	}
+
+	if caCert != nil {
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM([]byte(*caCert)) {
+			// Log error but continue with original context
+			logger.Log(logger.LevelError, nil,
+				errors.New("failed to append ca cert to pool"), "couldn't add custom cert to context")
+			return ctx
+		}
+
+		// the gosec linter is disabled because gosec promotes using a minVersion of TLS 1.2 or higher.
+		// since we are using a custom CA cert configured by the user, we are not forcing a minVersion.
+		customTransport := &http.Transport{
+			TLSClientConfig: &tls.Config{ //nolint:gosec
+				RootCAs: caCertPool,
+			},
+		}
+
+		ctx = oidc.ClientContext(ctx, &http.Client{Transport: customTransport})
+	}
+
+	return ctx
+}
+
+func refreshAndCacheNewToken(oidcAuthConfig *kubeconfig.OidcConfig,
+	cache cache.Cache[interface{}],
 	tokenType, token, issuerURL string,
 ) (*oauth2.Token, error) {
+	ctx := context.Background()
+	ctx = configureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
+
 	// get provider
-	provider, err := oidc.NewProvider(context.Background(), issuerURL)
+	provider, err := oidc.NewProvider(ctx, issuerURL)
 	if err != nil {
 		return nil, fmt.Errorf("getting provider: %v", err)
 	}
 	// get refresh token
-	newToken, err := getNewToken(clientID, clientSecret, cache, tokenType, token, provider.Endpoint().TokenURL)
+	newToken, err := getNewToken(
+		oidcAuthConfig.ClientID,
+		oidcAuthConfig.ClientSecret,
+		cache,
+		tokenType,
+		token,
+		provider.Endpoint().TokenURL,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("refreshing token: %v", err)
 	}
@@ -979,8 +1032,7 @@ func (c *HeadlampConfig) refreshAndSetToken(oidcAuthConfig *kubeconfig.OidcConfi
 	}
 
 	newToken, err := refreshAndCacheNewToken(
-		oidcAuthConfig.ClientID,
-		oidcAuthConfig.ClientSecret,
+		oidcAuthConfig,
 		cache,
 		tokenType,
 		token,

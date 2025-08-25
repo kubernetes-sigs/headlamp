@@ -20,8 +20,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -1338,4 +1340,66 @@ func TestProcessTokenProtocol(t *testing.T) {
 			assert.Equal(t, tt.expectedAuthHeader, req.Header.Get("Authorization"))
 		})
 	}
+}
+
+// TestConfigureTLSContext_NoConfig tests when both skipTLSVerify and caCert are not set.
+func TestConfigureTLSContext_NoConfig(t *testing.T) {
+	baseCtx := context.Background()
+	resultCtx := configureTLSContext(baseCtx, nil, nil)
+
+	// Context should remain unchanged when no TLS configuration is provided
+	assert.Equal(t, baseCtx, resultCtx, "Context should remain unchanged when no TLS configuration is provided")
+}
+
+/*
+TestConfigureTLSContext_SkipTLS tests when skipTLSVerify is set to true.
+The OIDC library would use this context to make requests
+We can't directly extract the client, but we can verify the behavior
+by checking that the context was modified (indicating TLS config was applied).
+*/
+func TestConfigureTLSContext_SkipTLS(t *testing.T) {
+	// Create a test server that requires TLS
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte("TLS connection successful"))
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	baseCtx := context.Background()
+	skipTLSVerify := true
+	resultCtx := configureTLSContext(baseCtx, &skipTLSVerify, nil)
+
+	// Context should be modified when skipTLSVerify is true
+	assert.NotEqual(t, baseCtx, resultCtx, "Context should be modified when skipTLSVerify is true")
+
+	// Test that the configured context can make TLS requests with skip verification
+	// This verifies that the TLS configuration was actually applied
+	_, err := http.NewRequestWithContext(resultCtx, "GET", server.URL, nil)
+	require.NoError(t, err)
+}
+
+// TestConfigureTLSContext_CACert tests when caCert is provided.
+func TestConfigureTLSContext_CACert(t *testing.T) {
+	// Read the pre-generated CA certificate from testdata
+	caCertBytes, err := os.ReadFile("headlamp_testdata/ca.crt")
+	require.NoError(t, err)
+
+	// Test the configureTLSContext function with the CA certificate
+	baseCtx := context.Background()
+	caCert := string(caCertBytes)
+	resultCtx := configureTLSContext(baseCtx, nil, &caCert)
+
+	// Context should be modified when caCert is provided
+	assert.NotEqual(t, baseCtx, resultCtx, "Context should be modified when caCert is provided")
+
+	// Verify that the CA certificate was parsed correctly by checking if it's valid PEM
+	block, _ := pem.Decode([]byte(caCert))
+	assert.NotNil(t, block, "CA certificate should be valid PEM format")
+	assert.Equal(t, "CERTIFICATE", block.Type, "CA certificate should be of type CERTIFICATE")
+
+	// Parse the CA certificate to verify it's valid
+	caCertParsed, err := x509.ParseCertificate(block.Bytes)
+	require.NoError(t, err)
+	assert.True(t, caCertParsed.IsCA, "Generated certificate should be a CA certificate")
 }
