@@ -814,14 +814,14 @@ const defaultRoutes: { [routeName: string]: Route } = {
     component: () => <CustomResourceDefinitionDetails />,
   },
   customresource: {
-    path: '/customresources/:crd/:namespace/:crName',
+    path: '/customresources/:group/:crd/:namespace/:crName',
     exact: true,
     name: 'Custom Resource',
     sidebar: 'crds',
     component: () => <CustomResourceDetails />,
   },
   customresources: {
-    path: '/customresources/:crd',
+    path: '/customresources/:group/:crd',
     exact: true,
     name: 'Custom Resources',
     sidebar: 'crds',
