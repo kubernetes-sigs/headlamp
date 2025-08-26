@@ -4,6 +4,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: headlamp
+  namespace: default
   labels:
     helm.sh/chart: headlamp-0.34.0
     app.kubernetes.io/name: headlamp
@@ -46,10 +47,10 @@ spec:
   type: ClusterIP
   
   ports:
-    - port: 80
-      targetPort: http
+    - port: 443
+      targetPort: https
       protocol: TCP
-      name: http
+      name: https
   selector:
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
@@ -62,6 +63,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: headlamp
+  namespace: default
   labels:
     helm.sh/chart: headlamp-0.34.0
     app.kubernetes.io/name: headlamp
@@ -124,16 +126,18 @@ spec:
             # Check if validatorIssuerURL is non empty either from env or oidc.config
             - "-oidc-validator-idp-issuer-url=$(OIDC_VALIDATOR_ISSUER_URL)"
           ports:
-            - name: http
+            - name: https
               containerPort: 4466
               protocol: TCP
           livenessProbe:
             httpGet:
               path: "/"
-              port: http
+              port: https
+              scheme: HTTPS
           readinessProbe:
             httpGet:
               path: "/"
-              port: http
+              port: https
+              scheme: HTTPS
           resources:
             {}

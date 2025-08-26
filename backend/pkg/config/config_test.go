@@ -146,6 +146,13 @@ func TestParseFlags(t *testing.T) {
 				assert.Equal(t, true, conf.EnableDynamicClusters)
 			},
 		},
+		{
+			name: "enable_helm",
+			args: []string{"go run ./cmd", "--enable-helm"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, true, conf.EnableHelm)
+			},
+		},
 	}
 
 	for _, tt := range tests {

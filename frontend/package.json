@@ -106,7 +106,7 @@
     "prestart": "npm run make-version",
     "start": "cross-env REACT_APP_HEADLAMP_BACKEND_TOKEN=headlamp vite",
     "preview": "vite preview",
-    "prebuild": "npm run make-version",
+    "prebuild": "npm run make-version && npx update-browserslist-db@latest",
     "build": "cross-env PUBLIC_URL=./ NODE_OPTIONS=--max-old-space-size=8096 vite build && npx shx rm -f build/frontend/index.baseUrl.html",
     "pretest": "npm run make-version",
     "test": "vitest",
