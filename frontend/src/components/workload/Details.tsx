@@ -150,7 +150,7 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
           },
           {
             id: 'headlamp.workload-containers',
-            section: <ContainersSection resource={item?.jsonData} />,
+            section: <ContainersSection resource={item} />,
           },
         ]
       }

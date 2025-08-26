@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import jsep from 'jsep';
+import evaluate from 'simple-eval';
 import { getTopLevelKeys } from './getTopLevelKeys';
 
 /**
@@ -32,24 +34,26 @@ export async function searchWithQuery<T extends { jsonData: any }>(
   const searchTimeStart = performance.now();
   const results: any[] = [];
 
-  const topLevelKeys = getTopLevelKeys(items.map(it => it.jsonData));
-
-  let queryFn: any;
+  let filterExpression: any;
   const functionBody = query;
   try {
-    queryFn = eval(`({ ${topLevelKeys.join(', ')} }) => { return ${functionBody}; }`);
+    filterExpression = jsep(functionBody);
   } catch (e) {}
 
-  if (!queryFn) return { results: [], searchTimeMs: 0 };
+  if (!filterExpression) return { results: [], searchTimeMs: 0 };
 
   const batchSize = 5000;
+
+  // Create object that contains all keys of all objects
+  const dummyObject: any = {};
+  getTopLevelKeys(items.map(it => it.jsonData)).forEach(key => (dummyObject[key] = undefined));
 
   for (let i = 0; i < items.length; i++) {
     const resource = items[i];
     const data = resource.jsonData;
 
     try {
-      const res = queryFn(data);
+      const res = evaluate(filterExpression, { ...dummyObject, ...data });
       if (res === true) {
         results.push(resource);
       }

@@ -14,5 +14,6 @@
     "outDir": "electron/",
     "noEmit": true
   },
-  "include": ["electron/**/*"]
+  "include": ["electron/**/*"],
+  "exclude": []
 }

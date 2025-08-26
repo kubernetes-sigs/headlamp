@@ -9,7 +9,7 @@ sidebar_position: 2
 Once you have the [Homebrew package manager](https://brew.sh/) itself installed, you can install the latest Headlamp release by running the following command:
 
 ```sh
-brew install --cask headlamp
+brew install --cask --no-quarantine headlamp
 ```
 
 ### Upgrading

@@ -21,9 +21,7 @@ import { useTranslation } from 'react-i18next';
 import CRD from '../../lib/k8s/crd';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { useNamespaces } from '../../redux/filterSlice';
-import { Link, Loader, SectionBox, ShowHideLabel } from '../common/';
-import Empty from '../common/EmptyContent';
-import { ResourceListView } from '../common/Resource';
+import { EmptyContent as Empty, Link, Loader, ResourceListView, ShowHideLabel } from '../common/';
 
 function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
   const { t } = useTranslation(['glossary', 'translation']);
@@ -76,7 +74,7 @@ function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
   }
 
   return (
-    <SectionBox backLink>
+    <>
       {crdsFailedToLoad.length > 0 && !allFailed && !isWarningClosed && (
         <Alert
           severity="warning"
@@ -150,7 +148,7 @@ function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
           'age',
         ]}
       />
-    </SectionBox>
+    </>
   );
 }
 

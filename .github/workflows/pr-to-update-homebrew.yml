@@ -56,22 +56,23 @@ jobs:
         run: |
           user=${{github.actor}}
           HEADLAMP_VERSION=${LATEST_HEADLAMP_TAG:1}
+          BRANCH_NAME="hl-ci-update_headlamp_$HEADLAMP_VERSION"
           if [ -z $user ]; then
             user=yolossn
           fi
           cd homebrew-cask
-          if git branch -l | grep -q "update_headlamp_$HEADLAMP_VERSION"; then
+          if git branch -l | grep -q "$BRANCH_NAME"; then
             echo "deleting old branch from local to avoid conflict"
-            git branch -D "update_headlamp_$HEADLAMP_VERSION"
+            git branch -D "$BRANCH_NAME"
           fi
-          if git branch -a | grep -q "origin/update_headlamp_$HEADLAMP_VERSION"; then
+          if git branch -a | grep -q "origin/$BRANCH_NAME"; then
             echo "deleting old branch from remote to avoid conflict"
-            git push origin --delete "update_headlamp_$HEADLAMP_VERSION"
+            git push origin --delete "$BRANCH_NAME"
           fi
           wget "https://github.com/kubernetes-sigs/headlamp/releases/download/$LATEST_HEADLAMP_TAG/checksums.txt"
           ARM_SHA=$(cat checksums.txt | grep .arm64.dmg | awk -F" " '{print $1}')
           INTEL_SHA=$(cat checksums.txt | grep .x64.dmg | awk -F" " '{print $1}')
-          git checkout -b "update_headlamp_$HEADLAMP_VERSION"
+          git checkout -b "$BRANCH_NAME"
           sed -i "s/version\ .*/version \"$HEADLAMP_VERSION\"/g" ./Casks/h/headlamp.rb
           if [ $ARM_SHA ]; then
             echo "replacing ARM SHA"
@@ -88,11 +89,11 @@ jobs:
           git commit --signoff -m "Update Headlamp version to $HEADLAMP_VERSION"
           git status
           git log -1
-          git push origin "update_headlamp_$HEADLAMP_VERSION" -f
+          git push origin "$BRANCH_NAME" -f
           gh pr create \
           --title "Upgrade Headlamp version to $HEADLAMP_VERSION" \
           --repo "Homebrew/homebrew-cask" \
-          --head "headlamp-k8s:update_headlamp_$HEADLAMP_VERSION" \
+          --head "headlamp-k8s:$BRANCH_NAME" \
           --base "master"  \
           --assignee "$user" \
           --body "Upgrade Headlamp version to $HEADLAMP_VERSION

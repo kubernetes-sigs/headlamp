@@ -20,8 +20,9 @@ import GatewayClass, { KubeGatewayClass } from '../../lib/k8s/gatewayClass';
 import { ConditionsTable, DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 
-export default function GatewayClassDetails() {
-  const { name } = useParams<{ name: string }>();
+export default function GatewayClassDetails(props: { name?: string }) {
+  const params = useParams<{ name: string }>();
+  const { name = params.name } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   return (

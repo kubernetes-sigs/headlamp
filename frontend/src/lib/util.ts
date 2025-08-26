@@ -132,7 +132,12 @@ export function getReadyReplicas(item: Workload) {
 }
 
 export function getTotalReplicas(item: Workload) {
-  return item.spec.replicas || item.status.currentNumberScheduled || 0;
+  return (
+    item.spec.replicas ||
+    item.status.currentNumberScheduled ||
+    item.status.desiredNumberScheduled ||
+    0
+  );
 }
 
 export function getResourceStr(value: number, resourceType: 'cpu' | 'memory') {
@@ -394,7 +399,6 @@ export function normalizeUnit(resourceType: string, quantity: string) {
        * Binary: Ki | Mi | Gi | Ti | Pi | Ei
        * Refer https://github.com/kubernetes-client/csharp/blob/840a90e24ef922adee0729e43859cf6b43567594/src/KubernetesClient.Models/ResourceQuantity.cs#L211
        */
-      console.log('debug:', quantity, parseInt(quantity), quantity.endsWith('m'));
       bytes = parseInt(quantity);
       if (quantity.endsWith('Ki')) {
         bytes *= 1024;
@@ -431,7 +435,6 @@ export function normalizeUnit(resourceType: string, quantity: string) {
         const k = 1000;
         const dm = 2;
         const i = Math.floor(Math.log(bytes) / Math.log(k));
-        console.debug('debug bytes:', bytes, i, sizes);
         normalizedQuantity = parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
       }
       break;

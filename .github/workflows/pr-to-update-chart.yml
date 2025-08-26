@@ -49,7 +49,7 @@ jobs:
           CURRENT_CHART_VERSION=$(grep '^version:' ./charts/headlamp/Chart.yaml | cut -d' ' -f2)
           CURRENT_CHART_VERSION=$(echo $CURRENT_CHART_VERSION | awk -F. -v OFS=. '{$(NF - 1) += 1 ; print}')
           # Create branch
-          BRANCH=update_chart_headlamp_$LATEST_HEADLAMP_TAG
+          BRANCH=hl-ci-update_chart_headlamp_$LATEST_HEADLAMP_TAG
           if git branch -l | grep -q $BRANCH; then
             echo "deleting old branch from local to avoid conflict"
             git branch -D $BRANCH

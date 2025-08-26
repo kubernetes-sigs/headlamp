@@ -2,11 +2,15 @@
 
 import { Command } from 'commander';
 import { readFileSync } from 'fs';
-import { join } from 'path';
-import { checkRelease } from './commands/check';
-import { startRelease } from './commands/start';
-import { tagRelease } from './commands/tag';
-import { publishRelease } from './commands/publish';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { checkRelease } from './commands/check.js';
+import { startRelease } from './commands/start.js';
+import { tagRelease } from './commands/tag.js';
+import { publishRelease } from './commands/publish.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Read version from package.json
 const packageJsonPath = join(__dirname, '..', 'package.json');
@@ -20,7 +24,7 @@ program.name('releaser')
   .version(version, '-v, --version', 'display version number');
 
 program.command('check')
-  .description('Check if a release draft exists with all artifacts')
+  .description('Check if a release exists and verify all artifacts are present')
   .argument('<release-version>', 'Version to check (e.g., 0.30.0)')
   .action(checkRelease);
 

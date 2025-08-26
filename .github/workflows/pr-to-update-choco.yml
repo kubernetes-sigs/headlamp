@@ -100,11 +100,11 @@ jobs:
           echo "Repository: ${{ github.repository }}"
           echo "Workspace: ${GITHUB_WORKSPACE}"
           pwd
-          echo echo "https://github.com/kubernetes-sigs/headlamp/pull/new/choco-update-$LATEST_HEADLAMP_TAG"
-          git checkout -b "choco-update-$LATEST_HEADLAMP_TAG"
+          echo echo "https://github.com/kubernetes-sigs/headlamp/pull/new/hl-ci-choco-update-$LATEST_HEADLAMP_TAG"
+          git checkout -b "hl-ci-choco-update-$LATEST_HEADLAMP_TAG"
           git add .
           git commit -s -m "chocolatey: Bump Headlamp version to $LATEST_HEADLAMP_TAG"
-          git push origin "choco-update-$LATEST_HEADLAMP_TAG"
+          git push origin "hl-ci-choco-update-$LATEST_HEADLAMP_TAG"
           gh pr create \
             --title "chocolatey: Bump Headlamp version to $LATEST_HEADLAMP_TAG" \
             --base main \

@@ -215,8 +215,6 @@ func listRepositories(settings *cli.EnvSettings) ([]repositoryInfo, error) {
 	repositories := make([]repositoryInfo, 0, len(repoFile.Repositories))
 
 	for _, repo := range repoFile.Repositories {
-		repo := repo
-
 		repositories = append(repositories, repositoryInfo{
 			Name: repo.Name,
 			URL:  repo.URL,

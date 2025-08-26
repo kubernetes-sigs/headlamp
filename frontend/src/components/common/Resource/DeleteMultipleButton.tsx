@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import _ from 'lodash';
+import _, { uniq } from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -45,12 +45,16 @@ interface DeleteMultipleButtonDescriptionProps {
 
 function DeleteMultipleButtonDescription(props: DeleteMultipleButtonDescriptionProps) {
   const { t } = useTranslation(['translation']);
+  const clusters = uniq(props.items?.map(it => it.cluster));
   return (
     <p>
       {t('Are you sure you want to delete the following items?')}
       <ul>
         {props.items?.map(item => (
-          <li key={item.metadata.uid}>{item.metadata.name}</li>
+          <li key={item.metadata.uid}>
+            {item.kind}: {item.metadata.name}{' '}
+            {clusters.length > 0 ? `(cluster: ${item.cluster})` : ''}
+          </li>
         ))}
       </ul>
     </p>

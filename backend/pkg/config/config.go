@@ -38,6 +38,7 @@ type Config struct {
 	OidcValidatorClientID     string `koanf:"oidc-validator-client-id"`
 	OidcClientSecret          string `koanf:"oidc-client-secret"`
 	OidcIdpIssuerURL          string `koanf:"oidc-idp-issuer-url"`
+	OidcCallbackURL           string `koanf:"oidc-callback-url"`
 	OidcValidatorIdpIssuerURL string `koanf:"oidc-validator-idp-issuer-url"`
 	OidcScopes                string `koanf:"oidc-scopes"`
 	OidcUseAccessToken        bool   `koanf:"oidc-use-access-token"`
@@ -256,6 +257,7 @@ func flagset() *flag.FlagSet {
 	f.String("oidc-client-secret", "", "ClientSecret for OIDC")
 	f.String("oidc-validator-client-id", "", "Override ClientID for OIDC during validation")
 	f.String("oidc-idp-issuer-url", "", "Identity provider issuer URL for OIDC")
+	f.String("oidc-callback-url", "", "Callback URL for OIDC")
 	f.String("oidc-validator-idp-issuer-url", "", "Override Identity provider issuer URL for OIDC during validation")
 	f.String("oidc-scopes", "profile,email",
 		"A comma separated list of scopes needed from the OIDC provider")

@@ -43,6 +43,9 @@ const Template: StoryFn<ViewButtonProps> = args => <ViewButton {...args} />;
 export const View = Template.bind({});
 View.args = {
   item: {
+    metadata: {
+      uid: '123',
+    },
     jsonData: {},
   } as KubeObject,
 };
@@ -50,6 +53,9 @@ View.args = {
 export const ViewOpen = Template.bind({});
 ViewOpen.args = {
   item: {
+    metadata: {
+      uid: '123',
+    },
     jsonData: {},
   } as KubeObject,
   initialToggle: true,

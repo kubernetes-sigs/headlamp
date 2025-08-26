@@ -139,44 +139,70 @@
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
           >
-            <label
-              class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
+            <div
+              class="MuiBox-root css-k008qs"
             >
-              <span
-                class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
+              <button
+                aria-pressed="true"
+                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-17o2rvr-MuiButtonBase-root-MuiButton-root"
+                tabindex="0"
+                type="button"
               >
-                <span
-                  class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
-                >
-                  <input
-                    checked=""
-                    class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
-                    name="drawerMode"
-                    type="checkbox"
-                  />
-                  <span
-                    class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
-                  />
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
-                </span>
-                <span
-                  class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
-                />
-              </span>
-              <span
-                class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
-              >
-                Overlay
                 <div
-                  class="MuiContainer-root MuiContainer-maxWidthLg css-64uahr-MuiContainer-root"
+                  class="MuiBox-root css-q5uj3p"
+                >
+                  <div
+                    class="MuiBox-root css-10tc75p"
+                  />
+                  <div
+                    class="MuiBox-root css-1tuh5dl"
+                  />
+                  <div
+                    class="MuiBox-root css-1wsar2n"
+                  >
+                    <div
+                      class="MuiBox-root css-flohcj"
+                    />
+                  </div>
+                </div>
+                Window
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
-              </span>
-            </label>
+              </button>
+              <button
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gl7zuq-MuiButtonBase-root-MuiButton-root"
+                tabindex="0"
+                type="button"
+              >
+                <div
+                  class="MuiBox-root css-q5uj3p"
+                >
+                  <div
+                    class="MuiBox-root css-10tc75p"
+                  />
+                  <div
+                    class="MuiBox-root css-1tuh5dl"
+                  />
+                  <div
+                    class="MuiBox-root css-b95qjn"
+                  >
+                    <div
+                      class="MuiBox-root css-y7640i"
+                    />
+                  </div>
+                </div>
+                Full page
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+            </div>
           </dd>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+            id="rows-per-page-label"
           >
             Number of rows for tables
           </dt>
@@ -194,6 +220,7 @@
                   aria-controls=":mock-test-id:"
                   aria-expanded="false"
                   aria-haspopup="listbox"
+                  aria-labelledby="rows-per-page-label"
                   class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
                   role="combobox"
                   tabindex="0"
@@ -237,6 +264,7 @@
           </dd>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+            id="timezone-label"
           >
             Timezone to display for dates
           </dt>
@@ -260,6 +288,7 @@
                       aria-describedby="cluster-selector-autocomplete-helper-text"
                       aria-expanded="false"
                       aria-invalid="false"
+                      aria-labelledby="timezone-label"
                       autocapitalize="none"
                       autocomplete="off"
                       class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
@@ -322,6 +351,7 @@
           </dd>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
+            id="sort-sidebar-label"
           >
             Sort sidebar items alphabetically
           </dt>
@@ -335,6 +365,7 @@
                 class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
               >
                 <input
+                  aria-labelledby="sort-sidebar-label"
                   class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
                   type="checkbox"
                 />
@@ -352,6 +383,7 @@
           </dd>
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
+            id="use-evict-label"
           >
             Use evict for pod deletion
           </dt>
@@ -365,6 +397,7 @@
                 class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
               >
                 <input
+                  aria-labelledby="use-evict-label"
                   checked=""
                   class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
                   type="checkbox"

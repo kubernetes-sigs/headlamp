@@ -19,7 +19,7 @@ import windowSize from './windowSize';
 describe('windowSize', () => {
   const withMargin = true;
   const noMargin = false;
-  const table = [
+  const table: [{ width: number; height: number }, boolean, { width: number; height: number }][] = [
     [{ width: 1366, height: 768 }, withMargin, { width: 1286, height: 608 }], // "Popular"
     [{ width: 1920, height: 1080 }, withMargin, { width: 1840, height: 920 }], // "HD"
     [{ width: 2880, height: 1800 }, withMargin, { width: 1840, height: 920 }], // "Mac retina"

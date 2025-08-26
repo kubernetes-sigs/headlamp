@@ -26,8 +26,10 @@ const WrappingBox = styled(Box)(({ theme }) => ({
   display: 'flex',
   justifyContent: 'left',
   flexWrap: 'wrap',
+  overflow: 'hidden',
   '& > *': {
-    margin: theme.spacing(0.5),
+    marginRight: theme.spacing(0.5),
+    marginBottom: theme.spacing(0.5),
   },
 }));
 

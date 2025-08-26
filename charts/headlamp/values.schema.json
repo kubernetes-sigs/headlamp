@@ -251,6 +251,10 @@
         "additionalProperties": false
       }
     },
+    "automountServiceAccountToken": {
+      "type": "boolean",
+      "description": "Mount Service Account token in pod"
+    },
     "serviceAccount": {
       "type": "object",
       "properties": {

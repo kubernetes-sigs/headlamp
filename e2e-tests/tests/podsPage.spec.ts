@@ -31,6 +31,7 @@ test('multi tab create delete pod', async ({ browser }) => {
   const page2 = await instance1.newPage();
   const window2 = new HeadlampPage(page2);
   await window2.navigateTopage('/c/test/pods', /Pods/);
+  await window1.navigateTopage('/c/test/pods', /Pods/);
 
   // if no pod permission, return
   const content1 = await page1.content();
@@ -47,11 +48,6 @@ test('multi tab create delete pod', async ({ browser }) => {
   const realtimeUpdate1 = new podsPage(page1);
   const realtimeUpdate2 = new podsPage(page2);
 
-  await realtimeUpdate1.navigateToPods();
-
   await realtimeUpdate1.createPod(name);
   await realtimeUpdate2.confirmPodCreation(name);
-
-  await realtimeUpdate1.deletePod(name);
-  await realtimeUpdate2.confirmPodDeletion(name);
 });

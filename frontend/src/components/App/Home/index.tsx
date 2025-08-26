@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
+import { Box, Tab, Tabs, Typography } from '@mui/material';
 import { isEqual } from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -25,7 +27,8 @@ import Event from '../../../lib/k8s/event';
 import { createRouteURL } from '../../../lib/router';
 import { PageGrid } from '../../common/Resource';
 import SectionBox from '../../common/SectionBox';
-import SectionFilterHeader from '../../common/SectionFilterHeader';
+import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
+import ProjectList from '../../project/ProjectList';
 import ClusterTable from './ClusterTable';
 import { ENABLE_RECENT_CLUSTERS } from './config';
 import { getCustomClusterNames } from './customClusterNames';
@@ -82,6 +85,10 @@ function useWarningSettingsPerCluster(clusterNames: string[]) {
 }
 
 function HomeComponent(props: HomeComponentProps) {
+  const [view, setView] = useLocalStorageState<'clusters' | 'projects'>(
+    'home-tab-view',
+    'clusters'
+  );
   const { clusters } = props;
   const [customNameClusters, setCustomNameClusters] = React.useState(
     getCustomClusterNames(clusters)
@@ -103,34 +110,61 @@ function HomeComponent(props: HomeComponentProps) {
 
   const memoizedComponent = React.useMemo(
     () => (
-      <PageGrid>
+      <>
         {ENABLE_RECENT_CLUSTERS && (
-          <SectionBox headerProps={{ headerStyle: 'main' }} title={t('Home')}>
-            <RecentClusters clusters={Object.values(customNameClusters)} onButtonClick={() => {}} />
-          </SectionBox>
+          <RecentClusters clusters={Object.values(customNameClusters)} onButtonClick={() => {}} />
         )}
-        <SectionBox
-          title={
-            <SectionFilterHeader
-              title={t('All Clusters')}
-              noNamespaceFilter
-              headerStyle={ENABLE_RECENT_CLUSTERS ? 'subsection' : 'main'}
-            />
-          }
-          headerProps={ENABLE_RECENT_CLUSTERS ? { headerStyle: 'main' } : undefined}
-        >
-          <ClusterTable
-            customNameClusters={customNameClusters}
-            versions={versions}
-            errors={errors}
-            warningLabels={warningLabels}
-            clusters={clusters}
-          />
-        </SectionBox>
-      </PageGrid>
+        <ClusterTable
+          customNameClusters={customNameClusters}
+          versions={versions}
+          errors={errors}
+          warningLabels={warningLabels}
+          clusters={clusters}
+        />
+      </>
     ),
     [customNameClusters, errors, versions, warningLabels]
   );
 
-  return memoizedComponent;
+  return (
+    <PageGrid>
+      <SectionBox title="Home" headerProps={{ headerStyle: 'main' }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+          <Tabs value={view} onChange={(_, newView) => setView(() => newView)}>
+            <Tab
+              value="clusters"
+              label={
+                <>
+                  <Icon icon="mdi:hexagon-multiple-outline" />
+                  <Typography>{t('All Clusters')}</Typography>
+                </>
+              }
+              sx={{
+                flexDirection: 'row',
+                gap: 1,
+                fontSize: '1.25rem',
+              }}
+            />
+            <Tab
+              value="projects"
+              label={
+                <>
+                  <Icon icon="mdi:folder-multiple" />
+                  <Typography>{t('Projects')}</Typography>
+                </>
+              }
+              sx={{
+                flexDirection: 'row',
+                gap: 1,
+                fontSize: '1.25rem',
+              }}
+            />
+          </Tabs>
+        </Box>
+
+        {view === 'clusters' && memoizedComponent}
+        {view === 'projects' && <ProjectList />}
+      </SectionBox>
+    </PageGrid>
+  );
 }

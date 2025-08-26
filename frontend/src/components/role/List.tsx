@@ -24,9 +24,12 @@ import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { ColumnType } from '../common/Resource/ResourceTable';
 
-export default function RoleList() {
+export default function RoleList({ namespaces }: { namespaces?: string[] }) {
   const { t } = useTranslation('glossary');
-  const { items: roles, errors: rolesErrors } = Role.useList({ namespace: useNamespaces() });
+  const selectedNamespaces = useNamespaces();
+  const { items: roles, errors: rolesErrors } = Role.useList({
+    namespace: namespaces ?? selectedNamespaces,
+  });
   const { items: clusterRoles, errors: clusterRolesErrors } = ClusterRole.useList();
 
   const clusters = useSelectedClusters();

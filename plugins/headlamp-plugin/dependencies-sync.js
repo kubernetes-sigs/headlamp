@@ -61,6 +61,10 @@ const dependenciesToNotCopy = [
   'typedoc-plugin-markdown',
   'typedoc-plugin-rename-defaults',
   'eslint-plugin-license-header',
+  '@rsbuild/core',
+  '@rsbuild/plugin-node-polyfill',
+  '@rsbuild/plugin-react',
+  '@rsbuild/plugin-svgr',
 ];
 
 const yargs = require('yargs/yargs');

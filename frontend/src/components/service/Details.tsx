@@ -39,7 +39,7 @@ export default function ServiceDetails(props: {
   const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
-  const [endpoints, endpointsError] = Endpoint.useList({ namespace });
+  const [endpoints, endpointsError] = Endpoint.useList({ namespace, cluster });
 
   function getOwnedEndpoints(item: Service) {
     return item ? endpoints?.filter(endpoint => endpoint.getName() === item.getName()) : null;

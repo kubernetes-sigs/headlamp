@@ -145,7 +145,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <a
-                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="/"
                     >
                       default
@@ -182,18 +182,22 @@
                         Default
                       </h6>
                       <div
-                        class="MuiBox-root css-yi3mkw"
+                        class="MuiBox-root css-0"
                       >
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        <div
+                          class="MuiBox-root css-yi3mkw"
                         >
-                          cpu: 100m
-                        </p>
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                        >
-                          memory: 128Mi
-                        </p>
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            cpu: 100m
+                          </p>
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            memory: 128Mi
+                          </p>
+                        </div>
                       </div>
                     </div>
                     <div
@@ -205,18 +209,22 @@
                         Default Request
                       </h6>
                       <div
-                        class="MuiBox-root css-yi3mkw"
+                        class="MuiBox-root css-0"
                       >
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        <div
+                          class="MuiBox-root css-yi3mkw"
                         >
-                          cpu: 50m
-                        </p>
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                        >
-                          memory: 64Mi
-                        </p>
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            cpu: 50m
+                          </p>
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            memory: 64Mi
+                          </p>
+                        </div>
                       </div>
                     </div>
                     <div
@@ -228,18 +236,22 @@
                         Max
                       </h6>
                       <div
-                        class="MuiBox-root css-yi3mkw"
+                        class="MuiBox-root css-0"
                       >
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        <div
+                          class="MuiBox-root css-yi3mkw"
                         >
-                          cpu: 500m
-                        </p>
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                        >
-                          memory: 1Gi
-                        </p>
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            cpu: 500m
+                          </p>
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            memory: 1Gi
+                          </p>
+                        </div>
                       </div>
                     </div>
                     <div
@@ -251,18 +263,22 @@
                         Min
                       </h6>
                       <div
-                        class="MuiBox-root css-yi3mkw"
+                        class="MuiBox-root css-0"
                       >
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        <div
+                          class="MuiBox-root css-yi3mkw"
                         >
-                          cpu: 10m
-                        </p>
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                        >
-                          memory: 4Mi
-                        </p>
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            cpu: 10m
+                          </p>
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            memory: 4Mi
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </dd>

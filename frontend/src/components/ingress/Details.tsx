@@ -79,7 +79,7 @@ export function LinkStringFormat({ url, item, urlPath }: LinkStringFormatProps) 
     /*
      * Since we cannot access the prefix from the ingress object, we have to access it from the rules array
      */
-    const rules: any[] = item.spec.rules;
+    const rules: any[] | undefined = item.spec.rules;
     let currentPathType;
     if (rules) {
       for (let i = 0; i < rules.length; i++) {
@@ -204,7 +204,7 @@ export default function IngressDetails(props: {
   function getDefaultBackend(item: Ingress) {
     const { service, resource } = item.spec?.defaultBackend || {};
     return (
-      (service && service.name + ':' + service.port.toString()) ||
+      (service && service.name + ':' + (service.port.number ?? service.port.name ?? '-')) ||
       (resource && resource.kind + '/' + resource.name) ||
       '-'
     );

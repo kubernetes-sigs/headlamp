@@ -63,7 +63,7 @@ export default function VolumeList() {
         {
           id: 'accessModes',
           label: t('Access Modes'),
-          getValue: volume => volume?.spec?.accesModes?.join(', '),
+          getValue: volume => volume?.spec?.accessModes?.join(', '),
           render: volume => <LabelListItem labels={volume?.spec?.accessModes || []} />,
         },
         {

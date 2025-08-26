@@ -15,10 +15,10 @@
  */
 
 import { Meta, StoryObj } from '@storybook/react';
-import { expect, userEvent, waitFor } from '@storybook/test';
 import { screen } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux';
+import { expect, userEvent, waitFor } from 'storybook/test';
 import { KubeObjectClass } from '../../lib/k8s/cluster';
 import ConfigMap from '../../lib/k8s/configMap';
 import store from '../../redux/stores/store';

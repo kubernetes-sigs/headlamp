@@ -23,7 +23,6 @@ import nock from 'nock';
 import { Mock, MockedFunction } from 'vitest';
 import WS from 'vitest-websocket-mock';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
-import * as auth from '../../../auth';
 import * as cluster from '../../../cluster';
 import * as apiProxy from '../../apiProxy';
 
@@ -123,17 +122,6 @@ describe('apiProxy', () => {
 
       const response = await apiProxy.clusterRequest(testPath, {}, queryParams);
       expect(response).toEqual(mockResponse);
-    });
-
-    it('Successfully handles X-Authorization for token refresh', async () => {
-      nock(baseApiUrl)
-        .get(`/clusters/test-cluster${testPath}`)
-        .reply(200, mockResponse, { 'X-Authorization': 'newToken' });
-
-      const setTokenSpy = vi.spyOn(auth, 'setToken');
-      await apiProxy.clusterRequest(testPath, { cluster: clusterName });
-      expect(setTokenSpy).toHaveBeenCalledWith(clusterName, 'newToken');
-      auth.deleteTokens();
     });
   });
 
@@ -1055,7 +1043,7 @@ describe('apiProxy', () => {
 
         expect(url).toContain('drain-node');
         expect(options.method).toBe('POST');
-        expect(options.headers.get('content-type')).toEqual('application/json');
+        expect(new Headers(options.headers).get('content-type')).toEqual('application/json');
         expect(options.body).toEqual(JSON.stringify({ cluster: clusterName, nodeName }));
       });
 
@@ -1064,6 +1052,7 @@ describe('apiProxy', () => {
           return Promise.resolve({
             ok: false,
             json: () => Promise.resolve(drainNodeErrorResponse),
+            headers: new Headers(),
           });
         });
 
@@ -1082,7 +1071,7 @@ describe('apiProxy', () => {
 
         expect(url).toContain('drain-node-status');
         expect(options.method).toBe('GET');
-        expect(options.headers.get('content-type')).toEqual('application/json');
+        expect(new Headers(options.headers).get('content-type')).toEqual('application/json');
       });
 
       it('Successfully handles drainNodeStatus with error', async () => {
@@ -1090,6 +1079,7 @@ describe('apiProxy', () => {
           return Promise.resolve({
             ok: false,
             json: () => Promise.resolve(drainNodeErrorResponse),
+            headers: new Headers(),
           });
         });
 

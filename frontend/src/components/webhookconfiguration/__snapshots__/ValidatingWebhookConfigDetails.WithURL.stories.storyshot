@@ -159,13 +159,17 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <div
-                      class="MuiBox-root css-yi3mkw"
+                      class="MuiBox-root css-0"
                     >
-                      <p
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                      <div
+                        class="MuiBox-root css-yi3mkw"
                       >
-                        admissions.enforcer/disabled: true
-                      </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
+                          admissions.enforcer/disabled: true
+                        </p>
+                      </div>
                     </div>
                   </dd>
                   <dt
@@ -283,6 +287,17 @@
                     <div
                       class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                     >
+                      <button
+                        aria-label="Copy to clipboard"
+                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-edgeStart MuiIconButton-sizeMedium css-1t8as3w-MuiButtonBase-root-MuiIconButton-root"
+                        data-mui-internal-clone-element="true"
+                        tabindex="0"
+                        type="button"
+                      >
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
                       <button
                         aria-label="toggle field visibility"
                         class="MuiButtonBase-root MuiIconButton-root MuiIconButton-edgeEnd MuiIconButton-sizeMedium css-1d2b2o6-MuiButtonBase-root-MuiIconButton-root"

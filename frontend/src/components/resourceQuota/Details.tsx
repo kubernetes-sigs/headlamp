@@ -21,6 +21,48 @@ import { compareUnits, normalizeUnit } from '../../lib/util';
 import { DetailsGrid } from '../common/Resource';
 import SimpleTable from '../common/SimpleTable';
 
+export function ResourceQuotaTable({
+  resourceStats,
+}: {
+  resourceStats: {
+    name: string;
+    hard: string;
+    used: string;
+  }[];
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <SimpleTable
+      data={resourceStats}
+      columns={[
+        {
+          label: t('glossary|Resource'),
+          getter: item => item.name,
+        },
+        {
+          label: t('translation|Used'),
+          getter: item => {
+            const normalizedUnit = normalizeUnit(item.name, item.used);
+            return compareUnits(item.used, normalizedUnit)
+              ? normalizedUnit
+              : `${item.used} (${normalizedUnit})`;
+          },
+        },
+        {
+          label: t('translation|Hard'),
+          getter: item => {
+            const normalizedUnit = normalizeUnit(item.name, item.hard);
+            return compareUnits(item.hard, normalizedUnit)
+              ? normalizedUnit
+              : `${item.hard} (${normalizedUnit})`;
+          },
+        },
+      ]}
+    />
+  );
+}
+
 export default function ResourceQuotaDetails(props: {
   name?: string;
   namespace?: string;
@@ -41,35 +83,7 @@ export default function ResourceQuotaDetails(props: {
         item && [
           {
             name: t('translation|Status'),
-            value: (
-              <SimpleTable
-                data={item.resourceStats}
-                columns={[
-                  {
-                    label: t('glossary|Resource'),
-                    getter: item => item.name,
-                  },
-                  {
-                    label: t('translation|Used'),
-                    getter: item => {
-                      const normalizedUnit = normalizeUnit(item.name, item.used);
-                      return compareUnits(item.used, normalizedUnit)
-                        ? normalizedUnit
-                        : `${item.used} (${normalizedUnit})`;
-                    },
-                  },
-                  {
-                    label: t('translation|Hard'),
-                    getter: item => {
-                      const normalizedUnit = normalizeUnit(item.name, item.hard);
-                      return compareUnits(item.hard, normalizedUnit)
-                        ? normalizedUnit
-                        : `${item.hard} (${normalizedUnit})`;
-                    },
-                  },
-                ]}
-              />
-            ),
+            value: <ResourceQuotaTable resourceStats={item.resourceStats} />,
           },
         ]
       }

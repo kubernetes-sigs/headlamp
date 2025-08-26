@@ -2,7 +2,7 @@
   <div>
     <nav
       aria-label="Navigation"
-      class="MuiBox-root css-0"
+      class="MuiBox-root css-qnyptn"
     >
       <div
         class="MuiDrawer-root MuiDrawer-docked css-ptnx-MuiDrawer-docked"
@@ -11,6 +11,7 @@
           class="MuiPaper-root MuiPaper-outlined MuiDrawer-paper MuiDrawer-paperAnchorLeft MuiDrawer-paperAnchorDockedLeft css-r16dox-MuiPaper-root-MuiDrawer-paper"
         >
           <div
+            aria-hidden="false"
             class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column MuiGrid-wrap-xs-nowrap css-opqjvv-MuiGrid-root"
           >
             <div

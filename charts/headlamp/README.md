@@ -137,6 +137,7 @@ config:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| automountServiceAccountToken | bool | `true` | Mount Service Account token in pod |
 | serviceAccount.create | bool | `true` | Create service account |
 | serviceAccount.name | string | `""` | Service account name |
 | serviceAccount.annotations | object | `{}` | Service account annotations |
@@ -227,6 +228,37 @@ env:
     value: "localhost"
   - name: KUBERNETES_SERVICE_PORT
     value: "6443"
+```
+
+### pluginsManager Configuration
+
+| Key           | Type    | Default           | Description                                                                               |
+| ------------- | ------- | ----------------- | ----------------------------------------------------------------------------------------- |
+| enabled       | boolean | `false`           | Enable plugin manager                                                                     |
+| configFile    | string  | `plugin.yml`      | Plugin configuration file name                                                            |
+| configContent | string  | `""`              | Plugin configuration content in YAML format. This is required if plugins.enabled is true. |
+| baseImage     | string  | `node:lts-alpine` | Base node image to use                                                                    |
+| version       | string  | `latest`          | Headlamp plugin package version to install                                                |
+| env           | list    | `[]`              | Plugin manager env variable configuration                                                 |
+| resources     | object  | `{}`              | Plugin manager resource requests/limits                                                   |
+
+Example resource configuration:
+
+```yaml
+pluginsManager:
+  enabled: true
+  baseImage: node:lts-alpine
+  version: latest
+  env:
+    - name: HTTPS_PROXY
+      value: "proxy.example.com:8080"
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "2048Mi"
+    limits:
+      cpu: "1"
+      memory: "4Gi"
 ```
 
 ## Contributing

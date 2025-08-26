@@ -98,10 +98,10 @@ jobs:
           cd $GITHUB_WORKSPACE/winget-pkgs/manifests/h/Headlamp/Headlamp
           pwd
           ls
-          git checkout -b "winget-update-$LATEST_HEADLAMP_TAG"
+          git checkout -b "hl-ci-winget-update-$LATEST_HEADLAMP_TAG"
           git add .
           git commit -s -m "Update winget package $LATEST_HEADLAMP_TAG"
-          git push origin "winget-update-$LATEST_HEADLAMP_TAG"
+          git push origin "hl-ci-winget-update-$LATEST_HEADLAMP_TAG"
         env:
           GITHUB_TOKEN: ${{ secrets.KINVOLK_REPOS_TOKEN }}
 
@@ -109,4 +109,4 @@ jobs:
         run: |
           echo "Create pull request"
           echo "continue with the following link"
-          echo "https://github.com/headlamp-k8s/winget-pkgs/pull/new/winget-update-$LATEST_HEADLAMP_TAG"
+          echo "https://github.com/headlamp-k8s/winget-pkgs/pull/new/hl-ci-winget-update-$LATEST_HEADLAMP_TAG"

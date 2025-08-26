@@ -50,7 +50,6 @@ const maxNameLength = 63;
 
 function SpawnJobDialog(props: { cronJob: CronJob; onClose: () => void }) {
   const { cronJob, onClose } = props;
-  const { namespace } = useParams<{ namespace: string }>();
   const { t } = useTranslation(['translation']);
   const dispatch: AppDispatch = useDispatch();
 
@@ -65,7 +64,7 @@ function SpawnJobDialog(props: { cronJob: CronJob; onClose: () => void }) {
     // set all the fields that are assumed on the jobTemplate
     job.kind = 'Job';
     job.metadata = _.cloneDeep(job.metadata) || {};
-    job.metadata.namespace = namespace;
+    job.metadata.namespace = cronJob.metadata.namespace;
     job.apiVersion = 'batch/v1';
     job.metadata.name = jobName;
     job.metadata.annotations = {

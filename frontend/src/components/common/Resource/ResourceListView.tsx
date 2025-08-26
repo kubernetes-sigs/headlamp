@@ -16,6 +16,7 @@
 
 import React, { PropsWithChildren, ReactElement, ReactNode } from 'react';
 import { KubeObject, KubeObjectClass } from '../../../lib/k8s/KubeObject';
+import { BackLinkProps } from '../BackLink';
 import { CreateResourceButton } from '../CreateResourceButton';
 import SectionBox from '../SectionBox';
 import SectionFilterHeader, { SectionFilterHeaderProps } from '../SectionFilterHeader';
@@ -24,6 +25,8 @@ import ResourceTable, { ResourceTableProps } from './ResourceTable';
 export interface ResourceListViewProps<Item extends KubeObject>
   extends PropsWithChildren<Omit<ResourceTableProps<Item>, 'data'>> {
   title: ReactNode;
+  //** The location to go back to. If provided as an empty string, the browser's history will be used. If not provided (default)), then no back button is used. */
+  backLink?: BackLinkProps['to'] | boolean;
   headerProps?: Omit<SectionFilterHeaderProps, 'title'>;
   data: Item[] | null;
 }
@@ -31,6 +34,8 @@ export interface ResourceListViewProps<Item extends KubeObject>
 export interface ResourceListViewWithResourceClassProps<ItemClass extends KubeObjectClass>
   extends PropsWithChildren<Omit<ResourceTableProps<InstanceType<ItemClass>>, 'data'>> {
   title: ReactNode;
+  //** The location to go back to. If provided as an empty string, the browser's history will be used. If not provided (default)), then no back button is used. */
+  backLink?: BackLinkProps['to'] | boolean;
   headerProps?: Omit<SectionFilterHeaderProps, 'title'>;
   resourceClass: ItemClass;
 }
@@ -44,13 +49,14 @@ export default function ResourceListView<Item extends KubeObject<any>>(
 export default function ResourceListView(
   props: ResourceListViewProps<any> | ResourceListViewWithResourceClassProps<any>
 ) {
-  const { title, children, headerProps, ...tableProps } = props;
+  const { title, children, backLink, headerProps, ...tableProps } = props;
   const withNamespaceFilter = 'resourceClass' in props && props.resourceClass?.isNamespaced;
   const resourceClass = (props as ResourceListViewWithResourceClassProps<any>)
     .resourceClass as KubeObjectClass;
 
   return (
     <SectionBox
+      backLink={backLink}
       title={
         typeof title === 'string' ? (
           <SectionFilterHeader

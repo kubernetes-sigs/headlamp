@@ -24,6 +24,7 @@ import Typography from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router-dom';
+import { isElectron } from '../../../helpers/isElectron';
 import { createRouteURL } from '../../../lib/router';
 import { ClusterProviderInfo } from '../../../redux/clusterProviderSlice';
 import { useTypedSelector } from '../../../redux/hooks';
@@ -55,10 +56,15 @@ export default function AddCluster(props: DialogProps & { onChoice: () => void }
   const { t } = useTranslation(['translation']);
   const history = useHistory();
   const addClusterProviders = useTypedSelector(state => state.clusterProvider.clusterProviders);
+  const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
 
   if (!open) {
     return null;
   }
+
+  const isPluginCatalogRegistered = Object.values(customSidebarEntries).some(
+    entry => entry.url === '/plugin-catalog'
+  );
 
   return (
     <PageGrid>
@@ -81,9 +87,17 @@ export default function AddCluster(props: DialogProps & { onChoice: () => void }
               </CardContent>
             </Card>
           </Grid>
-          {addClusterProviders.length > 0 && (
+          <Grid item xs={12}>
+            <Typography variant="h4">{t('translation|Providers')}</Typography>
+          </Grid>
+          {isElectron() && isPluginCatalogRegistered && addClusterProviders.length === 0 && (
             <Grid item xs={12}>
-              <Typography variant="h4">{t('translation|Providers')}</Typography>
+              <Button
+                onClick={() => history.push('/#/plugin-catalog/headlamp-plugins/headlamp_minikube')}
+                startIcon={<InlineIcon icon="mdi:plus-box-outline" />}
+              >
+                {t('translation|Add Local Cluster Provider')}
+              </Button>
             </Grid>
           )}
           {addClusterProviders.length > 0 && (

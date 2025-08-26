@@ -55,6 +55,12 @@ app-linux: app-build
 	cd app && npm run package -- --linux
 app-mac: app-build
 	cd app && npm run package -- --mac
+app-test:
+	cd app && npm install
+	cd app && npm run test
+app-tsc:
+	cd app && npm install
+	cd app && npm run tsc
 
 .PHONY: backend
 backend:
@@ -106,6 +112,10 @@ else
 	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
 endif
 
+run-dev:
+	@echo "Starting Headlamp backend in dev mode with Air..."
+	cd backend && air
+
 run-backend-with-metrics:
 	@echo "**** Running backend with Prometheus metrics enabled ****"
 ifeq ($(UNIXSHELL),true)
@@ -148,7 +158,7 @@ run-only-app:
 frontend-lint:
 	cd frontend && npm run lint -- --max-warnings 0 && npm run format-check
 
-frontend-fixlint:
+frontend-lint-fix:
 	cd frontend && npm run lint -- --fix && npm run format
 
 .PHONY: frontend-tsc
@@ -162,6 +172,12 @@ frontend-i18n-check:
 
 frontend-test:
 	cd frontend && npm run test -- --coverage
+
+.PHONY: lint
+lint: backend-lint frontend-lint
+
+.PHONY: lint-fix
+lint-fix: backend-lint-fix frontend-lint-fix
 
 plugins-test:
 	cd plugins/headlamp-plugin && npm install && ./test-headlamp-plugin.js

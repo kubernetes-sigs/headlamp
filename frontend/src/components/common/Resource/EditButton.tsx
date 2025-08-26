@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -27,6 +28,7 @@ import {
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
 import { AppDispatch } from '../../../redux/stores/store';
+import { Activity } from '../../activity/Activity';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 import AuthVisible from './AuthVisible';
 import EditorDialog from './EditorDialog';
@@ -42,12 +44,12 @@ interface EditButtonProps {
 export default function EditButton(props: EditButtonProps) {
   const dispatch: AppDispatch = useDispatch();
   const { item, options = {}, buttonStyle, afterConfirm } = props;
-  const [openDialog, setOpenDialog] = React.useState(false);
   const [isReadOnly, setIsReadOnly] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState<string>('');
   const location = useLocation();
   const { t } = useTranslation(['translation', 'resource']);
   const dispatchHeadlampEditEvent = useEventCallback(HeadlampEventType.EDIT_RESOURCE);
+  const activityId = 'edit-' + item.metadata.uid;
 
   function makeErrorMessage(err: any) {
     const status: number = err.status;
@@ -62,9 +64,10 @@ export default function EditButton(props: EditButtonProps) {
   async function updateFunc(newItem: KubeObjectInterface) {
     try {
       await item.update(newItem);
+      Activity.close(activityId);
     } catch (err) {
+      Activity.update(activityId, { minimized: false });
       setErrorMessage(makeErrorMessage(err));
-      setOpenDialog(true);
       throw err;
     }
   }
@@ -76,7 +79,7 @@ export default function EditButton(props: EditButtonProps) {
     const cancelUrl = location.pathname;
     const itemName = item.metadata.name;
 
-    setOpenDialog(false);
+    Activity.update(activityId, { minimized: true });
     dispatch(
       clusterAction(() => applyFunc(newItemDef), {
         startMessage: t('translation|Applying changes to {{ itemName }}…', { itemName }),
@@ -122,7 +125,26 @@ export default function EditButton(props: EditButtonProps) {
         description={t('translation|Edit')}
         buttonStyle={buttonStyle}
         onClick={() => {
-          setOpenDialog(true);
+          Activity.launch({
+            id: activityId,
+            title: t('translation|Edit') + ': ' + item.metadata.name,
+            icon: <Icon icon="mdi:pencil" />,
+            cluster: item.cluster,
+            content: (
+              <EditorDialog
+                noDialog
+                item={item.getEditableObject()}
+                open
+                onClose={() => Activity.close(activityId)}
+                onSave={handleSave}
+                allowToHideManagedFields
+                errorMessage={errorMessage}
+                onEditorChanged={() => setErrorMessage('')}
+              />
+            ),
+            location: 'full',
+          });
+
           dispatchHeadlampEditEvent({
             resource: item,
             status: EventStatus.OPENED,
@@ -130,17 +152,6 @@ export default function EditButton(props: EditButtonProps) {
         }}
         icon="mdi:pencil"
       />
-      {openDialog && (
-        <EditorDialog
-          item={item.getEditableObject()}
-          open={openDialog}
-          onClose={() => setOpenDialog(false)}
-          onSave={handleSave}
-          allowToHideManagedFields
-          errorMessage={errorMessage}
-          onEditorChanged={() => setErrorMessage('')}
-        />
-      )}
     </AuthVisible>
   );
 }
