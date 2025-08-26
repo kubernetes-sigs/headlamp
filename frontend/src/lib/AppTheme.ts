@@ -63,4 +63,6 @@ export interface AppTheme {
   radius?: number;
   /** Text style in buttons */
   buttonTextTransform?: 'uppercase' | 'none';
+  /** Font family of the app */
+  fontFamily?: string[];
 }

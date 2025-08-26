@@ -17,22 +17,18 @@
 // @todo: repeatStreamFunc could be improved for performance by remembering when a URL
 //       is 404 and not trying it again... and again.
 
-import { OpPatch } from 'json-patch';
+import type { OpPatch } from 'json-patch';
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getCluster } from '../../../cluster';
-import { KubeObjectInterface } from '../../KubeObject';
-import { ApiError } from '../v2/ApiError';
+import type { KubeObjectInterface } from '../../KubeObject';
+import type { ApiError } from '../v2/ApiError';
 import { clusterRequest, patch, post, put, remove } from './clusterRequests';
-import { DeleteParameters } from './deleteParameters';
+import type { DeleteParameters } from './deleteParameters';
 import { asQuery, getApiRoot } from './formatUrl';
-import { QueryParameters } from './queryParameters';
-import { apiScaleFactory, ScaleApi } from './scaleApi';
-import {
-  StreamErrCb,
-  streamResult,
-  StreamResultsCb,
-  streamResultsForCluster,
-} from './streamingApi';
+import type { QueryParameters } from './queryParameters';
+import { apiScaleFactory, type ScaleApi } from './scaleApi';
+import type { StreamErrCb, StreamResultsCb } from './streamingApi';
+import { streamResult, streamResultsForCluster } from './streamingApi';
 
 export type CancelFunction = () => void;
 export type SingleApiFactoryArguments = [group: string, version: string, resource: string];

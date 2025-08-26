@@ -41,11 +41,11 @@
   "Help": "ヘルプ",
   "Documentation": "ドキュメント",
   "Open an Issue": "問題を報告",
-  "Invalid URL": "無効な URL",
-  "Application opened with an invalid URL: {{ url }}": "無効な URL でアプリケーションが開かれました: {{ url }}",
   "Another process is running": "別のプロセスが実行中です",
   "Looks like another process is already running. Continue by terminating that process automatically, or quit?": "別のプロセスが既に実行されているようです。そのプロセスを自動的に終了して続行しますか、それとも終了しますか？",
   "Continue": "続行",
   "Failed to quit the other running process": "他の実行中のプロセスの終了に失敗しました",
-  "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "他の実行中のプロセス PID: {{ process_list }} を終了できませんでした。そのプロセスを停止してアプリを再起動してください。"
+  "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "他の実行中のプロセス PID: {{ process_list }} を終了できませんでした。そのプロセスを停止してアプリを再起動してください。",
+  "Invalid URL": "無効な URL",
+  "Application opened with an invalid URL: {{ url }}": "無効な URL でアプリケーションが開かれました: {{ url }}"
 }

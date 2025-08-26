@@ -37,6 +37,7 @@ export default function VolumeList() {
         {
           id: 'className',
           label: t('Class Name'),
+          filterVariant: 'multi-select',
           getValue: volume => volume.spec.storageClassName ?? '',
           render: volume => {
             const name = volume.spec.storageClassName;
@@ -63,17 +64,20 @@ export default function VolumeList() {
         {
           id: 'accessModes',
           label: t('Access Modes'),
-          getValue: volume => volume?.spec?.accesModes?.join(', '),
+          filterVariant: 'multi-select',
+          getValue: volume => volume?.spec?.accessModes?.join(', '),
           render: volume => <LabelListItem labels={volume?.spec?.accessModes || []} />,
         },
         {
           id: 'reclaimPolicy',
           label: t('Reclaim Policy'),
+          filterVariant: 'multi-select',
           getValue: volume => volume.spec.persistentVolumeReclaimPolicy,
         },
         {
           id: 'reason',
           label: t('translation|Reason'),
+          filterVariant: 'multi-select',
           getValue: volume => volume.status.reason,
           render: volume => {
             const reason = volume.status.reason;
@@ -107,6 +111,7 @@ export default function VolumeList() {
         {
           id: 'status',
           label: t('translation|Status'),
+          filterVariant: 'multi-select',
           getValue: volume => volume.status?.phase,
           render: volume => makePVStatusLabel(volume),
           gridTemplate: 0.3,

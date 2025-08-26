@@ -17,11 +17,12 @@
 import _ from 'lodash';
 import React, { useMemo } from 'react';
 import { ResourceClasses } from '.';
-import { ApiError, QueryParameters } from './apiProxy';
-import { request } from './apiProxy';
-import { KubeMetadata } from './KubeMetadata';
+import { request } from './api/v1/clusterRequests';
+import type { QueryParameters } from './api/v1/queryParameters';
+import type { ApiError } from './api/v2/ApiError';
+import type { KubeMetadata } from './KubeMetadata';
+import type { KubeObjectClass } from './KubeObject';
 import { KubeObject } from './KubeObject';
-import { KubeObjectClass } from './KubeObject';
 
 export interface KubeEvent {
   type: string;

@@ -78,7 +78,7 @@
           </div>
         </h2>
         <div
-          class="MuiDialogContent-root css-erhy6c-MuiDialogContent-root"
+          class="MuiDialogContent-root css-1gh0c7s-MuiDialogContent-root"
         >
           <div
             class="MuiBox-root css-1jpm9pd"
@@ -126,6 +126,16 @@
                       Use minimal editor
                     </span>
                   </label>
+                  <button
+                    class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
+                    tabindex="0"
+                    type="button"
+                  >
+                    Upload File/URL
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
                 </div>
               </div>
             </div>
@@ -183,7 +193,7 @@
           </div>
           <div
             aria-labelledby="full-width-tab-0-Editor-tabs-id"
-            class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
             id="full-width-tabpanel-0-Editor-tabs-id"
             role="tabpanel"
           >
@@ -197,13 +207,13 @@
           </div>
           <div
             aria-labelledby="full-width-tab-1-Editor-tabs-id"
-            class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
             hidden=""
             id="full-width-tabpanel-1-Editor-tabs-id"
             role="tabpanel"
           >
             <div
-              class="MuiBox-root css-94bk7g"
+              class="MuiBox-root css-u718rw"
             >
               <div
                 class="MuiBox-root css-19midj6"

@@ -33,7 +33,7 @@ import { useHistory } from 'react-router';
 import { FixedSizeList, ListChildComponentProps } from 'react-window';
 import { useClustersConf } from '../../../lib/k8s';
 import Event from '../../../lib/k8s/event';
-import { createRouteURL } from '../../../lib/router';
+import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../../redux/hooks';
 import Empty from '../../common/EmptyContent';
 import { DateLabel } from '../../common/Label';

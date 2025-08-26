@@ -145,7 +145,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <a
-                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1w0w5yv-MuiTypography-root-MuiLink-root"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="/"
                     >
                       kube-system
@@ -174,13 +174,17 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <div
-                      class="MuiBox-root css-yi3mkw"
+                      class="MuiBox-root css-0"
                     >
-                      <p
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                      <div
+                        class="MuiBox-root css-yi3mkw"
                       >
-                        addonmanager.kubernetes.io/mode: Reconcile
-                      </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
+                          addonmanager.kubernetes.io/mode: Reconcile
+                        </p>
+                      </div>
                     </div>
                   </dd>
                   <dt
@@ -192,16 +196,20 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <div
-                      class="MuiBox-root css-yi3mkw"
+                      class="MuiBox-root css-0"
                     >
-                      <p
-                        aria-label="kubectl.kubernetes.io/last-applied-configuration: {"apiVersion":"policy/v1beta1","kind":"PodDisruptionBudget","metadata":{"annotations":{},"labels":{"addonmanager.kubernetes.io/mode":"Reconcile"},"name":"coredns-pdb","namespace":"kube-system"},"spec":{"minAvailable":1,"selector":{"matchLabels":{"k8s-app":"kube-dns"}}}}
-"
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                        data-mui-internal-clone-element="true"
+                      <div
+                        class="MuiBox-root css-yi3mkw"
                       >
-                        kubectl.kubernetes.io/last-applied-configuration: …
-                      </p>
+                        <p
+                          aria-label="kubectl.kubernetes.io/last-applied-configuration: {"apiVersion":"policy/v1beta1","kind":"PodDisruptionBudget","metadata":{"annotations":{},"labels":{"addonmanager.kubernetes.io/mode":"Reconcile"},"name":"coredns-pdb","namespace":"kube-system"},"spec":{"minAvailable":1,"selector":{"matchLabels":{"k8s-app":"kube-dns"}}}}
+"
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          kubectl.kubernetes.io/last-applied-configuration: …
+                        </p>
+                      </div>
                     </div>
                   </dd>
                   <dt
@@ -231,7 +239,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <span
-                      class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                     >
                       k8s-app: kube-dns
                     </span>
@@ -245,7 +253,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
                   >
                     <span
-                      class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                     >
                       Allowed disruptions
                       :
@@ -253,7 +261,7 @@
                     </span>
                     <br />
                     <span
-                      class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                     >
                       Current
                       :
@@ -261,7 +269,7 @@
                     </span>
                     <br />
                     <span
-                      class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                     >
                       Desired
                       :
@@ -269,7 +277,7 @@
                     </span>
                     <br />
                     <span
-                      class="MuiTypography-root MuiTypography-body1 css-nm2nmp-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
                     >
                       Total
                       :

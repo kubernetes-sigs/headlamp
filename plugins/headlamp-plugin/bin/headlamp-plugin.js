@@ -260,11 +260,6 @@ async function copyExtraDistFiles(packagePath = '.') {
     }
 
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-    if (!packageJson.headlamp || !packageJson.headlamp.extraDist) {
-      return; // No extra files to copy
-    }
-
-    const extraDist = packageJson.headlamp.extraDist;
     const distFolder = path.resolve(packagePath, 'dist');
 
     // Create dist folder if it doesn't exist (although it should by this point)
@@ -272,28 +267,47 @@ async function copyExtraDistFiles(packagePath = '.') {
       fs.mkdirSync(distFolder, { recursive: true });
     }
 
-    // Process all entries in extraDist
-    for (const [target, source] of Object.entries(extraDist)) {
-      const targetPath = path.join(distFolder, target);
-      const sourcePath = path.resolve(packagePath, source);
+    // Auto-detect and copy locales folder if it exists (for i18n support)
+    const localesPath = path.resolve(packagePath, 'locales');
+    if (fs.existsSync(localesPath)) {
+      const targetLocalesPath = path.join(distFolder, 'locales');
+      console.log(`Auto-copying locales directory "${localesPath}" to "${targetLocalesPath}"`);
+      fs.copySync(localesPath, targetLocalesPath);
+    }
 
-      // Skip if source doesn't exist
-      if (!fs.existsSync(sourcePath)) {
-        console.warn(`Warning: extraDist source "${sourcePath}" does not exist, skipping.`);
-        continue;
-      }
+    // Process manual extraDist configuration if it exists
+    if (packageJson.headlamp && packageJson.headlamp.extraDist) {
+      const extraDist = packageJson.headlamp.extraDist;
 
-      // Create target directory if needed
-      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+      // Process all entries in extraDist
+      for (const [target, source] of Object.entries(extraDist)) {
+        const targetPath = path.join(distFolder, target);
+        const sourcePath = path.resolve(packagePath, source);
 
-      // Copy based on whether it's a directory or file
-      const sourceStats = fs.statSync(sourcePath);
-      if (sourceStats.isDirectory()) {
-        console.log(`Copying extra directory "${sourcePath}" to "${targetPath}"`);
-        fs.copySync(sourcePath, targetPath);
-      } else {
-        console.log(`Copying extra file "${sourcePath}" to "${targetPath}"`);
-        fs.copyFileSync(sourcePath, targetPath);
+        // Skip if source doesn't exist
+        if (!fs.existsSync(sourcePath)) {
+          console.warn(`Warning: extraDist source "${sourcePath}" does not exist, skipping.`);
+          continue;
+        }
+
+        // Skip if this is locales and we already auto-copied it
+        if (target === 'locales' && fs.existsSync(path.join(distFolder, 'locales'))) {
+          console.log(`Skipping manual locales copy - already auto-copied`);
+          continue;
+        }
+
+        // Create target directory if needed
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+
+        // Copy based on whether it's a directory or file
+        const sourceStats = fs.statSync(sourcePath);
+        if (sourceStats.isDirectory()) {
+          console.log(`Copying extra directory "${sourcePath}" to "${targetPath}"`);
+          fs.copySync(sourcePath, targetPath);
+        } else {
+          console.log(`Copying extra file "${sourcePath}" to "${targetPath}"`);
+          fs.copyFileSync(sourcePath, targetPath);
+        }
       }
     }
 
@@ -449,6 +463,10 @@ async function start() {
     });
   }, 500);
 
+  // Read package.json to get plugin name for dev mode
+  const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  const pluginName = packageJson.name || path.basename(process.cwd());
+
   const config = (await viteConfigPromise).default;
   const vite = await vitePromise;
 
@@ -456,6 +474,14 @@ async function start() {
     config.build.watch = {};
     config.build.sourcemap = 'inline';
   }
+
+  // Add plugin name injection plugin for dev mode
+  if (!config.plugins) {
+    config.plugins = [];
+  }
+
+  const { pluginNameInjection } = await import('../config/vite-plugin-name-injection.mjs');
+  config.plugins.push(pluginNameInjection({ pluginName }));
 
   // Add file copy hook to be executed after each build
   if (config.plugins) {
@@ -665,11 +691,30 @@ async function build(packageFolder) {
     }
 
     process.chdir(folder);
-    console.log(`Building "${folder}" for production...`);
+
+    // Read package.json to get plugin name
+    const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+    const pluginName = packageJson.name || path.basename(folder);
+
+    console.log(`Building "${folder}" for production with plugin name: ${pluginName}...`);
+
     const config = await viteConfigPromise;
     const vite = await vitePromise;
+
+    // Clone the config and add plugin name injection
+    const buildConfig = { ...config.default };
+
+    // Add plugin name injection to the plugins array
+    if (!buildConfig.plugins) {
+      buildConfig.plugins = [];
+    }
+
+    // Import the plugin name injection plugin
+    const { pluginNameInjection } = await import('../config/vite-plugin-name-injection.mjs');
+    buildConfig.plugins.push(pluginNameInjection({ pluginName }));
+
     try {
-      await vite.build(config.default);
+      await vite.build(buildConfig);
 
       // Copy extra dist files after successful build
       await copyExtraDistFiles('.');
@@ -886,7 +931,7 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
     }
 
     // Update these scripts keys to match the template.
-    replaceNestedKeys('scripts', ['tsc', 'storybook', 'test', 'storybook-build']);
+    replaceNestedKeys('scripts', ['tsc', 'storybook', 'test', 'storybook-build', 'i18n']);
 
     // replace top level keys
     const checkKeys = ['eslintConfig', 'prettier', 'overrides'];
@@ -1189,6 +1234,353 @@ function test(packageFolder) {
   return runScriptOnPackages(packageFolder, 'test', script, { UNDER_TEST: 'true' });
 }
 
+/**
+ * Set up or update i18n for a plugin package.
+ * This will configure the plugin for internationalization by:
+ * 1. Adding "i18n": ["en", "es", ...] to package.json headlamp config with supported locales
+ * 2. Creating the locales directory structure
+ * 3. Adding npm script for i18n extraction using bundled i18next-parser
+ * 4. Creating i18next parser configuration
+ * 5. Running i18next-parser to extract translatable strings
+ *
+ * @param packageFolder {string} - folder where the package is.
+ * @returns {0 | 1} Exit code, where 0 is success, 1 is failure.
+ */
+function setupI18n(packageFolder) {
+  if (!fs.existsSync(packageFolder)) {
+    console.error(`"${packageFolder}" does not exist. Not setting up i18n.`);
+    return 1;
+  }
+
+  const oldCwd = process.cwd();
+
+  /**
+   * Set up i18n for a single package.
+   * @param {string} folder - folder where the package is.
+   * @returns {boolean} - true if successful, false otherwise.
+   */
+  function setupI18nForPackage(folder) {
+    if (!fs.existsSync(path.join(folder, 'package.json'))) {
+      return false;
+    }
+
+    process.chdir(folder);
+    console.log(`Setting up i18n for "${folder}"...`);
+
+    try {
+      // Read and update package.json
+      const packageJsonPath = 'package.json';
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+
+      // Initialize headlamp config if it doesn't exist
+      if (!packageJson.headlamp) {
+        packageJson.headlamp = {};
+      }
+
+      // Check if i18n is already enabled (array of locales)
+      if (Array.isArray(packageJson.headlamp.i18n) && packageJson.headlamp.i18n.length > 0) {
+        console.log(
+          `✅ i18n is already enabled for ${
+            packageJson.name
+          } with locales: ${packageJson.headlamp.i18n.join(', ')}`
+        );
+      } else {
+        // Enable i18n with empty locales array (locales will be added when specified)
+        packageJson.headlamp.i18n = [];
+        console.log(`✅ Enabled i18n in package.json for ${packageJson.name}`);
+        console.log(`💡 To add locales, use: npm run i18n <locale> (e.g., npm run i18n es)`);
+      }
+
+      // Add i18n script if not already present
+      if (!packageJson.scripts) {
+        packageJson.scripts = {};
+      }
+
+      if (!packageJson.scripts.i18n) {
+        packageJson.scripts.i18n = 'headlamp-plugin i18n';
+        console.log(`📜 Added npm i18n script`);
+      }
+
+      // Write updated package.json
+      fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+
+      // Create locales directory structure
+      const localesDir = path.join('locales');
+
+      if (!fs.existsSync(localesDir)) {
+        fs.mkdirSync(localesDir, { recursive: true });
+        console.log(`📁 Created ${localesDir} directory`);
+      }
+
+      // Create language directories for the locales specified in package.json
+      const supportedLocales = packageJson.headlamp.i18n || [];
+      supportedLocales.forEach(locale => {
+        const localeDir = path.join(localesDir, locale);
+        if (!fs.existsSync(localeDir)) {
+          fs.mkdirSync(localeDir, { recursive: true });
+
+          // Create empty translation.json file
+          const translationFile = path.join(localeDir, 'translation.json');
+          fs.writeFileSync(translationFile, '{\n}\n');
+          console.log(`📁 Created ${locale} locale directory`);
+        }
+      });
+
+      // Check if there's a local config file - if not, we'll use the bundled one
+      const localConfigPath = 'i18next-parser.config.js';
+      if (fs.existsSync(localConfigPath)) {
+        console.log(`⚙️ Using existing local i18next-parser configuration`);
+      } else {
+        console.log(`⚙️ Using default i18next-parser configuration from headlamp-plugin`);
+      }
+
+      // Run i18next-parser to extract translatable strings
+      console.log(`🔍 Extracting translatable strings from source code...`);
+      const i18nextPath = path.join(__dirname, '..', 'node_modules', '.bin', 'i18next');
+      const bundledConfigPath = path.join(__dirname, '..', 'config', 'i18next-parser.config.js');
+      const { execFileSync } = require('child_process');
+
+      try {
+        execFileSync(i18nextPath, ['src/**/*.{ts,tsx,js,jsx}', '-c', bundledConfigPath], {
+          stdio: 'inherit',
+          cwd: process.cwd(),
+        });
+        console.log(`📝 Successfully extracted translatable strings`);
+      } catch (error) {
+        console.warn(`⚠️ Warning: Failed to run i18next-parser: ${error.message}`);
+        console.log(`💡 You can manually run: npm run i18n`);
+      }
+
+      console.log(`\n🎉 i18n setup complete for ${packageJson.name}!`);
+      console.log(`\n📖 Next steps:`);
+      console.log(`1. Use the useTranslation() hook in your components:`);
+      console.log(`   import { useTranslation } from '@kinvolk/headlamp-plugin/i18n';`);
+      console.log(`   const { t } = useTranslation();`);
+      console.log(`   return <div>{t('your.translation.key')}</div>;`);
+      console.log(`2. Add more locales: npm run i18n <locale> (e.g., npm run i18n es)`);
+      console.log(`3. Extract updated translatable strings: npm run i18n`);
+      console.log(`4. Add translations in locales/<locale>/translation.json`);
+      console.log(`\n💡 Note: Using default i18next-parser configuration from headlamp-plugin.`);
+      console.log(`   If you need custom configuration, create your own i18next-parser.config.js`);
+
+      return true;
+    } catch (error) {
+      console.error(`❌ Failed to set up i18n for "${folder}":`, error.message);
+      return false;
+    } finally {
+      process.chdir(oldCwd);
+    }
+  }
+
+  /**
+   * Set up i18n for each package inside the folder.
+   */
+  function setupI18nForFolderOfPackages() {
+    const folders = fs.readdirSync(packageFolder, { withFileTypes: true }).filter(fileName => {
+      return (
+        fileName.isDirectory() &&
+        fs.existsSync(path.join(packageFolder, fileName.name, 'package.json'))
+      );
+    });
+
+    if (folders.length === 0) {
+      return false;
+    }
+
+    let allSuccessful = true;
+    folders.forEach(folder => {
+      const folderToProcess = path.join(packageFolder, folder.name);
+      if (!setupI18nForPackage(folderToProcess)) {
+        allSuccessful = false;
+      }
+    });
+
+    return allSuccessful;
+  }
+
+  // Try to set up i18n for a single package first
+  const singlePackageResult = setupI18nForPackage(packageFolder);
+
+  if (!singlePackageResult) {
+    // If it's not a single package, try treating it as a folder of packages
+    const folderResult = setupI18nForFolderOfPackages();
+    if (!folderResult) {
+      console.error(
+        `"${packageFolder}" does not contain a package or packages. Not setting up i18n.`
+      );
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
+/**
+ * Run i18next-parser to extract translatable strings from a plugin.
+ * This is called when the user runs 'headlamp-plugin i18n' directly.
+ * If a locale is provided, it will be added to the supported locales in package.json.
+ *
+ * @param packageFolder {string} - folder where the package is.
+ * @param newLocale {string} - optional locale to add to the plugin.
+ * @returns {0 | 1} Exit code, where 0 is success, 1 is failure.
+ */
+function extractI18n(packageFolder, newLocale) {
+  if (!fs.existsSync(packageFolder)) {
+    console.error(`"${packageFolder}" does not exist.`);
+    return 1;
+  }
+
+  const oldCwd = process.cwd();
+
+  try {
+    process.chdir(packageFolder);
+
+    // Check if this is a package with i18n enabled
+    const packageJsonPath = path.join(packageFolder, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) {
+      console.error(`No package.json found in "${packageFolder}".`);
+      return 1;
+    }
+
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+
+    // Auto-setup i18n if not already configured
+    if (!Array.isArray(packageJson.headlamp?.i18n)) {
+      console.log(
+        `🔧 i18n not configured for "${
+          packageJson.name || packageFolder
+        }". Setting up automatically...`
+      );
+
+      // Initialize headlamp config if it doesn't exist
+      if (!packageJson.headlamp) {
+        packageJson.headlamp = {};
+      }
+
+      // Enable i18n with empty locales array (locales will be added when specified)
+      packageJson.headlamp.i18n = [];
+
+      // Add i18n script if not already present
+      if (!packageJson.scripts) {
+        packageJson.scripts = {};
+      }
+
+      if (!packageJson.scripts.i18n) {
+        packageJson.scripts.i18n = 'headlamp-plugin i18n';
+        console.log(`📜 Added npm i18n script`);
+      }
+
+      // Create locales directory structure
+      const localesDir = path.join(packageFolder, 'locales');
+
+      if (!fs.existsSync(localesDir)) {
+        fs.mkdirSync(localesDir, { recursive: true });
+        console.log(`📁 Created ${localesDir} directory`);
+      }
+
+      console.log(`✅ Enabled i18n in package.json for ${packageJson.name}`);
+
+      // Write updated package.json
+      fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+    }
+
+    // Handle adding a new locale
+    if (newLocale) {
+      // Validate locale format (simple validation for common formats like 'en', 'es', 'en-US')
+      if (!/^[a-z]{2}(-[A-Z]{2})?$/.test(newLocale)) {
+        console.error(
+          `❌ Invalid locale format: "${newLocale}". Use format like 'en', 'es', 'en-US', etc.`
+        );
+        return 1;
+      }
+
+      // Get current supported locales
+      const supportedLocales = packageJson.headlamp.i18n;
+
+      // Add new locale if not already present
+      if (!supportedLocales.includes(newLocale)) {
+        supportedLocales.push(newLocale);
+        packageJson.headlamp.i18n = supportedLocales;
+
+        // Write updated package.json
+        fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+        console.log(
+          `✅ Added locale "${newLocale}" to supported locales: ${supportedLocales.join(', ')}`
+        );
+
+        // Create locale directory and translation file
+        const localesDir = path.join(packageFolder, 'locales');
+        const localeDir = path.join(localesDir, newLocale);
+
+        if (!fs.existsSync(localeDir)) {
+          fs.mkdirSync(localeDir, { recursive: true });
+          const translationFile = path.join(localeDir, 'translation.json');
+          fs.writeFileSync(translationFile, '{\n}\n');
+          console.log(`📁 Created ${newLocale} locale directory and translation file`);
+        } else {
+          console.log(`📁 Locale directory for "${newLocale}" already exists`);
+        }
+      } else {
+        console.log(
+          `📝 Locale "${newLocale}" is already supported: ${supportedLocales.join(', ')}`
+        );
+      }
+    }
+
+    // Check for local config first, then fall back to bundled config
+    const localConfigPath = path.join(packageFolder, 'i18next-parser.config.js');
+    const bundledConfigPath = path.join(__dirname, '..', 'config', 'i18next-parser.config.js');
+
+    let configToUse = '';
+    if (fs.existsSync(localConfigPath)) {
+      configToUse = './i18next-parser.config.js';
+      console.log(`🔍 Using local i18next-parser configuration`);
+    } else if (fs.existsSync(bundledConfigPath)) {
+      configToUse = bundledConfigPath;
+      console.log(`🔍 Using bundled i18next-parser configuration`);
+    } else {
+      console.error(
+        `❌ No i18next-parser configuration found. Run 'headlamp-plugin setup-i18n' first.`
+      );
+      return 1;
+    }
+
+    console.log(`🔍 Extracting translatable strings from ${packageJson.name || packageFolder}...`);
+
+    // Run i18next-parser using npx for better reliability
+    const { execFileSync } = require('child_process');
+
+    // Use npx to run i18next from the headlamp-plugin package
+    const headlampPluginPath = path.join(__dirname, '..');
+    execFileSync(
+      'npx',
+      ['--prefix', headlampPluginPath, 'i18next', 'src/**/*.{ts,tsx,js,jsx}', '-c', configToUse],
+      {
+        stdio: 'inherit',
+        cwd: packageFolder,
+      }
+    );
+
+    console.log(
+      `✅ Successfully extracted translatable strings for ${packageJson.name || packageFolder}`
+    );
+
+    if (newLocale) {
+      console.log(`\n💡 Translation tips for "${newLocale}":`);
+      console.log(`1. Edit locales/${newLocale}/translation.json to add your translations`);
+      console.log(`2. Use the same keys as in locales/en/translation.json`);
+      console.log(`3. Re-run 'npm run i18n' after adding new translatable strings to your code`);
+    }
+
+    return 0;
+  } catch (error) {
+    console.error(`❌ Failed to extract translatable strings: ${error.message}`);
+    return 1;
+  } finally {
+    process.chdir(oldCwd);
+  }
+}
+
 // const headlampPluginBin = fs.realpathSync(process.argv[1]);
 // console.log('headlampPluginBin path:', headlampPluginBin);
 
@@ -1229,6 +1621,55 @@ yargs(process.argv.slice(2))
     argv => {
       // @ts-ignore
       process.exitCode = create(argv.name, argv.link);
+    }
+  )
+  .command(
+    'i18n [package] [locale]',
+    'Extract translatable strings from plugin source code. Optionally add a new locale. Use --setup to configure i18n for a package. <package> defaults to current working directory.',
+    yargs => {
+      yargs
+        .positional('package', {
+          describe:
+            'Package to extract translatable strings from (or package to setup with --setup)',
+          type: 'string',
+          default: '.',
+        })
+        .positional('locale', {
+          describe: 'New locale to add to the plugin (e.g., es, fr, pt-BR)',
+          type: 'string',
+        })
+        .option('setup', {
+          describe:
+            'Set up i18n for the package or folder of packages instead of extracting strings',
+          type: 'boolean',
+        })
+        .example('headlamp-plugin i18n', 'Extract strings from current directory')
+        .example('headlamp-plugin i18n . es', 'Add Spanish locale and extract strings')
+        .example('headlamp-plugin i18n my-plugin pt-BR', 'Add Brazilian Portuguese to my-plugin')
+        .example('headlamp-plugin i18n --setup', 'Set up i18n in the current package');
+    },
+    argv => {
+      // If --setup flag is provided, run setupI18n and return
+      if (argv.setup) {
+        // @ts-ignore
+        process.exitCode = setupI18n(argv.package);
+        return;
+      }
+
+      // Handle the case where user runs "npm run i18n -- pt"
+      // In this case, "pt" gets passed as the package parameter instead of locale
+      let packageFolder = argv.package;
+      let newLocale = argv.locale;
+
+      // If package looks like a locale code and locale is undefined,
+      // assume they meant to add a locale to the current directory
+      if (!newLocale && packageFolder !== '.' && /^[a-z]{2}(-[A-Z]{2})?$/.test(packageFolder)) {
+        newLocale = packageFolder;
+        packageFolder = '.';
+      }
+
+      // @ts-ignore
+      process.exitCode = extractI18n(packageFolder, newLocale);
     }
   )
   .command(

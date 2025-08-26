@@ -42,7 +42,6 @@ import K8sNode from '../../lib/k8s/node';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { NamespacesAutocomplete } from '../common/NamespacesAutocomplete';
-import { GraphNodeDetails } from './details/GraphNodeDetails';
 import { filterGraph, GraphFilter } from './graph/graphFiltering';
 import {
   collapseGraph,
@@ -208,7 +207,10 @@ function GraphViewContent({
   const viewport = useGraphViewport();
 
   useEffect(() => {
+    let isCurrent = true;
     applyGraphLayout(visibleGraph, viewport.aspectRatio).then(layout => {
+      if (!isCurrent) return;
+
       setLayoutedGraph(layout);
 
       // Only fit bounds when user hasn't moved viewport manually
@@ -216,6 +218,10 @@ function GraphViewContent({
         viewport.updateViewport({ nodes: layout.nodes });
       }
     });
+
+    return () => {
+      isCurrent = false;
+    };
   }, [visibleGraph, viewport]);
 
   // Reset after view change
@@ -259,10 +265,6 @@ function GraphViewContent({
       lookup: makeGraphLookup(nodes, edges),
     };
   }, [visibleGraph]);
-
-  const maybeSelectedNode = selectedNodeId
-    ? fullGraphContext.lookup.getNode(selectedNodeId)
-    : undefined;
 
   return (
     <GraphViewContext.Provider value={contextValue}>
@@ -378,14 +380,6 @@ function GraphViewContent({
               </div>
             </Box>
           </CustomThemeProvider>
-          {maybeSelectedNode && (
-            <GraphNodeDetails
-              node={maybeSelectedNode}
-              close={() => {
-                setSelectedNodeId(selectedGroup?.id ?? defaultNodeSelection);
-              }}
-            />
-          )}
         </Box>
       </FullGraphContext.Provider>
     </GraphViewContext.Provider>
@@ -422,7 +416,7 @@ function CustomThemeProvider({ children }: { children: ReactNode }) {
       theme={(outer: Theme) => ({
         ...outer,
         palette:
-          outer.palette.mode === 'light'
+          outer?.palette?.mode === 'light'
             ? {
                 ...outer.palette,
                 primary: {

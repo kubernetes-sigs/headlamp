@@ -16,8 +16,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ResourceClasses } from '../../../lib/k8s';
+import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { ApiResource } from '../../../lib/k8s/api/v2/ApiResource';
-import { ApiError } from '../../../lib/k8s/apiProxy';
 import { KubeObject, KubeObjectClass } from '../../../lib/k8s/cluster';
 import { useNamespaces } from '../../../redux/filterSlice';
 
@@ -34,9 +34,10 @@ export const useKubeLists = (
   resources: ApiResource[],
   clusters: string[],
   maxItems: number,
-  refetchIntervalMs: number
+  refetchIntervalMs?: number,
+  namespaces?: string[]
 ) => {
-  const namespaces = useNamespaces();
+  const defaultNamespaces = useNamespaces();
   const classes = useMemo(
     () =>
       resources
@@ -55,7 +56,11 @@ export const useKubeLists = (
   );
 
   const data = classes.map(it =>
-    it.useList({ clusters, refetchInterval: refetchIntervalMs, namespace: namespaces })
+    it.useList({
+      clusters,
+      refetchInterval: refetchIntervalMs,
+      namespace: namespaces ?? defaultNamespaces,
+    })
   );
 
   const [items, setItems] = useState<any[]>([]);

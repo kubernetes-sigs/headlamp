@@ -31,9 +31,12 @@ import React from 'react';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { ApiResource } from '../../lib/k8s/api/v2/ApiResource';
+import { KubeObject } from '../../lib/k8s/KubeObject';
+import { Activity } from '../activity/Activity';
 import { EditorDialog, Link } from '../common';
 import ResourceTable from '../common/Resource/ResourceTable';
 import { canRenderDetails } from '../resourceMap/details/KubeNodeDetails';
+import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
 import { searchWithQuery } from './utils/searchWithQuery';
 import { useKubeLists } from './utils/useKubeLists';
 import { useTypeDefinition } from './utils/useTypeDefinition';
@@ -244,7 +247,12 @@ export function ResourceSearch({
       </Box>
 
       {deferredResults.items.length > maxResults && (
-        <Alert severity="warning">
+        <Alert
+          severity="warning"
+          sx={{
+            color: theme.palette.text.primary,
+          }}
+        >
           {t('Found {{0}} results. Showing first {{1}}', {
             0: deferredResults.items.length,
             1: maxResults,
@@ -295,28 +303,36 @@ export function ResourceSearch({
   );
 }
 
-function ViewYaml({ item }: { item: any }) {
-  const [open, isOpen] = useState(false);
+export function ViewYaml({ item }: { item: KubeObject }) {
   return (
     <>
       <Button
         size="small"
         variant="contained"
         color="secondary"
-        onClick={() => isOpen(true)}
+        onClick={() => {
+          const id = 'view-yaml-' + item.metadata.uid;
+          Activity.launch({
+            id,
+            location: 'full',
+            icon: <KubeIcon kind={item.kind} />,
+            title: item.kind + ': ' + item.metadata.name,
+            content: (
+              <EditorDialog
+                noDialog
+                open
+                item={item.jsonData}
+                onClose={() => Activity.close(id)}
+                onSave={null}
+              />
+            ),
+          });
+        }}
         sx={{ whiteSpace: 'nowrap' }}
         startIcon={<Icon icon="mdi:eye" />}
       >
         YAML
       </Button>
-      {open && (
-        <EditorDialog
-          open={open}
-          item={item.jsonData}
-          onClose={() => isOpen(false)}
-          onSave={null}
-        />
-      )}
     </>
   );
 }

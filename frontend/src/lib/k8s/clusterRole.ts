@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { makeKubeObject } from './KubeObject';
-import { KubeRole } from './role';
+import { KubeObject } from './KubeObject';
+import type { KubeRole } from './role';
 
-class ClusterRole extends makeKubeObject<KubeRole>() {
+class ClusterRole extends KubeObject<KubeRole> {
   static kind = 'ClusterRole';
   static apiName = 'clusterroles';
   static apiVersion = 'rbac.authorization.k8s.io/v1';

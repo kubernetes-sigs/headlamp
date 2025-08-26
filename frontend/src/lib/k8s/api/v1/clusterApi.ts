@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
+import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { loadClusterSettings } from '../../../../helpers/clusterSettings';
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
-import { ConfigState } from '../../../../redux/configSlice';
+import type { ConfigState } from '../../../../redux/configSlice';
 import store from '../../../../redux/stores/store';
-import {
-  deleteClusterKubeconfig,
-  findKubeconfigByClusterName,
-  storeStatelessClusterKubeconfig,
-} from '../../../../stateless';
+import { storeStatelessClusterKubeconfig } from '../../../../stateless';
+import { deleteClusterKubeconfig } from '../../../../stateless/deleteClusterKubeconfig';
+import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getCluster, getSelectedClusters } from '../../../cluster';
-import { ClusterRequest, clusterRequest, post, request } from './clusterRequests';
+import type { ClusterRequest } from './clusterRequests';
+import { clusterRequest, post, request } from './clusterRequests';
 import { JSON_HEADERS } from './constants';
 
 /**
@@ -59,6 +59,7 @@ export async function testClusterHealth(cluster?: string) {
 
 export async function setCluster(clusterReq: ClusterRequest) {
   const kubeconfig = clusterReq.kubeconfig;
+  const headers = addBackstageAuthHeaders(JSON_HEADERS);
 
   if (kubeconfig) {
     await storeStatelessClusterKubeconfig(kubeconfig);
@@ -69,7 +70,7 @@ export async function setCluster(clusterReq: ClusterRequest) {
         method: 'POST',
         body: JSON.stringify(clusterReq),
         headers: {
-          ...JSON_HEADERS,
+          ...headers,
         },
       },
       false,
@@ -83,7 +84,7 @@ export async function setCluster(clusterReq: ClusterRequest) {
       method: 'POST',
       body: JSON.stringify(clusterReq),
       headers: {
-        ...JSON_HEADERS,
+        ...headers,
         ...getHeadlampAPIHeaders(),
       },
     },
@@ -136,9 +137,10 @@ export async function deleteCluster(
     }
   }
 
+  const headers = addBackstageAuthHeaders(JSON_HEADERS);
   return request(
     deleteURL,
-    { method: 'DELETE', headers: { ...getHeadlampAPIHeaders() } },
+    { method: 'DELETE', headers: { ...headers, ...getHeadlampAPIHeaders() } },
     false,
     false
   );
@@ -212,11 +214,13 @@ export async function renameCluster(
     }
   }
 
+  const headers = addBackstageAuthHeaders(JSON_HEADERS);
+
   return request(
     renameURL,
     {
       method: 'PUT',
-      headers: { ...getHeadlampAPIHeaders() },
+      headers: { ...headers, ...getHeadlampAPIHeaders() },
       body: JSON.stringify({ newClusterName, source, stateless }),
     },
     false,
@@ -231,6 +235,7 @@ export async function renameCluster(
  */
 export async function parseKubeConfig(clusterReq: ClusterRequest) {
   const kubeconfig = clusterReq.kubeconfig;
+  const headers = addBackstageAuthHeaders(JSON_HEADERS);
 
   if (kubeconfig) {
     return request(
@@ -239,7 +244,7 @@ export async function parseKubeConfig(clusterReq: ClusterRequest) {
         method: 'POST',
         body: JSON.stringify(clusterReq),
         headers: {
-          ...JSON_HEADERS,
+          ...headers,
           ...getHeadlampAPIHeaders(),
         },
       },

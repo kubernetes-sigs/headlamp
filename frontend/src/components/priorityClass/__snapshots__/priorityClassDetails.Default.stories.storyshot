@@ -159,16 +159,20 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
                     <div
-                      class="MuiBox-root css-yi3mkw"
+                      class="MuiBox-root css-0"
                     >
-                      <p
-                        aria-label="kubectl.kubernetes.io/last-applied-configuration: {"apiVersion":"scheduling.k8s.io/v1","description":"Mission Critical apps.","globalDefault":false,"kind":"PriorityClass","metadata":{"annotations":{},"name":"high-priority-apps"},"preemptionPolicy":"PreemptLowerPriority","value":1000000}
-"
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                        data-mui-internal-clone-element="true"
+                      <div
+                        class="MuiBox-root css-yi3mkw"
                       >
-                        kubectl.kubernetes.io/last-applied-configuration: …
-                      </p>
+                        <p
+                          aria-label="kubectl.kubernetes.io/last-applied-configuration: {"apiVersion":"scheduling.k8s.io/v1","description":"Mission Critical apps.","globalDefault":false,"kind":"PriorityClass","metadata":{"annotations":{},"name":"high-priority-apps"},"preemptionPolicy":"PreemptLowerPriority","value":1000000}
+"
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          kubectl.kubernetes.io/last-applied-configuration: …
+                        </p>
+                      </div>
                     </div>
                   </dd>
                   <dt

@@ -25,7 +25,11 @@ import { useSnackbar } from 'notistack';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { isDockerDesktop } from '../../helpers/isDockerDesktop';
-import { listPortForward, startPortForward, stopOrDeletePortForward } from '../../lib/k8s/apiProxy';
+import {
+  listPortForward,
+  startPortForward,
+  stopOrDeletePortForward,
+} from '../../lib/k8s/api/v1/portForward';
 import { getCluster } from '../../lib/util';
 import { StatusLabel } from '../common/Label';
 import Link from '../common/Link';
@@ -145,12 +149,17 @@ export default function PortForwardingList() {
         port,
         address,
         id
-      ).then(() => {
-        portForwardInAction.loading = false;
-        setPortForwardInAction(portForwardInAction);
-        // update portforward list item
-        fetchPortForwardList(true);
-      });
+      )
+        .then(() => {
+          portForwardInAction.loading = false;
+          setPortForwardInAction(portForwardInAction);
+          // update portforward list item
+          fetchPortForwardList(true);
+        })
+        .catch(error => {
+          portForwardInAction.loading = false;
+          console.log('Error starting port forward:', error);
+        });
     }
     if (option === PortForwardAction.Stop) {
       // stop portforward

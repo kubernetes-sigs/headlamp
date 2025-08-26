@@ -17,7 +17,7 @@
 import { ThemeProvider } from '@mui/material/styles';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 import '../src/index.css';
-import { Title, Subtitle, Description, Primary, Controls } from '@storybook/blocks';
+import { Title, Subtitle, Description, Primary, Controls } from '@storybook/addon-docs/blocks';
 import { baseMocks } from './baseMocks';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { darkTheme, lightTheme } from '../src/components/App/defaultAppThemes';
@@ -33,7 +33,6 @@ initialize({
 // App import will load the whole app dependency tree
 // And assigning it to a value will make sure it's not tree-shaken and removed
 const DontDeleteMe = App;
-
 
 export const queryClient = new QueryClient({
   defaultOptions: {

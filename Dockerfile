@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 # Final container image
 ARG IMAGE_BASE=alpine:3.20.6@sha256:de4fe7064d8f98419ea6b49190df1abbf43450c1702eeb864fe9ced453c1cc5f
-FROM ${IMAGE_BASE} as image-base
+FROM ${IMAGE_BASE} AS image-base
 
-FROM --platform=${BUILDPLATFORM} golang:1.24@sha256:2b1cbf278ce05a2a310a3d695ebb176420117a8cfcfcc4e5e68a1bef5f6354da as backend-build
+FROM --platform=${BUILDPLATFORM} golang:1.24.6@sha256:2c89c41fb9efc3807029b59af69645867cfe978d2b877d475be0d72f6c6ce6f6 AS backend-build
 
 WORKDIR /headlamp
 
@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     cd ./backend && go build -o ./headlamp-server ./cmd/
 
-FROM --platform=${BUILDPLATFORM} node:18@sha256:d0bbfdbad0bff8253e6159dcbee42141db4fc309365d5b8bcfce46ed71569078 as frontend-build
+FROM --platform=${BUILDPLATFORM} node:22@sha256:6fe286835c595e53cdafc4889e9eff903dd3008a3050c1675809148d8e0df805 AS frontend-build
 
 # We need .git and app/ in order to get the version and git version for the frontend/.env file
 # that's generated when building the frontend.
@@ -40,7 +40,7 @@ COPY frontend/package*.json /headlamp/frontend/
 WORKDIR /headlamp
 RUN cd ./frontend && npm ci --only=prod
 
-FROM frontend-build as frontend
+FROM frontend-build AS frontend
 COPY ./frontend /headlamp/frontend
 
 WORKDIR /headlamp
@@ -64,7 +64,7 @@ RUN for i in $(find ./plugins-old/*/main.js); do plugin_name=$(echo $i|cut -d'/'
 RUN for i in $(find ./plugins-old/*/package.json); do plugin_name=$(echo $i|cut -d'/' -f3); mkdir -p plugins/$plugin_name; cp $i plugins/$plugin_name; done
 
 # Static (officially shipped) plugins
-FROM --platform=${BUILDPLATFORM} frontend-build as static-plugins
+FROM --platform=${BUILDPLATFORM} frontend-build AS static-plugins
 RUN apt-get update && apt-get install -y jq
 COPY ./container/build-manifest.json ./container/fetch-plugins.sh /tools/
 
@@ -72,7 +72,7 @@ WORKDIR /tools
 RUN mkdir -p /plugins
 RUN ./fetch-plugins.sh /plugins/
 
-FROM image-base as final
+FROM image-base AS final
 
 RUN if command -v apt-get > /dev/null; then \
         apt-get update && apt-get install -y --no-install-recommends \

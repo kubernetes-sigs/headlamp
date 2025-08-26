@@ -15,7 +15,8 @@
  */
 
 import { normalizeUnit } from '../util';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
 
 interface spec {
   hard: {

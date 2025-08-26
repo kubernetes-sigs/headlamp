@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
-import { QueryObserverOptions, useQueries, useQueryClient } from '@tanstack/react-query';
+import type { QueryObserverOptions } from '@tanstack/react-query';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { KubeObject, KubeObjectClass } from '../../KubeObject';
-import { QueryParameters } from '../v1/queryParameters';
+import type { KubeObject, KubeObjectClass } from '../../KubeObject';
+import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
-import { QueryListResponse, useEndpoints } from './hooks';
-import { KubeList, KubeListUpdateEvent } from './KubeList';
+import type { QueryListResponse } from './hooks';
+import { useEndpoints } from './hooks';
+import type { KubeListUpdateEvent } from './KubeList';
+import { KubeList } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { BASE_WS_URL, useWebSockets, WebSocketManager } from './webSocket';

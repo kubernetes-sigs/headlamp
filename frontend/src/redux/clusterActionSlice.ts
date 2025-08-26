@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
+import type { PayloadAction } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import i18next from 'i18next';
-import { OptionsObject as SnackbarProps } from 'notistack';
+import type { OptionsObject as SnackbarProps } from 'notistack';
 
 /**
  * See components/common/ActionsNotifier.tsx for a user of cluster actions.

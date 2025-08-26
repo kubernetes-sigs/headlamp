@@ -143,6 +143,8 @@ make frontend
 make frontend-lint
 make frontend-test
 make run-frontend
+make app-test
+make run-app
 ```
 
 ### Frontend

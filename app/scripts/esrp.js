@@ -6,7 +6,7 @@
  **/
 
 const crypto = require('crypto');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -218,7 +218,17 @@ function sign(esrpTool, op, pathToSign) {
   fs.writeFileSync(authJson, JSON.stringify(AUTH_JSON, undefined, 2));
 
   try {
-    execSync(`${esrpTool} Sign -l Verbose -a ${authJson} -p ${policyJson} -i ${signInputJson}`);
+    execFileSync(esrpTool, [
+      'Sign',
+      '-l',
+      'Verbose',
+      '-a',
+      authJson,
+      '-p',
+      policyJson,
+      '-i',
+      signInputJson,
+    ]);
   } catch (e) {
     console.error('Failed to sign:', e);
     process.exit(e.status !== null ? e.status ?? 1 : 1);

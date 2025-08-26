@@ -41,11 +41,11 @@
   "Help": "帮助",
   "Documentation": "文档",
   "Open an Issue": "提交问题",
-  "Invalid URL": "非法的URL",
-  "Application opened with an invalid URL: {{ url }}": "应用程序打开了一个非法URL: {{ url }}",
   "Another process is running": "另一个进程正在运行",
   "Looks like another process is already running. Continue by terminating that process automatically, or quit?": "似乎另外一个进程正在运行中。自动终止该进程并继续，还是退出?",
   "Continue": "继续",
   "Failed to quit the other running process": "退出运行中的进程失败",
-  "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "无法退出运行中的进程，PIDs: {{ process_list }}。请手动关闭进程并重启应用"
+  "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "无法退出运行中的进程，PIDs: {{ process_list }}。请手动关闭进程并重启应用",
+  "Invalid URL": "非法的URL",
+  "Application opened with an invalid URL: {{ url }}": "应用程序打开了一个非法URL: {{ url }}"
 }

@@ -35,7 +35,7 @@ import { isElectron } from '../../helpers/isElectron';
 import { getRecentClusters, setRecentCluster } from '../../helpers/recentClusters';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { Cluster } from '../../lib/k8s/cluster';
-import { createRouteURL } from '../../lib/router';
+import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getCluster, getClusterPrefixedPath } from '../../lib/util';
 
 function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selected?: boolean }) {

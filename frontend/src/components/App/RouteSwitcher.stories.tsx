@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import { Route } from '../../lib/router';
+import type { Route } from '../../lib/router/Route';
 import { setRoute } from '../../redux/routesSlice';
 import store from '../../redux/stores/store';
 import { TestContext } from '../../test';

@@ -112,7 +112,7 @@ export const StatusLabel = forwardRef<HTMLSpanElement, StatusLabelProps>((props,
   } else {
     params = {
       backgroundColor: alpha(baseColor, 0.2),
-      color: base[400],
+      color: base[200],
       borderColor: alpha(base[400], 0.5),
     };
   }
@@ -129,6 +129,7 @@ export const StatusLabel = forwardRef<HTMLSpanElement, StatusLabelProps>((props,
         paddingTop: theme.spacing(0.5),
         paddingBottom: theme.spacing(0.5),
         display: 'inline-flex',
+        whiteSpace: 'nowrap',
         alignItems: 'normal',
         gap: theme.spacing(0.5),
         borderRadius: theme.shape.borderRadius + 'px',

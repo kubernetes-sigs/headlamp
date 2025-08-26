@@ -46,12 +46,16 @@ import ReplicaSet from '../../lib/k8s/replicaSet';
 import Service from '../../lib/k8s/service';
 import ServiceAccount from '../../lib/k8s/serviceAccount';
 import StatefulSet from '../../lib/k8s/statefulSet';
-import { createRouteURL, getDefaultRoutes } from '../../lib/router';
+import { createRouteURL } from '../../lib/router/createRouteURL';
+import { getDefaultRoutes } from '../../lib/router/getDefaultRoutes';
 import { getClusterPrefixedPath } from '../../lib/util';
 import { useTypedSelector } from '../../redux/hooks';
+import { Activity } from '../activity/Activity';
 import { ADVANCED_SEARCH_QUERY_KEY } from '../advancedSearch/AdvancedSearch';
 import { ThemePreview } from '../App/Settings/ThemePreview';
 import { setTheme, useAppThemes } from '../App/themeSlice';
+import { KubeObjectDetails } from '../resourceMap/details/KubeNodeDetails';
+import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
 import { Delayed } from './Delayed';
 import { useLocalStorageState } from './useLocalStorageState';
 import { useRecent } from './useRecent';
@@ -158,6 +162,7 @@ export function GlobalSearchContent({
   const [query, setQuery] = useState(defaultValue ?? '');
   const clusters = useClustersConf() ?? {};
   const selectedClusters = useSelectedClusters();
+  const drawerEnabled = useTypedSelector(state => state.drawerMode.isDetailDrawerEnabled);
 
   const [recent, bump] = useRecent('search-recent-items');
 
@@ -177,7 +182,20 @@ export function GlobalSearchContent({
               name: item.metadata.name,
               namespace: item.metadata.namespace,
             });
-        history.push(url);
+
+        if (drawerEnabled) {
+          Activity.launch({
+            id: item.metadata.uid,
+            content: <KubeObjectDetails resource={item} />,
+            hideTitleInHeader: true,
+            cluster: item.cluster,
+            location: 'split-right',
+            title: item.kind + ': ' + item.metadata.name,
+            icon: <KubeIcon kind={item.kind} width="100%" height="100%" />,
+          });
+        } else {
+          history.push(url);
+        }
       }),
     [resources, isMap, location.search]
   );

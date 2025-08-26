@@ -211,6 +211,82 @@ func TestRequestCounterMiddlewarePanic(t *testing.T) {
 	verifyPanicMetrics(t, context.Background(), reader)
 }
 
+func TestResponseWriterHijack_SucceedsWithUnderlyingHijacker(t *testing.T) {
+	provider, _ := setupTestMeter(t)
+	t.Cleanup(func() {
+		_ = provider.Shutdown(context.Background())
+	})
+
+	metrics, err := tel.NewMetrics()
+	require.NoError(t, err)
+
+	called := false
+
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		require.True(t, ok, "wrapped writer should implement http.Hijacker")
+
+		conn, rw, err := hj.Hijack()
+		require.NoError(t, err, "expected Hijack to succeed when underlying supports it")
+
+		called = true
+
+		// rw is intentionally unused; we just ensure Hijack succeeded.
+		_ = rw
+
+		if conn != nil {
+			_ = conn.Close()
+		}
+	})
+
+	server := httptest.NewServer(metrics.RequestCounterMiddleware(h))
+	defer server.Close()
+
+	// The request will likely error because the connection is hijacked and closed.
+	req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	require.NoError(t, reqErr)
+
+	resp, doErr := http.DefaultClient.Do(req)
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+
+	_ = doErr // ignore errors due to hijacking
+
+	assert.True(t, called, "handler should have executed and called Hijack")
+}
+
+func TestResponseWriterHijack_ReturnsErrorWhenUnderlyingNotHijacker(t *testing.T) {
+	provider, _ := setupTestMeter(t)
+	t.Cleanup(func() {
+		_ = provider.Shutdown(context.Background())
+	})
+
+	metrics, err := tel.NewMetrics()
+	require.NoError(t, err)
+
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		require.True(t, ok, "wrapped writer should implement http.Hijacker")
+
+		conn, rw, err := hj.Hijack()
+		assert.Error(t, err, "expected error when underlying writer doesn't implement Hijacker")
+		assert.Nil(t, conn)
+		assert.Nil(t, rw)
+
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := metrics.RequestCounterMiddleware(h)
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/hijack", nil)
+
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
 func setupPanicTest(t *testing.T) (*tel.Metrics, *httptest.Server) {
 	metrics, err := tel.NewMetrics()
 	require.NoError(t, err)

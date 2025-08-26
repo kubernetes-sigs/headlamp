@@ -12,10 +12,15 @@ const serverProcess = spawn('cd ../ && make backend && make run-backend', [], {
 });
 
 let frontendCmd =
-  'cd ../frontend/ && ../app/node_modules/.bin/cross-env BROWSER=none FORCE_COLOR=true npm start';
+  'cd ../frontend/ && ../app/node_modules/.bin/cross-env BROWSER=none FORCE_COLOR=true npm';
+
+frontendCmd += process.argv[2] === '--star' ? ' run star' : ' start';
+
 if (process.platform !== 'win32') {
   // to prevent clearing the screen
   frontendCmd += ' | cat';
+} else {
+  frontendCmd = frontendCmd.replace(/\//g, '\\');
 }
 const frontendProcess = spawn(frontendCmd, [], {
   stdio: 'inherit',

@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { KubeCondition } from './cluster';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { KubeCondition } from './cluster';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
 
 export interface KubeNamespace extends KubeObjectInterface {
   status: {

@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { GatewayParentReference } from './gateway';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { GatewayParentReference } from './gateway';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
 
 /**
  * GRPCRoute is a Gateway API type for specifying routing behavior of gRPC requests from a Gateway listener to an API object, i.e. Service.

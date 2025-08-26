@@ -18,7 +18,7 @@ import { KubeObject, Workload } from '../../../lib/k8s/cluster';
 import Pod from '../../../lib/k8s/pod';
 import { getReadyReplicas, getTotalReplicas } from '../../../lib/util';
 
-type KubeObjectStatus = 'error' | 'success' | 'warning';
+export type KubeObjectStatus = 'error' | 'success' | 'warning';
 
 /**
  * Returns a generic status for the given Pod

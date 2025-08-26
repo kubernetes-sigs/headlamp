@@ -26,7 +26,7 @@ test.describe('multi-cluster setup', () => {
     headlampPage = new HeadlampPage(page);
 
     await headlampPage.navigateTopage('/', /Choose a cluster/);
-    await expect(page.locator('h1:has-text("All Clusters")')).toBeVisible();
+    await expect(page.locator('h1:has-text("Home")')).toBeVisible();
   });
 
   test("home page should display two cluster selection buttons labeled 'test' and 'test2'", async ({

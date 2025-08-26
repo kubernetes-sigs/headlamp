@@ -31,9 +31,10 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { useClustersConf } from '../../lib/k8s';
-import { setCluster } from '../../lib/k8s/apiProxy';
+import { setCluster } from '../../lib/k8s/api/v1/clusterApi';
 import { setStatelessConfig } from '../../redux/configSlice';
 import { DialogTitle } from '../common/Dialog';
+import { DropZoneBox } from '../common/DropZoneBox';
 import Loader from '../common/Loader';
 import { ClusterDialog } from './Chooser';
 
@@ -98,25 +99,6 @@ function configWithSelectedClusters(config: kubeconfig, selectedClusters: string
 
   return newConfig;
 }
-
-const DropZoneBox = styled(Box)({
-  border: 1,
-  borderRadius: 1,
-  borderWidth: 2,
-  borderColor: 'rgba(0, 0, 0)',
-  borderStyle: 'dashed',
-  padding: '20px',
-  margin: '20px',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  '&:hover': {
-    borderColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  '&:focus-within': {
-    borderColor: 'rgba(0, 0, 0, 0.5)',
-  },
-});
 
 const WideButton = styled(Button)({
   width: '100%',

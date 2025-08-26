@@ -1,6 +1,6 @@
 :root {
-  --graph-animation-duration: 0.2s;
-  --graph-animation-delay: calc(var(--graph-animation-duration) * 0.5);
+  --graph-animation-duration: 0.15s;
+  --graph-animation-delay: calc(var(--graph-animation-duration) * 0.8);
   --graph-animation-appear: calc(var(--graph-animation-duration) * 0.4);
 }
 

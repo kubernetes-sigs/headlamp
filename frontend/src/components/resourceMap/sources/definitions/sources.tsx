@@ -16,13 +16,19 @@
 
 import { Icon } from '@iconify/react';
 import React, { useMemo } from 'react';
+import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
+import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
 import DaemonSet from '../../../../lib/k8s/daemonSet';
 import Deployment from '../../../../lib/k8s/deployment';
 import Endpoints from '../../../../lib/k8s/endpoints';
+import Gateway from '../../../../lib/k8s/gateway';
+import GatewayClass from '../../../../lib/k8s/gatewayClass';
+import GRPCRoute from '../../../../lib/k8s/grpcRoute';
 import HPA from '../../../../lib/k8s/hpa';
+import HTTPRoute from '../../../../lib/k8s/httpRoute';
 import Ingress from '../../../../lib/k8s/ingress';
 import IngressClass from '../../../../lib/k8s/ingressClass';
 import Job from '../../../../lib/k8s/job';
@@ -31,6 +37,7 @@ import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookCon
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
+import ReferenceGrant from '../../../../lib/k8s/referenceGrant';
 import ReplicaSet from '../../../../lib/k8s/replicaSet';
 import Role from '../../../../lib/k8s/role';
 import RoleBinding from '../../../../lib/k8s/roleBinding';
@@ -121,7 +128,14 @@ export function useGetAllSources(): GraphSource[] {
     {
       id: 'network',
       label: 'Network',
-      icon: <Icon icon="mdi:lan" width="100%" height="100%" color={getKindGroupColor('network')} />,
+      icon: (
+        <Icon
+          icon="mdi:folder-network-outline"
+          width="100%"
+          height="100%"
+          color={getKindGroupColor('network')}
+        />
+      ),
       sources: [
         makeKubeSource(Service),
         makeKubeSource(Endpoints),
@@ -165,6 +179,28 @@ export function useGetAllSources(): GraphSource[] {
         // priorityClass
         // runtimeClass
         // leases
+      ],
+    },
+    {
+      id: 'gateway-beta',
+      label: 'Gateway (beta)',
+      icon: (
+        <Icon
+          icon="mdi:lan-connect"
+          width="100%"
+          height="100%"
+          color={getKindGroupColor('network')}
+        />
+      ),
+      isEnabledByDefault: false,
+      sources: [
+        makeKubeSource(GatewayClass),
+        makeKubeSource(Gateway),
+        makeKubeSource(HTTPRoute),
+        makeKubeSource(GRPCRoute),
+        makeKubeSource(ReferenceGrant),
+        makeKubeSource(BackendTLSPolicy),
+        makeKubeSource(BackendTrafficPolicy),
       ],
     },
   ];

@@ -1,0 +1,66 @@
+<body>
+  <div>
+    <div
+      style="height: 500px;"
+    >
+      <div
+        class="MuiBox-root css-1xxsrwd"
+      >
+        <div
+          class="MuiBox-root css-6su6fj"
+        >
+          <ul
+            class="MuiList-root MuiList-padding MuiList-dense css-h4y409-MuiList-root"
+          >
+            <li
+              class="MuiListItem-root MuiListItem-dense MuiListItem-gutters css-g2go0r-MuiListItem-root"
+            >
+              <div
+                class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-dense MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-dense MuiListItemButton-gutters css-12sacnv-MuiButtonBase-root-MuiListItemButton-root"
+                role="button"
+                tabindex="0"
+              >
+                <div
+                  class="MuiListItemIcon-root css-cveggr-MuiListItemIcon-root"
+                />
+                <div
+                  class="MuiListItemText-root MuiListItemText-dense MuiListItemText-multiline css-konndc-MuiListItemText-root"
+                >
+                  <span
+                    class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+                  >
+                    Workloads
+                  </span>
+                  <p
+                    class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-pglae5-MuiTypography-root"
+                  >
+                    Applications and compute resources
+                  </p>
+                </div>
+                <div
+                  class="MuiListItemIcon-root css-1fqgk7o-MuiListItemIcon-root"
+                >
+                  <div
+                    class="MuiBox-root css-171onha"
+                  >
+                    <h6
+                      class="MuiTypography-root MuiTypography-h6 css-1xkn1z3-MuiTypography-root"
+                    >
+                      6
+                    </h6>
+                  </div>
+                </div>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </div>
+            </li>
+          </ul>
+        </div>
+        <div
+          class="MuiBox-root css-mndmei"
+        />
+      </div>
+    </div>
+  </div>
+</body>

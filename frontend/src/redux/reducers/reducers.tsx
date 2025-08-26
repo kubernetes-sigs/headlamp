@@ -15,6 +15,7 @@
  */
 
 import { combineReducers } from 'redux';
+import { activityReducer } from '../../components/activity/Activity';
 import notificationsReducer from '../../components/App/Notifications/notificationsSlice';
 import themeReducer from '../../components/App/themeSlice';
 import graphViewReducer from '../../components/resourceMap/graphViewSlice';
@@ -27,6 +28,7 @@ import drawerModeSlice from '../drawerModeSlice';
 import filterReducer from '../filterSlice';
 import eventCallbackReducer from '../headlampEventSlice';
 import overviewChartsReducer from '../overviewChartsSlice';
+import projectsReducer from '../projectsSlice';
 import routesReducer from '../routesSlice';
 import uiReducer from '../uiSlice';
 import resourceTableReducer from './../../components/common/Resource/resourceTableSlice';
@@ -54,6 +56,8 @@ const reducers = combineReducers({
   drawerMode: drawerModeSlice,
   graphView: graphViewReducer,
   clusterProvider: clusterProviderReducer,
+  activity: activityReducer,
+  projects: projectsReducer,
 });
 
 export type RootState = ReturnType<typeof reducers>;

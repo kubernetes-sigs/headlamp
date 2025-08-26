@@ -14,18 +14,14 @@
  * limitations under the License.
  */
 
-import {
-  createAction,
-  createListenerMiddleware,
-  createSlice,
-  PayloadAction,
-} from '@reduxjs/toolkit';
+import type { PayloadAction } from '@reduxjs/toolkit';
+import { createAction, createListenerMiddleware, createSlice } from '@reduxjs/toolkit';
 import { useDispatch } from 'react-redux';
-import Event from '../lib/k8s/event';
-import { KubeObject } from '../lib/k8s/KubeObject';
-import Pod from '../lib/k8s/pod';
-import { Plugin } from '../plugin/lib';
-import { RootState } from './reducers/reducers';
+import type Event from '../lib/k8s/event';
+import type { KubeObject } from '../lib/k8s/KubeObject';
+import type Pod from '../lib/k8s/pod';
+import type { Plugin } from '../plugin/lib';
+import type { RootState } from './reducers/reducers';
 
 /**
  * The types of default events that can be tracked.

@@ -26,13 +26,14 @@ import * as ApiProxy from './lib/k8s/apiProxy';
 import * as Notification from './lib/notification';
 import * as Router from './lib/router';
 import * as Utils from './lib/util';
-import { ConfigStore } from './plugin/configStore';
 import { Headlamp, Plugin } from './plugin/lib';
+import { getSupportedLocales, isLocaleSupported, useTranslation } from './plugin/pluginI18n';
 import { PluginSettingsDetailsProps } from './plugin/pluginsSlice';
 import Registry, {
   AppLogoProps,
   clusterAction,
   ClusterChooserProps,
+  ConfigStore,
   DefaultSidebars,
   DetailsViewDefaultHeaderActions,
   DetailsViewSectionProps,
@@ -45,13 +46,18 @@ import Registry, {
   registerClusterChooser,
   registerClusterProviderDialog,
   registerClusterProviderMenuItem,
+  registerClusterStatus,
+  registerCustomCreateProject,
   registerDetailsViewHeaderAction,
   registerDetailsViewHeaderActionsProcessor,
   registerDetailsViewSection,
   registerGetTokenFunction,
   registerKindIcon,
+  registerKubeObjectGlance,
   registerMapSource,
   registerPluginSettings,
+  registerProjectDetailsTab,
+  registerProjectOverviewSection,
   registerResourceTableColumnsProcessor,
   registerRoute,
   registerRouteFilter,
@@ -99,6 +105,14 @@ export {
   PluginManager,
   registerUIPanel,
   registerAppTheme,
+  registerKubeObjectGlance,
+  useTranslation,
+  isLocaleSupported,
+  getSupportedLocales,
+  registerCustomCreateProject,
+  registerProjectDetailsTab,
+  registerProjectOverviewSection,
+  registerClusterStatus,
 };
 
 export type {

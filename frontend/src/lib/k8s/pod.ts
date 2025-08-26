@@ -15,9 +15,12 @@
  */
 
 import { Base64 } from 'js-base64';
-import { post, stream, StreamArgs, StreamResultsCb } from './apiProxy';
-import { KubeCondition, KubeContainer, KubeContainerStatus, Time } from './cluster';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import { post } from './api/v1/clusterRequests';
+import type { StreamArgs, StreamResultsCb } from './api/v1/streamingApi';
+import { stream } from './api/v1/streamingApi';
+import type { KubeCondition, KubeContainer, KubeContainerStatus, Time } from './cluster';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
 
 export interface KubeVolume {
   name: string;
@@ -40,6 +43,7 @@ export interface KubePodSpec {
   serviceAccount?: string;
   priority?: string;
   tolerations?: any[];
+  restartPolicy?: string;
 }
 
 export interface KubePod extends KubeObjectInterface {
@@ -50,6 +54,8 @@ export interface KubePod extends KubeObjectInterface {
     initContainerStatuses?: KubeContainerStatus[];
     ephemeralContainerStatuses?: KubeContainerStatus[];
     hostIP?: string;
+    hostIPs?: { ip: string }[];
+    podIPs?: { ip: string }[];
     message?: string;
     phase: string;
     qosClass?: string;
@@ -223,6 +229,7 @@ class Pod extends KubeObject<KubePod> {
     }
 
     const { cancel } = stream(url, onResults, {
+      cluster: this.cluster,
       isJson: false,
       connectCb: () => {
         logs = [];
@@ -258,7 +265,12 @@ class Pod extends KubeObject<KubePod> {
       'channel.k8s.io',
     ];
 
-    return stream(url, onAttach, { additionalProtocols, isJson: false, ...options });
+    return stream(url, onAttach, {
+      cluster: this.cluster,
+      additionalProtocols,
+      isJson: false,
+      ...options,
+    });
   }
 
   exec(container: string, onExec: StreamResultsCb, options: ExecOptions = {}) {
@@ -275,7 +287,12 @@ class Pod extends KubeObject<KubePod> {
       'channel.k8s.io',
     ];
 
-    return stream(url, onExec, { additionalProtocols, isJson: false, ...streamOpts });
+    return stream(url, onExec, {
+      cluster: this.cluster,
+      additionalProtocols,
+      isJson: false,
+      ...streamOpts,
+    });
   }
 
   private getLastRestartDate(container: KubeContainerStatus, lastRestartDate: Date): Date {
@@ -289,6 +306,19 @@ class Pod extends KubeObject<KubePod> {
     return lastRestartDate;
   }
 
+  private isRestartableInitContainer(spec?: KubeContainer): boolean {
+    return !!spec && (spec as any).restartPolicy === 'Always';
+  }
+
+  private isPodInitializedConditionTrue(status?: KubePod['status']): boolean {
+    for (const c of status?.conditions ?? []) {
+      if (c.type === 'Initialized' && c.status === 'True') {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private hasPodReadyCondition(conditions: any): boolean {
     for (const condition of conditions) {
       if (condition.type === 'Ready' && condition.Status === 'True') {
@@ -298,7 +328,7 @@ class Pod extends KubeObject<KubePod> {
     return false;
   }
 
-  // Implementation based on: https://github.com/kubernetes/kubernetes/blob/7b6293b6b6a5662fc37f440e839cf5da8b96e935/pkg/printers/internalversion/printers.go#L759
+  // Implementation based on: https://github.com/kubernetes/kubernetes/blob/67216cfdd980cdd0234866d66a9ffe2ba3d8fcc4/pkg/printers/internalversion/printers.go#L891
   getDetailedStatus(): PodDetailedStatus {
     // We cache this data to avoid going through all this logic when nothing has changed
     if (
@@ -317,12 +347,22 @@ class Pod extends KubeObject<KubePod> {
     }
 
     let restarts = 0;
-    const totalContainers = (this.spec.containers ?? []).length;
+    let restartableInitContainerRestarts = 0;
     let readyContainers = 0;
     let message = '';
     let lastRestartDate = new Date(0);
+    let lastRestartableInitContainerRestartDate = new Date(0);
 
     let reason = this.status.reason || this.status.phase;
+
+    const initContainers: Record<string, KubeContainer> = {};
+    let totalContainers = (this.spec.containers ?? []).length;
+    for (const ic of this.spec.initContainers ?? []) {
+      initContainers[ic.name] = ic;
+      if (this.isRestartableInitContainer(ic)) {
+        totalContainers++;
+      }
+    }
 
     let initializing = false;
     for (const i in this.status.initContainerStatuses ?? []) {
@@ -330,8 +370,34 @@ class Pod extends KubeObject<KubePod> {
       restarts += container.restartCount;
       lastRestartDate = this.getLastRestartDate(container, lastRestartDate);
 
+      if (container.lastState.terminated !== null) {
+        const terminatedDate = container.lastState.terminated?.finishedAt
+          ? new Date(container.lastState.terminated?.finishedAt)
+          : undefined;
+        if (!!terminatedDate && lastRestartDate < terminatedDate) {
+          lastRestartDate = terminatedDate;
+        }
+      }
+
+      if (this.isRestartableInitContainer(initContainers[container.name])) {
+        restartableInitContainerRestarts += container.restartCount;
+        if (container.lastState.terminated !== null) {
+          const terminatedDate = container.lastState.terminated?.finishedAt
+            ? new Date(container.lastState.terminated?.finishedAt)
+            : undefined;
+          if (!!terminatedDate && lastRestartableInitContainerRestartDate < terminatedDate) {
+            lastRestartableInitContainerRestartDate = terminatedDate;
+          }
+        }
+      }
+
       switch (true) {
         case container.state.terminated?.exitCode === 0:
+          continue;
+        case !!container.started && this.isRestartableInitContainer(initContainers[container.name]):
+          if (container.ready) {
+            readyContainers++;
+          }
           continue;
         case !!container.state.terminated:
           if (!container.state.terminated!.reason) {
@@ -359,8 +425,9 @@ class Pod extends KubeObject<KubePod> {
       break;
     }
 
-    if (!initializing) {
-      restarts = 0;
+    if (!initializing || this.isPodInitializedConditionTrue(this.status)) {
+      restarts = restartableInitContainerRestarts;
+      lastRestartDate = lastRestartableInitContainerRestartDate;
       let hasRunning = false;
       for (let i = (this.status?.containerStatuses?.length || 0) - 1; i >= 0; i--) {
         const container = this.status?.containerStatuses[i];
@@ -421,6 +488,27 @@ class Pod extends KubeObject<KubePod> {
     };
 
     return newDetails;
+  }
+  static getBaseObject(): KubePod {
+    const baseObject = super.getBaseObject() as KubePod;
+    baseObject.metadata = {
+      ...baseObject.metadata,
+      namespace: '',
+      labels: { app: 'headlamp' },
+    };
+    baseObject.spec = {
+      containers: [
+        {
+          name: '',
+          image: '',
+          ports: [{ containerPort: 80 }],
+          imagePullPolicy: 'Always',
+        },
+      ],
+      nodeName: '',
+    };
+
+    return baseObject;
   }
 }
 

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import Box from '@mui/material/Box';
 import { JSONPath } from 'jsonpath-plus';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,15 +21,8 @@ import { useParams } from 'react-router-dom';
 import CRD, { KubeCRD } from '../../lib/k8s/crd';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { localeDate } from '../../lib/util';
-import BackLink from '../common/BackLink';
-import { CreateResourceButton } from '../common/CreateResourceButton';
-import Empty from '../common/EmptyContent';
-import Link from '../common/Link';
-import Loader from '../common/Loader';
-import { PageGrid } from '../common/Resource';
-import ResourceListView from '../common/Resource/ResourceListView';
+import { EmptyContent as Empty, Link, Loader, ResourceListView } from '../common';
 import { ResourceTableColumn, ResourceTableProps } from '../common/Resource/ResourceTable';
-import SectionHeader from '../common/SectionHeader';
 
 export default function CustomResourceList() {
   const { t } = useTranslation(['glossary', 'translation']);
@@ -55,7 +47,7 @@ export default function CustomResourceList() {
     );
   }
 
-  return <CustomResourceListRenderer crd={crd!} />;
+  return <CustomResourceListTable crd={crd!} />;
 }
 
 function CustomResourceLink(props: {
@@ -82,37 +74,6 @@ function CustomResourceLink(props: {
   );
 }
 
-export interface CustomResourceListProps {
-  crd: CRD;
-}
-
-function CustomResourceListRenderer(props: CustomResourceListProps) {
-  const { crd } = props;
-  const { t } = useTranslation('glossary');
-
-  const CRClass = crd.makeCRClass();
-
-  return (
-    <PageGrid>
-      <BackLink />
-      <SectionHeader
-        title={crd.spec.names.kind}
-        titleSideActions={[
-          <CreateResourceButton resourceClass={CRClass} resourceName={crd.spec.names.kind} />,
-        ]}
-        actions={[
-          <Box mr={2}>
-            <Link routeName="crd" params={{ name: crd.metadata.name }} activeCluster={crd.cluster}>
-              {t('glossary|CRD: {{ crdName }}', { crdName: crd.metadata.name })}
-            </Link>
-          </Box>,
-        ]}
-      />
-      <CustomResourceListTable crd={crd} />
-    </PageGrid>
-  );
-}
-
 function getValueWithJSONPath(item: { jsonData: object }, jsonPath: string): string {
   let value: string | undefined;
   try {
@@ -130,11 +91,12 @@ function getValueWithJSONPath(item: { jsonData: object }, jsonPath: string): str
 export interface CustomResourceTableProps {
   crd: CRD;
   title?: string;
+  includeCRDLink?: boolean;
 }
 
 export function CustomResourceListTable(props: CustomResourceTableProps) {
   const { t } = useTranslation(['glossary', 'translation']);
-  const { crd, title = '' } = props;
+  const { crd, title = crd.spec.names.kind, includeCRDLink } = props;
 
   const apiGroup = React.useMemo(() => {
     return crd.getMainAPIGroup();
@@ -201,8 +163,12 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
     <ResourceListView
       title={title}
       headerProps={{
-        noNamespaceFilter: !crd.isNamespaced,
-        titleSideActions: [],
+        noNamespaceFilter: !crd.isNamespacedScope,
+        subtitle: (includeCRDLink ?? true) && (
+          <Link routeName="crd" params={{ name: crd.metadata.name }} activeCluster={crd.cluster}>
+            {t('glossary|CRD: {{ crdName }}', { crdName: crd.metadata.name })}
+          </Link>
+        ),
       }}
       resourceClass={CRClass}
       columns={cols}

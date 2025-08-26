@@ -66,6 +66,8 @@ config:
     issuerURL: ""
     # -- OIDC scopes to be used
     scopes: ""
+    # -- OIDC callback URL
+    callbackURL: ""
 
     # -- OIDC client to be used during token validation
     validatorClientID: ""
@@ -102,6 +104,9 @@ config:
 #   - name: KUBERNETES_SERVICE_PORT
 #     value: "6443"
 
+# -- Mount Service Account token in pod
+automountServiceAccountToken: true
+
 serviceAccount:
   # -- Specifies whether a service account should be created
   create: true
@@ -125,6 +130,9 @@ deploymentAnnotations: {}
 # -- Annotations to add to the pod
 podAnnotations: {}
 
+# -- Labels to add to the pod
+podLabels: {}
+
 # -- Headlamp pod's Security Context
 podSecurityContext:
   {}
@@ -142,6 +150,8 @@ securityContext:
   runAsGroup: 101
 
 service:
+  # -- Annotations to add to the service
+  annotations: {}
   # -- Kubernetes Service type
   type: ClusterIP
   # -- Kubernetes Service port
@@ -243,6 +253,10 @@ pluginsManager:
   baseImage: node:lts-alpine
   # -- Headlamp plugin package version to install
   version: latest
+  # -- Plugin manager env variable configuration
+  # env:
+  # - name: HTTPS_PROXY
+  #   value: "proxy.example.com:8080"
   # -- Specify resrouces
   # resources:
   #   requests:
@@ -252,15 +266,38 @@ pluginsManager:
   #     cpu: "1000m"
   #     memory: "4096Mi"
 
+podDisruptionBudget:
+  # -- enable PodDisruptionBudget
+  # ref: https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
+  enabled: false
+  # @schema
+  # type: [null, integer, string]
+  # @schema
+  # -- Minimum number/percentage of pods that should remain scheduled.
+  # When it's set, maxUnavailable must be disabled by `maxUnavailable: null`
+  minAvailable: 0
+  # @schema
+  # type: [null, integer, string]
+  # @schema
+  # -- Maximum number/percentage of pods that may be made unavailable
+  maxUnavailable: null
+  # @schema
+  # type: [null, string]
+  # @schema
+  # -- How are unhealthy, but running, pods counted for eviction
+  unhealthyPodEvictionPolicy: null
+
 # -- Additional Kubernetes manifests to be deployed. Include the manifest as nested YAML.
 extraManifests: []
-# - apiVersion: v1
+# - |
+#   apiVersion: v1
 #   kind: ConfigMap
 #   metadata:
 #     name: my-config
 #   data:
 #     key: value
-# - apiVersion: v1
+# - |
+#   apiVersion: v1
 #   kind: ConfigMap
 #   metadata:
 #     name: my-config-too

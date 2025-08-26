@@ -18,6 +18,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import svgr from 'vite-plugin-svgr';
+import { viteStaticCopy } from "vite-plugin-static-copy";
 
 export default defineConfig({
   define: {
@@ -50,6 +51,17 @@ export default defineConfig({
     react(),
     nodePolyfills({
       include: ['process', 'buffer', 'stream'],
+    }),
+    // Make sure we copy the minified monaco-editor source into the static folder
+    // since it's loaded dynamically and not bundled via ESM. We do it this way
+    // to support setting the localization language
+    viteStaticCopy({
+      targets: [
+        {
+          src: "node_modules/monaco-editor/min/vs",
+          dest: "assets", // copies to assets/vs
+        },
+      ],
     }),
   ],
   build: {

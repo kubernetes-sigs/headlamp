@@ -51,6 +51,7 @@ const checkExports = [
   'RestartMultipleButton',
   'ScaleButton',
   'SimpleEditor',
+  'UploadDialog',
   'ViewButton',
   'AuthVisible',
   'LogsButton',

@@ -52,10 +52,18 @@ type Context struct {
 }
 
 type OidcConfig struct {
-	ClientID     string
+	// OIDC client ID.
+	ClientID string
+	// OIDC client secret.
 	ClientSecret string
+	// OIDC issuer URL.
 	IdpIssuerURL string
-	Scopes       []string
+	// OIDC scopes.
+	Scopes []string
+	// Skip TLS verification.
+	SkipTLSVerify *bool
+	// OIDC CA certificate.
+	CACert *string
 }
 
 // CustomObject represents the custom object that holds the HeadlampInfo regarding custom name.
@@ -247,11 +255,40 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 		return nil, errors.New("authProvider is nil")
 	}
 
+	var caCert *string
+
+	// if custom CA is configured in the kubeconfig auth provider use it.
+	// The arg idp-certificate-authority is the path to the CA certificate file.
+	// Refer: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#using-kubectl.
+	caFilePath, ok := c.AuthInfo.AuthProvider.Config["idp-certificate-authority"]
+	if ok {
+		caFileContents, err := os.ReadFile(caFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("error reading ca file: %w", err)
+		}
+
+		caCertFileContentString := string(caFileContents)
+		caCert = &caCertFileContentString
+	}
+
+	caFileData, ok := c.AuthInfo.AuthProvider.Config["idp-certificate-authority-data"]
+	if ok {
+		// Decode base64-encoded certificate data
+		decodedData, err := base64.StdEncoding.DecodeString(caFileData)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding base64 ca data: %w", err)
+		}
+
+		caCertString := string(decodedData)
+		caCert = &caCertString
+	}
+
 	return &OidcConfig{
 		ClientID:     c.AuthInfo.AuthProvider.Config["client-id"],
 		ClientSecret: c.AuthInfo.AuthProvider.Config["client-secret"],
 		Scopes:       strings.Split(c.AuthInfo.AuthProvider.Config["scope"], ","),
 		IdpIssuerURL: c.AuthInfo.AuthProvider.Config["idp-issuer-url"],
+		CACert:       caCert,
 	}, nil
 }
 
@@ -887,6 +924,8 @@ func splitKubeConfigPath(path string) []string {
 func GetInClusterContext(oidcIssuerURL string,
 	oidcClientID string, oidcClientSecret string,
 	oidcScopes string,
+	oidcSkipTLSVerify bool,
+	oidcCACert string,
 ) (*Context, error) {
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
@@ -910,10 +949,12 @@ func GetInClusterContext(oidcIssuerURL string,
 
 	if oidcClientID != "" && oidcClientSecret != "" && oidcIssuerURL != "" && oidcScopes != "" {
 		oidcConf = &OidcConfig{
-			ClientID:     oidcClientID,
-			ClientSecret: oidcClientSecret,
-			IdpIssuerURL: oidcIssuerURL,
-			Scopes:       strings.Split(oidcScopes, ","),
+			ClientID:      oidcClientID,
+			ClientSecret:  oidcClientSecret,
+			IdpIssuerURL:  oidcIssuerURL,
+			Scopes:        strings.Split(oidcScopes, ","),
+			SkipTLSVerify: &oidcSkipTLSVerify,
+			CACert:        &oidcCACert,
 		}
 	}
 

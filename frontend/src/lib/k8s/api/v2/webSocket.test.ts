@@ -17,8 +17,8 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WS from 'vitest-websocket-mock';
-import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
-import { getToken } from '../../../auth';
+import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
+import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
 import { BASE_WS_URL, MULTIPLEXER_ENDPOINT, useWebSocket, WebSocketManager } from './webSocket';
 
@@ -27,9 +27,12 @@ vi.mock('../../../cluster', () => ({
   getCluster: vi.fn(),
 }));
 
-vi.mock('../../../../stateless', () => ({
-  getUserIdFromLocalStorage: vi.fn(),
+vi.mock('../../../../stateless/findKubeconfigByClusterName', () => ({
   findKubeconfigByClusterName: vi.fn(),
+}));
+
+vi.mock('../../../../stateless/getUserIdFromLocalStorage', () => ({
+  getUserIdFromLocalStorage: vi.fn(),
 }));
 
 vi.mock('../../../auth', () => ({
@@ -47,7 +50,6 @@ vi.mock('./makeUrl', () => ({
 
 const clusterName = 'test-cluster';
 const userId = 'test-user';
-const token = 'test-token';
 
 describe('WebSocket Tests', () => {
   let mockServer: WS;
@@ -62,7 +64,6 @@ describe('WebSocket Tests', () => {
     onError = vi.fn();
     (getCluster as ReturnType<typeof vi.fn>).mockReturnValue(clusterName);
     (getUserIdFromLocalStorage as ReturnType<typeof vi.fn>).mockReturnValue(userId);
-    (getToken as ReturnType<typeof vi.fn>).mockReturnValue(token);
     (findKubeconfigByClusterName as ReturnType<typeof vi.fn>).mockResolvedValue({});
 
     // Mock console.error for all tests
@@ -104,7 +105,6 @@ describe('WebSocket Tests', () => {
         path,
         query,
         userId,
-        token: 'test-token',
         type: 'REQUEST',
       });
 
@@ -147,7 +147,6 @@ describe('WebSocket Tests', () => {
           path: sub.path,
           query: sub.query,
           userId,
-          token: 'test-token',
           type: 'REQUEST',
         });
 
@@ -464,7 +463,6 @@ describe('WebSocket Tests', () => {
         query,
         userId,
         type: 'REQUEST',
-        token: 'test-token', // Token is now included in resubscription messages
       });
 
       // Verify reconnection state is reset

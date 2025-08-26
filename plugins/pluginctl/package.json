@@ -1,6 +1,6 @@
 {
   "name": "@headlamp-k8s/pluginctl",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI for managing plugins in Headlamp",
   "bin": "bin/pluginctl.js",
   "main": "index.js",
@@ -27,7 +27,7 @@
     "semver": "^7.5.4",
     "table": "^6.8.2",
     "tar": "^7.0.0",
-    "tmp": "^0.2.3",
+    "tmp": "^0.2.5",
     "yargs": "^17.7.2"
   },
   "devDependencies": {

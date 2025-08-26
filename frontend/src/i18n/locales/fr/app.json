@@ -41,11 +41,11 @@
   "Help": "Aide",
   "Documentation": "Documentation",
   "Open an Issue": "Ouvrir un problème",
-  "Invalid URL": "URL invalide",
-  "Application opened with an invalid URL: {{ url }}": "Application ouverte avec une URL invalide : {{ url }}",
   "Another process is running": "Un autre processus est en cours",
   "Looks like another process is already running. Continue by terminating that process automatically, or quit?": "Il semble qu'un autre processus soit déjà en cours. Continuer en terminant ce processus automatiquement, ou quitter ?",
   "Continue": "Continuer",
   "Failed to quit the other running process": "Échec de la fermeture de l'autre processus en cours",
-  "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "Impossible de quitter l'autre processus en cours, PIDs : {{ process_list }}. Veuillez arrêter ce processus et relancer l'application."
+  "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "Impossible de quitter l'autre processus en cours, PIDs : {{ process_list }}. Veuillez arrêter ce processus et relancer l'application.",
+  "Invalid URL": "URL invalide",
+  "Application opened with an invalid URL: {{ url }}": "Application ouverte avec une URL invalide : {{ url }}"
 }

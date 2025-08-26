@@ -25,6 +25,12 @@ import CustomResourceDefinitionDetails from '../../crd/Details';
 import CronJobDetails from '../../cronjob/Details';
 import DaemonSetDetails from '../../daemonset/Details';
 import EndpointDetails from '../../endpoints/Details';
+import BackendTLSPolicyDetails from '../../gateway/BackendTLSPolicyDetails';
+import GatewayClassDetails from '../../gateway/ClassDetails';
+import GatewayDetails from '../../gateway/GatewayDetails';
+import GRPCRouteDetails from '../../gateway/GRPCRouteDetails';
+import HTTPRouteDetails from '../../gateway/HTTPRouteDetails';
+import ReferenceGrantDetails from '../../gateway/ReferenceGrantDetails';
 import HpaDetails from '../../horizontalPodAutoscaler/Details';
 import IngressClassDetails from '../../ingress/ClassDetails';
 import IngressDetails from '../../ingress/Details';
@@ -91,6 +97,13 @@ const kindComponentMap: Record<
   IngressClass: IngressClassDetails,
   CustomResourceDefinition: CustomResourceDefinitionDetails,
   crd: CustomResourceDefinitionDetails,
+  Gateway: GatewayDetails,
+  GatewayClass: GatewayClassDetails,
+  HTTPRoute: HTTPRouteDetails,
+  GRPCRoute: GRPCRouteDetails,
+  ReferenceGrant: ReferenceGrantDetails,
+  BackendTLSPolicy: BackendTLSPolicyDetails,
+  XBackendTrafficPolicy: BackendTLSPolicyDetails,
 };
 
 export const canRenderDetails = (maybeKind: string) =>
@@ -146,7 +159,7 @@ export const KubeObjectDetails = memo(
     }, [kind, kindComponentMap]);
 
     return (
-      <Box sx={{ overflow: 'hidden' }}>
+      <Box>
         <Box sx={{ marginTop: '-70px' }}>{content}</Box>
       </Box>
     );

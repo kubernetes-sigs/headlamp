@@ -5,6 +5,7 @@
 {{- $clientSecret := "" }}
 {{- $issuerURL := "" }}
 {{- $scopes := "" }}
+{{- $callbackURL := "" }}
 {{- $validatorClientID := "" }}
 {{- $validatorIssuerURL := "" }}
 {{- $useAccessToken := "" }}
@@ -23,6 +24,9 @@
   {{- end }}
   {{- if eq .name "OIDC_SCOPES" }}
     {{- $scopes = .value }}
+  {{- end }}
+  {{- if eq .name "OIDC_CALLBACK_URL" }}
+    {{- $callbackURL = .value }}
   {{- end }}
   {{- if eq .name "OIDC_VALIDATOR_CLIENT_ID" }}
     {{- $validatorClientID = .value }}
@@ -58,12 +62,16 @@ spec:
       {{- end }}
       labels:
         {{- include "headlamp.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "headlamp.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- with .Values.initContainers }}
@@ -117,6 +125,13 @@ spec:
                   name: {{ $oidc.secret.name }}
                   key: scopes
             {{- end }}
+            {{- if $oidc.callbackURL }}
+            - name: OIDC_CALLBACK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: callbackURL
+            {{- end }}
             {{- if $oidc.validatorClientID }}
             - name: OIDC_VALIDATOR_CLIENT_ID
               valueFrom:
@@ -154,6 +169,10 @@ spec:
             {{- if $oidc.scopes }}
             - name: OIDC_SCOPES
               value: {{ $oidc.scopes }}
+            {{- end }}
+            {{- if $oidc.callbackURL }}
+            - name: OIDC_CALLBACK_URL
+              value: {{ $oidc.callbackURL }}
             {{- end }}
             {{- if $oidc.validatorClientID }}
             - name: OIDC_VALIDATOR_CLIENT_ID
@@ -201,6 +220,10 @@ spec:
             # Check if scopes are non empty either from env or oidc.config
             - "-oidc-scopes=$(OIDC_SCOPES)"
             {{- end }}
+            {{- if or (ne $oidc.callbackURL "") (ne $callbackURL "") }}
+            # Check if callbackURL is non empty either from env or oidc.config
+            - "-oidc-callback-url=$(OIDC_CALLBACK_URL)"
+            {{- end }}
             {{- if or (ne $oidc.validatorClientID "") (ne $validatorClientID "") }}
             # Check if validatorClientID is non empty either from env or oidc.config
             - "-oidc-validator-client-id=$(OIDC_VALIDATOR_CLIENT_ID)"
@@ -218,6 +241,10 @@ spec:
             - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
             - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
             - "-oidc-scopes=$(OIDC_SCOPES)"
+            {{- if or (ne $oidc.callbackURL "") (ne $callbackURL "") }}
+            # Check if callbackURL is non empty either from env or oidc.config
+            - "-oidc-callback-url=$(OIDC_CALLBACK_URL)"
+            {{- end }}
             {{- if or (ne $oidc.validatorClientID "") (ne $validatorClientID "") }}
             # Check if validatorClientID is non empty either from env or oidc.config
             - "-oidc-validator-client-id=$(OIDC_VALIDATOR_CLIENT_ID)"
@@ -259,9 +286,10 @@ spec:
           {{- end }}
         {{- if .Values.pluginsManager.enabled }}
         - name: headlamp-plugin
-
           image: {{ .Values.pluginsManager.baseImage }}
           command: ["/bin/sh", "-c"]
+          env:
+            {{- toYaml .Values.pluginsManager.env | nindent 12 }}
           args:
             - |
               echo "Installing headlamp-plugin globally..."

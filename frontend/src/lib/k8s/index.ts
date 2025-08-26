@@ -15,12 +15,13 @@
  */
 
 import _ from 'lodash';
-import React, { useMemo } from 'react';
+import React, { useContext, useMemo } from 'react';
 import { useHistory } from 'react-router-dom';
 import { ConfigState } from '../../redux/configSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { getCluster, getSelectedClusters } from '../cluster';
-import { ApiError, clusterRequest } from './apiProxy';
+import { clusterRequest } from './api/v1/clusterRequests';
+import { ApiError } from './api/v2/ApiError';
 import { Cluster, LabelSelector, StringDict } from './cluster';
 import ClusterRole from './clusterRole';
 import ClusterRoleBinding from './clusterRoleBinding';
@@ -54,6 +55,7 @@ import Role from './role';
 import RoleBinding from './roleBinding';
 import { RuntimeClass } from './runtime';
 import Secret from './secret';
+import { SelectedClustersContext } from './SelectedClustersContext';
 import Service from './service';
 import ServiceAccount from './serviceAccount';
 import StatefulSet from './statefulSet';
@@ -157,20 +159,34 @@ export function useCluster() {
 export function useSelectedClusters(): string[] {
   const clusterInURL = useCluster();
   const history = useHistory();
+  const maybeSelectedClusters = useContext(SelectedClustersContext);
 
   const clusterGroup = React.useMemo(() => {
     return getSelectedClusters([], history.location.pathname);
   }, [clusterInURL]);
 
-  return clusterGroup;
+  return maybeSelectedClusters && maybeSelectedClusters.length > 0
+    ? maybeSelectedClusters
+    : clusterGroup;
 }
 
+/**
+ * Gets the version of the cluster given by the parameter.
+ *
+ * @param clusterName - the name of the cluster to query, or the currently selected cluster.
+ * @returns a promise that resolves to a dictionary containing version info.
+ */
 export function getVersion(clusterName: string = ''): Promise<StringDict> {
   return clusterRequest('/version', { cluster: clusterName || getCluster() });
 }
 
 export type CancellablePromise = Promise<() => void>;
 
+/**
+ * Hook to manage multiple cancellable API calls tied to the active cluster.
+ *
+ * @param apiCalls - functions returning cancellable promises for API calls.
+ */
 export function useConnectApi(...apiCalls: (() => CancellablePromise)[]) {
   // Use the location to make sure the API calls are changed, as they may depend on the cluster
   // (defined in the URL ATM).
@@ -214,6 +230,13 @@ export function labelSelectorToQuery(labelSelector: LabelSelector) {
   return segments.join(',');
 }
 
+/**
+ * Simplifies a matchLabels object into an array of string expressions.
+ *
+ * @param matchLabels - the matchLabels object from a LabelSelector.
+ * @param isEqualSeperator - whether to use "=" as the separator instead of ":".
+ * @returns an array of simplified label strings, or an empty string.
+ */
 export function matchLabelsSimplifier(
   matchLabels: LabelSelector['matchLabels'],
   isEqualSeperator = false
@@ -234,6 +257,12 @@ export function matchLabelsSimplifier(
   return segments;
 }
 
+/**
+ * Simplifies a matchExpressions array into an array of string representations.
+ *
+ * @param matchExpressions - the matchExpressionss array from a LabelSelector.
+ * @returns an array of simplified expression strings, or an empty string.
+ */
 export function matchExpressionSimplifier(
   matchExpressions: LabelSelector['matchExpressions']
 ): string[] | '' {

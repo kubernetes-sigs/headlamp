@@ -16,8 +16,8 @@
 
 import _ from 'lodash';
 import { getCluster } from '../../../cluster';
-import { KubeObjectInterface } from '../../KubeObject';
-import { ApiError } from '../v2/ApiError';
+import type { KubeObjectInterface } from '../../KubeObject';
+import type { ApiError } from '../v2/ApiError';
 import { getClusterDefaultNamespace } from './clusterApi';
 import { resourceDefToApiFactory } from './factories';
 

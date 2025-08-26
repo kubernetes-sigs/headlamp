@@ -15,13 +15,18 @@
  */
 
 import { useMemo } from 'react';
+import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
+import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CustomResourceDefinition from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
 import DaemonSet from '../../../../lib/k8s/daemonSet';
 import Deployment from '../../../../lib/k8s/deployment';
 import Endpoints from '../../../../lib/k8s/endpoints';
+import Gateway from '../../../../lib/k8s/gateway';
+import GatewayClass from '../../../../lib/k8s/gatewayClass';
 import HPA from '../../../../lib/k8s/hpa';
+import HTTPRoute from '../../../../lib/k8s/httpRoute';
 import Ingress from '../../../../lib/k8s/ingress';
 import Job from '../../../../lib/k8s/job';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
@@ -155,7 +160,7 @@ const endpointsToServices = makeRelation(
 );
 
 const ingressToService = makeRelation(Ingress, Service, (ingress, service) =>
-  ingress.spec.rules.find((rule: any) =>
+  ingress.spec.rules?.find((rule: any) =>
     rule.http?.paths?.find((path: any) => service.metadata.name === path?.backend?.service?.name)
   )
 );
@@ -221,6 +226,38 @@ const jobToCronJob = makeRelation(Job, CronJob, (job, cronJob) =>
   job.metadata.ownerReferences?.find(owner => owner.uid === cronJob.metadata.uid)
 );
 
+const gatewayToGatewayClass = makeRelation(
+  Gateway,
+  GatewayClass,
+  (gateway, gatewayClass) => gateway.spec.gatewayClassName === gatewayClass.metadata.name
+);
+
+const httpRouteToGateway = makeRelation(HTTPRoute, Gateway, (httpRoute, gateway) =>
+  httpRoute.spec.parentRefs?.find(ref => ref.name === gateway.metadata.name)
+);
+
+const httpRouteToService = makeRelation(HTTPRoute, Service, (httpRoute, service) =>
+  httpRoute.spec.rules?.find(rule =>
+    rule.backendRefs?.find(backend => backend.name === service.metadata.name)
+  )
+);
+
+const backendTLSPolicyToService = makeRelation(
+  BackendTLSPolicy,
+  Service,
+  (tlsPolicy, service) =>
+    tlsPolicy.spec.targetRef?.name === service.metadata.name &&
+    tlsPolicy.spec.targetRef?.kind === 'Service'
+);
+
+const backendTrafficPolicyToService = makeRelation(
+  BackendTrafficPolicy,
+  Service,
+  (trafficPolicy, service) =>
+    trafficPolicy.spec.targetRef?.name === service.metadata.name &&
+    trafficPolicy.spec.targetRef?.kind === 'Service'
+);
+
 export function useGetAllRelations(): Relation[] {
   const staticRelations = [
     configMapUsedInPods,
@@ -244,6 +281,11 @@ export function useGetAllRelations(): Relation[] {
     podToOwner,
     repliaceSetToOwner,
     jobToCronJob,
+    gatewayToGatewayClass,
+    httpRouteToGateway,
+    httpRouteToService,
+    backendTLSPolicyToService,
+    backendTrafficPolicyToService,
   ];
 
   const crdRelations = useGetCRToOwnerRelations();

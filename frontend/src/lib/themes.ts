@@ -17,7 +17,7 @@
 import { green, grey, orange, pink, red } from '@mui/material/colors';
 import { createTheme, getContrastRatio, useTheme } from '@mui/material/styles';
 import React from 'react';
-import { AppTheme } from './AppTheme';
+import type { AppTheme } from './AppTheme';
 
 declare module '@mui/material/styles/createPalette.d' {
   interface Palette {
@@ -191,7 +191,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
       },
     },
     typography: {
-      fontFamily: ['Overpass', 'sans-serif'].join(', '),
+      fontFamily: currentTheme.fontFamily?.join(', ') ?? ['Overpass', 'sans-serif'].join(', '),
       h1: {
         fontWeight: 700,
         fontSize: '1.87rem',

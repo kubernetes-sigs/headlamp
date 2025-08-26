@@ -26,9 +26,9 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import helpers from '../../../helpers';
-import { deleteCluster } from '../../../lib/k8s/apiProxy';
+import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { Cluster } from '../../../lib/k8s/cluster';
-import { createRouteURL } from '../../../lib/router';
+import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { useId } from '../../../lib/util';
 import { setConfig } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/hooks';
@@ -153,7 +153,8 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
         >
           <ListItemText>{t('translation|Settings')}</ListItemText>
         </MenuItem>
-        {helpers.isElectron() &&
+        {(!menuItems || menuItems.length === 0) &&
+          helpers.isElectron() &&
           (cluster.meta_data?.source === 'dynamic_cluster' ||
             cluster.meta_data?.source === 'kubeconfig') && (
             <MenuItem
@@ -165,7 +166,6 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
               <ListItemText>{t('translation|Delete')}</ListItemText>
             </MenuItem>
           )}
-
         {menuItems.map((Item, index) => {
           return (
             <Item

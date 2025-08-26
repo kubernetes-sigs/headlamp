@@ -41,11 +41,11 @@
   "Help": "도움말",
   "Documentation": "문서",
   "Open an Issue": "이슈 열기",
-  "Invalid URL": "잘못된 URL",
-  "Application opened with an invalid URL: {{ url }}": "잘못된 URL로 애플리케이션이 열렸습니다: {{ url }}",
   "Another process is running": "다른 프로세스가 실행 중입니다",
   "Looks like another process is already running. Continue by terminating that process automatically, or quit?": "이미 다른 프로세스가 실행 중인 것 같습니다. 해당 프로세스를 자동으로 종료하고 계속하시겠습니까, 아니면 종료하시겠습니까?",
   "Continue": "계속",
   "Failed to quit the other running process": "다른 실행 중인 프로세스를 종료하지 못했습니다",
-  "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "다른 실행 중인 프로세스를 종료할 수 없습니다. PID: {{ process_list }}. 해당 프로세스를 종료한 후 앱을 다시 실행하세요."
+  "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "다른 실행 중인 프로세스를 종료할 수 없습니다. PID: {{ process_list }}. 해당 프로세스를 종료한 후 앱을 다시 실행하세요.",
+  "Invalid URL": "잘못된 URL",
+  "Application opened with an invalid URL: {{ url }}": "잘못된 URL로 애플리케이션이 열렸습니다: {{ url }}"
 }

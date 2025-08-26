@@ -100,15 +100,33 @@ export default function NotificationList() {
 
     return (
       <>
-        <IconButton size="medium">
-          <Icon icon="mdi:dots-vertical" onClick={handleClick} />
+        <IconButton aria-label={t('translation|Menu')} size="medium" onClick={handleClick}>
+          <Icon icon="mdi:dots-vertical" />
         </IconButton>
         <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
-          <MenuItem onClick={markAllAsRead} disabled={!hasUnseenNotifications}>
-            <Typography color={'primary'}>{t('translation|Mark all as read')}</Typography>
+          <MenuItem
+            sx={{
+              '&.Mui-disabled': {
+                opacity: 0.7,
+              },
+            }}
+            onClick={markAllAsRead}
+            disabled={!hasUnseenNotifications}
+          >
+            <Typography color={theme.palette.text.primary}>
+              {t('translation|Mark all as read')}
+            </Typography>
           </MenuItem>
-          <MenuItem onClick={clearAllNotifications} disabled={allNotificationsAreDeleted}>
-            <Typography color="primary">{t('translation|Clear all')}</Typography>
+          <MenuItem
+            sx={{
+              '&.Mui-disabled': {
+                opacity: 0.7,
+              },
+            }}
+            onClick={clearAllNotifications}
+            disabled={allNotificationsAreDeleted}
+          >
+            <Typography color={theme.palette.text.primary}>{t('translation|Clear all')}</Typography>
           </MenuItem>
         </Menu>
       </>

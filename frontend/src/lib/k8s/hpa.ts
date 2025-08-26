@@ -15,8 +15,8 @@
  */
 
 import { ResourceClasses } from '.';
-import { KubeMetadata } from './KubeMetadata';
-import { KubeObject, KubeObjectClass, KubeObjectInterface } from './KubeObject';
+import type { KubeMetadata } from './KubeMetadata';
+import { KubeObject, type KubeObjectClass, type KubeObjectInterface } from './KubeObject';
 export interface CrossVersionObjectReference {
   apiVersion: string;
   kind: string;

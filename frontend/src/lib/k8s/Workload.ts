@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import CronJob from './cronJob';
-import DaemonSet from './daemonSet';
-import Deployment from './deployment';
-import Job from './job';
-import Pod from './pod';
-import ReplicaSet from './replicaSet';
-import StatefulSet from './statefulSet';
+import type CronJob from './cronJob';
+import type DaemonSet from './daemonSet';
+import type Deployment from './deployment';
+import type Job from './job';
+import type Pod from './pod';
+import type ReplicaSet from './replicaSet';
+import type StatefulSet from './statefulSet';
 
 export type Workload = Pod | DaemonSet | ReplicaSet | StatefulSet | Job | CronJob | Deployment;
 export type WorkloadClass =

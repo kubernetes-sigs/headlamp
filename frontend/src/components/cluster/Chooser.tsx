@@ -42,7 +42,7 @@ import { isElectron } from '../../helpers/isElectron';
 import { getRecentClusters, setRecentCluster } from '../../helpers/recentClusters';
 import { useClustersConf } from '../../lib/k8s';
 import { Cluster } from '../../lib/k8s/cluster';
-import { createRouteURL } from '../../lib/router';
+import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getCluster, getClusterPrefixedPath } from '../../lib/util';
 import { useTypedSelector } from '../../redux/hooks';
 import { uiSlice } from '../../redux/uiSlice';

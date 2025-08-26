@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
-import { LabelSelector } from './cluster';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
-import { KubeRuleWithOperations, KubeWebhookClientConfig } from './mutatingWebhookConfiguration';
+import type { LabelSelector } from './cluster';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
+import type {
+  KubeRuleWithOperations,
+  KubeWebhookClientConfig,
+} from './mutatingWebhookConfiguration';
 
 export interface KubeValidatingWebhookConfiguration extends KubeObjectInterface {
   webhooks: {

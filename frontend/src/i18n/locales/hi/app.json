@@ -41,11 +41,11 @@
   "Help": "सहायता",
   "Documentation": "दस्तावेज़ीकरण",
   "Open an Issue": "एक इशू खोलें",
-  "Invalid URL": "अमान्य URL",
-  "Application opened with an invalid URL: {{ url }}": "अनुप्रयोग एक अमान्य URL के साथ खोला गया: {{ url }}",
   "Another process is running": "एक अन्य प्रक्रिया चल रही है",
   "Looks like another process is already running. Continue by terminating that process automatically, or quit?": "लगता है कि एक अन्य प्रक्रिया पहले से ही चल रही है। उस प्रक्रिया को स्वचालित रूप से समाप्त करके जारी रखें, या बाहर निकलें?",
   "Continue": "जारी रखें",
   "Failed to quit the other running process": "अन्य चल रही प्रक्रिया से बाहर निकलने में विफल",
-  "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "अन्य चल रही प्रक्रिया से बाहर नहीं निकल सका, PIDs: {{ process_list }}। कृपया उस प्रक्रिया को रोकें और ऐप को फिर से लॉन्च करें।"
+  "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "अन्य चल रही प्रक्रिया से बाहर नहीं निकल सका, PIDs: {{ process_list }}। कृपया उस प्रक्रिया को रोकें और ऐप को फिर से लॉन्च करें।",
+  "Invalid URL": "अमान्य URL",
+  "Application opened with an invalid URL: {{ url }}": "अनुप्रयोग एक अमान्य URL के साथ खोला गया: {{ url }}"
 }

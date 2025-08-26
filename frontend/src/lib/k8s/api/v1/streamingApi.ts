@@ -15,15 +15,15 @@
  */
 
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
-import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
-import { getToken } from '../../../auth';
+import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
+import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
-import { KubeObjectInterface } from '../../KubeObject';
-import { ApiError } from '../v2/ApiError';
+import type { KubeObjectInterface } from '../../KubeObject';
+import type { ApiError } from '../v2/ApiError';
 import { clusterRequest } from './clusterRequests';
 import { BASE_HTTP_URL, CLUSTERS_PREFIX } from './constants';
 import { asQuery, combinePath } from './formatUrl';
-import { QueryParameters } from './queryParameters';
+import type { QueryParameters } from './queryParameters';
 
 export type StreamUpdate<T = any> = {
   type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'ERROR';
@@ -413,14 +413,9 @@ export async function connectStreamWithParams<T>(
   const { isJson = false, additionalProtocols = [], cluster = '' } = params || {};
   let isClosing = false;
 
-  const token = getToken(cluster || '');
   const userID = getUserIdFromLocalStorage();
 
   const protocols = ['base64.binary.k8s.io', ...additionalProtocols];
-  if (token) {
-    const encodedToken = btoa(token).replace(/=/g, '');
-    protocols.push(`base64url.bearer.authorization.k8s.io.${encodedToken}`);
-  }
 
   let fullPath = path;
   let url = '';

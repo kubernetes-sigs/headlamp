@@ -19,7 +19,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { KubeObject } from '../../../../lib/k8s/KubeObject';
-import { createRouteURL } from '../../../../lib/router';
+import { createRouteURL } from '../../../../lib/router/createRouteURL';
 import { HeaderAction } from '../../../../redux/actionButtonsSlice';
 import Loader from '../../../common/Loader';
 import { HeaderStyle } from '../../../common/SectionHeader';

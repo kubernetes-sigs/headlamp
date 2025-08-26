@@ -22,11 +22,30 @@ import { KubeContainer } from '../../lib/k8s/cluster';
 import Job from '../../lib/k8s/job';
 import { formatDuration } from '../../lib/util';
 import { useNamespaces } from '../../redux/filterSlice';
+import { CreateResourceButton } from '../common';
 import { StatusLabel } from '../common/Label';
 import { StatusLabelProps } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { SimpleTableProps } from '../common/SimpleTable';
 import LightTooltip from '../common/Tooltip/TooltipLight';
+
+export function makeJobStatusValue(job: Job) {
+  if (!job?.status?.conditions) {
+    return '-';
+  }
+  const conditionOptions = ['Failed', 'Complete', 'Suspended'];
+
+  const condition = job.status.conditions.find(
+    ({ status, type }: { status: string; type: string }) =>
+      conditionOptions.includes(type) && status === 'True'
+  );
+
+  if (!condition) {
+    return '-';
+  }
+
+  return condition.type;
+}
 
 export function makeJobStatusLabel(job: Job) {
   if (!job?.status?.conditions) {
@@ -107,6 +126,7 @@ export function JobsListRenderer(props: JobsListRendererProps) {
       title={t('Jobs')}
       headerProps={{
         noNamespaceFilter,
+        titleSideActions: [<CreateResourceButton resourceClass={Job} key="create-job-button" />],
       }}
       hideColumns={hideColumns}
       errors={errors}
@@ -118,16 +138,16 @@ export function JobsListRenderer(props: JobsListRendererProps) {
           id: 'completions',
           label: t('Completions'),
           gridTemplate: 'min-content',
+          disableFiltering: true,
           getValue: job => getCompletions(job),
           sort: sortByCompletions,
         },
         {
           id: 'conditions',
           label: t('translation|Conditions'),
+          filterVariant: 'multi-select',
           gridTemplate: 'min-content',
-          getValue: job =>
-            job.status?.conditions?.find(({ status }: { status: string }) => status === 'True') ??
-            null,
+          getValue: job => makeJobStatusValue(job),
           render: job => makeJobStatusLabel(job),
         },
         {

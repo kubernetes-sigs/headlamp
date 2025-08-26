@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
 export interface DrawerModeState {
   isDetailDrawerEnabled: boolean;

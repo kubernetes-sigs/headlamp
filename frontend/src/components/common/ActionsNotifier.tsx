@@ -47,7 +47,11 @@ function PureActionsNotifier({ dispatch, clusterActions }: PureActionsNotifierPr
         {(clusterAction.buttons || []).map(({ label, actionToDispatch }, i) => (
           <Button
             key={i}
-            color="secondary"
+            sx={{
+              color: 'white',
+              textTransform: 'none',
+            }}
+            variant="text"
             size="small"
             onClick={() => {
               dispatch({ type: actionToDispatch });

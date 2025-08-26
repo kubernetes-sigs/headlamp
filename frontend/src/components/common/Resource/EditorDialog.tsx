@@ -15,7 +15,7 @@
  */
 
 import '../../../i18n/config';
-import Editor, { loader } from '@monaco-editor/react';
+import Editor from '@monaco-editor/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import DialogActions from '@mui/material/DialogActions';
@@ -27,12 +27,11 @@ import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
 import * as yaml from 'js-yaml';
 import _ from 'lodash';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { getCluster } from '../../../lib/cluster';
-import { apply } from '../../../lib/k8s/apiProxy';
+import { apply } from '../../../lib/k8s/api/v1/apply';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { useId } from '../../../lib/util';
 import { clusterAction } from '../../../redux/clusterActionSlice';
@@ -50,6 +49,7 @@ import Loader from '../Loader';
 import Tabs from '../Tabs';
 import DocsViewer from './DocsViewer';
 import SimpleEditor from './SimpleEditor';
+import { UploadDialog } from './UploadDialog';
 
 type KubeObjectIsh = Partial<KubeObjectInterface>;
 
@@ -73,6 +73,8 @@ export interface EditorDialogProps extends DialogProps {
   title?: string;
   /** Extra optional actions. */
   actions?: React.ReactNode[];
+  /** Don't render the editor in the dialog */
+  noDialog?: boolean;
 }
 
 export default function EditorDialog(props: EditorDialogProps) {
@@ -94,9 +96,6 @@ export default function EditorDialog(props: EditorDialogProps) {
     readOnly: isReadOnly(),
     automaticLayout: true,
   };
-  const { i18n } = useTranslation();
-  const [lang, setLang] = React.useState(i18n.language);
-
   const initialCode = typeof item === 'string' ? item : yaml.dump(item || {});
   const originalCodeRef = React.useRef({ code: initialCode, format: item ? 'yaml' : '' });
   const [code, setCode] = React.useState(originalCodeRef.current);
@@ -121,6 +120,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     'useSimpleEditor',
     false
   );
+  const [uploadFiles, setUploadFiles] = React.useState(false);
 
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
@@ -178,17 +178,6 @@ export default function EditorDialog(props: EditorDialogProps) {
   React.useEffect(() => {
     codeRef.current = code;
   }, [code]);
-
-  React.useEffect(() => {
-    i18n.on('languageChanged', setLang);
-    return () => {
-      // Stop the timeout from trying to use the component after it's been unmounted.
-      clearTimeout(lastCodeCheckHandler.current);
-
-      i18n.off('languageChanged', setLang);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   function isReadOnly() {
     return onSave === null;
@@ -317,6 +306,7 @@ export default function EditorDialog(props: EditorDialogProps) {
         });
       }
     );
+    onClose();
   };
 
   function handleSave() {
@@ -340,7 +330,7 @@ export default function EditorDialog(props: EditorDialogProps) {
 
     if (typeof onSave === 'string' && onSave === 'default') {
       const resourceNames = newItemDefs.map(newItemDef => newItemDef.metadata.name);
-      const clusterName = getCluster() || '';
+      const clusterName = (item as KubeObjectIsh)?.cluster || getCluster() || '';
 
       dispatch(
         clusterAction(() => applyFunc(newItemDefs, clusterName), {
@@ -363,39 +353,27 @@ export default function EditorDialog(props: EditorDialogProps) {
       dispatchCreateEvent({
         status: EventStatus.CONFIRMED,
       });
-
-      onClose();
     } else if (typeof onSave === 'function') {
       onSave!(obj);
     }
   }
 
   function makeEditor() {
-    // @todo: monaco editor does not support pt, ta, hi amongst various other langs.
-    if (['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-cn', 'zh-tw'].includes(lang)) {
-      loader.config({ 'vs/nls': { availableLanguages: { '*': lang } }, monaco });
-    } else {
-      loader.config({ monaco });
-    }
-
-    return useSimpleEditor ? (
+    const language = originalCodeRef.current.format || 'yaml';
+    return (
       <Box height="100%">
-        <SimpleEditor
-          language={originalCodeRef.current.format || 'yaml'}
-          value={code.code}
-          onChange={onChange}
-        />
-      </Box>
-    ) : (
-      <Box height="100%">
-        <Editor
-          language={originalCodeRef.current.format || 'yaml'}
-          theme={theme.base === 'dark' ? 'vs-dark' : 'light'}
-          value={code.code}
-          options={editorOptions}
-          onChange={onChange}
-          height="600px"
-        />
+        {useSimpleEditor ? (
+          <SimpleEditor language={language} value={code.code} onChange={onChange} />
+        ) : (
+          <Editor
+            language={language}
+            theme={theme.base === 'dark' ? 'vs-dark' : 'light'}
+            value={code.code}
+            options={editorOptions}
+            onChange={onChange}
+            height="100%"
+          />
+        )}
       </Box>
     );
   }
@@ -411,8 +389,135 @@ export default function EditorDialog(props: EditorDialogProps) {
 
   const dialogTitleId = useId('editor-dialog-title-');
 
+  const content = !item ? (
+    <Loader title={t('Loading editor')} />
+  ) : (
+    <React.Fragment>
+      {uploadFiles ? <UploadDialog setUploadFiles={setUploadFiles} setCode={setCode} /> : ''}
+      <DialogContent
+        sx={{
+          height: '80%',
+          overflowY: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <Box py={1}>
+          <Grid container spacing={2} justifyContent="space-between">
+            {
+              actions.length > 0 ? (
+                actions.map((action, i) => (
+                  <Grid item key={`editor_action_${i}`}>
+                    {action}
+                  </Grid>
+                ))
+              ) : (
+                <Grid item></Grid>
+              ) // Just to keep the layout consistent.
+            }
+            <Grid item>
+              <FormGroup row>
+                {allowToHideManagedFields && (
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={hideManagedFields}
+                        onChange={() => setHideManagedFields(() => !hideManagedFields)}
+                        name="hideManagedFields"
+                      />
+                    }
+                    label={t('Hide Managed Fields')}
+                  />
+                )}
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={useSimpleEditor}
+                      onChange={() => setUseSimpleEditor(() => !useSimpleEditor)}
+                      name="useSimpleEditor"
+                    />
+                  }
+                  label={t('Use minimal editor')}
+                />
+                <Button
+                  variant="contained"
+                  onClick={() => {
+                    setUploadFiles(true);
+                  }}
+                >
+                  {t('translation|Upload File/URL')}
+                </Button>
+              </FormGroup>
+            </Grid>
+          </Grid>
+        </Box>
+        {isReadOnly() ? (
+          makeEditor()
+        ) : (
+          <Tabs
+            onTabChanged={handleTabChange}
+            ariaLabel={t('translation|Editor')}
+            tabs={[
+              {
+                label: t('translation|Editor'),
+                component: makeEditor(),
+              },
+              {
+                label: t('translation|Documentation'),
+                component: (
+                  <Box sx={{ height: '100%', overflowY: 'auto' }}>
+                    <DocsViewer docSpecs={docSpecs} />
+                  </Box>
+                ),
+              },
+            ]}
+          />
+        )}
+      </DialogContent>
+      <DialogActions>
+        {!isReadOnly() && (
+          <ConfirmButton
+            disabled={originalCodeRef.current.code === code.code}
+            color="secondary"
+            variant="contained"
+            aria-label={t('translation|Undo')}
+            onConfirm={onUndo}
+            confirmTitle={t('translation|Are you sure?')}
+            confirmDescription={t(
+              'This will discard your changes in the editor. Do you want to proceed?'
+            )}
+            // @todo: aria-controls should point to the textarea id
+          >
+            {t('translation|Undo Changes')}
+          </ConfirmButton>
+        )}
+        <div style={{ flex: '1 0 0' }} />
+        {errorLabel && <Typography color="error">{errorLabel}</Typography>}
+        <div style={{ flex: '1 0 0' }} />
+        <Button onClick={onClose} color="secondary" variant="contained">
+          {t('translation|Close')}
+        </Button>
+        {!isReadOnly() && (
+          <Button
+            onClick={handleSave}
+            color="primary"
+            variant="contained"
+            disabled={originalCodeRef.current.code === code.code || !!error}
+            // @todo: aria-controls should point to the textarea id
+          >
+            {saveLabel || t('translation|Save & Apply')}
+          </Button>
+        )}
+      </DialogActions>
+    </React.Fragment>
+  );
+
   if (!other.open && !other.keepMounted) {
     return null;
+  }
+
+  if (other.noDialog) {
+    return content;
   }
 
   return (
@@ -430,125 +535,7 @@ export default function EditorDialog(props: EditorDialogProps) {
         id: dialogTitleId,
       }}
     >
-      {!item ? (
-        <Loader title={t('Loading editor')} />
-      ) : (
-        <React.Fragment>
-          <DialogContent
-            sx={{
-              height: '80%',
-              overflowY: 'hidden',
-            }}
-          >
-            <Box py={1}>
-              <Grid container spacing={2} justifyContent="space-between">
-                {
-                  actions.length > 0 ? (
-                    actions.map((action, i) => (
-                      <Grid item key={`editor_action_${i}`}>
-                        {action}
-                      </Grid>
-                    ))
-                  ) : (
-                    <Grid item></Grid>
-                  ) // Just to keep the layout consistent.
-                }
-                <Grid item>
-                  <FormGroup row>
-                    {allowToHideManagedFields && (
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            checked={hideManagedFields}
-                            onChange={() => setHideManagedFields(() => !hideManagedFields)}
-                            name="hideManagedFields"
-                          />
-                        }
-                        label={t('Hide Managed Fields')}
-                      />
-                    )}
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={useSimpleEditor}
-                          onChange={() => setUseSimpleEditor(() => !useSimpleEditor)}
-                          name="useSimpleEditor"
-                        />
-                      }
-                      label={t('Use minimal editor')}
-                    />
-                  </FormGroup>
-                </Grid>
-              </Grid>
-            </Box>
-            {isReadOnly() ? (
-              makeEditor()
-            ) : (
-              <Tabs
-                onTabChanged={handleTabChange}
-                ariaLabel={t('translation|Editor')}
-                tabs={[
-                  {
-                    label: t('translation|Editor'),
-                    component: makeEditor(),
-                  },
-                  {
-                    label: t('translation|Documentation'),
-                    component: (
-                      <Box
-                        p={2}
-                        sx={{
-                          overflowY: 'auto',
-                          overflowX: 'hidden',
-                        }}
-                        maxHeight={600}
-                        height={600}
-                      >
-                        <DocsViewer docSpecs={docSpecs} />
-                      </Box>
-                    ),
-                  },
-                ]}
-              />
-            )}
-          </DialogContent>
-          <DialogActions>
-            {!isReadOnly() && (
-              <ConfirmButton
-                disabled={originalCodeRef.current.code === code.code}
-                color="secondary"
-                variant="contained"
-                aria-label={t('translation|Undo')}
-                onConfirm={onUndo}
-                confirmTitle={t('translation|Are you sure?')}
-                confirmDescription={t(
-                  'This will discard your changes in the editor. Do you want to proceed?'
-                )}
-                // @todo: aria-controls should point to the textarea id
-              >
-                {t('translation|Undo Changes')}
-              </ConfirmButton>
-            )}
-            <div style={{ flex: '1 0 0' }} />
-            {errorLabel && <Typography color="error">{errorLabel}</Typography>}
-            <div style={{ flex: '1 0 0' }} />
-            <Button onClick={onClose} color="secondary" variant="contained">
-              {t('translation|Close')}
-            </Button>
-            {!isReadOnly() && (
-              <Button
-                onClick={handleSave}
-                color="primary"
-                variant="contained"
-                disabled={originalCodeRef.current.code === code.code || !!error}
-                // @todo: aria-controls should point to the textarea id
-              >
-                {saveLabel || t('translation|Save & Apply')}
-              </Button>
-            )}
-          </DialogActions>
-        </React.Fragment>
-      )}
+      {content}
     </Dialog>
   );
 }

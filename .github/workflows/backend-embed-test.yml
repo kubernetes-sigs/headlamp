@@ -1,0 +1,81 @@
+name: Backend Embed Test
+
+on:
+  pull_request:
+    paths:
+    - 'backend/**'
+    - 'Makefile'
+    - '.github/workflows/backend-embed-test.yml'
+  push:
+    branches:
+      - main
+      - rc-*
+      - testing-rc-*
+    paths:
+    - 'backend/**'
+    - 'Makefile'
+    - '.github/workflows/backend-embed-test.yml'
+    
+permissions:
+  contents: read
+
+jobs:
+  test-embedded-binary:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        node-version: [20.x]
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+      with:
+        node-version: ${{ matrix.node-version }}
+    
+    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+      with:
+        go-version: '1.24.*'
+    
+    - name: Install frontend dependencies
+      run: |
+        cd frontend && npm ci
+    
+    - name: Build embeded backend binary
+      run: |
+        make backend-embed
+
+    - name: Test embedded binary
+      run: |
+        cd backend
+        # Start the server in background
+        ./headlamp-server --base-url /headlamp --port 4466 --listen-addr 127.0.0.1 &
+        SERVER_PID=$!
+        
+        # Wait for server to start
+        sleep 10
+        
+        # Test if server is responding with 200 and the response has headlampBaseUrl set to /headlamp
+        response_code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:4466/headlamp/index.html || echo "000")
+        if [ "$response_code" = "200" ]; then
+          echo "✅ Server is responding correctly with HTTP 200"
+          echo "Response: $response_code"
+        else
+          echo "❌ Server not responding correctly. HTTP status: $response_code"
+          exit 1
+        fi
+
+        # Test if the response is a valid HTML file
+        response_body=$(curl -s http://127.0.0.1:4466/headlamp/)
+        if echo "$response_body" | grep -q "DOCTYPE html" || echo "$response_body" | grep -q "<html"; then
+          echo "✅ Response is a valid HTML file"
+        else
+          echo "❌ Response is not a valid HTML file"
+          exit 1
+        fi
+        
+        # Clean up
+        kill $SERVER_PID || true
+        wait $SERVER_PID 2>/dev/null || true
+        
+        echo "✅ Embedded binary test completed successfully"

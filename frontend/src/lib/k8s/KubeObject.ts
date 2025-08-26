@@ -15,26 +15,24 @@
  */
 
 import { JSONPath } from 'jsonpath-plus';
-import { cloneDeep, unset } from 'lodash';
+import cloneDeep from 'lodash/cloneDeep';
+import unset from 'lodash/unset';
 import React, { useMemo } from 'react';
 import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../cluster';
-import { createRouteURL } from '../router';
+import { createRouteURL } from '../router/createRouteURL';
 import { timeAgo } from '../util';
 import { useConnectApi, useSelectedClusters } from '.';
-import { RecursivePartial } from './api/v1/factories';
+import { post } from './api/v1/clusterRequests';
+import type { DeleteParameters } from './api/v1/deleteParameters';
+import type { RecursivePartial } from './api/v1/factories';
+import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
+import type { QueryParameters } from './api/v1/queryParameters';
+import type { ApiError } from './api/v2/ApiError';
 import { useKubeObject } from './api/v2/hooks';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
-import {
-  ApiError,
-  apiFactory,
-  apiFactoryWithNamespace,
-  DeleteParameters,
-  post,
-  QueryParameters,
-} from './apiProxy';
-import { KubeEvent } from './event';
-import { KubeMetadata } from './KubeMetadata';
+import type { KubeEvent } from './event';
+import type { KubeMetadata } from './KubeMetadata';
 
 function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
   if (!cluster) {

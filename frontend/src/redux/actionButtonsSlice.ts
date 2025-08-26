@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import type { PayloadAction } from '@reduxjs/toolkit';
+import { createSlice } from '@reduxjs/toolkit';
 import { get, set } from 'lodash';
-import { ReactElement, ReactNode } from 'react';
-import { KubeObject } from '../lib/k8s/KubeObject';
+import type { ReactElement, ReactNode } from 'react';
+import type { KubeObject } from '../lib/k8s/KubeObject';
 
 export type HeaderActionType = ((...args: any[]) => ReactNode) | null | ReactElement | ReactNode;
 export type DetailsViewFunc = HeaderActionType;
