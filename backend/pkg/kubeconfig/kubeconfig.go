@@ -969,7 +969,7 @@ func GetInClusterContext(oidcIssuerURL string,
 
 // Func type for context filter, if the func return true,
 // the context will be skipped otherwise the context will be used.
-type shouldBeSkippedFunc = func(kubeContext Context) bool
+type ShouldBeSkippedFunc = func(kubeContext Context) bool
 
 // AllowAllKubeContext will keep all contexts.
 func AllowAllKubeContext(_ Context) bool {
@@ -980,7 +980,7 @@ func AllowAllKubeContext(_ Context) bool {
 // whose names are in the given comma-separated string.
 // For example, if pass the "a,b" for blackKubeContextNameStr,
 // the contexts named "a" and "b" will be skipped.
-func SkipKubeContextInCommaSeparatedString(blackKubeContextNameStr string) shouldBeSkippedFunc {
+func SkipKubeContextInCommaSeparatedString(blackKubeContextNameStr string) ShouldBeSkippedFunc {
 	blackKubeContextNameList := strings.Split(blackKubeContextNameStr, ",")
 	blackKubeContextNameMap := map[string]bool{}
 
@@ -999,7 +999,7 @@ func SkipKubeContextInCommaSeparatedString(blackKubeContextNameStr string) shoul
 // Note: No need to remove contexts from the store, since
 // adding a context with the same name will overwrite the old one.
 func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, source int,
-	ignoreFunc shouldBeSkippedFunc,
+	ignoreFunc ShouldBeSkippedFunc,
 ) error {
 	var errs []error //nolint:prealloc
 
