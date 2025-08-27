@@ -165,3 +165,22 @@ func SetHeader(cacheData CachedResponseData, w http.ResponseWriter) {
 	w.Header().Set("X-HEADLAMP-CACHE", "true")
 	w.WriteHeader(cacheData.StatusCode)
 }
+
+const gzipEncoding = "gzip"
+
+// FilterHeaderForCache ensures that the cached headers accurately reflect the state of the
+// decompressed body that is being stored, and prevents client side decompression
+// issues serving from cache.
+func FilterHeaderForCache(responseHeaders http.Header, encoding string) http.Header {
+	cacheHeader := make(http.Header)
+
+	for idx, header := range responseHeaders {
+		if strings.EqualFold(idx, "Content-Encoding") && encoding == gzipEncoding {
+			continue
+		}
+
+		cacheHeader[idx] = append(cacheHeader[idx], header...)
+	}
+
+	return cacheHeader
+}
