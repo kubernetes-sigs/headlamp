@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -193,6 +194,61 @@ func TestGetAPIGroup(t *testing.T) {
 			assert.Equal(t, tc.expectedAPIGroup, apiGroup)
 			assert.Equal(t, tc.expectedError, err)
 			assert.Equal(t, tc.expectedVersion, version)
+		})
+	}
+}
+
+// TestExtractNamespace verifies namespace extraction from different kinds
+// of URLs, including valid, empty, and malformed ones.
+func TestExtractNamespace(t *testing.T) {
+	tests := []struct {
+		name       string
+		urlPath    url.URL
+		namespaces string
+		kind       string
+	}{
+		{
+			name:       "return empty namespaces",
+			urlPath:    url.URL{Path: "/clusters/kind-kind/api/v1/pods"},
+			namespaces: "",
+			kind:       "pods",
+		},
+		{
+			name:       "return namespace and kind",
+			urlPath:    url.URL{Path: "/clusters/kind-kind/api/v1/namespaces/test-namespace/pods"},
+			namespaces: "test-namespace",
+			kind:       "pods",
+		},
+		{
+			name:       "two namespaces in the url",
+			urlPath:    url.URL{Path: "/api/v1/namespaces/foo/services/namespaces/bar/pods"},
+			namespaces: "foo",
+			kind:       "pods",
+		},
+		{
+			name:       "cluster-scoped resource with query string",
+			urlPath:    url.URL{Path: "/api/v1/pods?label=app=nginx"},
+			namespaces: "",
+			kind:       "pods",
+		},
+		{
+			name:       "malformed path with only namespaces",
+			urlPath:    url.URL{Path: "/api/v1/namespaces"},
+			namespaces: "",
+			kind:       "namespaces",
+		},
+		{
+			name:       "valid namespaced resource with trailing slash",
+			urlPath:    url.URL{Path: "/api/v1/namespaces/dev/services/"},
+			namespaces: "dev",
+			kind:       "services",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			namespace, kind := k8cache.ExtractNamespace(tc.urlPath.Path)
+			assert.Equal(t, tc.namespaces, namespace)
+			assert.Equal(t, tc.kind, kind)
 		})
 	}
 }

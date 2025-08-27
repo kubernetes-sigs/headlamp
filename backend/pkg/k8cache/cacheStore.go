@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-
 	"strings"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -85,4 +84,32 @@ func GetAPIGroup(path string) (apiGroup, version string, err error) {
 	}
 
 	return
+}
+
+// ExtractNamespace extracts the namespace from the parameter from the given raw URL. This is used to make
+// cache key more specific to a particular namespace.
+func ExtractNamespace(rawURL string) (string, string) {
+	if idx := strings.Index(rawURL, "?"); idx != -1 {
+		rawURL = rawURL[:idx]
+	}
+
+	rawURL = strings.TrimSuffix(rawURL, "/")
+
+	var namespace, kind string
+
+	urls := strings.Split(rawURL, "/")
+	n := len(urls)
+
+	for i := 0; i < n-1; i++ {
+		if urls[i] == "namespaces" {
+			namespace = urls[i+1]
+			break
+		}
+	}
+
+	if len(urls) > 2 {
+		kind = urls[n-1]
+	}
+
+	return namespace, kind
 }
