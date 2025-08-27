@@ -306,3 +306,52 @@ func TestGenerateKey(t *testing.T) {
 		})
 	}
 }
+
+// TestUnMarshallCacheData tests whether the resource Data unserialized correctly.
+// It contains different test cases where the inputs empty , valid and invalid.
+func TestUnMarshallCacheData(t *testing.T) {
+	tests := []struct {
+		name                   string
+		cacheResource          string
+		cacheData              k8cache.CachedResponseData
+		expectedCachedResponse k8cache.CachedResponseData
+		expectedError          error
+	}{
+		{
+			name:          "cache Resource is valid",
+			cacheResource: `{"key": "1234" , "body":"testing-data"}`,
+			cacheData:     k8cache.CachedResponseData{},
+			expectedCachedResponse: k8cache.CachedResponseData{
+				Body: "testing-data",
+			},
+			expectedError: nil,
+		},
+		{
+			name:                   "cache Resource input is valid but cacheResponse is empty",
+			cacheResource:          `{"key" :"1234" , "value": "testing-data"}`,
+			cacheData:              k8cache.CachedResponseData{},
+			expectedCachedResponse: k8cache.CachedResponseData{},
+			expectedError:          nil,
+		},
+		{
+			name:                   "cache Resource is invalid",
+			cacheResource:          "testing-string",
+			cacheData:              k8cache.CachedResponseData{},
+			expectedCachedResponse: k8cache.CachedResponseData{},
+			expectedError:          errors.New("invalid character 'e' in literal true (expecting 'r')"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := k8cache.UnmarshalCacheData(tc.cacheResource)
+			assert.Equal(t, tc.expectedCachedResponse, result)
+
+			if err != nil {
+				assert.ErrorContains(t, err, tc.expectedError.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
