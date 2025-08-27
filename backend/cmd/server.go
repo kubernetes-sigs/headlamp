@@ -36,7 +36,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var k8scache = cache.New[string]()
+var k8sResponseCache = cache.New[string]()
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "list-plugins" {
@@ -145,6 +145,10 @@ func GetContextKeyAndKContext(w http.ResponseWriter,
 // authorizing user , store resource data in cache and returns data if key is present.
 func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
+		if !c.CacheEnabled {
+			return next
+		}
+
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if k8cache.SkipWebSocket(r, next, w) {
 				return
@@ -155,7 +159,7 @@ func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 				return
 			}
 
-			if err := k8cache.HandleNonGETCacheInvalidation(k8scache, w, r, next, contextKey); err != nil {
+			if err := k8cache.HandleNonGETCacheInvalidation(k8sResponseCache, w, r, next, contextKey); err != nil {
 				c.handleError(w, ctx, span, err, "error while invalidating keys", http.StatusInternalServerError)
 				return
 			}
@@ -170,7 +174,7 @@ func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 
 			isAllowed, authErr := k8cache.IsAllowed(kContext, r)
 			if authErr != nil {
-				k8cache.ServeFromCacheOrForwardToK8s(k8scache, isAllowed, next, key, w, r, rcw)
+				k8cache.ServeFromCacheOrForwardToK8s(k8sResponseCache, isAllowed, next, key, w, r, rcw)
 
 				return
 			} else if !isAllowed && k8cache.IsAuthBypassURL(r.URL.Path) {
@@ -179,7 +183,7 @@ func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 				return
 			}
 
-			served, err := k8cache.LoadFromCache(k8scache, isAllowed, key, w, r)
+			served, err := k8cache.LoadFromCache(k8sResponseCache, isAllowed, key, w, r)
 			if err != nil {
 				c.handleError(w, ctx, span, errors.New(kContext.Error), "failed to load from cache", http.StatusServiceUnavailable)
 			}
@@ -189,11 +193,11 @@ func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 				return
 			}
 
-			k8cache.CheckForChanges(k8scache, contextKey, *kContext)
+			k8cache.CheckForChanges(k8sResponseCache, contextKey, *kContext)
 
 			next.ServeHTTP(rcw, r)
 
-			err = k8cache.StoreK8sResponseInCache(k8scache, r.URL, rcw, r, key)
+			err = k8cache.StoreK8sResponseInCache(k8sResponseCache, r.URL, rcw, r, key)
 			if err != nil {
 				c.handleError(w, ctx, span, errors.New(kContext.Error), "error while storing into cache", http.StatusBadRequest)
 				return

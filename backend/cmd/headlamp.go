@@ -1431,14 +1431,8 @@ func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 	http.Error(w, err.Error(), status)
 }
 
-// handleClusterAPI handles cluster API requests. It is responsible for
-// all the requests made to /clusters/{clusterName}/{api:.*} endpoint.
-// It parses the request and creates a proxy request to the cluster.
-// That proxy is saved in the cache with the context key.
-func handleClusterAPI(c *HeadlampConfig, router *mux.Router) { //nolint:funlen
-	router.HandleFunc("/clusters/{clusterName}/set-token", c.handleSetToken).Methods("POST")
-
-	router.PathPrefix("/clusters/{clusterName}/{api:.*}").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		ctx := r.Context()
 
@@ -1513,6 +1507,21 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) { //nolint:funlen
 			c.telemetryHandler.RecordEvent(span, "Cluster API request completed")
 		}
 	})
+}
+
+// handleClusterAPI handles cluster API requests. It is responsible for
+// all the requests made to /clusters/{clusterName}/{api:.*} endpoint.
+// It parses the request and creates a proxy request to the cluster.
+// That proxy is saved in the cache with the context key.
+func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
+	router.HandleFunc("/clusters/{clusterName}/set-token", c.handleSetToken).Methods("POST")
+
+	handler := clusterRequestHandler(c)
+	if c.CacheEnabled {
+		handler = CacheMiddleWare(c)(handler)
+	}
+
+	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(handler)
 }
 
 func recordRequestCompletion(c *HeadlampConfig, ctx context.Context,
