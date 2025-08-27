@@ -252,3 +252,57 @@ func TestExtractNamespace(t *testing.T) {
 		})
 	}
 }
+
+// TestGenerateKey ensures the generated key is valid for both normal
+// and empty cluster name scenarios.
+func TestGenerateKey(t *testing.T) {
+	tests := []struct {
+		name        string
+		urlPath     url.URL
+		contextKey  string
+		expectedKey string
+		expectedErr error
+	}{
+		{
+			name:        "key with non-empty apiGroup, kind, namespace, contextId",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/k8s.metrics.io/v1beta1/namespaces/test-kube/pods"},
+			contextKey:  "kind-kind",
+			expectedKey: "k8s.metrics.io+pods+test-kube+kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "key with empty apiGroup",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/api/v1/namespaces/test-kube/pods"},
+			contextKey:  "kind-kind",
+			expectedKey: "+pods+test-kube+kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "key with empty apiGroup and namespace",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/api/v1/pods"},
+			contextKey:  "kind-kind",
+			expectedKey: "+pods++kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "invalid url format",
+			urlPath:     url.URL{Path: "/clusters/kind-kind"},
+			contextKey:  "kind-kind",
+			expectedKey: "",
+			expectedErr: errors.New("invalid url format"),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			key, err := k8cache.GenerateKey(&tc.urlPath, tc.contextKey)
+
+			if tc.expectedErr != nil {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErr.Error())
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedKey, key)
+			}
+		})
+	}
+}

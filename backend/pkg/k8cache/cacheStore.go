@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -112,4 +113,27 @@ func ExtractNamespace(rawURL string) (string, string) {
 	}
 
 	return namespace, kind
+}
+
+// GenerateKey function helps to generate a unique key based on the request from the client
+// The function accepts url( which includes all the information of request ) and contextID which
+// helps to differentiate in multiple contexts.
+func GenerateKey(url *url.URL, contextID string) (string, error) {
+	namespace, kind := ExtractNamespace(url.Path)
+
+	apiGroup, _, err := GetAPIGroup(url.Path)
+	if err != nil {
+		return "", err
+	}
+
+	k := CacheKey{
+		Kind:      kind,
+		Namespace: namespace,
+		Context:   contextID,
+	}
+
+	// Create a stable representation
+	raw := fmt.Sprintf("%s+%s+%s+%s", apiGroup, k.Kind, k.Namespace, k.Context)
+
+	return raw, nil
 }
