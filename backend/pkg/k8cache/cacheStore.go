@@ -22,13 +22,16 @@ package k8cache
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
@@ -183,4 +186,77 @@ func FilterHeaderForCache(responseHeaders http.Header, encoding string) http.Hea
 	}
 
 	return cacheHeader
+}
+
+// LoadFromCache checks if a cached resource exists and the user has permission to view it.
+// If found, it writes the cached data to the ResponseWriter and returns (true, nil).
+// If not found or on error, it returns (false, error).
+func LoadFromCache(k8scache cache.Cache[string], isAllowed bool,
+	key string, w http.ResponseWriter, r *http.Request,
+) (bool, error) {
+	k8Resource, err := k8scache.Get(context.Background(), key)
+	if err == nil && strings.TrimSpace(k8Resource) != "" && isAllowed {
+		var cachedData CachedResponseData
+
+		cachedData, err := UnmarshalCacheData(k8Resource)
+		if err != nil {
+			return false, err
+		}
+
+		SetHeader(cachedData, w)
+		_, writeErr := w.Write([]byte(cachedData.Body))
+
+		if writeErr != nil {
+			return false, writeErr
+		}
+
+		logger.Log(logger.LevelInfo, nil, nil, "serving from the cache with key "+key)
+
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// StoreK8sResponseInCache ensures if the key was not found inside the cache then this will make actual call to k8's
+// and this will capture the response body and convert the captured response to string.
+// After converting it will store the response with the key and TTL of 10*min.
+func StoreK8sResponseInCache(k8scache cache.Cache[string],
+	url *url.URL,
+	rcw *ResponseCapture,
+	r *http.Request,
+	key string,
+) error {
+	capturedHeaders := rcw.Header()
+	encoding := capturedHeaders.Get("Content-Encoding")
+	bodyBytes := rcw.Body.Bytes()
+
+	dcmpBody, err := GetResponseBody(bodyBytes, encoding)
+	if err != nil {
+		return err
+	}
+
+	headersToCache := FilterHeaderForCache(capturedHeaders, encoding)
+	if !strings.Contains(url.Path, "selfsubjectrulesreviews") {
+		cachedData := CachedResponseData{
+			StatusCode: rcw.StatusCode,
+			Headers:    headersToCache,
+			Body:       dcmpBody,
+		}
+
+		jsonBytes, err := json.Marshal(cachedData)
+		if err != nil {
+			return err
+		}
+
+		if !strings.Contains(string(jsonBytes), "Failure") {
+			if err = k8scache.SetWithTTL(context.Background(), key, string(jsonBytes), 10*time.Minute); err != nil {
+				return err
+			}
+
+			logger.Log(logger.LevelInfo, nil, nil, "k8s resource was stored with the key "+key)
+		}
+	}
+
+	return nil
 }

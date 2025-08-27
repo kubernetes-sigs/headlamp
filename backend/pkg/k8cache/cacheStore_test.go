@@ -436,3 +436,65 @@ func TestFilterToCache(t *testing.T) {
 		})
 	}
 }
+
+// TestLoadFromCache tests whether the cache data is being served to the
+// client correctly.
+func TestLoadFromCache(t *testing.T) {
+	tests := []struct {
+		name          string
+		key           string
+		isLoaded      bool
+		value         string
+		urlObj        *url.URL
+		expectedError error
+	}{
+		{
+			name:          "Served from cache",
+			key:           "test-key",
+			value:         `{"Body":"from_cache","StatusCode":200}`,
+			urlObj:        &url.URL{Path: "/api/v1/pods"},
+			isLoaded:      true,
+			expectedError: nil,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCache := NewMockCache()
+			err := mockCache.SetWithTTL(context.Background(), tc.key, tc.value, 0)
+			assert.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodGet, tc.urlObj.Path, nil)
+			isLoaded, err := k8cache.LoadFromCache(mockCache, tc.isLoaded, tc.key, w, r)
+			assert.Equal(t, tc.isLoaded, isLoaded)
+			assert.NoError(t, err)
+		})
+	}
+}
+
+// TestStoreK8sResponseInCache tests whether the cache storing the response data.
+func TestStoreK8sResponseInCache(t *testing.T) {
+	tests := []struct {
+		name          string
+		urlObj        *url.URL
+		key           string
+		expectedError error
+	}{
+		{
+			name:          "valid workflow",
+			urlObj:        &url.URL{Path: "/api/v1/pods"},
+			key:           "1234",
+			expectedError: nil,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rw := httptest.NewRecorder()
+			rcw := k8cache.NewResponseCapture(rw)
+			r := httptest.NewRequest(http.MethodGet, tc.urlObj.Path, nil)
+			newCache := NewMockCache()
+			err := k8cache.StoreK8sResponseInCache(newCache, tc.urlObj, rcw, r, tc.key)
+			assert.NoError(t, err)
+		})
+	}
+}
