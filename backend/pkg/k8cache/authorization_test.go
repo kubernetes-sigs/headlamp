@@ -15,8 +15,10 @@ package k8cache_test
 
 import (
 	"fmt"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
@@ -97,6 +99,67 @@ func TestGetClientSet(t *testing.T) {
 			} else {
 				assert.Equal(t, tc.expectedError, err)
 			}
+		})
+	}
+}
+
+func TestGetKindAndVerb(t *testing.T) {
+	tests := []struct {
+		name         string
+		method       string
+		urlPath      string
+		muxVars      map[string]string
+		expectedKind string
+		expectedVerb string
+	}{
+		{
+			name:         "Core API with no trailing slash",
+			method:       "GET",
+			urlPath:      "/api/v1/pods",
+			muxVars:      map[string]string{"api": "api/v1/pods"},
+			expectedKind: "pods",
+			expectedVerb: "get",
+		},
+		{
+			name:         "Named API with trailing slash",
+			method:       "GET",
+			urlPath:      "/apis/apps/v1/deployments/",
+			muxVars:      map[string]string{"api": "apis/apps/v1/deployments"},
+			expectedKind: "deployments",
+			expectedVerb: "get",
+		},
+		{
+			name:         "POST request",
+			method:       "POST",
+			urlPath:      "/api/v1/pods",
+			muxVars:      map[string]string{"api": "api/v1/pods"},
+			expectedKind: "pods",
+			expectedVerb: "unknown",
+		},
+		{
+			name:         "Watch request for a named API",
+			method:       "GET",
+			urlPath:      "/apis/apps/v1/deployments?watch=1",
+			muxVars:      map[string]string{"api": "apis/apps/v1/deployments"},
+			expectedKind: "deployments",
+			expectedVerb: "watch",
+		},
+		{
+			name:         "Watch query set to 0 (false)",
+			method:       "GET",
+			urlPath:      "/apis/apps/v1/deployments?watch=0",
+			muxVars:      map[string]string{"api": "apis/apps/v1/deployments"},
+			expectedKind: "deployments",
+			expectedVerb: "get",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.urlPath, nil)
+			req = mux.SetURLVars(req, tc.muxVars)
+			kind, verb := k8cache.GetKindAndVerb(req)
+			assert.Equal(t, tc.expectedKind, kind)
+			assert.Equal(t, tc.expectedVerb, verb)
 		})
 	}
 }

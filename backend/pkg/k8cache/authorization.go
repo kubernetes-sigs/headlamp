@@ -21,9 +21,12 @@ package k8cache
 
 import (
 	"fmt"
+	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"k8s.io/client-go/kubernetes"
 )
@@ -61,4 +64,33 @@ func GetClientSet(k *kubeconfig.Context, token string) (*kubernetes.Clientset, e
 	clientsetCache[cacheKey] = cs
 
 	return cs, nil
+}
+
+// GetKindAndVerb extracts the Kubernetes resource kind and intended verb (e.g., get, watch)
+// from the incoming HTTP request.
+func GetKindAndVerb(r *http.Request) (string, string) {
+	apiPath, ok := mux.Vars(r)["api"]
+	if !ok || apiPath == "" {
+		return "", "unknown"
+	}
+
+	parts := strings.Split(apiPath, "/")
+	last := parts[len(parts)-1]
+
+	var kubeVerb string
+
+	isWatch, _ := strconv.ParseBool(r.URL.Query().Get("watch"))
+
+	switch r.Method {
+	case "GET":
+		if isWatch {
+			kubeVerb = "watch"
+		} else {
+			kubeVerb = "get"
+		}
+	default:
+		kubeVerb = "unknown"
+	}
+
+	return last, kubeVerb
 }
