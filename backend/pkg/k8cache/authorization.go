@@ -27,7 +27,9 @@ import (
 	"sync"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -141,4 +143,24 @@ func IsAllowed(
 	}
 
 	return result.Status.Allowed, err
+}
+
+// ServeFromCacheOrForwardToK8s attempts to serve a Kubernetes resource from cache.
+// If no cached value is found (or `isAllowed` is false), it forwards the request
+// to the next handler and stores the response in the cache for future requests.
+func ServeFromCacheOrForwardToK8s(k8scache cache.Cache[string], isAllowed bool, next http.Handler, key string,
+	w http.ResponseWriter, r *http.Request, rcw *ResponseCapture,
+) {
+	served, _ := LoadFromCache(k8scache, isAllowed, key, w, r)
+	if served {
+		return
+	}
+
+	next.ServeHTTP(rcw, r)
+
+	err := StoreK8sResponseInCache(k8scache, r.URL, rcw, r, key)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "error while storing in the cache")
+		return
+	}
 }
