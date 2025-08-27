@@ -28,6 +28,9 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	authorizationv1 "k8s.io/api/authorization/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -93,4 +96,49 @@ func GetKindAndVerb(r *http.Request) (string, string) {
 	}
 
 	return last, kubeVerb
+}
+
+// IsAllowed checks the user's permission to access the resource.
+// If the user is authorized and has permission to view the resources, it returns true.
+// Otherwise, it returns false if authorization fails.
+func IsAllowed(
+	k *kubeconfig.Context,
+	r *http.Request,
+) (bool, error) {
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	token = strings.TrimSpace(token)
+
+	clientset, err := GetClientSet(k, token)
+	if err != nil {
+		return false, err
+	}
+
+	last, kubeVerb := GetKindAndVerb(r)
+	if last == "" || kubeVerb == "" {
+		return false, fmt.Errorf("could not determine resource or verb from request")
+	}
+
+	review := &authorizationv1.SelfSubjectAccessReview{
+		Spec: authorizationv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{
+				Resource: last,
+				Verb:     kubeVerb,
+			},
+		},
+	}
+
+	result, err := clientset.AuthorizationV1().SelfSubjectAccessReviews().Create(
+		r.Context(),
+		review,
+		metav1.CreateOptions{},
+	)
+	if err != nil {
+		return false, err
+	}
+
+	if result == nil {
+		return false, fmt.Errorf("nil SelfSubjectAccessReview result")
+	}
+
+	return result.Status.Allowed, err
 }

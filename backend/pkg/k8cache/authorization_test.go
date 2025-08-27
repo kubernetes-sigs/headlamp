@@ -15,7 +15,9 @@ package k8cache_test
 
 import (
 	"fmt"
+	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/gorilla/mux"
@@ -160,6 +162,50 @@ func TestGetKindAndVerb(t *testing.T) {
 			kind, verb := k8cache.GetKindAndVerb(req)
 			assert.Equal(t, tc.expectedKind, kind)
 			assert.Equal(t, tc.expectedVerb, verb)
+		})
+	}
+}
+
+func TestIsAllowed(t *testing.T) {
+	tests := []struct {
+		name      string
+		urlObj    *url.URL
+		token     string
+		mockK     MockKubeConfig
+		isAllowed bool
+	}{
+		{
+			name:   "user is not allowed",
+			urlObj: &url.URL{Path: "/clusters/kind-headlamp-admin/api/v1/pods"},
+			token:  "token-example",
+			mockK: MockKubeConfig{
+				&kubeconfig.Context{
+					ClusterID: "/home/saurav/.kubeconfig+kind-headlamp-admin",
+					Cluster: &api.Cluster{
+						Server: "https://example.com",
+					},
+					AuthInfo: &api.AuthInfo{
+						Token: "abcdef",
+					},
+					KubeContext: &api.Context{
+						Cluster: "kind-headlamp-admin",
+					},
+				},
+			},
+			isAllowed: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, tc.urlObj.Path, nil)
+
+			_, err := tc.mockK.ClientSetWithToken(tc.token)
+			_, _ = tc.mockK.ClientConfig()
+
+			assert.NoError(t, err)
+
+			isAllowed, _ := k8cache.IsAllowed(tc.mockK.Context, r)
+			assert.Equal(t, tc.isAllowed, isAllowed)
 		})
 	}
 }
