@@ -154,3 +154,14 @@ func UnmarshalCacheData(cacheResource string,
 
 	return cachedData, nil
 }
+
+// SetHeader function help to serve response from cache to ensure the client
+// receives correct metadata about the response.
+func SetHeader(cacheData CachedResponseData, w http.ResponseWriter) {
+	for idx, header := range cacheData.Headers {
+		w.Header()[idx] = header
+	}
+
+	w.Header().Set("X-HEADLAMP-CACHE", "true")
+	w.WriteHeader(cacheData.StatusCode)
+}
