@@ -26,6 +26,8 @@ import (
 	"io"
 	"net/http"
 
+	"strings"
+
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
@@ -62,4 +64,25 @@ func GetResponseBody(bodyBytes []byte, encoding string) (string, error) {
 	}
 
 	return string(dcmpBody), nil
+}
+
+// GetAPIGroup parses the URL path and returns the apiGroup and version.
+func GetAPIGroup(path string) (apiGroup, version string, err error) {
+	parts := strings.Split(path, "/")
+
+	if len(parts) < 4 {
+		return "", "", fmt.Errorf("invalid url format")
+	}
+
+	if parts[3] == "api" {
+		// Core API group
+		apiGroup = ""
+		version = parts[4]
+	} else if parts[3] == "apis" {
+		// Named API group
+		apiGroup = parts[4]
+		version = parts[5]
+	}
+
+	return
 }

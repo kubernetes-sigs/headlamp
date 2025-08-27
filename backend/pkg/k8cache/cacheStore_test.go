@@ -18,6 +18,7 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -150,6 +151,48 @@ func TestGetResponseBody(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.expectedBody, body)
 			}
+		})
+	}
+}
+
+// TestGetAPIGroup tests whether the GetAPIGroup returning correct
+// apiGroup and version from the URL.
+func TestGetAPIGroup(t *testing.T) {
+	tests := []struct {
+		name             string
+		urlPath          string
+		expectedAPIGroup string
+		expectedVersion  string
+		expectedError    error
+	}{
+		{
+			name:             "return non-empty apiGroup and version",
+			urlPath:          "/clusters/kind-kind/apis/metrics.k8s.io/v1beta1/pods",
+			expectedAPIGroup: "metrics.k8s.io",
+			expectedVersion:  "v1beta1",
+			expectedError:    nil,
+		},
+		{
+			name:             "return empty apiGroup",
+			urlPath:          "/clusters/kind-kind/api/v1/pods",
+			expectedAPIGroup: "",
+			expectedVersion:  "v1",
+			expectedError:    nil,
+		},
+		{
+			name:             "invalid url format",
+			urlPath:          "/clusters/kind-kind",
+			expectedAPIGroup: "",
+			expectedVersion:  "",
+			expectedError:    fmt.Errorf("invalid url format"),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			apiGroup, version, err := k8cache.GetAPIGroup(tc.urlPath)
+			assert.Equal(t, tc.expectedAPIGroup, apiGroup)
+			assert.Equal(t, tc.expectedError, err)
+			assert.Equal(t, tc.expectedVersion, version)
 		})
 	}
 }
