@@ -40,6 +40,7 @@ import { themeSlice } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
 import { getAppUrl } from '../helpers/getAppUrl';
 import { isElectron } from '../helpers/isElectron';
+import i18next from '../i18n/config';
 import * as K8s from '../lib/k8s';
 import * as ApiProxy from '../lib/k8s/apiProxy';
 import * as Crd from '../lib/k8s/crd';
@@ -49,6 +50,8 @@ import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
 import { Headlamp, Plugin } from './lib';
+import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
+import { useTranslation } from './pluginI18n';
 import { PluginInfo } from './pluginsSlice';
 import Registry, * as registryToExport from './registry';
 import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
@@ -94,6 +97,7 @@ window.pluginLib = {
   Notification,
   Headlamp,
   Plugin,
+  useTranslation,
   ...registryToExport,
 };
 
@@ -482,7 +486,28 @@ export async function fetchAndExecutePlugins(
   });
 
   infoForRunningPlugins.forEach(runPluginInner);
+
+  // Initialize plugin i18n after plugins are loaded
+  await initializePluginsI18n(packageInfos, pluginPaths);
+
   await afterPluginsRun(pluginsLoaded);
+}
+
+/**
+ * Initialize i18n for all plugins that have i18n configuration
+ */
+async function initializePluginsI18n(packageInfos: PluginInfo[], pluginPaths: string[]) {
+  for (let i = 0; i < packageInfos.length; i++) {
+    const packageInfo = packageInfos[i];
+    const pluginPath = pluginPaths[i];
+
+    await initializePluginI18n(packageInfo.name, packageInfo, pluginPath);
+  }
+
+  // Set up language change synchronization
+  i18next.on('languageChanged', language => {
+    changePluginLanguage(language);
+  });
 }
 
 /**

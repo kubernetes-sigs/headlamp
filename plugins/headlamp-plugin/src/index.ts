@@ -27,6 +27,7 @@ import * as Notification from './lib/notification';
 import * as Router from './lib/router';
 import * as Utils from './lib/util';
 import { Headlamp, Plugin } from './plugin/lib';
+import { getSupportedLocales, isLocaleSupported, useTranslation } from './plugin/pluginI18n';
 import { PluginSettingsDetailsProps } from './plugin/pluginsSlice';
 import Registry, {
   AppLogoProps,
@@ -101,6 +102,9 @@ export {
   registerUIPanel,
   registerAppTheme,
   registerKubeObjectGlance,
+  useTranslation,
+  isLocaleSupported,
+  getSupportedLocales,
 };
 
 export type {

@@ -494,4 +494,5 @@
   "registerSidebarEntryFilter": [Function],
   "registerUIPanel": [Function],
   "runCommand": [Function],
+  "useTranslation": [Function],
 }
