@@ -32,21 +32,17 @@
 // Some packages are used by headlamp-plugin that are not used by the frontend.
 // These won't be removed from headlamp-plugin/package.json
 const dependenciesFrontDoesNotHave = new Set([
-  'ajv',
   'env-paths',
   'shx',
   'fs-extra',
   'validate-npm-package-name',
   'yargs',
-  'vm-browserify',
   'table',
   'tar',
-  'tmp',
   'vite-plugin-css-injected-by-js',
   'vite-plugin-static-copy',
   '@storybook/addon-webpack5-compiler-swc',
   '@storybook/react-webpack5',
-  'is-mergeable-object',
   'ts-loader',
   '@headlamp-k8s/pluginctl',
 ]);
@@ -65,6 +61,14 @@ const dependenciesToNotCopy = [
   '@rsbuild/plugin-node-polyfill',
   '@rsbuild/plugin-react',
   '@rsbuild/plugin-svgr',
+  'nock',
+  'vitest-websocket-mock',
+  'cross-env',
+  'fake-indexeddb',
+  'lint-staged',
+  'openapi-types',
+  'resize-observer-polyfill',
+  'vitest-canvas-mock',
 ];
 
 const yargs = require('yargs/yargs');

@@ -40,6 +40,7 @@ export default function StatefulSetList() {
         {
           id: 'pods',
           label: t('Pods'),
+          disableFiltering: true,
           getValue: statefulSet => renderPods(statefulSet),
           gridTemplate: 'min-content',
         },

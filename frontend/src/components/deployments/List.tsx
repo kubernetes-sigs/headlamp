@@ -84,6 +84,7 @@ export default function DeploymentsList() {
         {
           id: 'pods',
           label: t('Pods'),
+          disableFiltering: true,
           getValue: deployment => deployment.status.availableReplicas,
           render: deployment => renderPods(deployment),
           sort: sortByPods,

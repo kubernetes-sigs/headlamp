@@ -64,6 +64,7 @@ export default function IngressList() {
         {
           id: 'class',
           label: t('Class Name'),
+          filterVariant: 'multi-select',
           getValue: ingress => ingress.spec?.ingressClassName,
           render: ingress =>
             ingress.spec?.ingressClassName ? (

@@ -34,6 +34,7 @@ export default function GatewayList() {
         {
           id: 'class',
           label: t('Class Name'),
+          filterVariant: 'multi-select',
           getValue: gateway => gateway.spec?.gatewayClassName,
           render: gateway =>
             gateway.spec?.gatewayClassName ? (

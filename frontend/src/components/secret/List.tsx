@@ -33,6 +33,7 @@ export default function SecretList() {
           id: 'type',
           label: t('translation|Type'),
           gridTemplate: 'min-content',
+          filterVariant: 'multi-select',
           getValue: secret => secret.type,
         },
         {

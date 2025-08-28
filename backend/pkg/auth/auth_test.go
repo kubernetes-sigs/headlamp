@@ -17,6 +17,8 @@ limitations under the License.
 package auth_test
 
 import (
+	"context"
+	"net/http"
 	"reflect"
 	"testing"
 
@@ -85,6 +87,88 @@ func TestDecodeBase64JSON(t *testing.T) {
 
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("DecodeBase64JSON() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+var parseClusterAndTokenTests = []struct {
+	name        string
+	url         string
+	authHeader  string
+	wantCluster string
+	wantToken   string
+}{
+	{
+		name:        "standard case",
+		url:         "/clusters/test-cluster/api",
+		authHeader:  "Bearer test-token",
+		wantCluster: "test-cluster",
+		wantToken:   "test-token",
+	},
+	{
+		name:        "lowercase bearer",
+		url:         "/clusters/abc/api",
+		authHeader:  "bearer token-lowercase",
+		wantCluster: "abc",
+		wantToken:   "token-lowercase",
+	},
+	{
+		name:        "uppercase bearer",
+		url:         "/clusters/xyz/api",
+		authHeader:  "BEARER token-upper",
+		wantCluster: "xyz",
+		wantToken:   "token-upper",
+	},
+	{
+		name:        "extra spaces before bearer",
+		url:         "/clusters/extra/api",
+		authHeader:  "   Bearer  spaced-token",
+		wantCluster: "extra",
+		wantToken:   "spaced-token",
+	},
+	{
+		name:        "not a clusters path",
+		url:         "/no-clusters-prefix/api",
+		authHeader:  "Bearer test-token",
+		wantCluster: "",
+		wantToken:   "test-token",
+	},
+	{
+		name:        "multiple bearer tokens",
+		url:         "/clusters/test/api",
+		authHeader:  "Bearer xxx, Bearer yyy",
+		wantCluster: "test",
+		wantToken:   "",
+	},
+	{
+		name:        "no cluster in path",
+		url:         "/clusters/",
+		authHeader:  "Bearer some-token",
+		wantCluster: "",
+		wantToken:   "some-token",
+	},
+}
+
+func TestParseClusterAndToken(t *testing.T) {
+	for _, tt := range parseClusterAndTokenTests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequestWithContext(context.Background(), "GET", tt.url, nil)
+			if err != nil {
+				t.Fatalf("ParseClusterAndToken() error = %v", err)
+			}
+
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
+			}
+
+			cluster, token := auth.ParseClusterAndToken(req)
+			if cluster != tt.wantCluster {
+				t.Errorf("ParseClusterAndToken() got cluster %q, want %q", cluster, tt.wantCluster)
+			}
+
+			if token != tt.wantToken {
+				t.Errorf("ParseClusterAndToken() got token = %q, want %q", token, tt.wantToken)
 			}
 		})
 	}

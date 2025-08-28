@@ -1,6 +1,7 @@
 package config
 
 import (
+	"crypto/x509"
 	"errors"
 	"flag"
 	"fmt"
@@ -42,6 +43,8 @@ type Config struct {
 	OidcValidatorIdpIssuerURL string `koanf:"oidc-validator-idp-issuer-url"`
 	OidcScopes                string `koanf:"oidc-scopes"`
 	OidcUseAccessToken        bool   `koanf:"oidc-use-access-token"`
+	OidcSkipTLSVerify         bool   `koanf:"oidc-skip-tls-verify"`
+	OidcCAFile                string `koanf:"oidc-ca-file"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -59,6 +62,25 @@ func (c *Config) Validate() error {
 		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
 		return errors.New(`oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, oidc-validator-client-id, 
 		oidc-validator-idp-issuer-url, flags are only meant to be used in inCluster mode`)
+	}
+
+	// OIDC TLS verification warning.
+	if c.OidcSkipTLSVerify {
+		logger.Log(logger.LevelWarn, nil, nil, "oidc-skip-tls-verify is set, this is not safe for production")
+	}
+
+	// OIDC CA file validation.
+	if c.OidcCAFile != "" {
+		// Check if the file is a valid PEM file.
+		caFileContents, err := os.ReadFile(c.OidcCAFile)
+		if err != nil {
+			return fmt.Errorf("error reading oidc-ca-file: %w", err)
+		}
+
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caFileContents) {
+			return errors.New("invalid oidc-ca-file")
+		}
 	}
 
 	if c.BaseURL != "" && !strings.HasPrefix(c.BaseURL, "/") {
@@ -261,6 +283,8 @@ func flagset() *flag.FlagSet {
 	f.String("oidc-validator-idp-issuer-url", "", "Override Identity provider issuer URL for OIDC during validation")
 	f.String("oidc-scopes", "profile,email",
 		"A comma separated list of scopes needed from the OIDC provider")
+	f.Bool("oidc-skip-tls-verify", false, "Skip TLS verification for OIDC")
+	f.String("oidc-ca-file", "", "CA file for OIDC")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
 	// Telemetry flags.
 	f.String("service-name", "headlamp", "Service name for telemetry")

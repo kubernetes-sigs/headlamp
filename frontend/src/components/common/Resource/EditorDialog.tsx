@@ -50,6 +50,7 @@ import Loader from '../Loader';
 import Tabs from '../Tabs';
 import DocsViewer from './DocsViewer';
 import SimpleEditor from './SimpleEditor';
+import { UploadDialog } from './UploadDialog';
 
 type KubeObjectIsh = Partial<KubeObjectInterface>;
 
@@ -123,6 +124,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     'useSimpleEditor',
     false
   );
+  const [uploadFiles, setUploadFiles] = React.useState(false);
 
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
@@ -416,6 +418,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     <Loader title={t('Loading editor')} />
   ) : (
     <React.Fragment>
+      {uploadFiles ? <UploadDialog setUploadFiles={setUploadFiles} setCode={setCode} /> : ''}
       <DialogContent
         sx={{
           height: '80%',
@@ -461,6 +464,14 @@ export default function EditorDialog(props: EditorDialogProps) {
                   }
                   label={t('Use minimal editor')}
                 />
+                <Button
+                  variant="contained"
+                  onClick={() => {
+                    setUploadFiles(true);
+                  }}
+                >
+                  {t('translation|Upload File/URL')}
+                </Button>
               </FormGroup>
             </Grid>
           </Grid>

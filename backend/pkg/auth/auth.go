@@ -19,6 +19,9 @@ package auth
 import (
 	"encoding/base64"
 	"encoding/json"
+	"net/http"
+	"regexp"
+	"strings"
 )
 
 // DecodeBase64JSON decodes a base64 URL-encoded JSON string into a map.
@@ -34,4 +37,38 @@ func DecodeBase64JSON(base64JSON string) (map[string]interface{}, error) {
 	}
 
 	return payloadMap, nil
+}
+
+// clusterPathRegex matches /clusters/<cluster>/...
+var clusterPathRegex = regexp.MustCompile(`^/clusters/([^/]+)/.*`)
+
+// bearerTokenRegex matches valid bearer tokens as specified by RFC 6750:
+// https://datatracker.ietf.org/doc/html/rfc6750#section-2.1
+var bearerTokenRegex = regexp.MustCompile(`^[\x21-\x7E]+$`)
+
+// ParseClusterAndToken extracts the cluster name from the URL path and
+// the Bearer token from the Authorization header of the HTTP request.
+func ParseClusterAndToken(r *http.Request) (string, string) {
+	cluster := ""
+
+	matches := clusterPathRegex.FindStringSubmatch(r.URL.Path)
+	if len(matches) > 1 {
+		cluster = matches[1]
+	}
+
+	token := strings.TrimSpace(r.Header.Get("Authorization"))
+	if strings.Contains(token, ",") {
+		return cluster, ""
+	}
+
+	const bearerPrefix = "Bearer "
+	if strings.HasPrefix(strings.ToLower(token), strings.ToLower(bearerPrefix)) {
+		token = strings.TrimSpace(token[len(bearerPrefix):])
+	}
+
+	if token != "" && !bearerTokenRegex.MatchString(token) {
+		return cluster, ""
+	}
+
+	return cluster, token
 }

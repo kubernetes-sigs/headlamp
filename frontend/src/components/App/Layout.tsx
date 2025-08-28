@@ -172,6 +172,8 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
     if (config?.isDynamicClusterEnabled) {
       fetchStatelessClusterKubeConfigs(dispatch);
     }
+
+    return configToStore;
   });
 };
 

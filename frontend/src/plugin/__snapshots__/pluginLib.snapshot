@@ -471,6 +471,7 @@
   "registerClusterChooser": [Function],
   "registerClusterProviderDialog": [Function],
   "registerClusterProviderMenuItem": [Function],
+  "registerClusterStatus": [Function],
   "registerCustomCreateProject": [Function],
   "registerDetailsViewHeaderAction": [Function],
   "registerDetailsViewHeaderActionsProcessor": [Function],

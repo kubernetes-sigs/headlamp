@@ -62,9 +62,11 @@ import {
 } from '../redux/clusterActionSlice';
 import {
   addAddClusterProvider,
+  addClusterStatus,
   addDialog,
   addMenuItem,
   ClusterProviderInfo,
+  ClusterStatusComponent,
   DialogComponent,
   MenuItemComponent,
 } from '../redux/clusterProviderSlice';
@@ -868,6 +870,28 @@ export function registerKindIcon(kind: string, definition: IconDefinition) {
  */
 export function registerClusterProviderMenuItem(item: MenuItemComponent) {
   store.dispatch(addMenuItem(item));
+}
+
+/**
+ * Register a new cluster status component.
+ *
+ * @param item - The component to add to the cluster status.
+ * Item is a function/component and its props are cluster and error.
+ *
+ * @example
+ * ```tsx
+ * import { registerClusterStatus } from '@kinvolk/headlamp-plugin/lib';
+ * import { ClusterStatus } from './ClusterStatus';
+ * registerClusterStatus(({ cluster, error }) => {
+ *   if (!isElectron() || !isMinikube(cluster)) {
+ *     return null;
+ *   }
+ *   return <ClusterStatus cluster={cluster} error={error} />;
+ * });
+ * ```
+ */
+export function registerClusterStatus(item: ClusterStatusComponent) {
+  store.dispatch(addClusterStatus(item));
 }
 
 /**
