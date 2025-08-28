@@ -30,7 +30,7 @@ function DeployApp({ onBack }) {
         name: 'my-project',
         labels: {
           'headlamp.dev/project-id': 'my-project',
-        }
+        },
       },
     });
     onBack();
@@ -55,8 +55,89 @@ registerCustomCreateProject({
 registerProjectDetailsTab({
   id: 'my-tab',
   label: 'Metrics',
+  icon: 'mdi:chart-line',
   component: ({ project }) => <div>Metrics for project {project.name}</div>,
 });
+
+// Example of overriding a default tab - Replace the Access tab with custom content
+registerProjectDetailsTab({
+  id: 'headlamp-projects.tabs.access',
+  label: 'Custom Access',
+  icon: 'mdi:shield-account',
+  component: ({ project, projectResources }) => (
+    <div style={{ padding: '20px' }}>
+      <h2>Custom Access Management</h2>
+      <p>This is a custom implementation that replaces the default Access tab.</p>
+
+      <div
+        style={{
+          marginTop: '20px',
+          padding: '15px',
+          backgroundColor: '#f5f5f5',
+          borderRadius: '5px',
+        }}
+      >
+        <h3>Project Information</h3>
+        <p>
+          <strong>Project ID:</strong> {project.id}
+        </p>
+        <p>
+          <strong>Namespaces:</strong> {project.namespaces.join(', ')}
+        </p>
+        <p>
+          <strong>Clusters:</strong> {project.clusters.join(', ')}
+        </p>
+        <p>
+          <strong>Total Resources:</strong> {projectResources.length}
+        </p>
+      </div>
+
+      <div
+        style={{
+          marginTop: '20px',
+          padding: '15px',
+          backgroundColor: '#e8f5e8',
+          borderRadius: '5px',
+        }}
+      >
+        <h3>Custom Access Controls</h3>
+        <p>Here you could implement:</p>
+        <ul>
+          <li>Custom role management interface</li>
+          <li>Advanced permission controls</li>
+          <li>Integration with external identity providers</li>
+          <li>Custom access policies</li>
+        </ul>
+      </div>
+
+      <div
+        style={{
+          marginTop: '20px',
+          padding: '15px',
+          backgroundColor: '#fff3cd',
+          borderRadius: '5px',
+        }}
+      >
+        <h4>💡 Plugin Implementation Note</h4>
+        <p>
+          This tab completely replaces the default Access tab by using the same ID:
+          <code style={{ backgroundColor: '#f8f9fa', padding: '2px 4px' }}>
+            headlamp-projects.tabs.access
+          </code>
+        </p>
+      </div>
+    </div>
+  ),
+});
+
+// Example of removing a default tab by setting component to undefined
+// Uncomment the following to remove the Map tab entirely:
+// registerProjectDetailsTab({
+//   id: 'headlamp-projects.tabs.map',
+//   label: 'Map',
+//   icon: 'mdi:map',
+//   component: undefined,
+// });
 
 registerProjectOverviewSection({
   id: 'resource-usage',

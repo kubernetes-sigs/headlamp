@@ -49,9 +49,9 @@ export interface ProjectOverviewSection {
 
 export interface ProjectDetailsTab {
   id: string;
-  label: string;
+  label?: ReactNode;
   icon: string | ReactNode;
-  component: (props: { project: ProjectDefinition; projectResources: KubeObject[] }) => ReactNode;
+  component?: (props: { project: ProjectDefinition; projectResources: KubeObject[] }) => ReactNode;
 }
 
 export interface ProjectsState {
