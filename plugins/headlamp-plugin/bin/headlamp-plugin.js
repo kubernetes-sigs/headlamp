@@ -457,6 +457,16 @@ async function start() {
     config.build.sourcemap = 'inline';
   }
 
+  // Add support for REACT_APP_ / HEADLAMP_APP_ prefixed environment variables
+  if (!config.define) {
+    config.define = {};
+  }
+  Object.keys(process.env)
+    .filter(key => key.startsWith('REACT_APP_') || key.startsWith('HEADLAMP_APP_'))
+    .forEach(key => {
+      config.define[`import.meta.env.${key}`] = JSON.stringify(process.env[key]);
+    });
+
   // Add file copy hook to be executed after each build
   if (config.plugins) {
     config.plugins.push({
