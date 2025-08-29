@@ -190,7 +190,8 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
                 value={tab.id}
                 label={
                   <>
-                    {typeof tab.icon === 'string' ? <Icon icon={tab.icon} /> : tab.icon}
+                    {tab.icon &&
+                      (typeof tab.icon === 'string' ? <Icon icon={tab.icon} /> : tab.icon)}
                     <Typography>{tab.label}</Typography>
                   </>
                 }

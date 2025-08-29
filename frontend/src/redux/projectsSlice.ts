@@ -24,6 +24,15 @@ export interface ProjectDefinition {
   clusters: string[];
 }
 
+export type ProjectListProcessorFunction = (
+  currentProjects: ProjectDefinition[]
+) => ProjectDefinition[];
+
+export interface ProjectListProcessor {
+  id?: string;
+  processor: ProjectListProcessorFunction;
+}
+
 /** Define custom way to create new Projects */
 export interface CustomCreateProject {
   id: string;
@@ -49,7 +58,7 @@ export interface ProjectOverviewSection {
 export interface ProjectDetailsTab {
   id: string;
   label: string;
-  icon: string | ReactNode;
+  icon?: string | ReactNode;
   component: (props: { project: ProjectDefinition; projectResources: KubeObject[] }) => ReactNode;
 }
 
@@ -57,13 +66,36 @@ export interface ProjectsState {
   customCreateProject: Record<string, CustomCreateProject>;
   overviewSections: Record<string, ProjectOverviewSection>;
   detailsTabs: Record<string, ProjectDetailsTab>;
+  projectListProcessors: ProjectListProcessor[];
 }
 
 const initialState: ProjectsState = {
   customCreateProject: {},
   detailsTabs: {},
   overviewSections: {},
+  projectListProcessors: [],
 };
+
+/**
+ * Normalizes a project list processor by ensuring it has an 'id' and a processor function.
+ */
+function _normalizeProjectListProcessor(
+  action: PayloadAction<ProjectListProcessor | ProjectListProcessorFunction>
+): ProjectListProcessor {
+  let processor: ProjectListProcessor = action.payload as ProjectListProcessor;
+  if (typeof action.payload === 'function') {
+    processor = {
+      id: `generated-id-${Date.now().toString(36)}`,
+      processor: action.payload,
+    };
+  }
+
+  if (!processor.id) {
+    processor.id = `generated-id-${Date.now().toString(36)}`;
+  }
+
+  return processor;
+}
 
 const projectsSlice = createSlice({
   name: 'projects',
@@ -83,9 +115,22 @@ const projectsSlice = createSlice({
     addOverviewSection(state, action: PayloadAction<ProjectOverviewSection>) {
       state.overviewSections[action.payload.id] = action.payload;
     },
+
+    /** Register a project list processor */
+    addProjectListProcessor(
+      state,
+      action: PayloadAction<ProjectListProcessor | ProjectListProcessorFunction>
+    ) {
+      state.projectListProcessors.push(_normalizeProjectListProcessor(action));
+    },
   },
 });
 
-export const { addCustomCreateProject, addDetailsTab, addOverviewSection } = projectsSlice.actions;
+export const {
+  addCustomCreateProject,
+  addDetailsTab,
+  addOverviewSection,
+  addProjectListProcessor,
+} = projectsSlice.actions;
 
 export default projectsSlice.reducer;

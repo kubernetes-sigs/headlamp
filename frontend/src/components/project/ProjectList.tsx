@@ -19,9 +19,11 @@ import { Box, Button, Typography } from '@mui/material';
 import { groupBy, uniq } from 'lodash';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSelector } from 'react-redux';
 import { useClustersConf } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
 import { ProjectDefinition } from '../../redux/projectsSlice';
+import { RootState } from '../../redux/stores/store';
 import { StatusLabel } from '../common';
 import Link from '../common/Link';
 import Table, { TableColumn } from '../common/Table/Table';
@@ -29,7 +31,7 @@ import { NewProjectPopup } from './NewProjectPopup';
 import { getHealthIcon, getResourcesHealth, PROJECT_ID_LABEL } from './projectUtils';
 import { useProjectItems } from './useProjectResources';
 
-const useProjects = (): ProjectDefinition[] => {
+const useDefaultProjects = (): ProjectDefinition[] => {
   const clusterConf = useClustersConf();
   const clusters = Object.values(clusterConf ?? {});
 
@@ -51,6 +53,30 @@ const useProjects = (): ProjectDefinition[] => {
   );
 
   return projects;
+};
+
+const useProjects = (): ProjectDefinition[] => {
+  const defaultProjects = useDefaultProjects();
+  const projectListProcessors = useSelector(
+    (state: RootState) => state.projects.projectListProcessors
+  );
+
+  return useMemo(() => {
+    // Start with the default namespace-based projects
+    let projects = defaultProjects;
+
+    // Apply processors in order, each one can modify the project list
+    for (const processor of projectListProcessors) {
+      try {
+        projects = processor.processor(projects);
+      } catch (error) {
+        console.error(`Project List: Error in list processor ${processor.id}:`, error);
+      }
+    }
+
+    console.log('Final projects:', projects);
+    return projects;
+  }, [defaultProjects, projectListProcessors]);
 };
 
 export const useProject = (name: string) => {

@@ -95,8 +95,11 @@ import {
   addCustomCreateProject,
   addDetailsTab,
   addOverviewSection,
+  addProjectListProcessor,
   CustomCreateProject,
   ProjectDetailsTab,
+  ProjectListProcessor,
+  ProjectListProcessorFunction,
   ProjectOverviewSection,
 } from '../redux/projectsSlice';
 import { setRoute, setRouteFilter } from '../redux/routesSlice';
@@ -161,6 +164,7 @@ export type sectionFunc = (resource: KubeObject) => SectionFuncProps | null | un
 // @todo: HeaderActionType should be deprecated.
 export type DetailsViewHeaderActionType = HeaderActionType;
 export type DetailsViewHeaderActionsProcessor = HeaderActionsProcessor;
+export type { ProjectListProcessor, ProjectListProcessorFunction };
 
 export default class Registry {
   /**
@@ -1072,7 +1076,7 @@ export function registerCustomCreateProject(customCreateProject: CustomCreatePro
  * @param projectDetailsTab - The tab configuration to register
  * @param projectDetailsTab.id - Unique identifier for the tab
  * @param projectDetailsTab.label - Display label for the tab
- * @param projectDetailsTab.icon - Display icon for the tab
+ * @param projectDetailsTab.icon - Display icon for the tab (optional)
  * @param projectDetailsTab.component - React component to render in the tab content
  *
  * @example
@@ -1108,6 +1112,53 @@ export function registerProjectDetailsTab(projectDetailsTab: ProjectDetailsTab) 
  */
 export function registerProjectOverviewSection(projectOverviewSection: ProjectOverviewSection) {
   store.dispatch(addOverviewSection(projectOverviewSection));
+}
+
+/**
+ * Register a project list processor.
+ *
+ * This allows plugins to override or modify how projects are discovered and listed.
+ * Processors receive the current list of projects (from namespaces or previous processors)
+ * and can modify, filter, or extend the list as needed.
+ *
+ * @param processor - The processor function or processor object to register
+ *
+ * @example
+ * ```tsx
+ * import { registerProjectListProcessor } from '@kinvolk/headlamp-plugin/lib';
+ *
+ * // Add new projects while keeping existing ones
+ * registerProjectListProcessor((currentProjects) => {
+ *   const newProjects = [
+ *     {
+ *       id: 'my-custom-project',
+ *       namespaces: ['default', 'kube-system'],
+ *       clusters: ['cluster1']
+ *     }
+ *   ];
+ *
+ *   // Add only if the project doesn't already exist
+ *   const existingIds = currentProjects.map(p => p.id);
+ *   const projectsToAdd = newProjects.filter(p => !existingIds.includes(p.id));
+ *
+ *   return [...currentProjects, ...projectsToAdd];
+ * });
+ *
+ * // Object-based processor with ID
+ * registerProjectListProcessor({
+ *   id: 'custom-resource-projects',
+ *   processor: (currentProjects) => {
+ *     // Fetch projects from a Custom Resource or external API
+ *     const customProjects = getProjectsFromCustomResource();
+ *     return [...currentProjects, ...customProjects];
+ *   }
+ * });
+ * ```
+ */
+export function registerProjectListProcessor(
+  processor: ProjectListProcessor | ProjectListProcessorFunction
+) {
+  store.dispatch(addProjectListProcessor(processor));
 }
 
 export {
