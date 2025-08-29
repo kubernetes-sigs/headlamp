@@ -84,7 +84,7 @@ async function storeKubeconfigFromBackstage(kubeconfig: string) {
         await statelessFunctions.findAndReplaceKubeconfig(context.name, newKubeconfigBase64, true);
       }
     );
-
+    console.log('Promises', promises);
     // Wait for all kubeconfig operations to complete
     await Promise.all(promises);
   } catch (error) {
