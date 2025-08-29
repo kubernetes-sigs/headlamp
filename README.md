@@ -20,6 +20,11 @@ Headlamp was created to blend the traditional feature set of other web UIs/dashb
   <img src="https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/videos/headlamp_quick_run.gif" width="80%">
 </div>
 
+
+## TLS Backend Termination (NEW)
+
+Headlamp now supports optional TLS termination at the backend server. This allows you to terminate TLS either at the ingress (default) or directly at the Headlamp container, enabling use cases such as NGINX TLS passthrough and transport server. See [docs/development/tls.md](./docs/development/tls.md) for details and usage.
+
 ## Features
 
 - Vendor-independent / generic Kubernetes UI
