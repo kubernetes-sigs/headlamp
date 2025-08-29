@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Headlamp Backstage Integration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .controls {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .iframe-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Headlamp Backstage Integration</h1>
+            <p>Share your Backstage authentication token and kubeconfig with the Headlamp application.</p>
+        </div>
+
+        <div class="controls">
+            <div class="input-group">
+                <label for="backstageToken">Backstage Authentication Token:</label>
+                <input type="text" id="backstageToken" placeholder="Enter your Backstage auth token">
+            </div>
+            
+            <div class="input-group">
+                <label for="kubeconfig">Kubeconfig:</label>
+                <input type="text" id="kubeconfig" placeholder="Enter your kubeconfig content">
+            </div>
+
+            <div class="button-group">
+                <button onclick="shareBackstageToken()">Share Backstage Token</button>
+                <button onclick="shareKubeconfig()">Share Kubeconfig</button>
+                <button onclick="clearInputs()">Clear Inputs</button>
+            </div>
+
+            <div id="status" class="status" style="display: none;"></div>
+        </div>
+
+        <div class="iframe-container">
+            <h3>Headlamp Application</h3>
+            <iframe 
+                id="headlampIframe" 
+                src="http://localhost:4466/api/headlamp/"
+                title="Headlamp Application">
+            </iframe>
+        </div>
+    </div>
+
+    <script>
+        const iframeRef = document.getElementById('headlampIframe');
+        const targetOrigin = 'http://localhost:4466/api/headlamp';
+
+        function showStatus(message, isSuccess = true) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${isSuccess ? 'success' : 'error'}`;
+            statusDiv.style.display = 'block';
+            
+            // Hide status after 3 seconds
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        function shareBackstageToken() {
+            const token = document.getElementById('backstageToken').value.trim();
+            
+            if (!token) {
+                showStatus('Please enter a Backstage authentication token', false);
+                return;
+            }
+
+            try {
+                iframeRef.contentWindow.postMessage(
+                    {
+                        type: 'BACKSTAGE_AUTH_TOKEN',
+                        payload: { token: token },
+                    },
+                    targetOrigin,
+                );
+                showStatus('Backstage token shared successfully!');
+            } catch (error) {
+                showStatus('Error sharing Backstage token: ' + error.message, false);
+            }
+        }
+
+        function shareKubeconfig() {
+            const kubeconfig = document.getElementById('kubeconfig').value.trim();
+            
+            if (!kubeconfig) {
+                showStatus('Please enter a kubeconfig', false);
+                return;
+            }
+
+            try {
+                iframeRef.contentWindow.postMessage(
+                    {
+                        type: 'BACKSTAGE_KUBECONFIG',
+                        payload: { kubeconfig: kubeconfig },
+                    },
+                    targetOrigin,
+                );
+                showStatus('Kubeconfig shared successfully!');
+            } catch (error) {
+                showStatus('Error sharing kubeconfig: ' + error.message, false);
+            }
+        }
+
+        function clearInputs() {
+            document.getElementById('backstageToken').value = '';
+            document.getElementById('kubeconfig').value = '';
+            showStatus('Inputs cleared');
+        }
+
+        // Listen for messages from the iframe (optional)
+        window.addEventListener('message', function(event) {
+            if (event.origin !== targetOrigin) {
+                return; // Ignore messages from other origins
+            }
+            
+            console.log('Message received from iframe:', event.data);
+        });
+
+        // Check if iframe is loaded
+        iframeRef.addEventListener('load', function() {
+            console.log('Headlamp iframe loaded successfully');
+        });
+
+        iframeRef.addEventListener('error', function() {
+            showStatus('Error loading Headlamp iframe. Please check if the service is running on localhost:4466', false);
+        });
+    </script>
+</body>
+</html>

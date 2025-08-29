@@ -53,6 +53,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/portforward"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/attribute"
@@ -109,64 +110,10 @@ type clientConfig struct {
 	IsDynamicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
 }
 
-type spaHandler struct {
-	staticPath string
-	indexPath  string
-	baseURL    string
-}
-
 type OauthConfig struct {
 	Config   *oauth2.Config
 	Verifier *oidc.IDTokenVerifier
 	Ctx      context.Context
-}
-
-func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if strings.Contains(r.URL.Path, "..") {
-		http.Error(w, "Contains unexpected '..'", http.StatusBadRequest)
-		return
-	}
-
-	absStaticPath, err := filepath.Abs(h.staticPath)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "getting absolute static path")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	// Clean the path to prevent directory traversal
-	path := filepath.Clean(r.URL.Path)
-	path = strings.TrimPrefix(path, h.baseURL)
-
-	// prepend the path with the path to the static directory
-	path = filepath.Join(absStaticPath, path)
-
-	// This is defensive, for preventing using files outside of the staticPath
-	// if in the future we touch the code.
-	absPath, err := filepath.Abs(path)
-	if err != nil || !strings.HasPrefix(absPath, absStaticPath) {
-		http.Error(w, "Invalid file name (file to serve is outside of the static dir!)", http.StatusBadRequest)
-		return
-	}
-
-	// check whether a file exists at the given path
-	_, err = os.Stat(path)
-	if os.IsNotExist(err) {
-		// file does not exist, serve index.html
-		http.ServeFile(w, r, filepath.Join(absStaticPath, h.indexPath))
-		return
-	} else if err != nil {
-		// if we got an error (that wasn't that the file doesn't exist) stating the
-		// file, return a 500 internal server error and stop
-		logger.Log(logger.LevelError, nil, err, "stating file")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	// The file does exist, so we serve that.
-	http.ServeFile(w, r, path)
 }
 
 // returns True if a file exists.
@@ -801,17 +748,19 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	})
 
 	// Serve the frontend if needed
-	if config.StaticDir != "" {
+	if spa.UseEmbeddedFiles {
+		r.PathPrefix("/").Handler(spa.NewEmbeddedHandler(spa.StaticFilesEmbed, "index.html", config.BaseURL))
+	} else if config.StaticDir != "" {
 		staticPath := config.StaticDir
 
 		if isWindows {
-			// We supPort unix paths on windows. So "frontend/static" works.
+			// We support unix paths on windows. So "frontend/static" works.
 			if strings.Contains(config.StaticDir, "/") {
 				staticPath = filepath.FromSlash(config.StaticDir)
 			}
 		}
 
-		spa := spaHandler{staticPath: staticPath, indexPath: "index.html", baseURL: config.BaseURL}
+		spa := spa.NewHandler(staticPath, "index.html", config.BaseURL)
 		r.PathPrefix("/").Handler(spa)
 
 		http.Handle("/", r)
