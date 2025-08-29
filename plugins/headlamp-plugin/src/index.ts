@@ -45,6 +45,7 @@ import Registry, {
   registerClusterChooser,
   registerClusterProviderDialog,
   registerClusterProviderMenuItem,
+  registerCustomCreateProject,
   registerDetailsViewHeaderAction,
   registerDetailsViewHeaderActionsProcessor,
   registerDetailsViewSection,
@@ -53,6 +54,8 @@ import Registry, {
   registerKubeObjectGlance,
   registerMapSource,
   registerPluginSettings,
+  registerProjectDetailsTab,
+  registerProjectOverviewSection,
   registerResourceTableColumnsProcessor,
   registerRoute,
   registerRouteFilter,
@@ -101,6 +104,9 @@ export {
   registerUIPanel,
   registerAppTheme,
   registerKubeObjectGlance,
+  registerCustomCreateProject,
+  registerProjectDetailsTab,
+  registerProjectOverviewSection,
 };
 
 export type {
