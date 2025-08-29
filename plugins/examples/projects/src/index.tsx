@@ -18,6 +18,7 @@ import {
   ApiProxy,
   registerCustomCreateProject,
   registerProjectDetailsTab,
+  registerProjectListProcessor,
   registerProjectOverviewSection,
 } from '@kinvolk/headlamp-plugin/lib';
 
@@ -55,10 +56,34 @@ registerCustomCreateProject({
 registerProjectDetailsTab({
   id: 'my-tab',
   label: 'Metrics',
-  component: ({ project }) => <div>Metrics for project {project.name}</div>,
+  icon: 'mdi:chart-line',
+  component: ({ project }) => <div>Metrics for project {project.id}</div>,
 });
 
 registerProjectOverviewSection({
   id: 'resource-usage',
-  component: ({ project }) => <div>Custom resource usage for project {project.name}</div>,
+  component: ({ project }) => <div>Custom resource usage for project {project.id}</div>,
+});
+
+// Example 1: Extend the project list with additional projects
+// This keeps the existing namespace-based projects and adds new ones
+registerProjectListProcessor((currentProjects) => {
+  const newProjects = [
+    {
+      id: 'example-project-1',
+      namespaces: ['default', 'kube-system'],
+      clusters: ['cluster1']
+    },
+    {
+      id: 'example-project-2',
+      namespaces: ['example-ns'],
+      clusters: ['cluster1', 'cluster2']
+    }
+  ];
+
+  // Only add projects that don't already exist
+  const existingIds = currentProjects.map(p => p.id);
+  const projectsToAdd = newProjects.filter(p => !existingIds.includes(p.id));
+
+  return [...currentProjects, ...projectsToAdd];
 });
