@@ -237,7 +237,7 @@ export function PodListRenderer(props: PodListProps) {
           gridTemplate: 'min-content',
           filterVariant: 'multi-select',
           label: t('translation|Status'),
-          getValue: pod => getPodStatus(pod) + '/' + pod.getDetailedStatus().reason,
+          getValue: pod => pod.getDetailedStatus().reason,
           render: makePodStatusLabel,
         },
         ...(metrics?.length

@@ -416,7 +416,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               id: 'namespace',
               header: t('glossary|Namespace'),
               gridTemplate: 'auto',
-              accessorFn: (item: RowItem) => item.getNamespace() ?? '',
+              accessorFn: (item: RowItem) => item.getNamespace() ?? '(cluster-wide)',
               filterVariant: 'multi-select',
               Cell: ({ row }: { row: MRT_Row<RowItem> }) =>
                 row.original?.getNamespace() ? (
