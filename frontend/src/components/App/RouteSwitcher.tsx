@@ -149,10 +149,16 @@ interface AuthRouteProps {
 }
 
 function AuthRoute(props: AuthRouteProps) {
-  const { children, sidebar, requiresAuth = true, requiresCluster = true, ...other } = props;
-
+  const {
+    children,
+    sidebar,
+    requiresAuth = true,
+    requiresCluster = true,
+    computedMatch = {},
+    ...other
+  } = props;
   const redirectRoute = getCluster() ? 'login' : 'chooser';
-  useSidebarItem(sidebar);
+  useSidebarItem(sidebar, computedMatch);
   const cluster = useCluster();
   const query = useQuery({
     queryKey: ['auth', cluster],
