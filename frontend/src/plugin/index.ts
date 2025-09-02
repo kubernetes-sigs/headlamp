@@ -435,7 +435,7 @@ export async function fetchAndExecutePlugins(
               secrets['runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js'];
           }
 
-          if (isPackage['aks-plugin']) {
+          if (isPackage['aks-desktop']) {
             secretsToReturn['runCmd-az'] = secrets['runCmd-az'];
             secretsToReturn['runCmd-kubectl'] = secrets['runCmd-kubectl'];
           }
@@ -469,7 +469,7 @@ export async function fetchAndExecutePlugins(
             ];
           }
 
-          if (isPackage['aks-plugin']) {
+          if (isPackage['aks-desktop']) {
             function pluginRunCommand(
               command: 'az' | 'kubectl',
               args: string[],

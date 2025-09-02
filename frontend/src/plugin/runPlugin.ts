@@ -190,16 +190,16 @@ export function identifyPackages(
   // For artifacthub installed packages, the package name is the folder name.
   const pluginPaths: Record<string, string[]> = {
     '@headlamp-k8s/minikube': ['plugins/headlamp_minikube', 'plugins/headlamp_minikubeprerelease'],
-    'aks-plugin': ['plugins/aks-plugin'],
+    'aks-desktop': ['plugins/aks-desktop'],
   };
   if (isDevelopmentMode) {
     pluginPaths['@headlamp-k8s/minikube'][pluginPaths['@headlamp-k8s/minikube'].length] =
       'plugins/minikube';
-    pluginPaths['aks-plugin'][pluginPaths['aks-plugin'].length] = 'plugins/aks-plugin';
+    pluginPaths['aks-desktop'][pluginPaths['aks-desktop'].length] = 'plugins/aks-desktop';
   }
   const pluginPackageNames: Record<string, string[]> = {
     '@headlamp-k8s/minikube': ['@headlamp-k8s/minikube', '@headlamp-k8s/minikubeprerelease'],
-    'aks-plugin': ['aks-plugin'],
+    'aks-desktop': ['aks-desktop'],
   };
   const isPackage: Record<string, boolean> = {};
   for (const key in pluginPaths) {
