@@ -38,7 +38,7 @@
     "beforeBuild": "./scripts/build-backend.js",
     "afterPack": "./scripts/after-pack.js",
     "asar": false,
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "artifactName": "${name}-${version}-${os}-${arch}.${ext}",
     "protocols": {
       "name": "headlamp-protocol",
       "schemes": [
