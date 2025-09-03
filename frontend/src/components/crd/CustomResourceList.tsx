@@ -26,8 +26,9 @@ import { ResourceTableColumn, ResourceTableProps } from '../common/Resource/Reso
 
 export default function CustomResourceList() {
   const { t } = useTranslation(['glossary', 'translation']);
-  const { crd: crdName } = useParams<{ crd: string }>();
-  const [crd, error] = CRD.useGet(crdName);
+  const { group, crd: crdName } = useParams<{ group: string; crd: string }>();
+  const fullCrdName = `${crdName}.${group}`;
+  const [crd, error] = CRD.useGet(fullCrdName);
 
   if (!crd && !error) {
     return <Loader title={t('translation|Loading custom resource definition')} />;
@@ -62,8 +63,9 @@ function CustomResourceLink(props: {
       sx={{ cursor: 'pointer' }}
       routeName="customresource"
       params={{
+        group: crd.spec.group,
+        crd: crd.spec.names.plural,
         crName: resource.metadata.name,
-        crd: crd.metadata.name,
         namespace: resource.metadata.namespace || '-',
       }}
       activeCluster={resource.cluster}

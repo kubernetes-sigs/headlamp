@@ -37,6 +37,7 @@ export default function CustomResourceDetailsFromURL() {
 }
 
 export interface CustomResourceDetailsProps {
+  group: string;
   crd: string;
   crName: string;
   namespace: string;
@@ -44,13 +45,15 @@ export interface CustomResourceDetailsProps {
 }
 
 export function CustomResourceDetails({
+  group,
   crd: crdName,
   crName,
   namespace: ns,
   cluster,
 }: CustomResourceDetailsProps) {
   const { t } = useTranslation('glossary');
-  const [crd, error] = CustomResourceDefinition.useGet(crdName, undefined, { cluster });
+  const fullCrdName = `${crdName}.${group}`;
+  const [crd, error] = CustomResourceDefinition.useGet(fullCrdName, undefined, { cluster });
 
   const namespace = ns === '-' ? undefined : ns;
 
