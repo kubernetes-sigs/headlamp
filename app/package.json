@@ -161,7 +161,7 @@
     "@types/jest": "^29.5.14",
     "@types/node": "^22.14.0",
     "@types/semver": "^7.7.0",
-    "electron": "^31.2.0",
+    "electron": "^35.7.5",
     "electron-builder": "^24.13.3",
     "i18next-parser": "^9.0.0",
     "jest": "^29.7.0",
