@@ -35,6 +35,7 @@ import ConfigMap from '../../lib/k8s/configMap';
 import CronJob from '../../lib/k8s/cronJob';
 import Deployment from '../../lib/k8s/deployment';
 import Endpoints from '../../lib/k8s/endpoints';
+import EndpointSlice from '../../lib/k8s/endpointSlices';
 import Ingress from '../../lib/k8s/ingress';
 import Job from '../../lib/k8s/job';
 import { KubeObject, KubeObjectClass } from '../../lib/k8s/KubeObject';
@@ -92,6 +93,7 @@ const classes: KubeObjectClass[] = [
   ReplicaSet,
   PersistentVolumeClaim,
   Endpoints,
+  EndpointSlice,
   Ingress,
   ServiceAccount,
   Node,

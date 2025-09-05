@@ -21,6 +21,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import Endpoint from '../../lib/k8s/endpoints';
+import EndpointSlice from '../../lib/k8s/endpointSlices';
 import Service from '../../lib/k8s/service';
 import Empty from '../common/EmptyContent';
 import { ValueLabel } from '../common/Label';
@@ -40,9 +41,17 @@ export default function ServiceDetails(props: {
   const { t } = useTranslation(['glossary', 'translation']);
 
   const [endpoints, endpointsError] = Endpoint.useList({ namespace, cluster });
+  const [endpointSlices, endpointSlicesError] = EndpointSlice.useList({ namespace, cluster });
 
   function getOwnedEndpoints(item: Service) {
     return item ? endpoints?.filter(endpoint => endpoint.getName() === item.getName()) : null;
+  }
+  function getOwnedEndpointSlices(item: Service) {
+    return item
+      ? endpointSlices?.filter(
+          endpointSlice => endpointSlice.getOwnerServiceName() === item.getName()
+        )
+      : null;
   }
 
   return (
@@ -130,6 +139,45 @@ export default function ServiceDetails(props: {
                             ))}
                           </Box>
                         ),
+                      },
+                    ]}
+                    reflectInURL="endpoints"
+                  />
+                )}
+              </SectionBox>
+            ),
+          },
+          {
+            id: 'headlamp.service-endpointslices',
+            section: (
+              <SectionBox title={t('Endpoint Slices')}>
+                {endpointSlicesError ? (
+                  <Empty color="error">{endpointSlicesError.toString()}</Empty>
+                ) : (
+                  <SimpleTable
+                    data={getOwnedEndpointSlices(item) ?? null}
+                    columns={[
+                      {
+                        label: t('translation|Name'),
+                        getter: endpointSlice => <Link kubeObject={endpointSlice} />,
+                      },
+                      {
+                        label: t('translation|Addresses'),
+                        getter: endpointSlice => (
+                          <Box display="flex" flexDirection="column">
+                            {endpointSlice.spec.endpoints.map((endpoint: any) => (
+                              <ValueLabel>{endpoint.addresses.join(',')}</ValueLabel>
+                            ))}
+                          </Box>
+                        ),
+                      },
+                      {
+                        label: t('Ports'),
+                        getter: endpoint => endpoint.ports?.join(', '),
+                      },
+                      {
+                        label: t('translation|Address Type'),
+                        getter: endpoint => endpoint?.spec?.addressType ?? '',
                       },
                     ]}
                     reflectInURL="endpoints"

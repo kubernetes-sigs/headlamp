@@ -243,6 +243,7 @@ const namespacedClasses = [
   'Deployment',
   'Endpoint',
   'Endpoints',
+  'EndpointSlice',
   'GRPCRoute',
   'Gateway',
   'HorizontalPodAutoscaler',
