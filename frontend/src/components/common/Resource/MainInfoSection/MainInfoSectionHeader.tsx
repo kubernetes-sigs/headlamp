@@ -26,6 +26,7 @@ import {
 import { useTypedSelector } from '../../../../redux/hooks';
 import ErrorBoundary from '../../ErrorBoundary';
 import SectionHeader, { HeaderStyle } from '../../SectionHeader';
+import CopyButton from '../CopyButton';
 import DeleteButton from '../DeleteButton';
 import EditButton from '../EditButton';
 import { RestartButton } from '../RestartButton';
@@ -136,6 +137,7 @@ export function MainInfoHeader<T extends KubeObject>(props: MainInfoHeaderProps<
     <SectionHeader
       title={title || (resource ? `${resource.kind}: ${resource.getName()}` : '')}
       headerStyle={headerStyle}
+      titleSideActions={resource ? [<CopyButton text={resource?.getName()} />] : []}
       actions={allActions}
     />
   );
