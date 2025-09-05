@@ -108,6 +108,113 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// normalizeArgs skips the first arg for flag parsing.
+func normalizeArgs(args []string) []string {
+	if len(args) == 0 {
+		return []string{}
+	}
+
+	return args[1:]
+}
+
+// loadDefaultsFromFlags loads default flag values into koanf.
+func loadDefaultsFromFlags(k *koanf.Koanf, f *flag.FlagSet) error {
+	if err := k.Load(basicflag.Provider(f, "."), nil); err != nil {
+		logger.Log(logger.LevelError, nil, err, "loading default config from flags")
+
+		return fmt.Errorf("error loading default config from flags: %w", err)
+	}
+
+	return nil
+}
+
+// parseFlags parses command-line flags using the provided flagset.
+func parseFlags(f *flag.FlagSet, args []string) error {
+	if err := f.Parse(args); err != nil {
+		logger.Log(logger.LevelError, nil, err, "parsing flags")
+		return fmt.Errorf("error parsing flags: %w", err)
+	}
+
+	return nil
+}
+
+// recordExplicitFlags reloads only explicitly-set flag values to override env.
+func recordExplicitFlags(f *flag.FlagSet) map[string]bool {
+	explicitFlags := make(map[string]bool)
+
+	f.Visit(func(f *flag.Flag) {
+		explicitFlags[f.Name] = true
+	})
+
+	return explicitFlags
+}
+
+// loadConfigFromEnv loads config values from environment variables into koanf.
+func loadConfigFromEnv(k *koanf.Koanf) error {
+	err := k.Load(env.Provider("HEADLAMP_CONFIG_", ".", func(s string) string {
+		return strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(s, "HEADLAMP_CONFIG_")), "_", "-")
+	}), nil)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "loading config from env")
+		return fmt.Errorf("error loading config from env: %w", err)
+	}
+
+	return nil
+}
+
+// reloadExplicitFlags reloads only explicitly-set flag values to override env.
+func reloadExplicitFlags(k *koanf.Koanf, f *flag.FlagSet, explicitFlags map[string]bool) error {
+	err := k.Load(basicflag.ProviderWithValue(f, ".", func(key, value string) (string, interface{}) {
+		if explicitFlags[key] {
+			return key, value
+		}
+
+		return "", nil
+	}), nil)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "loading config from flags")
+		return fmt.Errorf("error loading config from flags: %w", err)
+	}
+
+	return nil
+}
+
+// unmarshalConfig unmarshals the config from koanf into our struct.
+func unmarshalConfig(k *koanf.Koanf, config *Config) error {
+	if err := k.Unmarshal("", config); err != nil {
+		logger.Log(logger.LevelError, nil, err, "unmarshalling config")
+		return fmt.Errorf("error unmarshal config: %w", err)
+	}
+
+	return nil
+}
+
+// patchWatchPluginsChanges disables plugin watching if running in-cluster and user didn't set the flag.
+func patchWatchPluginsChanges(config *Config, explicitFlags map[string]bool) {
+	if config.InCluster && !explicitFlags["watch-plugins-changes"] {
+		config.WatchPluginsChanges = false
+	}
+}
+
+// setKubeConfigPath sets the kubeconfig path if not set, using env or default.
+func setKubeConfigPath(config *Config) {
+	// If a specific path was set, use it. Otherwise, determine default.
+	if config.KubeConfigPath != "" {
+		return
+	}
+
+	if config.InCluster {
+		return
+	}
+
+	kubeConfigEnv := os.Getenv("KUBECONFIG")
+	if kubeConfigEnv != "" {
+		config.KubeConfigPath = kubeConfigEnv
+	} else {
+		config.KubeConfigPath = GetDefaultKubeConfigPath()
+	}
+}
+
 // Parse Loads the config from flags and env.
 // env vars should start with HEADLAMP_CONFIG_ and use _ as separator
 // If a value is set both in flags and env then flag takes priority.
@@ -116,7 +223,6 @@ func (c *Config) Validate() error {
 // go run ./cmd --port=3456
 // the value of port will be 3456.
 
-//nolint:funlen
 func Parse(args []string) (*Config, error) {
 	var config Config
 
@@ -124,95 +230,45 @@ func Parse(args []string) (*Config, error) {
 
 	k := koanf.New(".")
 
-	if args == nil {
-		args = []string{}
-	} else if len(args) > 0 {
-		args = args[1:]
-	}
+	args = normalizeArgs(args)
 
-	// First Load default args from flags
-	if err := k.Load(basicflag.Provider(f, "."), nil); err != nil {
-		logger.Log(logger.LevelError, nil, err, "loading default config from flags")
-
-		return nil, fmt.Errorf("error loading default config from flags: %w", err)
-	}
-
-	// Parse args
-	if err := f.Parse(args); err != nil {
-		logger.Log(logger.LevelError, nil, err, "parsing flags")
-
-		return nil, fmt.Errorf("error parsing flags: %w", err)
-	}
-
-	explicitFlags := make(map[string]bool)
-
-	// Record which flags were explicitly set by the user
-	f.Visit(func(f *flag.Flag) {
-		explicitFlags[f.Name] = true
-	})
-
-	// Load config from env
-	if err := k.Load(env.Provider("HEADLAMP_CONFIG_", ".", func(s string) string {
-		return strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(s, "HEADLAMP_CONFIG_")), "_", "-")
-	}), nil); err != nil {
-		logger.Log(logger.LevelError, nil, err, "loading config from env")
-
-		return nil, fmt.Errorf("error loading config from env: %w", err)
-	}
-
-	// Load only the flags that were set
-	if err := k.Load(basicflag.ProviderWithValue(f, ".", func(key string, value string) (string, interface{}) {
-		flagSet := false
-		f.Visit(func(f *flag.Flag) {
-			if f.Name == key {
-				flagSet = true
-			}
-		})
-		if flagSet {
-			return key, value
-		}
-		return "", nil
-	}), nil); err != nil {
-		logger.Log(logger.LevelError, nil, err, "loading config from flags")
-
-		return nil, fmt.Errorf("error loading config from flags: %w", err)
-	}
-
-	if err := k.Unmarshal("", &config); err != nil {
-		logger.Log(logger.LevelError, nil, err, "unmarshalling config")
-
-		return nil, fmt.Errorf("error unmarshal config: %w", err)
-	}
-
-	// If running in-cluster and the user did not explicitly set the watch flag,
-	// then force WatchPluginsChanges to false.
-	if config.InCluster && !explicitFlags["watch-plugins-changes"] {
-		config.WatchPluginsChanges = false
-	}
-
-	// Validate parsed config
-	if err := config.Validate(); err != nil {
-		logger.Log(logger.LevelError, nil, err, "validating config")
-
+	// 1. Load default flag values into koanf.
+	if err := loadDefaultsFromFlags(k, f); err != nil {
 		return nil, err
 	}
 
-	kubeConfigPath := ""
-
-	// If we don't have a specified kubeConfig path, and we are not running
-	// in-cluster, then use the default path.
-	if config.KubeConfigPath != "" {
-		kubeConfigPath = config.KubeConfigPath
-	} else if !config.InCluster {
-		kubeConfigEnv := os.Getenv("KUBECONFIG")
-		if kubeConfigEnv != "" {
-			kubeConfigPath = kubeConfigEnv
-		} else {
-			kubeConfigPath = GetDefaultKubeConfigPath()
-		}
+	// 2. Parse command-line arguments.
+	if err := parseFlags(f, args); err != nil {
+		return nil, err
 	}
 
-	config.KubeConfigPath = kubeConfigPath
+	// 3. Track explicitly set flags.
+	explicitFlags := recordExplicitFlags(f)
+
+	// 4. Load config from environment variables.
+	if err := loadConfigFromEnv(k); err != nil {
+		return nil, err
+	}
+
+	// 5. Reload explicitly-set flags to override env values.
+	if err := reloadExplicitFlags(k, f, explicitFlags); err != nil {
+		return nil, err
+	}
+
+	// 6. Unmarshal into config struct.
+	if err := unmarshalConfig(k, &config); err != nil {
+		return nil, err
+	}
+
+	// 7. Post-process: patch plugin flag and kubeconfig path.
+	patchWatchPluginsChanges(&config, explicitFlags)
+	setKubeConfigPath(&config)
+
+	// 8. Validate parsed config.
+	if err := config.Validate(); err != nil {
+		logger.Log(logger.LevelError, nil, err, "validating config")
+		return nil, err
+	}
 
 	return &config, nil
 }
