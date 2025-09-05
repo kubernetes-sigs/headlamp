@@ -68,8 +68,13 @@ import (
 	"golang.org/x/oauth2"
 )
 
+const strTrue = "true"
+
 type HeadlampConfig struct {
 	*headlampcfg.HeadlampCFG
+	EnableTLS                 bool   // Enable TLS termination at backend
+	TLSCertFile               string // Path to TLS certificate file
+	TLSKeyFile                string // Path to TLS private key file
 	oidcClientID              string
 	oidcValidatorClientID     string
 	oidcClientSecret          string
@@ -1120,37 +1125,58 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 }
 
 func StartHeadlampServer(config *HeadlampConfig) {
+	tel := setupTelemetry(config)
+	defer shutdownTelemetry(tel)
+
+	setupMetrics(config)
+
+	setupStaticDir(config)
+
+	handler := createHeadlampHandler(config)
+	handler = config.OIDCTokenRefreshMiddleware(handler)
+
+	addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
+
+	initTLSConfigFromEnv(config)
+
+	startServer(config, addr, handler)
+}
+
+// --- Helper functions ---
+
+func setupTelemetry(config *HeadlampConfig) *telemetry.Telemetry {
 	tel, err := telemetry.NewTelemetry(config.telemetryConfig)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to initialize telemetry")
 		os.Exit(1)
 	}
 
-	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+	config.Telemetry = tel
 
-		if err := tel.Shutdown(shutdownCtx); err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to properly shutdown telemetry")
-		}
-	}()
+	return tel
+}
 
+func shutdownTelemetry(tel *telemetry.Telemetry) {
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := tel.Shutdown(shutdownCtx); err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to properly shutdown telemetry")
+	}
+}
+
+func setupMetrics(config *HeadlampConfig) {
 	metrics, err := telemetry.NewMetrics()
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to initialize metrics")
 	}
 
-	config.Telemetry = tel
 	config.Metrics = metrics
-	config.telemetryHandler = telemetry.NewRequestHandler(tel, metrics)
 
-	router := mux.NewRouter()
+	config.telemetryHandler = telemetry.NewRequestHandler(config.Telemetry, metrics)
+}
 
-	if config.Telemetry != nil && config.Metrics != nil {
-		router.Use(telemetry.TracingMiddleware("headlamp-server"))
-		router.Use(config.Metrics.RequestCounterMiddleware)
-	}
-
+func setupStaticDir(config *HeadlampConfig) {
 	// Copy static files as squashFS is read-only (AppImage)
 	if config.StaticDir != "" {
 		dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
@@ -1167,17 +1193,37 @@ func StartHeadlampServer(config *HeadlampConfig) {
 
 		config.StaticDir = dir
 	}
+}
 
-	handler := createHeadlampHandler(config)
+func startServer(config *HeadlampConfig, addr string, handler http.Handler) {
+	// Use an http.Server with timeouts to avoid using ListenAndServe* directly
+	// which has no timeout configuration. This addresses the gosec G114 finding
+	// by providing explicit Read/Write/Idle timeouts on the server instance.
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      handler,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
 
-	handler = config.OIDCTokenRefreshMiddleware(handler)
+	if config.EnableTLS && config.TLSCertFile != "" && config.TLSKeyFile != "" {
+		logger.Log(logger.LevelInfo, nil, nil, "Starting Headlamp server with TLS on "+addr)
 
-	addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
+		err := srv.ListenAndServeTLS(config.TLSCertFile, config.TLSKeyFile)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "Failed to start TLS server")
+			HandleServerStartError(&err)
+		}
 
-	// Start server
-	if err := http.ListenAndServe(addr, handler); err != nil { //nolint:gosec
+		return
+	}
+
+	logger.Log(logger.LevelInfo, nil, nil, "Starting Headlamp server without TLS on "+addr)
+
+	err := srv.ListenAndServe()
+	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to start server")
-
 		HandleServerStartError(&err)
 	}
 }
@@ -1937,7 +1983,7 @@ func (c *HeadlampConfig) handleDeleteCluster(
 	span trace.Span,
 	name string,
 ) {
-	removeKubeConfig := r.URL.Query().Get("removeKubeConfig") == "true"
+	removeKubeConfig := r.URL.Query().Get("removeKubeConfig") == strTrue
 	if removeKubeConfig {
 		c.handleRemoveKubeConfig(w, r, ctx, span, name)
 		return
@@ -2471,4 +2517,22 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+// initTLSConfigFromEnv initializes HeadlampConfig with TLS options from environment variables.
+func initTLSConfigFromEnv(config *HeadlampConfig) {
+	// HEADLAMP_ENABLE_TLS: "true" to enable TLS
+	if os.Getenv("HEADLAMP_ENABLE_TLS") == strTrue {
+		config.EnableTLS = true
+	}
+
+	cert := os.Getenv("HEADLAMP_TLS_CERT_FILE")
+	if cert != "" {
+		config.TLSCertFile = cert
+	}
+
+	key := os.Getenv("HEADLAMP_TLS_KEY_FILE")
+	if key != "" {
+		config.TLSKeyFile = key
+	}
 }
