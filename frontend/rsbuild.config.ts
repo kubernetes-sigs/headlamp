@@ -25,7 +25,7 @@ export default defineConfig({
   html: {
     template: './index.html',
     templateParameters: {
-      BASE_URL: process.env.BASE_URL || './',
+      BASE_URL: process.env.BASE_URL || '/',
     },
   },
   server: {
