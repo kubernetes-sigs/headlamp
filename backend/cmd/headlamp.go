@@ -786,15 +786,6 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	return r
 }
 
-func getExpiryTime(payload map[string]interface{}) (time.Time, error) {
-	exp, ok := payload["exp"].(float64)
-	if !ok {
-		return time.Time{}, errors.New("expiry time not found or invalid")
-	}
-
-	return time.Unix(int64(exp), 0), nil
-}
-
 func isTokenAboutToExpire(token string) bool {
 	const tokenParts = 3
 
@@ -809,13 +800,14 @@ func isTokenAboutToExpire(token string) bool {
 		return false
 	}
 
-	expiryTime, err := getExpiryTime(payload)
+	expiryUnixTimeUTC, err := auth.GetExpiryUnixTimeUTC(payload)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "failed to get expiry time")
 		return false
 	}
 
-	return time.Until(expiryTime) <= JWTExpirationTTL
+	// This time comparison is timezone aware, so it works correctly
+	return time.Until(expiryUnixTimeUTC) <= JWTExpirationTTL
 }
 
 // configureTLSContext configures TLS settings for the HTTP client in the context.

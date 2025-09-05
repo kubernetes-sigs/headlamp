@@ -19,9 +19,11 @@ package auth
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // DecodeBase64JSON decodes a base64 URL-encoded JSON string into a map.
@@ -71,4 +73,19 @@ func ParseClusterAndToken(r *http.Request) (string, string) {
 	}
 
 	return cluster, token
+}
+
+// GetExpiryUnixTimeUTC expiration unix time UTC from a token payload map exp field.
+//
+// The exp field is UTC unix time in seconds.
+// See https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
+// See exp field: https://www.rfc-editor.org/rfc/rfc7519#section-4.1.4
+func GetExpiryUnixTimeUTC(tokenPayload map[string]interface{}) (time.Time, error) {
+	// Numbers in JSON are floats (54-bit)
+	exp, ok := tokenPayload["exp"].(float64)
+	if !ok {
+		return time.Time{}, errors.New("expiry time not found or invalid")
+	}
+
+	return time.Unix(int64(exp), 0).UTC(), nil
 }

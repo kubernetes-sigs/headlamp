@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 )
@@ -169,6 +170,111 @@ func TestParseClusterAndToken(t *testing.T) {
 
 			if token != tt.wantToken {
 				t.Errorf("ParseClusterAndToken() got token = %q, want %q", token, tt.wantToken)
+			}
+		})
+	}
+}
+
+var berlinLocation = func() *time.Location {
+	loc, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		panic(err)
+	}
+	return loc
+}()
+
+var getExpiryUnixTimeUTCTests = []struct {
+	name         string
+	tokenPayload map[string]interface{}
+	want         time.Time
+	wantDate     time.Time // a time in a different format to cross check
+	expectError  bool
+}{
+	{
+		name: "valid expiry time",
+		tokenPayload: map[string]interface{}{
+			"exp": float64(1609459200), // 2021-01-01 00:00:00 UTC
+		},
+		want:        time.Unix(1609459200, 0).UTC(),
+		wantDate:    time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC),
+		expectError: false,
+	},
+	{
+		name: "cross check UTC handling is working, compare to UTC + 1 TZ",
+		tokenPayload: map[string]interface{}{
+			"exp": float64(1609459200), // 2021-01-01 00:00:00 UTC
+		},
+		want:        time.Unix(1609459200, 0).UTC(),
+		wantDate:    time.Date(2021, 1, 1, 1, 0, 0, 0, berlinLocation), // 2021-01-01 01:00:00 CET
+		expectError: false,
+	},
+	{
+		name: "missing exp field",
+		tokenPayload: map[string]interface{}{
+			"other_field": "value",
+		},
+		want:        time.Time{},
+		wantDate:    time.Time{},
+		expectError: true,
+	},
+	{
+		name: "invalid exp field type - string",
+		tokenPayload: map[string]interface{}{
+			"exp": "1609459200",
+		},
+		want:        time.Time{},
+		wantDate:    time.Time{},
+		expectError: true,
+	},
+	{
+		name: "invalid exp field type - bool",
+		tokenPayload: map[string]interface{}{
+			"exp": true,
+		},
+		want:        time.Time{},
+		wantDate:    time.Time{},
+		expectError: true,
+	},
+	{
+		name: "zero value for exp field",
+		tokenPayload: map[string]interface{}{
+			"exp": float64(0),
+		},
+		want:        time.Unix(0, 0).UTC(), // 1970-01-01 00:00:00 UTC
+		wantDate:    time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+		expectError: false,
+	},
+	{
+		name: "future expiry time",
+		tokenPayload: map[string]interface{}{
+			"exp": float64(32503680000), // 3000-01-01 00:00:00 UTC
+		},
+		want:        time.Unix(32503680000, 0).UTC(),
+		wantDate:    time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC),
+		expectError: false,
+	},
+}
+
+func TestGetExpiryUnixTimeUTC(t *testing.T) {
+	for _, tt := range getExpiryUnixTimeUTCTests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := auth.GetExpiryUnixTimeUTC(tt.tokenPayload)
+			if (err != nil) != tt.expectError {
+				t.Errorf("GetExpiryUnixTimeUTC() error = %v, expectError %v", err, tt.expectError)
+				return
+			}
+
+			if !got.Equal(tt.want) {
+				t.Errorf("GetExpiryUnixTimeUTC() got = %v, want %v", got, tt.want)
+				return
+			}
+
+			// An extra check, to see if wantDate is also right.
+			// To check we didn't typo entering the unix dates.
+			// It also shows that there is not an error converting to UTC.
+			if !got.Equal(tt.wantDate) {
+				t.Errorf("GetExpiryUnixTimeUTC() got date = %v, wantDate %v", got, tt.wantDate)
+				return
 			}
 		})
 	}
