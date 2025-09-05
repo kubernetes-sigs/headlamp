@@ -23,7 +23,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { DropZoneBox } from '../../cluster/KubeConfigLoader';
+import { DropZoneBox } from '../DropZoneBox';
 import Tabs from '../Tabs';
 
 const ActionButtons = ({

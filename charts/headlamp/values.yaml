@@ -130,6 +130,9 @@ deploymentAnnotations: {}
 # -- Annotations to add to the pod
 podAnnotations: {}
 
+# -- Labels to add to the pod
+podLabels: {}
+
 # -- Headlamp pod's Security Context
 podSecurityContext:
   {}

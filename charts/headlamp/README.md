@@ -208,6 +208,7 @@ ingress:
 | tolerations | list | `[]` | Pod tolerations |
 | affinity | object | `{}` | Pod affinity settings |
 | podAnnotations | object | `{}` | Pod annotations |
+| podLabels | object | `{}` | Pod labels |
 | env | list | `[]` | Additional environment variables |
 
 Example resource configuration:

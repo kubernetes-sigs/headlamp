@@ -27,6 +27,7 @@ const avoidCheck = [
   'ActionsNotifier',
   'AlertNotification',
   'ErrorBoundary',
+  'DropZoneBox',
 ];
 
 const checkExports = [
