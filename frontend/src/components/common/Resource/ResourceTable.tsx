@@ -32,6 +32,7 @@ import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEven
 import { useTypedSelector } from '../../../redux/hooks';
 import { useSettings } from '../../App/Settings/hook';
 import { ClusterGroupErrorMessage } from '../../cluster/ClusterGroupErrorMessage';
+import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import { DateLabel } from '../Label';
 import Link from '../Link';
 import Table, { TableColumn } from '../Table';
@@ -319,6 +320,14 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
   const [columnVisibility, setColumnVisibility] = useState(() =>
     initColumnVisibilityState(columns, id)
   );
+  const [columnFilters, setColumnFilters] = useLocalStorageState<any[]>(
+    `table_filters.${id || ''}`,
+    []
+  );
+
+  function handleColumnFiltersChange(updater: any) {
+    setColumnFilters(prev => (typeof updater === 'function' ? updater(prev) : updater));
+  }
 
   const [tableSettings] = useState<{ id: string; show: boolean }[]>(
     !!id ? loadTableSettings(id) : []
@@ -587,9 +596,11 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
         rowsPerPage={storeRowsPerPageOptions}
         state={{
           columnVisibility,
+          columnFilters,
         }}
         reflectInURL={reflectInURL}
         onColumnVisibilityChange={onColumnsVisibilityChange as any}
+        onColumnFiltersChange={handleColumnFiltersChange as any}
         enableRowActions={enableRowActions}
         renderRowActionMenuItems={renderRowActionMenuItems as any}
         filterFns={{
