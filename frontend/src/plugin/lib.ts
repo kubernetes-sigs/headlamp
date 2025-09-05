@@ -16,6 +16,7 @@
 
 import { getProductName, getVersion } from '../helpers/getProductInfo';
 import { isElectron } from '../helpers/isElectron';
+import { setCluster } from '../lib/k8s/api/v1/clusterApi';
 /**
  * The lib.ts file should carry the bits to be used by plugins whereas
  * the index.ts should have the functions that Headlamp itself needs for
@@ -46,7 +47,7 @@ import { isElectron } from '../helpers/isElectron';
  *
  * @see {@link https://headlamp.dev/docs/latest/development/plugins/functionality/ Plugin functionality}
  */
-import { ClusterRequest, setCluster } from '../lib/k8s/apiProxy';
+import { ClusterRequest } from '../lib/k8s/api/v1/clusterRequests';
 import Registry from './registry';
 
 /**

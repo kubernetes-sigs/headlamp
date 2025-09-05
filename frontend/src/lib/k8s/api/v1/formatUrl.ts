@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { omit } from 'lodash';
-import { QueryParameters } from './queryParameters';
+import omit from 'lodash/omit';
+import type { QueryParameters } from './queryParameters';
 
 export function buildUrl(urlOrParts: string | string[], queryParams?: QueryParameters): string {
   const url = Array.isArray(urlOrParts) ? urlOrParts.filter(Boolean).join('/') : urlOrParts;

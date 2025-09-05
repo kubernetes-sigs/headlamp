@@ -17,7 +17,8 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WS from 'vitest-websocket-mock';
-import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
+import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
+import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
 import { BASE_WS_URL, MULTIPLEXER_ENDPOINT, useWebSocket, WebSocketManager } from './webSocket';
 
@@ -26,9 +27,12 @@ vi.mock('../../../cluster', () => ({
   getCluster: vi.fn(),
 }));
 
-vi.mock('../../../../stateless', () => ({
-  getUserIdFromLocalStorage: vi.fn(),
+vi.mock('../../../../stateless/findKubeconfigByClusterName', () => ({
   findKubeconfigByClusterName: vi.fn(),
+}));
+
+vi.mock('../../../../stateless/getUserIdFromLocalStorage', () => ({
+  getUserIdFromLocalStorage: vi.fn(),
 }));
 
 vi.mock('../../../auth', () => ({

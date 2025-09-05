@@ -17,8 +17,9 @@
 import _ from 'lodash';
 import React, { useMemo } from 'react';
 import { ResourceClasses } from '.';
-import { ApiError, QueryParameters } from './apiProxy';
-import { request } from './apiProxy';
+import { request } from './api/v1/clusterRequests';
+import { QueryParameters } from './api/v1/queryParameters';
+import { ApiError } from './api/v2/ApiError';
 import { KubeMetadata } from './KubeMetadata';
 import { KubeObject } from './KubeObject';
 import { KubeObjectClass } from './KubeObject';

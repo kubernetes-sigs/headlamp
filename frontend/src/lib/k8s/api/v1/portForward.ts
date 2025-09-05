@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
+import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
+import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
+import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { clusterFetch } from '../v2/fetch';
 import { JSON_HEADERS } from './constants';
 
@@ -72,9 +74,7 @@ export async function startPortForward(
   id: string = ''
 ): Promise<PortForward> {
   const kubeconfig = await findKubeconfigByClusterName(cluster);
-  const headers: HeadersInit = new Headers({
-    ...JSON_HEADERS,
-  });
+  const headers = new Headers(addBackstageAuthHeaders(JSON_HEADERS));
 
   // This means cluster is dynamically configured.
   if (kubeconfig !== null) {
@@ -92,7 +92,7 @@ export async function startPortForward(
   };
   return clusterFetch('/portforward', {
     method: 'POST',
-    headers: new Headers(headers),
+    headers: headers,
     body: JSON.stringify(request),
     cluster,
   }).then(async (response: Response) => {
@@ -139,17 +139,16 @@ export async function stopOrDeletePortForward(
   stopOrDelete: boolean = true
 ): Promise<string> {
   const kubeconfig = await findKubeconfigByClusterName(cluster);
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
+  const headers = new Headers(addBackstageAuthHeaders(JSON_HEADERS));
 
   // This means cluster is dynamically configured.
   if (kubeconfig !== null) {
-    headers['X-HEADLAMP-USER-ID'] = getUserIdFromLocalStorage();
+    headers.set('X-HEADLAMP-USER-ID', getUserIdFromLocalStorage());
   }
 
   return clusterFetch(`/portforward`, {
     method: 'DELETE',
+    headers: headers,
     body: JSON.stringify({
       id,
       stopOrDelete,
@@ -175,15 +174,15 @@ export async function stopOrDeletePortForward(
  */
 export async function listPortForward(cluster: string): Promise<PortForward[]> {
   const kubeconfig = await findKubeconfigByClusterName(cluster);
-  const headers: HeadersInit = {};
+  const headers = new Headers(addBackstageAuthHeaders(JSON_HEADERS));
 
   // This means cluster is dynamically configured.
   if (kubeconfig !== null) {
-    headers['X-HEADLAMP-USER-ID'] = getUserIdFromLocalStorage();
+    headers.set('X-HEADLAMP-USER-ID', getUserIdFromLocalStorage());
   }
 
   return clusterFetch(`/portforward/list`, {
-    headers: new Headers(headers),
+    headers: headers,
     cluster,
   }).then(response => response.json());
 }

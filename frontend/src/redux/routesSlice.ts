@@ -15,7 +15,7 @@
  */
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { Route } from '../lib/router';
+import type { Route } from '../lib/router/Route';
 
 export interface RoutesState {
   /**

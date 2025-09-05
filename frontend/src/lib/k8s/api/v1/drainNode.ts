@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { backendFetch } from '../v2/fetch';
 import { JSON_HEADERS } from './constants';
 
@@ -33,9 +34,11 @@ import { JSON_HEADERS } from './constants';
  * to get the status of the drain node process.
  */
 export function drainNode(cluster: string, nodeName: string) {
+  const headers = addBackstageAuthHeaders(JSON_HEADERS);
+
   return backendFetch('/drain-node', {
     method: 'POST',
-    headers: JSON_HEADERS,
+    headers: headers,
     body: JSON.stringify({
       cluster,
       nodeName,
@@ -72,9 +75,10 @@ interface DrainNodeStatus {
  * @throws {Error} if the response is not ok
  */
 export function drainNodeStatus(cluster: string, nodeName: string): Promise<DrainNodeStatus> {
+  const headers = addBackstageAuthHeaders(JSON_HEADERS);
   return backendFetch(`/drain-node-status?cluster=${cluster}&nodeName=${nodeName}`, {
     method: 'GET',
-    headers: JSON_HEADERS,
+    headers: headers,
   }).then(response => {
     return response.json().then((data: DrainNodeStatus) => {
       if (!response.ok) {

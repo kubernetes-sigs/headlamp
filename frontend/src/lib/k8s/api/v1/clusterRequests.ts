@@ -16,16 +16,19 @@
 
 // @todo: Params is a confusing name for options, because params are also query params.
 
+import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
+import { isBackstage } from '../../../../helpers/isBackstage';
 import store from '../../../../redux/stores/store';
-import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
+import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
+import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { logout } from '../../../auth';
 import { getCluster } from '../../../cluster';
-import { KubeObjectInterface } from '../../KubeObject';
-import { ApiError } from '../v2/ApiError';
+import type { KubeObjectInterface } from '../../KubeObject';
+import type { ApiError } from '../v2/ApiError';
 import { BASE_HTTP_URL, CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
 import { asQuery, combinePath } from './formatUrl';
-import { QueryParameters } from './queryParameters';
+import type { QueryParameters } from './queryParameters';
 
 /**
  * Options for the request.
@@ -160,6 +163,9 @@ export async function clusterRequest(
     credentials: 'include' as RequestCredentials,
     ...opts,
   };
+  if (isBackstage()) {
+    requestData.headers = addBackstageAuthHeaders(requestData.headers);
+  }
   let response: Response = new Response(undefined, { status: 502, statusText: 'Unreachable' });
   try {
     response = await fetch(url, requestData);

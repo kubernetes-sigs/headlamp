@@ -32,9 +32,10 @@ import {
 } from '../../../helpers/clusterSettings';
 import { isElectron } from '../../../helpers/isElectron';
 import { useCluster, useClustersConf } from '../../../lib/k8s';
-import { deleteCluster, parseKubeConfig, renameCluster } from '../../../lib/k8s/apiProxy';
+import { deleteCluster, parseKubeConfig, renameCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { setConfig, setStatelessConfig } from '../../../redux/configSlice';
-import { findKubeconfigByClusterName, updateStatelessClusterKubeconfig } from '../../../stateless';
+import { updateStatelessClusterKubeconfig } from '../../../stateless';
+import { findKubeconfigByClusterName } from '../../../stateless/findKubeconfigByClusterName';
 import ConfirmButton from '../../common/ConfirmButton';
 import ConfirmDialog from '../../common/ConfirmDialog';
 import Empty from '../../common/EmptyContent';

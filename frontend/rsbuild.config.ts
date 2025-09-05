@@ -40,9 +40,13 @@ export default defineConfig({
       root: 'build',
     },
     overrideBrowserslist: ['>0.2%', 'not dead', 'not op_mini all'],
-    copy: [],
+    copy: [
+      {
+        from: 'node_modules/monaco-editor/min/vs',
+        to: 'assets/vs',
+      },
+    ],
   },
-
   tools: {
     rspack: {
       optimization: {

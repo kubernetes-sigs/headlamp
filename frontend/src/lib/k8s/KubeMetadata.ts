@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { KubeManagedFieldsEntry, KubeOwnerReference, StringDict } from './cluster';
+import type { KubeManagedFieldsEntry, KubeOwnerReference, StringDict } from './cluster';
 
 /**
  * KubeMetadata contains the metadata that is common to all Kubernetes objects.

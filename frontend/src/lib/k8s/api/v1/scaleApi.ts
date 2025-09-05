@@ -15,7 +15,7 @@
  */
 
 import { getCluster } from '../../../cluster';
-import { KubeMetadata } from '../../KubeMetadata';
+import type { KubeMetadata } from '../../KubeMetadata';
 import { clusterRequest, patch, put } from './clusterRequests';
 
 export interface ScaleApi {

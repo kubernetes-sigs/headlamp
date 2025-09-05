@@ -17,7 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router-dom';
 import { getCluster } from '../../../lib/cluster';
-import { createRouteURL } from '../../../lib/router';
+import { createRouteURL } from '../../../lib/router/createRouteURL';
 import ActionButton from '../../common/ActionButton';
 
 export default function SettingsButton(props: { onClickExtra?: () => void }) {

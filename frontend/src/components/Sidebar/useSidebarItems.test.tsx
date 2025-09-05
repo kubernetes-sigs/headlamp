@@ -15,6 +15,7 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import App from '../../App';
@@ -46,13 +47,16 @@ describe('useSidebarItems', () => {
       },
     });
   };
+  const queryClient = new QueryClient();
 
   const wrapper =
     (store: any) =>
     ({ children }: any) =>
       (
         <TestContext>
-          <Provider store={store}>{children}</Provider>
+          <Provider store={store}>
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          </Provider>
         </TestContext>
       );
 

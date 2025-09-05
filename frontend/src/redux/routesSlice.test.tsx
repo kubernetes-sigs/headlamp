@@ -15,7 +15,7 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
-import { Route } from '../lib/router';
+import type { Route } from '../lib/router/Route';
 import routesReducer, { setRoute, setRouteFilter } from './routesSlice';
 
 describe('routesSlice', () => {

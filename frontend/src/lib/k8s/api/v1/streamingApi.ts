@@ -15,14 +15,15 @@
  */
 
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
-import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
+import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
+import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
-import { KubeObjectInterface } from '../../KubeObject';
-import { ApiError } from '../v2/ApiError';
+import type { KubeObjectInterface } from '../../KubeObject';
+import type { ApiError } from '../v2/ApiError';
 import { clusterRequest } from './clusterRequests';
 import { BASE_HTTP_URL, CLUSTERS_PREFIX } from './constants';
 import { asQuery, combinePath } from './formatUrl';
-import { QueryParameters } from './queryParameters';
+import type { QueryParameters } from './queryParameters';
 
 export type StreamUpdate<T = any> = {
   type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'ERROR';

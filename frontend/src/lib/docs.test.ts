@@ -16,9 +16,9 @@
 
 import Swagger from '@apidevtools/swagger-parser';
 import { beforeEach, describe, expect, it, Mock, vi } from 'vitest';
-import { request } from './k8s/apiProxy';
+import { request } from './k8s/api/v1/clusterRequests';
 
-vi.mock('./k8s/apiProxy', () => ({
+vi.mock('./k8s/api/v1/clusterRequests', () => ({
   request: vi.fn(),
 }));
 

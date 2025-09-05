@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
+import { addBackstageAuthHeaders } from './addBackstageAuthHeaders';
+import { getBackstageToken, setupBackstageMessageReceiver } from './backstageMessageReceiver';
 import { loadClusterSettings, storeClusterSettings } from './clusterSettings';
 import { getBaseUrl } from './getBaseUrl';
 import { getHeadlampAPIHeaders } from './getHeadlampAPIHeaders';
 import { getProductName, getVersion } from './getProductInfo';
+import { isBackstage } from './isBackstage';
 import { isDevMode } from './isDevMode';
 import { isDockerDesktop } from './isDockerDesktop';
 import { isElectron } from './isElectron';
@@ -29,6 +32,10 @@ const exportFunctions = {
   isDevMode,
   isElectron,
   isDockerDesktop,
+  isBackstage,
+  getBackstageToken,
+  addBackstageAuthHeaders,
+  setupBackstageMessageReceiver,
   setRecentCluster,
   getRecentClusters,
   getTablesRowsPerPage,

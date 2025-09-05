@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Icon } from '@iconify/react';
+import { Icon, InlineIcon } from '@iconify/react';
 import {
   Autocomplete,
   Box,
@@ -22,23 +22,48 @@ import {
   CircularProgress,
   DialogActions,
   DialogContent,
+  FormControl,
   Grid,
-  Input,
+  Tab,
+  Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
+import { styled } from '@mui/system';
 import { loadAll } from 'js-yaml';
 import { Dispatch, FormEvent, SetStateAction, useState } from 'react';
+import { useDropzone } from 'react-dropzone';
 import { Trans, useTranslation } from 'react-i18next';
 import { Redirect, useHistory } from 'react-router';
 import { useClustersConf } from '../../lib/k8s';
-import { ApiError, apply } from '../../lib/k8s/apiProxy';
+import { apply } from '../../lib/k8s/api/v1/apply';
+import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { KubeObjectInterface } from '../../lib/k8s/KubeObject';
-import { createRouteURL } from '../../lib/router';
+import { createRouteURL } from '../../lib/router/createRouteURL';
 import { ViewYaml } from '../advancedSearch/ResourceSearch';
 import Table from '../common/Table';
 import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
-import { toKubernetesName } from './projectUtils';
+import { PROJECT_ID_LABEL, toKubernetesName } from './projectUtils';
+
+const DropZoneBox = styled(Box)({
+  border: 1,
+  borderRadius: 1,
+  borderWidth: 2,
+  borderColor: 'rgba(0, 0, 0)',
+  borderStyle: 'dashed',
+  padding: '20px',
+  margin: '20px',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  '&:hover': {
+    borderColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  '&:focus-within': {
+    borderColor: 'rgba(0, 0, 0, 0.5)',
+  },
+});
 
 async function createProjectFromYaml({
   items,
@@ -63,7 +88,7 @@ async function createProjectFromYaml({
     metadata: {
       name: k8sName,
       labels: {
-        PROJECT_ID_LABEL: k8sName,
+        [PROJECT_ID_LABEL]: k8sName,
       },
     } as any,
   } as any;
@@ -117,6 +142,96 @@ export function CreateNew() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // New state for URL and tab management
+  const [currentTab, setCurrentTab] = useState(0);
+  const [yamlUrl, setYamlUrl] = useState('');
+  const [isLoadingFromUrl, setIsLoadingFromUrl] = useState(false);
+
+  // Function to load YAML from URL
+  const loadFromUrl = async () => {
+    if (!yamlUrl.trim()) {
+      setErrors(prev => ({ ...prev, url: t('URL is required') }));
+      return;
+    }
+
+    setIsLoadingFromUrl(true);
+    setErrors(prev => ({ ...prev, url: '' }));
+
+    try {
+      const response = await fetch(yamlUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const content = await response.text();
+      const docs = loadAll(content) as KubeObjectInterface[];
+      const validDocs = docs.filter(doc => !!doc);
+      setItems(validDocs);
+      setErrors(prev => ({ ...prev, items: '' }));
+    } catch (error) {
+      setErrors(prev => ({
+        ...prev,
+        url: t('Failed to load from URL: {{error}}', {
+          error: (error as Error).message,
+        }),
+      }));
+    } finally {
+      setIsLoadingFromUrl(false);
+    }
+  };
+
+  // File drop functionality
+  const onDrop = (acceptedFiles: File[]) => {
+    setErrors(prev => ({ ...prev, items: '' }));
+
+    const promises = acceptedFiles.map(file => {
+      return new Promise<{ docs: KubeObjectInterface[] }>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const content = reader.result as string;
+          try {
+            const docs = loadAll(content) as KubeObjectInterface[];
+            const validDocs = docs.filter(doc => !!doc);
+            resolve({ docs: validDocs });
+          } catch (err) {
+            console.error('Error parsing YAML file:', file.name, err);
+            // Resolve with empty array for failed files
+            resolve({ docs: [] });
+          }
+        };
+        reader.onerror = err => {
+          console.error('Error reading file:', file.name, err);
+          reject(err);
+        };
+        reader.readAsText(file);
+      });
+    });
+
+    Promise.all(promises)
+      .then(results => {
+        const newDocs = results.flatMap(result => result.docs);
+        setItems(prevItems => [...prevItems, ...newDocs]);
+      })
+      .catch(err => {
+        console.error('An error occurred while processing files.', err);
+        setErrors(prev => ({
+          ...prev,
+          items: t('Error processing files: {{error}}', {
+            error: (err as Error).message,
+          }),
+        }));
+      });
+  };
+
+  const { getRootProps, getInputProps, open } = useDropzone({
+    onDrop,
+    accept: {
+      'application/x-yaml': ['.yaml', '.yml'],
+      'text/yaml': ['.yaml', '.yml'],
+      'text/plain': ['.yaml', '.yml'],
+    },
+    multiple: true,
+  });
+
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -131,7 +246,6 @@ export function CreateNew() {
       errors.items = t('No resources have been uploaded');
     }
 
-    console.log(errors);
     if (Object.keys(errors).length > 0) {
       setErrors(errors);
       return;
@@ -219,81 +333,109 @@ export function CreateNew() {
                 </Grid>
 
                 <Grid item xs={3}>
-                  <Typography>{t('Upload files(s)')}</Typography>
+                  <Typography>{t('Load resources')}</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    {t('Upload your YAML file(s)')}
+                    {t('Upload files or load from URL')}
                   </Typography>
                 </Grid>
                 <Grid item xs={9}>
                   {errors.items && <Typography color="error">{errors.items}</Typography>}
 
-                  <Input
-                    type="file"
-                    error={!!errors.items}
-                    sx={theme => ({
-                      '::before,::after': {
-                        display: 'none',
-                      },
-                      p: 1,
-                      background: theme.palette.background.muted,
-                      border: '1px solid',
-                      borderColor: theme.palette.divider,
-                      borderRadius: theme.shape.borderRadius + 'px',
-                      mt: 0,
-                    })}
-                    inputProps={{
-                      accept: '.yaml,.yml,applicaiton/yaml',
-                      multiple: true,
-                    }}
-                    onChange={e => {
-                      const fileList = (e.target as HTMLInputElement).files;
-                      if (!fileList) return;
+                  <Box sx={{ width: '100%' }}>
+                    <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                      <Tabs value={currentTab} onChange={(_, newValue) => setCurrentTab(newValue)}>
+                        <Tab label={t('Upload Files')} />
+                        <Tab label={t('Load from URL')} />
+                      </Tabs>
+                    </Box>
 
-                      const promises = Array.from(fileList).map(file => {
-                        return new Promise<{ docs: KubeObjectInterface[] }>((resolve, reject) => {
-                          const reader = new FileReader();
-                          reader.onload = () => {
-                            const content = reader.result as string;
-                            try {
-                              const docs = loadAll(content) as KubeObjectInterface[];
-                              resolve({ docs });
-                            } catch (err) {
-                              console.error('Error parsing YAML file:', file.name, err);
-                              // Optionally, you can decide how to handle parsing errors.
-                              // Here we resolve with an empty array for the failed file.
-                              resolve({ docs: [] });
+                    {/* File Upload Tab */}
+                    {currentTab === 0 && (
+                      <Box sx={{ pt: 2 }}>
+                        <DropZoneBox border={1} borderColor="secondary.main" {...getRootProps()}>
+                          <FormControl>
+                            <input {...getInputProps()} />
+                            <Tooltip
+                              title={t('Drag & drop YAML files here or click to choose files')}
+                              placement="top"
+                            >
+                              <Button
+                                variant="contained"
+                                onClick={open}
+                                startIcon={<InlineIcon icon="mdi:upload" width={24} />}
+                              >
+                                {t('Choose Files')}
+                              </Button>
+                            </Tooltip>
+                          </FormControl>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                            {t('Supports .yaml and .yml files')}
+                          </Typography>
+                        </DropZoneBox>
+                      </Box>
+                    )}
+
+                    {/* URL Loading Tab */}
+                    {currentTab === 1 && (
+                      <Box sx={{ pt: 2 }}>
+                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                          <TextField
+                            fullWidth
+                            label={t('YAML URL')}
+                            placeholder={t('Enter URL to YAML file')}
+                            variant="outlined"
+                            size="small"
+                            value={yamlUrl}
+                            onChange={e => setYamlUrl(e.target.value)}
+                            error={!!errors.url}
+                            helperText={errors.url}
+                            disabled={isLoadingFromUrl}
+                          />
+                          <Button
+                            variant="contained"
+                            onClick={loadFromUrl}
+                            disabled={isLoadingFromUrl || !yamlUrl.trim()}
+                            startIcon={
+                              isLoadingFromUrl ? (
+                                <CircularProgress size={16} />
+                              ) : (
+                                <InlineIcon icon="mdi:download" width={24} />
+                              )
                             }
-                          };
-                          reader.onerror = err => {
-                            console.error('Error reading file:', file.name, err);
-                            reject(err);
-                          };
-                          reader.readAsText(file);
-                        });
-                      });
-
-                      Promise.all(promises)
-                        .then(results => {
-                          const newDocs = results.flatMap(result => result.docs);
-                          setItems(newDocs);
-                          // setYamlDocs(currentDocs => [...currentDocs, ...newDocs]);
-                        })
-                        .catch(err => {
-                          console.error('An error occurred while processing files.', err);
-                        });
-                    }}
-                  />
+                          >
+                            {isLoadingFromUrl ? t('Loading...') : t('Load')}
+                          </Button>
+                        </Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                          {t('Load YAML resources from a remote URL')}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
                 </Grid>
               </Grid>
 
               {items.length > 0 && (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 3 }}>
-                  <Typography>{t('Items')}</Typography>
+                  <Box
+                    sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  >
+                    <Typography>
+                      {t('Loaded Resources ({{count}})', { count: items.length })}
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => setItems([])}
+                      startIcon={<InlineIcon icon="mdi:delete" width={16} />}
+                    >
+                      {t('Clear All')}
+                    </Button>
+                  </Box>
                   <Box
                     sx={{
                       display: 'flex',
                       flexDirection: 'column',
-                      marginTop: items.length > 0 ? '-46px' : 0,
                     }}
                   >
                     <Table
@@ -317,6 +459,11 @@ export function CreateNew() {
                           id: 'name',
                           header: t('Name'),
                           accessorFn: item => item.metadata.name,
+                        },
+                        {
+                          id: 'apiVersion',
+                          header: t('API Version'),
+                          accessorFn: item => item.apiVersion,
                         },
                         {
                           id: 'actions',
@@ -357,8 +504,11 @@ export function CreateNew() {
               {t('Creating following resources in this project:')}
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
-              {creationState.createdResources.map(resource => (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {creationState.createdResources.map((resource, index) => (
+                <Box
+                  key={`created-${resource.kind}-${resource.metadata.name}-${index}`}
+                  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                >
                   <KubeIcon kind={resource.kind as any} width="24px" height="24px" />
                   <Box>{resource.metadata.name}</Box>
                   <Box sx={theme => ({ color: theme.palette.success.main })}>

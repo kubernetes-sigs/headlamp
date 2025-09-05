@@ -17,7 +17,8 @@
 import React from 'react';
 import { useErrorState } from '../util';
 import { useConnectApi } from '.';
-import { ApiError, metrics } from './apiProxy';
+import { metrics } from './api/v1/metricsApi';
+import { ApiError } from './api/v2/ApiError';
 import { KubeCondition, KubeMetrics } from './cluster';
 import { KubeObject, KubeObjectInterface } from './KubeObject';
 

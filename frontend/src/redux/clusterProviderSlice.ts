@@ -15,7 +15,7 @@
  */
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import type { ApiError } from '../lib/k8s/apiProxy';
+import type { ApiError } from '../lib/k8s/api/v2/ApiError';
 
 export interface DialogProps {
   cluster: any;

@@ -33,10 +33,11 @@ import { ReactNode, useCallback, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router';
 import { useClustersConf } from '../../lib/k8s';
-import { ApiError, apply } from '../../lib/k8s/apiProxy';
+import { apply } from '../../lib/k8s/api/v1/apply';
+import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { KubeObjectInterface } from '../../lib/k8s/KubeObject';
 import Namespace from '../../lib/k8s/namespace';
-import { createRouteURL } from '../../lib/router';
+import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
 import { PROJECT_ID_LABEL, toKubernetesName } from './projectUtils';
 /**
@@ -105,7 +106,7 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation();
   const history = useHistory();
 
-  const [name, setName] = useState('');
+  const [projectName, setProjectName] = useState('');
   const [selectedClusters, setSelectedClusters] = useState<string[]>([]);
   const [selectedNamespace, setSelectedNamespace] = useState<string>();
   const [typedNamespace, setTypedNamespace] = useState('');
@@ -118,7 +119,8 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
     clusters: selectedClusters,
   });
 
-  const isReadyToCreate = selectedClusters.length && (selectedNamespace || typedNamespace) && name;
+  const isReadyToCreate =
+    selectedClusters.length && (selectedNamespace || typedNamespace) && projectName;
 
   /**
    * Creates or updates namespaces for the proejct
@@ -133,7 +135,7 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
         await maybeExistingNamespace.patch({
           metadata: {
             labels: {
-              [PROJECT_ID_LABEL]: toKubernetesName(name),
+              [PROJECT_ID_LABEL]: projectName,
             },
           },
         });
@@ -145,7 +147,7 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
             metadata: {
               name: toKubernetesName(typedNamespace),
               labels: {
-                [PROJECT_ID_LABEL]: toKubernetesName(name),
+                [PROJECT_ID_LABEL]: projectName,
               },
             } as any,
           } as KubeObjectInterface;
@@ -153,7 +155,7 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
         }
       }
 
-      history.push(createRouteURL('projectDetails', { name: toKubernetesName(name) }));
+      history.push(createRouteURL('projectDetails', { name: projectName }));
     } catch (e: any) {
       setError(e);
     } finally {
@@ -184,11 +186,36 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
           </Trans>
         </Typography>
         <TextField
-          label={t('Name')}
-          variant="outlined"
-          size="small"
-          value={name}
-          onChange={e => setName(e.target.value)}
+          label={t('translation|Project Name')}
+          value={projectName}
+          onChange={event => {
+            const inputValue = event.target.value.toLowerCase();
+            setProjectName(inputValue);
+          }}
+          onBlur={event => {
+            // Convert to Kubernetes name when user finishes typing (loses focus)
+            const converted = toKubernetesName(event.target.value);
+            setProjectName(converted);
+          }}
+          onKeyDown={event => {
+            // Convert spaces to dashes immediately when space is pressed
+            if (event.key === ' ') {
+              event.preventDefault();
+              const target = event.target as HTMLInputElement;
+              const start = target.selectionStart || 0;
+              const end = target.selectionEnd || 0;
+              const currentValue = projectName;
+              const newValue = currentValue.substring(0, start) + '-' + currentValue.substring(end);
+              setProjectName(newValue);
+              // Set cursor position after the inserted dash
+              setTimeout(() => {
+                target.setSelectionRange(start + 1, start + 1);
+              }, 0);
+            }
+          }}
+          helperText={t('translation|Enter a name for your new project.')}
+          autoComplete="off"
+          fullWidth
         />
         <Autocomplete
           fullWidth

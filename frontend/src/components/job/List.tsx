@@ -29,6 +29,24 @@ import ResourceListView from '../common/Resource/ResourceListView';
 import { SimpleTableProps } from '../common/SimpleTable';
 import LightTooltip from '../common/Tooltip/TooltipLight';
 
+export function makeJobStatusValue(job: Job) {
+  if (!job?.status?.conditions) {
+    return '-';
+  }
+  const conditionOptions = ['Failed', 'Complete', 'Suspended'];
+
+  const condition = job.status.conditions.find(
+    ({ status, type }: { status: string; type: string }) =>
+      conditionOptions.includes(type) && status === 'True'
+  );
+
+  if (!condition) {
+    return '-';
+  }
+
+  return condition.type;
+}
+
 export function makeJobStatusLabel(job: Job) {
   if (!job?.status?.conditions) {
     return null;
@@ -127,10 +145,9 @@ export function JobsListRenderer(props: JobsListRendererProps) {
         {
           id: 'conditions',
           label: t('translation|Conditions'),
+          filterVariant: 'multi-select',
           gridTemplate: 'min-content',
-          getValue: job =>
-            job.status?.conditions?.find(({ status }: { status: string }) => status === 'True') ??
-            null,
+          getValue: job => makeJobStatusValue(job),
           render: job => makeJobStatusLabel(job),
         },
         {

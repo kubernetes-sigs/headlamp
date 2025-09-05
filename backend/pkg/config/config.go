@@ -24,6 +24,7 @@ type Config struct {
 	InCluster                 bool   `koanf:"in-cluster"`
 	DevMode                   bool   `koanf:"dev"`
 	InsecureSsl               bool   `koanf:"insecure-ssl"`
+	CacheEnabled              bool   `koanf:"cache-enabled"`
 	EnableHelm                bool   `koanf:"enable-helm"`
 	EnableDynamicClusters     bool   `koanf:"enable-dynamic-clusters"`
 	ListenAddr                string `koanf:"listen-addr"`
@@ -261,6 +262,7 @@ func flagset() *flag.FlagSet {
 
 	f.Bool("in-cluster", false, "Set when running from a k8s cluster")
 	f.Bool("dev", false, "Allow connections from other origins")
+	f.Bool("cache-enabled", false, "K8s cache in backend")
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
 	f.Bool("enable-dynamic-clusters", false, "Enable dynamic clusters, which stores stateless clusters in the frontend.")
 	// Note: When running in-cluster and if not explicitly set, this flag defaults to false.

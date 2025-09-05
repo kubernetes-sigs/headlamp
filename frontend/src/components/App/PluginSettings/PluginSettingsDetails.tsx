@@ -25,7 +25,7 @@ import { useParams } from 'react-router-dom';
 import { useHistory } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
 import { getCluster } from '../../../lib/cluster';
-import { deletePlugin } from '../../../lib/k8s/apiProxy';
+import { deletePlugin } from '../../../lib/k8s/api/v1/pluginsApi';
 import { ConfigStore } from '../../../plugin/configStore';
 import { PluginInfo, reloadPage } from '../../../plugin/pluginsSlice';
 import { useTypedSelector } from '../../../redux/hooks';
@@ -40,13 +40,13 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   const store = new ConfigStore(plugin.name);
   const pluginConf = store.useConfig();
   const config = pluginConf() as { [key: string]: any };
+  const dispatch = useDispatch();
 
   function handleSave(data: { [key: string]: any }) {
     store.set(data);
   }
 
   function handleDeleteConfirm() {
-    const dispatch = useDispatch();
     const name = plugin.name.split('/').splice(-1)[0];
     deletePlugin(name)
       .then(() => {

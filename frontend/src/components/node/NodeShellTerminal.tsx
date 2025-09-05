@@ -26,7 +26,8 @@ import {
   loadClusterSettings,
 } from '../../helpers/clusterSettings';
 import { getCluster } from '../../lib/cluster';
-import { apply, stream, StreamResultsCb } from '../../lib/k8s/apiProxy';
+import { apply } from '../../lib/k8s/api/v1/apply';
+import { stream, StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
 import Node from '../../lib/k8s/node';
 import Pod, { KubePod } from '../../lib/k8s/pod';
 

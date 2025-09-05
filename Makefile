@@ -11,6 +11,9 @@ DOCKER_PLUGINS_IMAGE_NAME ?= plugins
 DOCKER_IMAGE_VERSION ?= $(shell git describe --tags --always --dirty)
 DOCKER_PLATFORM ?= local
 DOCKER_PUSH ?= false
+EMBED_BINARY_NAME := headlamp_app
+# embed build flags
+EMBED_BUILD_FLAGS := -trimpath -ldflags="-s -w" -tags embed
 
 ifeq ($(OS), Windows_NT)
 	SERVER_EXE_EXT = .exe
@@ -65,6 +68,122 @@ app-tsc:
 .PHONY: backend
 backend:
 	cd backend && go build -o ./headlamp-server${SERVER_EXE_EXT} ./cmd
+
+.PHONY: backend-embed
+backend-embed:
+	REACT_APP_HEADLAMP_SIDEBAR_DEFAULT_OPEN=false $(MAKE) frontend-build
+	$(MAKE) backend-embed-prepare
+	cd backend && go build $(EMBED_BUILD_FLAGS) -o ./headlamp-server${SERVER_EXE_EXT} ./cmd
+
+# New multi-platform build targets
+.PHONY: backend-embed-all
+backend-embed-all:
+	REACT_APP_HEADLAMP_SIDEBAR_DEFAULT_OPEN=false $(MAKE) frontend-build
+	$(MAKE) backend-embed-prepare
+	$(MAKE) backend-embed-clean
+	@echo "Building all platforms with version: $(VERSION)"
+	$(MAKE) backend-embed-windows VERSION=$(VERSION)
+	$(MAKE) backend-embed-darwin VERSION=$(VERSION)
+	$(MAKE) backend-embed-linux VERSION=$(VERSION)
+	@echo "All builds completed successfully for version $(VERSION)!"
+
+.PHONY: backend-embed-all-compressed
+backend-embed-all-compressed: backend-embed-all
+	@echo "Compressing all binaries with version: $(VERSION)..."
+	cd backend/dist && for file in *; do \
+		if [ -f "$$file" ] && [[ ! "$$file" == *.tar.gz ]]; then \
+			tar -czf "$$file.tar.gz" "$$file" && \
+			rm "$$file"; \
+		fi \
+	done
+	@echo "✓ All binaries compressed successfully for version $(VERSION)!"
+
+.PHONY: backend-embed-prepare
+backend-embed-prepare:
+	@echo "Preparing static files for embedding..."
+	@if [ -d backend/pkg/spa/static ]; then rm -rf backend/pkg/spa/static; fi
+	@mkdir -p backend/pkg/spa/static
+ifeq ($(OS),Windows_NT)
+	@echo "Copying frontend dist to backend/static..."
+	# /E: Copies directories and subdirectories, including empty ones
+	# /I: Assumes destination is a directory if copying multiple files
+	# /Y: Suppresses prompting to confirm overwriting existing files	
+	@xcopy /E /I /Y frontend\build backend\pkg\spa\static
+else
+	@echo "Copying frontend dist to backend/static..."
+	@cp -R frontend/build/* backend/pkg/spa/static/
+endif
+
+.PHONY: backend-embed-clean
+backend-embed-clean:
+	@cd backend && rm -rf dist
+	@mkdir -p backend/dist
+
+# Windows builds
+.PHONY: backend-embed-windows
+backend-embed-windows: 
+	@echo "Building all Windows architectures with version $(VERSION)..."
+	$(MAKE) backend-embed-windows-arm64 VERSION=$(VERSION)
+	$(MAKE) backend-embed-windows-amd64 VERSION=$(VERSION)
+	$(MAKE) backend-embed-windows-386 VERSION=$(VERSION)
+	@echo "✓ Completed all Windows builds for version $(VERSION)"
+
+backend-embed-windows-arm64:
+	@echo "Building for windows/arm64 with version $(VERSION)..."
+	cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_arm64.exe ./cmd
+	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_windows_arm64.exe"
+
+backend-embed-windows-amd64:
+	@echo "Building for windows/amd64 with version $(VERSION)..."
+	cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_amd64.exe ./cmd
+	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_windows_amd64.exe"
+
+backend-embed-windows-386:
+	@echo "Building for windows/386 with version $(VERSION)..."
+	cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=386 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_386.exe ./cmd
+	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_windows_386.exe"
+
+# macOS(darwin) builds
+.PHONY: backend-embed-darwin
+backend-embed-darwin:
+	@echo "Building all Darwin architectures with version $(VERSION)..."
+	$(MAKE) backend-embed-darwin-amd64 VERSION=$(VERSION)
+	$(MAKE) backend-embed-darwin-arm64 VERSION=$(VERSION)
+	@echo "✓ Completed all Darwin builds for version $(VERSION)"
+
+backend-embed-darwin-amd64:
+	@echo "Building for darwin/amd64 with version $(VERSION)..."
+	cd backend && CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_darwin_amd64 ./cmd
+	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_darwin_amd64"
+
+backend-embed-darwin-arm64:
+	@echo "Building for darwin/arm64 with version $(VERSION)..."
+	cd backend && CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_darwin_arm64 ./cmd
+	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_darwin_arm64"
+
+# Linux builds
+.PHONY: backend-embed-linux
+backend-embed-linux:
+	@echo "Building all Linux architectures with version $(VERSION)..."
+	$(MAKE) backend-embed-linux-amd64 VERSION=$(VERSION)
+	$(MAKE) backend-embed-linux-arm64 VERSION=$(VERSION)
+	$(MAKE) backend-embed-linux-386 VERSION=$(VERSION)
+	@echo "✓ Completed all Linux builds for version $(VERSION)"
+
+backend-embed-linux-amd64:
+	@echo "Building for linux/amd64 with version $(VERSION)..."
+	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_linux_amd64 ./cmd
+	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_linux_amd64"
+
+backend-embed-linux-arm64:
+	@echo "Building for linux/arm64 with version $(VERSION)..."
+	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_linux_arm64 ./cmd
+	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_linux_arm64"
+
+backend-embed-linux-386:
+	@echo "Building for linux/386 with version $(VERSION)..."
+	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=386 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_linux_386 ./cmd
+	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_linux_386"
 
 .PHONY: backend-test
 backend-test:

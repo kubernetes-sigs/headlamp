@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { createRouteURL } from '../router';
+import { createRouteURL } from '../router/createRouteURL';
 import { labelSelectorToQuery, ResourceClasses } from '.';
 import { LabelSelector } from './cluster';
 import { KubeObjectClass } from './KubeObject';

@@ -298,7 +298,6 @@
       "HEADLAMP_ALLOWED_NAMESPACES": "headlamp.allowed-namespaces",
       "KubeObject": [Function],
       "getAllowedNamespaces": [Function],
-      "makeKubeObject": [Function],
     },
     "clusterRole": {
       "default": [Function],
@@ -494,4 +493,5 @@
   "registerSidebarEntryFilter": [Function],
   "registerUIPanel": [Function],
   "runCommand": [Function],
+  "useTranslation": [Function],
 }

@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { isElectron } from '../../helpers/isElectron';
-import { createRouteURL } from '../../lib/router';
+import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
 import ActionButton from '../common/ActionButton';
 import CreateButton from '../common/Resource/CreateButton';
@@ -436,7 +436,8 @@ export const PureSidebar = memo(
 );
 
 export function useSidebarItem(
-  sidebarDesc: string | null | { item: string | null; sidebar?: string }
+  sidebarDesc: string | null | { item: string | null; sidebar?: string },
+  computedMatch: any
 ) {
   let itemName: string | null = null;
   let sidebar: DefaultSidebars | string | null = DefaultSidebars.IN_CLUSTER;
@@ -449,6 +450,9 @@ export function useSidebarItem(
     if (!!sidebarDesc.sidebar) {
       sidebar = sidebarDesc.sidebar || DefaultSidebars.IN_CLUSTER;
     }
+  }
+  if (itemName === 'customresources' && sidebar === DefaultSidebars.IN_CLUSTER) {
+    itemName = computedMatch?.params?.crd ?? itemName;
   }
 
   const dispatch = useDispatch();

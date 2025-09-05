@@ -22,27 +22,33 @@ Headlamp plugins can transform your Kubernetes experience by:
 
 New to plugin development? Follow our step-by-step guide:
 
-### 🏗️ [Plugin Architecture](./architecture.md)
+### 🏗️ [Plugin Architecture](../architecture.md)
+
 Understand how plugins work, where they're loaded from, and how they integrate with Headlamp.
 
 ### 📚 [Getting Started With Plugin Development](./getting-started.md)
+
 Complete tutorial from installation to your first working plugin, with practical examples and troubleshooting tips.
 
 ### 🛠️ [Building & Shipping Plugins](./building.md)
+
 Learn the development workflow, production builds, and deployment strategies.
 
 ### 📖 [Common Patterns](./common-patterns.md)
+
 Ready-to-use examples for typical plugin scenarios like dashboards, resource extensions, and external integrations.
 
 ### 🎯 [Plugin Functionality Reference](./functionality/index.md)
+
 Comprehensive API documentation covering all available plugin capabilities.
 
 ### 🚀 [Publishing Plugins](./publishing.md)
+
 Share your plugins with the community through Artifact Hub.
 
-### 🤖 [AI-Assisted Development](./ai-assisted-development.md)
-Leverage AI tools to accelerate your plugin development process.
+### 🌍 [Internationalization](./i18n.md)
 
+Add support for multiple languages and locales
 
 ## Ready to Start?
 

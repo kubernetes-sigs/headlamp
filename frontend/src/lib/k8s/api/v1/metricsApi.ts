@@ -16,8 +16,8 @@
 
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getCluster } from '../../../cluster';
-import { KubeMetrics } from '../../cluster';
-import { ApiError } from '../v2/ApiError';
+import type { KubeMetrics } from '../../cluster';
+import type { ApiError } from '../v2/ApiError';
 import { clusterRequest } from './clusterRequests';
 
 /**

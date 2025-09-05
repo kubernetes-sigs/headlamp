@@ -15,7 +15,7 @@
  */
 
 import { ResourceClasses } from '.';
-import { request } from './apiProxy';
+import { request } from './api/v1/clusterRequests';
 import { KubeObject } from './KubeObject';
 import { KubeObjectInterface } from './KubeObject';
 import { KubeObjectClass } from './KubeObject';

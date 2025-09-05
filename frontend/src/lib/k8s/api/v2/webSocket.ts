@@ -15,7 +15,8 @@
  */
 
 import { useCallback, useEffect, useMemo } from 'react';
-import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
+import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
+import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
 import { BASE_HTTP_URL } from './fetch';
 import { makeUrl } from './makeUrl';

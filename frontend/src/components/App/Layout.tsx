@@ -28,7 +28,7 @@ import { useDispatch } from 'react-redux';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
 import { useClustersConf } from '../../lib/k8s';
-import { request } from '../../lib/k8s/apiProxy';
+import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
 import { setConfig } from '../../redux/configSlice';
 import { ConfigState } from '../../redux/configSlice';

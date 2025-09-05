@@ -27,6 +27,7 @@ import * as Notification from './lib/notification';
 import * as Router from './lib/router';
 import * as Utils from './lib/util';
 import { Headlamp, Plugin } from './plugin/lib';
+import { getSupportedLocales, isLocaleSupported, useTranslation } from './plugin/pluginI18n';
 import { PluginSettingsDetailsProps } from './plugin/pluginsSlice';
 import Registry, {
   AppLogoProps,
@@ -45,6 +46,8 @@ import Registry, {
   registerClusterChooser,
   registerClusterProviderDialog,
   registerClusterProviderMenuItem,
+  registerClusterStatus,
+  registerCustomCreateProject,
   registerDetailsViewHeaderAction,
   registerDetailsViewHeaderActionsProcessor,
   registerDetailsViewSection,
@@ -53,6 +56,8 @@ import Registry, {
   registerKubeObjectGlance,
   registerMapSource,
   registerPluginSettings,
+  registerProjectDetailsTab,
+  registerProjectOverviewSection,
   registerResourceTableColumnsProcessor,
   registerRoute,
   registerRouteFilter,
@@ -101,6 +106,13 @@ export {
   registerUIPanel,
   registerAppTheme,
   registerKubeObjectGlance,
+  useTranslation,
+  isLocaleSupported,
+  getSupportedLocales,
+  registerCustomCreateProject,
+  registerProjectDetailsTab,
+  registerProjectOverviewSection,
+  registerClusterStatus,
 };
 
 export type {

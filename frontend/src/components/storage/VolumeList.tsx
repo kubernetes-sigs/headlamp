@@ -111,6 +111,7 @@ export default function VolumeList() {
         {
           id: 'status',
           label: t('translation|Status'),
+          filterVariant: 'multi-select',
           getValue: volume => volume.status?.phase,
           render: volume => makePVStatusLabel(volume),
           gridTemplate: 0.3,

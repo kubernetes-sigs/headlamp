@@ -7,10 +7,10 @@
         class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
       >
         <li
-          class="css-3knmzx"
+          class="css-1tmipa6"
         >
           <a
-            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-divider MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-divider css-wlsb1k-MuiButtonBase-root-MuiListItemButton-root"
+            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-divider MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-divider css-53bizd-MuiButtonBase-root-MuiListItemButton-root"
             href="/settings"
             role="button"
             tabindex="0"

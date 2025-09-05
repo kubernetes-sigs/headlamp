@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { getTestDate } from '../../helpers/testHelpers';
-import { StreamResultsCb } from '../../lib/k8s/apiProxy';
+import { StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
 import { LogOptions } from '../../lib/k8s/pod';
 import { TestContext } from '../../test';
 import { PodLogViewer } from './Details';

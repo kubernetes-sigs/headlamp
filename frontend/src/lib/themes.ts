@@ -191,7 +191,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
       },
     },
     typography: {
-      fontFamily: ['Overpass', 'sans-serif'].join(', '),
+      fontFamily: currentTheme.fontFamily?.join(', ') ?? ['Overpass', 'sans-serif'].join(', '),
       h1: {
         fontWeight: 700,
         fontSize: '1.87rem',

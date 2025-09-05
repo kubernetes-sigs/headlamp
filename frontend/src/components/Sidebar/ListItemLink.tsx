@@ -37,6 +37,7 @@ interface ListItemLinkProps {
   icon?: IconProps['icon'];
   iconOnly?: boolean;
   hasParent?: boolean;
+  level?: number;
   fullWidth?: boolean;
   divider?: boolean;
   containerProps?: {
@@ -44,9 +45,9 @@ interface ListItemLinkProps {
   };
 }
 
-const StyledLi = styled('li')<{ hasParent?: boolean }>(({ hasParent }) => ({
+const StyledLi = styled('li')<{ level: number }>(({ level }) => ({
   marginRight: '5px',
-  marginLeft: hasParent ? '35px' : '5px',
+  marginLeft: `${level * 30 + 5}px`,
   marginBottom: '1px',
 }));
 
@@ -60,6 +61,7 @@ export default function ListItemLink(props: ListItemLinkProps) {
     iconOnly,
     subtitle,
     hasParent,
+    level,
     fullWidth,
     ...other
   } = props;
@@ -108,9 +110,9 @@ export default function ListItemLink(props: ListItemLinkProps) {
   }
 
   const hasSubtitle = Boolean(subtitle);
-
+  const calcLevel = level === null ? (hasParent ? 1 : 0) : level!;
   return (
-    <StyledLi hasParent={hasParent}>
+    <StyledLi level={calcLevel}>
       <ListItemButton
         component={renderLink}
         {...other}
@@ -129,7 +131,7 @@ export default function ListItemLink(props: ListItemLinkProps) {
             color: 'currentColor',
           },
 
-          ':before': other.divider
+          ':after': other.divider
             ? {
                 content: '""',
                 position: 'absolute',

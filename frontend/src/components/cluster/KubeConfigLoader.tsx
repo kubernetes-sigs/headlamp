@@ -31,7 +31,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { useClustersConf } from '../../lib/k8s';
-import { setCluster } from '../../lib/k8s/apiProxy';
+import { setCluster } from '../../lib/k8s/api/v1/clusterApi';
 import { setStatelessConfig } from '../../redux/configSlice';
 import { DialogTitle } from '../common/Dialog';
 import Loader from '../common/Loader';

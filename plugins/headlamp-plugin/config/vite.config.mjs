@@ -6,6 +6,7 @@ import svgr from 'vite-plugin-svgr';
 import { resolve } from 'path';
 import cssInjectedByJsPlugin from 'vite-plugin-css-injected-by-js';
 import { fileURLToPath } from 'url';
+import { pluginNameInjection } from './vite-plugin-name-injection.mjs';
 
 const externalModules = {
   '@mui/material': 'pluginLib.MuiMaterial',
@@ -54,6 +55,7 @@ export default defineConfig({
     global: 'globalThis',
   },
   plugins: [
+    pluginNameInjection(),
     nodePolyfills({
       include: ['process', 'buffer', 'stream'],
     }),

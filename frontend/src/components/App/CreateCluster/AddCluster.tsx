@@ -25,7 +25,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
-import { createRouteURL } from '../../../lib/router';
+import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { ClusterProviderInfo } from '../../../redux/clusterProviderSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { DialogProps } from '../../common/Dialog';

@@ -38,8 +38,10 @@ import semver from 'semver';
 import { runCommand } from '../components/App/runCommand';
 import { themeSlice } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
+import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
 import { getAppUrl } from '../helpers/getAppUrl';
 import { isElectron } from '../helpers/isElectron';
+import i18next from '../i18n/config';
 import * as K8s from '../lib/k8s';
 import * as ApiProxy from '../lib/k8s/apiProxy';
 import * as Crd from '../lib/k8s/crd';
@@ -49,6 +51,8 @@ import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
 import { Headlamp, Plugin } from './lib';
+import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
+import { useTranslation } from './pluginI18n';
 import { PluginInfo } from './pluginsSlice';
 import Registry, * as registryToExport from './registry';
 import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
@@ -94,6 +98,7 @@ window.pluginLib = {
   Notification,
   Headlamp,
   Plugin,
+  useTranslation,
   ...registryToExport,
 };
 
@@ -278,27 +283,44 @@ function handlePluginRunError(error: unknown, packageName: string, packageVersio
 }
 
 /**
- * Retry 8 times starting at 0.05 seconds, doubling the delay each time.
- * The total wait time is 0.05 + 0.1 + 0.2 + 0.4 + 0.8 + 1.6 + 3.2 + 6.4 = 12.75 seconds.
+ * Retry with exponential backoff starting at 50ms, doubling each time and capped at 1000ms.
+ * Retries continue until the total accumulated wait reaches 30 seconds.
  *
  * @param url The URL to fetch.
- * @param retries The number of retries to attempt.
- * @param delay The initial delay in milliseconds.
+ * @param maxTotalWaitMs Maximum total wait time across retries (default 30000ms).
+ * @param baseDelayMs Initial delay before first retry (default 50ms).
+ * @param maxDelayMs Maximum delay per retry (default 1000ms).
  * @returns A promise that resolves to the response of the fetch request.
  */
-async function fetchWithRetry(url: string, retries = 8, delay = 50): Promise<any> {
-  for (let i = 0; i < retries; i++) {
+async function fetchWithRetry(
+  url: string,
+  headers: HeadersInit,
+  maxTotalWaitMs = 30000,
+  baseDelayMs = 50,
+  maxDelayMs = 1000
+): Promise<Response> {
+  let attempt = 0;
+  let totalSlept = 0;
+  let lastErr: unknown;
+
+  while (totalSlept < maxTotalWaitMs) {
     try {
-      // const brokenFiveTimes = i < 5 ? 'xx' + url : url; // for debugging
-      // const resp = await fetch(brokenFiveTimes);
-      const resp = await fetch(url);
+      const resp = await fetch(url, { headers: new Headers(headers) });
       if (!resp.ok) throw new Error(`HTTP error: ${resp.status}`);
       return resp;
     } catch (err) {
-      if (i === retries - 1) throw err;
-      await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
+      lastErr = err;
+      const remaining = maxTotalWaitMs - totalSlept;
+      if (remaining <= 0) break;
+
+      const wait = Math.min(baseDelayMs * Math.pow(2, attempt), maxDelayMs, remaining);
+      attempt++;
+      await new Promise(res => setTimeout(res, wait));
+      totalSlept += wait;
     }
   }
+
+  throw lastErr ?? new Error('Fetch failed after retries');
 }
 
 /**
@@ -323,17 +345,23 @@ export async function fetchAndExecutePlugins(
 ) {
   const permissionSecretsPromise = permissionSecretsFromApp();
 
-  const pluginPaths = (await fetchWithRetry(`${getAppUrl()}plugins`).then(resp =>
+  const headers = addBackstageAuthHeaders();
+
+  const pluginPaths = (await fetchWithRetry(`${getAppUrl()}plugins`, headers).then(resp =>
     resp.json()
   )) as string[];
 
   const sourcesPromise = Promise.all(
-    pluginPaths.map(path => fetch(`${getAppUrl()}${path}/main.js`).then(resp => resp.text()))
+    pluginPaths.map(path =>
+      fetch(`${getAppUrl()}${path}/main.js`, { headers: new Headers(headers) }).then(resp =>
+        resp.text()
+      )
+    )
   );
 
   const packageInfosPromise = await Promise.all<PluginInfo>(
     pluginPaths.map(path =>
-      fetch(`${getAppUrl()}${path}/package.json`).then(resp => {
+      fetch(`${getAppUrl()}${path}/package.json`, { headers: new Headers(headers) }).then(resp => {
         if (!resp.ok) {
           if (resp.status !== 404) {
             return Promise.reject(resp);
@@ -482,7 +510,28 @@ export async function fetchAndExecutePlugins(
   });
 
   infoForRunningPlugins.forEach(runPluginInner);
+
+  // Initialize plugin i18n after plugins are loaded
+  await initializePluginsI18n(packageInfos, pluginPaths);
+
   await afterPluginsRun(pluginsLoaded);
+}
+
+/**
+ * Initialize i18n for all plugins that have i18n configuration
+ */
+async function initializePluginsI18n(packageInfos: PluginInfo[], pluginPaths: string[]) {
+  for (let i = 0; i < packageInfos.length; i++) {
+    const packageInfo = packageInfos[i];
+    const pluginPath = pluginPaths[i];
+
+    await initializePluginI18n(packageInfo.name, packageInfo, pluginPath);
+  }
+
+  // Set up language change synchronization
+  i18next.on('languageChanged', language => {
+    changePluginLanguage(language);
+  });
 }
 
 /**

@@ -28,12 +28,12 @@ import { useTypedSelector } from '../../redux/hooks';
 import { ProjectDefinition } from '../../redux/projectsSlice';
 import { Activity } from '../activity/Activity';
 import { EditButton, EditorDialog, Loader, StatusLabel } from '../common';
-import DeleteMultipleButton from '../common/Resource/DeleteMultipleButton';
 import ResourceTable from '../common/Resource/ResourceTable';
 import SectionBox from '../common/SectionBox';
 import { GraphFilter } from '../resourceMap/graph/graphFiltering';
 import { GraphView } from '../resourceMap/GraphView';
 import { ResourceQuotaTable } from '../resourceQuota/Details';
+import { ProjectDeleteButton } from './ProjectDeleteButton';
 import { useProject } from './ProjectList';
 import { ProjectResourcesTab, useResourceCategoriesList } from './ProjectResourcesTab';
 import { getHealthIcon, getResourcesHealth } from './projectUtils';
@@ -109,8 +109,11 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
               {project.id}
             </Typography>
 
-            <DeleteMultipleButton
-              items={allNamespaces?.filter(it => project.namespaces.includes(it.metadata.name))}
+            <ProjectDeleteButton
+              project={project}
+              namespaces={
+                allNamespaces?.filter(it => project.namespaces.includes(it.metadata.name)) || []
+              }
             />
           </Box>
         }

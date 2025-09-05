@@ -46,6 +46,7 @@ import { MRT_Localization_PT } from 'material-react-table/locales/pt';
 import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
 import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
 import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
+import { useHotkeys } from 'react-hotkeys-hook';
 import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { useURLState } from '../../../lib/util';
@@ -365,6 +366,17 @@ export default function Table<RowItem extends Record<string, any>>({
       sx: { padding: 0 },
     },
   });
+
+  // toggle
+  useHotkeys(
+    'ctrl+shift+t',
+    e => {
+      e.preventDefault();
+      e.stopPropagation();
+      table.setShowColumnFilters(!table.getState().showColumnFilters);
+    },
+    [table]
+  );
 
   // Hide actions column when others are hidden
   useEffect(() => {

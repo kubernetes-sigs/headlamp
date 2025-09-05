@@ -22,7 +22,7 @@ import { filterGeneric, filterResource } from '../redux/filterSlice';
 import { useTypedSelector } from '../redux/hooks';
 import store from '../redux/stores/store';
 import { getCluster, getClusterGroup, getClusterPrefixedPath } from './cluster';
-import { ApiError } from './k8s/apiProxy';
+import { ApiError } from './k8s/api/v2/ApiError';
 import { KubeMetrics } from './k8s/cluster';
 import { KubeEvent } from './k8s/event';
 import { KubeObjectInterface } from './k8s/KubeObject';

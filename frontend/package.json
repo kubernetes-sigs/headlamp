@@ -87,6 +87,7 @@
     "typescript": "5.6.2",
     "vite": "^6.3.5",
     "vite-plugin-node-polyfills": "^0.23.0",
+    "vite-plugin-static-copy": "^3.1.2",
     "vite-plugin-svgr": "^4.3.0"
   },
   "overrides": {
@@ -207,6 +208,7 @@
     "@rsbuild/plugin-node-polyfill": "^1.4.1",
     "@rsbuild/plugin-react": "^1.3.5",
     "@rsbuild/plugin-svgr": "^1.2.2",
+    "@storybook/addon-docs": "^9.1.2",
     "@storybook/addon-links": "^9.1.2",
     "@storybook/react-vite": "^9.1.2",
     "@testing-library/jest-dom": "^6.4.8",
@@ -228,8 +230,7 @@
     "typedoc-plugin-rename-defaults": "^0.7.1",
     "vitest": "^3.0.5",
     "vitest-canvas-mock": "^0.3.3",
-    "vitest-websocket-mock": "^0.4.0",
-    "@storybook/addon-docs": "^9.1.2"
+    "vitest-websocket-mock": "^0.4.0"
   },
   "msw": {
     "workerDirectory": [

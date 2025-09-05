@@ -28,12 +28,12 @@ import { useTranslation } from 'react-i18next';
 import { isDockerDesktop } from '../../../helpers/isDockerDesktop';
 import { isElectron } from '../../../helpers/isElectron';
 import { getCluster } from '../../../lib/cluster';
-import { PortForward as PortForwardState } from '../../../lib/k8s/api/v1/portForward';
 import {
   listPortForward,
+  PortForward as PortForwardState,
   startPortForward,
   stopOrDeletePortForward,
-} from '../../../lib/k8s/apiProxy';
+} from '../../../lib/k8s/api/v1/portForward';
 import { KubeContainer } from '../../../lib/k8s/cluster';
 import { KubeObject, KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';

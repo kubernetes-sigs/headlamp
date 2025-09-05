@@ -16,7 +16,8 @@
 
 import nock from 'nock';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
-import { findKubeconfigByClusterName, getUserIdFromLocalStorage } from '../../../../stateless';
+import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
+import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getClusterAuthType } from '../v1/clusterRequests';
 import { BASE_HTTP_URL, clusterFetch } from './fetch';
 
@@ -25,8 +26,11 @@ vi.mock('../../../auth', () => ({
   setToken: vi.fn(),
 }));
 
-vi.mock('../../../../stateless', () => ({
+vi.mock('../../../../stateless/findKubeconfigByClusterName', () => ({
   findKubeconfigByClusterName: vi.fn(),
+}));
+
+vi.mock('../../../../stateless/getUserIdFromLocalStorage', () => ({
   getUserIdFromLocalStorage: vi.fn(),
 }));
 

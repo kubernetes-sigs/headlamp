@@ -14,151 +14,132 @@
  * limitations under the License.
  */
 
-import React, { ExoticComponent, ReactNode } from 'react';
-import { generatePath, useHistory } from 'react-router';
-import NotFoundComponent from '../components/404';
-import AuthToken from '../components/account/Auth';
-import AddCluster from '../components/App/CreateCluster/AddCluster';
-import Home from '../components/App/Home';
-import NotificationList from '../components/App/Notifications/List';
-import PluginSettings from '../components/App/PluginSettings';
-import PluginSettingsDetails from '../components/App/PluginSettings/PluginSettingsDetails';
-import Settings from '../components/App/Settings';
-import SettingsCluster from '../components/App/Settings/SettingsCluster';
-import SettingsClusters from '../components/App/Settings/SettingsClusters';
-import AuthChooser from '../components/authchooser';
-import KubeConfigLoader from '../components/cluster/KubeConfigLoader';
-import Overview from '../components/cluster/Overview';
-import { PageGrid } from '../components/common/Resource/Resource';
-import ConfigDetails from '../components/configmap/Details';
-import ConfigMapList from '../components/configmap/List';
-import CustomResourceDetails from '../components/crd/CustomResourceDetails';
-import { CrInstanceList } from '../components/crd/CustomResourceInstancesList';
-import CustomResourceList from '../components/crd/CustomResourceList';
-import CustomResourceDefinitionDetails from '../components/crd/Details';
-import CustomResourceDefinitionList from '../components/crd/List';
-import CronJobDetails from '../components/cronjob/Details';
-import CronJobList from '../components/cronjob/List';
-import DaemonSetList from '../components/daemonset/List';
-import DeploymentsList from '../components/deployments/List';
-import EndpointDetails from '../components/endpoints/Details';
-import EndpointList from '../components/endpoints/List';
-import BackendTLSPolicyDetails from '../components/gateway/BackendTLSPolicyDetails';
-import BackendTLSPolicyList from '../components/gateway/BackendTLSPolicyList';
-import BackendTrafficPolicyDetails from '../components/gateway/BackendTrafficPolicyDetails';
-import BackendTrafficPolicyList from '../components/gateway/BackendTrafficPolicyList';
-import GatewayClassDetails from '../components/gateway/ClassDetails';
-import GatewayClassList from '../components/gateway/ClassList';
-import GatewayDetails from '../components/gateway/GatewayDetails';
-import GatewayList from '../components/gateway/GatewayList';
-import GRPCRouteDetails from '../components/gateway/GRPCRouteDetails';
-import GRPCRouteList from '../components/gateway/GRPCRouteList';
-import HTTPRouteDetails from '../components/gateway/HTTPRouteDetails';
-import HTTPRouteList from '../components/gateway/HTTPRouteList';
-import ReferenceGrantDetails from '../components/gateway/ReferenceGrantDetails';
-import ReferenceGrantList from '../components/gateway/ReferenceGrantList';
-import HpaDetails from '../components/horizontalPodAutoscaler/Details';
-import HpaList from '../components/horizontalPodAutoscaler/List';
-import IngressClassDetails from '../components/ingress/ClassDetails';
-import IngressClassList from '../components/ingress/ClassList';
-import IngressDetails from '../components/ingress/Details';
-import IngressList from '../components/ingress/List';
-import JobsList from '../components/job/List';
-import { LeaseDetails } from '../components/lease/Details';
-import { LeaseList } from '../components/lease/List';
-import { LimitRangeDetails } from '../components/limitRange/Details';
-import { LimitRangeList } from '../components/limitRange/List';
-import NamespaceDetails from '../components/namespace/Details';
-import NamespacesList from '../components/namespace/List';
-import { NetworkPolicyDetails } from '../components/networkpolicy/Details';
-import { NetworkPolicyList } from '../components/networkpolicy/List';
-import NodeDetails from '../components/node/Details';
-import NodeList from '../components/node/List';
-import OIDCAuth from '../components/oidcauth';
-import PodDetails from '../components/pod/Details';
-import PodList from '../components/pod/List';
-import PDBDetails from '../components/podDisruptionBudget/Details';
-import PDBList from '../components/podDisruptionBudget/List';
-import PortForwardingList from '../components/portforward';
-import PriorityClassDetails from '../components/priorityClass/Details';
-import PriorityClassList from '../components/priorityClass/List';
-import ReplicaSetList from '../components/replicaset/List';
-import ResourceQuotaDetails from '../components/resourceQuota/Details';
-import ResourceQuotaList from '../components/resourceQuota/List';
-import RoleBindingDetails from '../components/role/BindingDetails';
-import RoleBindingList from '../components/role/BindingList';
-import RoleDetails from '../components/role/Details';
-import RoleList from '../components/role/List';
-import { RuntimeClassDetails } from '../components/runtimeClass/Details';
-import { RuntimeClassList } from '../components/runtimeClass/List';
-import SecretDetails from '../components/secret/Details';
-import SecretList from '../components/secret/List';
-import ServiceDetails from '../components/service/Details';
-import ServiceList from '../components/service/List';
-import ServiceAccountDetails from '../components/serviceaccount/Details';
-import ServiceAccountList from '../components/serviceaccount/List';
-import { DefaultSidebars } from '../components/Sidebar';
-import StatefulSetList from '../components/statefulset/List';
-import PersistentVolumeClaimDetails from '../components/storage/ClaimDetails';
-import PersistentVolumeClaimList from '../components/storage/ClaimList';
-import StorageClassDetails from '../components/storage/ClassDetails';
-import StorageClassList from '../components/storage/ClassList';
-import PersistentVolumeDetails from '../components/storage/VolumeDetails';
-import PersistentVolumeList from '../components/storage/VolumeList';
-import VpaDetails from '../components/verticalPodAutoscaler/Details';
-import VpaList from '../components/verticalPodAutoscaler/List';
-import MutatingWebhookConfigurationDetails from '../components/webhookconfiguration/MutatingWebhookConfigDetails';
-import MutatingWebhookConfigList from '../components/webhookconfiguration/MutatingWebhookConfigList';
-import ValidatingWebhookConfigurationDetails from '../components/webhookconfiguration/ValidatingWebhookConfigDetails';
-import ValidatingWebhookConfigurationList from '../components/webhookconfiguration/ValidatingWebhookConfigList';
-import WorkloadDetails from '../components/workload/Details';
-import WorkloadOverview from '../components/workload/Overview';
-import { isElectron } from '../helpers/isElectron';
-import LocaleSelect from '../i18n/LocaleSelect/LocaleSelect';
-import store from '../redux/stores/store';
-import { getClusterPathParam } from './cluster';
-import { useCluster } from './k8s';
-import DaemonSet from './k8s/daemonSet';
-import Deployment from './k8s/deployment';
-import Job from './k8s/job';
-import ReplicaSet from './k8s/replicaSet';
-import StatefulSet from './k8s/statefulSet';
-import { getClusterPrefixedPath } from './util';
+import React from 'react';
+import { useHistory } from 'react-router';
+import NotFoundComponent from '../../components/404';
+import AuthToken from '../../components/account/Auth';
+import AddCluster from '../../components/App/CreateCluster/AddCluster';
+import Home from '../../components/App/Home';
+import NotificationList from '../../components/App/Notifications/List';
+import PluginSettings from '../../components/App/PluginSettings';
+import PluginSettingsDetails from '../../components/App/PluginSettings/PluginSettingsDetails';
+import Settings from '../../components/App/Settings';
+import SettingsCluster from '../../components/App/Settings/SettingsCluster';
+import SettingsClusters from '../../components/App/Settings/SettingsClusters';
+import AuthChooser from '../../components/authchooser';
+import KubeConfigLoader from '../../components/cluster/KubeConfigLoader';
+import Overview from '../../components/cluster/Overview';
+import { PageGrid } from '../../components/common/Resource/Resource';
+import ConfigDetails from '../../components/configmap/Details';
+import ConfigMapList from '../../components/configmap/List';
+import CustomResourceDetails from '../../components/crd/CustomResourceDetails';
+import { CrInstanceList } from '../../components/crd/CustomResourceInstancesList';
+import CustomResourceList from '../../components/crd/CustomResourceList';
+import CustomResourceDefinitionDetails from '../../components/crd/Details';
+import CustomResourceDefinitionList from '../../components/crd/List';
+import CronJobDetails from '../../components/cronjob/Details';
+import CronJobList from '../../components/cronjob/List';
+import DaemonSetList from '../../components/daemonset/List';
+import DeploymentsList from '../../components/deployments/List';
+import EndpointDetails from '../../components/endpoints/Details';
+import EndpointList from '../../components/endpoints/List';
+import BackendTLSPolicyDetails from '../../components/gateway/BackendTLSPolicyDetails';
+import BackendTLSPolicyList from '../../components/gateway/BackendTLSPolicyList';
+import BackendTrafficPolicyDetails from '../../components/gateway/BackendTrafficPolicyDetails';
+import BackendTrafficPolicyList from '../../components/gateway/BackendTrafficPolicyList';
+import GatewayClassDetails from '../../components/gateway/ClassDetails';
+import GatewayClassList from '../../components/gateway/ClassList';
+import GatewayDetails from '../../components/gateway/GatewayDetails';
+import GatewayList from '../../components/gateway/GatewayList';
+import GRPCRouteDetails from '../../components/gateway/GRPCRouteDetails';
+import GRPCRouteList from '../../components/gateway/GRPCRouteList';
+import HTTPRouteDetails from '../../components/gateway/HTTPRouteDetails';
+import HTTPRouteList from '../../components/gateway/HTTPRouteList';
+import ReferenceGrantDetails from '../../components/gateway/ReferenceGrantDetails';
+import ReferenceGrantList from '../../components/gateway/ReferenceGrantList';
+import HpaDetails from '../../components/horizontalPodAutoscaler/Details';
+import HpaList from '../../components/horizontalPodAutoscaler/List';
+import IngressClassDetails from '../../components/ingress/ClassDetails';
+import IngressClassList from '../../components/ingress/ClassList';
+import IngressDetails from '../../components/ingress/Details';
+import IngressList from '../../components/ingress/List';
+import JobsList from '../../components/job/List';
+import { LeaseDetails } from '../../components/lease/Details';
+import { LeaseList } from '../../components/lease/List';
+import { LimitRangeDetails } from '../../components/limitRange/Details';
+import { LimitRangeList } from '../../components/limitRange/List';
+import NamespaceDetails from '../../components/namespace/Details';
+import NamespacesList from '../../components/namespace/List';
+import { NetworkPolicyDetails } from '../../components/networkpolicy/Details';
+import { NetworkPolicyList } from '../../components/networkpolicy/List';
+import NodeDetails from '../../components/node/Details';
+import NodeList from '../../components/node/List';
+import OIDCAuth from '../../components/oidcauth';
+import PodDetails from '../../components/pod/Details';
+import PodList from '../../components/pod/List';
+import PDBDetails from '../../components/podDisruptionBudget/Details';
+import PDBList from '../../components/podDisruptionBudget/List';
+import PortForwardingList from '../../components/portforward';
+import PriorityClassDetails from '../../components/priorityClass/Details';
+import PriorityClassList from '../../components/priorityClass/List';
+import ReplicaSetList from '../../components/replicaset/List';
+import ResourceQuotaDetails from '../../components/resourceQuota/Details';
+import ResourceQuotaList from '../../components/resourceQuota/List';
+import RoleBindingDetails from '../../components/role/BindingDetails';
+import RoleBindingList from '../../components/role/BindingList';
+import RoleDetails from '../../components/role/Details';
+import RoleList from '../../components/role/List';
+import { RuntimeClassDetails } from '../../components/runtimeClass/Details';
+import { RuntimeClassList } from '../../components/runtimeClass/List';
+import SecretDetails from '../../components/secret/Details';
+import SecretList from '../../components/secret/List';
+import ServiceDetails from '../../components/service/Details';
+import ServiceList from '../../components/service/List';
+import ServiceAccountDetails from '../../components/serviceaccount/Details';
+import ServiceAccountList from '../../components/serviceaccount/List';
+import { DefaultSidebars } from '../../components/Sidebar';
+import StatefulSetList from '../../components/statefulset/List';
+import PersistentVolumeClaimDetails from '../../components/storage/ClaimDetails';
+import PersistentVolumeClaimList from '../../components/storage/ClaimList';
+import StorageClassDetails from '../../components/storage/ClassDetails';
+import StorageClassList from '../../components/storage/ClassList';
+import PersistentVolumeDetails from '../../components/storage/VolumeDetails';
+import PersistentVolumeList from '../../components/storage/VolumeList';
+import VpaDetails from '../../components/verticalPodAutoscaler/Details';
+import VpaList from '../../components/verticalPodAutoscaler/List';
+import MutatingWebhookConfigurationDetails from '../../components/webhookconfiguration/MutatingWebhookConfigDetails';
+import MutatingWebhookConfigList from '../../components/webhookconfiguration/MutatingWebhookConfigList';
+import ValidatingWebhookConfigurationDetails from '../../components/webhookconfiguration/ValidatingWebhookConfigDetails';
+import ValidatingWebhookConfigurationList from '../../components/webhookconfiguration/ValidatingWebhookConfigList';
+import WorkloadDetails from '../../components/workload/Details';
+import WorkloadOverview from '../../components/workload/Overview';
+import { isElectron } from '../../helpers/isElectron';
+import LocaleSelect from '../../i18n/LocaleSelect/LocaleSelect';
+import store from '../../redux/stores/store';
+import { useCluster } from '..//k8s';
+import DaemonSet from '../k8s/daemonSet';
+import Deployment from '../k8s/deployment';
+import Job from '../k8s/job';
+import ReplicaSet from '../k8s/replicaSet';
+import StatefulSet from '../k8s/statefulSet';
+import type { RouteURLProps } from './createRouteURL';
+import { createRouteURL, setStore } from './createRouteURL';
+import { getDefaultRoutes, setDefaultRoutes } from './getDefaultRoutes';
+import { getRoute } from './getRoute';
+import { getRoutePath } from './getRoutePath';
+import { getRouteUseClusterURL } from './getRouteUseClusterURL';
+import { Route } from './Route';
+export type { Route, RouteURLProps };
 
-export interface Route {
-  /** Any valid URL path or array of paths that path-to-regexp@^1.7.0 understands. */
-  path: string;
-  /** When true, will only match if the path matches the location.pathname exactly. */
-  exact?: boolean;
-  /** Human readable name. Capitalized and short. */
-  name?: string;
-  /**
-   * In case this route does *not* need a cluster prefix and context.
-   * @deprecated please use useClusterURL.
-   */
-  noCluster?: boolean;
-  /**
-   * Should URL have the cluster prefix? (default=true)
-   */
-  useClusterURL?: boolean;
-  /** This route does not require Authentication. */
-  noAuthRequired?: boolean;
-  /** The sidebar entry this Route should enable, or null if it shouldn't enable any. If an object is passed with item and sidebar, it will try to enable the given sidebar and the given item. */
-  sidebar: string | null | { item: string | null; sidebar: string | DefaultSidebars };
-  /** Shown component for this route. */
-  component: ExoticComponent<{}> | (() => ReactNode);
-  /** Hide the appbar at the top. */
-  hideAppBar?: boolean;
-  /** Whether the route should be disabled (not registered). */
-  disabled?: boolean;
-  /** Render route for full width */
-  isFullWidth?: boolean;
-}
+export { getDefaultRoutes, getRouteUseClusterURL, getRoutePath, getRoute, createRouteURL };
 
 const LazyGraphView = React.lazy(() =>
-  import('../components/resourceMap/GraphView').then(it => ({ default: it.GraphView }))
+  import('../../components/resourceMap/GraphView').then(it => ({ default: it.GraphView }))
 );
 
+setStore(store);
+
+/** @private */
 const defaultRoutes: { [routeName: string]: Route } = {
   projectCreateYaml: {
     path: '/project/create-yaml',
@@ -171,7 +152,7 @@ const defaultRoutes: { [routeName: string]: Route } = {
     useClusterURL: false,
     noAuthRequired: true,
     component: React.lazy(() =>
-      import('../components/project/ProjectCreateFromYaml').then(m => ({ default: m.CreateNew }))
+      import('../../components/project/ProjectCreateFromYaml').then(m => ({ default: m.CreateNew }))
     ),
   },
   projectDetails: {
@@ -184,7 +165,7 @@ const defaultRoutes: { [routeName: string]: Route } = {
     },
     useClusterURL: false,
     noAuthRequired: true,
-    component: React.lazy(() => import('../components/project/ProjectDetails')),
+    component: React.lazy(() => import('../../components/project/ProjectDetails')),
   },
   cluster: {
     path: '/',
@@ -211,7 +192,7 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'Advanced Search',
     sidebar: 'advancedSearch',
     component: React.lazy(() =>
-      import('../components/advancedSearch/AdvancedSearch').then(it => ({
+      import('../../components/advancedSearch/AdvancedSearch').then(it => ({
         default: it.AdvancedSearch,
       }))
     ),
@@ -817,14 +798,14 @@ const defaultRoutes: { [routeName: string]: Route } = {
     path: '/customresources/:crd/:namespace/:crName',
     exact: true,
     name: 'Custom Resource',
-    sidebar: 'crds',
+    sidebar: 'customresources',
     component: () => <CustomResourceDetails />,
   },
   customresources: {
     path: '/customresources/:crd',
     exact: true,
     name: 'Custom Resources',
-    sidebar: 'crds',
+    sidebar: 'customresources',
     component: () => <CustomResourceList />,
   },
   crs: {
@@ -982,6 +963,8 @@ const defaultRoutes: { [routeName: string]: Route } = {
   },
 };
 
+setDefaultRoutes(defaultRoutes);
+
 // The NotFound route  needs to be considered always in the last place when used
 // with the router switch, as any routes added after this one will never be considered.
 // So we do not include it in the default routes in order to always "manually" consider it.
@@ -993,116 +976,3 @@ export const NotFoundRoute = {
   sidebar: null,
   noAuthRequired: true,
 };
-
-export function getRoute(routeName: string) {
-  let routeKey = routeName;
-  for (const key in defaultRoutes) {
-    if (key.toLowerCase() === routeName.toLowerCase()) {
-      // if (key !== routeName) {
-      //   console.warn(`Route name ${routeName} and ${key} are not matching`);
-      // }
-      routeKey = key;
-      break;
-    }
-  }
-  return defaultRoutes[routeKey];
-}
-
-/**
- * Should the route use a cluster URL?
- *
- * @param route
- * @returns true when a cluster URL contains cluster in the URL. eg. /c/minikube/my-url
- *   false, the URL does not contain the cluster. eg. /my-url
- */
-export function getRouteUseClusterURL(route: Route): boolean {
-  if (route.useClusterURL === undefined && route.noCluster !== undefined) {
-    console.warn('Route.noCluster is deprecated. Please use route.useClusterURL instead.');
-    return route.noCluster;
-  }
-  if (route.useClusterURL === undefined) {
-    // default is true, so undefined === true.
-    return true;
-  }
-  return route.useClusterURL;
-}
-
-export function getRoutePath(route: Route) {
-  if (route.path === NotFoundRoute.path) {
-    return route.path;
-  }
-  if (!getRouteUseClusterURL(route)) {
-    return route.path;
-  }
-
-  return getClusterPrefixedPath(route.path);
-}
-
-export interface RouteURLProps {
-  /**
-   * Selected clusters path parameter
-   *
-   * Check out {@link getClusterPathParam} and {@link formatClusterPathParam} function
-   * for working with this parameter
-   */
-  cluster?: string;
-  [prop: string]: any;
-}
-
-export function createRouteURL(routeName: string, params: RouteURLProps = {}) {
-  const storeRoutes = store.getState().routes.routes;
-
-  // First try to find by name
-  const matchingStoredRouteByName =
-    storeRoutes &&
-    Object.entries(storeRoutes).find(
-      ([, route]) => route.name?.toLowerCase() === routeName.toLowerCase()
-    )?.[1];
-
-  // Then try to find by path
-  const matchingStoredRouteByPath =
-    storeRoutes &&
-    Object.entries(storeRoutes).find(([key]) => key.toLowerCase() === routeName.toLowerCase())?.[1];
-
-  if (matchingStoredRouteByPath && !matchingStoredRouteByName) {
-    console.warn(
-      `[Deprecation] Route "${routeName}" was found by path instead of name. ` +
-        'Please use route names instead of paths when calling createRouteURL.'
-    );
-  }
-
-  const route = matchingStoredRouteByName || matchingStoredRouteByPath || getRoute(routeName);
-
-  if (!route) {
-    return '';
-  }
-
-  let cluster = params.cluster;
-  if (!cluster && getRouteUseClusterURL(route)) {
-    cluster = getClusterPathParam();
-    if (!cluster) {
-      return '/';
-    }
-  }
-  const fullParams = {
-    selected: undefined,
-    ...params,
-  };
-
-  // Add cluster to the params if it is not already there
-  if (!fullParams.cluster && !!cluster) {
-    fullParams.cluster = cluster;
-  }
-
-  // @todo: Remove this hack once we support redirection in routes
-  if (routeName === 'settingsCluster') {
-    return `/settings/cluster?c=${fullParams.cluster}`;
-  }
-
-  const url = getRoutePath(route);
-  return generatePath(url, fullParams);
-}
-
-export function getDefaultRoutes() {
-  return defaultRoutes;
-}

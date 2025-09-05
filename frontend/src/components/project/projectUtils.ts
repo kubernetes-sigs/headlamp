@@ -204,7 +204,8 @@ export const defaultApiResources = (() => {
 export const toKubernetesName = (name: string): string => {
   const converted = name
     .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-') // Replace non-alphanumeric chars with dashes
+    .replace(/\s+/g, '-') // Replace spaces with dashes
+    .replace(/[^a-z0-9-]/g, '-') // Replace other non-alphanumeric chars with dashes
     .replace(/-+/g, '-') // Replace multiple dashes with single dash
     .replace(/^-+|-+$/g, '') // Remove leading/trailing dashes
     .substring(0, 63); // Ensure max 63 characters for DNS-1123 compliance

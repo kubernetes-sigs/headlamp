@@ -15,7 +15,7 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { ApiError } from '../../lib/k8s/apiProxy';
+import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { LimitRange } from '../../lib/k8s/limitRange';
 import { useNamespaces } from '../../redux/filterSlice';
 import { CreateResourceButton } from '../common/CreateResourceButton';

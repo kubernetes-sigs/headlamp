@@ -16,6 +16,8 @@
 
 import { configureStore, createSlice } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { http, HttpResponse } from 'msw';
 import React from 'react';
 import { Provider } from 'react-redux';
 import { BrowserRouter, Route } from 'react-router-dom';
@@ -134,15 +136,18 @@ export default {
   decorators: [
     (Story, context: { args: { mockSidebarState?: Partial<SidebarState> } }) => {
       const store = createMockStoryStore(context.args.mockSidebarState || {});
+      const queryClient = new QueryClient();
       return (
         <Provider store={store}>
           <BrowserRouter>
             <TestContext store={store}>
-              <Route path="/">
-                <div style={{ padding: '20px', backgroundColor: '#f5f5f5' }}>
-                  <Story />
-                </div>
-              </Route>
+              <QueryClientProvider client={queryClient}>
+                <Route path="/">
+                  <div style={{ padding: '20px', backgroundColor: '#f5f5f5' }}>
+                    <Story />
+                  </div>
+                </Route>
+              </QueryClientProvider>
             </TestContext>
           </BrowserRouter>
         </Provider>
@@ -151,6 +156,30 @@ export default {
   ],
   parameters: {
     controls: { include: ['mockSidebarState'] },
+    msw: {
+      handlers: {
+        story: [
+          http.get(
+            'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions',
+            () =>
+              HttpResponse.json({
+                kind: 'List',
+                items: [],
+                metadata: {},
+              })
+          ),
+          http.get(
+            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
+            () =>
+              HttpResponse.json({
+                kind: 'List',
+                items: [],
+                metadata: {},
+              })
+          ),
+        ],
+      },
+    },
   },
   argTypes: {
     mockSidebarState: {

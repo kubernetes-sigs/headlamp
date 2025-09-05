@@ -184,28 +184,107 @@
               <p
                 class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
               >
-                Upload files(s)
+                Load resources
               </p>
               <p
                 class="MuiTypography-root MuiTypography-body2 css-vm2751-MuiTypography-root"
               >
-                Upload your YAML file(s)
+                Upload files or load from URL
               </p>
             </div>
             <div
               class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-9 css-3vdko4-MuiGrid-root"
             >
               <div
-                class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary css-1j6tj49-MuiInputBase-root-MuiInput-root"
+                class="MuiBox-root css-8atqhb"
               >
-                <input
-                  accept=".yaml,.yml,applicaiton/yaml"
-                  aria-invalid="false"
-                  class="MuiInputBase-input MuiInput-input css-1x51dt5-MuiInputBase-input-MuiInput-input"
-                  multiple=""
-                  type="file"
-                  value=""
-                />
+                <div
+                  class="MuiBox-root css-1gsv261"
+                >
+                  <div
+                    class="MuiTabs-root css-1ujnqem-MuiTabs-root"
+                  >
+                    <div
+                      class="MuiTabs-scroller MuiTabs-fixed css-jpln7h-MuiTabs-scroller"
+                      style="overflow: hidden; margin-bottom: 0px;"
+                    >
+                      <div
+                        class="MuiTabs-flexContainer css-heg063-MuiTabs-flexContainer"
+                        role="tablist"
+                      >
+                        <button
+                          aria-selected="true"
+                          class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-f00lt7-MuiButtonBase-root-MuiTab-root"
+                          role="tab"
+                          tabindex="0"
+                          type="button"
+                        >
+                          Upload Files
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
+                        <button
+                          aria-selected="false"
+                          class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
+                          role="tab"
+                          tabindex="-1"
+                          type="button"
+                        >
+                          Load from URL
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
+                      </div>
+                      <span
+                        class="MuiTabs-indicator css-1s2zz1g-MuiTabs-indicator"
+                        style="left: 0px; width: 0px;"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div
+                  class="MuiBox-root css-1v3caum"
+                >
+                  <div
+                    class="MuiBox-root css-uqrnao"
+                    role="presentation"
+                    tabindex="0"
+                  >
+                    <div
+                      class="MuiFormControl-root css-1nrlq1o-MuiFormControl-root"
+                    >
+                      <input
+                        accept="application/x-yaml,.yaml,.yml,text/yaml,.yaml,.yml,text/plain,.yaml,.yml"
+                        multiple=""
+                        style="display: none;"
+                        tabindex="-1"
+                        type="file"
+                      />
+                      <button
+                        aria-label="Drag & drop YAML files here or click to choose files"
+                        class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
+                        data-mui-internal-clone-element="true"
+                        tabindex="0"
+                        type="button"
+                      >
+                        <span
+                          class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeMedium css-1d6wzja-MuiButton-startIcon"
+                        />
+                        Choose Files
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                    </div>
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-tn1jak-MuiTypography-root"
+                    >
+                      Supports .yaml and .yml files
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

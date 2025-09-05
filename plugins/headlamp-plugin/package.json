@@ -110,7 +110,7 @@
     "vite": "^6.3.5",
     "vite-plugin-css-injected-by-js": "^3.5.1",
     "vite-plugin-node-polyfills": "^0.23.0",
-    "vite-plugin-static-copy": "^2.2.0",
+    "vite-plugin-static-copy": "^3.1.2",
     "vite-plugin-svgr": "^4.3.0",
     "vitest": "^3.0.5",
     "yargs": "^17.7.2"

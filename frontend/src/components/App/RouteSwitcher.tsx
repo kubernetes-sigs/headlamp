@@ -21,15 +21,13 @@ import { useDispatch } from 'react-redux';
 import { Redirect, Route, RouteProps, Switch, useHistory } from 'react-router-dom';
 import { getCluster, getSelectedClusters } from '../../lib/cluster';
 import { useCluster, useClustersConf } from '../../lib/k8s';
-import { testAuth } from '../../lib/k8s/apiProxy';
-import {
-  createRouteURL,
-  getDefaultRoutes,
-  getRoutePath,
-  getRouteUseClusterURL,
-  NotFoundRoute,
-  Route as RouteType,
-} from '../../lib/router';
+import { testAuth } from '../../lib/k8s/api/v1/clusterApi';
+import { NotFoundRoute } from '../../lib/router';
+import { createRouteURL } from '../../lib/router/createRouteURL';
+import { getDefaultRoutes } from '../../lib/router/getDefaultRoutes';
+import { getRoutePath } from '../../lib/router/getRoutePath';
+import { getRouteUseClusterURL } from '../../lib/router/getRouteUseClusterURL';
+import { Route as RouteType } from '../../lib/router/Route';
 import { useTypedSelector } from '../../redux/hooks';
 import { uiSlice } from '../../redux/uiSlice';
 import ErrorBoundary from '../common/ErrorBoundary';
@@ -149,10 +147,16 @@ interface AuthRouteProps {
 }
 
 function AuthRoute(props: AuthRouteProps) {
-  const { children, sidebar, requiresAuth = true, requiresCluster = true, ...other } = props;
-
+  const {
+    children,
+    sidebar,
+    requiresAuth = true,
+    requiresCluster = true,
+    computedMatch = {},
+    ...other
+  } = props;
   const redirectRoute = getCluster() ? 'login' : 'chooser';
-  useSidebarItem(sidebar);
+  useSidebarItem(sidebar, computedMatch);
   const cluster = useCluster();
   const query = useQuery({
     queryKey: ['auth', cluster],

@@ -2,7 +2,10 @@ backend/headlamp-server
 backend/headlamp-server.exe
 backend/tmp
 backend/tools
+backend/cmd/static/*
+backend/dist/*
 backend/coverage.out
+backend/pkg/spa/static/*
 app/electron/src/*
 docs/development/storybook/
 .plugins
