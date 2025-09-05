@@ -262,6 +262,27 @@ pluginsManager:
   #     cpu: "1000m"
   #     memory: "4096Mi"
 
+podDisruptionBudget:
+  # -- enable PodDisruptionBudget
+  # ref: https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
+  enabled: false
+  # @schema
+  # type: [null, integer, string]
+  # @schema
+  # -- Minimum number/percentage of pods that should remain scheduled.
+  # When it's set, maxUnavailable must be disabled by `maxUnavailable: null`
+  minAvailable: 0
+  # @schema
+  # type: [null, integer, string]
+  # @schema
+  # -- Maximum number/percentage of pods that may be made unavailable
+  maxUnavailable: null
+  # @schema
+  # type: [null, string]
+  # @schema
+  # -- How are unhealthy, but running, pods counted for eviction
+  unhealthyPodEvictionPolicy: null
+
 # -- Additional Kubernetes manifests to be deployed. Include the manifest as nested YAML.
 extraManifests: []
 # - |

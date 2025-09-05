@@ -231,6 +231,44 @@ env:
     value: "6443"
 ```
 
+### Pod Disruption Budget (PDB)
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| podDisruptionBudget.enabled | bool | `false` | Create a PodDisruptionBudget resource |
+| podDisruptionBudget.minAvailable | integer \| string \| null | `0` | Minimum pods that must be available. Rendered only when set to a positive integer or a percentage string (e.g. `"1"` or `"50%"`). Schema default is 0, but the chart skips rendering `0`. |
+| podDisruptionBudget.maxUnavailable | integer \| string \| null | `null` | Maximum pods allowed to be unavailable. Accepts integer >= 0 or percentage string. Mutually exclusive with `minAvailable`; the template renders this field when set. |
+| podDisruptionBudget.unhealthyPodEvictionPolicy | string \| null | `null` | Eviction policy: `"IfHealthyBudget"` or `"AlwaysAllow"`. Emitted only on clusters running Kubernetes >= 1.27 and when explicitly set in values. |
+
+Note: Ensure `minAvailable` and `maxUnavailable` are not both set (use `null` to disable one). To include `minAvailable` in the rendered PDB, set a positive integer or percentage; the template omits a `0` value.
+
+Example, Require at least 1 pod available (ensure maxUnavailable is disabled):
+```yaml
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  maxUnavailable: null
+```
+
+Example, Allow up to 50% of pods to be unavailable:
+```yaml
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: "50%"
+  minAvailable: null
+```
+
+Example, Set unhealthyPodEvictionPolicy (requires Kubernetes >= 1.27):
+```yaml
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+  minAvailable: null
+  unhealthyPodEvictionPolicy: "IfHealthyBudget"
+```
+
+Ensure your replicaCount and maintenance procedures respect the configured PDB to avoid blocking intended operations.
+
 ## Contributing
 
 We welcome contributions to the Headlamp Helm chart! To contribute:
