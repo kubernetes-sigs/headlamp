@@ -118,6 +118,7 @@
     "files": [
       "electron/main.js",
       "electron/preload.js",
+      "electron/mcp-client.js",
       "electron/i18next.config.js",
       "electron/i18n-helper.js",
       "electron/windowSize.js",
@@ -171,6 +172,7 @@
     "typescript": "5.5.4"
   },
   "dependencies": {
+    "@langchain/mcp-adapters": "^0.6.0",
     "copyfiles": "^2.4.1",
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.5",
