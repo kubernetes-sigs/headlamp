@@ -40,6 +40,7 @@ import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import i18n from './i18next.config';
+import ElectronMCPClient from './mcp-client';
 import {
   addToPath,
   ArtifactHubHeadlampPkg,
@@ -132,6 +133,7 @@ const buildManifest = fs.existsSync(manifestFile) ? require(manifestFile) : {};
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
+let mcpClient: ElectronMCPClient;
 
 /**
  * `Action` is an interface for an action to be performed by the plugin manager.
@@ -1280,6 +1282,9 @@ function startElecron() {
 
     new PluginManagerEventListeners().setupEventHandlers();
 
+    // Initialize MCP client
+    mcpClient = new ElectronMCPClient();
+
     if (!useExternalServer) {
       serverProcess = await startServer();
       attachServerEventHandlers(serverProcess);
@@ -1413,6 +1418,10 @@ function startElecron() {
     i18n.off('languageChanged');
     if (mainWindow) {
       mainWindow.removeAllListeners('close');
+    }
+    // Cleanup MCP client
+    if (mcpClient) {
+      mcpClient.cleanup().catch(console.error);
     }
   });
 }
