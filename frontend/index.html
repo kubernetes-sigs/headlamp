@@ -24,7 +24,10 @@
     -->
     <title>Headlamp</title>
     <script>
-      headlampBaseUrl = '%BASE_URL%<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');
+        // handles both webpack and rspack build systems
+        __baseUrl__ = '%BASE_URL%<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');
+        // the syntax of the following line is special - it will be matched and replaced by the server if a base URL is set by the server
+        headlampBaseUrl = __baseUrl__;
     </script>
     <style>
       .splash {

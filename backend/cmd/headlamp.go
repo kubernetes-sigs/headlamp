@@ -169,7 +169,7 @@ func baseURLReplace(staticDir string, baseURL string) {
 
 	copyReplace(indexBaseURL,
 		index,
-		[]byte("headlampBaseUrl = './'"),
+		[]byte("headlampBaseUrl = __baseUrl__"),
 		[]byte("headlampBaseUrl = '"+replaceURL+"'"),
 		// Replace any resource that has "./" in it
 		[]byte("./"),
