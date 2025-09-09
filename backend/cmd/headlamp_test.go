@@ -769,35 +769,6 @@ func TestFileExists(t *testing.T) {
 		"fileExists() should return false for directory")
 }
 
-func TestCopyReplace(t *testing.T) {
-	// Create temporary source and destination files
-	srcFile, err := os.CreateTemp("", "src_file_*")
-	require.NoError(t, err)
-
-	defer os.Remove(srcFile.Name())
-
-	dstFile, err := os.CreateTemp("", "dst_file_*")
-	require.NoError(t, err)
-
-	defer os.Remove(dstFile.Name())
-
-	// Write test content to source file
-	_, err = srcFile.WriteString("Hello, World! This is a test.")
-	require.NoError(t, err)
-
-	srcFile.Close()
-
-	// Test successful copy and replace
-	copyReplace(srcFile.Name(), dstFile.Name(),
-		[]byte("Hello"), []byte("Hi"),
-		[]byte("test"), []byte("example"))
-
-	dstContent, err := os.ReadFile(dstFile.Name())
-	require.NoError(t, err)
-
-	assert.Equal(t, "Hi, World! This is a example.", string(dstContent), "copyReplace() should correctly replace content")
-}
-
 //nolint:funlen
 func TestBaseURLReplace(t *testing.T) {
 	// Create a temporary directory for testing
@@ -810,7 +781,7 @@ func TestBaseURLReplace(t *testing.T) {
 	indexContent := []byte(`<!DOCTYPE html>
 <html>
 <head>
-    <script>var headlampBaseUrl = './';</script>
+    <script>var headlampBaseUrl = __baseUrl__;</script>
     <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
