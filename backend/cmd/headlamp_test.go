@@ -845,6 +845,36 @@ func TestBaseURLReplace(t *testing.T) {
 	}
 }
 
+func TestBaseURLReplaceWithCurrentIndexHTMLContentAndRSPackBuild(t *testing.T) {
+	// This is the current contents of index.html given the recent changes to support both rsbuild and webpack
+	// after the front-end is built, one of the BASE_URL variables will have been replaced with string contents
+	// depending on which build system was used. In either case though, if the server knows the base URL,
+	// we want to ensure it is used, so headlampBaseUrl will be forced to the value we want
+	output := makeBaseURLReplacements([]byte(`
+<!DOCTYPE html>
+<html>
+<head>
+    <script>
+        __baseUrl__ = '%BASE_URL%<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');
+        headlampBaseUrl = __baseUrl__;
+    </script>
+</head>
+</html>
+`), "/headlamp")
+
+	assert.Equal(t, string(output), `
+<!DOCTYPE html>
+<html>
+<head>
+    <script>
+        __baseUrl__ = '%BASE_URL%<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');
+        headlampBaseUrl = '/headlamp';
+    </script>
+</head>
+</html>
+`)
+}
+
 func TestGetOidcCallbackURL(t *testing.T) {
 	tests := []struct {
 		name           string
