@@ -86,7 +86,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
   } = props;
   const clusters = useSelectedClusters();
   let fullURL = url;
-  if (fullURL && useClusterURL && clusters.length) {
+  if (fullURL && useClusterURL && clusters.length && !fullURL.startsWith('http')) {
     fullURL = generatePath(getClusterPrefixedPath(url), {
       cluster: clusters.length ? formatClusterPathParam(clusters) : '',
     });
