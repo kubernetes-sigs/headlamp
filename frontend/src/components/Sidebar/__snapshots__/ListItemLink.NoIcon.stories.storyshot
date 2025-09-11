@@ -12,8 +12,8 @@
           <a
             class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1c5v89n-MuiButtonBase-root-MuiListItemButton-root"
             href="https://headlamp.dev"
-            role="button"
-            tabindex="0"
+            rel="noopener noreferrer"
+            target="_blank"
           >
             <div
               class="MuiListItemText-root css-tlelie-MuiListItemText-root"
