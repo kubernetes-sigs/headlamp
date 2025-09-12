@@ -398,6 +398,33 @@ async function createArchive(pluginDir, outputDir) {
 }
 
 /**
+ * Inject selected environment variables into Vite config's define field.
+ * Supports both import.meta.env and process.env styles.
+ *
+ * @param {object} config - Vite config object to mutate
+ * @param {string[]} extraKeys - Additional Node-style keys to expose
+ */
+function injectEnvVars(config, extraKeys = ['NODE_ENV']) {
+  if (!config.define) {
+    config.define = {};
+  }
+
+  Object.keys(process.env)
+    .filter(
+      key =>
+        key.startsWith('REACT_APP_') || key.startsWith('HEADLAMP_APP_') || extraKeys.includes(key)
+    )
+    .forEach(key => {
+      const value = JSON.stringify(process.env[key]);
+      console.log(`Injecting env var: ${key} = ${value}`);
+      config.define[`import.meta.env.${key}`] = value;
+      config.define[`process.env.${key}`] = value;
+    });
+
+  return config;
+}
+
+/**
  * Start watching for changes, and build again if there are changes.
  * @returns {Promise<number>} Exit code, where 0 is success.
  */
@@ -474,6 +501,11 @@ async function start() {
     config.build.watch = {};
     config.build.sourcemap = 'inline';
   }
+
+  if (typeof process.env.NODE_ENV === 'undefined') {
+    process.env.NODE_ENV = 'development';
+  }
+  injectEnvVars(config);
 
   // Add plugin name injection plugin for dev mode
   if (!config.plugins) {
@@ -708,6 +740,11 @@ async function build(packageFolder) {
     if (!buildConfig.plugins) {
       buildConfig.plugins = [];
     }
+
+    if (typeof process.env.NODE_ENV === 'undefined') {
+      process.env.NODE_ENV = 'production';
+    }
+    injectEnvVars(buildConfig);
 
     // Import the plugin name injection plugin
     const { pluginNameInjection } = await import('../config/vite-plugin-name-injection.mjs');
