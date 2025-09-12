@@ -4,6 +4,8 @@
 import { create } from 'storybook/theming/create';
 import logoUrl from '../../docs/headlamp_light.svg';
 
+// Please also update plugins/headlamp-plugin/config/.storybook/HeadlampTheme.js
+
 export default create({
   base: 'light',
   brandTitle: 'Headlamp Kubernetes Web UI dashboard',

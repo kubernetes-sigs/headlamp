@@ -16,6 +16,8 @@
 
 import type { StorybookConfig } from '@storybook/react-vite';
 
+// Please also update: plugins/headlamp-plugin/config/.storybook/main.js
+
 export default {
   framework: '@storybook/react-vite',
   stories: ['../src/**/*.stories.@(js|jsx|ts|tsx)'],
