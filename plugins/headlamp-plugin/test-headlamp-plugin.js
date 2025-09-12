@@ -95,8 +95,7 @@ function testHeadlampPlugin() {
   run('npm', ['run', 'tsc']);
 
   // test the storybook builds
-  // TODO: Reenable after storybook is fixed
-  // run('npm run storybook-build');
+  run('npm', ['run', 'storybook-build']);
 
   // test upgrade adds missing files
   const filesToRemove = [
