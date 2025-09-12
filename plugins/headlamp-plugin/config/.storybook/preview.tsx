@@ -17,7 +17,8 @@ import React from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 // import { initialize, mswLoader } from 'msw-storybook-addon';
 // import './index.css';
-import { Title, Subtitle, Description, Primary, Controls } from '@storybook/blocks';
+import { Title, Subtitle, Description, Primary, Controls } from '@storybook/addon-docs/blocks';
+
 // import { baseMocks } from './baseMocks';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {

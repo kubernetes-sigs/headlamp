@@ -45,6 +45,8 @@ const dependenciesFrontDoesNotHave = new Set([
   '@storybook/react-webpack5',
   'ts-loader',
   '@headlamp-k8s/pluginctl',
+  'path-browserify',
+  'process',
 ]);
 
 // Dependencies from frontend/package.json that aren't wanted by headlamp-plugin.

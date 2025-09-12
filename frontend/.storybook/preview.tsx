@@ -24,6 +24,8 @@ import { darkTheme, lightTheme } from '../src/components/App/defaultAppThemes';
 import { createMuiTheme } from '../src/lib/themes';
 import App from '../src/App';
 
+// Please also update: plugins/headlamp-plugin/config/.storybook/preview.tsx
+
 // https://github.com/mswjs/msw-storybook-addon
 initialize({
   onUnhandledRequest: 'warn',

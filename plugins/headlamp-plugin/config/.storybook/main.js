@@ -9,8 +9,7 @@ module.exports = {
   addons: [
     '@storybook/addon-links',
     '@storybook/addon-webpack5-compiler-swc',
-    '@storybook/addon-essentials',
-    '@storybook/addon-interactions',
+    '@storybook/addon-docs',
   ],
   core: {
     disableTelemetry: true,
@@ -61,6 +60,27 @@ module.exports = {
         },
       },
     });
+
+    // Polyfill for apidevtools feature used in docs
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      path: require.resolve('path-browserify'),
+      process: require.resolve('process/browser'),
+    };
+
+    config.plugins.push(
+      new webpack.ProvidePlugin({
+        process: 'process/browser',
+      })
+    );
+
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@kinvolk/headlamp-plugin/lib/k8s': path.resolve(
+        __dirname,
+        '../../../../../node_modules/@kinvolk/headlamp-plugin/lib/lib/k8s'
+      ),
+    };
 
     return config;
   },
