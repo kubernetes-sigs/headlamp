@@ -74,6 +74,14 @@ module.exports = {
       })
     );
 
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@kinvolk/headlamp-plugin/lib/k8s': path.resolve(
+        __dirname,
+        '../../../../../node_modules/@kinvolk/headlamp-plugin/lib/lib/k8s'
+      ),
+    };
+
     return config;
   },
 };
