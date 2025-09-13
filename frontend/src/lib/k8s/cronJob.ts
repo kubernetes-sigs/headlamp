@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { KubeContainer } from './cluster';
-import { KubeMetadata } from './KubeMetadata';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { KubeContainer } from './cluster';
+import type { KubeMetadata } from './KubeMetadata';
+import { KubeObject, type KubeObjectInterface } from './KubeObject';
 
 /**
  * CronJob structure returned by the k8s API.

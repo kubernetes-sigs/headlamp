@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-import { KubeCondition, KubeContainer, LabelSelector } from './cluster';
-import { KubeMetadata } from './KubeMetadata';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
-import { KubePodSpec } from './pod';
+import type { KubeCondition, KubeContainer, LabelSelector } from './cluster';
+import type { KubeMetadata } from './KubeMetadata';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
+import type { KubePodSpec } from './pod';
 
 export interface KubeReplicaSet extends KubeObjectInterface {
   spec: {

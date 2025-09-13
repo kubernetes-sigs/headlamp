@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { KubeCondition } from './cluster';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { KubeCondition } from './cluster';
+import { KubeObject, type KubeObjectInterface } from './KubeObject';
 
 /**
  * ParentReference identifies an API object (usually a Gateway) that can be considered a parent of this resource (usually a route).

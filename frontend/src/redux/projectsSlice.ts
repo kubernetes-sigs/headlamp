@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { ReactNode } from 'react';
-import { KubeObject } from '../lib/k8s/KubeObject';
+import type { PayloadAction } from '@reduxjs/toolkit';
+import { createSlice } from '@reduxjs/toolkit';
+import type { ReactNode } from 'react';
+import type { KubeObject } from '../lib/k8s/KubeObject';
 
 export interface ProjectDefinition {
   id: string;

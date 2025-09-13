@@ -18,9 +18,10 @@ import React from 'react';
 import { useErrorState } from '../util';
 import { useConnectApi } from '.';
 import { metrics } from './api/v1/metricsApi';
-import { ApiError } from './api/v2/ApiError';
-import { KubeCondition, KubeMetrics } from './cluster';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { ApiError } from './api/v2/ApiError';
+import type { KubeCondition, KubeMetrics } from './cluster';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
 
 export interface KubeNode extends KubeObjectInterface {
   status: {

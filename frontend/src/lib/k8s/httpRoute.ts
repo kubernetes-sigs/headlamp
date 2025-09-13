@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { GatewayParentReference } from './gateway';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { GatewayParentReference } from './gateway';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
 
 /**
  * HTTPRouteRule defines semantics for matching an HTTP request based on conditions (matches), processing it (filters), and forwarding the request to an API object (backendRefs).

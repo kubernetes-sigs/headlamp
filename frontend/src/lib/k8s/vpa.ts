@@ -16,9 +16,8 @@
 
 import { ResourceClasses } from '.';
 import { request } from './api/v1/clusterRequests';
+import type { KubeObjectClass, KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
-import { KubeObjectInterface } from './KubeObject';
-import { KubeObjectClass } from './KubeObject';
 
 type ResourceName = 'cpu' | 'memory' | 'storage' | 'ephemeral-storage';
 

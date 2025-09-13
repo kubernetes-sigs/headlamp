@@ -17,12 +17,26 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
+
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"golang.org/x/oauth2"
 )
+
+const (
+	oldTokenTTL   = time.Second * 10 // seconds
+	oidcKeyPrefix = "oidc-token-"
+)
+
+const JWTExpirationTTL = 10 * time.Second // seconds
 
 // DecodeBase64JSON decodes a base64 URL-encoded JSON string into a map.
 func DecodeBase64JSON(base64JSON string) (map[string]interface{}, error) {
@@ -71,4 +85,67 @@ func ParseClusterAndToken(r *http.Request) (string, string) {
 	}
 
 	return cluster, token
+}
+
+// GetExpiryUnixTimeUTC expiration unix time UTC from a token payload map exp field.
+//
+// The exp field is UTC unix time in seconds.
+// See https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
+// See exp field: https://www.rfc-editor.org/rfc/rfc7519#section-4.1.4
+func GetExpiryUnixTimeUTC(tokenPayload map[string]interface{}) (time.Time, error) {
+	// Numbers in JSON are floats (54-bit)
+	exp, ok := tokenPayload["exp"].(float64)
+	if !ok {
+		return time.Time{}, errors.New("expiry time not found or invalid")
+	}
+
+	return time.Unix(int64(exp), 0).UTC(), nil
+}
+
+// IsTokenAboutToExpire reports whether the given token is within JWTExpirationTTL
+// of its expiry time.
+func IsTokenAboutToExpire(token string) bool {
+	parts := strings.SplitN(token, ".", 3)
+	if len(parts) != 3 || parts[1] == "" {
+		return false
+	}
+
+	payload, err := DecodeBase64JSON(parts[1])
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to decode payload")
+		return false
+	}
+
+	expiryUnixTimeUTC, err := GetExpiryUnixTimeUTC(payload)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to get expiry time")
+		return false
+	}
+
+	// This time comparison is timezone aware, so it works correctly
+	return time.Until(expiryUnixTimeUTC) <= JWTExpirationTTL
+}
+
+// CacheRefreshedToken updates the refresh token in the cache.
+func CacheRefreshedToken(token *oauth2.Token, tokenType string, oldToken string,
+	oldRefreshToken string, cache cache.Cache[interface{}],
+) error {
+	newToken, ok := token.Extra(tokenType).(string)
+	if !ok {
+		return nil
+	}
+
+	ctx := context.Background()
+
+	if err := cache.Set(ctx, oidcKeyPrefix+newToken, token.RefreshToken); err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to cache refreshed token")
+		return err
+	}
+
+	if err := cache.SetWithTTL(ctx, oidcKeyPrefix+oldToken, oldRefreshToken, oldTokenTTL); err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to cache refreshed token")
+		return err
+	}
+
+	return nil
 }

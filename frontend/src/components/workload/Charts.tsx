@@ -17,9 +17,9 @@
 import { useTheme } from '@mui/material/styles';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Workload } from '../../lib/k8s/Workload';
+import type { Workload } from '../../lib/k8s/Workload';
 import { getPercentStr, getReadyReplicas, getTotalReplicas } from '../../lib/util';
-import { PercentageCircleProps } from '../common/Chart';
+import type { PercentageCircleProps } from '../common/Chart';
 import TileChart from '../common/TileChart';
 
 export interface WorkloadCircleChartProps extends Omit<PercentageCircleProps, 'data'> {

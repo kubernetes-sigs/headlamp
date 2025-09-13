@@ -429,6 +429,66 @@
         }
       }
     },
+    "podDisruptionBudget": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable PodDisruptionBudget. See: https://kubernetes.io/docs/concepts/workloads/pods/disruptions/"
+        },
+        "minAvailable": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "string",
+              "pattern": "^([0-9]+%?|[0-9]*\\.[0-9]+%)$"
+            }
+          ],
+          "default": 0,
+          "description": "Minimum number/percentage of pods that should remain scheduled. When it's set, maxUnavailable must be disabled by `maxUnavailable: null`"
+        },
+        "maxUnavailable": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "string",
+              "pattern": "^([0-9]+%?|[0-9]*\\.[0-9]+%)$"
+            }
+          ],
+          "default": null,
+          "description": "Maximum number/percentage of pods that may be made unavailable"
+        },
+        "unhealthyPodEvictionPolicy": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "IfHealthyBudget",
+                "AlwaysAllow"
+              ]
+            }
+          ],
+          "default": null,
+          "description": "How are unhealthy, but running, pods counted for eviction"
+        }
+      }
+    },
     "extraManifests": {
       "type": "array",
       "description": "Extra manifests to apply to the deployment",

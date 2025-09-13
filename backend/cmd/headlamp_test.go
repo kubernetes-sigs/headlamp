@@ -32,7 +32,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -930,23 +929,6 @@ func TestGetOidcCallbackURL(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestIsTokenAboutToExpire(t *testing.T) {
-	// Token that expires in 4 minutes
-	header := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
-	originalPayload := "eyJleHAiOjE2MTIzNjE2MDB9"
-	signature := ".7vl9iBWGDQdXUTbEsqFHiHoaNWxKn4UwLhO9QDhXrpM"
-
-	token := header + originalPayload + signature
-	result := isTokenAboutToExpire(token)
-	assert.True(t, result)
-
-	modifiedPayload := strings.Replace(originalPayload, "J", "-", 1)
-
-	token = header + modifiedPayload + signature
-	result = isTokenAboutToExpire(token)
-	assert.False(t, result, "Expected to return false when payload decoding fails due to URL-safe characters")
 }
 
 func TestOIDCTokenRefreshMiddleware(t *testing.T) {

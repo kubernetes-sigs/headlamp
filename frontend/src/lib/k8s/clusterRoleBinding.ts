@@ -15,7 +15,7 @@
  */
 
 import { KubeObject } from './KubeObject';
-import { KubeRoleBinding } from './roleBinding';
+import type { KubeRoleBinding } from './roleBinding';
 
 class ClusterRoleBinding extends KubeObject<KubeRoleBinding> {
   static kind = 'ClusterRoleBinding';

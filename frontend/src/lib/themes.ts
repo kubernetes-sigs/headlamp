@@ -17,7 +17,7 @@
 import { green, grey, orange, pink, red } from '@mui/material/colors';
 import { createTheme, getContrastRatio, useTheme } from '@mui/material/styles';
 import React from 'react';
-import { AppTheme } from './AppTheme';
+import type { AppTheme } from './AppTheme';
 
 declare module '@mui/material/styles/createPalette.d' {
   interface Palette {

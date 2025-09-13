@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import { KubeObject, type KubeObjectInterface } from './KubeObject';
 
 /**
  * BackendTrafficPolicyTargetRef defines a backend object that the policy applies to

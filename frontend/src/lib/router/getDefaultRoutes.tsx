@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Route } from './Route';
+import type { Route } from './Route';
 
 /** @private */
 const DEFAULT_ROUTES: { [routeName: string]: Route } = {};

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import { KubeObject, type KubeObjectInterface } from './KubeObject';
 
 /**
  * BackendTLSPolicyTargetRef defines the target resource (e.g., Service) for the TLS policy.

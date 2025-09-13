@@ -27,8 +27,10 @@ import { isElectron } from '../../../helpers/isElectron';
 import { getCluster } from '../../../lib/cluster';
 import { deletePlugin } from '../../../lib/k8s/api/v1/pluginsApi';
 import { ConfigStore } from '../../../plugin/configStore';
-import { PluginInfo, reloadPage } from '../../../plugin/pluginsSlice';
+import { PluginInfo } from '../../../plugin/pluginsSlice';
+import { clusterAction } from '../../../redux/clusterActionSlice';
 import { useTypedSelector } from '../../../redux/hooks';
+import type { AppDispatch } from '../../../redux/stores/store';
 import NotFoundComponent from '../../404';
 import { ConfirmDialog } from '../../common/Dialog';
 import ErrorBoundary from '../../common/ErrorBoundary';
@@ -37,10 +39,11 @@ import { setNotifications } from '../Notifications/notificationsSlice';
 
 const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   const { plugin } = props;
+  const { t } = useTranslation(['translation']);
   const store = new ConfigStore(plugin.name);
   const pluginConf = store.useConfig();
   const config = pluginConf() as { [key: string]: any };
-  const dispatch = useDispatch();
+  const dispatch: AppDispatch = useDispatch();
 
   function handleSave(data: { [key: string]: any }) {
     store.set(data);
@@ -48,27 +51,34 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
 
   function handleDeleteConfirm() {
     const name = plugin.name.split('/').splice(-1)[0];
-    deletePlugin(name)
-      .then(() => {
-        // update the plugin list
-        dispatch(reloadPage());
-      })
-      .catch(error => {
-        dispatch(
-          setNotifications({
-            cluster: getCluster(),
-            date: new Date().toISOString(),
-            deleted: false,
-            id: Math.random().toString(36).substring(2),
-            message: `Failed to delete plugin: ${error.message || 'Unknown error'}`,
-            seen: false,
-          })
-        );
-      })
-      .finally(() => {
-        // redirect /plugins page
-        window.location.pathname = '/settings/plugins';
-      });
+
+    dispatch(
+      clusterAction(
+        () =>
+          deletePlugin(name).catch(err => {
+            const msg = err instanceof Error ? err.message : t('Unknown error');
+            dispatch(
+              setNotifications({
+                cluster: getCluster(),
+                date: new Date().toISOString(),
+                deleted: false,
+                id: Math.random().toString(36).substring(2),
+                message: t('Failed to delete plugin: {{ msg }}', { msg: msg }),
+                seen: false,
+              })
+            );
+            throw err;
+          }),
+        {
+          startMessage: t('Deleting plugin {{ itemName }}...', { itemName: name }),
+          cancelledMessage: t('Cancelled deletion of {{ itemName }}.', { itemName: name }),
+          successMessage: t('Deleted plugin {{ itemName }}.', { itemName: name }),
+          errorMessage: t('Error deleting plugin {{ itemName }}.', { itemName: name }),
+        }
+      )
+    ).finally(() => {
+      history.back();
+    });
   }
 
   return (

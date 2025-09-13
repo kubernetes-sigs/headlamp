@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { KubeObjectInterface } from './KubeObject';
+import type { KubeObjectInterface } from './KubeObject';
 
 export interface KubeToken extends KubeObjectInterface {
   status: {

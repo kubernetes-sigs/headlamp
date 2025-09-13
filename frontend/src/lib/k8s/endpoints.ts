@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { KubeMetadata } from './KubeMetadata';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { KubeMetadata } from './KubeMetadata';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
 
 export interface KubeEndpointPort {
   name?: string;

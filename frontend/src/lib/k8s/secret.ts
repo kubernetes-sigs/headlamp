@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
 
 export interface KubeSecret extends KubeObjectInterface {
   data: Record<string, string>;

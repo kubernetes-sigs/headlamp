@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { KubeCondition } from './cluster';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { KubeCondition } from './cluster';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
 
 /**
  * GatewayClass is cluster-scoped resource defined by the infrastructure provider. This resource represents a class of Gateways that can be instantiated.

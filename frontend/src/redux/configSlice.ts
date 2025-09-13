@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { Cluster } from '../lib/k8s/cluster';
+import type { PayloadAction } from '@reduxjs/toolkit';
+import { createSlice } from '@reduxjs/toolkit';
+import type { Cluster } from '../lib/k8s/cluster';
 
 export interface ConfigState {
   /**

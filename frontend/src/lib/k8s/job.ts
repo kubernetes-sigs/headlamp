@@ -16,7 +16,8 @@
 
 import { KubeContainer, LabelSelector } from './cluster';
 import { KubeMetadata } from './KubeMetadata';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
 import { KubePodSpec } from './pod';
 
 export interface KubeJob extends KubeObjectInterface {

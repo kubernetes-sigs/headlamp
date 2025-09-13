@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
 
 interface KubePodMetrics extends KubeObjectInterface {
   timestamp: string;

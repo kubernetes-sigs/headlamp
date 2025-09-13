@@ -15,7 +15,7 @@
  */
 
 import { KubeObject } from './KubeObject';
-import { KubeRole } from './role';
+import type { KubeRole } from './role';
 
 class ClusterRole extends KubeObject<KubeRole> {
   static kind = 'ClusterRole';

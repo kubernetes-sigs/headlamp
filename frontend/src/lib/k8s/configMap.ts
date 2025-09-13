@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { StringDict } from './cluster';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { StringDict } from './cluster';
+import { KubeObject, type KubeObjectInterface } from './KubeObject';
 
 export interface KubeConfigMap extends KubeObjectInterface {
   data: StringDict;

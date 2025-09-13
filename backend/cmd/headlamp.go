@@ -43,7 +43,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
+	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 
@@ -791,38 +791,6 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	return r
 }
 
-func getExpiryTime(payload map[string]interface{}) (time.Time, error) {
-	exp, ok := payload["exp"].(float64)
-	if !ok {
-		return time.Time{}, errors.New("expiry time not found or invalid")
-	}
-
-	return time.Unix(int64(exp), 0), nil
-}
-
-func isTokenAboutToExpire(token string) bool {
-	const tokenParts = 3
-
-	parts := strings.Split(token, ".")
-	if len(parts) != tokenParts {
-		return false
-	}
-
-	payload, err := auth.DecodeBase64JSON(parts[1])
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "failed to decode payload")
-		return false
-	}
-
-	expiryTime, err := getExpiryTime(payload)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "failed to get expiry time")
-		return false
-	}
-
-	return time.Until(expiryTime) <= JWTExpirationTTL
-}
-
 // configureTLSContext configures TLS settings for the HTTP client in the context.
 // If skipTLSVerify is true, TLS verification will be skipped.
 // If caCert is provided, it will be added to the certificate pool for TLS verification.
@@ -921,33 +889,11 @@ func getNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 	}
 
 	// update the refresh token in the cache
-	if err := cacheRefreshedToken(newToken, tokenType, token, rToken, cache); err != nil {
+	if err := auth.CacheRefreshedToken(newToken, tokenType, token, rToken, cache); err != nil {
 		return nil, fmt.Errorf("caching refreshed token: %v", err)
 	}
 
 	return newToken, nil
-}
-
-// cacheRefreshedToken updates the refresh token in the cache.
-func cacheRefreshedToken(token *oauth2.Token, tokenType string, oldToken string,
-	oldRefreshToken string, cache cache.Cache[interface{}],
-) error {
-	newToken, ok := token.Extra(tokenType).(string)
-	if ok {
-		if err := cache.Set(context.Background(), fmt.Sprintf("oidc-token-%s", newToken), token.RefreshToken); err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to cache refreshed token")
-			return err
-		}
-
-		// set ttl to 10 seconds for old token to handle case when the new token is not accepted by the client.
-		if err := cache.SetWithTTL(context.Background(), fmt.Sprintf("oidc-token-%s", oldToken),
-			oldRefreshToken, time.Until(token.Expiry)); err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to cache refreshed token")
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (c *HeadlampConfig) refreshAndSetToken(oidcAuthConfig *kubeconfig.OidcConfig,
@@ -1104,7 +1050,7 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 		}
 
 		// skip if token is not about to expire
-		if !isTokenAboutToExpire(token) {
+		if !auth.IsTokenAboutToExpire(token) {
 			c.telemetryHandler.RecordEvent(span, "Token not about to expire, skipping refresh")
 			next.ServeHTTP(w, r)
 			c.telemetryHandler.RecordDuration(ctx, start,

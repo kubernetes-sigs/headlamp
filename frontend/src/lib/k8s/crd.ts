@@ -16,9 +16,8 @@
 
 import { ResourceClasses } from '.';
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
+import type { KubeObjectClass, KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
-import { KubeObjectInterface } from './KubeObject';
-import { KubeObjectClass } from './KubeObject';
 
 export interface KubeCRD extends KubeObjectInterface {
   spec: {

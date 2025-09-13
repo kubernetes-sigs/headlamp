@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { LabelSelector } from './cluster';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { LabelSelector } from './cluster';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
 
 export interface NetworkPolicyPort {
   port?: string | number;

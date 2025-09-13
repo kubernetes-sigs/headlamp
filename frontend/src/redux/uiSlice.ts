@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { ReactElement, useMemo } from 'react';
-import { ClusterChooserType } from '../components/cluster/ClusterChooser';
+import type { PayloadAction } from '@reduxjs/toolkit';
+import { createSlice } from '@reduxjs/toolkit';
+import type { ReactElement } from 'react';
+import { useMemo } from 'react';
+import type { ClusterChooserType } from '../components/cluster/ClusterChooser';
 import { useTypedSelector } from './hooks';
 
 export type FunctionsToOverride = {

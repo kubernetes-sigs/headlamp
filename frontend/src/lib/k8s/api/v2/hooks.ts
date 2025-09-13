@@ -17,11 +17,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { getCluster } from '../../../cluster';
-import { QueryParameters } from '../../api/v1/queryParameters';
-import { ApiError } from '../../api/v2/ApiError';
-import { KubeObject, KubeObjectInterface } from '../../KubeObject';
+import type { QueryParameters } from '../../api/v1/queryParameters';
+import type { ApiError } from '../../api/v2/ApiError';
+import type { KubeObject, KubeObjectInterface } from '../../KubeObject';
 import { clusterFetch } from './fetch';
-import { KubeListUpdateEvent } from './KubeList';
+import type { KubeListUpdateEvent } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { useWebSocket } from './webSocket';

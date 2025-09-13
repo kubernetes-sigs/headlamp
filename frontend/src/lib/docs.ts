@@ -19,7 +19,7 @@
  */
 
 import Swagger from '@apidevtools/swagger-parser';
-import { OpenAPIV2 } from 'openapi-types';
+import type { OpenAPIV2 } from 'openapi-types';
 import { request } from './k8s/api/v1/clusterRequests';
 
 let docsPromise: ReturnType<typeof getDocs> | null = null;

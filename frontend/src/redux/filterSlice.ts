@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import type { PayloadAction } from '@reduxjs/toolkit';
+import { createSlice } from '@reduxjs/toolkit';
 import { JSONPath } from 'jsonpath-plus';
 import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
-import { KubeEvent } from '../lib/k8s/event';
-import { KubeObjectInterface } from '../lib/k8s/KubeObject';
+import type { KubeEvent } from '../lib/k8s/event';
+import type { KubeObjectInterface } from '../lib/k8s/KubeObject';
 
 export interface FilterState {
   /** The namespaces to filter on. */

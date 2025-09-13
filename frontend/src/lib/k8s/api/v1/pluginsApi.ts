@@ -17,20 +17,19 @@
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import { request } from './clusterRequests';
 
-//@todo: what is DELETE /plugins/name response type? It's not used by headlamp in PLuginSettingsDetail.
 /**
  * Deletes the plugin with the specified name from the system.
  *
  * This function sends a DELETE request to the server's plugin management
  * endpoint, targeting the plugin identified by its name.
  * The function handles the request asynchronously and returns a promise that
- * resolves with the server's response to the DELETE operation.
+ * resolves when the deletion succeeds.
  *
- * @param {string} name - The unique name of the plugin to delete.
+ * @param name - The unique name of the plugin to delete.
  *  This identifier is used to construct the URL for the DELETE request.
  *
- * @returns — A Promise that resolves to the JSON response from the API server.
- * @throws — An ApiError if the response status is not ok.
+ * @returns Resolves to the parsed response body if present; otherwise `undefined`.
+ * @throws {error} — If the response status is not ok.
  *
  * @example
  * // Call to delete a plugin named 'examplePlugin'
@@ -39,10 +38,22 @@ import { request } from './clusterRequests';
  *   .catch(error => console.error('Failed to delete plugin', error));
  */
 export async function deletePlugin(name: string) {
-  return request(
+  const res = (await request(
     `/plugins/${name}`,
     { method: 'DELETE', headers: { ...getHeadlampAPIHeaders() } },
     false,
-    false
-  );
+    true
+  )) as any;
+
+  // Handle real fetch Response
+  if (res && typeof res.ok === 'boolean' && typeof res.text === 'function') {
+    const text = await res.text().catch(() => '');
+    if (!res.ok) {
+      throw new Error(text.trim() || `HTTP ${res.status}`);
+    }
+    return text ? JSON.parse(text) : undefined;
+  }
+
+  // Otherwise request() already returned the parsed payload
+  return res;
 }

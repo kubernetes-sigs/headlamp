@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
 
 /**
  * ReferenceGrantFrom defines the source resource (e.g., HTTPRoute) that is allowed to reference a target resource.
