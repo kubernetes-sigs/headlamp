@@ -31,6 +31,7 @@ const avoidCheck = [
 const checkExports = [
   'CircularChart',
   'CreateButton',
+  'CopyButton',
   'DeleteButton',
   'DeleteMultipleButton',
   'DetailsDrawer',
