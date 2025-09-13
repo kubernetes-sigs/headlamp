@@ -31,6 +31,7 @@ import CronJob from './cronJob';
 import DaemonSet from './daemonSet';
 import Deployment from './deployment';
 import Endpoints from './endpoints';
+import EndpointSlice from './endpointSlices';
 import Gateway from './gateway';
 import GatewayClass from './gatewayClass';
 import GRPCRoute from './grpcRoute';
@@ -71,6 +72,7 @@ export const ResourceClasses = {
   Deployment,
   Endpoint: Endpoints,
   Endpoints,
+  EndpointSlice,
   LimitRange,
   Lease,
   ResourceQuota,

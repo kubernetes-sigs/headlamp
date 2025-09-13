@@ -56,6 +56,15 @@ export const defaultApiResources = (() => {
       isNamespaced: true,
     },
     {
+      apiVersion: 'discovery.k8s.io/v1',
+      version: 'v1',
+      groupName: 'discovery.k8s.io',
+      pluralName: 'endpointslices',
+      singularName: 'endpointSlice',
+      kind: 'EndpointSlice',
+      isNamespaced: true,
+    },
+    {
       apiVersion: 'v1',
       version: 'v1',
       pluralName: 'persistentvolumeclaims',

@@ -43,6 +43,8 @@ import DaemonSetList from '../../components/daemonset/List';
 import DeploymentsList from '../../components/deployments/List';
 import EndpointDetails from '../../components/endpoints/Details';
 import EndpointList from '../../components/endpoints/List';
+import EndpointSliceDetails from '../../components/endpointSlices/Details';
+import EndpointSliceList from '../../components/endpointSlices/List';
 import BackendTLSPolicyDetails from '../../components/gateway/BackendTLSPolicyDetails';
 import BackendTLSPolicyList from '../../components/gateway/BackendTLSPolicyList';
 import BackendTrafficPolicyDetails from '../../components/gateway/BackendTrafficPolicyDetails';
@@ -336,6 +338,19 @@ const defaultRoutes: { [routeName: string]: Route } = {
     exact: true,
     sidebar: 'endpoints',
     component: () => <EndpointDetails />,
+  },
+  endpointslices: {
+    path: '/endpointslices',
+    exact: true,
+    name: 'EndpointSlices',
+    sidebar: 'endpointslices',
+    component: () => <EndpointSliceList />,
+  },
+  endpointslice: {
+    path: '/endpointslices/:namespace/:name',
+    exact: true,
+    sidebar: 'endpointslices',
+    component: () => <EndpointSliceDetails />,
   },
   ingresses: {
     path: '/ingresses',
