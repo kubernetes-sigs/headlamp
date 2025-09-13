@@ -1,47 +1,64 @@
 ---
-title: AKS Cluster Setup with Azure Entra Login and Entra RBAC Using OAuth2Proxy
+title: AKS Cluster Setup with Azure Entra Login and RBAC Using OAuth2Proxy
 sidebar_label: "Tutorial: Headlamp on AKS with Azure Entra-ID Using OAuth2Proxy"
 ---
 
-This guide explains how to secure your Azure Kubernetes Service (AKS) cluster with **Azure Entra ID** login and enforce **Entra RBAC** using **OAuth2Proxy** as an authentication proxy.
+This guide walks you through configuring Headlamp in an AKS cluster using OAuth2Proxy for authentication via Azure Entra ID (Microsoft Entra ID) and RBAC.
+
+We'll cover:
+
+1. Setting up AKS with OIDC  
+2. Creating an Azure App Registration  
+3. Deploying Headlamp via Helm  
+4. Setting up OAuth2Proxy  
 
 ---
 
-## Prerequisites
+## Step 1: Set Up AKS Cluster with OIDC Enabled
 
-- Existing AKS cluster
-- Azure CLI installed and logged in
-- Helm installed locally
-- Azure Entra ID tenant with permission to register applications
-- Basic Kubernetes RBAC knowledge
+1. Go to **Kubernetes Services** in the Azure portal and click **Create Cluster**.
 
----
+![Create AKS Cluster Step 1](./create_cluster_1.png)
 
-## Step 1: Enable Azure Entra Authentication on Your AKS Cluster
+2. In the **Authentication and Authorization** step:
+   - Select **Microsoft Entra ID authentication**.
+   - Enable **Kubernetes RBAC**.
 
-Run this command to enable Azure Entra ID integration on your AKS cluster:
+![Create AKS Cluster Step 2](./create_cluster_2.png)
 
-```bash
-az aks update \
-    --resource-group <ResourceGroupName> \
-    --name <AKSClusterName> \
-    --enable-aad \
-    --aad-admin-group-object-ids <AdminGroupObjectID> \
-    --aad-tenant-id <TenantID>
-```
+3. Under **Cluster Admin ClusterRoleBinding**, choose an Entra group that should have cluster-admin privileges.
+
+![Create AKS Cluster Step 3](./create_cluster_3.png)
+
+4. Continue with your preferred settings for the agent pool, networking, etc., and create the cluster.
+
+Make sure to enable **OIDC Issuer** while creating the cluster.
 
 ---
 
-## Step 2: Register an OAuth2Proxy Application in Azure Entra
+## Step 2: Create an Azure App Registration
 
-1. Go to the Azure Portal → **Microsoft Entra ID** → **App registrations** → **New registration**.
-2. Name your app (e.g., `aks-oauth2proxy`).
-3. Set Redirect URI (Web) to:
-   ```
-   https://<your-oauth2proxy-domain>/oauth2/callback
-   ```
+1. In the Azure portal, navigate to **Microsoft Entra ID** > **App registrations**.
+
+![App Registration Step 1](./app_registraion_1.png)
+
+2. Click **+ New registration**.
+
+3. Provide:
+   - **Name** of your choice.
+   - Supported account type (usually *Accounts in this organizational directory only*).
+   - **Redirect URI**: For local testing, you can use:
+     ```
+     http://localhost:8000/oidc-callback
+     ```
+
+![App Configuration](./app_config.png)
+
 4. Click **Register**.
+
 5. Record the **Application (client) ID** and **Directory (tenant) ID**.
+
+![App Configuration Client](./app_config_client.png)
 
 ---
 
@@ -61,101 +78,97 @@ az aks update \
 
 ---
 
-## Step 5: Create Kubernetes Secret to Store OAuth2Proxy Credentials
+## Step 5: Deploy Headlamp to AKS
 
+### Prerequisites:
+- Install [Helm](https://helm.sh/)
+- Download kubeconfig for the AKS cluster
+
+### Add Headlamp Helm repo:
 ```bash
-kubectl create secret generic oauth2proxy-secret \
-  --from-literal=client-id=<ApplicationClientID> \
-  --from-literal=client-secret=<ClientSecret> \
-  --from-literal=cookie-secret=$(openssl rand -base64 16) \
-  -n kube-system
+helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/
+helm repo update
 ```
+
+### Create a `values.yaml` for any customizations (optional) and deploy:
+```bash
+helm install my-headlamp headlamp/headlamp --namespace kube-system
+```
+
+### Verify Headlamp is running:
+```bash
+kubectl get pods -n kube-system
+```
+
+### Port-forward to access the UI:
+```bash
+kubectl port-forward svc/my-headlamp 8000:80 -n kube-system
+```
+
+Headlamp should now show an **Authentication** screen.
+
+![Headlamp Authentication Screen](./headlamp_auth.png)
 
 ---
 
-## Step 6: Deploy OAuth2Proxy to AKS
+## Step 6: Deploy OAuth2Proxy via Helm
 
-Create a file `oauth2proxy-deployment.yaml` and apply it:
+### Add the Helm repo:
+```bash
+helm repo add oauth2-proxy https://oauth2-proxy.github.io/manifests
+helm repo update
+```
+
+### Prepare your `values.yaml`
+
+Below is an example configuration you can start with. Be sure to replace placeholders like `<Client-ID>`, `<Client-Secret>`, `<Tenant-ID>`, etc.
 
 ```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: oauth2proxy
-  namespace: kube-system
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: oauth2proxy
-  template:
-    metadata:
-      labels:
-        app: oauth2proxy
-    spec:
-      containers:
-      - name: oauth2proxy
-        image: quay.io/oauth2-proxy/oauth2-proxy:v7.4.0
-        args:
-          - --provider=oidc
-          - --client-id=$(CLIENT_ID)
-          - --client-secret=$(CLIENT_SECRET)
-          - --oidc-issuer-url=https://login.microsoftonline.com/<TenantID>/v2.0
-          - --redirect-url=https://<your-oauth2proxy-domain>/oauth2/callback
-          - --cookie-secret=$(COOKIE_SECRET)
-          - --cookie-secure=true
-          - --email-domain=*
-          - --upstream=http://localhost:8001
-          - --scope=openid email profile
-          - --set-xauthrequest=true
-        env:
-          - name: CLIENT_ID
-            valueFrom:
-              secretKeyRef:
-                name: oauth2proxy-secret
-                key: client-id
-          - name: CLIENT_SECRET
-            valueFrom:
-              secretKeyRef:
-                name: oauth2proxy-secret
-                key: client-secret
-          - name: COOKIE_SECRET
-            valueFrom:
-              secretKeyRef:
-                name: oauth2proxy-secret
-                key: cookie-secret
-        ports:
-        - containerPort: 4180
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: oauth2proxy
-  namespace: kube-system
-spec:
-  type: ClusterIP
-  ports:
-  - port: 4180
-    targetPort: 4180
-  selector:
-    app: oauth2proxy
+config:
+  configFile: |-
+    email_domains = ["*"]
+    cookie_secret = <Cookie-Secret>
+
+alphaConfig:
+  enabled: true
+  configFile: |-
+    injectRequestHeaders:
+      - name: Authorization
+        values:
+          - claim: access_token
+            prefix: 'Bearer '
+    providers:
+      - clientID: <Client-ID>
+        clientSecret: <Client-Secret>
+        id: entra
+        oidcConfig:
+          issuerURL: https://login.microsoftonline.com/<Tenant-ID>/v2.0
+          audienceClaims:
+            - aud
+          emailClaim: email
+          insecureAllowUnverifiedEmail: true
+        provider: oidc
+        scope: 6dae42f8-4368-4678-94ff-3960e28e3630/user.read openid email profile User.Read
+    upstreamConfig:
+      upstreams:
+        - id: main
+          path: /
+          uri: http://<your-headlamp-service-name>.<your-headlamp-namespace>.svc.cluster.local
 ```
 
-Apply it:
-
+### Deploy OAuth2Proxy:
 ```bash
-kubectl apply -f oauth2proxy-deployment.yaml
+helm install my-release oauth2-proxy/oauth2-proxy -f values.yaml
+```
+
+Verify it's up:
+```bash
+kubectl get pods
 ```
 
 ---
 
-## Step 7: Configure Ingress or Proxy to Use OAuth2Proxy
-
-Route traffic through OAuth2Proxy to authenticate users before accessing Kubernetes services.
-
----
-
-## Step 8: Set Kubernetes RBAC Policies Based on Azure Entra Groups
+## Step 7: Set Kubernetes RBAC Policies Based on Azure Entra Groups
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -173,10 +186,23 @@ roleRef:
 ```
 
 Apply:
-
 ```bash
 kubectl apply -f your-rbac-binding.yaml
 ```
+
+---
+
+## Step 8: Login Flow
+
+- Navigate to the port-forwarded Headlamp UI.
+- Click **Sign in**.
+- Follow the Entra login prompt.
+
+![Login Page](./login_page.png)
+
+Note: In a development environment, OAuth2Proxy may try to redirect to `https://` by default. For local testing, ensure your redirect URI and settings use `http://`.
+
+Once authenticated, you'll be redirected back to Headlamp and should have access to your cluster UI.
 
 ---
 
@@ -185,5 +211,3 @@ kubectl apply -f your-rbac-binding.yaml
 - Access your protected endpoint.
 - Login via Entra.
 - Validate RBAC access.
-
----
