@@ -22,7 +22,7 @@ import { styled } from '@mui/material/styles';
 import Tooltip from '@mui/material/Tooltip';
 import { alpha } from '@mui/system/colorManipulator';
 import React from 'react';
-import { Link as RouterLink, LinkProps as RouterLinkProps } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom';
 
 const ExpandedIconSize = 20;
 const CollapsedIconSize = 24;
@@ -71,13 +71,27 @@ export default function ListItemLink(props: ListItemLinkProps) {
     [iconOnly]
   );
 
-  const renderLink = React.useMemo(
-    () =>
-      React.forwardRef<any, Omit<RouterLinkProps, 'to'>>((itemProps, ref) => (
-        <RouterLink to={{ pathname: pathname, search: search }} ref={ref} {...itemProps} />
-      )),
-    [pathname, search]
-  );
+  const renderLink = React.useMemo(() => {
+    return React.forwardRef<HTMLAnchorElement, any>((itemProps, ref) => {
+      if (pathname.startsWith('http')) {
+        const { children, className } = itemProps;
+        return (
+          <a
+            href={pathname}
+            target="_blank"
+            ref={ref}
+            rel="noopener noreferrer"
+            className={className}
+          >
+            {children}
+          </a>
+        );
+      }
+
+      return <RouterLink to={{ pathname, search }} ref={ref} {...itemProps} />;
+    });
+  }, [pathname, search]);
+
   let listItemLink = null;
 
   if (icon) {
