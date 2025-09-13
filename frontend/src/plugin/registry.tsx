@@ -1118,3 +1118,5 @@ export {
   PluginManager,
   ConfigStore,
 };
+
+export type { CallbackActionOptions };
