@@ -22,6 +22,9 @@ nameOverride: ""
 # -- Overrides the full name of the chart
 fullnameOverride: ""
 
+# -- Override the deployment namespace; defaults to .Release.Namespace
+namespaceOverride: ""
+
 # -- An optional list of init containers to be run before the main containers.
 initContainers: []
 

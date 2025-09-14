@@ -16,5 +16,5 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ include "headlamp.serviceAccountName" . }}
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "headlamp.namespace" . }}
 {{- end }}
