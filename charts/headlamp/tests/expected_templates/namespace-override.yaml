@@ -4,7 +4,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: headlamp
-  namespace: default
+  namespace: mynamespace
   labels:
     helm.sh/chart: headlamp-0.35.0
     app.kubernetes.io/name: headlamp
@@ -17,7 +17,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: oidc
-  namespace: default
+  namespace: mynamespace
 type: Opaque
 data:
 ---
@@ -26,7 +26,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: headlamp-admin
-  namespace: default
+  namespace: mynamespace
   labels:
     helm.sh/chart: headlamp-0.35.0
     app.kubernetes.io/name: headlamp
@@ -40,14 +40,14 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: headlamp
-  namespace: default
+  namespace: mynamespace
 ---
 # Source: headlamp/templates/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: headlamp
-  namespace: default
+  namespace: mynamespace
   labels:
     helm.sh/chart: headlamp-0.35.0
     app.kubernetes.io/name: headlamp
@@ -74,7 +74,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: headlamp
-  namespace: default
+  namespace: mynamespace
   labels:
     helm.sh/chart: headlamp-0.35.0
     app.kubernetes.io/name: headlamp
@@ -112,7 +112,6 @@ spec:
             - "-in-cluster"
             - "-plugins-dir=/headlamp/plugins"
             # Check if externalSecret is disabled
-            - -insecure-ssl
           ports:
             - name: http
               containerPort: 4466

@@ -24,6 +24,30 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 
 {{/*
+Expand the namespace of the release.
+Allows overriding it for multi-namespace deployments in combined charts.
+*/}}
+{{- define "headlamp.namespace" -}}
+  {{- with $.Values }}
+    {{- if .namespaceOverride }}
+      {{- .namespaceOverride | trunc 63 | trimSuffix "-" -}}
+    {{- else -}}
+      {{- with $.Release }}
+        {{- .Namespace | trunc 63 | trimSuffix "-" -}}
+      {{- else -}}
+        default
+      {{- end -}}
+    {{- end -}}
+  {{- else -}}
+    {{- with $.Release }}
+      {{- .Namespace | trunc 63 | trimSuffix "-" -}}
+    {{- else -}}
+      default
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{/*
 Create chart name and version as used by the chart label.
 */}}
 {{- define "headlamp.chart" -}}
