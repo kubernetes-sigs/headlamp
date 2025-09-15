@@ -38,7 +38,7 @@ export enum DefaultDetailsViewSection {
 type HeaderActionFuncType = (
   resource: KubeObject | null,
   sections: (DetailsViewSection | ReactNode)[]
-) => DetailsViewSection[];
+) => (DetailsViewSection | ReactNode)[];
 
 export type DetailsViewsSectionProcessor = {
   id: string;
