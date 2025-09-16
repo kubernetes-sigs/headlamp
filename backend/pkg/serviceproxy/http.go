@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
-	"github.com/headlamp-k8s/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
 func HTTPGet(uri string) ([]byte, error) {
-	cli := &http.Client{}
+	cli := &http.Client{Timeout: 10 * time.Second}
 
 	logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf("make request to %s", uri))
 	//nolint:noctx
@@ -17,13 +18,13 @@ func HTTPGet(uri string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed HTTP GET: %v", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed HTTP GET, status code %v", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
 
 	if err != nil {
 		return nil, err
