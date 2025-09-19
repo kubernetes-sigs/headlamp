@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../../lib/k8s';
 import { Activity } from '../../activity/Activity';
 import ActionButton from '../ActionButton';
+import { TutorialToolTip } from '../Tutorial/TutorialToolTip';
 import EditorDialog from './EditorDialog';
 
 interface CreateButtonProps {
@@ -52,6 +53,25 @@ export default function CreateButton(props: CreateButtonProps) {
       setTargetCluster(clusters[0]);
     }
   }, [clusters]);
+
+  // Hackathon WIP for tutorial mode
+  console.log('current tutorial mode', localStorage.getItem('tutorialMode'));
+  const isTutorialMode = localStorage.getItem('tutorialMode') === 'true';
+
+  const [createButtonDescription, setCreateButtonDescription] = React.useState<
+    string | React.ReactNode
+  >('loading..');
+
+  React.useEffect(() => {
+    if (isTutorialMode) {
+      setCreateButtonDescription(
+        <TutorialToolTip context="CreateButton" labelText={t('translation|Create ')} />
+      );
+    } else {
+      setCreateButtonDescription(t('translation|Create '));
+    }
+  }, [isTutorialMode, createButtonDescription, t]);
+  // need to clean later
 
   const openActivity = () => {
     const id = 'create-button';
@@ -128,7 +148,7 @@ export default function CreateButton(props: CreateButtonProps) {
             },
           })}
         >
-          {t('translation|Create')}
+          {createButtonDescription}
         </Button>
       )}
     </React.Fragment>

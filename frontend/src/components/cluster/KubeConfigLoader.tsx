@@ -36,6 +36,7 @@ import { setStatelessConfig } from '../../redux/configSlice';
 import { DialogTitle } from '../common/Dialog';
 import { DropZoneBox } from '../common/DropZoneBox';
 import Loader from '../common/Loader';
+import { TutorialToolTip } from '../common/Tutorial/TutorialToolTip';
 import { ClusterDialog } from './Chooser';
 
 interface Cluster {
@@ -226,6 +227,28 @@ function KubeConfigLoader() {
     }
   }
 
+  // Hackathon WIP for tutorial mode
+  console.log('current tutorial mode', localStorage.getItem('tutorialMode'));
+  const isTutorialMode = localStorage.getItem('tutorialMode') === 'true';
+
+  const [loadDemoKubeConfigDescription, setloadDemoKubeConfigDescription] = React.useState<
+    string | React.ReactNode
+  >('loading..');
+
+  React.useEffect(() => {
+    if (isTutorialMode) {
+      setloadDemoKubeConfigDescription(
+        <TutorialToolTip
+          context="LoadDemoKubeConfig"
+          labelText={t('translation|Load example KubeConfig')}
+        />
+      );
+    } else {
+      setloadDemoKubeConfigDescription(t('translation|Load example KubeConfig'));
+    }
+  }, [isTutorialMode, loadDemoKubeConfigDescription, t]);
+  // need to clean later
+
   function renderSwitch() {
     switch (state) {
       case Step.LoadKubeConfig:
@@ -246,6 +269,16 @@ function KubeConfigLoader() {
                     {t('translation|Choose file')}
                   </Button>
                 </Tooltip>
+                {isTutorialMode && (
+                  <Button
+                    // variant="contained"
+                    sx={{
+                      marginTop: 2,
+                    }}
+                  >
+                    {loadDemoKubeConfigDescription}
+                  </Button>
+                )}
               </FormControl>
             </DropZoneBox>
             <Box style={{ display: 'flex', justifyContent: 'center' }}>
