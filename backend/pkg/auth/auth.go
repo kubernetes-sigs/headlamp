@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -148,4 +149,46 @@ func CacheRefreshedToken(token *oauth2.Token, tokenType string, oldToken string,
 	}
 
 	return nil
+}
+
+// GetNewToken uses the provided credentials and fetches the old refresh
+// token from the cache to obtain a new OAuth2 token
+// from the specified token URL endpoint.
+func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
+	tokenType string, token string, tokenURL string,
+) (*oauth2.Token, error) {
+	ctx := context.Background()
+
+	// get refresh token
+	refreshToken, err := cache.Get(ctx, oidcKeyPrefix+token)
+	if err != nil {
+		return nil, fmt.Errorf("getting refresh token: %v", err)
+	}
+
+	rToken, ok := refreshToken.(string)
+	if !ok {
+		return nil, fmt.Errorf("failed to get refresh token")
+	}
+
+	// Create OAuth2 config with client credentials and token endpoint
+	conf := &oauth2.Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Endpoint: oauth2.Endpoint{
+			TokenURL: tokenURL,
+		},
+	}
+
+	// Request new token using the refresh token
+	newToken, err := conf.TokenSource(ctx, &oauth2.Token{RefreshToken: rToken}).Token()
+	if err != nil {
+		return nil, err
+	}
+
+	// update the refresh token in the cache
+	if err := CacheRefreshedToken(newToken, tokenType, token, rToken, cache); err != nil {
+		return nil, fmt.Errorf("caching refreshed token: %v", err)
+	}
+
+	return newToken, nil
 }
