@@ -24,6 +24,7 @@ import CronJob from '../../../../lib/k8s/cronJob';
 import DaemonSet from '../../../../lib/k8s/daemonSet';
 import Deployment from '../../../../lib/k8s/deployment';
 import Endpoints from '../../../../lib/k8s/endpoints';
+import EndpointSlice from '../../../../lib/k8s/endpointSlices';
 import Gateway from '../../../../lib/k8s/gateway';
 import GatewayClass from '../../../../lib/k8s/gatewayClass';
 import GRPCRoute from '../../../../lib/k8s/grpcRoute';
@@ -139,6 +140,7 @@ export function useGetAllSources(): GraphSource[] {
       sources: [
         makeKubeSource(Service),
         makeKubeSource(Endpoints),
+        makeKubeSource(EndpointSlice),
         makeKubeSource(Ingress),
         makeKubeSource(IngressClass),
         makeKubeSource(NetworkPolicy),

@@ -59,7 +59,7 @@ export const categoriesConfig: ResourceCategory[] = [
     icon: 'mdi:folder-network-outline',
     description: 'Network connectivity and exposure',
     apiGroups: ['networking.k8s.io'],
-    coreKinds: ['Service', 'Endpoints'],
+    coreKinds: ['Service', 'Endpoints', 'EndpointSlice'],
   },
   {
     label: 'Security',

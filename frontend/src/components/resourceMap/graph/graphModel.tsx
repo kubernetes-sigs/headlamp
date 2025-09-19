@@ -160,6 +160,7 @@ const DEFAULT_NODE_WEIGHTS = {
   // Tier 6: Supporting Resources
   // Network supporting resources (cascading from Service/NetworkPolicy)
   Endpoints: 780,
+  EndpointSlice: 780,
   MutatingWebhookConfiguration: 780,
   ValidatingWebhookConfiguration: 780,
   IngressClass: 780,

@@ -25,6 +25,7 @@ import CustomResourceDefinitionDetails from '../../crd/Details';
 import CronJobDetails from '../../cronjob/Details';
 import DaemonSetDetails from '../../daemonset/Details';
 import EndpointDetails from '../../endpoints/Details';
+import EndpointSliceDetails from '../../endpointSlices/Details';
 import BackendTLSPolicyDetails from '../../gateway/BackendTLSPolicyDetails';
 import GatewayClassDetails from '../../gateway/ClassDetails';
 import GatewayDetails from '../../gateway/GatewayDetails';
@@ -71,6 +72,7 @@ const kindComponentMap: Record<
   DaemonSet: DaemonSetDetails,
   ConfigMap: ConfigDetails,
   Endpoints: EndpointDetails,
+  EndpointSlice: EndpointSliceDetails,
   HorizontalPodAutoscaler: HpaDetails,
   Ingress: IngressDetails,
   Lease: LeaseDetails,

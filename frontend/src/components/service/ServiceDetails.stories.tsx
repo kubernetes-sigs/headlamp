@@ -57,7 +57,7 @@ const serviceMock = {
   },
 };
 
-const list = [
+const endpoints = [
   {
     apiVersion: 'v1',
     kind: 'Endpoints',
@@ -70,6 +70,57 @@ const list = [
       {
         addresses: [{ ip: '192.168.1.1' }],
         ports: [{ port: 8080 }],
+      },
+    ],
+  },
+];
+
+const endpointslices = [
+  {
+    apiVersion: 'v1',
+    kind: 'EndpointSlice',
+    metadata: {
+      name: 'example-service',
+      namespace: 'default',
+      resourceVersion: '78910',
+      ownerReferences: [
+        {
+          kind: 'Service',
+          name: 'example-service',
+        },
+      ],
+    },
+    endpoints: [
+      {
+        addresses: ['127.0.0.1'],
+        nodeName: 'mynode',
+        targetRef: {
+          kind: 'Pod',
+          namespace: 'MyNamespace',
+          name: 'mypod',
+          uid: 'phony-pod',
+          resourceVersion: '1',
+          apiVersion: 'v1',
+        },
+      },
+      {
+        addresses: ['127.0.0.2'],
+        nodeName: 'mynode',
+        targetRef: {
+          kind: 'Pod',
+          namespace: 'MyNamespace',
+          name: 'mypod-1',
+          uid: 'phony-pod-1',
+          resourceVersion: '1',
+          apiVersion: 'v1',
+        },
+      },
+    ],
+    ports: [
+      {
+        name: 'myport',
+        port: 8080,
+        protocol: 'TCP',
       },
     ],
   },
@@ -105,9 +156,18 @@ Default.parameters = {
         http.get('http://localhost:4466/api/v1/namespaces/default/endpoints', () =>
           HttpResponse.json({
             kind: 'List',
-            items: list,
+            items: endpoints,
             metadata: {},
           })
+        ),
+        http.get(
+          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/default/endpointslices',
+          () =>
+            HttpResponse.json({
+              kind: 'List',
+              items: endpointslices,
+              metadata: {},
+            })
         ),
       ],
     },
@@ -127,6 +187,10 @@ ErrorWithEndpoints.parameters = {
         ),
         http.get('http://localhost:4466/api/v1/namespaces/default/endpoints', () =>
           HttpResponse.error()
+        ),
+        http.get(
+          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/default/endpointslices',
+          () => HttpResponse.error()
         ),
       ],
     },

@@ -23,6 +23,7 @@ import CronJob from '../../../../lib/k8s/cronJob';
 import DaemonSet from '../../../../lib/k8s/daemonSet';
 import Deployment from '../../../../lib/k8s/deployment';
 import Endpoints from '../../../../lib/k8s/endpoints';
+import EndpointSlice from '../../../../lib/k8s/endpointSlices';
 import Gateway from '../../../../lib/k8s/gateway';
 import GatewayClass from '../../../../lib/k8s/gatewayClass';
 import HPA from '../../../../lib/k8s/hpa';
@@ -159,6 +160,12 @@ const endpointsToServices = makeRelation(
   (endpoint, service) => endpoint.getName() === service.getName()
 );
 
+const endpointSlicesToServices = makeRelation(
+  EndpointSlice,
+  Service,
+  (endpoint, service) => endpoint.getOwnerServiceName() === service.getName()
+);
+
 const ingressToService = makeRelation(Ingress, Service, (ingress, service) =>
   ingress.spec.rules?.find((rule: any) =>
     rule.http?.paths?.find((path: any) => service.metadata.name === path?.backend?.service?.name)
@@ -270,6 +277,7 @@ export function useGetAllRelations(): Relation[] {
     mwcToService,
     serviceToPods,
     endpointsToServices,
+    endpointSlicesToServices,
     ingressToService,
     ingressToSecret,
     networkPolicyToPod,

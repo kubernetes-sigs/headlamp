@@ -266,6 +266,7 @@
       "DaemonSet": [Function],
       "Deployment": [Function],
       "Endpoint": [Function],
+      "EndpointSlice": [Function],
       "Endpoints": [Function],
       "GRPCRoute": [Function],
       "Gateway": [Function],
