@@ -20,6 +20,8 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import svgr from 'vite-plugin-svgr';
 import { viteStaticCopy } from "vite-plugin-static-copy";
 
+const BASE = process.env.VITE_BACKEND_BASE || '';
+
 export default defineConfig({
   define: {
     global: 'globalThis',
@@ -29,6 +31,26 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
+      '/api': {
+        target: 'http://localhost:4466',
+        changeOrigin: true,
+        rewrite: (p) => BASE ? `${BASE}${p}` : p,
+      },
+      '/clusters': {
+        target: 'http://localhost:4466',
+        changeOrigin: true,
+        rewrite: (p) => BASE ? `${BASE}${p}` : p,
+      },
+      '/oidc': {
+        target: 'http://localhost:4466',
+        changeOrigin: true,
+        rewrite: (p) => BASE ? `${BASE}${p}` : p,
+      },
+      '/oidc-callback': {
+        target: 'http://localhost:4466',
+        changeOrigin: true,
+        rewrite: (p) => BASE ? `${BASE}${p}` : p,
+      },
       '/plugins': {
         target: 'http://localhost:4466',
         changeOrigin: true,

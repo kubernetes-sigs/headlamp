@@ -90,7 +90,7 @@ func SetTokenCookie(w http.ResponseWriter, r *http.Request, cluster, token strin
 			HttpOnly: true,
 			Secure:   secure,
 			SameSite: http.SameSiteStrictMode,
-			Path:     "/clusters/" + cluster,
+			Path:     "/",
 			MaxAge:   86400, // 24 hours
 		}
 
@@ -133,6 +133,18 @@ func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster string) {
 
 	secure := IsSecureContext(r)
 
+	del := func(path string, i int) {
+		http.SetCookie(w, &http.Cookie{
+			Name:     fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i),
+			Value:    "",
+			HttpOnly: true,
+			Secure:   secure,
+			SameSite: http.SameSiteLaxMode,
+			Path:     path,
+			MaxAge:   -1,
+		})
+	}
+
 	// clear chunked cookies
 	for i := 0; ; i++ {
 		cookieName := fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i)
@@ -142,17 +154,8 @@ func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster string) {
 			// No more cookies for this cluster
 			break
 		}
-
-		cookie := &http.Cookie{
-			Name:     cookieName,
-			Value:    "",
-			HttpOnly: true,
-			Secure:   secure,
-			SameSite: http.SameSiteStrictMode,
-			Path:     "/clusters/" + cluster,
-			MaxAge:   -1,
-		}
-		http.SetCookie(w, cookie)
+		del("/", i)
+		del("/clusters/"+cluster, i)
 	}
 }
 

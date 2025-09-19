@@ -200,6 +200,33 @@ function AppBarActions({
   return <>{actions}</>;
 }
 
+type Identity = { username?: string; email?: string; groups?: string[] };
+
+function useMe(cluster?: string) {
+  const [identity, setIdentity] = React.useState<Identity | null>(null);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!cluster) {
+      setIdentity(null);
+      return;
+    }
+
+    setLoading(true);
+    const base = import.meta.env.DEV ? '' : (window as any).headlampBaseUrl || '';
+
+    fetch(`${base}/api/me?cluster=${encodeURIComponent(cluster)}`, {
+      credentials: 'include',
+    })
+      .then(r => (r.ok ? r.json() : {}))
+      .then((data: Identity) => setIdentity(data && Object.keys(data).length ? data : null))
+      .catch(() => setIdentity(null))
+      .finally(() => setLoading(false));
+  }, [cluster]);
+
+  return { identity, loading };
+}
+
 export const PureTopBar = memo(
   ({
     appBarActions,
@@ -212,6 +239,7 @@ export const PureTopBar = memo(
     onToggleOpen,
   }: PureTopBarProps) => {
     const { t } = useTranslation();
+    const { identity } = useMe(cluster);
     const theme = useTheme();
     const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
     const dispatch = useDispatch();
@@ -262,6 +290,17 @@ export const PureTopBar = memo(
           },
         }}
       >
+        {identity && (identity.username || identity.email) && (
+          <MenuItem disabled divider>
+            <ListItemIcon>
+              <Icon icon="mdi:account" />
+            </ListItemIcon>
+            <ListItemText
+              primary={identity.username || identity.email}
+              secondary={identity.username && identity.email ? identity.email : undefined}
+            />
+          </MenuItem>
+        )}
         <MenuItem
           component="a"
           onClick={async () => {

@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -148,4 +149,147 @@ func CacheRefreshedToken(token *oauth2.Token, tokenType string, oldToken string,
 	}
 
 	return nil
+}
+
+type Identity struct {
+	Username string   `json:"username,omitempty"`
+	Email    string   `json:"email,omitempty"`
+	Groups   []string `json:"groups,omitempty"`
+}
+
+// JWTPayload returns the unverified payload of a JWT as a map.
+func JWTPayload(token string) (map[string]interface{}, error) {
+	parts := strings.SplitN(token, ".", 3)
+	if len(parts) != 3 || parts[1] == "" {
+		return nil, errors.New("invalid JWT")
+	}
+	return DecodeBase64JSON(parts[1])
+}
+
+// IdentityFromRequest extracts user info from oauth2-proxy headers or the OIDC JWT cookie.
+// It supports env-configurable claim paths (dot notation) and sensible defaults.
+func IdentityFromRequest(r *http.Request) (Identity, bool) {
+	// 1) Prefer oauth2-proxy forwarded headers if present.
+	email := strings.TrimSpace(r.Header.Get("X-Auth-Request-Email"))
+	user := strings.TrimSpace(r.Header.Get("X-Auth-Request-User"))
+	var groups []string
+	if g := strings.TrimSpace(r.Header.Get("X-Auth-Request-Groups")); g != "" {
+		groups = splitCSV(g)
+	}
+	if email != "" || user != "" || len(groups) > 0 {
+		return Identity{Username: user, Email: email, Groups: groups}, true
+	}
+
+	// 2) Otherwise, parse the JWT from the cookie for the given cluster.
+	cluster := r.URL.Query().Get("cluster")
+	if cluster == "" {
+		return Identity{}, false
+	}
+	token, err := GetTokenFromCookie(r, cluster)
+	if err != nil || token == "" {
+		return Identity{}, false
+	}
+
+	claims, err := JWTPayload(token)
+	if err != nil {
+		return Identity{}, false
+	}
+
+	// Allow overrides via env; fall back to common claim names.
+	username := firstString(claims,
+		os.Getenv("HEADLAMP_OIDC_USERNAME_CLAIM"),
+		[]string{"preferred_username", "name", "upn", "sub"},
+	)
+	email = firstString(claims,
+		os.Getenv("HEADLAMP_OIDC_EMAIL_CLAIM"),
+		[]string{"email"},
+	)
+	groups = firstStringSlice(claims,
+		os.Getenv("HEADLAMP_OIDC_GROUPS_CLAIM"),
+		[]string{"groups", "realm_access.roles", "cognito:groups"},
+	)
+
+	return Identity{Username: username, Email: email, Groups: groups}, true
+}
+
+func splitCSV(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func getByPath(m map[string]interface{}, path string) (interface{}, bool) {
+	if path == "" {
+		return nil, false
+	}
+	cur := any(m)
+	for _, seg := range strings.Split(path, ".") {
+		obj, ok := cur.(map[string]interface{})
+		if !ok {
+			return nil, false
+		}
+		next, ok := obj[seg]
+		if !ok {
+			return nil, false
+		}
+		cur = next
+	}
+	return cur, true
+}
+
+func firstString(m map[string]interface{}, override string, fallbacks []string) string {
+	if v, ok := getByPath(m, override); ok {
+		if s, ok2 := v.(string); ok2 {
+			return s
+		}
+	}
+	for _, k := range fallbacks {
+		if v, ok := getByPath(m, k); ok {
+			if s, ok2 := v.(string); ok2 {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+func firstStringSlice(m map[string]interface{}, override string, fallbacks []string) []string {
+	if v, ok := getByPath(m, override); ok {
+		if out := toStringSlice(v); len(out) > 0 {
+			return out
+		}
+	}
+	for _, k := range fallbacks {
+		if v, ok := getByPath(m, k); ok {
+			if out := toStringSlice(v); len(out) > 0 {
+				return out
+			}
+		}
+	}
+	return nil
+}
+
+func toStringSlice(v interface{}) []string {
+	switch vv := v.(type) {
+	case []interface{}:
+		out := make([]string, 0, len(vv))
+		for _, e := range vv {
+			if s, ok := e.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	case []string:
+		return vv
+	default:
+		return nil
+	}
 }
