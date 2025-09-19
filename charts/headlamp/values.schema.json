@@ -52,6 +52,10 @@
       "type": "string",
       "description": "Override the full name of the chart"
     },
+    "namespaceOverride": {
+      "type": "string",
+      "description": "Override the deployment namespace; defaults to .Release.Namespace"
+    },
     "initContainers": {
       "type": "array",
       "description": "Init containers",

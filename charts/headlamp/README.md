@@ -131,6 +131,7 @@ config:
 | imagePullSecrets | list | `[]` | Image pull secrets references |
 | nameOverride | string | `""` | Override the name of the chart |
 | fullnameOverride | string | `""` | Override the full name of the chart |
+| namespaceOverride | string | `""` | Override the deployment namespace; defaults to .Release.Namespace |
 | initContainers | list | `[]` | Init containers to run before main container |
 
 ### Security Configuration

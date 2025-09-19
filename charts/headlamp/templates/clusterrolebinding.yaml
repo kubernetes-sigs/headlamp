@@ -3,6 +3,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: {{ include "headlamp.fullname" . }}-admin
+  namespace: {{ include "headlamp.namespace" . }}
   labels:
     {{- include "headlamp.labels" . | nindent 4 }}
   {{- with .Values.clusterRoleBinding.annotations }}
@@ -16,5 +17,5 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ include "headlamp.serviceAccountName" . }}
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "headlamp.namespace" . }}
 {{- end }}

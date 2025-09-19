@@ -3,6 +3,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: {{ include "headlamp.fullname" . }}
+  namespace: {{ include "headlamp.namespace" . }}
   labels:
     {{- include "headlamp.labels" . | nindent 4 }}
 spec:
