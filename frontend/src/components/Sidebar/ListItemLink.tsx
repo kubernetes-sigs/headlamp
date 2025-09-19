@@ -71,13 +71,27 @@ export default function ListItemLink(props: ListItemLinkProps) {
     [iconOnly]
   );
 
-  const renderLink = React.useMemo(
-    () =>
-      React.forwardRef<any, Omit<RouterLinkProps, 'to'>>((itemProps, ref) => (
-        <RouterLink to={{ pathname: pathname, search: search }} ref={ref} {...itemProps} />
-      )),
-    [pathname, search]
-  );
+  const renderLink = React.useMemo(() => {
+    return React.forwardRef<HTMLAnchorElement, Omit<RouterLinkProps, 'to'>>((itemProps, ref) => {
+      if (pathname.startsWith('http')) {
+        const { children, className } = itemProps;
+        return (
+          <a
+            href={pathname}
+            target="_blank"
+            ref={ref}
+            rel="noopener noreferrer"
+            className={className}
+          >
+            {children}
+          </a>
+        );
+      }
+
+      return <RouterLink to={{ pathname, search }} ref={ref} {...itemProps} />;
+    });
+  }, [pathname, search]);
+
   let listItemLink = null;
 
   if (icon) {
