@@ -32,12 +32,23 @@ Before starting plugin development, ensure you have:
 
 ## Quick Start: Your First Plugin
 
-Let's create a simple plugin that displays "Hello Headlamp!" in the top navigation bar.
+Let's create a simple plugin that displays "Hello Headlamp!" in the top navigation bar. Before we start, it's important to note that plugins can be created and developed outside of the Headlamp repository. This allows for greater flexibility and ease of management.
+
+Please be sure to check that the required plugin development dependencies are correctly installed.
+
+```bash
+# Navigate to the headlamp-plugin directory within the Headlamp repository
+cd headlamp/plugins/headlamp-plugin
+
+# Install dependencies
+npm install
+```
 
 ### Step 1: Create the Plugin
 
-Run the following command to scaffold a new plugin using the headlamp-plugin
-tool. This command should be run where your plugin project (code) will live, typically in a dedicated projects directory (do not run this in Headlamp's
+With dependencies installed and your preferred instance of Headlamp running, navigate to where you would like to create your plugin. In your preferred location, run the following command to scaffold a new plugin using the headlamp-plugin tool.
+
+This command should be run where your plugin project (code) will live, typically in a dedicated projects directory (do not run this in Headlamp's
 plugin installation directory).
 
 ```bash
@@ -88,6 +99,7 @@ npm run start
 ```
 
 This command:
+
 - Makes the plugin available to Headlamp
 - Watches file changes to automatically rebuild the plugin
 
@@ -141,7 +153,7 @@ import {
   registerAppBarAction,
   registerRoute,
   registerSidebarEntry,
-  registerDetailsViewSection
+  registerDetailsViewSection,
 } from '@kinvolk/headlamp-plugin/lib';
 ```
 
@@ -179,7 +191,7 @@ function PodList() {
   return (
     <div>
       <h3>Pods ({pods.length})</h3>
-      {pods.map(pod => (
+      {pods.map((pod) => (
         <div key={pod.metadata.uid}>{pod.metadata.name}</div>
       ))}
     </div>
@@ -192,6 +204,7 @@ function PodList() {
 #### 1. Development Mode
 
 Always use `npm run start` during development for:
+
 - Automatic rebuilding
 - Hot reloading
 - Real-time error checking
@@ -247,23 +260,27 @@ Now that you've created your first plugin, explore these advanced topics:
 ## Troubleshooting
 
 ### Plugin Not Loading
+
 - Ensure Headlamp is running and accessible
 - Check the browser console for JavaScript errors
 - Verify your plugin's `package.json` has correct metadata
 - Make sure you're running `npm run start` in the plugin directory
 
 ### Plugin's Changes Not Reflecting
+
 - Ensure you saved your changes
 - Check if the development server is running (`npm run start`) without errors
 - Remove the installed plugin from Headlamp's plugins folder (see [plugin locations](./architecture.md#plugin-locations)) and re-run `npm run start`
 - Restart Headlamp if necessary
 
 ### Build Errors
+
 - Run `npm run lint` to check for code issues
 - Ensure all imports are correct
 - Check TypeScript errors with `npm run tsc`
 
 ### Hot Reloading Issues
+
 - Restart the development server (`npm run start`)
 - Make sure you do not have several Headlamp tabs in case you are running
   in development mode
