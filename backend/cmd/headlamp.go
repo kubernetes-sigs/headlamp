@@ -126,23 +126,19 @@ func fileExists(filename string) bool {
 	return !info.IsDir()
 }
 
-// copy a file, whilst doing some search/replace on the data.
-func copyReplace(src string, dst string,
-	search []byte, replace []byte,
-	search2 []byte, replace2 []byte,
-) {
-	data, err := os.ReadFile(src)
+func mustReadFile(path string) []byte {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		// Error Reading the file
 		logger.Log(logger.LevelError, nil, err, "reading file")
 		os.Exit(1)
 	}
 
-	data1 := bytes.ReplaceAll(data, search, replace)
-	data2 := bytes.ReplaceAll(data1, search2, replace2)
-	fileMode := 0o600
+	return data
+}
 
-	err = os.WriteFile(dst, data2, fs.FileMode(fileMode))
+func mustWriteFile(path string, data []byte) {
+	err := os.WriteFile(path, data, fs.FileMode(0o600))
 	if err != nil {
 		// Error writing the file
 		logger.Log(logger.LevelError, nil, err, "writing file")
@@ -150,11 +146,7 @@ func copyReplace(src string, dst string,
 	}
 }
 
-// make sure the base-url is updated in the index.html file.
-func baseURLReplace(staticDir string, baseURL string) {
-	indexBaseURL := path.Join(staticDir, "index.baseUrl.html")
-	index := path.Join(staticDir, "index.html")
-
+func makeBaseURLReplacements(data []byte, baseURL string) []byte {
 	replaceURL := baseURL
 	if baseURL == "" {
 		// We have to do the replace when baseURL == "" because of the case when
@@ -163,20 +155,45 @@ func baseURLReplace(staticDir string, baseURL string) {
 		replaceURL = "/"
 	}
 
-	if !fileExists(indexBaseURL) {
-		copyReplace(index, indexBaseURL, []byte(""), []byte(""), []byte(""), []byte(""))
-	}
+	// Replacement for headlampBaseUrl - matched from the known index.html content
+	data = bytes.ReplaceAll(
+		data,
+		[]byte("headlampBaseUrl = __baseUrl__"),
+		[]byte(fmt.Sprintf("headlampBaseUrl = '%s'", replaceURL)),
+	)
 
-	copyReplace(indexBaseURL,
-		index,
-		[]byte("headlampBaseUrl = './'"),
-		[]byte("headlampBaseUrl = '"+replaceURL+"'"),
-		// Replace any resource that has "./" in it
+	// Replace any resource that has "./" in it
+	data = bytes.ReplaceAll(
+		data,
 		[]byte("./"),
-		[]byte(baseURL+"/"))
+		[]byte(fmt.Sprintf("%s/", baseURL)),
+	)
 
 	// Insert baseURL in css url() imports, they don't have "./" in them
-	copyReplace(index, index, []byte("url("), []byte("url("+baseURL+"/"), []byte(""), []byte(""))
+	data = bytes.ReplaceAll(
+		data,
+		[]byte("url("),
+		[]byte(fmt.Sprintf("url(%s/", baseURL)),
+	)
+
+	return data
+}
+
+// make sure the base-url is updated in the index.html file.
+func baseURLReplace(staticDir string, baseURL string) {
+	indexBaseURL := path.Join(staticDir, "index.baseUrl.html")
+	index := path.Join(staticDir, "index.html")
+
+	// keep a copy of the untouched index.html file as the source for replacements
+	if !fileExists(indexBaseURL) {
+		d := mustReadFile(index)
+		mustWriteFile(indexBaseURL, d)
+	}
+
+	// replace baseURL starting from the original copy, incase we run this multiple times
+	data := mustReadFile(indexBaseURL)
+	output := makeBaseURLReplacements(data, baseURL)
+	mustWriteFile(index, output)
 }
 
 func getOidcCallbackURL(r *http.Request, config *HeadlampConfig) string {
