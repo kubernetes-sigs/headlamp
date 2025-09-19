@@ -100,6 +100,8 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 			StdoutTraceEnabled: conf.StdoutTraceEnabled,
 			SamplingRate:       conf.SamplingRate,
 		},
+		tlsCertPath: conf.TLSCertPath,
+		tlsKeyPath:  conf.TLSKeyPath,
 	}
 
 	if conf.OidcCAFile != "" {
