@@ -25,7 +25,7 @@ import Role from '../../lib/k8s/role';
 import RoleBinding from '../../lib/k8s/roleBinding';
 import { SelectedClustersContext } from '../../lib/k8s/SelectedClustersContext';
 import { useTypedSelector } from '../../redux/hooks';
-import { ProjectDefinition } from '../../redux/projectsSlice';
+import { ProjectDefinition, ProjectDetailsTab } from '../../redux/projectsSlice';
 import { Activity } from '../activity/Activity';
 import { EditButton, EditorDialog, Loader, StatusLabel } from '../common';
 import ResourceTable from '../common/Resource/ResourceTable';
@@ -43,6 +43,38 @@ import { useProjectItems } from './useProjectResources';
 interface ProjectDetailsParams {
   name: string;
 }
+
+// Tab ID constants
+const TAB_IDS = {
+  OVERVIEW: 'headlamp-projects.tabs.overview',
+  RESOURCES: 'headlamp-projects.tabs.resources',
+  ACCESS: 'headlamp-projects.tabs.access',
+  MAP: 'headlamp-projects.tabs.map',
+} as const;
+
+// Default tabs configuration with their IDs
+const DEFAULT_TABS: ProjectDetailsTab[] = [
+  {
+    id: TAB_IDS.OVERVIEW,
+    icon: 'mdi:view-dashboard',
+    component: null, // Will be handled specially in rendering
+  },
+  {
+    id: TAB_IDS.RESOURCES,
+    icon: 'mdi:format-list-bulleted',
+    component: null, // Will be handled specially in rendering
+  },
+  {
+    id: TAB_IDS.ACCESS,
+    icon: 'mdi:account-lock',
+    component: null, // Will be handled specially in rendering
+  },
+  {
+    id: TAB_IDS.MAP,
+    icon: 'mdi:map',
+    component: null, // Will be handled specially in rendering
+  },
+];
 
 export default function ProjectDetails() {
   const { t } = useTranslation();
@@ -62,11 +94,11 @@ export default function ProjectDetails() {
 function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
   const { t } = useTranslation();
   const { name } = useParams<ProjectDetailsParams>();
-  const additionalTabs = Object.values(useTypedSelector(state => state.projects.detailsTabs));
+  const registeredTabs = Object.values(useTypedSelector(state => state.projects.detailsTabs));
   const additionalOverviewSections = Object.values(
     useTypedSelector(state => state.projects.overviewSections)
   );
-  const [selectedTab, setSelectedTab] = useState('overview');
+  const [selectedTab, setSelectedTab] = useState('');
   const [allNamespaces] = Namespace.useList({ clusters: project.clusters });
   const [selectedCategoryName, setSelectedCategoryName] = React.useState<string>();
 
@@ -79,6 +111,52 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
 
   const projectHealth = useMemo(() => getResourcesHealth(items), [items]);
   const categoryList = useResourceCategoriesList(items);
+
+  // Merge default tabs with registered tabs, allowing plugins to override default tabs
+  const allTabs = useMemo(() => {
+    const tabsMap = new Map<string, ProjectDetailsTab>();
+
+    // Add default tabs first
+    DEFAULT_TABS.forEach(tab => {
+      tabsMap.set(tab.id, tab);
+    });
+
+    // Override with registered tabs (plugins can override default tabs or add new ones)
+    registeredTabs.forEach(tab => {
+      tabsMap.set(tab.id, tab);
+    });
+
+    // Filter out tabs with null components (removes tab completely)
+    // But keep default tabs even if they have null components (they use default rendering)
+    return Array.from(tabsMap.values()).filter(tab => {
+      // If it's a plugin tab (not a default tab) and has null component, remove it
+      const isDefaultTab = DEFAULT_TABS.some(defaultTab => defaultTab.id === tab.id);
+      const isPluginTab = registeredTabs.some(regTab => regTab.id === tab.id);
+
+      if (isPluginTab && !isDefaultTab) {
+        // Pure plugin tab - remove if component is null
+        return tab.component !== null;
+      } else if (isPluginTab && isDefaultTab) {
+        // Plugin overriding default tab - remove if component is null
+        return tab.component !== null;
+      } else {
+        // Default tab - always keep (uses default rendering)
+        return true;
+      }
+    });
+  }, [registeredTabs]);
+
+  // Set initial selected tab to the first available tab
+  React.useEffect(() => {
+    if (allTabs.length > 0 && !selectedTab) {
+      setSelectedTab(allTabs[0].id);
+    }
+  }, [allTabs, selectedTab]);
+
+  // Get the component for the currently selected tab
+  const selectedTabData = useMemo(() => {
+    return allTabs.find(tab => tab.id === selectedTab);
+  }, [allTabs, selectedTab]);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: string) => {
     setSelectedTab(newValue);
@@ -120,78 +198,26 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
       >
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs value={selectedTab} onChange={handleTabChange}>
-            <Tab
-              value="overview"
-              label={
-                <>
-                  <Icon icon="mdi:view-dashboard" />
-                  <Typography>
-                    <Trans>Overview</Trans>
-                  </Typography>
-                </>
-              }
-              sx={{
-                flexDirection: 'row',
-                gap: 1,
-                fontSize: '1.25rem',
-              }}
-            />
-            <Tab
-              value="resources"
-              label={
-                <>
-                  <Icon icon="mdi:format-list-bulleted" />
-                  <Typography>
-                    <Trans>Resources</Trans>
-                  </Typography>
-                </>
-              }
-              sx={{
-                flexDirection: 'row',
-                gap: 1,
-                fontSize: '1.25rem',
-              }}
-            />
-            <Tab
-              value="access"
-              label={
-                <>
-                  <Icon icon="mdi:account-lock" />
-                  <Typography>
-                    <Trans>Access</Trans>
-                  </Typography>
-                </>
-              }
-              sx={{
-                flexDirection: 'row',
-                gap: 1,
-                fontSize: '1.25rem',
-              }}
-            />
-            <Tab
-              value="map"
-              label={
-                <>
-                  <Icon icon="mdi:map" />
-                  <Typography>
-                    <Trans>Map</Trans>
-                  </Typography>
-                </>
-              }
-              sx={{
-                flexDirection: 'row',
-                gap: 1,
-                fontSize: '1.25rem',
-              }}
-            />
-            {additionalTabs.map(tab => (
+            {allTabs.map(tab => (
               <Tab
                 key={tab.id}
                 value={tab.id}
                 label={
                   <>
                     {typeof tab.icon === 'string' ? <Icon icon={tab.icon} /> : tab.icon}
-                    <Typography>{tab.label}</Typography>
+                    <Typography>
+                      {tab.id === TAB_IDS.OVERVIEW ? (
+                        <Trans>Overview</Trans>
+                      ) : tab.id === TAB_IDS.RESOURCES ? (
+                        <Trans>Resources</Trans>
+                      ) : tab.id === TAB_IDS.ACCESS ? (
+                        <Trans>Access</Trans>
+                      ) : tab.id === TAB_IDS.MAP ? (
+                        <Trans>Map</Trans>
+                      ) : (
+                        tab.label
+                      )}
+                    </Typography>
                   </>
                 }
                 sx={{
@@ -203,216 +229,235 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
             ))}
           </Tabs>
         </Box>
-        {selectedTab === 'overview' && (
-          <Grid container spacing={3} sx={{ pt: 2 }}>
-            <Grid item xs={12} md={4}>
-              <Card sx={{ height: '100%' }}>
-                <CardContent>
-                  <Typography variant="h6">{t('Status')}</Typography>
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        {t('Project Status')}
-                      </Typography>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <StatusLabel
-                          status={
-                            projectHealth.error > 0
-                              ? 'error'
-                              : projectHealth.warning > 0
-                              ? 'warning'
-                              : 'success'
-                          }
-                        >
-                          <Icon
-                            icon={getHealthIcon(
-                              projectHealth.success,
-                              projectHealth.error,
-                              projectHealth.warning
-                            )}
-                            style={{
-                              fontSize: 24,
-                            }}
-                          />
-                          {projectHealth.success === 0
-                            ? t('No Workloads')
-                            : projectHealth.error > 0
-                            ? t('Unhealthy')
-                            : projectHealth.warning > 0
-                            ? t('Degraded')
-                            : t('Healthy')}
-                        </StatusLabel>
-                      </Box>
-                    </Box>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        {t('Resources')}
-                      </Typography>
-                      {items.length > 0 && (
-                        <Box display="flex" flexWrap="wrap" gap={1}>
-                          {projectHealth.success > 0 && (
-                            <StatusLabel status="success">
-                              {projectHealth.success} {t('Healthy')}
-                            </StatusLabel>
-                          )}
-                          {projectHealth.warning > 0 && (
-                            <StatusLabel status="warning">
-                              {projectHealth.warning} {t('Warning')}
-                            </StatusLabel>
-                          )}
-                          {projectHealth.error > 0 && (
-                            <StatusLabel status="error">
-                              {projectHealth.error} {t('Unhealthy')}
-                            </StatusLabel>
-                          )}
-                        </Box>
-                      )}
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
+        {/* Render tab content */}
+        {(() => {
+          // If a plugin has provided a custom component for the selected tab, use it
+          if (selectedTabData?.component) {
+            return (
+              <selectedTabData.component
+                key={selectedTabData.id}
+                project={project}
+                projectResources={items}
+              />
+            );
+          }
 
-            <Grid item xs={12} md={4}>
-              <Card sx={{ height: '100%' }}>
-                <CardContent>
-                  <Typography variant="h6">{t('Resources')}</Typography>
-                  <ResourceCategoriesList
-                    categoryList={categoryList}
-                    onCategoryClick={category => {
-                      setSelectedCategoryName(category);
-                      setSelectedTab('resources');
-                    }}
-                  />
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <Card sx={{ height: '100%' }}>
-                <CardContent>
-                  <Typography variant="h6">{t('Resource Quotas')}</Typography>
-                  <Box>
-                    {resourceQuotas.map(it => (
-                      <Box sx={{ mb: 2 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Typography variant="h6" sx={{ mr: 'auto' }}>
-                            {it.metadata.name}
-                          </Typography>
-                          <EditButton item={it} />
-                        </Box>
-                        <ResourceQuotaTable resourceStats={it.resourceStats} />
-                      </Box>
-                    ))}
-
-                    {resourceQuotas.length === 0 && (
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          flexDirection: 'column',
-                          my: 2,
-                        }}
-                      >
-                        <Typography variant="body2" color="text.secondary" paragraph>
-                          {t(
-                            'Create Resource Quota to limit resource consumption within this project'
-                          )}
-                        </Typography>
-                        <Button
-                          startIcon={<Icon icon="mdi:plus" />}
-                          color="secondary"
-                          variant="contained"
-                          onClick={() => {
-                            const activityId = 'create-resource-resourcequotas';
-                            const item = ResourceQuota.getBaseObject();
-                            item.metadata.namespace = project.namespaces[0];
-                            item.cluster = project.clusters[0];
-
-                            Activity.launch({
-                              id: activityId,
-                              title: t('translation|Create {{ name }}', {
-                                name: ResourceQuota.kind,
-                              }),
-                              location: 'full',
-                              cluster: project.clusters[0],
-                              icon: <Icon icon="mdi:plus-circle" />,
-                              content: (
-                                <EditorDialog
-                                  noDialog
-                                  item={item}
-                                  open
-                                  setOpen={() => {}}
-                                  onClose={() => Activity.close(activityId)}
-                                  saveLabel={t('translation|Apply')}
-                                  title={t('translation|Create {{ name }}', { name })}
-                                  aria-label={t('translation|Create {{ name }}', { name })}
+          // Otherwise, render default tab content
+          switch (selectedTab) {
+            case TAB_IDS.OVERVIEW:
+              return (
+                <Grid container spacing={3} sx={{ pt: 2 }}>
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Typography variant="h6">{t('Status')}</Typography>
+                        <Box sx={{ display: 'flex', gap: 2 }}>
+                          <Box>
+                            <Typography variant="body2" color="text.secondary">
+                              {t('Project Status')}
+                            </Typography>
+                            <Box display="flex" alignItems="center" gap={1}>
+                              <StatusLabel
+                                status={
+                                  projectHealth.error > 0
+                                    ? 'error'
+                                    : projectHealth.warning > 0
+                                    ? 'warning'
+                                    : 'success'
+                                }
+                              >
+                                <Icon
+                                  icon={getHealthIcon(
+                                    projectHealth.success,
+                                    projectHealth.error,
+                                    projectHealth.warning
+                                  )}
+                                  style={{
+                                    fontSize: 24,
+                                  }}
                                 />
-                              ),
-                            });
+                                {projectHealth.success === 0
+                                  ? t('No Workloads')
+                                  : projectHealth.error > 0
+                                  ? t('Unhealthy')
+                                  : projectHealth.warning > 0
+                                  ? t('Degraded')
+                                  : t('Healthy')}
+                              </StatusLabel>
+                            </Box>
+                          </Box>
+                          <Box>
+                            <Typography variant="body2" color="text.secondary">
+                              {t('Resources')}
+                            </Typography>
+                            {items.length > 0 && (
+                              <Box display="flex" flexWrap="wrap" gap={1}>
+                                {projectHealth.success > 0 && (
+                                  <StatusLabel status="success">
+                                    {projectHealth.success} {t('Healthy')}
+                                  </StatusLabel>
+                                )}
+                                {projectHealth.warning > 0 && (
+                                  <StatusLabel status="warning">
+                                    {projectHealth.warning} {t('Warning')}
+                                  </StatusLabel>
+                                )}
+                                {projectHealth.error > 0 && (
+                                  <StatusLabel status="error">
+                                    {projectHealth.error} {t('Unhealthy')}
+                                  </StatusLabel>
+                                )}
+                              </Box>
+                            )}
+                          </Box>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Typography variant="h6">{t('Resources')}</Typography>
+                        <ResourceCategoriesList
+                          categoryList={categoryList}
+                          onCategoryClick={category => {
+                            setSelectedCategoryName(category);
+                            setSelectedTab(TAB_IDS.RESOURCES);
                           }}
-                        >
-                          <Trans>Create resource quota</Trans>
-                        </Button>
-                      </Box>
-                    )}
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
+                        />
+                      </CardContent>
+                    </Card>
+                  </Grid>
 
-            {additionalOverviewSections.map(section => (
-              <Grid item xs={12} md={4}>
-                <Card sx={{ height: '100%' }}>
-                  <CardContent>
-                    <section.component
-                      key={section.id}
-                      project={project}
-                      projectResources={items}
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ height: '100%' }}>
+                      <CardContent>
+                        <Typography variant="h6">{t('Resource Quotas')}</Typography>
+                        <Box>
+                          {resourceQuotas.map(it => (
+                            <Box sx={{ mb: 2 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <Typography variant="h6" sx={{ mr: 'auto' }}>
+                                  {it.metadata.name}
+                                </Typography>
+                                <EditButton item={it} />
+                              </Box>
+                              <ResourceQuotaTable resourceStats={it.resourceStats} />
+                            </Box>
+                          ))}
+
+                          {resourceQuotas.length === 0 && (
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                flexDirection: 'column',
+                                my: 2,
+                              }}
+                            >
+                              <Typography variant="body2" color="text.secondary" paragraph>
+                                {t(
+                                  'Create Resource Quota to limit resource consumption within this project'
+                                )}
+                              </Typography>
+                              <Button
+                                startIcon={<Icon icon="mdi:plus" />}
+                                color="secondary"
+                                variant="contained"
+                                onClick={() => {
+                                  const activityId = 'create-resource-resourcequotas';
+                                  const item = ResourceQuota.getBaseObject();
+                                  item.metadata.namespace = project.namespaces[0];
+                                  item.cluster = project.clusters[0];
+
+                                  Activity.launch({
+                                    id: activityId,
+                                    title: t('translation|Create {{ name }}', {
+                                      name: ResourceQuota.kind,
+                                    }),
+                                    location: 'full',
+                                    cluster: project.clusters[0],
+                                    icon: <Icon icon="mdi:plus-circle" />,
+                                    content: (
+                                      <EditorDialog
+                                        noDialog
+                                        item={item}
+                                        open
+                                        setOpen={() => {}}
+                                        onClose={() => Activity.close(activityId)}
+                                        saveLabel={t('translation|Apply')}
+                                        title={t('translation|Create {{ name }}', { name })}
+                                        aria-label={t('translation|Create {{ name }}', { name })}
+                                      />
+                                    ),
+                                  });
+                                }}
+                              >
+                                <Trans>Create resource quota</Trans>
+                              </Button>
+                            </Box>
+                          )}
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {additionalOverviewSections.map(section => (
+                    <Grid item xs={12} md={4}>
+                      <Card sx={{ height: '100%' }}>
+                        <CardContent>
+                          <section.component
+                            key={section.id}
+                            project={project}
+                            projectResources={items}
+                          />
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              );
+
+            case TAB_IDS.RESOURCES:
+              return (
+                <ProjectResourcesTab
+                  projectResources={items}
+                  showClusterColumn={project.clusters.length > 1}
+                  selectedCategoryName={selectedCategoryName}
+                  setSelectedCategoryName={setSelectedCategoryName}
+                />
+              );
+
+            case TAB_IDS.ACCESS:
+              return (
+                <Box sx={{ my: 3 }}>
+                  <SelectedClustersContext.Provider value={project.clusters}>
+                    <Typography variant="h6">{t('Roles')}</Typography>
+                    <ResourceTable
+                      resourceClass={Role}
+                      columns={['type', 'name', 'age']}
+                      namespaces={project.namespaces}
+                      enableRowActions
                     />
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        )}
+                    <Typography variant="h6">{t('Role Bindings')}</Typography>
+                    <ResourceTable
+                      resourceClass={RoleBinding}
+                      columns={['type', 'name', 'age']}
+                      namespaces={project.namespaces}
+                      enableRowActions
+                    />
+                  </SelectedClustersContext.Provider>
+                </Box>
+              );
 
-        {selectedTab === 'resources' && (
-          <ProjectResourcesTab
-            projectResources={items}
-            showClusterColumn={project.clusters.length > 1}
-            selectedCategoryName={selectedCategoryName}
-            setSelectedCategoryName={setSelectedCategoryName}
-          />
-        )}
-        {selectedTab === 'access' && (
-          <Box sx={{ my: 3 }}>
-            <SelectedClustersContext.Provider value={project.clusters}>
-              <Typography variant="h6">{t('Roles')}</Typography>
-              <ResourceTable
-                resourceClass={Role}
-                columns={['type', 'name', 'age']}
-                namespaces={project.namespaces}
-                enableRowActions
-              />
-              <Typography variant="h6">{t('Role Bindings')}</Typography>
-              <ResourceTable
-                resourceClass={RoleBinding}
-                columns={['type', 'name', 'age']}
-                namespaces={project.namespaces}
-                enableRowActions
-              />
-            </SelectedClustersContext.Provider>
-          </Box>
-        )}
-        {selectedTab === 'map' && (
-          <ProjectGraph namespaces={project.namespaces} clusters={project.clusters} />
-        )}
-        {additionalTabs.map(tab =>
-          selectedTab === tab.id ? (
-            <tab.component key={tab.id} project={project} projectResources={items} />
-          ) : null
-        )}
+            case TAB_IDS.MAP:
+              return <ProjectGraph namespaces={project.namespaces} clusters={project.clusters} />;
+
+            default:
+              return null;
+          }
+        })()}
       </SectionBox>
     </Box>
   );
@@ -448,3 +493,5 @@ function ProjectGraph({ namespaces, clusters }: { namespaces: string[]; clusters
     </Box>
   );
 }
+
+export { TAB_IDS as PROJECT_TAB_IDS };
