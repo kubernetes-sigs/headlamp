@@ -25,6 +25,7 @@ interface MCPServer {
   command: string;
   args: string[];
   enabled: boolean;
+  env?: Record<string, string>;
 }
 
 interface MCPConfig {
@@ -155,10 +156,14 @@ class ElectronMCPClient {
         const expandedArgs = this.expandArgs(server.args || []);
         console.log(`Expanded args for ${server.name}:`, expandedArgs);
 
+        // Prepare environment variables
+        const serverEnv = server.env ? { ...process.env, ...server.env } : process.env;
+
         mcpServers[server.name] = {
           transport: 'stdio',
           command: server.command,
           args: expandedArgs,
+          env: serverEnv,
           restart: {
             enabled: true,
             maxAttempts: 3,
@@ -228,6 +233,7 @@ class ElectronMCPClient {
 
     // Handle MCP tool execution
     ipcMain.handle('mcp-execute-tool', async (event, { toolName, args, toolCallId }) => {
+      console.log('args in mcp-execute-tool:', args);
       try {
         await this.initializeClient();
 
