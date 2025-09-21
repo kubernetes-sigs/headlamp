@@ -22,6 +22,8 @@ interface Options {
    * A regex pattern to ignore files or directories.
    */
   ignore: RegExp | RegExp[];
+  /** Base directory to start the walk from */
+  baseDir?: string;
 }
 
 /**
@@ -34,7 +36,7 @@ interface Options {
  */
 export function sync(regexPattern: string, options: Options): string[] {
   const entries: string[] = [];
-  const baseDir = path.resolve(__dirname);
+  const baseDir = options.baseDir ?? path.resolve(__dirname);
   const filePattern = new RegExp(regexPattern);
 
   walkSync(baseDir, {

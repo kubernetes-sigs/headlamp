@@ -95,8 +95,13 @@ function testHeadlampPlugin() {
   run('npm', ['run', 'tsc']);
 
   // test the storybook builds
-  // TODO: Reenable after storybook is fixed
-  // run('npm run storybook-build');
+  run('npm', ['run', 'storybook-build']);
+
+  // test "npm run storybook" works
+  curDir = '.';
+  run('node', ['check-storybook.mjs', PACKAGE_NAME]);
+
+  curDir = PACKAGE_NAME;
 
   // test upgrade adds missing files
   const filesToRemove = [
@@ -169,16 +174,27 @@ function run(cmd, args) {
   );
   console.log('');
   try {
-    child_process.execFileSync(cmd, args, {
+    const res = child_process.spawnSync(cmd, args, {
       stdio: 'inherit',
       cwd: curDir,
-      encoding: 'utf8',
+      env: process.env,
     });
+    if (res.error) {
+      throw res.error;
+    }
+    if (res.status !== 0) {
+      const signal = res.signal ? ` (killed by signal ${res.signal})` : '';
+      exit(
+        `Error: Problem running "${cmd} ${args.join(' ')}" inside of "${curDir}" abs: "${resolve(
+          curDir
+        )}"${signal}`
+      );
+    }
   } catch (e) {
     exit(
       `Error: Problem running "${cmd} ${args.join(' ')}" inside of "${curDir}" abs: "${resolve(
         curDir
-      )}"`
+      )}": ${e && e.message ? e.message : e}`
     );
   }
 }

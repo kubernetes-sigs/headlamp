@@ -432,6 +432,32 @@ async function start() {
         ],
       })
     );
+
+    viteConfig.plugins.push({
+      name: 'headlamp-log-files-copied-to-plugin-folder',
+      buildEnd: async () => {
+        const destDir = path.join(configDir, 'plugins', packageName);
+        if (!fs.existsSync(destDir)) {
+          console.log(`No files copied to "${destDir}" (directory does not exist).`);
+          return;
+        }
+        try {
+          const files = fs.readdirSync(destDir);
+          if (files.length === 0) {
+            console.log(`No files found in "${destDir}".`);
+            return;
+          }
+          files.forEach(file => {
+            const destPath = path.join(destDir, file);
+            const srcPath =
+              file === 'package.json' ? path.resolve('package.json') : path.resolve('dist', file);
+            console.log(`Copied "${srcPath}" -> "${destPath}"`);
+          });
+        } catch (err) {
+          console.error('Error logging copied files:', err);
+        }
+      },
+    });
   }
 
   /**

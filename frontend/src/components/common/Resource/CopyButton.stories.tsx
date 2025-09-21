@@ -14,4 +14,29 @@
  * limitations under the License.
  */
 
-/// <reference types="@kinvolk/headlamp-plugin" />
+import { Meta, StoryFn } from '@storybook/react';
+import { TestContext } from '../../../test';
+import CopyButton from './CopyButton';
+
+export default {
+  title: 'Resource/CopyButton',
+  component: CopyButton,
+  argTypes: {},
+  decorators: [
+    Story => (
+      <TestContext>
+        <Story />
+      </TestContext>
+    ),
+  ],
+} as Meta;
+
+const Template: StoryFn<typeof CopyButton> = args => <CopyButton {...args} />;
+
+export const Default = Template.bind({});
+Default.args = {
+  text: 'test',
+};
+
+export const NoTextButton = Template.bind({});
+NoTextButton.args = {};

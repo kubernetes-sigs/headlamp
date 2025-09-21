@@ -184,15 +184,15 @@
                   <div
                     class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
                   >
-                    Type
+                    Kind
                   </div>
                   <span
-                    aria-label="Sort by Type ascending"
+                    aria-label="Sort by Kind ascending"
                     class="MuiBadge-root css-1c32n2y-MuiBadge-root"
                     data-mui-internal-clone-element="true"
                   >
                     <span
-                      aria-label="Sort by Type ascending"
+                      aria-label="Sort by Kind ascending"
                       class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                       role="button"
                       tabindex="0"

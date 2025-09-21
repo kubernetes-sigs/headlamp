@@ -14,49 +14,58 @@
  * limitations under the License.
  */
 
-import { error } from 'console';
 import fs from 'fs';
+import path from 'path';
 import * as filesFilter from '../../filesFilter/filesFilter';
 import mdiIcons from './icons';
 
-// the usedIcons array is used to check that all icons are used in the frontend
+// the cachedIcons array is used to check that all icons are cached in the frontend
 // we take the keys from the mdiIcons and add the prefix to it as a string
-const usedIcons = Object.keys(mdiIcons.icons).map(icon => `${mdiIcons.prefix}:${icon}`);
-const usedAliases = Object.keys(mdiIcons.aliases).map(alias => `${mdiIcons.prefix}:${alias}`);
-
-const checkIcons = async () => {
-  const files = filesFilter.sync('^.*\\.tsx$', { ignore: /node_modules/ });
-
-  const unusedIcons = [];
-
-  for (const file of files) {
-    const content = await fs.readFileSync(file, 'utf8');
-    // this will find all matches of a word starting with 'mdi:' and includes a dash
-    const regex = /mdi:[\w-]+/g;
-
-    let match: any;
-    while ((match = regex.exec(content)) !== null) {
-      if (!usedIcons.includes(match[0]) && !usedAliases.includes(match[0])) {
-        unusedIcons.push({
-          icon: match[0],
-          file,
-        });
-      }
-    }
-  }
-
-  for (let i = 0; i < unusedIcons.length; i++) {
-    error(
-      `Icon ${unusedIcons[i].icon} from file ${unusedIcons[i].file} is not cached for offline use `
-    );
-  }
-
-  return unusedIcons.length === 0;
-};
+const cachedIcons = Object.keys(mdiIcons.icons).map(icon => `${mdiIcons.prefix}:${icon}`);
+const cachedAliases = Object.keys(mdiIcons.aliases).map(alias => `${mdiIcons.prefix}:${alias}`);
 
 describe('Icon tests', () => {
-  test('Check icon', async () => {
-    const result = await checkIcons();
-    expect(result).toBe(true);
+  test('Check icon', () => {
+    const files = filesFilter.sync('^.*\\.tsx$', {
+      ignore: /node_modules/,
+      baseDir: path.resolve(__dirname, '..', '..'),
+    });
+
+    expect(files.length, 'Source files count').toBeGreaterThan(0);
+
+    const uncachedIcons = new Set<string>();
+
+    for (const file of files) {
+      const content = fs.readFileSync(file, 'utf8');
+      // this will find all matches of a word starting with 'mdi:' and includes a dash
+      const regex = /mdi:[\w-]+/g;
+
+      let match: any;
+      while ((match = regex.exec(content)) !== null) {
+        if (!cachedIcons.includes(match[0]) && !cachedAliases.includes(match[0])) {
+          uncachedIcons.add(match[0]);
+        }
+      }
+    }
+
+    if (uncachedIcons.size > 0) {
+      console.error(
+        'Following icons are not cached for offline use',
+        [...uncachedIcons].join(', ')
+      );
+      console.error('\n\nTo fix this update icons.ts file with the following content:\n');
+
+      const allIconNames = [...new Set([...cachedIcons, ...uncachedIcons])].map(it =>
+        it.replace('mdi:', '')
+      );
+
+      console.error('https://api.iconify.design/mdi.json?icons=' + allIconNames.join(','));
+
+      console.error(
+        '\n\nFollow the link and copy the "icons" field into icons.ts. Make sure existing "aliases" property is kept.'
+      );
+    }
+
+    expect(uncachedIcons.size, 'Icons with missing cache').toBe(0);
   });
 });

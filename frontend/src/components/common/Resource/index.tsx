@@ -24,6 +24,8 @@ export * from './AuthVisible';
 export { default as AuthVisible } from './AuthVisible';
 export * from './CreateButton';
 export { default as CreateButton } from './CreateButton';
+export * from './CopyButton';
+export { default as CopyButton } from './CopyButton';
 export * from './DeleteButton';
 export { default as DeleteButton } from './DeleteButton';
 export * from './DocsViewer';

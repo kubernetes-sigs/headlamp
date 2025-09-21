@@ -15,7 +15,6 @@
  */
 
 import {
-  AppBarActionsProcessorArgs,
   DefaultAppBarAction,
   K8s,
   registerAppBarAction,
@@ -29,13 +28,13 @@ import Message from './Message';
 function PodCounter() {
   const [pods, error] = K8s.ResourceClasses.Pod.useList();
   const msg = pods === null ? 'Loading…' : pods.length.toString();
-  return <Message msg={msg} error={error} />;
+  return <Message msg={msg} error={error !== null} />;
 }
 
 registerAppBarAction(PodCounter);
 
 // We can also reorder the actions in the app bar.
-registerAppBarAction(function reorderNotifications({ actions }: AppBarActionsProcessorArgs) {
+registerAppBarAction(function reorderNotifications({ actions }) {
   if (!actions) {
     return actions;
   }

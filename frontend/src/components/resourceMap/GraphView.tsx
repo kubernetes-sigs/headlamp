@@ -404,7 +404,7 @@ function ChipToggleButton({
       icon={isActive ? <Icon icon="mdi:check" /> : undefined}
       onClick={onClick}
       sx={{
-        lineHeight: '1',
+        lineHeight: '2',
       }}
     />
   );

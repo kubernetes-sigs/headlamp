@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
+import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import Message, { MessageProps } from './Message';
 
@@ -31,17 +33,20 @@ import Message, { MessageProps } from './Message';
  * > at a time. You can develop entire UIs without needing to start up a
  * > complex dev stack, force certain data into your database,
  * > or navigate around your application.
- *
  */
+
+const store = configureStore({ reducer: {} });
 
 export default {
   title: 'Message',
   component: Message,
   decorators: [
     Story => (
-      <MemoryRouter>
-        <Story />
-      </MemoryRouter>
+      <Provider store={store}>
+        <MemoryRouter>
+          <Story />
+        </MemoryRouter>
+      </Provider>
     ),
   ],
 } as Meta;

@@ -15,7 +15,7 @@
  */
 
 import { registerResourceTableColumnsProcessor } from '@kinvolk/headlamp-plugin/lib';
-import { ActionButton } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
+import { ActionButton, ResourceTableColumn } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
 import Pod from '@kinvolk/headlamp-plugin/lib/K8s/pod';
 import { Menu, MenuItem, Typography } from '@mui/material';
 import React from 'react';
@@ -85,12 +85,11 @@ registerResourceTableColumnsProcessor(function setupContextMenuForPodsList({ id,
   //
   // Plugins can use their own IDs (with their own prefixes) for tables.
   if (id === 'headlamp-pods') {
-    columns.push({
+    const podColumns = columns as ResourceTableColumn<Pod>[];
+    podColumns.push({
       label: '',
       getValue: (pod: Pod) => pod.getDetailsLink(),
-      render: (pod: Pod) => {
-        return <ContextMenu detailsLink={pod.getDetailsLink()} />;
-      },
+      render: (pod: Pod) => <ContextMenu detailsLink={pod.getDetailsLink()} />,
     });
   }
 

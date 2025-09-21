@@ -447,7 +447,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
           case 'kind':
             return {
               id: 'kind',
-              header: t('translation|Type'),
+              header: t('translation|Kind'),
               accessorFn: (resource: RowItem) => String(resource?.kind),
               filterVariant: 'multi-select',
               gridTemplate: 'min-content',

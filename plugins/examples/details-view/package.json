@@ -11,7 +11,8 @@
     "tsc": "headlamp-plugin tsc",
     "storybook": "headlamp-plugin storybook",
     "test": "headlamp-plugin test",
-    "storybook-build": "headlamp-plugin storybook-build"
+    "storybook-build": "headlamp-plugin storybook-build",
+    "i18n": "headlamp-plugin i18n"
   },
   "keywords": [
     "headlamp",
@@ -30,7 +31,7 @@
     ]
   },
   "devDependencies": {
-    "@kinvolk/headlamp-plugin": "^0.12.0"
+    "@kinvolk/headlamp-plugin": "^0.13.0-alpha.10"
   },
   "overrides": {
     "typescript": "5.6.2"

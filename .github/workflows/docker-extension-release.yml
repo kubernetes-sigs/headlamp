@@ -26,13 +26,28 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 0
-      - name: Update docker image tags
+      - name: Update docker image tags and digest
         run: |
-          lastTag=$(git tag --list --sort=version:refname 'v*' | tail -2 | head -1)
           latestTag=$(git tag --list --sort=version:refname 'v*' | tail -1)
-          echo "replacing ${lastTag} with ${latestTag}"
-          sed -i "s/$lastTag/$latestTag/g" ./docker-extension/Dockerfile
-          sed -i "s/$lastTag/$latestTag/g" ./docker-extension/docker-compose.yml
+          if [ -z "$latestTag" ]; then
+            echo "No tags found"
+            exit 1
+          fi
+          echo "Replacing tags with ${latestTag}"
+          sed -i -E "s/v[0-9]+(\.[0-9]+)*/${latestTag}/g" ./docker-extension/Dockerfile ./docker-extension/docker-compose.yml
+
+          echo "Fetching digest for ghcr.io/headlamp-k8s/headlamp:${latestTag}"
+          docker pull ghcr.io/headlamp-k8s/headlamp:${latestTag}
+
+          repoDigests=$(docker image inspect --format='{{range .RepoDigests}}{{println .}}{{end}}' ghcr.io/headlamp-k8s/headlamp:${latestTag} 2>/dev/null || true)
+          newDigest=$(echo "$repoDigests" | grep '^ghcr.io/headlamp-k8s/headlamp@' | head -n1 | cut -d'@' -f2)
+
+          if [ -z "$newDigest" ]; then
+            echo "Could not determine digest for ghcr.io/headlamp-k8s/headlamp:${latestTag}"
+            exit 1
+          fi
+          echo "Updating digest to ${newDigest}"
+          sed -i -E "s/v[0-9]+(\.[0-9]+)*(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?/${latestTag}/g" ./docker-extension/Dockerfile ./docker-extension/docker-compose.yml
       - name: Bump headlamp version and push the docker image
         run: |
           user=${{github.actor}}

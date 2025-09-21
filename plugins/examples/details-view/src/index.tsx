@@ -58,15 +58,30 @@ registerDetailsViewSectionsProcessor(function addSubheaderSection(resource, sect
 
   // Check if we already have added our custom section (this function may be called multiple times).
   const customSectionId = 'my-custom-section';
-  if (sections.findIndex(section => section.id === customSectionId) !== -1) {
+  const isCustomSectionId =
+    sections.findIndex(section => {
+      return (
+        typeof section === 'object' &&
+        section !== null &&
+        'id' in section &&
+        section.id === customSectionId
+      );
+    }) !== -1;
+  if (isCustomSectionId) {
     return sections;
   }
 
-  const detailsHeaderIdx = sections.findIndex(
-    section => section.id === DefaultDetailsViewSection.MAIN_HEADER
-  );
-  // There is no header, so we do nothing.
-  if (detailsHeaderIdx === -1) {
+  const detailsHeaderIdx = sections.findIndex(section => {
+    return (
+      typeof section === 'object' &&
+      section !== null &&
+      'id' in section &&
+      section.id === DefaultDetailsViewSection.MAIN_HEADER
+    );
+  });
+  const isNoMainHeader = detailsHeaderIdx === -1;
+  if (isNoMainHeader) {
+    // There is no header, so we do nothing.
     return sections;
   }
 
