@@ -1133,7 +1133,7 @@ function adjustZoom(delta: number) {
 
 function startElecron() {
   console.info('App starting...');
-
+  mcpClient = new ElectronMCPClient();
   let appVersion: string;
   if (isDev && process.env.HEADLAMP_APP_VERSION) {
     appVersion = process.env.HEADLAMP_APP_VERSION;
