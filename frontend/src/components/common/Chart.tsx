@@ -20,6 +20,7 @@ import { useTheme } from '@mui/material/styles';
 import { styled } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 import React, { ReactNode } from 'react';
+import { useRef } from 'react';
 import ReactDOM from 'react-dom';
 import {
   Bar,
@@ -197,6 +198,8 @@ export function PercentageBar(props: PercentageBarProps) {
 
   const { data, total = 100, tooltipFunc = null } = props;
 
+  const containerRef = useRef<HTMLDivElement>(null);
+
   function formatData() {
     const dataItems: { [name: string]: number } = {};
 
@@ -214,12 +217,17 @@ export function PercentageBar(props: PercentageBarProps) {
     theme.palette.mode === 'dark' ? theme.palette.primary.light : theme.palette.primary.main;
 
   return (
-    <StyledResponsiveContainer width="95%" height={20}>
+    <StyledResponsiveContainer width="95%" height={20} ref={containerRef}>
       <StyledBarChart layout="vertical" maxBarSize={5} data={[formatData()]}>
         {tooltipFunc && (
           <Tooltip
             content={props => (
-              <PaperTooltip rechartsProps={props} tooltipFunc={tooltipFunc} data={data} />
+              <PaperTooltip
+                rechartsProps={props}
+                tooltipFunc={tooltipFunc}
+                data={data}
+                containerRef={containerRef}
+              />
             )}
           />
         )}
@@ -247,16 +255,17 @@ interface PaperTooltipProps {
   rechartsProps?: any;
   tooltipFunc: (data: any) => ReactNode;
   data: any;
+  containerRef: React.RefObject<HTMLDivElement>;
 }
 
-function PaperTooltip({ rechartsProps, tooltipFunc, data }: PaperTooltipProps) {
+function PaperTooltip({ rechartsProps, tooltipFunc, data, containerRef }: PaperTooltipProps) {
   if (!rechartsProps || !rechartsProps.active || !rechartsProps.coordinate) return null;
 
-  const chartRect = document.querySelector('.recharts-wrapper')?.getBoundingClientRect();
+  const rect = containerRef.current?.getBoundingClientRect();
 
   const { x, y } = rechartsProps.coordinate;
-  const left = (chartRect?.left || 0) + x;
-  const top = (chartRect?.top || 0) + y;
+  const left = (rect?.left || 0) + x;
+  const top = (rect?.top ?? 0) + y - 5;
 
   return ReactDOM.createPortal(
     <Paper
@@ -268,6 +277,7 @@ function PaperTooltip({ rechartsProps, tooltipFunc, data }: PaperTooltipProps) {
         zIndex: 1500,
         pointerEvents: 'none',
         minWidth: 120,
+        transform: 'translate(-50%, -100%)',
       }}
     >
       <Box m={1}>{tooltipFunc(data)}</Box>
