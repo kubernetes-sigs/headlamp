@@ -47,7 +47,7 @@
                 <h1
                   class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
                 >
-                  Endpoint Slice
+                  EndpointSlice: my-endpoint
                 </h1>
                 <div
                   class="MuiBox-root css-ldp2l3"

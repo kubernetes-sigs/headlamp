@@ -36,7 +36,6 @@ export default function EndpointSliceDetails(props: {
       name={name}
       namespace={namespace}
       cluster={cluster}
-      title={t('Endpoint Slice')}
       withEvents
       extraInfo={item =>
         item && [

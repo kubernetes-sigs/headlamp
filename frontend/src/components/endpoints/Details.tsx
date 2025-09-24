@@ -41,7 +41,7 @@ export default function EndpointDetails(props: {
       name={name}
       namespace={namespace}
       cluster={cluster}
-      title={t('Endpoint')}
+      title={t('Endpoint: {{ name }}', { name })}
       withEvents
       extraSections={(item: KubeEndpoint) =>
         item && [

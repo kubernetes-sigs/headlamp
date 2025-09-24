@@ -40,20 +40,7 @@
           >
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-            >
-              <div
-                class="MuiBox-root css-70qvj9"
-              >
-                <h1
-                  class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
-                >
-                  Endpoint Slice
-                </h1>
-                <div
-                  class="MuiBox-root css-ldp2l3"
-                />
-              </div>
-            </div>
+            />
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
