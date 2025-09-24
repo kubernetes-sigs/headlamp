@@ -104,6 +104,7 @@ var parseClusterAndTokenTests = []struct {
 	authHeader  string
 	wantCluster string
 	wantToken   string
+	cookies     []*http.Cookie
 }{
 	{
 		name:        "standard case",
@@ -154,6 +155,18 @@ var parseClusterAndTokenTests = []struct {
 		wantCluster: "",
 		wantToken:   "some-token",
 	},
+	{
+		name:        "cookie fallback when header missing",
+		url:         "/clusters/cookie-cluster/api",
+		wantCluster: "cookie-cluster",
+		wantToken:   "cookie-token",
+		cookies: []*http.Cookie{
+			{
+				Name:  "headlamp-auth-cookie-cluster.0",
+				Value: "cookie-token",
+			},
+		},
+	},
 }
 
 func TestParseClusterAndToken(t *testing.T) {
@@ -166,6 +179,10 @@ func TestParseClusterAndToken(t *testing.T) {
 
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
+			}
+
+			for _, cookie := range tt.cookies {
+				req.AddCookie(cookie)
 			}
 
 			cluster, token := auth.ParseClusterAndToken(req)

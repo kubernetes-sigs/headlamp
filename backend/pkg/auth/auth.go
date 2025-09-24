@@ -82,6 +82,13 @@ func ParseClusterAndToken(r *http.Request) (string, string) {
 		token = strings.TrimSpace(token[len(bearerPrefix):])
 	}
 
+	// If no auth header, try cookie
+	if token == "" && cluster != "" {
+		if cookieToken, err := GetTokenFromCookie(r, cluster); err == nil && cookieToken != "" {
+			token = cookieToken
+		}
+	}
+
 	if token != "" && !bearerTokenRegex.MatchString(token) {
 		return cluster, ""
 	}
