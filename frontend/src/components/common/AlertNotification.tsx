@@ -102,10 +102,15 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
   );
 
   const showOnRoute = React.useMemo(() => {
-    for (const route of ROUTES_WITHOUT_ALERT) {
-      const routePath = getRoutePath(getRoute(route));
-      if (matchPath(pathname, routePath)?.isExact) {
-        return false;
+    for (const routeName of ROUTES_WITHOUT_ALERT) {
+      const maybeRoute = getRoute(routeName);
+      if (maybeRoute) {
+        const routePath = getRoutePath(maybeRoute);
+        if (matchPath(pathname, routePath)?.isExact) {
+          return false;
+        }
+      } else {
+        console.error(`Can't find ${routeName} route`);
       }
     }
     return true;

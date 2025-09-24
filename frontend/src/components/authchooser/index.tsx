@@ -217,8 +217,13 @@ function AuthChooser({ children }: AuthChooserProps) {
         numClusters > 1 ? history.goBack() : history.push('/');
       }}
       handleTokenAuth={() => {
+        const tokenRoute = getRoute('token');
+        if (!tokenRoute) {
+          console.error("Can't find 'token' route");
+          return;
+        }
         history.push({
-          pathname: generatePath(getRoutePath(getRoute('token')), {
+          pathname: generatePath(getRoutePath(tokenRoute), {
             cluster: clusterName as string,
           }),
         });
