@@ -50,7 +50,9 @@ export function setStore(newStore: AppStore) {
   }
 }
 
-export function createRouteURL(routeName: string, params: RouteURLProps = {}) {
+export function createRouteURL(routeName?: string, params: RouteURLProps = {}) {
+  if (!routeName) return '';
+
   const store = getStore();
   const storeRoutes = !store ? {} : store.getState().routes.routes;
 
