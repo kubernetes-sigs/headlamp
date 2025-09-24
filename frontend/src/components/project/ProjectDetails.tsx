@@ -392,14 +392,44 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
 
   const { items, isLoading } = useProjectItems(project);
 
-  // Merge default tabs with registered tabs, allowing plugins to override default tabs
-  const allTabs = useMemo(
-    () => ({
-      ...DEFAULT_TABS,
-      ...registeredTabs,
-    }),
-    [registeredTabs]
-  );
+  const [allTabs, setAllTabs] = useState<Record<string, ProjectDetailsTab>>(DEFAULT_TABS);
+
+  useEffect(() => {
+    async function loadTabs() {
+      const registeredTabsList = Object.values(registeredTabs);
+      // Get a list of enabled Tabs
+      const enabledTabs = (
+        await Promise.all(
+          registeredTabsList.map(tab =>
+            tab.isEnabled
+              ? // if tab provides isEnabled function we call it
+                tab
+                  .isEnabled({ project })
+                  .then(isEnabled => (isEnabled ? tab : undefined))
+                  .catch(e => {
+                    // if isEnabled check failed then we don't show it
+                    console.error('Failed to check if tab is enabled', tab, e);
+                    return undefined;
+                  })
+              : // if no isEnabled function then it's enabled by default
+                Promise.resolve(tab)
+          )
+        )
+      ).filter(Boolean) as ProjectDetailsTab[];
+
+      const enabledTabsById = Object.fromEntries(enabledTabs.map(tab => [tab.id, tab]));
+
+      // Merge default tabs with custom tabs
+      const allTabs: Record<string, ProjectDetailsTab> = {
+        ...DEFAULT_TABS,
+        ...enabledTabsById,
+      };
+
+      setAllTabs(allTabs);
+    }
+
+    loadTabs();
+  }, [registeredTabs, project]);
 
   // Set initial selected tab to the first available tab
   const tabIds = Object.keys(allTabs);

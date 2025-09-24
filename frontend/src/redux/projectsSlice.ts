@@ -53,6 +53,8 @@ export interface ProjectDetailsTab {
   label?: ReactNode;
   icon: string | ReactNode;
   component?: (props: { project: ProjectDefinition; projectResources: KubeObject[] }) => ReactNode;
+  /** Function to check if this tab be displayed in the given project. If not provided the Tab will be enabled. */
+  isEnabled?: ({ project }: { project: ProjectDefinition }) => Promise<boolean>;
 }
 
 export interface ProjectDeleteButton {

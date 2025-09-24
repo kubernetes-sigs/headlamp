@@ -24,6 +24,10 @@ Replaces the default "Access" tab with a completely custom implementation that s
 
 Shows how to remove default tabs by setting `component: undefined`.
 
+### 4. Conditional Tab
+
+Shows how to register a Tab that is only displayed for certain projects.
+
 ## Running the Example
 
 ```bash

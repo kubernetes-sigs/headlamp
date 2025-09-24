@@ -140,6 +140,20 @@ registerProjectDetailsTab({
 //   component: undefined,
 // });
 
+// Example of Tab that is only enabled for certain projects
+registerProjectDetailsTab({
+  id: 'special-tab',
+  label: 'Special tab',
+  icon: 'mdi:circle',
+  component: () => <div>Special tab content</div>,
+  isEnabled: async ({ project }) => {
+    // In this example tab will only be displayed for projects
+    // that have more than 1 cluster selected
+    // Note: This function is async so you can make network requests here
+    return project.clusters.length > 1;
+  },
+});
+
 registerProjectOverviewSection({
   id: 'resource-usage',
   component: ({ project }) => <div>Custom resource usage for project {project.name}</div>,

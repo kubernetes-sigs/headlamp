@@ -1076,6 +1076,7 @@ export function registerCustomCreateProject(customCreateProject: CustomCreatePro
  * @param projectDetailsTab.label - Display label for the tab
  * @param projectDetailsTab.icon - Display icon for the tab
  * @param projectDetailsTab.component - React component to render in the tab content
+ * @param projectDetailsTab.isEnabled - Optional function to determine if tab is displayed
  *
  * @example
  * ```tsx
