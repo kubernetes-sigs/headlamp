@@ -16,7 +16,9 @@
 
 import { getDefaultRoutes } from './getDefaultRoutes';
 
-export function getRoute(routeName: string) {
+export function getRoute(routeName?: string) {
+  if (!routeName) return;
+
   let routeKey = routeName;
   for (const key in getDefaultRoutes()) {
     if (key.toLowerCase() === routeName.toLowerCase()) {
