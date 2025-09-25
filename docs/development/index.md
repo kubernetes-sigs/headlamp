@@ -116,8 +116,12 @@ which runs everything including the `backend`, `frontend` and `app` in parallel.
 
 Headlamp on WSL requires some packages installed (maybe it requires more) to run the app.
 
+Note: `libgconf-2-4` was removed starting with Ubuntu 24.04 and newer
+releases. If you are on an older release where it is still available you can
+install it as well, otherwise you can safely omit it.
+
 ```bash
-sudo apt install libgconf-2-4 libatk1.0-0 libatk-bridge2.0-0 libgdk-pixbuf2.0-0 libgtk-3-0 libgbm1 libnss3 libasound2
+sudo apt install libatk1.0-0 libatk-bridge2.0-0 libgdk-pixbuf2.0-0 libgtk-3-0 libgbm1 libnss3 libasound2
 ```
 
 Some of these are also needed some of them only for the end to end tests.
