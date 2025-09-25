@@ -1,8 +1,9 @@
 {
-  "name": "e2e-tests",
+  "name": "headlamp-app-e2e-tests",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "test": "concurrently \"npm run test-app\" \"npm run test-web\" --names \"app,web\" --prefix-colors \"blue,green\"",
     "test-app": "PLAYWRIGHT_TEST_MODE=app playwright test",
     "test-web": "PLAYWRIGHT_TEST_MODE=web playwright test"
   },
@@ -12,6 +13,7 @@
   "description": "",
   "devDependencies": {
     "@playwright/test": "^1.48.1",
-    "@types/node": "^22.7.5"
+    "@types/node": "^22.7.5",
+    "concurrently": "^8.2.2"
   }
 }

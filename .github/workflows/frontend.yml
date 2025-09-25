@@ -128,7 +128,7 @@ jobs:
 
       - name: Test plugins
         run: |
-          make plugins-test
+          npm run plugins:test
 
   builddocs:
     name: build docs

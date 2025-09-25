@@ -28,6 +28,7 @@
   },
   "build": {
     "appId": "com.microsoft.Headlamp",
+    "electronVersion": "31.2.0",
     "beforeBuild": "./scripts/build-backend.js",
     "afterPack": "./scripts/after-pack.js",
     "asar": false,

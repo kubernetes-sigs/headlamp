@@ -15,7 +15,7 @@ exports.default = async context => {
     osName = 'Windows_NT';
   }
 
-  execSync('make backend', {
+  execSync('npm run backend:build', {
     env: {
       ...process.env, // needed otherwise important vars like PATH and GOROOT are not set
       GOARCH: arch,
