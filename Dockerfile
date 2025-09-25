@@ -33,19 +33,27 @@ FROM --platform=${BUILDPLATFORM} node:22@sha256:6fe286835c595e53cdafc4889e9eff90
 # that's generated when building the frontend.
 COPY .git/ ./headlamp/.git/
 
+# Copy workspace configuration and package files for npm workspaces
+COPY package*.json /headlamp/
 COPY app/package.json /headlamp/app/package.json
-
-# Keep npm install separated so source changes don't trigger install
 COPY frontend/package*.json /headlamp/frontend/
+COPY app/e2e-tests/package.json /headlamp/app/e2e-tests/package.json
+COPY e2e-tests/package.json /headlamp/e2e-tests/package.json
+COPY eslint-config/package.json /headlamp/eslint-config/package.json
+COPY load-tests/package.json /headlamp/load-tests/package.json
+COPY plugins/headlamp-plugin/package.json /headlamp/plugins/headlamp-plugin/package.json
+
 WORKDIR /headlamp
-RUN cd ./frontend && npm ci --only=prod
+# Install dependencies for all workspaces, but only production dependencies for frontend
+RUN npm ci --workspace=frontend --only=prod
 
 FROM frontend-build AS frontend
 COPY ./frontend /headlamp/frontend
+COPY ./eslint-config /headlamp/eslint-config
 
 WORKDIR /headlamp
 
-RUN cd ./frontend && npm run build
+RUN npm run build --workspace=frontend
 
 RUN echo "*** Built Headlamp with version: ***"
 RUN cat ./frontend/.env
