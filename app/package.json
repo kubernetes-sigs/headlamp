@@ -28,6 +28,7 @@
   },
   "build": {
     "appId": "com.microsoft.Headlamp",
+    "electronVersion": "31.2.0",
     "beforeBuild": "./scripts/build-backend.js",
     "afterPack": "./scripts/after-pack.js",
     "asar": false,
@@ -166,6 +167,9 @@
     "i18next-parser": "^9.0.0",
     "jest": "^29.7.0",
     "typescript": "5.5.4"
+  },
+  "optionalDependencies": {
+    "dmg-license": "^1.0.11"
   },
   "overrides": {
     "typescript": "5.5.4"

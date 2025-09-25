@@ -23,58 +23,72 @@ const child_process = require('child_process');
  */
 function copyPackageLock() {
   console.log('copy_package_lock: Copying package-lock.json to template folder...');
-  fs.copyFileSync(
-    'package-lock.json',
-    path.join('template', 'package-lock.json')
-  );
-
-  // Make a tmp mypkgtmp with bin/headlamp-plugin.js create mypkgtmp
-  // If mypkgtmp exists remove it first
+  
+  // Create a temporary directory outside the workspace to avoid workspace interference
+  const os = require('os');
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-'));
   const packageName = 'mypkgtmp';
-  if (fs.existsSync(packageName)) {
-    fs.rmSync(packageName, { recursive: true, force: true });
-  }
-  child_process.spawnSync('node', ['bin/headlamp-plugin.js', 'create', packageName, '--noinstall'], {
+  const packagePath = path.join(tmpDir, packageName);
+  const headlampPluginBin = path.join(__dirname, '..', 'bin', 'headlamp-plugin.js');
+  
+  console.log(`copy_package_lock: Creating temporary plugin in ${packagePath}...`);
+  child_process.spawnSync('node', [headlampPluginBin, 'create', packageName, '--noinstall'], {
+    cwd: tmpDir,
     stdio: 'inherit',
   });
+
+  // Remove the package-lock.json from the template to force npm to generate a clean one
+  console.log('copy_package_lock: Removing template package-lock.json to ensure clean generation...');
+  const tempPackageLock = path.join(packagePath, 'package-lock.json');
+  if (fs.existsSync(tempPackageLock)) {
+    fs.unlinkSync(tempPackageLock);
+  }
 
   // Go into the folder and run "npm install"
   console.log('copy_package_lock: Installing dependencies in temporary folder to make sure everything is up to date...');
   child_process.spawnSync('npm', ['install'], {
-    cwd: packageName,
+    cwd: packagePath,
     stdio: 'inherit',
   });
 
   // Remove the node_modules inside packageName, and run npm install again.
   // This is necessary to ensure that the package-lock.json file is stabalized.
   console.log('copy_package_lock: Removing node_modules and reinstalling to stabalize packages...');
-  fs.rmSync(path.join(packageName, 'node_modules'), { recursive: true, force: true });
+  fs.rmSync(path.join(packagePath, 'node_modules'), { recursive: true, force: true });
   child_process.spawnSync('npm', ['install'], {
-    cwd: packageName,
+    cwd: packagePath,
     stdio: 'inherit',
   });
 
   // Remove the node_modules and run "npm ci" to confirm it's ok.
   console.log('copy_package_lock: Removing node_modules and running "npm ci" to confirm it is ok...');
-  fs.rmSync(path.join(packageName, 'node_modules'), { recursive: true, force: true });
+  fs.rmSync(path.join(packagePath, 'node_modules'), { recursive: true, force: true });
   child_process.spawnSync('npm', ['ci'], {
-    cwd: packageName,
+    cwd: packagePath,
     stdio: 'inherit',
   });
 
   // copy mypkgtmp/package-lock.json into template/package-lock.json
-  fs.copyFileSync(`${packageName}/package-lock.json`, 'template/package-lock.json');
+  const templatePath = path.join(__dirname, '..', 'template', 'package-lock.json');
+  fs.copyFileSync(path.join(packagePath, 'package-lock.json'), templatePath);
 
-  // Clean up temporary package
+  // Clean up temporary directory
   console.log('copy_package_lock: Cleaning up temporary package...');
-  fs.rmSync(packageName, { recursive: true, force: true });
+  try {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  } catch (err) {
+    // On Windows, files may be locked by antivirus or indexing services
+    // Log the error but don't fail the script since the OS will clean up temp files
+    console.warn(`Warning: Failed to clean up temporary directory ${tmpDir}: ${err.message}`);
+    console.warn('The OS will clean up temporary files automatically.');
+  }
 
   // replace in file template/package-lock.json  packageName with $${name}
   // just do a search / replace in the file
-  let packageLockContent = fs.readFileSync('template/package-lock.json', 'utf8');
+  let packageLockContent = fs.readFileSync(templatePath, 'utf8');
   // Use a replacer function so the replacement string is inserted literally as $${name}
   packageLockContent = packageLockContent.replace(new RegExp(packageName, 'g'), () => '$${name}');
-  fs.writeFileSync('template/package-lock.json', packageLockContent);
+  fs.writeFileSync(templatePath, packageLockContent);
   console.log('copy_package_lock: Updated template/package-lock.json');
 }
 

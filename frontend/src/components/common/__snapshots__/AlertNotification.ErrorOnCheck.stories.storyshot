@@ -26,7 +26,7 @@
               aria-describedby="notistack-snackbar"
               class="go1888806478 notistack-MuiContent notistack-MuiContent-error go167266335 go3651055292 go3162094071"
               role="alert"
-              style="webkit-transform: none; transform: none; webkit-transition: -webkit-transform 225ms cubic-bezier(0.0, 0, 0.2, 1) 0ms; transition: transform 225ms cubic-bezier(0.0, 0, 0.2, 1) 0ms;"
+              style="-webkit-transform: none; transform: none; transition: transform 225ms cubic-bezier(0.0, 0, 0.2, 1) 0ms;"
             >
               <div
                 class="go946087465"
