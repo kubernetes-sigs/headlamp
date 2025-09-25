@@ -593,6 +593,9 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	// Auth token management
 	r.HandleFunc("/auth/set-token", config.handleSetToken).Methods("POST")
 
+	// Identity (whoami)
+	r.HandleFunc("/api/me", config.handleMe).Methods("GET")
+
 	// Websocket connections
 	r.HandleFunc("/wsMultiplexer", config.multiplexer.HandleClientWebSocket)
 
@@ -2434,4 +2437,15 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (c *HeadlampConfig) handleMe(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if id, ok := auth.IdentityFromRequest(r); ok {
+		_ = json.NewEncoder(w).Encode(id)
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(struct{}{})
 }
