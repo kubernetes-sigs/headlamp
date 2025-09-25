@@ -17,6 +17,7 @@
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { createSlice } from '@reduxjs/toolkit';
 import type { ReactNode } from 'react';
+import type { ButtonStyle } from '../components/common/ActionButton/ActionButton';
 import type { KubeObject } from '../lib/k8s/KubeObject';
 
 export interface ProjectDefinition {
@@ -54,10 +55,16 @@ export interface ProjectDetailsTab {
   component?: (props: { project: ProjectDefinition; projectResources: KubeObject[] }) => ReactNode;
 }
 
+export interface ProjectDeleteButton {
+  isEnabled?: (params: { project: ProjectDefinition }) => Promise<boolean>;
+  component: (props: { project: ProjectDefinition; buttonStyle?: ButtonStyle }) => ReactNode;
+}
+
 export interface ProjectsState {
   customCreateProject: Record<string, CustomCreateProject>;
   overviewSections: Record<string, ProjectOverviewSection>;
   detailsTabs: Record<string, ProjectDetailsTab>;
+  projectDeleteButton?: ProjectDeleteButton;
 }
 
 const initialState: ProjectsState = {
@@ -84,9 +91,15 @@ const projectsSlice = createSlice({
     addOverviewSection(state, action: PayloadAction<ProjectOverviewSection>) {
       state.overviewSections[action.payload.id] = action.payload;
     },
+
+    /** Override default delete button */
+    setProjectDeleteButton(state, action: PayloadAction<ProjectDeleteButton>) {
+      state.projectDeleteButton = action.payload;
+    },
   },
 });
 
-export const { addCustomCreateProject, addDetailsTab, addOverviewSection } = projectsSlice.actions;
+export const { addCustomCreateProject, addDetailsTab, addOverviewSection, setProjectDeleteButton } =
+  projectsSlice.actions;
 
 export default projectsSlice.reducer;

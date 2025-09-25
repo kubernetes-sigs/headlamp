@@ -16,11 +16,10 @@
 
 import { Icon } from '@iconify/react';
 import { Box, Button, Card, CardContent, Grid, Tab, Tabs, Typography } from '@mui/material';
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { KubeObject } from '../../lib/k8s/KubeObject';
-import Namespace from '../../lib/k8s/namespace';
 import ResourceQuota from '../../lib/k8s/resourceQuota';
 import Role from '../../lib/k8s/role';
 import RoleBinding from '../../lib/k8s/roleBinding';
@@ -28,7 +27,7 @@ import { SelectedClustersContext } from '../../lib/k8s/SelectedClustersContext';
 import { useTypedSelector } from '../../redux/hooks';
 import { ProjectDefinition, ProjectDetailsTab } from '../../redux/projectsSlice';
 import { Activity } from '../activity/Activity';
-import { EditButton, EditorDialog, Loader, StatusLabel } from '../common';
+import { ButtonStyle, EditButton, EditorDialog, Loader, StatusLabel } from '../common';
 import ResourceTable from '../common/Resource/ResourceTable';
 import SectionBox from '../common/SectionBox';
 import { GraphFilter } from '../resourceMap/graph/graphFiltering';
@@ -356,9 +355,39 @@ const ProjectDetailsContext = createContext<
 function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
   const { t } = useTranslation();
   const registeredTabs = useTypedSelector(state => state.projects.detailsTabs);
+  const customDeleteButton = useTypedSelector(state => state.projects.projectDeleteButton);
+
+  const [DeleteButton, setDeleteButton] = useState<
+    (p: { project: ProjectDefinition; buttonStyle?: ButtonStyle }) => ReactNode
+  >(() => ProjectDeleteButton);
+
+  // Load custom delete button
+  useEffect(() => {
+    if (!customDeleteButton) return;
+
+    let isCurrent = true;
+
+    if (customDeleteButton.isEnabled) {
+      customDeleteButton
+        .isEnabled({ project })
+        .then(isEnabled => {
+          if (isEnabled && isCurrent) {
+            setDeleteButton(() => customDeleteButton.component);
+          }
+        })
+        .catch(e => {
+          console.log(`Failed to check if custom delete button is ready`, e);
+        });
+    } else {
+      setDeleteButton(() => customDeleteButton.component);
+    }
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [customDeleteButton, project]);
 
   const [selectedTab, setSelectedTab] = useState<string>();
-  const [allNamespaces] = Namespace.useList({ clusters: project.clusters });
   const [selectedCategoryName, setSelectedCategoryName] = React.useState<string>();
 
   const { items, isLoading } = useProjectItems(project);
@@ -420,12 +449,7 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
                 {project.id}
               </Typography>
 
-              <ProjectDeleteButton
-                project={project}
-                namespaces={
-                  allNamespaces?.filter(it => project.namespaces.includes(it.metadata.name)) || []
-                }
-              />
+              <DeleteButton project={project} />
             </Box>
           }
         >

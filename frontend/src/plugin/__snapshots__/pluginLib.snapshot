@@ -486,6 +486,7 @@
   "registerMapSource": [Function],
   "registerOverviewChartsProcessor": [Function],
   "registerPluginSettings": [Function],
+  "registerProjectDeleteButton": [Function],
   "registerProjectDetailsTab": [Function],
   "registerProjectOverviewSection": [Function],
   "registerResourceTableColumnsProcessor": [Function],

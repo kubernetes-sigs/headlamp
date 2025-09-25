@@ -96,8 +96,10 @@ import {
   addDetailsTab,
   addOverviewSection,
   CustomCreateProject,
+  ProjectDeleteButton,
   ProjectDetailsTab,
   ProjectOverviewSection,
+  setProjectDeleteButton,
 } from '../redux/projectsSlice';
 import { setRoute, setRouteFilter } from '../redux/routesSlice';
 import store from '../redux/stores/store';
@@ -1108,6 +1110,16 @@ export function registerProjectDetailsTab(projectDetailsTab: ProjectDetailsTab) 
  */
 export function registerProjectOverviewSection(projectOverviewSection: ProjectOverviewSection) {
   store.dispatch(addOverviewSection(projectOverviewSection));
+}
+
+/**
+ * Override default project delete button
+ *
+ * @param projectDeleteButton.component - React component for custom delete button
+ * @param projectDeleteButton.isEnabled - Optional function to determine if button is enabled
+ */
+export function registerProjectDeleteButton(projectDeleteButton: ProjectDeleteButton) {
+  store.dispatch(setProjectDeleteButton(projectDeleteButton));
 }
 
 export {

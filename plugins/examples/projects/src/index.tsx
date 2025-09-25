@@ -17,6 +17,7 @@
 import {
   ApiProxy,
   registerCustomCreateProject,
+  registerProjectDeleteButton,
   registerProjectDetailsTab,
   registerProjectOverviewSection,
 } from '@kinvolk/headlamp-plugin/lib';
@@ -142,4 +143,16 @@ registerProjectDetailsTab({
 registerProjectOverviewSection({
   id: 'resource-usage',
   component: ({ project }) => <div>Custom resource usage for project {project.name}</div>,
+});
+
+registerProjectDeleteButton({
+  component: ({ project }) => (
+    <button
+      onClick={() => {
+        console.log('Custom delete action');
+      }}
+    >
+      Delete {project.id}
+    </button>
+  ),
 });
