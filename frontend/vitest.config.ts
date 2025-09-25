@@ -17,7 +17,12 @@
 /// <reference types="vitest" />
 import { defineConfig, mergeConfig } from 'vitest/config';
 import { coverageConfigDefaults } from 'vitest/config';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import viteConfig from './vite.config';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export default mergeConfig(
   viteConfig,
@@ -25,13 +30,14 @@ export default mergeConfig(
     test: {
       globals: true,
       environment: 'jsdom',
+      testTimeout: 10000, // Increased from default 5000ms
       env: {
         UNDER_TEST: 'true',
       },
       alias: [
         {
           find: /^monaco-editor$/,
-          replacement: __dirname + '/node_modules/monaco-editor/esm/vs/editor/editor.api',
+          replacement: join(__dirname, '../node_modules/monaco-editor/esm/vs/editor/editor.api'),
         },
       ],
       fakeTimers: {

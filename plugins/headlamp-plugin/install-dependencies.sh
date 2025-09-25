@@ -6,7 +6,7 @@ set -o xtrace
 for i in * ; do
   if [ -d "$i" ]; then
     cd "$i"
-    npm ci
+    npm install --no-package-lock
     cd ..
   fi
 done

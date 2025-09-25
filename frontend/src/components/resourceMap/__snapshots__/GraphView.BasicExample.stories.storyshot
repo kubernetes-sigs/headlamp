@@ -72,10 +72,10 @@
                   </div>
                   <fieldset
                     aria-hidden="true"
-                    class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                    class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                   >
                     <legend
-                      class="css-14lo706"
+                      class="css-sl37lx-MuiNotchedOutlined-root"
                     >
                       <span>
                         Namespaces
@@ -192,11 +192,12 @@
           <div
             class="react-flow light"
             data-testid="rf__wrapper"
+            role="application"
             style="width: 100%; height: 100%; overflow: hidden; position: relative; z-index: 0;"
           >
             <div
               class="react-flow__renderer"
-              style="position: absolute; width: 100%; height: 100%; top: 0px; left: 0px;"
+              style="position: absolute; width: 100%; height: 100%; top: 0px; left: 0px; -webkit-tap-highlight-color: rgba(0, 0, 0, 0);"
             >
               <div
                 class="react-flow__pane draggable"
@@ -252,10 +253,9 @@
               />
             </svg>
             <div
-              aria-label="React Flow controls"
+              aria-label="Control Panel"
               class="react-flow__panel react-flow__controls vertical bottom left"
               data-testid="rf__controls"
-              style="pointer-events: all;"
             >
               <div
                 class="MuiBox-root css-1u72um6"
@@ -316,12 +316,10 @@
             </p>
             <div
               class="react-flow__panel top left"
-              style="pointer-events: all;"
             />
             <div
               class="react-flow__panel react-flow__attribution bottom right"
               data-message="Please only hide this attribution when you are subscribed to React Flow Pro: https://pro.reactflow.dev"
-              style="pointer-events: all;"
             >
               <a
                 aria-label="React Flow attribution"
@@ -336,10 +334,7 @@
               id="react-flow__node-desc-1"
               style="display: none;"
             >
-              Press enter or space to select a node.
-              You can then use the arrow keys to move the node around.
-               Press delete to remove it and escape to cancel.
-               
+              Press enter or space to select a node. You can then use the arrow keys to move the node around. Press delete to remove it and escape to cancel.
             </div>
             <div
               id="react-flow__edge-desc-1"
