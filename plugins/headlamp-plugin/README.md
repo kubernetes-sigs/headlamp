@@ -167,7 +167,7 @@ v0.6.0-alpha.1
 To set the "alpha" tag when publishing do the following.
 
 ```bash
-npm run build && npm pack
+npm run build && npm run copy-package-lock && npm pack
 npm publish kinvolk-headlamp-plugin-0.6.0-alpha.0.tgz --tag alpha
 ```
 
