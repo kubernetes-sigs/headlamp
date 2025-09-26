@@ -39,8 +39,8 @@ jobs:
     
     - name: Install frontend dependencies
       run: |
-        cd frontend && npm ci
-    
+        npm run frontend:install:ci
+
     - name: Build embeded backend binary
       run: |
         make backend-embed

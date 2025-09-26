@@ -44,9 +44,9 @@ jobs:
         run: |
           minikube status
           minikube addons enable headlamp
-          kubectl wait deployment -n headlamp headlamp --for condition=Available=True --timeout=30s    
+          kubectl wait deployment -n headlamp headlamp --for condition=Available=True --timeout=30s
 
-      - name: setup and run golangci-lint 
+      - name: setup and run golangci-lint
         uses: golangci/golangci-lint-action@2226d7cb06a077cd73e56eedd38eecad18e5d837 # 6.5.0
         with:
           version: v1.64
@@ -57,7 +57,7 @@ jobs:
       - name: Lint, Build & Check
         run: |
           cd $GITHUB_WORKSPACE
-          make backend
+          npm run backend:build
 
       - name: Run tests and calculate code coverage
         run: |
