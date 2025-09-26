@@ -47,6 +47,7 @@ import ConfirmButton from '../ConfirmButton';
 import { Dialog, DialogProps } from '../Dialog';
 import Loader from '../Loader';
 import Tabs from '../Tabs';
+import { TutorialToolTip } from '../Tutorial';
 import DocsViewer from './DocsViewer';
 import SimpleEditor from './SimpleEditor';
 import { UploadDialog } from './UploadDialog';
@@ -446,6 +447,18 @@ export default function EditorDialog(props: EditorDialogProps) {
                   }}
                 >
                   {t('translation|Upload File/URL')}
+                </Button>
+
+                {/* clean later: hackathon demo button */}
+                <Button
+                  onClick={() => {
+                    setUploadFiles(true);
+                  }}
+                >
+                  <TutorialToolTip
+                    context="CreateDemoResource"
+                    labelText={t('translation|Create demo resource')}
+                  />
                 </Button>
               </FormGroup>
             </Grid>
