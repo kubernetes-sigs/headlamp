@@ -42,11 +42,11 @@ const vitePromise = import('vite');
  * Creates a new plugin folder.
  *
  * Copies the files within template, and modifies a couple.
- * Then runs npm install inside of the folder.
+ * Then runs "npm ci" inside of the folder.
  *
  * @param {string} name - name of package and output folder.
  * @param {boolean} link - if we link @kinvolk/headlamp-plugin for testing
- * @param {boolean} noInstall - if we skip installing with npm install
+ * @param {boolean} noInstall - if we skip installing with "npm ci"
  * @returns {0 | 1 | 2 | 3} Exit code, where 0 is success, 1, 2, and 3 are failures.
  */
 function create(name, link, noInstall) {
@@ -54,6 +54,7 @@ function create(name, link, noInstall) {
   const templateFolder = path.resolve(__dirname, '..', 'template');
   const indexPath = path.join(dstFolder, 'src', 'index.tsx');
   const packagePath = path.join(dstFolder, 'package.json');
+  const packageLockPath = path.join(dstFolder, 'package-lock.json');
   const readmePath = path.join(dstFolder, 'README.md');
 
   if (fs.existsSync(name)) {
@@ -90,6 +91,7 @@ function create(name, link, noInstall) {
   }
 
   replaceFileVariables(packagePath);
+  replaceFileVariables(packageLockPath);
   replaceFileVariables(indexPath);
   replaceFileVariables(readmePath);
 
@@ -105,9 +107,8 @@ function create(name, link, noInstall) {
     console.log('Skipping dependency installation...');
   } else {
     console.log('Installing dependencies...');
-    // Run npm install.
     try {
-      child_process.execSync('npm install', {
+      child_process.execSync('npm ci', {
         stdio: 'inherit',
         cwd: dstFolder,
         encoding: 'utf8',
