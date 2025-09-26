@@ -39,7 +39,7 @@ jobs:
       with:
         go-version: '1.24.*'
     - name: Run tests
-      run: npm run app:test
+      run: npm run app:test:unit
     - name: Run tsc type checker
       run: npm run app:tsc
     - name: App linux
@@ -60,7 +60,7 @@ jobs:
       with:
         go-version: '1.24.*'
     - name: Run tests
-      run: npm run app:test
+      run: npm run app:test:unit
     - name: Run tsc type checker
       run: npm run app:tsc
     - name: App Windows
@@ -79,8 +79,12 @@ jobs:
     - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
         go-version: '1.24.*'
+    - name: Install Python and build tools
+      run: |
+        brew install python@3.11
+        npm install -g node-gyp
     - name: Run tests
-      run: npm run app:test
+      run: npm run app:test:unit
     - name: Run tsc type checker
       run: npm run app:tsc
     - name: App Mac
