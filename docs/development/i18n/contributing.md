@@ -91,7 +91,7 @@ Here's an example of using date formatting:
 Create a folder using the locale code in:
 `frontend/src/i18n/locales/`
 
-Then run `make i18n`. This command parses the translatable strings in
+Then run `npm run i18n`. This command parses the translatable strings in
 the project and creates the corresponding catalog files.
 
 Integrated components may need to be adjusted (MaterialUI/Monaco etc).

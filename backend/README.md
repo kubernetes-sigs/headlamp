@@ -1,8 +1,8 @@
 # Quickstart
 
 ```bash
-make backend
-make run-backend
+npm run backend:build
+npm run backend:start
 ```
 
 See more detailed [Headlamp backend documentation on the web](
