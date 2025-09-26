@@ -227,6 +227,14 @@
           "type": "string",
           "description": "Directory to load plugins from"
         },
+         "tlsCertPath": {
+          "type": "string",
+          "description": "Path of certificate file for TLS"
+        },
+        "tlsKeyPath": {
+          "type": "string",
+          "description": "Path of private key file for TLS"
+        },
         "extraArgs": {
           "type": "array",
           "description": "Extra arguments to pass to the application",
