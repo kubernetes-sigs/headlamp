@@ -152,11 +152,13 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
 
       - name: Build docs
         run: |
-          make docs
+          npm run docs
 
   buildstorybook:
     name: build storybook
