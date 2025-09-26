@@ -55,8 +55,8 @@ Follow these steps when submitting a PR to ensure it meets the project’s stand
 
 Run the following commands from your project directory:
 
-- `make frontend-test` - Run the test suite
-- `make frontend-lint` - Format your code to match the project
+- `npm run frontend:test` - Run the test suite
+- `npm run frontend:lint` - Format your code to match the project
 
 These steps ensure your code is functional, well-typed, and formatted consistently.
 
@@ -156,11 +156,11 @@ For linting the `backend` and `frontend`, use the following commands
 (respectively):
 
 ```bash
-make backend-lint
+npm run backend:lint
 ```
 
 ```bash
-make frontend-lint
+npm run frontend:lint
 ```
 
 The linters are also run in the CI system, so any PRs you create will be
@@ -194,13 +194,13 @@ an associated story when possible.
 For running the frontend tests, use the following command:
 
 ```bash
-make frontend-test
+npm run frontend:test
 ```
 
 The backend uses go's testing and can be run by using the following command:
 
 ```bash
-make backend-test
+npm run backend:test
 ```
 
 Tests will run as part of the CI after a Pull Request is open.
