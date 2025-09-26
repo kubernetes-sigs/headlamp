@@ -17,6 +17,7 @@ limitations under the License.
 package helm
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -36,6 +37,9 @@ import (
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
+	authv1 "k8s.io/api/authentication/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/yaml"
 )
 
@@ -584,6 +588,36 @@ func (h *Handler) installRelease(req InstallRequest) {
 	installClient.Description = req.Description
 	installClient.CreateNamespace = req.CreateNamespace
 	installClient.ChartPathOptions.Version = req.Version
+
+	// Do a quick sniff test to make sure that this requestAdd commentMore actions
+	// with at least enough provilege to do a whoami.  It's not
+	// possible to know what a chart is going to install before
+	// downloading, but spurious downloads can be prevented if the
+	// session isn't privileged enough to know its own privilege
+	restConfig, err := h.Configuration.RESTClientGetter.ToRESTConfig()
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name}, err, "getting chart")
+		return
+	}
+
+	cs, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name}, err, "getting chart")
+		return
+	}
+
+	review, err := cs.AuthenticationV1().SelfSubjectReviews().Create(context.Background(), &authv1.SelfSubjectReview{}, metav1.CreateOptions{})
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name}, err, "getting chart")
+		return
+	}
+
+	user := review.Status.UserInfo.Username
+	if user == "" || user == "system:anonymous" {
+		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
+			errors.New("insufficient privileges"), "getting chart: user is not authorized to perform this operation")
+		return
+	}
 
 	chart, err := h.getChart("install", req.Chart, req.Name,
 		installClient.ChartPathOptions, req.DependencyUpdate, h.EnvSettings)
