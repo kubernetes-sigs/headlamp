@@ -56,7 +56,7 @@ jobs:
       with:
         path: ~/image-cache
         # cache the container image. All the paths this PR depends on except the e2e-tests folder for the key.
-        key: ${{ runner.os }}-image-${{ hashFiles('backend/pkg/**', 'backend/cmd/**', 'backend/go.*', 'frontend/src/**', 'frontend/package.json', 'frontend/package-lock.json', 'Makefile', '.github/workflows/build-container.yml', 'Dockerfile', 'Dockerfile.plugins') }}
+        key: ${{ runner.os }}-image-${{ hashFiles('backend/pkg/**', 'backend/cmd/**', 'backend/go.*', 'frontend/src/**', 'frontend/package.json', 'frontend/package-lock.json', 'package.json', 'package-lock.json', 'Makefile', '.github/workflows/build-container.yml', 'Dockerfile', 'Dockerfile.plugins') }}
     - name: Restore Cached Docker Images
       if: steps.cache-image-restore.outputs.cache-hit == 'true'
       run: |
@@ -155,7 +155,7 @@ jobs:
         SERVICE_PORT=$(kubectl get services headlamp -n kube-system -o=jsonpath='{.spec.ports[0].nodePort}')
         export SERVICE_URL="http://${IP_ADDRESS}:${SERVICE_PORT}"
         echo $SERVICE_URL
-        curl -L $SERVICE_URL | grep -q "Headlamp: Kubernetes Web UI"        
+        curl -L $SERVICE_URL | grep -q "Headlamp: Kubernetes Web UI"
         echo "--------------------------------Export Tokens Received From Previous Step--------------------------------"
         export HEADLAMP_TEST_TOKEN=${HEADLAMP_TEST_TOKEN}
         export HEADLAMP_TEST2_TOKEN=${HEADLAMP_TEST2_TOKEN}
