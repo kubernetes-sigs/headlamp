@@ -82,7 +82,12 @@ spec:
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
+            {{- if .Values.securityContext }}
+              {{- toYaml .Values.securityContext | nindent 12 }}
+            {{- else }}
+              {{- $defaultSC := dict "allowPrivilegeEscalation" false "runAsNonRoot" true "seccompProfile" (dict "type" "RuntimeDefault") "capabilities" (dict "drop" (list "ALL")) }}
+              {{- toYaml $defaultSC | nindent 12 }}
+            {{- end }}
           image: "{{ .Values.image.registry}}/{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{ if or $oidc .Values.env }}
@@ -308,6 +313,15 @@ spec:
               mountPath: /config
           resources:
             {{- toYaml .Values.pluginsManager.resources | nindent 12 }}
+          securityContext:
+            {{- if .Values.pluginsManager.securityContext }}
+              {{- toYaml .Values.pluginsManager.securityContext | nindent 12 }}
+            {{- else if $.Values.securityContext }}
+              {{- toYaml $.Values.securityContext | nindent 12 }}
+            {{- else }}
+              {{- $defaultSC := dict "allowPrivilegeEscalation" false "runAsNonRoot" true "seccompProfile" (dict "type" "RuntimeDefault") "capabilities" (dict "drop" (list "ALL")) }}
+              {{- toYaml $defaultSC | nindent 12 }}
+            {{- end }}
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
