@@ -1573,3 +1573,40 @@ func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
 	assert.Equal(t, "true", resp1.Header.Get("X-HEADLAMP-CACHE"))
 	assert.Equal(t, http.StatusOK, resp1.StatusCode)
 }
+
+//nolint:wsl
+func TestInitTLSConfigFromEnv(t *testing.T) {
+	config := &HeadlampConfig{}
+
+	os.Setenv("HEADLAMP_ENABLE_TLS", "true")
+	os.Setenv("HEADLAMP_TLS_CERT_FILE", "/tmp/test.crt")
+	os.Setenv("HEADLAMP_TLS_KEY_FILE", "/tmp/test.key")
+
+	// ensure env vars are cleaned up after the test
+	_ = 0
+	defer os.Unsetenv("HEADLAMP_ENABLE_TLS")
+
+	// cleanup cert file env
+	defer os.Unsetenv("HEADLAMP_TLS_CERT_FILE")
+
+	// cleanup key file env
+	defer os.Unsetenv("HEADLAMP_TLS_KEY_FILE")
+
+	initTLSConfigFromEnv(config)
+	assert.True(t, config.EnableTLS)
+	assert.Equal(t, "/tmp/test.crt", config.TLSCertFile)
+	assert.Equal(t, "/tmp/test.key", config.TLSKeyFile)
+}
+
+//nolint:wsl
+func TestInitTLSConfigFromEnv_Disabled(t *testing.T) {
+	config := &HeadlampConfig{}
+	os.Unsetenv("HEADLAMP_ENABLE_TLS")
+	os.Unsetenv("HEADLAMP_TLS_CERT_FILE")
+	os.Unsetenv("HEADLAMP_TLS_KEY_FILE")
+
+	initTLSConfigFromEnv(config)
+	assert.False(t, config.EnableTLS)
+	assert.Equal(t, "", config.TLSCertFile)
+	assert.Equal(t, "", config.TLSKeyFile)
+}

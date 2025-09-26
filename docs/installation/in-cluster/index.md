@@ -77,6 +77,11 @@ and with that, you'll have a configured ingress file, so verify it and apply it:
 kubectl apply -f ./headlamp-ingress.yaml
 ```
 
+## TLS Backend Termination (NEW)
+
+Headlamp now supports optional TLS termination at the backend server. This allows you to terminate TLS either at the ingress (default) or directly at the Headlamp container, enabling use cases such as NGINX TLS passthrough and transport server. See docs/development/tls.md for details and usage.
+
+
 ## Exposing Headlamp with port-forwarding
 
 If you want to quickly access Headlamp (after having its service running) and
