@@ -61,7 +61,7 @@ Notes:
 
 How does Headlamp get real-time updates from Kubernetes clusters?
 
-- WebSockets are used for real-time updates from Kubernetes. 
+- WebSockets are used for real-time updates from Kubernetes.
 - Browsers support a limited number of connections: six usually.
 - How is the browser's WebSocket limit overcome? Headlamp uses one WebSocket from the browser to the `headlamp-server`. That server then opens many WebSockets to different Kubernetes API servers.
 
@@ -135,16 +135,16 @@ The headlamp/ repo [Makefile](https://github.com/kubernetes-sigs/headlamp/blob/m
 Here are some examples:
 
 ```shell
-make backend
-make backend-lint
-make backend-test
-make run-backend
-make frontend
-make frontend-lint
-make frontend-test
-make run-frontend
-make app-test
-make run-app
+npm run backend:build
+npm run backend:lint
+npm run backend:test
+npm run backend:start
+npm run frontend:build
+npm run frontend:lint
+npm run frontend:test
+npm run frontend:start
+npm run app:test
+npm run start:app
 ```
 
 ### Frontend
@@ -222,7 +222,7 @@ As mentioned above, Headlamp can be deployed as a container inside a Kubernetes 
 
 ## Future Work
 
-To see planned or in progress features, check the [Release Plan / Roadmap](https://github.com/orgs/headlamp-k8s/projects/1/views/1). It’s regularly updated, but it's a tentative plan. 
+To see planned or in progress features, check the [Release Plan / Roadmap](https://github.com/orgs/headlamp-k8s/projects/1/views/1). It’s regularly updated, but it's a tentative plan.
 
 Note: Since Headlamp is open source, people contribute things that aren’t listed there. You can also explore:
 - [Open issues](https://github.com/kubernetes-sigs/headlamp/issues) — for bugs, feature requests, and discussions.
