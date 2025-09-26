@@ -30,7 +30,7 @@ jobs:
         go-version: '1.24.*'
     - name: App linux
       run: |
-        make app-linux
+        npm run app:package:linux
     - name: Rename AppImage 64bit version
       run: |
         FILE_PATH=$(echo app/dist/Headlamp*x86_64*.AppImage); mv ${FILE_PATH} $(echo ${FILE_PATH}|sed s/x86_64/x64/)
