@@ -41,8 +41,8 @@ jobs:
       # Install the app dependencies for the choco script
       - name: Install app dependencies
         run: |
-          cd $GITHUB_WORKSPACE/app
-          npm ci
+          cd $GITHUB_WORKSPACE
+          npm run app:install
       # We set the latest tag as an environment variable before we use it in the next steps
       # note that we have to echo the variable to the environment file to make it available in the next steps
       - name: Set latest tag
