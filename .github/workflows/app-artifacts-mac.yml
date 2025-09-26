@@ -31,6 +31,7 @@ jobs:
         node-version: 20.x
         cache: 'npm'
         cache-dependency-path: |
+          package-lock.json
           app/package-lock.json
           frontend/package-lock.json
     - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
@@ -38,11 +39,9 @@ jobs:
         go-version: '1.24.*'
         cache-dependency-path: |
           backend/go.sum
-    - name: Dependencies
-      run: brew install make
     - name: Build Backend and Frontend
       run: |
-        make
+        npm run build
     - name: Add MacOS certs
       run: cd ./app/mac/scripts/ && sh ./setup-certificate.sh
       env:
@@ -54,7 +53,7 @@ jobs:
         # This will trigger codesign. See app/mac/scripts/codeSign.js
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       run: |
-        make app-mac 2>&1 | tee build.log
+        npm run app:package:mac 2>&1 | tee build.log
         if grep -q "Mac codesign: Failed" build.log; then
           echo "Error: Mac codesign failed"
           exit 1
@@ -62,7 +61,7 @@ jobs:
     - name: Build Unsigned App Mac
       if: ${{ ! inputs.signBinaries }}
       run: |
-        make app-mac
+        npm run app:package:mac
     - name: Upload artifact
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
@@ -87,6 +86,7 @@ jobs:
         node-version: 18.x
         cache: 'npm'
         cache-dependency-path: |
+          package-lock.json
           app/package-lock.json
           frontend/package-lock.json
     - name: Download artifact
