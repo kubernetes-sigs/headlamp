@@ -256,6 +256,10 @@ pluginsManager:
   baseImage: node:lts-alpine
   # -- Headlamp plugin package version to install
   version: latest
+  # -- Plugin manager env variable configuration
+  # env:
+  # - name: HTTPS_PROXY
+  #   value: "proxy.example.com:8080"
   # -- Specify resrouces
   # resources:
   #   requests:
