@@ -642,11 +642,17 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
  * @returns true if we are running inside WSL.
  */
 async function isWSL(): Promise<boolean> {
+  // Cheap platform check first to avoid reading /proc on non-Linux platforms.
+  if (platform() !== 'linux') {
+    return false;
+  }
+
   try {
     const data = await fsPromises.readFile('/proc/version', {
       encoding: 'utf8',
     });
-    return data.indexOf('icrosoft') !== -1;
+    const lower = data.toLowerCase();
+    return lower.includes('microsoft') || lower.includes('wsl');
   } catch {
     return false;
   }
