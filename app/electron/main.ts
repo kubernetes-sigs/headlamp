@@ -603,8 +603,16 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   process.env.HEADLAMP_BACKEND_TOKEN = backendToken;
 
   // Set the bundled plugins in addition to the the user's plugins.
-  if (fs.existsSync(bundledPlugins) && fs.readdirSync(bundledPlugins).length !== 0) {
-    process.env.HEADLAMP_STATIC_PLUGINS_DIR = bundledPlugins;
+  try {
+    const stat = await fsPromises.stat(bundledPlugins);
+    if (stat.isDirectory()) {
+      const entries = await fsPromises.readdir(bundledPlugins);
+      if (entries.length !== 0) {
+        process.env.HEADLAMP_STATIC_PLUGINS_DIR = bundledPlugins;
+      }
+    }
+  } catch (err) {
+    // Directory doesn't exist or is not readable — ignore and continue.
   }
 
   serverArgs = serverArgs.concat(flags);
