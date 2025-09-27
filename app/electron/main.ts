@@ -641,11 +641,10 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
  * Are we running inside WSL?
  * @returns true if we are running inside WSL.
  */
-function isWSL(): boolean {
+async function isWSL(): Promise<boolean> {
   try {
-    const data = fs.readFileSync('/proc/version', {
+    const data = await fsPromises.readFile('/proc/version', {
       encoding: 'utf8',
-      flag: 'r',
     });
     return data.indexOf('icrosoft') !== -1;
   } catch {
@@ -1217,7 +1216,7 @@ function startElecron() {
     }
 
     // WSL has a problem with full size window placement, so make it smaller.
-    const withMargin = isWSL();
+    const withMargin = await isWSL();
     const { width, height } = windowSize(screen.getPrimaryDisplay().workAreaSize, withMargin);
 
     mainWindow = new BrowserWindow({
