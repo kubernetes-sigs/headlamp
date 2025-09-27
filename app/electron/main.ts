@@ -128,9 +128,6 @@ const defaultPort = 4466;
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
 const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false';
-const manifestDir = isDev ? path.resolve('./') : process.resourcesPath;
-const manifestFile = path.join(manifestDir, 'app-build-manifest.json');
-const buildManifest = fs.existsSync(manifestFile) ? require(manifestFile) : {};
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
@@ -585,6 +582,18 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   if (!!args.kubeconfig) {
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);
   }
+
+  const manifestDir = isDev ? path.resolve('./') : process.resourcesPath;
+  const manifestFile = path.join(manifestDir, 'app-build-manifest.json');
+  let buildManifest: Record<string, any> = {};
+  try {
+    const manifestContent = await fsPromises.readFile(manifestFile, 'utf8');
+    buildManifest = JSON.parse(manifestContent);
+  } catch (err) {
+    // If the manifest doesn't exist or can't be read, fall back to empty object
+    buildManifest = {};
+  }
+
   const proxyUrls = !!buildManifest && buildManifest['proxy-urls'];
   if (!!proxyUrls && proxyUrls.length > 0) {
     serverArgs = serverArgs.concat(['--proxy-urls', proxyUrls.join(',')]);
