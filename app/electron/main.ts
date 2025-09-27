@@ -1094,10 +1094,11 @@ function saveZoomFactor(factor: number) {
   }
 }
 
-function loadZoomFactor() {
+async function loadZoomFactor(): Promise<number> {
   try {
-    const { zoomFactor = 1.0 } = JSON.parse(fs.readFileSync(ZOOM_FILE_PATH, 'utf-8'));
-    return zoomFactor;
+    const content = await fsPromises.readFile(ZOOM_FILE_PATH, 'utf-8');
+    const { zoomFactor = 1.0 } = JSON.parse(content);
+    return typeof zoomFactor === 'number' ? zoomFactor : 1.0;
   } catch (err) {
     console.error('Failed to load zoom factor, defaulting to 1.0:', err);
     return 1.0;
@@ -1263,9 +1264,11 @@ function startElecron() {
       }
     });
 
-    mainWindow.webContents.on('did-finish-load', () => {
-      const startZoom = loadZoomFactor();
-      setZoom(startZoom);
+    mainWindow.webContents.on('did-finish-load', async () => {
+      const startZoom = await loadZoomFactor();
+      if (startZoom !== 1.0) {
+        setZoom(startZoom);
+      }
     });
 
     mainWindow.webContents.on('dom-ready', () => {
