@@ -83,6 +83,10 @@ jobs:
       run: |
         brew install python@3.11
         npm install -g node-gyp
+        npm install -g dmg-license
+    - name: Install dmg-license for app workspace
+      run: |
+        cd app && npm install dmg-license --save-dev --no-package-lock
     - name: Run tests
       run: npm run app:test:unit
     - name: Run tsc type checker
