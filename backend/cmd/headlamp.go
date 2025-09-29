@@ -876,12 +876,17 @@ func (c *HeadlampConfig) refreshAndSetToken(oidcAuthConfig *kubeconfig.OidcConfi
 		tokenType = "access_token"
 	}
 
+	idpIssuerURL := c.oidcIdpIssuerURL
+	if idpIssuerURL == "" {
+		idpIssuerURL = oidcAuthConfig.IdpIssuerURL
+	}
+
 	newToken, err := refreshAndCacheNewToken(
 		oidcAuthConfig,
 		cache,
 		tokenType,
 		token,
-		c.oidcIdpIssuerURL,
+		idpIssuerURL,
 	)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
