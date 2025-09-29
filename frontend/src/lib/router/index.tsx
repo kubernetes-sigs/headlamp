@@ -117,7 +117,6 @@ import WorkloadDetails from '../../components/workload/Details';
 import WorkloadOverview from '../../components/workload/Overview';
 import { isElectron } from '../../helpers/isElectron';
 import LocaleSelect from '../../i18n/LocaleSelect/LocaleSelect';
-import store from '../../redux/stores/store';
 import { useCluster } from '..//k8s';
 import DaemonSet from '../k8s/daemonSet';
 import Deployment from '../k8s/deployment';
@@ -125,7 +124,7 @@ import Job from '../k8s/job';
 import ReplicaSet from '../k8s/replicaSet';
 import StatefulSet from '../k8s/statefulSet';
 import type { RouteURLProps } from './createRouteURL';
-import { createRouteURL, setStore } from './createRouteURL';
+import { createRouteURL } from './createRouteURL';
 import { getDefaultRoutes, setDefaultRoutes } from './getDefaultRoutes';
 import { getRoute } from './getRoute';
 import { getRoutePath } from './getRoutePath';
@@ -138,8 +137,6 @@ export { getDefaultRoutes, getRouteUseClusterURL, getRoutePath, getRoute, create
 const LazyGraphView = React.lazy(() =>
   import('../../components/resourceMap/GraphView').then(it => ({ default: it.GraphView }))
 );
-
-setStore(store);
 
 /** @private */
 const defaultRoutes: { [routeName: string]: Route } = {

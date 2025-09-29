@@ -32,22 +32,17 @@ export interface RouteURLProps {
   [prop: string]: any;
 }
 
-var theStore: { store: AppStore | null } | undefined = { store: null };
+const storeRef: { current?: AppStore } = { current: undefined };
 
 function getStore() {
-  return theStore?.store ?? null;
+  return storeRef.current;
 }
 /**
  * This is so we can access the store from anywhere, but not import it directly.
  * @param newStore
  */
 export function setStore(newStore: AppStore) {
-  if (!theStore) {
-    // Initialize theStore if this module hasn't finished evaluating yet (avoids TDZ on circular imports)
-    theStore = { store: newStore };
-  } else {
-    theStore.store = newStore;
-  }
+  storeRef.current = newStore;
 }
 
 export function createRouteURL(routeName?: string, params: RouteURLProps = {}) {
