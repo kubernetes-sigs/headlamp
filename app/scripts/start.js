@@ -5,11 +5,70 @@
  * Assumes being run from within the app/ folder
  */
 const { spawn } = require('child_process');
+const { statSync, existsSync } = require('fs');
+const { join } = require('path');
+const { execSync } = require('child_process');
+const { spawnSync } = require('child_process');
 
-const serverProcess = spawn('cd ../ && make backend && make run-backend', [], {
-  stdio: 'inherit',
-  shell: true,
-});
+/**
+ * @returns true if the backend/ might need rebuilding.
+ *
+ * `make backend` takes significantly longer each time we do a git switch
+ * to a different branch. This avoids it if the branch does not modify the backend.
+ *
+ * So `cd app; npm start` runs quicker when developing many branches.
+ * But, the backend is still rebuilt if it needs to be.
+ */
+function shouldMakeBackend() {
+  const backendDir = join(process.cwd(), '..', 'backend');
+
+  if (!existsSync(join(backendDir, 'headlamp-server'))) {
+    return true;
+  }
+
+  // This covers both "uncommitted vs HEAD" and "committed vs main".
+  const gitDiffStatus = spawnSync('git', ['diff', '--quiet', 'main', '--', backendDir], {
+    stdio: 'ignore',
+  }).status;
+
+  const lastCommitDateMs =
+    Number(
+      execSync(`git log -1 --format=%ct ${backendDir}`, {
+        stdio: ['ignore', 'pipe', 'ignore'],
+      })
+        .toString()
+        .trim()
+    ) * 1000;
+
+  if (Number.isNaN(lastCommitDateMs)) throw new Error('Failed to parse last commit date');
+
+  const headlampServerStat = statSync(join(backendDir, 'headlamp-server'));
+  const isHeadlampServerOlderThanLastCommit = headlampServerStat.mtimeMs < lastCommitDateMs;
+  const shouldBuildBackend = gitDiffStatus || isHeadlampServerOlderThanLastCommit;
+
+  // Log the decision process, to help debugging in the next months
+  console.log(`Should we make the backend: ${shouldBuildBackend ? 'yes' : 'no'}`, {
+    shouldBuildBackend,
+    backendDir,
+    gitDiffStatus,
+    lastCommitDateMs,
+    isHeadlampServerOlderThanLastCommit,
+  });
+  return shouldBuildBackend;
+}
+
+const serverProcess = spawn(
+  `cd ../ && make ${shouldMakeBackend() ? 'backend' : ''} run-backend`,
+  [],
+  {
+    stdio: 'inherit',
+    shell: true,
+    env: {
+      ...process.env,
+      HEADLAMP_CHECK_FOR_UPDATES: 'false',
+    },
+  }
+);
 
 let frontendCmd =
   'cd ../frontend/ && ../app/node_modules/.bin/cross-env BROWSER=none FORCE_COLOR=true npm';
