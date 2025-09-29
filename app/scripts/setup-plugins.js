@@ -38,7 +38,7 @@ async function extractArchive(
         }
 
         // Move the plugins contents to the plugins folder
-        const mainLocationExpr = path.join(tmpFolder, '*', 'main.js');
+        const mainLocationExpr = path.join(tmpFolder, '*', 'main.js').replace(/\\/g, '/');
         const mainLocations = glob.sync(mainLocationExpr);
         const mainLocation = mainLocations[0];
         if (mainLocation && fs.existsSync(mainLocation)) {
