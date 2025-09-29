@@ -78,14 +78,6 @@ export function createRouteURL(routeName?: string, params: RouteURLProps = {}) {
   const route = matchingStoredRouteByName || matchingStoredRouteByPath || getRoute(routeName);
 
   if (!route) {
-    // Backward compatibility: some plugins call createRouteURL with a
-    // path template instead of a registered route name. This serves
-    // as a temporary fix to avoid breaking those plugins.
-    //
-    // @todo: Merge the plugin routes into the main store.
-    if (routeName.startsWith('/')) {
-      return generatePath(routeName, params);
-    }
     return '';
   }
 
