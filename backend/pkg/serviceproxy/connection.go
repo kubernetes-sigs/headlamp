@@ -1,6 +1,9 @@
 package serviceproxy
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 // ServiceConnection represents a connection to a service.
 type ServiceConnection interface {
@@ -22,7 +25,7 @@ func NewConnection(ps *proxyService) ServiceConnection {
 func (c *Connection) Get(requestURI string) ([]byte, error) {
 	uri := fmt.Sprintf("%s/%s", c.URI, requestURI)
 
-	body, err := HTTPGet(uri)
+	body, err := HTTPGet(context.Background(), uri)
 	if err != nil {
 		return nil, err
 	}

@@ -48,10 +48,10 @@ spec:
   type: ClusterIP
   
   ports:
-    - port: 443
-      targetPort: https
+    - port: 80
+      targetPort: http
       protocol: TCP
-      name: https
+      name: http
   selector:
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
@@ -131,18 +131,16 @@ spec:
             # Check if useAccessToken is non false either from env or oidc.config
             - "-oidc-use-access-token=$(OIDC_USE_ACCESS_TOKEN)"
           ports:
-            - name: https
+            - name: http
               containerPort: 4466
               protocol: TCP
           livenessProbe:
             httpGet:
               path: "/"
-              port: https
-              scheme: HTTPS
+              port: http
           readinessProbe:
             httpGet:
               path: "/"
-              port: https
-              scheme: HTTPS
+              port: http
           resources:
             {}

@@ -159,7 +159,7 @@ service:
   # -- Kubernetes Service type
   type: ClusterIP
   # -- Kubernetes Service port
-  port: 443
+  port: 80
   # -- Kubernetes Service clusterIP
   clusterIP: ""
   # -- Kubernetes Service loadBalancerIP

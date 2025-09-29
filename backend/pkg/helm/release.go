@@ -580,42 +580,44 @@ func (h *Handler) getChart(
 	return chart, nil
 }
 
-func (h *Handler) installRelease(req InstallRequest) {
-	// Get install client
-	installClient := action.NewInstall(h.Configuration)
-	installClient.ReleaseName = req.Name
-	installClient.Namespace = req.Namespace
-	installClient.Description = req.Description
-	installClient.CreateNamespace = req.CreateNamespace
-	installClient.ChartPathOptions.Version = req.Version
-
-	// Do a quick sniff test to make sure that this requestAdd commentMore actions
-	// with at least enough provilege to do a whoami.  It's not
-	// possible to know what a chart is going to install before
-	// downloading, but spurious downloads can be prevented if the
-	// session isn't privileged enough to know its own privilege
+func verifyUser(h *Handler, req InstallRequest) bool {
+	// Verify the user has minimal privileges by performing a whoami check.
+	// This prevents spurious downloads by ensuring basic authentication before proceeding.
 	restConfig, err := h.Configuration.RESTClientGetter.ToRESTConfig()
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name}, err, "getting chart")
-		return
+		return false
 	}
 
 	cs, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name}, err, "getting chart")
-		return
+		return false
 	}
 
-	review, err := cs.AuthenticationV1().SelfSubjectReviews().Create(context.Background(), &authv1.SelfSubjectReview{}, metav1.CreateOptions{})
+	review, err := cs.AuthenticationV1().SelfSubjectReviews().Create(context.Background(),
+		&authv1.SelfSubjectReview{}, metav1.CreateOptions{})
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name}, err, "getting chart")
-		return
+		return false
 	}
 
-	user := review.Status.UserInfo.Username
-	if user == "" || user == "system:anonymous" {
+	if user := review.Status.UserInfo.Username; user == "" || user == "system:anonymous" {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
 			errors.New("insufficient privileges"), "getting chart: user is not authorized to perform this operation")
+		return false
+	}
+
+	return true
+}
+
+func (h *Handler) installRelease(req InstallRequest) {
+	installClient := action.NewInstall(h.Configuration)
+	installClient.ReleaseName, installClient.Namespace = req.Name, req.Namespace
+	installClient.Description, installClient.CreateNamespace = req.Description, req.CreateNamespace
+	installClient.ChartPathOptions.Version = req.Version
+
+	if !verifyUser(h, req) {
 		return
 	}
 
@@ -628,8 +630,6 @@ func (h *Handler) installRelease(req InstallRequest) {
 		return
 	}
 
-	values := make(map[string]interface{})
-
 	decodedBytes, err := base64.StdEncoding.DecodeString(req.Values)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
@@ -638,6 +638,8 @@ func (h *Handler) installRelease(req InstallRequest) {
 
 		return
 	}
+
+	values := make(map[string]interface{})
 
 	err = yaml.Unmarshal(decodedBytes, &values)
 	if err != nil {
@@ -648,7 +650,6 @@ func (h *Handler) installRelease(req InstallRequest) {
 		return
 	}
 
-	// Install chart
 	_, err = installClient.Run(chart, values)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
@@ -657,9 +658,6 @@ func (h *Handler) installRelease(req InstallRequest) {
 
 		return
 	}
-
-	logger.Log(logger.LevelInfo, map[string]string{"chart": req.Chart, "releaseName": req.Name},
-		nil, "chart installed successfully")
 
 	h.setReleaseStatusSilent("install", req.Name, success, nil)
 }

@@ -1186,8 +1186,8 @@ func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (
 		return nil, errors.New("not found")
 	}
 
-	// When the request contains bearer token, set that to AuthInfo, which will be used asAdd commentMore actions
-	// bearer token for authentication to the Kubernetes cluster
+	// If the request contains a bearer token in the Authorization header, set it in AuthInfo.
+	// This token will be used  authentication to the Kubernetes cluster.
 	bearerToken := r.Header.Get("Authorization")
 	if bearerToken != "" {
 		reqToken := strings.TrimPrefix(bearerToken, "Bearer ")
@@ -1235,7 +1235,7 @@ func (c *HeadlampConfig) checkHeadlampBackendToken(w http.ResponseWriter, r *htt
 	return nil
 }
 
-// handleClusterServiceProxy registers a new route for the path serviceproxy/{namespace}/{name}Add commentMore actions
+// handleClusterServiceProxy registers a new route for the path serviceproxy/{namespace}/{name}
 // to proxy requests to in-cluster services.
 func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 	router.HandleFunc("/clusters/{clusterName}/serviceproxy/{namespace}/{name}",
