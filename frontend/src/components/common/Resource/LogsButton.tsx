@@ -454,7 +454,14 @@ function LogsButtonContent({ item }: LogsButtonProps) {
               selectedContainer
             )
           }
-          control={<Switch checked={showPrevious} onChange={handlePreviousChange} />}
+          control={
+            <Switch
+              size="small"
+              sx={{ transform: 'scale(0.8)' }}
+              checked={showPrevious}
+              onChange={handlePreviousChange}
+            />
+          }
         />
       </LightTooltip>
 
