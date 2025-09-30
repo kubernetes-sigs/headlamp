@@ -77,6 +77,8 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 			KubeConfigStore:       kubeConfigStore,
 			BaseURL:               conf.BaseURL,
 			ProxyURLs:             strings.Split(conf.ProxyURLs, ","),
+			TLSCertPath:           conf.TLSCertPath,
+			TLSKeyPath:            conf.TLSKeyPath,
 		},
 		oidcClientID:              conf.OidcClientID,
 		oidcValidatorClientID:     conf.OidcValidatorClientID,
