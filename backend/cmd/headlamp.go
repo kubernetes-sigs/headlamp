@@ -43,6 +43,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/jmespath/go-jmespath"
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -84,6 +85,9 @@ type HeadlampConfig struct {
 	telemetryConfig           cfg.Config
 	oidcScopes                []string
 	telemetryHandler          *telemetry.RequestHandler
+	meUsernamePaths           string
+	meEmailPaths              string
+	meGroupsPaths             string
 }
 
 const DrainNodeCacheTTL = 20 // seconds
@@ -476,6 +480,9 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
 		portforward.GetPortForwardByID(config.cache, w, r)
 	}).Methods("GET")
+
+	// Expose user info so the frontend can show the current user in the top bar using the per-cluster auth cookie.
+	r.HandleFunc("/clusters/{clusterName}/me", config.handleMe).Methods("GET")
 
 	config.handleClusterRequests(r)
 
@@ -1463,6 +1470,146 @@ func (c *HeadlampConfig) handleClusterRequests(router *mux.Router) {
 	}
 
 	handleClusterAPI(c, router)
+}
+
+// handleMe returns user info extracted from the per-cluster OIDC cookie so the UI can display the current user.
+// Claim discovery is controlled via the Headlamp configuration (HEADLAMP_CONFIG_ME_* env / --me-*-path flags),
+// which accept comma-separated JMESPath expressions to support different identity providers and nested claim layouts.
+func (c *HeadlampConfig) handleMe(w http.ResponseWriter, r *http.Request) {
+	clusterName := mux.Vars(r)["clusterName"]
+	if clusterName == "" {
+		http.Error(w, "cluster not specified", http.StatusBadRequest)
+		return
+	}
+
+	token, err := auth.GetTokenFromCookie(r, clusterName)
+	if err != nil || token == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	parts := strings.SplitN(token, ".", 3)
+	if len(parts) != 3 || parts[1] == "" {
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	claims, err := auth.DecodeBase64JSON(parts[1])
+	if err != nil {
+		http.Error(w, "invalid token claims", http.StatusUnauthorized)
+		return
+	}
+
+	usernamePaths := c.meUsernamePaths
+	if strings.TrimSpace(usernamePaths) == "" {
+		usernamePaths = cfg.DefaultMeUsernamePath
+	}
+
+	emailPaths := c.meEmailPaths
+	if strings.TrimSpace(emailPaths) == "" {
+		emailPaths = cfg.DefaultMeEmailPath
+	}
+
+	groupsPaths := c.meGroupsPaths
+	if strings.TrimSpace(groupsPaths) == "" {
+		groupsPaths = cfg.DefaultMeGroupsPath
+	}
+
+	username := stringValueFromJMESPaths(claims, usernamePaths)
+	email := stringValueFromJMESPaths(claims, emailPaths)
+	groups := stringSliceFromJMESPaths(claims, groupsPaths)
+
+	// Prevent caching to avoid 304 Not Modified responses from intermediaries/dev server
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, private")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+	w.Header().Del("ETag")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"username": username,
+		"email":    email,
+		"groups":   groups,
+	})
+}
+
+// stringValueFromJMESPaths tries multiple comma-separated JMESPath expressions and returns the first string result.
+func stringValueFromJMESPaths(payload map[string]interface{}, pathCSV string) string {
+	for _, p := range strings.Split(pathCSV, ",") {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+
+		res, err := jmespath.Search(p, payload)
+		if err != nil || res == nil {
+			continue
+		}
+
+		switch v := res.(type) {
+		case string:
+			if v != "" {
+				return v
+			}
+		case fmt.Stringer:
+			vs := v.String()
+			if vs != "" {
+				return vs
+			}
+		case float64:
+			return fmt.Sprintf("%v", v)
+		case int64:
+			return fmt.Sprintf("%v", v)
+		case map[string]interface{}:
+			b, _ := json.Marshal(v)
+			if len(b) > 0 {
+				return string(b)
+			}
+		}
+	}
+
+	return ""
+}
+
+// stringSliceFromJMESPaths tries multiple comma-separated JMESPath expressions and returns the first []string result.
+func stringSliceFromJMESPaths(payload map[string]interface{}, pathCSV string) []string {
+	for _, p := range strings.Split(pathCSV, ",") {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+
+		res, err := jmespath.Search(p, payload)
+		if err != nil || res == nil {
+			continue
+		}
+
+		switch v := res.(type) {
+		case []interface{}:
+			out := make([]string, 0, len(v))
+
+			for _, it := range v {
+				switch s := it.(type) {
+				case string:
+					out = append(out, s)
+				case float64:
+					out = append(out, fmt.Sprintf("%v", s))
+				case int64:
+					out = append(out, fmt.Sprintf("%v", s))
+				default:
+					b, _ := json.Marshal(s)
+					if len(b) > 0 {
+						out = append(out, string(b))
+					}
+				}
+			}
+
+			return out
+		case []string:
+			return v
+		}
+	}
+
+	return []string{}
 }
 
 func (c *HeadlampConfig) getClusters() []Cluster {
