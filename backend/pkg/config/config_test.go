@@ -63,47 +63,47 @@ func TestParseBasic(t *testing.T) {
 	}
 }
 
-func TestParseWithEnv(t *testing.T) {
-	tests := []struct {
-		name   string
-		args   []string
-		env    map[string]string
-		verify func(*testing.T, *config.Config)
-	}{
-		{
-			name: "from_env",
-			args: []string{"go run ./cmd", "-in-cluster"},
-			env: map[string]string{
-				"HEADLAMP_CONFIG_OIDC_CLIENT_SECRET": "superSecretBotsStayAwayPlease",
-			},
-			verify: func(t *testing.T, conf *config.Config) {
-				assert.Equal(t, "superSecretBotsStayAwayPlease", conf.OidcClientSecret)
-			},
+var ParseWithEnvTests = []struct {
+	name   string
+	args   []string
+	env    map[string]string
+	verify func(*testing.T, *config.Config)
+}{
+	{
+		name: "from_env",
+		args: []string{"go run ./cmd", "-in-cluster"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_OIDC_CLIENT_SECRET": "superSecretBotsStayAwayPlease",
 		},
-		{
-			name: "both_args_and_env",
-			args: []string{"go run ./cmd", "--port=9876"},
-			env: map[string]string{
-				"HEADLAMP_CONFIG_PORT": "1234",
-			},
-			verify: func(t *testing.T, conf *config.Config) {
-				assert.NotEqual(t, uint(1234), conf.Port)
-				assert.Equal(t, uint(9876), conf.Port)
-			},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, "superSecretBotsStayAwayPlease", conf.OidcClientSecret)
 		},
-		{
-			name: "kubeconfig_from_default_env",
-			args: []string{"go run ./cmd"},
-			env: map[string]string{
-				"KUBECONFIG": "~/.kube/test_config.yaml",
-			},
-			verify: func(t *testing.T, conf *config.Config) {
-				assert.Equal(t, "~/.kube/test_config.yaml", conf.KubeConfigPath)
-			},
+	},
+	{
+		name: "both_args_and_env",
+		args: []string{"go run ./cmd", "--port=9876"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_PORT": "1234",
 		},
-	}
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.NotEqual(t, uint(1234), conf.Port)
+			assert.Equal(t, uint(9876), conf.Port)
+		},
+	},
+	{
+		name: "kubeconfig_from_default_env",
+		args: []string{"go run ./cmd"},
+		env: map[string]string{
+			"KUBECONFIG": "~/.kube/test_config.yaml",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, "~/.kube/test_config.yaml", conf.KubeConfigPath)
+		},
+	},
+}
 
-	for _, tt := range tests {
+func TestParseWithEnv(t *testing.T) {
+	for _, tt := range ParseWithEnvTests {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, value := range tt.env {
 				os.Setenv(key, value)
