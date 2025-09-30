@@ -466,16 +466,36 @@ function LogsButtonContent({ item }: LogsButtonProps) {
       </LightTooltip>
 
       {/* Timestamps switch */}
-      <FormControlLabel
-        control={<Switch checked={showTimestamps} onChange={handleTimestampsChange} size="small" />}
-        label={t('translation|Timestamps')}
-      />
+      <LightTooltip title={t('translation|Show timestamps in the logs.')}>
+        <PaddedFormControlLabel
+          control={
+            <Switch
+              checked={showTimestamps}
+              onChange={handleTimestampsChange}
+              size="small"
+              sx={{ transform: 'scale(0.8)' }}
+            />
+          }
+          label={t('translation|Timestamps')}
+          disabled={false}
+        />
+      </LightTooltip>
 
       {/* Follow logs switch */}
-      <FormControlLabel
-        control={<Switch checked={follow} onChange={handleFollowChange} size="small" />}
-        label={t('translation|Follow')}
-      />
+      <LightTooltip title={t('translation|Follow logs in real-time.')}>
+        <PaddedFormControlLabel
+          control={
+            <Switch
+              checked={follow}
+              onChange={handleFollowChange}
+              size="small"
+              sx={{ transform: 'scale(0.8)' }}
+            />
+          }
+          label={t('translation|Follow')}
+          disabled={false}
+        />
+      </LightTooltip>
     </Box>,
   ];
 
