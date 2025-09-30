@@ -29,6 +29,14 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
+      '/api': {
+        target: 'http://localhost:4466',
+        changeOrigin: true,
+      },
+      '/clusters': {
+        target: 'http://localhost:4466',
+        changeOrigin: true,
+      },
       '/plugins': {
         target: 'http://localhost:4466',
         changeOrigin: true,

@@ -87,6 +87,59 @@ export default function TopBar({}: TopBarProps) {
   const history = useHistory();
   const { appBarActions, appBarActionsProcessors } = useAppBarActionsProcessed();
 
+  // Fetch current user info from backend
+  const [me, setMe] = React.useState<{ username?: string; email?: string } | null>(null);
+  React.useEffect(() => {
+    let aborted = false;
+    async function loadMe() {
+      if (!cluster) {
+        setMe(null);
+        return;
+      }
+
+      const headlampBaseUrl = (window as any).headlampBaseUrl || '';
+      const isFile = typeof window !== 'undefined' && window.location?.protocol === 'file:';
+      const base = isFile ? 'http://localhost:4466/' : headlampBaseUrl || '';
+      const apiBase = base === '' ? '/' : base.replace(/\/?$/, '/');
+
+      try {
+        // Use per-cluster endpoint so cookies stay scoped with cluster name in the path
+        const url = `${apiBase}cluster/${cluster}/me`;
+        const res = await fetch(url, {
+          credentials: 'include',
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        });
+
+        if (res.status === 304) {
+          // Keep previous user info when the backend signals "not modified".
+          return;
+        }
+
+        if (!res.ok) {
+          if (!aborted) {
+            setMe(null);
+          }
+          return;
+        }
+
+        const data = await res.json();
+
+        if (!aborted) {
+          setMe({ username: data.username, email: data.email });
+        }
+      } catch {
+        if (!aborted) setMe(null);
+      }
+    }
+    loadMe();
+    return () => {
+      aborted = true;
+    };
+  }, [cluster]);
+
   const logoutCallback = useCallback(async () => {
     if (!!cluster) {
       await logout(cluster);
@@ -118,6 +171,7 @@ export default function TopBar({}: TopBarProps) {
       onToggleOpen={handletoggleOpen}
       cluster={cluster || undefined}
       clusters={clustersConfig || undefined}
+      userInfo={me || undefined}
     />
   );
 }
@@ -134,6 +188,7 @@ export interface PureTopBarProps {
   cluster?: string;
   isSidebarOpen?: boolean;
   isSidebarOpenUserSelected?: boolean;
+  userInfo?: { username?: string; email?: string };
 
   /** Called when sidebar toggles between open and closed. */
   onToggleOpen: () => void;
@@ -210,6 +265,7 @@ export const PureTopBar = memo(
     isSidebarOpen,
     isSidebarOpenUserSelected,
     onToggleOpen,
+    userInfo,
   }: PureTopBarProps) => {
     const { t } = useTranslation();
     const theme = useTheme();
@@ -243,6 +299,11 @@ export const PureTopBar = memo(
       setMobileMoreAnchorEl(event.currentTarget);
     };
     const userMenuId = 'primary-user-menu';
+    const userDisplayName = userInfo?.username || userInfo?.email || '';
+    const userSecondaryInfo =
+      userInfo?.username && userInfo?.email && userInfo.username !== userInfo.email
+        ? userInfo.email
+        : undefined;
 
     const renderUserMenu = !!isClusterContext && (
       <Menu
@@ -262,6 +323,26 @@ export const PureTopBar = memo(
           },
         }}
       >
+        {userInfo && (
+          <MenuItem
+            disableRipple
+            sx={{
+              pointerEvents: 'none',
+              cursor: 'default',
+              '&:hover': { backgroundColor: 'inherit' },
+            }}
+          >
+            <ListItemIcon>
+              <Icon icon="mdi:account" />
+            </ListItemIcon>
+            <ListItemText
+              primaryTypographyProps={{ variant: 'subtitle2' }}
+              secondaryTypographyProps={{ variant: 'body2' }}
+              primary={userDisplayName}
+              secondary={userSecondaryInfo}
+            />
+          </MenuItem>
+        )}
         <MenuItem
           component="a"
           onClick={async () => {
