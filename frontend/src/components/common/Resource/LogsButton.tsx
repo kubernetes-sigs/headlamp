@@ -371,7 +371,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   const topActions = [
     <Box
       key="container-controls"
-      sx={{ display: 'flex', gap: 2, alignItems: 'center', width: '100%' }}
+      sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', width: '100%' }}
     >
       {/* Pod selection dropdown */}
       <FormControl sx={{ minWidth: 200 }}>
