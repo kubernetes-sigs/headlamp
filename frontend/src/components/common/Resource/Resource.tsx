@@ -19,7 +19,7 @@ import Editor from '@monaco-editor/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
-import Grid, { GridProps, GridSize } from '@mui/material/Grid';
+import Grid, { GridProps } from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import Input, { InputProps } from '@mui/material/Input';
 import InputLabel from '@mui/material/InputLabel';
@@ -1017,7 +1017,7 @@ export function ContainerInfo(props: ContainerInfoProps) {
       {
         name: t('Volume Mounts'),
         value: <VolumeMounts mounts={container?.volumeMounts || undefined} />,
-        valueCellProps: { sm: 12 as GridSize },
+        valueFullRow: true,
         hide: _.isEmpty(container?.volumeMounts),
       },
     ];

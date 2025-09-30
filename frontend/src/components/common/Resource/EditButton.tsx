@@ -125,6 +125,9 @@ export default function EditButton(props: EditButtonProps) {
         description={t('translation|Edit')}
         buttonStyle={buttonStyle}
         onClick={() => {
+          if (afterConfirm) {
+            afterConfirm();
+          }
           Activity.launch({
             id: activityId,
             title: t('translation|Edit') + ': ' + item.metadata.name,

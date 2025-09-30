@@ -270,6 +270,36 @@ podDisruptionBudget:
 
 Ensure your replicaCount and maintenance procedures respect the configured PDB to avoid blocking intended operations.
 
+### pluginsManager Configuration
+
+| Key           | Type    | Default           | Description                                                                               |
+| ------------- | ------- | ----------------- | ----------------------------------------------------------------------------------------- |
+| enabled       | boolean | `false`           | Enable plugin manager                                                                     |
+| configFile    | string  | `plugin.yml`      | Plugin configuration file name                                                            |
+| configContent | string  | `""`              | Plugin configuration content in YAML format. This is required if plugins.enabled is true. |
+| baseImage     | string  | `node:lts-alpine` | Base node image to use                                                                    |
+| version       | string  | `latest`          | Headlamp plugin package version to install                                                |
+| env           | list    | `[]`              | Plugin manager env variable configuration                                                 |
+| resources     | object  | `{}`              | Plugin manager resource requests/limits                                                   |
+
+Example resource configuration:
+
+```yaml
+pluginsManager:
+  enabled: true
+  baseImage: node:lts-alpine
+  version: latest
+  env:
+    - name: HTTPS_PROXY
+      value: "proxy.example.com:8080"
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "2048Mi"
+    limits:
+      cpu: "1"
+      memory: "4Gi"
+```
 ## Contributing
 
 We welcome contributions to the Headlamp Helm chart! To contribute:

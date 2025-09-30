@@ -22,7 +22,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,6 +32,8 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"golang.org/x/oauth2"
 )
+
+const refreshNew = "REFRESH_NEW"
 
 func TestDecodeBase64JSON(t *testing.T) {
 	tests := []struct {
@@ -381,6 +385,7 @@ func (cacheStub) UpdateTTL(ctx context.Context, k string, ttl time.Duration) err
 
 type fakeCache struct {
 	cacheStub
+	store    map[string]interface{}
 	setCalls []struct {
 		key string
 		val interface{}
@@ -390,10 +395,22 @@ type fakeCache struct {
 		val interface{}
 		ttl time.Duration
 	}
-	errOnSet, errOnSetWithTTL error
+	errOnGet, errOnSet, errOnSetWithTTL error
 }
 
 var _ cache.Cache[interface{}] = (*fakeCache)(nil)
+
+func (f *fakeCache) Get(_ context.Context, key string) (interface{}, error) {
+	if f.errOnGet != nil {
+		return nil, f.errOnGet
+	}
+
+	if f.store == nil {
+		return nil, nil
+	}
+
+	return f.store[key], nil
+}
 
 func (f *fakeCache) Set(_ context.Context, key string, val interface{}) error {
 	f.setCalls = append(f.setCalls, struct {
@@ -413,8 +430,6 @@ func (f *fakeCache) SetWithTTL(_ context.Context, key string, val interface{}, t
 
 	return f.errOnSetWithTTL
 }
-
-const refreshNew = "REFRESH_NEW"
 
 func tokenWithExtra(tokenType, tokenValue string) *oauth2.Token {
 	token := &oauth2.Token{RefreshToken: refreshNew}
@@ -522,5 +537,149 @@ func TestCacheRefreshedToken_SetWithTTLError_Propagates(t *testing.T) {
 	if len(fc.setCalls) != 1 || len(fc.setWithTTLCalls) != 1 {
 		t.Fatalf("expected both Set and SetWithTTL to be called once; got Set=%d, SetWithTTL=%d",
 			len(fc.setCalls), len(fc.setWithTTLCalls))
+	}
+}
+
+// helper: minimal OAuth2 token endpoint responding with JSON
+func newTokenServerJSON(t *testing.T, status int, body any) *httptest.Server {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+
+		if err := json.NewEncoder(w).Encode(body); err != nil {
+			t.Fatalf("encode response: %v", err)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+var oauthSuccessBody = map[string]any{
+	"access_token":  "AT",
+	"token_type":    "Bearer",
+	"expires_in":    3600,
+	"refresh_token": refreshNew,
+	"id_token":      "NEW",
+}
+
+func TestGetNewToken_Success(t *testing.T) {
+	srv := newTokenServerJSON(t, http.StatusOK, oauthSuccessBody)
+
+	// Seed cache with old token -> old refresh mapping
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
+
+	newTok, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL)
+	if err != nil {
+		t.Fatalf("GetNewToken unexpected error: %v", err)
+	}
+
+	if newTok.AccessToken != "AT" {
+		t.Fatalf("access_token = %q, want %q", newTok.AccessToken, "AT")
+	}
+
+	if newTok.RefreshToken != refreshNew {
+		t.Fatalf("refresh_token = %q, want %q", newTok.RefreshToken, refreshNew)
+	}
+
+	if idt, _ := newTok.Extra("id_token").(string); idt != "NEW" {
+		t.Fatalf("id_token extra = %q, want %q", idt, "NEW")
+	}
+
+	// CacheRefreshedToken side-effects
+	if len(fc.setCalls) != 1 || len(fc.setWithTTLCalls) != 1 {
+		t.Fatalf("expected Set=1, SetWithTTL=1; got Set=%d, SetWithTTL=%d",
+			len(fc.setCalls), len(fc.setWithTTLCalls))
+	}
+
+	if fc.setCalls[0].key != "oidc-token-NEW" || fc.setCalls[0].val != refreshNew {
+		t.Fatalf("Set call = {%q,%v}, want {%q,%q}",
+			fc.setCalls[0].key, fc.setCalls[0].val, "oidc-token-NEW", refreshNew)
+	}
+
+	call := fc.setWithTTLCalls[0]
+	if call.key != "oidc-token-OLD" || call.val != "REFRESH_OLD" || call.ttl != 10*time.Second {
+		t.Fatalf("SetWithTTL = {%q,%v,%v}, want {%q,%q,%v}",
+			call.key, call.val, call.ttl, "oidc-token-OLD", "REFRESH_OLD", 10*time.Second)
+	}
+}
+
+func TestGetNewToken_PreHTTPFailures(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		cache  *fakeCache
+		expect string
+	}{
+		{
+			"cache get error",
+			&fakeCache{errOnGet: errors.New("boom")},
+			"getting refresh token",
+		},
+		{
+			"refresh token wrong type",
+			&fakeCache{store: map[string]interface{}{"oidc-token-OLD": 123}},
+			"failed to get refresh token",
+		},
+		{
+			"missing refresh token",
+			&fakeCache{store: map[string]interface{}{}},
+			"failed to get refresh token",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Fails before HTTP; no server needed.
+			_, err := auth.GetNewToken("cid", "secret", tc.cache, "id_token", "OLD", "http://127.0.0.1")
+			if err == nil || !strings.Contains(err.Error(), tc.expect) {
+				t.Fatalf("want error containing %q, got %v", tc.expect, err)
+			}
+		})
+	}
+}
+
+func TestGetNewToken_EndpointFailures(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   any
+	}{
+		{"http 400 invalid_grant", http.StatusBadRequest, map[string]any{"error": "invalid_grant"}},
+		{"200 ok but missing access_token", http.StatusOK, map[string]any{
+			"token_type": "Bearer", "refresh_token": refreshNew, "id_token": "NEW",
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newTokenServerJSON(t, tc.status, tc.body)
+			fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
+
+			if _, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL); err == nil {
+				t.Fatal("expected error, got nil")
+			}
+		})
+	}
+}
+
+func TestGetNewToken_CacheUpdateErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		setErr    error
+		setTTLErr error
+	}{
+		{"Set error", errors.New("cache-set-broke"), nil},
+		{"SetWithTTL error", nil, errors.New("cache-ttl-broke")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newTokenServerJSON(t, http.StatusOK, oauthSuccessBody)
+			fc := &fakeCache{
+				store:           map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"},
+				errOnSet:        tc.setErr,
+				errOnSetWithTTL: tc.setTTLErr,
+			}
+
+			if _, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL); err == nil {
+				t.Fatal("expected error containing 'caching refreshed token', got nil")
+			}
+		})
 	}
 }

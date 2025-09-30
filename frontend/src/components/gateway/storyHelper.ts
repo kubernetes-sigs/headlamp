@@ -80,20 +80,68 @@ export const DEFAULT_HTTP_ROUTE: KubeHTTPRoute = {
   },
   spec: {
     hostnames: ['test'],
-    parentRefs: [],
+    parentRefs: [
+      {
+        group: 'gateway.networking.k8s.io',
+        kind: 'Gateway',
+        name: 'shared-gateway',
+        namespace: 'envoy-gateway-system',
+        sectionName: 'cloud-internal-https',
+      },
+    ],
     rules: [
       {
         name: 'test',
         backendRefs: [],
-        matches: [],
+        matches: [
+          {
+            path: {
+              type: 'PathPrefix',
+              value: '/',
+            },
+          },
+        ],
+        filters: [
+          {
+            requestRedirect: {
+              port: 443,
+              scheme: 'https',
+              statusCode: 302,
+            },
+            type: 'RequestRedirect',
+          },
+        ],
       },
       {
-        matches: [],
-      },
-      {
-        backendRefs: [],
+        backendRefs: [
+          {
+            group: '',
+            kind: 'Service',
+            name: 'service',
+            port: 8080,
+            weight: 1,
+          },
+        ],
       },
     ],
+  },
+};
+
+export const EMPTY_HTTP_ROUTE: KubeHTTPRoute = {
+  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  kind: 'HTTPRoute',
+  metadata: {
+    creationTimestamp: '2023-07-19T09:48:42Z',
+    generation: 1,
+    name: 'default-httproute',
+    namespace: 'default',
+    resourceVersion: '1234',
+    uid: 'abc1234',
+  },
+  spec: {
+    hostnames: [],
+    parentRefs: [],
+    rules: [],
   },
 };
 

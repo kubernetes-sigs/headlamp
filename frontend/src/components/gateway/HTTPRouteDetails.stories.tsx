@@ -18,7 +18,7 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { TestContext } from '../../test';
 import HTTPRouteDetails from './HTTPRouteDetails';
-import { DEFAULT_HTTP_ROUTE } from './storyHelper';
+import { DEFAULT_HTTP_ROUTE, EMPTY_HTTP_ROUTE } from './storyHelper';
 
 export default {
   title: 'HTTPRoute/DetailsView',
@@ -76,6 +76,23 @@ Basic.parameters = {
         http.get(
           'http://localhost:4466/apis/gateway.networking.k8s.io/v1/httproutes/default-httproute',
           () => HttpResponse.json(DEFAULT_HTTP_ROUTE)
+        ),
+      ],
+    },
+  },
+};
+
+export const Empty = Template.bind({});
+Empty.args = {
+  httpRouteJson: EMPTY_HTTP_ROUTE,
+};
+Empty.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          'http://localhost:4466/apis/gateway.networking.k8s.io/v1/httproutes/default-httproute',
+          () => HttpResponse.json(EMPTY_HTTP_ROUTE)
         ),
       ],
     },

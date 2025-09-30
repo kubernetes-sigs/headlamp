@@ -24,19 +24,16 @@ import { ProjectDeleteDialog } from './ProjectDeleteDialog';
 
 interface ProjectDeleteButtonProps {
   project: ProjectDefinition;
-  namespaces: Namespace[];
   buttonStyle?: ButtonStyle;
 }
 
-export function ProjectDeleteButton({
-  project,
-  namespaces,
-  buttonStyle,
-}: ProjectDeleteButtonProps) {
+export function ProjectDeleteButton({ project, buttonStyle }: ProjectDeleteButtonProps) {
   const { t } = useTranslation();
   const [openDialog, setOpenDialog] = useState(false);
+  const [namespaces] = Namespace.useList({ clusters: project.clusters });
 
-  const projectNamespaces = namespaces.filter(ns => project.namespaces.includes(ns.metadata.name));
+  const projectNamespaces =
+    namespaces?.filter(ns => project.namespaces.includes(ns.metadata.name)) ?? [];
 
   // Don't show the button if there are no namespaces for this project
   if (projectNamespaces.length === 0) {

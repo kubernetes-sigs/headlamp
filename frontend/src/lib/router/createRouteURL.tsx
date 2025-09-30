@@ -32,22 +32,17 @@ export interface RouteURLProps {
   [prop: string]: any;
 }
 
-var theStore: { store: AppStore | null } | undefined = { store: null };
+const storeRef: { current?: AppStore } = { current: undefined };
 
 function getStore() {
-  return theStore?.store ?? null;
+  return storeRef.current;
 }
 /**
  * This is so we can access the store from anywhere, but not import it directly.
  * @param newStore
  */
 export function setStore(newStore: AppStore) {
-  if (!theStore) {
-    // Initialize theStore if this module hasn't finished evaluating yet (avoids TDZ on circular imports)
-    theStore = { store: newStore };
-  } else {
-    theStore.store = newStore;
-  }
+  storeRef.current = newStore;
 }
 
 export function createRouteURL(routeName?: string, params: RouteURLProps = {}) {
@@ -78,14 +73,6 @@ export function createRouteURL(routeName?: string, params: RouteURLProps = {}) {
   const route = matchingStoredRouteByName || matchingStoredRouteByPath || getRoute(routeName);
 
   if (!route) {
-    // Backward compatibility: some plugins call createRouteURL with a
-    // path template instead of a registered route name. This serves
-    // as a temporary fix to avoid breaking those plugins.
-    //
-    // @todo: Merge the plugin routes into the main store.
-    if (routeName.startsWith('/')) {
-      return generatePath(routeName, params);
-    }
     return '';
   }
 

@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath, useHistory } from 'react-router';
 import { getCluster, getClusterPrefixedPath } from '../../lib/cluster';
+import { getRoute } from '../../lib/router';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
 import Tabs from '../common/Tabs';
@@ -132,7 +133,7 @@ export default function NavigationTabs() {
       return [null, null];
     }
 
-    if (createRouteURL(item.name)) {
+    if (getRoute(item.name)) {
       list.unshift(item);
     }
 
@@ -143,12 +144,13 @@ export default function NavigationTabs() {
     if (!subList) {
       return;
     }
+
     const index = findIndexNameInSubList(subList, sidebar.selected.item) ?? null;
     if (index === undefined || index === null || index === -1) {
       return;
     }
 
-    if (createRouteURL(navigationItem?.name ?? '') && index === 0) {
+    if (getRoute(navigationItem?.name ?? '') && index === 0) {
       setSecondLevelTabRoutes([]);
     } else if (
       subList[index] !== undefined &&
@@ -166,7 +168,7 @@ export default function NavigationTabs() {
       if (subList === undefined || subList === null) {
         return;
       }
-      if (createRouteURL(navigationItem?.name ?? '') && index === 0) {
+      if (getRoute(navigationItem?.name ?? '') && index === 0) {
         setSecondLevelTabRoutes([]);
       } else if (subList[index].subList !== undefined && subList[index].subList.length !== 0) {
         setSecondLevelTabRoutes(subList[index].subList);

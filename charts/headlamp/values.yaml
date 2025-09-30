@@ -152,6 +152,15 @@ securityContext:
   privileged: false
   runAsUser: 100
   runAsGroup: 101
+# Uses these defaults if this is empty.
+#   allowPrivilegeEscalation: false
+#   runAsNonRoot: true
+#   seccompProfile:
+#     type: RuntimeDefault
+#   capabilities:
+#     drop:
+#       - ALL
+
 
 service:
   # -- Annotations to add to the service
@@ -257,6 +266,10 @@ pluginsManager:
   baseImage: node:lts-alpine
   # -- Headlamp plugin package version to install
   version: latest
+  # -- Plugin manager env variable configuration
+  # env:
+  # - name: HTTPS_PROXY
+  #   value: "proxy.example.com:8080"
   # -- Specify resrouces
   # resources:
   #   requests:
@@ -265,6 +278,16 @@ pluginsManager:
   #   limits:
   #     cpu: "1000m"
   #     memory: "4096Mi"
+  # If omitted, the plugin manager will inherit the global securityContext
+  securityContext:
+    {}
+    # runAsUser: 1001
+    # runAsNonRoot: true
+    # allowPrivilegeEscalation: false
+    # readOnlyRootFilesystem: true
+    # capabilities:
+    #   drop:
+    #     - ALL
 
 podDisruptionBudget:
   # -- enable PodDisruptionBudget
