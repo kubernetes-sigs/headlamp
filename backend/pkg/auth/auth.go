@@ -30,7 +30,10 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/gorilla/mux"
+	"github.com/jmespath/go-jmespath"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"golang.org/x/oauth2"
@@ -270,4 +273,203 @@ func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.Oid
 	}
 
 	return newToken, nil
+}
+
+type MeHandlerOptions struct {
+	// UsernamePaths is a list of JMESPath expressions to resolve the username claim.
+	UsernamePaths string
+	// EmailPaths is a list of JMESPath expressions to resolve the email claim.
+	EmailPaths string
+	// GroupsPaths is a list of JMESPath expressions to resolve group memberships.
+	GroupsPaths string
+}
+
+// HandleMe returns a handler that reads the per-cluster auth cookie and responds with user info.
+func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
+	usernamePaths, emailPaths, groupsPaths := cfg.ApplyMeDefaults(
+		opts.UsernamePaths,
+		opts.EmailPaths,
+		opts.GroupsPaths,
+	)
+	compiledUsernamePaths := compileJMESPaths(usernamePaths)
+	compiledEmailPaths := compileJMESPaths(emailPaths)
+	compiledGroupsPaths := compileJMESPaths(groupsPaths)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		clusterName := mux.Vars(r)["clusterName"]
+		if clusterName == "" {
+			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{"message": "cluster not specified"})
+			return
+		}
+
+		token, err := GetTokenFromCookie(r, clusterName)
+		if err != nil || token == "" {
+			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{"message": "unauthorized"})
+			return
+		}
+
+		claims, status, errMsg := parseClaimsFromToken(token)
+		if status != 0 {
+			writeMeJSON(w, status, map[string]interface{}{"message": errMsg})
+			return
+		}
+
+		if expiry, err := GetExpiryUnixTimeUTC(claims); err != nil || time.Now().After(expiry) {
+			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{"message": "token expired"})
+			return
+		}
+
+		username := stringValueFromJMESPaths(claims, compiledUsernamePaths)
+		email := stringValueFromJMESPaths(claims, compiledEmailPaths)
+		groups := stringSliceFromJMESPaths(claims, compiledGroupsPaths)
+
+		writeMeResponse(w, username, email, groups)
+	}
+}
+
+// parseClaimsFromToken extracts the JWT claims from a token.
+func parseClaimsFromToken(token string) (map[string]interface{}, int, string) {
+	parts := strings.SplitN(token, ".", 3)
+	if len(parts) != 3 || parts[1] == "" {
+		return nil, http.StatusUnauthorized, "invalid token"
+	}
+
+	claims, err := DecodeBase64JSON(parts[1])
+	if err != nil {
+		return nil, http.StatusUnauthorized, "invalid token claims"
+	}
+
+	return claims, 0, ""
+}
+
+// writeMeResponse serializes the identity payload with the standard cache-busting headers.
+func writeMeResponse(w http.ResponseWriter, username, email string, groups []string) {
+	writeMeJSON(w, http.StatusOK, map[string]interface{}{
+		"username": username,
+		"email":    email,
+		"groups":   groups,
+	})
+}
+
+// writeMeJSON sets the standard cache-control headers used by /me responses and writes the JSON payload.
+func writeMeJSON(w http.ResponseWriter, status int, payload map[string]interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, private")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+	w.Header().Set("Vary", "Cookie")
+	w.Header().Del("ETag")
+
+	w.WriteHeader(status)
+
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to encode me response")
+	}
+}
+
+// stringValueFromJMESPaths iterates pre-compiled JMESPath expressions and returns the first string result.
+func stringValueFromJMESPaths(payload map[string]interface{}, paths []*jmespath.JMESPath) string {
+	for _, expr := range paths {
+		res, err := expr.Search(payload)
+		if err != nil || res == nil {
+			continue
+		}
+
+		switch v := res.(type) {
+		case string:
+			if v != "" {
+				return v
+			}
+		case fmt.Stringer:
+			vs := v.String()
+			if vs != "" {
+				return vs
+			}
+		case float64:
+			return fmt.Sprintf("%v", v)
+		case int64:
+			return fmt.Sprintf("%v", v)
+		case map[string]interface{}:
+			if encoded, ok := marshalToString(v); ok && encoded != "" {
+				return encoded
+			}
+		}
+	}
+
+	return ""
+}
+
+// stringSliceFromJMESPaths iterates pre-compiled JMESPath expressions and returns the first []string result.
+func stringSliceFromJMESPaths(payload map[string]interface{}, paths []*jmespath.JMESPath) []string {
+	for _, expr := range paths {
+		res, err := expr.Search(payload)
+		if err != nil || res == nil {
+			continue
+		}
+
+		switch v := res.(type) {
+		case []interface{}:
+			out := make([]string, 0, len(v))
+
+			for _, it := range v {
+				switch s := it.(type) {
+				case string:
+					out = append(out, s)
+				case float64:
+					out = append(out, fmt.Sprintf("%v", s))
+				case int64:
+					out = append(out, fmt.Sprintf("%v", s))
+				default:
+					if encoded, ok := marshalToString(it); ok && encoded != "" {
+						out = append(out, encoded)
+					}
+				}
+			}
+
+			return out
+		case []string:
+			return v
+		}
+	}
+
+	return []string{}
+}
+
+// compileJMESPaths parses and compiles a list of JMESPath expressions once.
+func compileJMESPaths(pathCSV string) []*jmespath.JMESPath {
+	if strings.TrimSpace(pathCSV) == "" {
+		return []*jmespath.JMESPath{}
+	}
+
+	rawPaths := strings.Split(pathCSV, ",")
+	compiled := make([]*jmespath.JMESPath, 0, len(rawPaths))
+
+	for _, raw := range rawPaths {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+
+		expr, err := jmespath.Compile(raw)
+		if err != nil {
+			logger.Log(logger.LevelWarn, map[string]string{"jmespath": raw}, err,
+				"failed to compile JMESPath expression, skipping")
+			continue
+		}
+
+		compiled = append(compiled, expr)
+	}
+
+	return compiled
+}
+
+// marshalToString encodes the provided value as JSON and logs failures.
+func marshalToString(val interface{}) (string, bool) {
+	b, err := json.Marshal(val)
+	if err != nil {
+		logger.Log(logger.LevelWarn, nil, err, "failed to marshal value to JSON string")
+		return "", false
+	}
+
+	return string(b), true
 }

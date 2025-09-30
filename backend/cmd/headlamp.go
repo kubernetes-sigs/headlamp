@@ -84,6 +84,12 @@ type HeadlampConfig struct {
 	telemetryConfig           cfg.Config
 	oidcScopes                []string
 	telemetryHandler          *telemetry.RequestHandler
+	// meUsernamePaths lists the JMESPath expressions tried for the username in /clusters/{cluster}/me.
+	meUsernamePaths string
+	// meEmailPaths lists the JMESPath expressions tried for the email in /clusters/{cluster}/me.
+	meEmailPaths string
+	// meGroupsPaths lists the JMESPath expressions tried for the groups in /clusters/{cluster}/me.
+	meGroupsPaths string
 }
 
 const DrainNodeCacheTTL = 20 // seconds
@@ -476,6 +482,15 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
 		portforward.GetPortForwardByID(config.cache, w, r)
 	}).Methods("GET")
+
+	// Expose user info so the frontend can show the current user in the top bar using the per-cluster auth cookie.
+	r.HandleFunc("/clusters/{clusterName}/me",
+		auth.HandleMe(auth.MeHandlerOptions{
+			UsernamePaths: config.meUsernamePaths,
+			EmailPaths:    config.meEmailPaths,
+			GroupsPaths:   config.meGroupsPaths,
+		}),
+	).Methods("GET")
 
 	config.handleClusterRequests(r)
 
