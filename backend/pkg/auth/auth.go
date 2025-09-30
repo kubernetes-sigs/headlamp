@@ -30,7 +30,10 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/gorilla/mux"
+	"github.com/jmespath/go-jmespath"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"golang.org/x/oauth2"
@@ -270,4 +273,176 @@ func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.Oid
 	}
 
 	return newToken, nil
+}
+
+// MeHandlerOptions configures how user identity information is extracted from a JWT.
+type MeHandlerOptions struct {
+	UsernamePaths string
+	EmailPaths    string
+	GroupsPaths   string
+}
+
+// HandleMe returns a handler that reads the per-cluster auth cookie and responds with user info.
+func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
+	usernamePaths, emailPaths, groupsPaths := resolveMePaths(opts)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		clusterName := mux.Vars(r)["clusterName"]
+		if clusterName == "" {
+			http.Error(w, "cluster not specified", http.StatusBadRequest)
+			return
+		}
+
+		claims, status, errMsg := readClaimsFromCookie(r, clusterName)
+		if status != 0 {
+			http.Error(w, errMsg, status)
+			return
+		}
+
+		if expiry, err := GetExpiryUnixTimeUTC(claims); err != nil || time.Now().After(expiry) {
+			http.Error(w, "token expired", http.StatusUnauthorized)
+			return
+		}
+
+		username := stringValueFromJMESPaths(claims, usernamePaths)
+		email := stringValueFromJMESPaths(claims, emailPaths)
+		groups := stringSliceFromJMESPaths(claims, groupsPaths)
+
+		writeMeResponse(w, username, email, groups)
+	}
+}
+
+// resolveMePaths applies defaults to the JMESPath expressions used to extract identity claims.
+func resolveMePaths(opts MeHandlerOptions) (string, string, string) {
+	usernamePaths := strings.TrimSpace(opts.UsernamePaths)
+	if usernamePaths == "" {
+		usernamePaths = cfg.DefaultMeUsernamePath
+	}
+
+	emailPaths := strings.TrimSpace(opts.EmailPaths)
+	if emailPaths == "" {
+		emailPaths = cfg.DefaultMeEmailPath
+	}
+
+	groupsPaths := strings.TrimSpace(opts.GroupsPaths)
+	if groupsPaths == "" {
+		groupsPaths = cfg.DefaultMeGroupsPath
+	}
+
+	return usernamePaths, emailPaths, groupsPaths
+}
+
+// readClaimsFromCookie extracts the JWT claims for the given cluster from request cookies.
+func readClaimsFromCookie(r *http.Request, cluster string) (map[string]interface{}, int, string) {
+	token, err := GetTokenFromCookie(r, cluster)
+	if err != nil || token == "" {
+		return nil, http.StatusUnauthorized, "unauthorized"
+	}
+
+	parts := strings.SplitN(token, ".", 3)
+	if len(parts) != 3 || parts[1] == "" {
+		return nil, http.StatusUnauthorized, "invalid token"
+	}
+
+	claims, err := DecodeBase64JSON(parts[1])
+	if err != nil {
+		return nil, http.StatusUnauthorized, "invalid token claims"
+	}
+
+	return claims, 0, ""
+}
+
+// writeMeResponse serializes the identity payload with the standard cache-busting headers.
+func writeMeResponse(w http.ResponseWriter, username, email string, groups []string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, private")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+	w.Header().Set("Vary", "Cookie")
+	w.Header().Del("ETag")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"username": username,
+		"email":    email,
+		"groups":   groups,
+	})
+}
+
+// stringValueFromJMESPaths tries multiple comma-separated JMESPath expressions and returns the first string result.
+func stringValueFromJMESPaths(payload map[string]interface{}, pathCSV string) string {
+	for _, p := range strings.Split(pathCSV, ",") {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+
+		res, err := jmespath.Search(p, payload)
+		if err != nil || res == nil {
+			continue
+		}
+
+		switch v := res.(type) {
+		case string:
+			if v != "" {
+				return v
+			}
+		case fmt.Stringer:
+			vs := v.String()
+			if vs != "" {
+				return vs
+			}
+		case float64:
+			return fmt.Sprintf("%v", v)
+		case int64:
+			return fmt.Sprintf("%v", v)
+		case map[string]interface{}:
+			b, _ := json.Marshal(v)
+			if len(b) > 0 {
+				return string(b)
+			}
+		}
+	}
+
+	return ""
+}
+
+// stringSliceFromJMESPaths tries multiple comma-separated JMESPath expressions and returns the first []string result.
+func stringSliceFromJMESPaths(payload map[string]interface{}, pathCSV string) []string {
+	for _, p := range strings.Split(pathCSV, ",") {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+
+		res, err := jmespath.Search(p, payload)
+		if err != nil || res == nil {
+			continue
+		}
+
+		switch v := res.(type) {
+		case []interface{}:
+			out := make([]string, 0, len(v))
+
+			for _, it := range v {
+				switch s := it.(type) {
+				case string:
+					out = append(out, s)
+				case float64:
+					out = append(out, fmt.Sprintf("%v", s))
+				case int64:
+					out = append(out, fmt.Sprintf("%v", s))
+				default:
+					b, _ := json.Marshal(s)
+					if len(b) > 0 {
+						out = append(out, string(b))
+					}
+				}
+			}
+
+			return out
+		case []string:
+			return v
+		}
+	}
+
+	return []string{}
 }
