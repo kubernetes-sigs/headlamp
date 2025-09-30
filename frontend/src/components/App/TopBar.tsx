@@ -25,6 +25,7 @@ import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 import Toolbar from '@mui/material/Toolbar';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { has } from 'lodash';
 import React, { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -33,6 +34,7 @@ import { useHistory } from 'react-router-dom';
 import { getProductName, getVersion } from '../../helpers/getProductInfo';
 import { logout } from '../../lib/auth';
 import { useCluster, useClustersConf } from '../../lib/k8s';
+import { clusterRequest } from '../../lib/k8s/api/v1/clusterRequests';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import {
   AppBarAction,
@@ -86,13 +88,38 @@ export default function TopBar({}: TopBarProps) {
   const cluster = useCluster();
   const history = useHistory();
   const { appBarActions, appBarActionsProcessors } = useAppBarActionsProcessed();
+  const queryClient = useQueryClient();
+  const clusterName = cluster ?? undefined;
+  const { data: me } = useQuery<{ username?: string; email?: string } | null>({
+    queryKey: ['clusterMe', clusterName],
+    queryFn: async () => {
+      if (!clusterName) {
+        return null;
+      }
+
+      try {
+        const res = await clusterRequest('/me', {
+          cluster: clusterName,
+          autoLogoutOnAuthError: false,
+        });
+
+        return res ? { username: res.username, email: res.email } : null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: Boolean(clusterName),
+    staleTime: 0,
+    refetchOnMount: 'always',
+  });
 
   const logoutCallback = useCallback(async () => {
     if (!!cluster) {
       await logout(cluster);
+      queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
     }
     history.push('/');
-  }, [cluster]);
+  }, [cluster, history, queryClient]);
 
   const handletoggleOpen = useCallback(() => {
     // For medium view we default to closed if they have not made a selection.
@@ -118,6 +145,7 @@ export default function TopBar({}: TopBarProps) {
       onToggleOpen={handletoggleOpen}
       cluster={cluster || undefined}
       clusters={clustersConfig || undefined}
+      userInfo={me || undefined}
     />
   );
 }
@@ -134,6 +162,7 @@ export interface PureTopBarProps {
   cluster?: string;
   isSidebarOpen?: boolean;
   isSidebarOpenUserSelected?: boolean;
+  userInfo?: { username?: string; email?: string };
 
   /** Called when sidebar toggles between open and closed. */
   onToggleOpen: () => void;
@@ -210,6 +239,7 @@ export const PureTopBar = memo(
     isSidebarOpen,
     isSidebarOpenUserSelected,
     onToggleOpen,
+    userInfo,
   }: PureTopBarProps) => {
     const { t } = useTranslation();
     const theme = useTheme();
@@ -243,6 +273,11 @@ export const PureTopBar = memo(
       setMobileMoreAnchorEl(event.currentTarget);
     };
     const userMenuId = 'primary-user-menu';
+    const userDisplayName = userInfo?.username || userInfo?.email || '';
+    const userSecondaryInfo =
+      userInfo?.username && userInfo?.email && userInfo.username !== userInfo.email
+        ? userInfo.email
+        : undefined;
 
     const renderUserMenu = !!isClusterContext && (
       <Menu
@@ -262,6 +297,26 @@ export const PureTopBar = memo(
           },
         }}
       >
+        {userInfo && (
+          <MenuItem
+            disableRipple
+            sx={{
+              pointerEvents: 'none',
+              cursor: 'default',
+              '&:hover': { backgroundColor: 'inherit' },
+            }}
+          >
+            <ListItemIcon>
+              <Icon icon="mdi:account" />
+            </ListItemIcon>
+            <ListItemText
+              primaryTypographyProps={{ variant: 'subtitle2' }}
+              secondaryTypographyProps={{ variant: 'body2' }}
+              primary={userDisplayName}
+              secondary={userSecondaryInfo}
+            />
+          </MenuItem>
+        )}
         <MenuItem
           component="a"
           onClick={async () => {

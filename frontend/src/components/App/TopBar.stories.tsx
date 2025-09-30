@@ -16,6 +16,7 @@
 
 import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { get } from 'lodash';
 import { PropsWithChildren } from 'react';
 import { Provider } from 'react-redux';
@@ -42,6 +43,8 @@ const store = configureStore({
   },
 });
 
+const queryClient = new QueryClient();
+
 export default {
   title: 'TopBar',
   component: PureTopBar,
@@ -51,7 +54,9 @@ export default {
       return (
         <MemoryRouter>
           <Provider store={store}>
-            <Story />
+            <QueryClientProvider client={queryClient}>
+              <Story />
+            </QueryClientProvider>
           </Provider>
         </MemoryRouter>
       );
@@ -118,4 +123,36 @@ TwoCluster.args = {
   logout: () => {},
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '', 'ak8s-desktop2': '' },
+};
+
+export const WithUserInfo = PureTemplate.bind({});
+WithUserInfo.args = {
+  appBarActions: [],
+  logout: () => {},
+  cluster: 'ak8s-desktop',
+  clusters: { 'ak8s-desktop': '' },
+  userInfo: {
+    username: 'Ada Lovelace',
+    email: 'ada@example.com',
+  },
+};
+
+export const WithEmailOnly = PureTemplate.bind({});
+WithEmailOnly.args = {
+  appBarActions: [],
+  logout: () => {},
+  cluster: 'ak8s-desktop',
+  clusters: { 'ak8s-desktop': '' },
+  userInfo: {
+    email: 'grace@example.com',
+  },
+};
+
+export const UndefinedData = PureTemplate.bind({});
+UndefinedData.args = {
+  appBarActions: [],
+  logout: () => {},
+  cluster: 'ak8s-desktop',
+  clusters: { 'ak8s-desktop': '' },
+  userInfo: undefined,
 };

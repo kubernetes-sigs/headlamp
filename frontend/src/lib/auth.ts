@@ -111,7 +111,15 @@ export function setToken(cluster: string, token: string | null) {
     return Promise.resolve(setTokenMethodToUse(cluster, token));
   }
 
-  return setCookieToken(cluster, token);
+  return setCookieToken(cluster, token).then(result => {
+    if (token) {
+      queryClient.invalidateQueries({ queryKey: ['clusterMe', cluster], exact: true });
+    } else {
+      queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
+    }
+
+    return result;
+  });
 }
 
 /**
@@ -123,6 +131,7 @@ export function setToken(cluster: string, token: string | null) {
 export async function logout(cluster: string) {
   return setToken(cluster, null).then(() => {
     queryClient.removeQueries({ queryKey: ['auth'], exact: false });
+    queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
   });
 }
 
