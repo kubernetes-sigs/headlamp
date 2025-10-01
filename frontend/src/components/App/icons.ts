@@ -438,6 +438,12 @@ const mdiIcons = {
     'select-group': {
       body: '\u003Cpath fill="currentColor" d="M5 3a2 2 0 0 0-2 2h2m2-2v2h2V3m2 0v2h2V3m2 0v2h2V3m2 0v2h2a2 2 0 0 0-2-2M3 7v2h2V7m2 0v4h4V7m2 0v4h4V7m2 0v2h2V7M3 11v2h2v-2m14 0v2h2v-2M7 13v4h4v-4m2 0v4h4v-4M3 15v2h2v-2m14 0v2h2v-2M3 19a2 2 0 0 0 2 2v-2m2 0v2h2v-2m2 0v2h2v-2m2 0v2h2v-2m2 0v2a2 2 0 0 0 2-2Z"/\u003E',
     },
+    pin: {
+      body: '\u003Cpath fill="currentColor" d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/\u003E',
+    },
+    'pin-outline': {
+      body: '\u003Cpath fill="currentColor" d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2zm-6 2H8v-.5l2-2V4h4v7.5l2 2v.5z"/\u003E',
+    },
   },
   aliases: {
     'more-vert': {
