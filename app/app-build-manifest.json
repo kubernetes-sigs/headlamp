@@ -7,7 +7,7 @@
     },
     {
       "name": "plugin-catalog",
-      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/plugin-catalog-0.4.0/headlamp-k8s-plugin-catalog-0.4.0.tar.gz"
+      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/plugin-catalog-0.4.1/headlamp-k8s-plugin-catalog-0.4.1.tar.gz"
     },
     {
       "name": "prometheus",
