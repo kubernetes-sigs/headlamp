@@ -179,6 +179,8 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
   });
 };
 
+const disableBackendLoader = true;
+
 export default function Layout({}: LayoutProps) {
   const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
   const dispatch = useDispatch();
@@ -199,7 +201,9 @@ export default function Layout({}: LayoutProps) {
   } = useQuery({
     queryKey: ['cluster-fetch'],
     queryFn: () => fetchConfig(dispatch),
-    refetchInterval: query => (query.state.status === 'error' ? false : CLUSTER_FETCH_INTERVAL),
+    refetchInterval: disableBackendLoader
+      ? CLUSTER_FETCH_INTERVAL
+      : query => (query.state.status === 'error' ? false : CLUSTER_FETCH_INTERVAL),
   });
 
   // Remove splash screen styles from the body
@@ -220,38 +224,40 @@ export default function Layout({}: LayoutProps) {
 
   const panels = useUIPanelsGroupedBySide();
 
-  if (error && !config) {
-    return <ErrorPage message={<Trans>Failed to connect to the backend</Trans>} error={error} />;
-  }
+  if (!disableBackendLoader) {
+    if (error && !config) {
+      return <ErrorPage message={<Trans>Failed to connect to the backend</Trans>} error={error} />;
+    }
 
-  if (isLoading) {
-    return (
-      <Box
-        sx={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100dvw',
-          height: '100dvh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 2,
-          animation: 'loader-appear',
-          animationFillMode: 'both',
-          animationDelay: '2s',
-          animationDuration: '0.3s',
+    if (isLoading) {
+      return (
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100dvw',
+            height: '100dvh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 2,
+            animation: 'loader-appear',
+            animationFillMode: 'both',
+            animationDelay: '2s',
+            animationDuration: '0.3s',
 
-          '@keyframes loader-appear': {
-            from: { opacity: 0 },
-            to: { opacity: 1 },
-          },
-        }}
-      >
-        <Loader title={t('Connecting to backend...')} />
-        <Typography>{t('Connecting to backend...')}</Typography>
-      </Box>
-    );
+            '@keyframes loader-appear': {
+              from: { opacity: 0 },
+              to: { opacity: 1 },
+            },
+          }}
+        >
+          <Loader title={t('Connecting to backend...')} />
+          <Typography>{t('Connecting to backend...')}</Typography>
+        </Box>
+      );
+    }
   }
 
   return (
