@@ -199,11 +199,34 @@
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
-                    <span
-                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    <div
+                      class="MuiBox-root css-10we5a7"
                     >
-                      10.96.0.100
-                    </span>
+                      <span
+                        class="MuiBox-root css-0"
+                      >
+                        <span
+                          class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                        >
+                          10.96.0.100
+                        </span>
+                      </span>
+                      <span
+                        class="copy-button MuiBox-root css-18ri021"
+                      >
+                        <button
+                          aria-label="Copy to clipboard"
+                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                          data-mui-internal-clone-element="true"
+                          tabindex="0"
+                          type="button"
+                        >
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
+                      </span>
+                    </div>
                   </dd>
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
@@ -213,11 +236,34 @@
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
                   >
-                    <span
-                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    <div
+                      class="MuiBox-root css-10we5a7"
                     >
-                      34.123.45.67
-                    </span>
+                      <span
+                        class="MuiBox-root css-0"
+                      >
+                        <span
+                          class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                        >
+                          34.123.45.67
+                        </span>
+                      </span>
+                      <span
+                        class="copy-button MuiBox-root css-18ri021"
+                      >
+                        <button
+                          aria-label="Copy to clipboard"
+                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                          data-mui-internal-clone-element="true"
+                          tabindex="0"
+                          type="button"
+                        >
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
+                      </span>
+                    </div>
                   </dd>
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
