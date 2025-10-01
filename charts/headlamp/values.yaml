@@ -97,6 +97,8 @@ config:
   # -- directory to look for plugins
   pluginsDir: "/headlamp/plugins"
   watchPlugins: false
+  # tlsCertPath: "/headlamp-cert/headlamp-ca.crt"
+  # tlsKeyPath: "/headlamp-cert/headlamp-tls.key"
   # Extra arguments that can be given to the container. See charts/headlamp/README.md for more information.
   extraArgs: []
 
@@ -151,6 +153,15 @@ securityContext:
   privileged: false
   runAsUser: 100
   runAsGroup: 101
+# Uses these defaults if this is empty.
+#   allowPrivilegeEscalation: false
+#   runAsNonRoot: true
+#   seccompProfile:
+#     type: RuntimeDefault
+#   capabilities:
+#     drop:
+#       - ALL
+
 
 service:
   # -- Annotations to add to the service
@@ -268,6 +279,16 @@ pluginsManager:
   #   limits:
   #     cpu: "1000m"
   #     memory: "4096Mi"
+  # If omitted, the plugin manager will inherit the global securityContext
+  securityContext:
+    {}
+    # runAsUser: 1001
+    # runAsNonRoot: true
+    # allowPrivilegeEscalation: false
+    # readOnlyRootFilesystem: true
+    # capabilities:
+    #   drop:
+    #     - ALL
 
 podDisruptionBudget:
   # -- enable PodDisruptionBudget

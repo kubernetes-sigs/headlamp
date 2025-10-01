@@ -73,6 +73,8 @@ $ helm install my-headlamp headlamp/headlamp \
 | config.baseURL | string | `""` | Base URL path for Headlamp UI |
 | config.pluginsDir | string | `"/headlamp/plugins"` | Directory to load Headlamp plugins from |
 | config.extraArgs | array | `[]` | Additional arguments for Headlamp server |
+| config.tlsCertPath | string | `""` | Certificate for serving TLS |
+| config.tlsKeyPath | string | `""` | Key for serving TLS |
 
 ### OIDC Configuration
 

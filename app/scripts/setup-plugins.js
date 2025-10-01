@@ -37,8 +37,10 @@ async function extractArchive(
           fs.mkdirSync(pluginFolder);
         }
 
+        console.log('Copying plugin to ', pluginFolder);
+
         // Move the plugins contents to the plugins folder
-        const mainLocationExpr = path.join(tmpFolder, '*', 'main.js');
+        const mainLocationExpr = path.join(tmpFolder, '*', 'main.js').replace(/\\/g, '/');
         const mainLocations = glob.sync(mainLocationExpr);
         const mainLocation = mainLocations[0];
         if (mainLocation && fs.existsSync(mainLocation)) {
@@ -48,12 +50,11 @@ async function extractArchive(
             path.join(packageJsonLocation, 'package.json'),
             path.join(pluginFolder, 'package.json')
           );
-          resolve();
-          return;
+          console.log('Copied plugin from ', packageJsonLocation, ' to ', pluginFolder);
         }
-
         // Compatibility with legacy tarball structure
-        if (fs.existsSync(path.join(tmpFolder, 'package', 'dist'))) {
+        else if (fs.existsSync(path.join(tmpFolder, 'package', 'dist'))) {
+          console.log('Found plugin with a legacy tarball structure');
           // Move the plugins contents to the plugins folder
           fs.copyFileSync(
             path.join(tmpFolder, 'package', 'dist', 'main.js'),
@@ -63,7 +64,15 @@ async function extractArchive(
             path.join(tmpFolder, 'package', 'package.json'),
             path.join(pluginFolder, 'package.json')
           );
+        } else {
+          console.error('Failed to find plugin content within tarball');
+          console.error({
+            archivePath,
+            unarchivedPath: tmpFolder,
+          });
+          reject();
         }
+
         resolve();
       });
   });

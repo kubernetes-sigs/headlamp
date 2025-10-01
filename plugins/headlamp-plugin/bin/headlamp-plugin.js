@@ -42,17 +42,19 @@ const vitePromise = import('vite');
  * Creates a new plugin folder.
  *
  * Copies the files within template, and modifies a couple.
- * Then runs npm install inside of the folder.
+ * Then runs "npm ci" inside of the folder.
  *
  * @param {string} name - name of package and output folder.
  * @param {boolean} link - if we link @kinvolk/headlamp-plugin for testing
+ * @param {boolean} noInstall - if we skip installing with "npm ci"
  * @returns {0 | 1 | 2 | 3} Exit code, where 0 is success, 1, 2, and 3 are failures.
  */
-function create(name, link) {
+function create(name, link, noInstall) {
   const dstFolder = name;
   const templateFolder = path.resolve(__dirname, '..', 'template');
   const indexPath = path.join(dstFolder, 'src', 'index.tsx');
   const packagePath = path.join(dstFolder, 'package.json');
+  const packageLockPath = path.join(dstFolder, 'package-lock.json');
   const readmePath = path.join(dstFolder, 'README.md');
 
   if (fs.existsSync(name)) {
@@ -89,6 +91,7 @@ function create(name, link) {
   }
 
   replaceFileVariables(packagePath);
+  replaceFileVariables(packageLockPath);
   replaceFileVariables(indexPath);
   replaceFileVariables(readmePath);
 
@@ -100,28 +103,29 @@ function create(name, link) {
     });
   }
 
-  console.log('Installing dependencies...');
-  // Run npm install.
-  try {
-    child_process.execSync('npm install', {
-      stdio: 'inherit',
-      cwd: dstFolder,
-      encoding: 'utf8',
-    });
-  } catch (e) {
-    console.error(
-      `Problem running npm install inside of "${dstFolder}" abs: "${resolve(dstFolder)}"`
-    );
-    return 3;
-  }
+  if (noInstall) {
+    console.log('Skipping dependency installation...');
+  } else {
+    console.log('Installing dependencies...');
+    try {
+      child_process.execSync('npm ci', {
+        stdio: 'inherit',
+        cwd: dstFolder,
+        encoding: 'utf8',
+      });
+    } catch (e) {
+      console.error(`Problem running npm ci inside of "${dstFolder}" abs: "${resolve(dstFolder)}"`);
+      return 3;
+    }
 
-  // This can be used to make testing locally easier.
-  if (link) {
-    // Seems to require linking again with npm 7+
-    console.log('Linking @kinvolk/headlamp-plugin');
-    child_process.spawnSync('npm', ['link', '@kinvolk/headlamp-plugin'], {
-      cwd: dstFolder,
-    });
+    // This can be used to make testing locally easier.
+    if (link) {
+      // Seems to require linking again with npm 7+
+      console.log('Linking @kinvolk/headlamp-plugin');
+      child_process.spawnSync('npm', ['link', '@kinvolk/headlamp-plugin'], {
+        cwd: dstFolder,
+      });
+    }
   }
 
   console.log(`"${dstFolder}" created.`);
@@ -398,6 +402,33 @@ async function createArchive(pluginDir, outputDir) {
 }
 
 /**
+ * Inject selected environment variables into Vite config's define field.
+ * Supports both import.meta.env and process.env styles.
+ *
+ * @param {object} config - Vite config object to mutate
+ * @param {string[]} extraKeys - Additional Node-style keys to expose
+ */
+function injectEnvVars(config, extraKeys = ['NODE_ENV']) {
+  if (!config.define) {
+    config.define = {};
+  }
+
+  Object.keys(process.env)
+    .filter(
+      key =>
+        key.startsWith('REACT_APP_') || key.startsWith('HEADLAMP_APP_') || extraKeys.includes(key)
+    )
+    .forEach(key => {
+      const value = JSON.stringify(process.env[key]);
+      console.log(`Injecting env var: ${key} = ${value}`);
+      config.define[`import.meta.env.${key}`] = value;
+      config.define[`process.env.${key}`] = value;
+    });
+
+  return config;
+}
+
+/**
  * Start watching for changes, and build again if there are changes.
  * @returns {Promise<number>} Exit code, where 0 is success.
  */
@@ -500,6 +531,11 @@ async function start() {
     config.build.watch = {};
     config.build.sourcemap = 'inline';
   }
+
+  if (typeof process.env.NODE_ENV === 'undefined') {
+    process.env.NODE_ENV = 'development';
+  }
+  injectEnvVars(config);
 
   // Add plugin name injection plugin for dev mode
   if (!config.plugins) {
@@ -734,6 +770,11 @@ async function build(packageFolder) {
     if (!buildConfig.plugins) {
       buildConfig.plugins = [];
     }
+
+    if (typeof process.env.NODE_ENV === 'undefined') {
+      process.env.NODE_ENV = 'production';
+    }
+    injectEnvVars(buildConfig);
 
     // Import the plugin name injection plugin
     const { pluginNameInjection } = await import('../config/vite-plugin-name-injection.mjs');
@@ -1642,11 +1683,15 @@ yargs(process.argv.slice(2))
           describe:
             'For development of headlamp-plugin itself, so it uses npm link @kinvolk/headlamp-plugin.',
           type: 'boolean',
+        })
+        .option('noinstall', {
+          describe: 'Skip installing dependencies with npm ci',
+          type: 'boolean',
         });
     },
     argv => {
       // @ts-ignore
-      process.exitCode = create(argv.name, argv.link);
+      process.exitCode = create(argv.name, argv.link, argv.noinstall);
     }
   )
   .command(

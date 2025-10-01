@@ -1018,6 +1018,51 @@ func TestStartHeadlampServer(t *testing.T) {
 	}
 }
 
+func TestStartHeadlampServerTLS(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "headlamp-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	cfg := &HeadlampConfig{
+		HeadlampCFG: &headlampconfig.HeadlampCFG{
+			Port:            8185,
+			PluginDir:       tempDir,
+			KubeConfigStore: kubeconfig.NewContextStore(),
+			TLSCertPath:     "headlamp_testdata/headlamp.crt",
+			TLSKeyPath:      "headlamp_testdata/headlamp.key",
+		},
+		cache:           cache.New[interface{}](),
+		telemetryConfig: GetDefaultTestTelemetryConfig(),
+	}
+
+	go StartHeadlampServer(cfg)
+	time.Sleep(200 * time.Millisecond)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	pool, err := x509.SystemCertPool()
+	if pool == nil {
+		pool = x509.NewCertPool()
+	}
+
+	require.NoError(t, err)
+	crt, err := os.ReadFile("headlamp_testdata/headlamp.crt")
+	require.NoError(t, err)
+	pool.AppendCertsFromPEM(crt)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://localhost:8185/config", nil)
+	require.NoError(t, err)
+
+	resp, err := (&http.Client{
+		Transport: &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: pool}},
+	}).Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
 //nolint:funlen
 func TestHandleClusterHelm(t *testing.T) {
 	// Set up test environment

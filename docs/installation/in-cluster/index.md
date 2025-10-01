@@ -43,6 +43,10 @@ you can run:
 kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/headlamp/main/kubernetes-headlamp.yaml
 ```
 
+## Optional TLS Backend Termination
+
+Headlamp supports optional TLS termination at the backend server. The default is to terminate at the ingress (default) or optionally directly at the Headlamp container. This enables use cases such as NGINX TLS passthrough and transport server. See [tls](./tls.md) for details and usage.
+
 ## Use a non-default kube config file
 
 By default, Headlamp uses the default service account from the namespace it is deployed to, and generates a kubeconfig from it named `main`.

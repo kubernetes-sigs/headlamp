@@ -31,6 +31,11 @@ export class SecurityPage {
     await this.page.waitForSelector('span:has-text("Service Accounts")');
     // Click on the "Service Accounts" section
     await this.page.click('span:has-text("Service Accounts")');
+
+    // Make sure as many results as possible show
+    await this.page.locator('[aria-label="Rows per page"]').click();
+    await this.page.getByRole('option', { name: '50' }).click();
+
     // Wait for the page to load
     await this.page.waitForLoadState('load');
   }

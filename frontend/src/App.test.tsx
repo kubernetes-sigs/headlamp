@@ -25,6 +25,6 @@ test('renders without crashing', async () => {
     </React.Suspense>
   );
   await waitFor(() => {
-    expect(getByText(/Skip to main content/i)).toBeInTheDocument();
+    expect(getByText(/Connecting/i)).toBeInTheDocument();
   });
 });

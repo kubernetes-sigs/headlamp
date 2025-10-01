@@ -29,9 +29,12 @@ import i18n from './i18n/config';
 import { useElectronI18n } from './i18n/electronI18n';
 import ThemeProviderNexti18n from './i18n/ThemeProviderNexti18n';
 import { queryClient } from './lib/queryClient';
+import { setStore } from './lib/router/createRouteURL';
 import { createMuiTheme, getThemeName, usePrefersColorScheme } from './lib/themes';
 import { useTypedSelector } from './redux/hooks';
 import store from './redux/stores/store';
+
+setStore(store);
 
 function AppWithRedux(props: React.PropsWithChildren<{}>) {
   let themeName = useTypedSelector(state => state.theme.name);
