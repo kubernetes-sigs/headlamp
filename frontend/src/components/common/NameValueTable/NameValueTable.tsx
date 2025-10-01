@@ -17,6 +17,7 @@
 import { GridProps } from '@mui/material/Grid';
 import Grid from '@mui/material/Grid';
 import React, { ReactNode } from 'react';
+import CopyLabel from '../CopyLabel';
 import { ValueLabel } from '../Label';
 
 // TODO: use ReactNode after migration to react 18
@@ -35,6 +36,9 @@ export interface NameValueTableRow {
   withHighlightStyle?: boolean;
   /** The ID to use for the name element, useful for accessibility */
   nameID?: string;
+  /** If provided, shows a copy button on hover that copies this text.
+   * Useful for values like IPs, resource names, etc. that users may want to copy. */
+  copyValue?: string;
 }
 
 export interface NameValueTableProps {
@@ -99,6 +103,7 @@ export default function NameValueTable(props: NameValueTableProps) {
             withHighlightStyle = false,
             valueFullRow = false,
             valueCellProps = {},
+            copyValue,
           },
           i
         ) => {
@@ -200,7 +205,13 @@ export default function NameValueTable(props: NameValueTableProps) {
                 {...otherValueCellProps}
                 {...valueCellProps}
               >
-                <Value value={value} />
+                {copyValue ? (
+                  <CopyLabel textToCopy={copyValue}>
+                    <Value value={value} />
+                  </CopyLabel>
+                ) : (
+                  <Value value={value} />
+                )}
               </Grid>
             );
           }
