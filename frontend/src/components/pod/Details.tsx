@@ -542,12 +542,16 @@ export default function PodDetails(props: PodDetailsProps) {
               {
                 name: t('Host IP'),
                 value: item.status.hostIP ?? '',
+                copyValue: item.status.hostIP ?? '',
               },
             ]),
         // Always include Host IPs, but hide if empty
         {
           name: t('Host IPs'),
           value: item.status.hostIPs
+            ? item.status.hostIPs.map((ipObj: { ip: string }) => ipObj.ip).join(', ')
+            : '',
+          copyValue: item.status.hostIPs
             ? item.status.hostIPs.map((ipObj: { ip: string }) => ipObj.ip).join(', ')
             : '',
           hideLabel: !item.status.hostIPs || item.status.hostIPs.length === 0,
@@ -559,12 +563,16 @@ export default function PodDetails(props: PodDetailsProps) {
               {
                 name: t('Pod IP'),
                 value: item.status.podIP ?? '',
+                copyValue: item.status.podIP ?? '',
               },
             ]),
         // Always include Pod IPs, but hide if empty
         {
           name: t('Pod IPs'),
           value: item.status.podIPs
+            ? item.status.podIPs.map((ipObj: { ip: string }) => ipObj.ip).join(', ')
+            : '',
+          copyValue: item.status.podIPs
             ? item.status.podIPs.map((ipObj: { ip: string }) => ipObj.ip).join(', ')
             : '',
           hideLabel: !item.status.podIPs || item.status.podIPs.length === 0,
