@@ -438,7 +438,8 @@ export default function Table<RowItem extends Record<string, any>>({
     const shouldHandle =
       !!target &&
       !!target.closest('input[type="checkbox"]') &&
-      !target.closest('.MuiSwitch-root, [role="switch"]');
+      !target.closest('.MuiSwitch-root, [role="switch"]') &&
+      !target.closest('[role="dialog"]');
 
     if (!shouldHandle) {
       return;

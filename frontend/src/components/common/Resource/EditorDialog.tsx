@@ -346,7 +346,6 @@ export default function EditorDialog(props: EditorDialogProps) {
           errorMessage: t('translation|Failed to apply {{ newItemName }}.', {
             newItemName: resourceNames.join(','),
           }),
-          cancelUrl: location.pathname,
         })
       );
 

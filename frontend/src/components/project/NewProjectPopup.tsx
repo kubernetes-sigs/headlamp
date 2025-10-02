@@ -130,29 +130,39 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
 
     setIsCreating(true);
     try {
-      const maybeExistingNamespace = namespaces?.find(it => it.metadata.name === selectedNamespace);
-      if (maybeExistingNamespace) {
-        await maybeExistingNamespace.patch({
+      const existingNamespaces = namespaces?.filter(it => it.metadata.name === selectedNamespace);
+      const clustersWithExistingNamespace = existingNamespaces?.map(it => it.cluster) ?? [];
+      if (existingNamespaces && existingNamespaces.length > 0) {
+        // Update all existing namespaces with the same name across selected clusters
+        await Promise.all(
+          existingNamespaces.map(namespace =>
+            namespace.patch({
+              metadata: {
+                labels: {
+                  [PROJECT_ID_LABEL]: projectName,
+                },
+              },
+            })
+          )
+        );
+      }
+
+      // Create new namespace in all selected clusters that don't already have it
+      const clustersWithoutNamespace = selectedClusters.filter(
+        it => !clustersWithExistingNamespace.includes(it)
+      );
+      for (const cluster of clustersWithoutNamespace) {
+        const namespace = {
+          kind: 'Namespace',
+          apiVersion: 'v1',
           metadata: {
+            name: toKubernetesName(typedNamespace),
             labels: {
               [PROJECT_ID_LABEL]: projectName,
             },
-          },
-        });
-      } else {
-        for (const cluster of selectedClusters) {
-          const namespace = {
-            kind: 'Namespace',
-            apiVersion: 'v1',
-            metadata: {
-              name: toKubernetesName(typedNamespace),
-              labels: {
-                [PROJECT_ID_LABEL]: projectName,
-              },
-            } as any,
-          } as KubeObjectInterface;
-          await apply(namespace, cluster);
-        }
+          } as any,
+        } as KubeObjectInterface;
+        await apply(namespace, cluster);
       }
 
       history.push(createRouteURL('projectDetails', { name: projectName }));

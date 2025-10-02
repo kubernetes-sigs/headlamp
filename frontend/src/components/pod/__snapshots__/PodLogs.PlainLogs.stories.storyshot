@@ -224,7 +224,9 @@
                 class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
               >
                 <label
-                  class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-10aumk-MuiFormControlLabel-root"
+                  aria-label="Show timestamps in the logs."
+                  class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd  css-10aumk-MuiFormControlLabel-root"
+                  data-mui-internal-clone-element="true"
                 >
                   <span
                     class="MuiSwitch-root MuiSwitch-sizeSmall css-yg3kr-MuiSwitch-root"
@@ -260,7 +262,9 @@
                 class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
               >
                 <label
-                  class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-10aumk-MuiFormControlLabel-root"
+                  aria-label="Follow logs in real-time."
+                  class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd  css-10aumk-MuiFormControlLabel-root"
+                  data-mui-internal-clone-element="true"
                 >
                   <span
                     class="MuiSwitch-root MuiSwitch-sizeSmall css-yg3kr-MuiSwitch-root"

@@ -341,32 +341,36 @@ export function PodLogViewer(props: PodLogViewerProps) {
             }
           />
         </LightTooltip>,
-        <PaddedFormControlLabel
-          label={t('translation|Timestamps')}
-          control={
-            <Switch
-              checked={showTimestamps}
-              onChange={handleTimestampsChange}
-              name="checkTimestamps"
-              color="primary"
-              size="small"
-              sx={{ transform: 'scale(0.8)' }}
-            />
-          }
-        />,
-        <PaddedFormControlLabel
-          label={t('translation|Follow')}
-          control={
-            <Switch
-              checked={follow}
-              onChange={handleFollowChange}
-              name="follow"
-              color="primary"
-              size="small"
-              sx={{ transform: 'scale(0.8)' }}
-            />
-          }
-        />,
+        <LightTooltip title={t('translation|Show timestamps in the logs.')}>
+          <PaddedFormControlLabel
+            label={t('translation|Timestamps')}
+            control={
+              <Switch
+                checked={showTimestamps}
+                onChange={handleTimestampsChange}
+                name="checkTimestamps"
+                color="primary"
+                size="small"
+                sx={{ transform: 'scale(0.8)' }}
+              />
+            }
+          />
+        </LightTooltip>,
+        <LightTooltip title={t('translation|Follow logs in real-time.')}>
+          <PaddedFormControlLabel
+            label={t('translation|Follow')}
+            control={
+              <Switch
+                checked={follow}
+                onChange={handleFollowChange}
+                name="follow"
+                color="primary"
+                size="small"
+                sx={{ transform: 'scale(0.8)' }}
+              />
+            }
+          />
+        </LightTooltip>,
         hasJsonLogs && (
           <PaddedFormControlLabel
             label={t('translation|Prettify')}

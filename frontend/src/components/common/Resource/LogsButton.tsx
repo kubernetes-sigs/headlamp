@@ -371,7 +371,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   const topActions = [
     <Box
       key="container-controls"
-      sx={{ display: 'flex', gap: 2, alignItems: 'center', width: '100%' }}
+      sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', width: '100%' }}
     >
       {/* Pod selection dropdown */}
       <FormControl sx={{ minWidth: 200 }}>
@@ -454,21 +454,48 @@ function LogsButtonContent({ item }: LogsButtonProps) {
               selectedContainer
             )
           }
-          control={<Switch checked={showPrevious} onChange={handlePreviousChange} />}
+          control={
+            <Switch
+              size="small"
+              sx={{ transform: 'scale(0.8)' }}
+              checked={showPrevious}
+              onChange={handlePreviousChange}
+            />
+          }
         />
       </LightTooltip>
 
       {/* Timestamps switch */}
-      <FormControlLabel
-        control={<Switch checked={showTimestamps} onChange={handleTimestampsChange} size="small" />}
-        label={t('translation|Timestamps')}
-      />
+      <LightTooltip title={t('translation|Show timestamps in the logs.')}>
+        <PaddedFormControlLabel
+          control={
+            <Switch
+              checked={showTimestamps}
+              onChange={handleTimestampsChange}
+              size="small"
+              sx={{ transform: 'scale(0.8)' }}
+            />
+          }
+          label={t('translation|Timestamps')}
+          disabled={false}
+        />
+      </LightTooltip>
 
       {/* Follow logs switch */}
-      <FormControlLabel
-        control={<Switch checked={follow} onChange={handleFollowChange} size="small" />}
-        label={t('translation|Follow')}
-      />
+      <LightTooltip title={t('translation|Follow logs in real-time.')}>
+        <PaddedFormControlLabel
+          control={
+            <Switch
+              checked={follow}
+              onChange={handleFollowChange}
+              size="small"
+              sx={{ transform: 'scale(0.8)' }}
+            />
+          }
+          label={t('translation|Follow')}
+          disabled={false}
+        />
+      </LightTooltip>
     </Box>,
   ];
 
