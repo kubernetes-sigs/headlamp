@@ -16,6 +16,7 @@
 
 import { useTranslation } from 'react-i18next';
 import Service from '../../lib/k8s/service';
+import CopyLabel from '../common/CopyLabel';
 import LabelListItem from '../common/LabelListItem';
 import ResourceListView from '../common/Resource/ResourceListView';
 
@@ -42,12 +43,22 @@ export default function ServiceList() {
           label: t('Cluster IP'),
           gridTemplate: 'min-content',
           getValue: service => service.spec.clusterIP,
+          render: service => {
+            const clusterIP = service.spec.clusterIP;
+            return clusterIP ? <CopyLabel textToCopy={clusterIP}>{clusterIP}</CopyLabel> : null;
+          },
         },
         {
           id: 'externalIP',
           label: t('External IP'),
           gridTemplate: 'min-content',
           getValue: service => service.getExternalAddresses(),
+          render: service => {
+            const externalIP = service.getExternalAddresses();
+            return externalIP ? (
+              <CopyLabel textToCopy={externalIP}>{externalIP}</CopyLabel>
+            ) : null;
+          },
         },
         {
           id: 'ports',
