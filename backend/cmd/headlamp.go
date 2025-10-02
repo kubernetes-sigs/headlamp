@@ -804,34 +804,6 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	return r
 }
 
-func refreshAndCacheNewToken(oidcAuthConfig *kubeconfig.OidcConfig,
-	cache cache.Cache[interface{}],
-	tokenType, token, issuerURL string,
-) (*oauth2.Token, error) {
-	ctx := context.Background()
-	ctx = auth.ConfigureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
-
-	// get provider
-	provider, err := oidc.NewProvider(ctx, issuerURL)
-	if err != nil {
-		return nil, fmt.Errorf("getting provider: %v", err)
-	}
-	// get refresh token
-	newToken, err := auth.GetNewToken(
-		oidcAuthConfig.ClientID,
-		oidcAuthConfig.ClientSecret,
-		cache,
-		tokenType,
-		token,
-		provider.Endpoint().TokenURL,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("refreshing token: %v", err)
-	}
-
-	return newToken, nil
-}
-
 func (c *HeadlampConfig) refreshAndSetToken(oidcAuthConfig *kubeconfig.OidcConfig,
 	cache cache.Cache[interface{}], token string,
 	w http.ResponseWriter, r *http.Request, cluster string, span trace.Span, ctx context.Context,
@@ -847,7 +819,8 @@ func (c *HeadlampConfig) refreshAndSetToken(oidcAuthConfig *kubeconfig.OidcConfi
 		idpIssuerURL = oidcAuthConfig.IdpIssuerURL
 	}
 
-	newToken, err := refreshAndCacheNewToken(
+	newToken, err := auth.RefreshAndCacheNewToken(
+		ctx,
 		oidcAuthConfig,
 		cache,
 		tokenType,

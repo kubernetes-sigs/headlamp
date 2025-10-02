@@ -31,6 +31,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"golang.org/x/oauth2"
 )
@@ -239,4 +240,34 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 	}
 
 	return ctx
+}
+
+// RefreshAndCacheNewToken obtains a fresh OIDC token using the cached refresh token
+// and re-populates the cache so subsequent requests can reuse it. The provided ctx
+// controls cancellation and deadlines for all outbound requests during the refresh.
+func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.OidcConfig,
+	cache cache.Cache[interface{}],
+	tokenType, token, issuerURL string,
+) (*oauth2.Token, error) {
+	ctx = ConfigureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
+
+	// get provider
+	provider, err := oidc.NewProvider(ctx, issuerURL)
+	if err != nil {
+		return nil, fmt.Errorf("getting provider: %w", err)
+	}
+	// get refresh token
+	newToken, err := GetNewToken(
+		oidcAuthConfig.ClientID,
+		oidcAuthConfig.ClientSecret,
+		cache,
+		tokenType,
+		token,
+		provider.Endpoint().TokenURL,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("refreshing token: %w", err)
+	}
+
+	return newToken, nil
 }

@@ -33,6 +33,7 @@ import (
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -562,6 +563,45 @@ func newTokenServerJSON(t *testing.T, status int, body any) *httptest.Server {
 	return srv
 }
 
+func newOIDCProviderServer(t *testing.T, tokenHandler http.HandlerFunc) *httptest.Server {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		cfg := map[string]any{
+			"issuer":         srv.URL,
+			"token_endpoint": srv.URL + "/token",
+			"jwks_uri":       srv.URL + "/jwks",
+		}
+		if err := json.NewEncoder(w).Encode(cfg); err != nil {
+			t.Fatalf("encode discovery: %v", err)
+		}
+	})
+
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if _, err := w.Write([]byte(`{"keys":[]}`)); err != nil {
+			t.Fatalf("write jwks: %v", err)
+		}
+	})
+
+	if tokenHandler != nil {
+		mux.HandleFunc("/token", tokenHandler)
+	} else {
+		mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		})
+	}
+
+	return srv
+}
+
 var oauthSuccessBody = map[string]any{
 	"access_token":  "AT",
 	"token_type":    "Bearer",
@@ -687,6 +727,70 @@ func TestGetNewToken_CacheUpdateErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRefreshAndCacheNewToken_Success(t *testing.T) {
+	const (
+		oldToken = "OLD"
+		oldKey   = "oidc-token-" + oldToken
+	)
+
+	fc := &fakeCache{store: map[string]interface{}{oldKey: "REFRESH_OLD"}}
+	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
+		require.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
+
+		authHeader := r.Header.Get("Authorization")
+		require.True(t, strings.HasPrefix(authHeader, "Basic "), "expected Basic Authorization header")
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
+	tok, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL)
+	require.NoError(t, err)
+	assert.NotNil(t, tok)
+	assert.Equal(t, refreshNew, tok.RefreshToken)
+
+	require.Len(t, fc.setCalls, 1)
+	assert.Equal(t, "oidc-token-NEW", fc.setCalls[0].key)
+	assert.Equal(t, refreshNew, fc.setCalls[0].val)
+
+	require.Len(t, fc.setWithTTLCalls, 1)
+	assert.Equal(t, oldKey, fc.setWithTTLCalls[0].key)
+	assert.Equal(t, "REFRESH_OLD", fc.setWithTTLCalls[0].val)
+	assert.Equal(t, 10*time.Second, fc.setWithTTLCalls[0].ttl)
+}
+
+func TestRefreshAndCacheNewToken_ProviderError(t *testing.T) {
+	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "no discovery", http.StatusInternalServerError)
+	}))
+	t.Cleanup(srv.Close)
+
+	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, &fakeCache{}, "id_token", "OLD", srv.URL)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "getting provider")
+}
+
+func TestRefreshAndCacheNewToken_TokenError(t *testing.T) {
+	const oldToken = "OLD"
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
+	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": "server_error"})
+	})
+
+	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
+	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "refreshing token")
+	assert.Len(t, fc.setCalls, 0)
+	assert.Len(t, fc.setWithTTLCalls, 0)
 }
 
 // TestConfigureTLSContext_NoConfig tests when both skipTLSVerify and caCert are not set.
