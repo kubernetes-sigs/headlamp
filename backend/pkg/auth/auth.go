@@ -18,6 +18,8 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -27,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"golang.org/x/oauth2"
@@ -200,4 +203,40 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 	}
 
 	return newToken, nil
+}
+
+// ConfigureTLSContext configures TLS settings for the HTTP client in the context.
+// When skipTLSVerify is true, a client that skips verification is installed.
+// When caCert is provided, a client with that CA pool is installed and takes precedence,
+// re-enabling verification while trusting the supplied certificate bundle.
+func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *string) context.Context {
+	if skipTLSVerify != nil && *skipTLSVerify {
+		tlsSkipTransport := &http.Transport{
+			// the gosec linter is disabled here because we are explicitly requesting to skip TLS verification.
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		}
+		ctx = oidc.ClientContext(ctx, &http.Client{Transport: tlsSkipTransport})
+	}
+
+	if caCert != nil {
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM([]byte(*caCert)) {
+			// Log error but continue with original context
+			logger.Log(logger.LevelError, nil,
+				errors.New("failed to append ca cert to pool"), "couldn't add custom cert to context")
+			return ctx
+		}
+
+		// the gosec linter is disabled because gosec promotes using a minVersion of TLS 1.2 or higher.
+		// since we are using a custom CA cert configured by the user, we are not forcing a minVersion.
+		customTransport := &http.Transport{
+			TLSClientConfig: &tls.Config{ //nolint:gosec
+				RootCAs: caCertPool,
+			},
+		}
+
+		ctx = oidc.ClientContext(ctx, &http.Client{Transport: customTransport})
+	}
+
+	return ctx
 }
