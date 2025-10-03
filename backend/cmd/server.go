@@ -54,32 +54,50 @@ func main() {
 	StartHeadlampServer(headlampConfig)
 }
 
+func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextStore) *headlampconfig.HeadlampCFG {
+	return &headlampconfig.HeadlampCFG{
+		UseInCluster:          conf.InCluster,
+		KubeConfigPath:        conf.KubeConfigPath,
+		SkippedKubeContexts:   conf.SkippedKubeContexts,
+		ListenAddr:            conf.ListenAddr,
+		CacheEnabled:          conf.CacheEnabled,
+		Port:                  conf.Port,
+		DevMode:               conf.DevMode,
+		StaticDir:             conf.StaticDir,
+		Insecure:              conf.InsecureSsl,
+		PluginDir:             conf.PluginsDir,
+		EnableHelm:            conf.EnableHelm,
+		EnableDynamicClusters: conf.EnableDynamicClusters,
+		WatchPluginsChanges:   conf.WatchPluginsChanges,
+		KubeConfigStore:       kubeConfigStore,
+		BaseURL:               conf.BaseURL,
+		ProxyURLs:             strings.Split(conf.ProxyURLs, ","),
+		TLSCertPath:           conf.TLSCertPath,
+		TLSKeyPath:            conf.TLSKeyPath,
+	}
+}
+
+func buildTelemetryConfig(conf *config.Config) config.Config {
+	return config.Config{
+		ServiceName:        conf.ServiceName,
+		ServiceVersion:     conf.ServiceVersion,
+		TracingEnabled:     conf.TracingEnabled,
+		MetricsEnabled:     conf.MetricsEnabled,
+		JaegerEndpoint:     conf.JaegerEndpoint,
+		OTLPEndpoint:       conf.OTLPEndpoint,
+		UseOTLPHTTP:        conf.UseOTLPHTTP,
+		StdoutTraceEnabled: conf.StdoutTraceEnabled,
+		SamplingRate:       conf.SamplingRate,
+	}
+}
+
 func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
 	multiplexer := NewMultiplexer(kubeConfigStore)
 
 	headlampConfig := &HeadlampConfig{
-		HeadlampCFG: &headlampconfig.HeadlampCFG{
-			UseInCluster:          conf.InCluster,
-			KubeConfigPath:        conf.KubeConfigPath,
-			SkippedKubeContexts:   conf.SkippedKubeContexts,
-			ListenAddr:            conf.ListenAddr,
-			CacheEnabled:          conf.CacheEnabled,
-			Port:                  conf.Port,
-			DevMode:               conf.DevMode,
-			StaticDir:             conf.StaticDir,
-			Insecure:              conf.InsecureSsl,
-			PluginDir:             conf.PluginsDir,
-			EnableHelm:            conf.EnableHelm,
-			EnableDynamicClusters: conf.EnableDynamicClusters,
-			WatchPluginsChanges:   conf.WatchPluginsChanges,
-			KubeConfigStore:       kubeConfigStore,
-			BaseURL:               conf.BaseURL,
-			ProxyURLs:             strings.Split(conf.ProxyURLs, ","),
-			TLSCertPath:           conf.TLSCertPath,
-			TLSKeyPath:            conf.TLSKeyPath,
-		},
+		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
 		oidcClientID:              conf.OidcClientID,
 		oidcValidatorClientID:     conf.OidcValidatorClientID,
 		oidcClientSecret:          conf.OidcClientSecret,
@@ -89,19 +107,12 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		oidcScopes:                strings.Split(conf.OidcScopes, ","),
 		oidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
 		oidcUseAccessToken:        conf.OidcUseAccessToken,
+		meUsernamePaths:           conf.MeUsernamePath,
+		meEmailPaths:              conf.MeEmailPath,
+		meGroupsPaths:             conf.MeGroupsPath,
 		cache:                     cache,
 		multiplexer:               multiplexer,
-		telemetryConfig: config.Config{
-			ServiceName:        conf.ServiceName,
-			ServiceVersion:     conf.ServiceVersion,
-			TracingEnabled:     conf.TracingEnabled,
-			MetricsEnabled:     conf.MetricsEnabled,
-			JaegerEndpoint:     conf.JaegerEndpoint,
-			OTLPEndpoint:       conf.OTLPEndpoint,
-			UseOTLPHTTP:        conf.UseOTLPHTTP,
-			StdoutTraceEnabled: conf.StdoutTraceEnabled,
-			SamplingRate:       conf.SamplingRate,
-		},
+		telemetryConfig:           buildTelemetryConfig(conf),
 	}
 
 	if conf.OidcCAFile != "" {
