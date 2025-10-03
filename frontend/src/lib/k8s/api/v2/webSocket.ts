@@ -24,6 +24,7 @@ import { makeUrl } from './makeUrl';
 // Constants for WebSocket connection
 export const BASE_WS_URL = BASE_HTTP_URL.replace('http', 'ws');
 export const MULTIPLEXER_ENDPOINT = 'wsMultiplexer';
+const CONNECTION_TIMEOUT_MS = 5000;
 
 /**
  * Multiplexer endpoint for WebSocket connections
@@ -132,11 +133,26 @@ export const WebSocketManager = {
 
     // Wait for existing connection attempt if in progress
     if (this.connecting) {
-      return new Promise(resolve => {
-        const checkConnection = setInterval(() => {
+      return new Promise((resolve, reject) => {
+        // eslint-disable-next-line prefer-const
+        let checkConnection: ReturnType<typeof setInterval>;
+
+        const timeout = setTimeout(() => {
+          clearInterval(checkConnection);
+          reject(new Error('WebSocket connection timeout'));
+        }, CONNECTION_TIMEOUT_MS);
+
+        checkConnection = setInterval(() => {
           if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
             clearInterval(checkConnection);
+            clearTimeout(timeout);
             resolve(this.socketMultiplexer);
+          }
+          // Also check if connection failed
+          if (!this.connecting) {
+            clearInterval(checkConnection);
+            clearTimeout(timeout);
+            reject(new Error('WebSocket connection failed'));
           }
         }, 100);
       });
@@ -148,7 +164,17 @@ export const WebSocketManager = {
     return new Promise((resolve, reject) => {
       const socket = new WebSocket(wsUrl);
 
+      // Add connection timeout
+      const connectionTimeout = setTimeout(() => {
+        this.connecting = false;
+        if (socket.close) {
+          socket.close();
+        }
+        reject(new Error('WebSocket connection timeout'));
+      }, CONNECTION_TIMEOUT_MS);
+
       socket.onopen = () => {
+        clearTimeout(connectionTimeout);
         this.socketMultiplexer = socket;
         this.connecting = false;
 
@@ -164,6 +190,7 @@ export const WebSocketManager = {
       socket.onmessage = this.handleWebSocketMessage.bind(this);
 
       socket.onerror = event => {
+        clearTimeout(connectionTimeout);
         this.connecting = false;
         console.error('WebSocket error:', event);
         reject(new Error('WebSocket connection failed'));

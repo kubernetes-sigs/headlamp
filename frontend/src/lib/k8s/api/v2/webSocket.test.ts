@@ -409,11 +409,14 @@ describe('WebSocket Tests', () => {
 
   describe('WebSocket error handling', () => {
     it('should handle polling timeout', async () => {
+      vi.useFakeTimers();
+
       // Mock WebSocket to never open
       const mockWS = vi.spyOn(window, 'WebSocket').mockImplementation(() => {
         const ws = new EventTarget() as WebSocket;
         Object.defineProperty(ws, 'readyState', { value: WebSocket.CONNECTING });
-        Object.defineProperty(ws, 'send', { value: null });
+        Object.defineProperty(ws, 'send', { value: vi.fn() });
+        Object.defineProperty(ws, 'close', { value: vi.fn() });
         return ws;
       });
 
@@ -421,16 +424,24 @@ describe('WebSocket Tests', () => {
       const query = 'watch=true';
 
       let error: Error | null = null;
-      try {
-        await WebSocketManager.subscribe(clusterName, path, query, onMessage);
-      } catch (e) {
+      const subscribePromise = WebSocketManager.subscribe(
+        clusterName,
+        path,
+        query,
+        onMessage
+      ).catch(e => {
         error = e as Error;
-      }
+      });
+
+      // Fast-forward time to trigger the timeout
+      await vi.advanceTimersByTimeAsync(5000);
+      await subscribePromise;
 
       expect(error).toBeTruthy();
-      expect(error?.message).toBe("Cannot read properties of null (reading 'send')");
+      expect(error?.message).toBe('WebSocket connection timeout');
 
       mockWS.mockRestore();
+      vi.useRealTimers();
     });
 
     it('should handle reconnection and resubscribe', async () => {
