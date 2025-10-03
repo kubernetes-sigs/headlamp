@@ -1,0 +1,36 @@
+{
+  "name": "activity-example",
+  "version": "0.0.1",
+  "description": "This plugin demonstrates how to use Activities.",
+  "scripts": {
+    "start": "headlamp-plugin start",
+    "build": "headlamp-plugin build",
+    "format": "headlamp-plugin format",
+    "lint": "headlamp-plugin lint",
+    "lint-fix": "headlamp-plugin lint --fix",
+    "tsc": "headlamp-plugin tsc",
+    "storybook": "headlamp-plugin storybook",
+    "test": "headlamp-plugin test",
+    "storybook-build": "headlamp-plugin storybook-build"
+  },
+  "keywords": [
+    "headlamp",
+    "headlamp-plugin",
+    "kubernetes",
+    "plugins"
+  ],
+  "prettier": "@headlamp-k8s/eslint-config/prettier-config",
+  "eslintConfig": {
+    "extends": [
+      "@headlamp-k8s",
+      "prettier",
+      "plugin:jsx-a11y/recommended"
+    ]
+  },
+  "devDependencies": {
+    "@kinvolk/headlamp-plugin": "^0.12.0"
+  },
+  "overrides": {
+    "typescript": "5.6.2"
+  }
+}
