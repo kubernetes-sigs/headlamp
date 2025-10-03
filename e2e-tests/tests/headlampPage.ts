@@ -76,6 +76,16 @@ export class HeadlampPage {
     expect(await securityTab.textContent()).toBe('Security');
   }
 
+  async hasGlobalSearch() {
+    const globalSearch = this.page.getByPlaceholder(/^Search$/);
+
+    await expect(globalSearch).toBeVisible();
+    await expect(globalSearch).toHaveValue(/^$/);
+    await expect(globalSearch).not.toBeFocused();
+
+    return globalSearch;
+  }
+
   async checkPageContent(text: string) {
     await this.page.waitForSelector(`:has-text("${text}")`);
     const pageContent = await this.page.content();

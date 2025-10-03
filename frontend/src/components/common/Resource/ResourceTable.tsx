@@ -115,15 +115,8 @@ export type ColumnType = 'age' | 'name' | 'namespace' | 'type' | 'kind' | 'clust
 
 /**
  * Default column ID to use for sorting when no explicit default is provided.
- * This provides a consistent fallback behavior across all resource tables.
  */
 const DEFAULT_SORT_COLUMN_ID = 'age';
-
-/**
- * Column IDs that are preferred for default sorting, in order of preference.
- * The first available column from this list will be used as the default sort column.
- */
-const PREFERRED_SORT_COLUMNS = ['age', 'name'] as const;
 
 /**
  * Maximum length for generated table IDs to avoid overly long localStorage keys.
@@ -371,14 +364,21 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
 
   const [sorting, setSorting] = useLocalStorageState<MRT_SortingState>(
     `table_sorting.${tableId}`,
-    []
+    // Initial sorting state
+    defaultSortingColumn
+      ? // If default sorting column is provided, use that
+        [defaultSortingColumn]
+      : // Otherwise fallback to age column, if it exists
+      columns.find(it => typeof it === 'string' && it === DEFAULT_SORT_COLUMN_ID)
+      ? [{ id: DEFAULT_SORT_COLUMN_ID, desc: false }]
+      : []
   );
 
   const [tableSettings] = useState<{ id: string; show: boolean }[]>(
     !!id ? loadTableSettings(id) : []
   );
 
-  const [allColumns, sort] = useMemo(() => {
+  const [allColumns] = useMemo(() => {
     let processedColumns = columns;
 
     if (!noProcessing) {
@@ -514,46 +514,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
       TableColumn<RowItem> & { gridTemplate?: string | number }
     >;
 
-    let sort = undefined;
-
-    // Use current sorting state first (if it exists)
-    if (sorting && sorting.length > 0) {
-      sort = sorting[0];
-    } else {
-      // If no persisted sorting, fall back to default
-      if (defaultSortingColumn) {
-        // Use explicitly provided default
-        sort = {
-          id: defaultSortingColumn.id,
-          desc: defaultSortingColumn.desc,
-        };
-      } else {
-        // Fall back to preferred columns in order, or first sortable column
-        let fallbackColumn = null;
-
-        // Try preferred columns in order
-        for (const preferredId of PREFERRED_SORT_COLUMNS) {
-          fallbackColumn = allColumns.find(
-            col => col.id === preferredId && col.enableSorting !== false
-          );
-          if (fallbackColumn) break;
-        }
-
-        // If no preferred column found, use first sortable column
-        if (!fallbackColumn) {
-          fallbackColumn = allColumns.find(col => col.enableSorting !== false);
-        }
-
-        if (fallbackColumn) {
-          sort = {
-            id: fallbackColumn.id!,
-            desc: fallbackColumn.id === DEFAULT_SORT_COLUMN_ID, // Age column defaults to desc (newest first)
-          };
-        }
-      }
-    }
-
-    return [allColumns, sort];
+    return [allColumns];
   }, [
     columns,
     hideColumns,
@@ -646,16 +607,13 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     });
   }
 
-  const initialState: ComponentProps<typeof Table<RowItem>>['initialState'] = {
-    sorting: sort ? [sort] : undefined,
-  };
+  const initialState: ComponentProps<typeof Table<RowItem>>['initialState'] = {};
 
   if (defaultGlobalFilter) {
     initialState.globalFilter = defaultGlobalFilter;
     initialState.showGlobalFilter = true;
   }
 
-  // Create a type-safe sorting handler that's compatible with MRT's OnChangeFn type
   const handleSortingChange = useCallback(
     (updaterOrValue: MRT_SortingState | ((old: MRT_SortingState) => MRT_SortingState)) => {
       setSorting(old => {

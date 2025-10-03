@@ -111,4 +111,34 @@ test.describe('multi-cluster setup', () => {
     await page.waitForLoadState('load');
     await headlampPage.hasTitleContaining(/Choose a cluster/);
   });
+
+  // This is commented out because the CI e2e test job loads the plugins
+  // Which interferes with the test. It replaces the cluster chooser,
+  // so this test does not work.
+
+  // test('react-hotkey to open cluster chooser', async ({ page }) => {
+  //   const testClusterAnchor = page.locator('table tbody tr td a', {
+  //     hasText: /^test$/,
+  //   });
+  //   await expect(testClusterAnchor).toBeVisible();
+  //   await expect(testClusterAnchor).toHaveAttribute('href', '/c/test/');
+
+  //   await Promise.all([page.waitForNavigation(), testClusterAnchor.click()]);
+
+  //   await headlampPage.authenticate(testToken);
+  //   await headlampPage.pageLocatorContent(
+  //     'button:has-text("Our Cluster Chooser button. Cluster: test")',
+  //     'Our Cluster Chooser button. Cluster: test'
+  //   );
+
+  //   await page.keyboard.press('Control+Shift+L');
+
+  //   const chooseClusterLabel = page.getByLabel(/^Choose cluster$/);
+  //   await expect(chooseClusterLabel).toBeVisible();
+
+  //   const clusterNameInput = page.getByPlaceholder(/^Name$/);
+  //   await expect(clusterNameInput).toBeVisible();
+  //   await expect(clusterNameInput).toHaveValue(/^$/);
+  //   await expect(clusterNameInput).toBeFocused();
+  // });
 });

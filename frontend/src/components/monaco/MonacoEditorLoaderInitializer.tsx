@@ -19,6 +19,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getBaseUrl } from '../../helpers/getBaseUrl';
 import { isElectron } from '../../helpers/isElectron';
+import { makeUrl } from '../../lib/k8s/api/v2/makeUrl';
 
 /**
  * A React component which configures the monaco-editor loader to make sure
@@ -49,7 +50,7 @@ export function MonacoEditorLoaderInitializer({ children }: React.PropsWithChild
     // This needs to include the origin and not just a relative path because it is used as a fetch
     // from inside a web worker; which isn't allowed to fetch from relative paths.
     // The Vite configuration will copy the relevant source files into the served assets/vs/ folder
-    let url = `${window.location.origin}/${getBaseUrl()}assets/vs`;
+    let url = makeUrl([window.location.origin, getBaseUrl(), 'assets', 'vs']);
 
     // If electron in the built app, get the base url from window.location.href
     // eg window.location.href

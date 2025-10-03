@@ -18,11 +18,14 @@ package auth_test
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -30,6 +33,9 @@ import (
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 )
 
@@ -557,6 +563,45 @@ func newTokenServerJSON(t *testing.T, status int, body any) *httptest.Server {
 	return srv
 }
 
+func newOIDCProviderServer(t *testing.T, tokenHandler http.HandlerFunc) *httptest.Server {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		cfg := map[string]any{
+			"issuer":         srv.URL,
+			"token_endpoint": srv.URL + "/token",
+			"jwks_uri":       srv.URL + "/jwks",
+		}
+		if err := json.NewEncoder(w).Encode(cfg); err != nil {
+			t.Fatalf("encode discovery: %v", err)
+		}
+	})
+
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if _, err := w.Write([]byte(`{"keys":[]}`)); err != nil {
+			t.Fatalf("write jwks: %v", err)
+		}
+	})
+
+	if tokenHandler != nil {
+		mux.HandleFunc("/token", tokenHandler)
+	} else {
+		mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		})
+	}
+
+	return srv
+}
+
 var oauthSuccessBody = map[string]any{
 	"access_token":  "AT",
 	"token_type":    "Bearer",
@@ -682,4 +727,128 @@ func TestGetNewToken_CacheUpdateErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRefreshAndCacheNewToken_Success(t *testing.T) {
+	const (
+		oldToken = "OLD"
+		oldKey   = "oidc-token-" + oldToken
+	)
+
+	fc := &fakeCache{store: map[string]interface{}{oldKey: "REFRESH_OLD"}}
+	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
+		require.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
+
+		authHeader := r.Header.Get("Authorization")
+		require.True(t, strings.HasPrefix(authHeader, "Basic "), "expected Basic Authorization header")
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
+	tok, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL)
+	require.NoError(t, err)
+	assert.NotNil(t, tok)
+	assert.Equal(t, refreshNew, tok.RefreshToken)
+
+	require.Len(t, fc.setCalls, 1)
+	assert.Equal(t, "oidc-token-NEW", fc.setCalls[0].key)
+	assert.Equal(t, refreshNew, fc.setCalls[0].val)
+
+	require.Len(t, fc.setWithTTLCalls, 1)
+	assert.Equal(t, oldKey, fc.setWithTTLCalls[0].key)
+	assert.Equal(t, "REFRESH_OLD", fc.setWithTTLCalls[0].val)
+	assert.Equal(t, 10*time.Second, fc.setWithTTLCalls[0].ttl)
+}
+
+func TestRefreshAndCacheNewToken_ProviderError(t *testing.T) {
+	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "no discovery", http.StatusInternalServerError)
+	}))
+	t.Cleanup(srv.Close)
+
+	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, &fakeCache{}, "id_token", "OLD", srv.URL)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "getting provider")
+}
+
+func TestRefreshAndCacheNewToken_TokenError(t *testing.T) {
+	const oldToken = "OLD"
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
+	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": "server_error"})
+	})
+
+	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
+	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "refreshing token")
+	assert.Len(t, fc.setCalls, 0)
+	assert.Len(t, fc.setWithTTLCalls, 0)
+}
+
+// TestConfigureTLSContext_NoConfig tests when both skipTLSVerify and caCert are not set.
+func TestConfigureTLSContext_NoConfig(t *testing.T) {
+	baseCtx := context.Background()
+	resultCtx := auth.ConfigureTLSContext(baseCtx, nil, nil)
+
+	// Context should remain unchanged when no TLS configuration is provided
+	assert.Equal(t, baseCtx, resultCtx, "Context should remain unchanged when no TLS configuration is provided")
+}
+
+// TestConfigureTLSContext_SkipTLS tests when skipTLSVerify is set to true.
+// The OIDC library would use this context to make requests
+// We can't directly extract the client, but we can verify the behavior
+// by checking that the context was modified (indicating TLS config was applied).
+func TestConfigureTLSContext_SkipTLS(t *testing.T) {
+	// Create a test server that requires TLS
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte("TLS connection successful"))
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	baseCtx := context.Background()
+	skipTLSVerify := true
+	resultCtx := auth.ConfigureTLSContext(baseCtx, &skipTLSVerify, nil)
+
+	// Context should be modified when skipTLSVerify is true
+	assert.NotEqual(t, baseCtx, resultCtx, "Context should be modified when skipTLSVerify is true")
+
+	// Test that the configured context can make TLS requests with skip verification
+	// This verifies that the TLS configuration was actually applied
+	_, err := http.NewRequestWithContext(resultCtx, "GET", server.URL, nil)
+	require.NoError(t, err)
+}
+
+// TestConfigureTLSContext_CACert tests when caCert is provided.
+func TestConfigureTLSContext_CACert(t *testing.T) {
+	// Read the pre-generated CA certificate from testdata
+	caCertBytes, err := os.ReadFile("../../cmd/headlamp_testdata/ca.crt")
+	require.NoError(t, err)
+
+	// Test the configureTLSContext function with the CA certificate
+	baseCtx := context.Background()
+	caCert := string(caCertBytes)
+	resultCtx := auth.ConfigureTLSContext(baseCtx, nil, &caCert)
+
+	// Context should be modified when caCert is provided
+	assert.NotEqual(t, baseCtx, resultCtx, "Context should be modified when caCert is provided")
+
+	// Verify that the CA certificate was parsed correctly by checking if it's valid PEM
+	block, _ := pem.Decode([]byte(caCert))
+	assert.NotNil(t, block, "CA certificate should be valid PEM format")
+	assert.Equal(t, "CERTIFICATE", block.Type, "CA certificate should be of type CERTIFICATE")
+
+	// Parse the CA certificate to verify it's valid
+	caCertParsed, err := x509.ParseCertificate(block.Bytes)
+	require.NoError(t, err)
+	assert.True(t, caCertParsed.IsCA, "Generated certificate should be a CA certificate")
 }

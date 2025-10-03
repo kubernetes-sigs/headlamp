@@ -18,6 +18,8 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -27,7 +29,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"golang.org/x/oauth2"
 )
@@ -197,6 +201,72 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 	// update the refresh token in the cache
 	if err := CacheRefreshedToken(newToken, tokenType, token, rToken, cache); err != nil {
 		return nil, fmt.Errorf("caching refreshed token: %v", err)
+	}
+
+	return newToken, nil
+}
+
+// ConfigureTLSContext configures TLS settings for the HTTP client in the context.
+// When skipTLSVerify is true, a client that skips verification is installed.
+// When caCert is provided, a client with that CA pool is installed and takes precedence,
+// re-enabling verification while trusting the supplied certificate bundle.
+func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *string) context.Context {
+	if skipTLSVerify != nil && *skipTLSVerify {
+		tlsSkipTransport := &http.Transport{
+			// the gosec linter is disabled here because we are explicitly requesting to skip TLS verification.
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		}
+		ctx = oidc.ClientContext(ctx, &http.Client{Transport: tlsSkipTransport})
+	}
+
+	if caCert != nil {
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM([]byte(*caCert)) {
+			// Log error but continue with original context
+			logger.Log(logger.LevelError, nil,
+				errors.New("failed to append ca cert to pool"), "couldn't add custom cert to context")
+			return ctx
+		}
+
+		// the gosec linter is disabled because gosec promotes using a minVersion of TLS 1.2 or higher.
+		// since we are using a custom CA cert configured by the user, we are not forcing a minVersion.
+		customTransport := &http.Transport{
+			TLSClientConfig: &tls.Config{ //nolint:gosec
+				RootCAs: caCertPool,
+			},
+		}
+
+		ctx = oidc.ClientContext(ctx, &http.Client{Transport: customTransport})
+	}
+
+	return ctx
+}
+
+// RefreshAndCacheNewToken obtains a fresh OIDC token using the cached refresh token
+// and re-populates the cache so subsequent requests can reuse it. The provided ctx
+// controls cancellation and deadlines for all outbound requests during the refresh.
+func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.OidcConfig,
+	cache cache.Cache[interface{}],
+	tokenType, token, issuerURL string,
+) (*oauth2.Token, error) {
+	ctx = ConfigureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
+
+	// get provider
+	provider, err := oidc.NewProvider(ctx, issuerURL)
+	if err != nil {
+		return nil, fmt.Errorf("getting provider: %w", err)
+	}
+	// get refresh token
+	newToken, err := GetNewToken(
+		oidcAuthConfig.ClientID,
+		oidcAuthConfig.ClientSecret,
+		cache,
+		tokenType,
+		token,
+		provider.Endpoint().TokenURL,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("refreshing token: %w", err)
 	}
 
 	return newToken, nil

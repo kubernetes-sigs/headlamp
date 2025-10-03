@@ -51,6 +51,28 @@ test('main page should have Network tab', async () => {
   await headlampPage.hasNetworkTab();
 });
 
+test('main page should have global search along with react-hotkey hint text', async () => {
+  const globalSearch = await headlampPage.hasGlobalSearch();
+
+  const searchHintContainer = globalSearch.locator('xpath=following-sibling::div');
+  const pressTextExists = await searchHintContainer.getByText(/^Press/).isVisible();
+  const slashHotKeyExists = await searchHintContainer
+    .locator('div')
+    .filter({ hasText: /^\/$/ })
+    .isVisible();
+  const toSearchTextExists = await searchHintContainer.getByText(/to search$/).isVisible();
+
+  expect(pressTextExists && slashHotKeyExists && toSearchTextExists).toBeTruthy();
+});
+
+test('react-hotkey for global search', async ({ page }) => {
+  await page.keyboard.press('/');
+
+  const focusedSearch = page.getByPlaceholder(/^Search resources, pages, clusters by name$/);
+  await expect(focusedSearch).toBeVisible();
+  await expect(focusedSearch).toBeFocused();
+});
+
 test('service page should have headlamp service', async () => {
   await servicesPage.navigateToServices();
   await servicesPage.clickOnServicesSection();
