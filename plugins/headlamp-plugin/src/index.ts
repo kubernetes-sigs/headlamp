@@ -20,6 +20,7 @@ declare module '@mui/private-theming' {
   interface DefaultTheme extends Theme {}
 }
 
+import { Activity } from './components/activity/Activity';
 import * as CommonComponents from './components/common';
 import * as K8s from './lib/k8s';
 import * as ApiProxy from './lib/k8s/apiProxy';
@@ -29,10 +30,7 @@ import * as Utils from './lib/util';
 import { Headlamp, Plugin } from './plugin/lib';
 import { getSupportedLocales, isLocaleSupported, useTranslation } from './plugin/pluginI18n';
 import { PluginSettingsDetailsProps } from './plugin/pluginsSlice';
-import type {
-  CallbackActionOptions,
-  HeadlampEvent,
- } from './plugin/registry';
+import type { CallbackActionOptions, HeadlampEvent } from './plugin/registry';
 import Registry, {
   AppLogoProps,
   clusterAction,
@@ -129,6 +127,7 @@ export {
   registerProjectDetailsTab,
   registerProjectOverviewSection,
   registerClusterStatus,
+  Activity,
 };
 
 export type {
