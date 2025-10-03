@@ -428,7 +428,7 @@ describe('WebSocket Tests', () => {
       }
 
       expect(error).toBeTruthy();
-      expect(error?.message).toBe("Cannot read properties of null (reading 'send')");
+      expect(error?.message).toBe('WebSocket connection timeout');
 
       mockWS.mockRestore();
     });
