@@ -1142,7 +1142,7 @@ function startElecron() {
 
   console.log('Check for updates: ', shouldCheckForUpdates);
 
-  async function createWindow() {
+  async function startServerIfNeeded() {
     if (!useExternalServer) {
       serverProcess = await startServer();
       attachServerEventHandlers(serverProcess);
@@ -1230,7 +1230,9 @@ function startElecron() {
         }
       });
     }
+  }
 
+  async function createWindow() {
     // WSL has a problem with full size window placement, so make it smaller.
     const withMargin = await isWSL();
     const { width, height } = windowSize(screen.getPrimaryDisplay().workAreaSize, withMargin);
@@ -1444,10 +1446,12 @@ function startElecron() {
     app.disableHardwareAcceleration();
   }
 
-  app.on('ready', createWindow);
-  app.on('activate', function () {
+  app.on('ready', async () => {
+    await Promise.all([startServerIfNeeded(), createWindow()]);
+  });
+  app.on('activate', async function () {
     if (mainWindow === null) {
-      createWindow();
+      await Promise.all([startServerIfNeeded(), createWindow()]);
     }
   });
 
