@@ -17,6 +17,7 @@ limitations under the License.
 package helm
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -36,6 +37,9 @@ import (
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
+	authv1 "k8s.io/api/authentication/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/yaml"
 )
 
@@ -576,14 +580,46 @@ func (h *Handler) getChart(
 	return chart, nil
 }
 
+// Verify the user has minimal privileges by performing a whoami check.
+// This prevents spurious downloads by ensuring basic authentication before proceeding.
+func verifyUser(h *Handler, req InstallRequest) bool {
+	restConfig, err := h.Configuration.RESTClientGetter.ToRESTConfig()
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name}, err, "getting chart")
+		return false
+	}
+
+	cs, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name}, err, "getting chart")
+		return false
+	}
+
+	review, err := cs.AuthenticationV1().SelfSubjectReviews().Create(context.Background(),
+		&authv1.SelfSubjectReview{}, metav1.CreateOptions{})
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name}, err, "getting chart")
+		return false
+	}
+
+	if user := review.Status.UserInfo.Username; user == "" || user == "system:anonymous" {
+		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
+			errors.New("insufficient privileges"), "getting chart: user is not authorized to perform this operation")
+		return false
+	}
+
+	return true
+}
+
 func (h *Handler) installRelease(req InstallRequest) {
-	// Get install client
 	installClient := action.NewInstall(h.Configuration)
-	installClient.ReleaseName = req.Name
-	installClient.Namespace = req.Namespace
-	installClient.Description = req.Description
-	installClient.CreateNamespace = req.CreateNamespace
+	installClient.ReleaseName, installClient.Namespace = req.Name, req.Namespace
+	installClient.Description, installClient.CreateNamespace = req.Description, req.CreateNamespace
 	installClient.ChartPathOptions.Version = req.Version
+
+	if !verifyUser(h, req) {
+		return
+	}
 
 	chart, err := h.getChart("install", req.Chart, req.Name,
 		installClient.ChartPathOptions, req.DependencyUpdate, h.EnvSettings)
@@ -594,8 +630,6 @@ func (h *Handler) installRelease(req InstallRequest) {
 		return
 	}
 
-	values := make(map[string]interface{})
-
 	decodedBytes, err := base64.StdEncoding.DecodeString(req.Values)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
@@ -604,6 +638,8 @@ func (h *Handler) installRelease(req InstallRequest) {
 
 		return
 	}
+
+	values := make(map[string]interface{})
 
 	err = yaml.Unmarshal(decodedBytes, &values)
 	if err != nil {
@@ -614,7 +650,6 @@ func (h *Handler) installRelease(req InstallRequest) {
 		return
 	}
 
-	// Install chart
 	_, err = installClient.Run(chart, values)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
@@ -623,9 +658,6 @@ func (h *Handler) installRelease(req InstallRequest) {
 
 		return
 	}
-
-	logger.Log(logger.LevelInfo, map[string]string{"chart": req.Chart, "releaseName": req.Name},
-		nil, "chart installed successfully")
 
 	h.setReleaseStatusSilent("install", req.Name, success, nil)
 }
