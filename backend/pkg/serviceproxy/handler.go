@@ -1,11 +1,13 @@
 package serviceproxy
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -16,6 +18,7 @@ func RequestHandler(kubeConfigStore kubeconfig.ContextStore, w http.ResponseWrit
 	name := mux.Vars(r)["name"]
 	namespace := mux.Vars(r)["namespace"]
 	requestURI := r.URL.Query().Get("request")
+	clusterName := mux.Vars(r)["clusterName"]
 
 	// Disable caching
 	w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
@@ -32,8 +35,15 @@ func RequestHandler(kubeConfigStore kubeconfig.ContextStore, w http.ResponseWrit
 		return
 	}
 
+	tokenFromCookie, err := auth.GetTokenFromCookie(r, clusterName)
+
 	// Get the authorization token from the header
 	authToken := r.Header.Get("Authorization")
+	if err == nil && tokenFromCookie != "" && authToken == "" {
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokenFromCookie))
+	}
+
+	authToken = r.Header.Get("Authorization")
 	if len(authToken) == 0 {
 		w.WriteHeader(http.StatusUnauthorized)
 		return

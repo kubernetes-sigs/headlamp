@@ -1091,9 +1091,16 @@ func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (
 		return nil, errors.New("not found")
 	}
 
+	tokenFromCookie, err := auth.GetTokenFromCookie(r, clusterName)
+
+	bearerToken := r.Header.Get("Authorization")
+	if err == nil && tokenFromCookie != "" && bearerToken == "" {
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokenFromCookie))
+	}
+
 	// If the request contains a bearer token in the Authorization header, set it in AuthInfo.
 	// This token will be used  authentication to the Kubernetes cluster.
-	bearerToken := r.Header.Get("Authorization")
+	bearerToken = r.Header.Get("Authorization")
 	if bearerToken != "" {
 		reqToken := strings.TrimPrefix(bearerToken, "Bearer ")
 		if reqToken != "" {
