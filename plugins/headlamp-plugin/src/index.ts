@@ -29,10 +29,7 @@ import * as Utils from './lib/util';
 import { Headlamp, Plugin } from './plugin/lib';
 import { getSupportedLocales, isLocaleSupported, useTranslation } from './plugin/pluginI18n';
 import { PluginSettingsDetailsProps } from './plugin/pluginsSlice';
-import type {
-  CallbackActionOptions,
-  HeadlampEvent,
- } from './plugin/registry';
+import type { CallbackActionOptions, HeadlampEvent } from './plugin/registry';
 import Registry, {
   AppLogoProps,
   clusterAction,
@@ -76,6 +73,7 @@ import Registry, {
   registerUIPanel,
   runCommand,
 } from './plugin/registry';
+import { Activity } from './components/activity/Activity';
 
 // We export k8s (lowercase) since someone may use it as we do in the Headlamp source code.
 export {
@@ -129,6 +127,7 @@ export {
   registerProjectDetailsTab,
   registerProjectOverviewSection,
   registerClusterStatus,
+  Activity,
 };
 
 export type {
