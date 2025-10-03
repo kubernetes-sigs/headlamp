@@ -166,6 +166,7 @@
       </div>
       <div
         class="MuiBox-root css-3ykv34"
+        data-activity-bar="true"
       >
         <div
           class="MuiBox-root css-16dgwon"
@@ -188,6 +189,17 @@
                 Something
               </div>
             </div>
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <button
+            aria-label="Pin"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-182yqqz-MuiButtonBase-root-MuiIconButton-root"
+            data-mui-internal-clone-element="true"
+            tabindex="0"
+            type="button"
+          >
             <span
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
             />
@@ -224,6 +236,17 @@
                 Something
               </div>
             </div>
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <button
+            aria-label="Pin"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-182yqqz-MuiButtonBase-root-MuiIconButton-root"
+            data-mui-internal-clone-element="true"
+            tabindex="0"
+            type="button"
+          >
             <span
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
             />
