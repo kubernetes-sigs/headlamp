@@ -132,11 +132,23 @@ export const WebSocketManager = {
 
     // Wait for existing connection attempt if in progress
     if (this.connecting) {
-      return new Promise(resolve => {
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          clearInterval(checkConnection);
+          reject(new Error('WebSocket connection timeout'));
+        }, 5000); // 5 second timeout
+
         const checkConnection = setInterval(() => {
           if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
             clearInterval(checkConnection);
+            clearTimeout(timeout);
             resolve(this.socketMultiplexer);
+          }
+          // Also check if connection failed
+          if (!this.connecting) {
+            clearInterval(checkConnection);
+            clearTimeout(timeout);
+            reject(new Error('WebSocket connection failed'));
           }
         }, 100);
       });
@@ -148,7 +160,14 @@ export const WebSocketManager = {
     return new Promise((resolve, reject) => {
       const socket = new WebSocket(wsUrl);
 
+      // Add connection timeout
+      const connectionTimeout = setTimeout(() => {
+        this.connecting = false;
+        reject(new Error('WebSocket connection timeout'));
+      }, 5000); // 5 second timeout
+
       socket.onopen = () => {
+        clearTimeout(connectionTimeout);
         this.socketMultiplexer = socket;
         this.connecting = false;
 
@@ -164,6 +183,7 @@ export const WebSocketManager = {
       socket.onmessage = this.handleWebSocketMessage.bind(this);
 
       socket.onerror = event => {
+        clearTimeout(connectionTimeout);
         this.connecting = false;
         console.error('WebSocket error:', event);
         reject(new Error('WebSocket connection failed'));
