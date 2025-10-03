@@ -17,6 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import Node from '../../lib/k8s/node';
 import { getResourceMetrics } from '../../lib/util';
+import CopyLabel from '../common/CopyLabel';
 import { HoverInfoLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { UsageBarChart } from './Charts';
@@ -107,11 +108,23 @@ export default function NodeList() {
           id: 'internalIP',
           label: t('translation|Internal IP'),
           getValue: node => node.getInternalIP(),
+          render: node => {
+            const internalIP = node.getInternalIP();
+            return internalIP ? <CopyLabel textToCopy={internalIP}>{internalIP}</CopyLabel> : null;
+          },
         },
         {
           id: 'externalIP',
           label: t('External IP'),
           getValue: node => node.getExternalIP() || t('translation|None'),
+          render: node => {
+            const externalIP = node.getExternalIP();
+            return externalIP ? (
+              <CopyLabel textToCopy={externalIP}>{externalIP}</CopyLabel>
+            ) : (
+              t('translation|None')
+            );
+          },
         },
         {
           id: 'version',
