@@ -25,3 +25,15 @@ export function isValidNamespaceFormat(namespace: string) {
   const regex = new RegExp('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$');
   return regex.test(namespace);
 }
+
+export function isValidClusterNameFormat(name: string) {
+  // We allow empty isValidClusterNameFormat just because that's the default value in our case.
+  if (!name) {
+    return true;
+  }
+
+  // Validates that the namespace is a valid DNS-1123 label and returns a boolean.
+  // https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-label-names
+  const regex = new RegExp('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$');
+  return regex.test(name);
+}
