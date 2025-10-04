@@ -1,0 +1,62 @@
+<body>
+  <div>
+    <dl
+      class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+    >
+      <dt
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
+      >
+        <p
+          class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+        >
+          Name
+        </p>
+      </dt>
+      <dd
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
+      >
+        <div
+          class="MuiFormControl-root MuiTextField-root css-1u3bzj6-MuiFormControl-root-MuiTextField-root"
+        >
+          <div
+            class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary Mui-error MuiInputBase-formControl MuiInputBase-adornedEnd css-1p79pd8-MuiInputBase-root-MuiInput-root"
+          >
+            <input
+              aria-describedby=":mock-test-id:"
+              aria-invalid="true"
+              autocomplete="off"
+              class="MuiInputBase-input MuiInput-input MuiInputBase-inputAdornedEnd css-1x51dt5-MuiInputBase-input-MuiInput-input"
+              id=":mock-test-id:"
+              placeholder="my-cluster"
+              type="text"
+              value="Invalid Cluster Name"
+            />
+            <div
+              class="MuiBox-root css-oxzk7u"
+            >
+              <button
+                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
+                disabled=""
+                tabindex="-1"
+                type="button"
+              >
+                Apply
+              </button>
+              <div />
+            </div>
+          </div>
+          <p
+            class="MuiFormHelperText-root Mui-error MuiFormHelperText-sizeMedium MuiFormHelperText-filled css-nnd8o8-MuiFormHelperText-root"
+            id=":mock-test-id:"
+          >
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Cluster name must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.
+            </p>
+          </p>
+        </div>
+      </dd>
+    </dl>
+  </div>
+</body>
