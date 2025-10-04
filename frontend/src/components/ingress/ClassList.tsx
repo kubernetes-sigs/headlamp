@@ -16,7 +16,6 @@
 
 import { useTranslation } from 'react-i18next';
 import IngressClass from '../../lib/k8s/ingressClass';
-import { HoverInfoLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 export default function IngressClassList() {
@@ -30,30 +29,34 @@ export default function IngressClassList() {
       }}
       resourceClass={IngressClass}
       columns={[
-        {
-          id: 'default',
-          label: '',
-          gridTemplate: 0.1,
-          getValue: resource => (resource?.isDefault ? t('Default Ingress Class') : null),
-          render: (resource: IngressClass) =>
-            resource && resource.isDefault ? <DefaultLabel /> : null,
-          sort: false,
-          disableFiltering: true,
-        },
         'name',
         {
           id: 'controller',
           label: t('Controller'),
           filterVariant: 'multi-select',
           getValue: (ingressClass: IngressClass) => ingressClass.spec?.controller,
+          gridTemplate: 'auto',
+        },
+        {
+          id: 'default',
+          label: t('Default'),
+          filterVariant: 'checkbox',
+          getValue: resource => String(resource?.isDefault ?? false),
+          render: (resource: IngressClass) => (resource && resource.isDefault ? t('Yes') : null),
+          gridTemplate: 'auto',
+        },
+        {
+          id: 'parameters',
+          label: t('Parameters'),
+          getValue: (ingressClass: IngressClass) => {
+            const params = ingressClass.spec?.parameters;
+            if (!params) return '';
+            const { kind, apiGroup, name } = params;
+            return apiGroup ? `${kind}.${apiGroup}/${name}` : name;
+          },
         },
         'age',
       ]}
     />
   );
-}
-
-export function DefaultLabel() {
-  const { t } = useTranslation('glossary');
-  return <HoverInfoLabel label="" hoverInfo={t('Default Ingress Class')} icon="mdi:star" />;
 }
