@@ -37,27 +37,15 @@ import { setConfig, setStatelessConfig } from '../../../redux/configSlice';
 import { findKubeconfigByClusterName } from '../../../stateless/findKubeconfigByClusterName';
 import { updateStatelessClusterKubeconfig } from '../../../stateless/updateStatelessClusterKubeconfig';
 import ConfirmButton from '../../common/ConfirmButton';
-import ConfirmDialog from '../../common/ConfirmDialog';
 import Empty from '../../common/EmptyContent';
 import Link from '../../common/Link';
 import Loader from '../../common/Loader';
 import NameValueTable from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
+import { ClusterNameEditor } from './ClusterNameEditor';
 import ClusterSelector from './ClusterSelector';
 import NodeShellSettings from './NodeShellSettings';
-import { isValidNamespaceFormat } from './util';
-
-function isValidClusterNameFormat(name: string) {
-  // We allow empty isValidClusterNameFormat just because that's the default value in our case.
-  if (!name) {
-    return true;
-  }
-
-  // Validates that the namespace is a valid DNS-1123 label and returns a boolean.
-  // https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-label-names
-  const regex = new RegExp('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$');
-  return regex.test(name);
-}
+import { isValidClusterNameFormat, isValidNamespaceFormat } from './util';
 
 export default function SettingsCluster() {
   const clusterConf = useClustersConf();
@@ -72,7 +60,6 @@ export default function SettingsCluster() {
   const [newClusterName, setNewClusterName] = React.useState(cluster || '');
   const [clusterErrorDialogOpen, setClusterErrorDialogOpen] = React.useState(false);
   const [clusterErrorDialogMessage, setClusterErrorDialogMessage] = React.useState('');
-  const [customNameInUse, setCustomNameInUse] = React.useState(false);
 
   const theme = useTheme();
 
@@ -81,39 +68,8 @@ export default function SettingsCluster() {
   const location = useLocation();
 
   const clusterInfo = (clusterConf && clusterConf[cluster || '']) || null;
-  const originalName = clusterInfo?.meta_data?.originalName;
-  const displayName = originalName || (clusterInfo ? clusterInfo.name : '');
-  const source = clusterInfo?.meta_data?.source;
   /** Note: display original name is currently only supported for non dynamic clusters from kubeconfig sources. */
   const clusterID = clusterInfo?.meta_data?.clusterID || '';
-
-  /**
-   * This function is part of a double check, this is meant to check all the cluster names currently in use as display names
-   * Note: if the metadata is not available or does not load, another check is done in the backend to ensure the name is unique in its own config
-   *
-   * @param name The name to check.
-   * @returns bool of if the name is in use.
-   */
-  function checkNameInUse(name: string) {
-    if (!clusterConf) {
-      return false;
-    }
-
-    /** These are the display names of the clusters, renamed clusters have their display name as the custom name */
-    const clusterNames = Object.values(clusterConf).map(cluster => cluster.name);
-
-    /** The original name of the cluster is the name used in the kubeconfig file. */
-    const originalNames = Object.values(clusterConf)
-      .map(cluster => cluster.meta_data?.originalName)
-      .filter(originalName => originalName !== undefined);
-
-    const allNames = [...clusterNames, ...originalNames];
-
-    const nameInUse = allNames.includes(name);
-
-    setCustomNameInUse(nameInUse);
-  }
-
   const handleUpdateClusterName = (source: string) => {
     try {
       renameCluster(cluster || '', newClusterName, source, clusterID)
@@ -283,14 +239,9 @@ export default function SettingsCluster() {
   }
 
   const isValidDefaultNamespace = isValidNamespaceFormat(userDefaultNamespace);
-  const isValidCurrentName = isValidClusterNameFormat(newClusterName);
   const isValidNewAllowedNamespace = isValidNamespaceFormat(newAllowedNamespace);
   const invalidNamespaceMessage = t(
     "translation|Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character."
-  );
-
-  const invalidClusterNameMessage = t(
-    "translation|Cluster name must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character."
   );
 
   // If we don't have yet a cluster name from the URL, we are still loading.
@@ -331,47 +282,6 @@ export default function SettingsCluster() {
     );
   }
 
-  function ClusterErrorDialog() {
-    return (
-      <ConfirmDialog
-        onConfirm={() => {
-          setClusterErrorDialogOpen(false);
-        }}
-        handleClose={() => {
-          setClusterErrorDialogOpen(false);
-        }}
-        hideCancelButton
-        open={clusterErrorDialogOpen}
-        title={t('translation|Error')}
-        description={clusterErrorDialogMessage}
-        confirmLabel={t('translation|Okay')}
-      ></ConfirmDialog>
-    );
-  }
-
-  // Display the original name of the cluster if it was loaded from a kubeconfig file.
-  function ClusterName() {
-    const currentName = clusterInfo?.name;
-    const originalName = clusterInfo?.meta_data?.originalName;
-    const source = clusterInfo?.meta_data?.source;
-    // Note: display original name is currently only supported for non dynamic clusters from kubeconfig sources.
-    const displayOriginalName = source === 'kubeconfig' && originalName;
-
-    return (
-      <>
-        {clusterErrorDialogOpen && <ClusterErrorDialog />}
-        <Typography>{t('translation|Name')}</Typography>
-        {displayOriginalName && currentName !== displayOriginalName && (
-          <Typography variant="body2" color="textSecondary">
-            {t('translation|Original name: {{ displayName }}', {
-              displayName: displayName,
-            })}
-          </Typography>
-        )}
-      </>
-    );
-  }
-
   const defaultNamespaceLabelID = 'default-namespace-label';
   const allowedNamespaceLabelID = 'allowed-namespace-label';
 
@@ -389,67 +299,15 @@ export default function SettingsCluster() {
           </Link>
         </Box>
         {isElectron() && (
-          <NameValueTable
-            rows={[
-              {
-                name: <ClusterName />,
-                value: (
-                  <TextField
-                    onChange={event => {
-                      let value = event.target.value;
-                      value = value.replace(' ', '');
-                      setNewClusterName(value);
-                      checkNameInUse(value);
-                    }}
-                    value={newClusterName}
-                    placeholder={cluster}
-                    error={!isValidCurrentName || customNameInUse}
-                    helperText={
-                      <Typography>
-                        {!isValidCurrentName && invalidClusterNameMessage}
-                        {customNameInUse &&
-                          t(
-                            'translation|This custom name is already in use, please choose a different name.'
-                          )}
-                        {isValidCurrentName &&
-                          !customNameInUse &&
-                          t(
-                            'translation|The current name of the cluster. You can define a custom name.'
-                          )}
-                      </Typography>
-                    }
-                    InputProps={{
-                      endAdornment: (
-                        <Box pt={2} textAlign="right">
-                          <ConfirmButton
-                            onConfirm={() => {
-                              if (isValidCurrentName) {
-                                handleUpdateClusterName(source);
-                              }
-                            }}
-                            confirmTitle={t('translation|Change name')}
-                            confirmDescription={t(
-                              'translation|Are you sure you want to change the name for "{{ clusterName }}"?',
-                              { clusterName: displayName }
-                            )}
-                            disabled={!newClusterName || !isValidCurrentName || customNameInUse}
-                          >
-                            {t('translation|Apply')}
-                          </ConfirmButton>
-                        </Box>
-                      ),
-                      onKeyPress: event => {
-                        if (event.key === 'Enter' && isValidCurrentName) {
-                          handleUpdateClusterName(source);
-                        }
-                      },
-                      autoComplete: 'off',
-                      sx: { maxWidth: 250 },
-                    }}
-                  />
-                ),
-              },
-            ]}
+          <ClusterNameEditor
+            cluster={cluster}
+            clusterConf={clusterConf}
+            newClusterName={newClusterName}
+            setNewClusterName={setNewClusterName}
+            clusterErrorDialogMessage={clusterErrorDialogMessage}
+            clusterErrorDialogOpen={clusterErrorDialogOpen}
+            setClusterErrorDialogOpen={setClusterErrorDialogOpen}
+            handleUpdateClusterName={handleUpdateClusterName}
           />
         )}
         <NameValueTable

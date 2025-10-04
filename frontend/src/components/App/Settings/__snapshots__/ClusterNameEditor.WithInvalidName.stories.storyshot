@@ -1,0 +1,54 @@
+<body>
+  <div>
+    <dl
+      class="MuiGrid-root MuiGrid-container css-uximdg-MuiGrid-root"
+    >
+      <dt
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-16fae59-MuiGrid-root"
+      >
+        Name
+      </dt>
+      <dd
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
+      >
+        <div
+          class="MuiFormControl-root MuiTextField-root css-1u3bzj6-MuiFormControl-root-MuiTextField-root"
+        >
+          <div
+            class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary Mui-error MuiInputBase-formControl MuiInputBase-adornedEnd css-12pocct-MuiInputBase-root-MuiInput-root"
+          >
+            <input
+              aria-describedby=":r17:-helper-text"
+              aria-invalid="true"
+              autocomplete="off"
+              class="MuiInputBase-input MuiInput-input MuiInputBase-inputAdornedEnd css-1x51dt5-MuiInputBase-input-MuiInput-input"
+              id=":mock-test-id:"
+              placeholder="my-cluster"
+              type="text"
+              value="Invalid Cluster Name"
+            />
+            <div
+              class="MuiBox-root css-oxzk7u"
+            >
+              <button
+                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary Mui-disabled MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary css-1gp6czg-MuiButtonBase-root-MuiButton-root"
+                disabled=""
+                tabindex="-1"
+                type="button"
+              >
+                Apply
+              </button>
+              <div />
+            </div>
+          </div>
+          <p
+            class="MuiFormHelperText-root Mui-error MuiFormHelperText-sizeMedium MuiFormHelperText-filled css-nnd8o8-MuiFormHelperText-root"
+            id=":mock-test-id:"
+          >
+            Cluster name must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.
+          </p>
+        </div>
+      </dd>
+    </dl>
+  </div>
+</body>
