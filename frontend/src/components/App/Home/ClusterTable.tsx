@@ -180,15 +180,18 @@ export default function ClusterTable({
         },
         {
           id: 'actions',
-          header: '',
+          header: t('Actions'),
+          gridTemplate: 'min-content',
           muiTableBodyCellProps: {
-            align: 'right',
+            align: 'center',
           },
           accessorFn: cluster =>
             errors[cluster?.name] === null ? 'Active' : errors[cluster?.name]?.message,
           Cell: ({ row: { original: cluster } }) => {
             return <ClusterContextMenu cluster={cluster} />;
           },
+          enableSorting: false,
+          enableColumnFilter: false,
         },
       ]}
       data={Object.values(customNameClusters)}
