@@ -48,6 +48,9 @@ const mdiIcons = {
     'dots-vertical': {
       body: '\u003Cpath fill="currentColor" d="M12 16a2 2 0 0 1 2 2a2 2 0 0 1-2 2a2 2 0 0 1-2-2a2 2 0 0 1 2-2m0-6a2 2 0 0 1 2 2a2 2 0 0 1-2 2a2 2 0 0 1-2-2a2 2 0 0 1 2-2m0-6a2 2 0 0 1 2 2a2 2 0 0 1-2 2a2 2 0 0 1-2-2a2 2 0 0 1 2-2"/\u003E',
     },
+    'dots-horizontal': {
+      body: '\u003Cpath fill="currentColor" d="M16,12A2,2 0 0,1 18,10A2,2 0 0,1 20,12A2,2 0 0,1 18,14A2,2 0 0,1 16,12M10,12A2,2 0 0,1 12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12M4,12A2,2 0 0,1 6,10A2,2 0 0,1 8,12A2,2 0 0,1 6,14A2,2 0 0,1 4,12Z"/\u003E',
+    },
     logout: {
       body: '\u003Cpath fill="currentColor" d="m17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5M4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4z"/\u003E',
     },
@@ -442,6 +445,9 @@ const mdiIcons = {
   aliases: {
     'more-vert': {
       parent: 'dots-vertical',
+    },
+    'more-horiz': {
+      parent: 'dots-horizontal',
     },
     add: {
       parent: 'plus',

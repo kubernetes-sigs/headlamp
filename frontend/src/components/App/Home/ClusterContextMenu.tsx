@@ -126,7 +126,7 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
           aria-controls={menuId}
           aria-label={t('Actions')}
         >
-          <Icon icon="mdi:dots-horizontal" />
+          <Icon icon="mdi:more-horiz" />
         </IconButton>
       </Tooltip>
       <Menu
