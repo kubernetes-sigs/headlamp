@@ -28,6 +28,7 @@ import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { Cluster } from '../../../lib/k8s/cluster';
 import { getClusterPrefixedPath } from '../../../lib/util';
 import { useTypedSelector } from '../../../redux/hooks';
+import { Loader } from '../../common';
 import Link from '../../common/Link';
 import Table from '../../common/Table';
 import ClusterContextMenu from './ClusterContextMenu';
@@ -138,6 +139,11 @@ export default function ClusterTable({
     return 'Unknown';
   }
   const viewClusters = t('View Clusters');
+
+  const loading = clusters === null;
+  if (loading) {
+    return <Loader title={t('Loading...')} />;
+  }
 
   return (
     <Table
