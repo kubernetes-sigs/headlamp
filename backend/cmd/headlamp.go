@@ -755,7 +755,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			}
 
 			// Set auth cookie
-			auth.SetTokenCookie(w, r, string(decodedState), rawUserToken)
+			auth.SetTokenCookie(w, r, string(decodedState), rawUserToken, config.BaseURL)
 
 			redirectURL += fmt.Sprintf("auth?cluster=%1s", decodedState)
 			http.Redirect(w, r, redirectURL, http.StatusSeeOther)
@@ -841,7 +841,7 @@ func (c *HeadlampConfig) refreshAndSetToken(oidcAuthConfig *kubeconfig.OidcConfi
 		}
 
 		// Set refreshed token in cookie
-		auth.SetTokenCookie(w, r, cluster, newTokenString)
+		auth.SetTokenCookie(w, r, cluster, newTokenString, c.BaseURL)
 
 		c.telemetryHandler.RecordEvent(span, "Token refreshed successfully")
 	}
@@ -2333,9 +2333,9 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if req.Token == "" {
-		auth.ClearTokenCookie(w, r, cluster)
+		auth.ClearTokenCookie(w, r, cluster, c.BaseURL)
 	} else {
-		auth.SetTokenCookie(w, r, cluster, req.Token)
+		auth.SetTokenCookie(w, r, cluster, req.Token, c.BaseURL)
 	}
 
 	w.WriteHeader(http.StatusOK)

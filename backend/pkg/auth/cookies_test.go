@@ -117,13 +117,56 @@ func TestIsSecureContext(t *testing.T) {
 	}
 }
 
+func TestGetCookiePath(t *testing.T) {
+	tests := []struct {
+		name     string
+		baseURL  string
+		cluster  string
+		wantPath string
+	}{
+		{
+			name:     "empty base URL",
+			baseURL:  "",
+			cluster:  "test-cluster",
+			wantPath: "/clusters/test-cluster",
+		},
+		{
+			name:     "base URL without leading slash",
+			baseURL:  "headlamp",
+			cluster:  "test-cluster",
+			wantPath: "/headlamp/clusters/test-cluster",
+		},
+		{
+			name:     "base URL with leading slash",
+			baseURL:  "/headlamp",
+			cluster:  "test-cluster",
+			wantPath: "/headlamp/clusters/test-cluster",
+		},
+		{
+			name:     "base URL with trailing slash",
+			baseURL:  "/headlamp/",
+			cluster:  "test-cluster",
+			wantPath: "/headlamp/clusters/test-cluster",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := auth.GetCookiePath(tt.baseURL, tt.cluster)
+			if got != tt.wantPath {
+				t.Errorf("getCookiePath() = %q, want %q", got, tt.wantPath)
+			}
+		})
+	}
+}
+
 func TestSetAndGetAuthCookie(t *testing.T) {
 	req := httptest.NewRequest("GET", localhost, nil)
 	req.Host = localhost
 	w := httptest.NewRecorder()
 
 	// Test setting a cookie
-	auth.SetTokenCookie(w, req, "test-cluster", "test-token")
+	auth.SetTokenCookie(w, req, "test-cluster", "test-token", "")
 
 	// Check if cookie was set
 	cookies := w.Result().Cookies()
@@ -170,7 +213,7 @@ func TestGetAuthCookieChunked(t *testing.T) {
 	longToken := strings.Repeat("a", 5000)
 
 	// Test setting a cookie
-	auth.SetTokenCookie(w, req, "test-cluster", longToken)
+	auth.SetTokenCookie(w, req, "test-cluster", longToken, "")
 
 	// Check if cookie was set
 	cookies := w.Result().Cookies()
@@ -209,7 +252,7 @@ func TestClearAuthCookie(t *testing.T) {
 	})
 
 	// Clear a cookie
-	auth.ClearTokenCookie(w, req, "test-cluster")
+	auth.ClearTokenCookie(w, req, "test-cluster", "")
 
 	// Check if cookie was set
 	cookies := w.Result().Cookies()
@@ -218,7 +261,7 @@ func TestClearAuthCookie(t *testing.T) {
 	}
 
 	// Test clearing the cookie
-	auth.ClearTokenCookie(w, req, "test-cluster")
+	auth.ClearTokenCookie(w, req, "test-cluster", "")
 
 	// Check if cookie was cleared
 	clearedCookies := w.Result().Cookies()
