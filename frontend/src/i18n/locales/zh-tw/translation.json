@@ -451,6 +451,8 @@
   "Section Name": "區段名稱",
   "Press<1>/</1>to search": "按<1>/</1>搜尋",
   "Search resources, pages, clusters by name": "按名稱搜尋資源、頁面、叢集",
+  "Current Namespace": "",
+  "Set namespace: {{namespace}}": "",
   "Page": "頁面",
   "Reference": "參考",
   "Metrics": "指標",

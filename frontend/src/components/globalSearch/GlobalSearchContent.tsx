@@ -30,6 +30,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
 import { FixedSizeList } from 'react-window';
+import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import ConfigMap from '../../lib/k8s/configMap';
 import CronJob from '../../lib/k8s/cronJob';
@@ -50,6 +51,7 @@ import StatefulSet from '../../lib/k8s/statefulSet';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getDefaultRoutes } from '../../lib/router/getDefaultRoutes';
 import { getClusterPrefixedPath } from '../../lib/util';
+import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { Activity } from '../activity/Activity';
 import { ADVANCED_SEARCH_QUERY_KEY } from '../advancedSearch/AdvancedSearch';
@@ -166,6 +168,7 @@ export function GlobalSearchContent({
 }) {
   const { t } = useTranslation();
   const history = useHistory();
+  const dispatch = useDispatch();
   const [query, setQuery] = useState(defaultValue ?? '');
   const clusters = useClustersConf() ?? {};
   const selectedClusters = useSelectedClusters();
@@ -176,6 +179,51 @@ export function GlobalSearchContent({
   // Resource search items
   const resources = useSearchResources();
   const loading = resources.filter(it => it.isLoading).map(it => it.kind);
+  const namespaceItems = useMemo(() => {
+    const namespaceResource = resources.find(resource => resource.kind === Namespace.kind);
+    return (namespaceResource?.items as Namespace[]) ?? [];
+  }, [resources]);
+  const namespaceOptions = useMemo(() => {
+    const knownNamespaces = new Set<string>(
+      [
+        ...namespaceItems.map(n => n.metadata.name),
+        ...selectedClusters.flatMap(c => loadClusterSettings(c)?.allowedNamespaces ?? []),
+      ].filter(Boolean)
+    );
+
+    const options: SearchResult[] = [];
+
+    const addOption = (namespaceValue: string) => {
+      if (!namespaceValue) {
+        return;
+      }
+
+      options.push({
+        id: `set-namespace-${namespaceValue}`,
+        subLabel: t('translation|Current Namespace'),
+        label: t('translation|Set namespace: {{namespace}}', { namespace: namespaceValue }),
+        icon: (
+          <Suspense fallback={null}>
+            <LazyKubeIcon kind="Namespace" width="24px" height="24px" />
+          </Suspense>
+        ),
+        onClick: () => {
+          dispatch(setNamespaceFilter([namespaceValue]));
+        },
+      });
+    };
+
+    const trimmedQuery = query.trim();
+    if (trimmedQuery.length > 0) {
+      addOption(trimmedQuery);
+    }
+
+    Array.from(knownNamespaces)
+      .sort((a, b) => a.localeCompare(b))
+      .forEach(addOption);
+
+    return options;
+  }, [query, selectedClusters, namespaceItems, dispatch, t]);
   const isMap = useRouteMatch(getClusterPrefixedPath(getDefaultRoutes().map?.path));
   const location = useLocation();
   const items = useMemo(
@@ -262,7 +310,6 @@ export function GlobalSearchContent({
   );
 
   // Themes
-  const dispatch = useDispatch();
   const appThemes = useAppThemes();
   const themeActions = useMemo(() => {
     return appThemes.map(theme => ({
@@ -291,13 +338,17 @@ export function GlobalSearchContent({
       },
     };
   }, [query, selectedClusters]);
-
   const allOptions = useMemo(
     () =>
-      [...themeActions, ...clusterItems, ...routes, ...items, advancedSearchSuggestion].filter(
-        Boolean
-      ) as SearchResult[],
-    [themeActions, clusterItems, routes, items, advancedSearchSuggestion]
+      [
+        ...themeActions,
+        ...clusterItems,
+        ...routes,
+        ...namespaceOptions,
+        ...items,
+        advancedSearchSuggestion,
+      ].filter(Boolean) as SearchResult[],
+    [themeActions, clusterItems, routes, namespaceOptions, items, advancedSearchSuggestion]
   );
 
   const fuse = useMemo(

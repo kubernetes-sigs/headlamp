@@ -451,6 +451,8 @@
   "Section Name": "区段名称",
   "Press<1>/</1>to search": "按<1>/</1>搜索",
   "Search resources, pages, clusters by name": "按名称搜索资源、页面、集群",
+  "Current Namespace": "",
+  "Set namespace: {{namespace}}": "",
   "Page": "页面",
   "Reference": "參考",
   "Metrics": "指标",

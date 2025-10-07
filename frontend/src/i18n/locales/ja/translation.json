@@ -451,6 +451,8 @@
   "Section Name": "セクション名",
   "Press<1>/</1>to search": "<1>/</1>キーを押して検索",
   "Search resources, pages, clusters by name": "名前でリソース、ページ、クラスターを検索",
+  "Current Namespace": "",
+  "Set namespace: {{namespace}}": "",
   "Page": "ページ",
   "Reference": "参照",
   "Metrics": "メトリクス",

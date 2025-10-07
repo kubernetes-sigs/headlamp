@@ -454,6 +454,8 @@
   "Section Name": "",
   "Press<1>/</1>to search": "",
   "Search resources, pages, clusters by name": "",
+  "Current Namespace": "",
+  "Set namespace: {{namespace}}": "",
   "Page": "",
   "Reference": "Referenz",
   "Metrics": "Metriken",

@@ -457,6 +457,8 @@
   "Section Name": "Nome da Secção",
   "Press<1>/</1>to search": "Pressione<1>/</1>para pesquisar",
   "Search resources, pages, clusters by name": "Pesquisar recursos, páginas, clusters por nome",
+  "Current Namespace": "",
+  "Set namespace: {{namespace}}": "",
   "Page": "Página",
   "Reference": "Referência",
   "Metrics": "Métricas",

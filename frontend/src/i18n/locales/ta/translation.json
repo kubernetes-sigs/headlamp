@@ -454,6 +454,8 @@
   "Section Name": "பிரிவின் பெயர்",
   "Press<1>/</1>to search": "தேட <1>/</1> அழுத்தவும்",
   "Search resources, pages, clusters by name": "ரிசோர்ஸ்கள், பக்கங்கள், க்ளஸ்டர்களை பெயரால் தேடு",
+  "Current Namespace": "",
+  "Set namespace: {{namespace}}": "",
   "Page": "பக்கம்",
   "Reference": "ரெஃபரன்ஸ்",
   "Metrics": "மெட்ரிக்ஸ்",
