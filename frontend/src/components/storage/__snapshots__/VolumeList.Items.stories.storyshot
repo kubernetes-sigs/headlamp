@@ -163,7 +163,7 @@
           </div>
         </div>
         <table
-          class="MuiTable-root css-1lubqn6-MuiTable-root"
+          class="MuiTable-root css-t7kba7-MuiTable-root"
         >
           <thead
             class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
@@ -301,6 +301,61 @@
                     >
                       <span
                         aria-label="Sort by Provisioner ascending"
+                        class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                        role="button"
+                        tabindex="0"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
+                          data-testid="SyncAltIcon"
+                          focusable="false"
+                          style="transform: rotate(-90deg) scaleX(0.9) translateX(-1px);"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            d="m18 12 4-4-4-4v3H3v2h15zM6 12l-4 4 4 4v-3h15v-2H6z"
+                          />
+                        </svg>
+                      </span>
+                      <span
+                        class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                      >
+                        0
+                      </span>
+                    </span>
+                  </div>
+                  <div
+                    class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                  />
+                </div>
+              </th>
+              <th
+                aria-sort="none"
+                class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1019980-MuiTableCell-root"
+                colspan="1"
+                data-can-sort="true"
+                data-index="-1"
+                scope="col"
+              >
+                <div
+                  class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                >
+                  <div
+                    class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                  >
+                    <div
+                      class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                    >
+                      Default
+                    </div>
+                    <span
+                      aria-label="Sort by Default ascending"
+                      class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                      data-mui-internal-clone-element="true"
+                    >
+                      <span
+                        aria-label="Sort by Default ascending"
                         class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                         role="button"
                         tabindex="0"
@@ -625,6 +680,9 @@
               </td>
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1ilsbxl-MuiTableCell-root"
+              />
+              <td
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-12j49la-MuiTableCell-root"
               />
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-10q82xd-MuiTableCell-root"
