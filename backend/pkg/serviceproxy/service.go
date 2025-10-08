@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	HTTPScheme  = "http"
-	HTTPSScheme = "https"
+	HTTPSchemeName  = "http"
+	HTTPSSchemeName = "https"
 )
 
 type proxyService struct {
@@ -25,8 +25,8 @@ type proxyService struct {
 	URIPrefix  string `yaml:"URIPrefix"`
 }
 
-// getService returns the requested service.
-func getService(cs kubernetes.Interface, namespace string, name string) (*proxyService, error) {
+// GetService returns the requested service based on the provided name and namespace.
+func GetService(cs kubernetes.Interface, namespace string, name string) (*proxyService, error) {
 	service, err := cs.CoreV1().Services(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func getService(cs kubernetes.Interface, namespace string, name string) (*proxyS
 		IsExternal: len(service.Spec.ExternalName) > 0,
 	}
 
-	port, err := getPort(service.Spec.Ports)
+	port, err := GetPort(service.Spec.Ports)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "service port not found")
 
@@ -48,10 +48,10 @@ func getService(cs kubernetes.Interface, namespace string, name string) (*proxyS
 	ps.Port = port.Port
 
 	// Determine scheme - always use https for external
-	if port.Name == HTTPScheme {
-		ps.Scheme = HTTPScheme
+	if port.Name == HTTPSchemeName {
+		ps.Scheme = HTTPSchemeName
 	} else {
-		ps.Scheme = HTTPSScheme
+		ps.Scheme = HTTPSSchemeName
 	}
 
 	ps.URIPrefix = getServiceURLPrefix(ps, service)
@@ -59,17 +59,17 @@ func getService(cs kubernetes.Interface, namespace string, name string) (*proxyS
 	return ps, nil
 }
 
-// getPort - return the first port named "http" or "https".
+// GetPort - return the first port named "http" or "https".
 // Prefer "https" over "http" if both exist.
-func getPort(ports []corev1.ServicePort) (*corev1.ServicePort, error) {
+func GetPort(ports []corev1.ServicePort) (*corev1.ServicePort, error) {
 	for i, port := range ports {
-		if port.Name == HTTPSScheme {
+		if port.Name == HTTPSSchemeName {
 			return &ports[i], nil
 		}
 	}
 
 	for i, port := range ports {
-		if port.Name == HTTPScheme {
+		if port.Name == HTTPSchemeName {
 			return &ports[i], nil
 		}
 	}
@@ -77,7 +77,9 @@ func getPort(ports []corev1.ServicePort) (*corev1.ServicePort, error) {
 	return nil, fmt.Errorf("no port found with the name http or https")
 }
 
-// getServiceURLPrefix returns the prefix for the service URL.
+// getServiceURLPrefix generates a URL prefix for a Kubernetes service based on the provided proxyService and service
+// If the service is external, the function generates a URL prefix in the format <scheme>://<external-name>:<port>
+// Otherwise, the function generates a URL prefix in the format <scheme>://<service-name>.<namespace>:<port>.
 func getServiceURLPrefix(ps *proxyService, service *corev1.Service) string {
 	if ps.IsExternal {
 		return fmt.Sprintf("%s://%s:%d", ps.Scheme, service.Spec.ExternalName, ps.Port)

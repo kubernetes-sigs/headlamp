@@ -10,6 +10,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
+// HTTPGet sends an HTTP GET request to the specified URI.
 func HTTPGet(ctx context.Context, uri string) ([]byte, error) {
 	cli := &http.Client{Timeout: 10 * time.Second}
 

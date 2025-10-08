@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 )
 
-// RequestHandler - implementation of the service proxy handler.
+// RequestHandler is an HTTP handler that proxies requests to a Kubernetes service.
 func RequestHandler(kubeConfigStore kubeconfig.ContextStore, w http.ResponseWriter, r *http.Request) { //nolint:funlen
 	name := mux.Vars(r)["name"]
 	namespace := mux.Vars(r)["namespace"]
@@ -65,7 +65,7 @@ func RequestHandler(kubeConfigStore kubeconfig.ContextStore, w http.ResponseWrit
 	}
 
 	// Get the service
-	ps, err := getService(cs, namespace, name)
+	ps, err := GetService(cs, namespace, name)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "failed to get service")
 

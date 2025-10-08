@@ -15,14 +15,15 @@ type Connection struct {
 	URI string
 }
 
-// NewConnection creates a connection for a service.
+// NewConnection creates a new connection to a service based on the provided proxyService.
 func NewConnection(ps *proxyService) ServiceConnection {
 	return &Connection{
 		URI: ps.URIPrefix,
 	}
 }
 
-// Get - perform the get request.
+// Get sends a GET request to the specified URI.
+
 func (c *Connection) Get(requestURI string) ([]byte, error) {
 	base, err := url.Parse(c.URI)
 	if err != nil {
