@@ -183,7 +183,7 @@ export default function ClusterTable({
           header: t('Actions'),
           gridTemplate: 'min-content',
           muiTableBodyCellProps: {
-            align: 'center',
+            align: 'right',
           },
           accessorFn: cluster =>
             errors[cluster?.name] === null ? 'Active' : errors[cluster?.name]?.message,
