@@ -67,6 +67,38 @@ describe('themes.ts', () => {
 
       expect(theme.palette.navbar.searchHint).toBe('#123456');
     });
+
+    it('should allow secondary contrast text override from AppTheme', () => {
+      const theme = createMuiTheme({
+        base: 'light',
+        name: 'Custom Theme',
+        secondary: '#123456',
+        secondaryContrastText: '#ffffff',
+      });
+
+      expect(theme.palette.secondary.contrastText).toBe('#ffffff');
+    });
+
+    it('should allow secondary contrast text override for dark themes', () => {
+      const theme = createMuiTheme({
+        base: 'dark',
+        name: 'Custom Dark Theme',
+        secondary: '#123456',
+        secondaryContrastText: '#ffffff',
+      });
+
+      expect(theme.palette.secondary.contrastText).toBe('#ffffff');
+    });
+
+    it('should use black contrast text by default for custom secondary colors', () => {
+      const theme = createMuiTheme({
+        base: 'light',
+        name: 'Custom Theme',
+        secondary: '#123456',
+      });
+
+      expect(theme.palette.secondary.contrastText).toBe('#000');
+    });
   });
 
   describe('getThemeName', () => {
