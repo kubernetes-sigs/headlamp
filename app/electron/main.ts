@@ -128,9 +128,6 @@ const defaultPort = 4466;
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
 const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false';
-const manifestDir = isDev ? path.resolve('./') : process.resourcesPath;
-const manifestFile = path.join(manifestDir, 'app-build-manifest.json');
-const buildManifest = fs.existsSync(manifestFile) ? require(manifestFile) : {};
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
@@ -585,6 +582,18 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   if (!!args.kubeconfig) {
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);
   }
+
+  const manifestDir = isDev ? path.resolve('./') : process.resourcesPath;
+  const manifestFile = path.join(manifestDir, 'app-build-manifest.json');
+  let buildManifest: Record<string, any> = {};
+  try {
+    const manifestContent = await fsPromises.readFile(manifestFile, 'utf8');
+    buildManifest = JSON.parse(manifestContent);
+  } catch (err) {
+    // If the manifest doesn't exist or can't be read, fall back to empty object
+    buildManifest = {};
+  }
+
   const proxyUrls = !!buildManifest && buildManifest['proxy-urls'];
   if (!!proxyUrls && proxyUrls.length > 0) {
     serverArgs = serverArgs.concat(['--proxy-urls', proxyUrls.join(',')]);
@@ -603,8 +612,16 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   process.env.HEADLAMP_BACKEND_TOKEN = backendToken;
 
   // Set the bundled plugins in addition to the the user's plugins.
-  if (fs.existsSync(bundledPlugins) && fs.readdirSync(bundledPlugins).length !== 0) {
-    process.env.HEADLAMP_STATIC_PLUGINS_DIR = bundledPlugins;
+  try {
+    const stat = await fsPromises.stat(bundledPlugins);
+    if (stat.isDirectory()) {
+      const entries = await fsPromises.readdir(bundledPlugins);
+      if (entries.length !== 0) {
+        process.env.HEADLAMP_STATIC_PLUGINS_DIR = bundledPlugins;
+      }
+    }
+  } catch (err) {
+    // Directory doesn't exist or is not readable — ignore and continue.
   }
 
   serverArgs = serverArgs.concat(flags);
@@ -633,13 +650,18 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
  * Are we running inside WSL?
  * @returns true if we are running inside WSL.
  */
-function isWSL(): boolean {
+async function isWSL(): Promise<boolean> {
+  // Cheap platform check first to avoid reading /proc on non-Linux platforms.
+  if (platform() !== 'linux') {
+    return false;
+  }
+
   try {
-    const data = fs.readFileSync('/proc/version', {
+    const data = await fsPromises.readFile('/proc/version', {
       encoding: 'utf8',
-      flag: 'r',
     });
-    return data.indexOf('icrosoft') !== -1;
+    const lower = data.toLowerCase();
+    return lower.includes('microsoft') || lower.includes('wsl');
   } catch {
     return false;
   }
@@ -1081,10 +1103,11 @@ function saveZoomFactor(factor: number) {
   }
 }
 
-function loadZoomFactor() {
+async function loadZoomFactor(): Promise<number> {
   try {
-    const { zoomFactor = 1.0 } = JSON.parse(fs.readFileSync(ZOOM_FILE_PATH, 'utf-8'));
-    return zoomFactor;
+    const content = await fsPromises.readFile(ZOOM_FILE_PATH, 'utf-8');
+    const { zoomFactor = 1.0 } = JSON.parse(content);
+    return typeof zoomFactor === 'number' ? zoomFactor : 1.0;
   } catch (err) {
     console.error('Failed to load zoom factor, defaulting to 1.0:', err);
     return 1.0;
@@ -1119,7 +1142,7 @@ function startElecron() {
 
   console.log('Check for updates: ', shouldCheckForUpdates);
 
-  async function createWindow() {
+  async function startServerIfNeeded() {
     if (!useExternalServer) {
       serverProcess = await startServer();
       attachServerEventHandlers(serverProcess);
@@ -1207,9 +1230,11 @@ function startElecron() {
         }
       });
     }
+  }
 
+  async function createWindow() {
     // WSL has a problem with full size window placement, so make it smaller.
-    const withMargin = isWSL();
+    const withMargin = await isWSL();
     const { width, height } = windowSize(screen.getPrimaryDisplay().workAreaSize, withMargin);
 
     mainWindow = new BrowserWindow({
@@ -1250,9 +1275,11 @@ function startElecron() {
       }
     });
 
-    mainWindow.webContents.on('did-finish-load', () => {
-      const startZoom = loadZoomFactor();
-      setZoom(startZoom);
+    mainWindow.webContents.on('did-finish-load', async () => {
+      const startZoom = await loadZoomFactor();
+      if (startZoom !== 1.0) {
+        setZoom(startZoom);
+      }
     });
 
     mainWindow.webContents.on('dom-ready', () => {
@@ -1419,10 +1446,12 @@ function startElecron() {
     app.disableHardwareAcceleration();
   }
 
-  app.on('ready', createWindow);
-  app.on('activate', function () {
+  app.on('ready', async () => {
+    await Promise.all([startServerIfNeeded(), createWindow()]);
+  });
+  app.on('activate', async function () {
     if (mainWindow === null) {
-      createWindow();
+      await Promise.all([startServerIfNeeded(), createWindow()]);
     }
   });
 

@@ -39,6 +39,14 @@ class StorageClass extends KubeObject<KubeStorageClass> {
     return baseObject;
   }
 
+  get isDefault(): boolean {
+    const annotations = this.jsonData.metadata?.annotations;
+    if (annotations !== undefined) {
+      return annotations['storageclass.kubernetes.io/is-default-class'] === 'true';
+    }
+    return false;
+  }
+
   get provisioner() {
     return this.jsonData.provisioner;
   }

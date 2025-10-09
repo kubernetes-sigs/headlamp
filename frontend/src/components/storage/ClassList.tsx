@@ -37,6 +37,14 @@ export default function ClassList() {
           getValue: storageClass => storageClass.provisioner,
         },
         {
+          id: 'default',
+          label: t('Default'),
+          filterVariant: 'checkbox',
+          getValue: resource => String(resource?.isDefault ?? false),
+          render: (resource: StorageClass) => (resource && resource.isDefault ? t('Yes') : null),
+          gridTemplate: 'auto',
+        },
+        {
           id: 'reclaimPolicy',
           label: t('Reclaim Policy'),
           filterVariant: 'multi-select',

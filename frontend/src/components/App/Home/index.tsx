@@ -38,18 +38,23 @@ import RecentClusters from './RecentClusters';
 
 export default function Home() {
   const history = useHistory();
-  const clusters = useClustersConf() || {};
+  const clusters = useClustersConf();
 
-  if (!isElectron() && Object.keys(clusters).length === 1) {
+  if (!isElectron() && clusters && Object.keys(clusters).length === 1) {
     history.push(createRouteURL('cluster', { cluster: Object.keys(clusters)[0] }));
     return null;
   }
 
-  return <HomeComponent clusters={clusters} key={Object.keys(clusters).join('')} />;
+  return (
+    <HomeComponent
+      clusters={clusters}
+      key={'home-component-' + Object.keys(clusters || {}).join('')}
+    />
+  );
 }
 
 interface HomeComponentProps {
-  clusters: { [name: string]: Cluster };
+  clusters: { [name: string]: Cluster } | null;
 }
 
 function useWarningSettingsPerCluster(clusterNames: string[]) {
@@ -96,7 +101,7 @@ function HomeComponent(props: HomeComponentProps) {
     getCustomClusterNames(clusters)
   );
   const { t } = useTranslation(['translation', 'glossary']);
-  const [versions, errors] = useClustersVersion(Object.values(clusters));
+  const [versions, errors] = useClustersVersion(Object.values(clusters || {}));
   const warningLabels = useWarningSettingsPerCluster(
     Object.values(customNameClusters).map(c => c.name)
   );

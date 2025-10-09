@@ -42,6 +42,15 @@ const ourState = {
   resourceTable: {
     tableColumnsProcessors: [],
   },
+  clusterProvider: {
+    dialogs: {},
+    menuItems: [],
+    clusterProviders: [],
+    clusterStatuses: [],
+  },
+  drawerMode: {
+    isDetailDrawerEnabled: false,
+  },
 };
 
 // @todo: Add a way for the results from useClustersVersion to be mocked, so not
@@ -49,29 +58,50 @@ const ourState = {
 export default {
   title: 'Home/Home',
   component: Home,
-  decorators: [
-    Story => {
-      return (
-        <MemoryRouter>
-          <Provider
-            store={configureStore({
-              reducer: (state = ourState) => state,
-              preloadedState: ourState,
-            })}
-          >
-            <Story />
-          </Provider>
-        </MemoryRouter>
-      );
-    },
-  ],
-  parameters: {
-    storyshots: {
-      disable: true,
-    },
-  },
 } as Meta;
 
 const Template: StoryFn = () => <Home />;
 
 export const Base = Template.bind({});
+Base.decorators = [
+  Story => {
+    return (
+      <MemoryRouter>
+        <Provider
+          store={configureStore({
+            reducer: (state = ourState) => state,
+            preloadedState: ourState,
+          })}
+        >
+          <Story />
+        </Provider>
+      </MemoryRouter>
+    );
+  },
+];
+
+const loadingState = {
+  ...ourState,
+  config: {
+    ...ourState.config,
+    clusters: null as any,
+  },
+};
+
+export const LoadingClusters = Template.bind({});
+LoadingClusters.decorators = [
+  Story => {
+    return (
+      <MemoryRouter>
+        <Provider
+          store={configureStore({
+            reducer: (state = loadingState) => state,
+            preloadedState: loadingState,
+          })}
+        >
+          <Story />
+        </Provider>
+      </MemoryRouter>
+    );
+  },
+];

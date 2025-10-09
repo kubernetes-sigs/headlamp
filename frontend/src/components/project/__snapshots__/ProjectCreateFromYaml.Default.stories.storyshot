@@ -103,7 +103,7 @@
                   class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-19r8nsp-MuiFormControl-root-MuiTextField-root"
                 >
                   <label
-                    class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary Mui-required MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined css-10fydcw-MuiFormLabel-root-MuiInputLabel-root"
+                    class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary Mui-disabled Mui-required MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined css-10fydcw-MuiFormLabel-root-MuiInputLabel-root"
                     data-shrink="false"
                     for=":mock-test-id:"
                     id=":mock-test-id:"
@@ -118,7 +118,7 @@
                     </span>
                   </label>
                   <div
-                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary Mui-disabled MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
                   >
                     <input
                       aria-autocomplete="list"
@@ -126,7 +126,8 @@
                       aria-invalid="false"
                       autocapitalize="none"
                       autocomplete="off"
-                      class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                      class="MuiInputBase-input MuiOutlinedInput-input Mui-disabled MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                      disabled=""
                       id=":mock-test-id:"
                       required=""
                       role="combobox"
@@ -139,7 +140,8 @@
                     >
                       <button
                         aria-label="Open"
-                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-1aav1nn-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
+                        class="MuiButtonBase-root Mui-disabled MuiIconButton-root Mui-disabled MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-1aav1nn-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
+                        disabled=""
                         tabindex="-1"
                         title="Open"
                         type="button"
@@ -155,9 +157,6 @@
                             d="M7 10l5 5 5-5z"
                           />
                         </svg>
-                        <span
-                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                        />
                       </button>
                     </div>
                     <fieldset
