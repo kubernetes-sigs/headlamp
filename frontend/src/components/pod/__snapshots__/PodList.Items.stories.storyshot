@@ -1124,28 +1124,12 @@
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-lm23yi-MuiTableCell-root"
               >
-                <div
-                  class="MuiBox-root css-70qvj9"
-                >
-                  <span
-                    style="white-space: nowrap;"
-                  >
-                    16.32 m
-                  </span>
-                </div>
+                16m
               </td>
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-rrz0sj-MuiTableCell-root"
               >
-                <div
-                  class="MuiBox-root css-70qvj9"
-                >
-                  <span
-                    style="white-space: nowrap;"
-                  >
-                    46.4 Mi
-                  </span>
-                </div>
+                46Mi
               </td>
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-fe8q5p-MuiTableCell-root"
