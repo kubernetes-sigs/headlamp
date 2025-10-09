@@ -613,15 +613,11 @@ func verifyUser(h *Handler, req InstallRequest) bool {
 
 func (h *Handler) installRelease(req InstallRequest) {
 	installClient := action.NewInstall(h.Configuration)
-	*installClient = action.Install{
-		ChartPathOptions: action.ChartPathOptions{
-			Version: req.Version,
-		},
-		CreateNamespace: req.CreateNamespace,
-		Namespace:       req.Namespace,
-		ReleaseName:     req.Name,
-		Description:     req.Description,
-	}
+	installClient.ReleaseName = req.Name
+	installClient.Namespace = req.Namespace
+	installClient.Description = req.Description
+	installClient.CreateNamespace = req.CreateNamespace
+	installClient.ChartPathOptions.Version = req.Version
 
 	if !verifyUser(h, req) {
 		return
