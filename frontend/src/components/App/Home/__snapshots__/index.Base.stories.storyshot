@@ -215,7 +215,7 @@
                 </div>
               </div>
               <table
-                class="MuiTable-root css-ur2i6i-MuiTable-root"
+                class="MuiTable-root css-tvuahe-MuiTable-root"
               >
                 <thead
                   class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
@@ -549,9 +549,8 @@
                     </th>
                     <th
                       aria-sort="none"
-                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-s42nxi-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-113nv55-MuiTableCell-root"
                       colspan="1"
-                      data-can-sort="true"
                       data-index="-1"
                       scope="col"
                     >
@@ -559,41 +558,13 @@
                         class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
                       >
                         <div
-                          class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                          class="Mui-TableHeadCell-Content-Labels MuiBox-root css-1byo2ey"
                         >
                           <div
-                            class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-1sbs8jn"
-                          />
-                          <span
-                            aria-label="Sort by  descending"
-                            class="MuiBadge-root css-1c32n2y-MuiBadge-root"
-                            data-mui-internal-clone-element="true"
+                            class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
                           >
-                            <span
-                              aria-label="Sort by  descending"
-                              class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <svg
-                                aria-hidden="true"
-                                class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
-                                data-testid="SyncAltIcon"
-                                focusable="false"
-                                style="transform: rotate(-90deg) scaleX(0.9) translateX(-1px);"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  d="m18 12 4-4-4-4v3H3v2h15zM6 12l-4 4 4 4v-3h15v-2H6z"
-                                />
-                              </svg>
-                            </span>
-                            <span
-                              class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
-                            >
-                              0
-                            </span>
-                          </span>
+                            Actions
+                          </div>
                         </div>
                         <div
                           class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
@@ -687,7 +658,7 @@
                       ⋯
                     </td>
                     <td
-                      class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-11lhmpt-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
                     >
                       <button
                         aria-controls="context-menuid"
@@ -787,7 +758,7 @@
                       ⋯
                     </td>
                     <td
-                      class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-11lhmpt-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
                     >
                       <button
                         aria-controls="context-menuid"
@@ -887,7 +858,7 @@
                       ⋯
                     </td>
                     <td
-                      class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-11lhmpt-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
                     >
                       <button
                         aria-controls="context-menuid"
