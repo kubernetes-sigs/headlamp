@@ -72,6 +72,8 @@ export interface Activity {
   temporary?: boolean;
   /** Cluster of the launched activity */
   cluster?: string;
+  /** Whether this activity is pinned (won't close on click-outside) */
+  pinned?: boolean;
 }
 
 export interface ActivityState {
@@ -177,6 +179,21 @@ export const Activity = {
   /** Update existing activity with a partial changes */
   update(id: string, diff: Partial<Activity>) {
     store.dispatch(activitySlice.actions.update({ ...diff, id }));
+  },
+  /**
+   * Closes or minimizes activity based on pinned state
+   * - Pinned activities: minimized (kept in ActivityBar)
+   * - Regular activities: closed completely
+   */
+  closeOrMinimize(id: string) {
+    const state = store.getState();
+    const activity = state.activity.activities[id];
+
+    if (activity?.pinned) {
+      this.update(id, { minimized: true });
+    } else {
+      this.close(id);
+    }
   },
   reset() {
     store.dispatch(activitySlice.actions.reset());
@@ -334,6 +351,125 @@ export function SingleActivityRenderer({
       }
     };
   }, [location]);
+
+  // Close or minimize activity when clicking outside (only for split modes)
+  useEffect(() => {
+    if (isOverview || minimized || (location !== 'split-left' && location !== 'split-right')) {
+      return;
+    }
+
+    // Record when the listener is registered to ignore immediate clicks
+    const listenerRegistrationTime = Date.now();
+
+    const handleClickOutside = (event: MouseEvent) => {
+      // Ignore clicks that happened within 100ms of listener registration
+      // This prevents the click that opened the activity from closing it
+      if (event.timeStamp && Date.now() - listenerRegistrationTime < 100) {
+        return;
+      }
+
+      const activityElement = activityElementRef.current;
+      if (!activityElement) return;
+
+      // Check if click is outside the activity panel
+      if (!activityElement.contains(event.target as Node)) {
+        const target = event.target as HTMLElement;
+
+        // Don't close if clicking on:
+        // 1. Another activity panel (let that activity handle it)
+        const isAnotherActivity = !!target.closest('[role="complementary"]');
+
+        // 2. Resource links (let Link.tsx handle the transition)
+        const isResourceLink = target.closest('a[href*="/"], a[role="button"]');
+
+        // 3. ActivityBar (taskbar at the bottom)
+        const isInActivityBar = !!target.closest('[data-activity-bar="true"]');
+
+        // 4. Pagination buttons and table controls
+        const isPaginationButton = !!target.closest(
+          'button[aria-label*="page"], button[aria-label*="Page"], ' +
+            'button[title*="page"], button[title*="Page"], ' +
+            '.MuiPagination-root, .MuiPagination-root *, ' +
+            '[role="navigation"], [role="navigation"] *, ' +
+            'button[aria-label*="next"], button[aria-label*="previous"], ' +
+            'button[aria-label*="first"], button[aria-label*="last"]'
+        );
+
+        // 5. Table control buttons (sort, filter, search, etc.)
+        const isTableControl = !!target.closest(
+          // Table header and controls
+          'thead, thead *, ' +
+            '.MuiTableHead-root, .MuiTableHead-root *, ' +
+            // Sort buttons
+            'button[aria-label*="sort"], button[aria-label*="Sort"], ' +
+            '[role="columnheader"], [role="columnheader"] *, ' +
+            // Filter buttons and inputs
+            'button[aria-label*="filter"], button[aria-label*="Filter"], ' +
+            'button[title*="filter"], button[title*="Filter"], ' +
+            '[aria-label*="filter"], [aria-label*="Filter"], ' +
+            '[aria-label*="Namespace"], [aria-label*="namespace"], ' +
+            // Search inputs and toggle buttons
+            'input[type="search"], input[type="text"][placeholder*="Search"], ' +
+            'input[type="text"][placeholder*="search"], ' +
+            'input[type="text"][aria-label*="Search"], ' +
+            'input[type="text"][aria-label*="search"], ' +
+            'button[aria-label*="Search"], button[aria-label*="search"], ' +
+            'button[title*="Search"], button[title*="search"], ' +
+            // Show/Hide buttons (columns, search, etc.)
+            'button[aria-label*="show"], button[aria-label*="Show"], ' +
+            'button[aria-label*="hide"], button[aria-label*="Hide"], ' +
+            'button[title*="show"], button[title*="Show"], ' +
+            'button[title*="hide"], button[title*="Hide"], ' +
+            'button[aria-label*="column"], button[aria-label*="Column"], ' +
+            // MUI Select and Autocomplete components
+            '.MuiSelect-root, .MuiSelect-root *, ' +
+            '.MuiAutocomplete-root, .MuiAutocomplete-root *, ' +
+            '.MuiAutocomplete-popper, .MuiAutocomplete-popper *, ' +
+            '.MuiAutocomplete-listbox, .MuiAutocomplete-listbox *, ' +
+            '[role="combobox"], [role="combobox"] *, ' +
+            '[role="listbox"], [role="listbox"] *, ' +
+            '[role="option"], [role="option"] *, ' +
+            // MUI Input and FormControl
+            '.MuiInputBase-root, .MuiInputBase-root *, ' +
+            '.MuiFormControl-root, .MuiFormControl-root *, ' +
+            '.MuiOutlinedInput-root, .MuiOutlinedInput-root *, ' +
+            // MUI Table components
+            '.MuiTablePagination-root, .MuiTablePagination-root *, ' +
+            '.MuiTableSortLabel-root, .MuiTableSortLabel-root *, ' +
+            // Toolbar and action areas
+            '.MuiToolbar-root, .MuiToolbar-root *, ' +
+            '[role="toolbar"], [role="toolbar"] *, ' +
+            // Popover, Menu, Dialog (for filters, column selection, etc.)
+            '.MuiPopover-root, .MuiPopover-root *, ' +
+            '.MuiMenu-root, .MuiMenu-root *, ' +
+            '.MuiDialog-root, .MuiDialog-root *, ' +
+            '.MuiPaper-root[role="dialog"], .MuiPaper-root[role="dialog"] *, ' +
+            '[role="menu"], [role="menu"] *, ' +
+            '[role="dialog"], [role="dialog"] *, ' +
+            '[role="presentation"], [role="presentation"] *'
+        );
+
+        // If clicking UI controls or another activity panel, don't close
+        // Otherwise, close or minimize based on pinned state
+        if (
+          !isAnotherActivity &&
+          !isResourceLink &&
+          !isInActivityBar &&
+          !isPaginationButton &&
+          !isTableControl
+        ) {
+          Activity.closeOrMinimize(id);
+        }
+      }
+    };
+
+    // Add listener immediately (no delay)
+    document.addEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [id, isOverview, minimized, location, activity.pinned]);
 
   return (
     <ActivityContext.Provider value={activity}>
@@ -850,8 +986,16 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
     }
   });
 
+  // Close or minimize the last activity when ESC is pressed
+  useHotkeys('Escape', () => {
+    if (lastElement && !isOverview) {
+      Activity.closeOrMinimize(lastElement);
+    }
+  });
+
   return (
     <>
+      {/* Backdrop for overview mode */}
       <Box
         sx={{
           background: 'rgba(0,0,0,0.1)',
@@ -927,6 +1071,7 @@ export const ActivityBar = React.memo(function ({
 
   return (
     <Box
+      data-activity-bar="true"
       sx={theme => ({
         background: theme.palette.background.muted,
         borderTop: '1px solid',
@@ -1004,6 +1149,26 @@ export const ActivityBar = React.memo(function ({
               </Box>
             </Box>
           </Button>
+          <Tooltip title={it.pinned ? t('Unpin') : t('Pin')}>
+            <IconButton
+              size="small"
+              onClick={e => {
+                e.preventDefault();
+                e.stopPropagation();
+                Activity.update(it.id, { pinned: !it.pinned });
+              }}
+              sx={{
+                width: '42px',
+                height: '100%',
+                borderRadius: 1,
+                flexShrink: 0,
+                color: it.pinned ? 'primary.main' : undefined,
+              }}
+              aria-label={it.pinned ? t('Unpin') : t('Pin')}
+            >
+              <Icon icon={it.pinned ? 'mdi:pin' : 'mdi:pin-outline'} />
+            </IconButton>
+          </Tooltip>
           <IconButton
             size="small"
             onClick={e => {
