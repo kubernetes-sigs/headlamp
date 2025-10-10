@@ -840,12 +840,58 @@
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-gh78e9-MuiTableCell-root"
               >
-                10.96.0.100
+                <div
+                  class="MuiBox-root css-10we5a7"
+                >
+                  <span
+                    class="MuiBox-root css-0"
+                  >
+                    10.96.0.100
+                  </span>
+                  <span
+                    class="copy-button MuiBox-root css-18ri021"
+                  >
+                    <button
+                      aria-label="Copy to clipboard"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                      data-mui-internal-clone-element="true"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                  </span>
+                </div>
               </td>
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1ofzoa7-MuiTableCell-root"
               >
-                34.123.45.67
+                <div
+                  class="MuiBox-root css-10we5a7"
+                >
+                  <span
+                    class="MuiBox-root css-0"
+                  >
+                    34.123.45.67
+                  </span>
+                  <span
+                    class="copy-button MuiBox-root css-18ri021"
+                  >
+                    <button
+                      aria-label="Copy to clipboard"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                      data-mui-internal-clone-element="true"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                  </span>
+                </div>
               </td>
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-ccolv7-MuiTableCell-root"

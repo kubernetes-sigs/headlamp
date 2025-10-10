@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
 import { ResourceClasses } from '../../lib/k8s';
 import Endpoints, { KubeEndpoint } from '../../lib/k8s/endpoints';
+import CopyLabel from '../common/CopyLabel';
 import Empty from '../common/EmptyContent';
 import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
@@ -68,7 +69,12 @@ export default function EndpointDetails(props: {
                           columns={[
                             {
                               label: t('IP'),
-                              getter: address => address.ip,
+                              getter: address =>
+                                address.ip ? (
+                                  <CopyLabel textToCopy={address.ip}>{address.ip}</CopyLabel>
+                                ) : (
+                                  ''
+                                ),
                             },
                             {
                               label: t('Hostname'),
