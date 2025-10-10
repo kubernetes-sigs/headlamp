@@ -29,7 +29,8 @@
       "src/lib/util.ts",
       "src/lib/AppTheme.ts",
       "src/plugin/lib.ts",
-      "src/plugin/registry.tsx"
+      "src/plugin/registry.tsx",
+      "src/components/activity/Activity.tsx"
     ],
     "entryPointStrategy": "expand",
     "excludeExternals": true,

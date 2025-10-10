@@ -19,7 +19,8 @@ import { Meta, StoryFn } from '@storybook/react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import store from '../../redux/stores/store';
-import { ActivitiesRenderer, Activity, activitySlice } from './Activity';
+import { ActivitiesRenderer, Activity } from './Activity';
+import { activitySlice } from './activitySlice';
 
 export default {
   title: 'Activity',
