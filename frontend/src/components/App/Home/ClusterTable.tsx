@@ -180,7 +180,8 @@ export default function ClusterTable({
         },
         {
           id: 'actions',
-          header: '',
+          header: t('Actions'),
+          gridTemplate: 'min-content',
           muiTableBodyCellProps: {
             align: 'right',
           },
@@ -189,6 +190,8 @@ export default function ClusterTable({
           Cell: ({ row: { original: cluster } }) => {
             return <ClusterContextMenu cluster={cluster} />;
           },
+          enableSorting: false,
+          enableColumnFilter: false,
         },
       ]}
       data={Object.values(customNameClusters)}
