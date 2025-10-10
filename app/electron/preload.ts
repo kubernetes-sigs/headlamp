@@ -57,4 +57,15 @@ contextBridge.exposeInMainWorld('desktopApi', {
   removeListener: (channel: string, func: (...args: unknown[]) => void) => {
     ipcRenderer.removeListener(channel, func);
   },
+
+  // MCP client APIs
+  mcp: {
+    getTools: () => ipcRenderer.invoke('mcp-get-tools'),
+    executeTool: (toolName: string, args: Record<string, any>, toolCallId?: string) =>
+      ipcRenderer.invoke('mcp-execute-tool', { toolName, args, toolCallId }),
+    getStatus: () => ipcRenderer.invoke('mcp-get-status'),
+    resetClient: () => ipcRenderer.invoke('mcp-reset-client'),
+    getConfig: () => ipcRenderer.invoke('mcp-get-config'),
+    updateConfig: (config: any) => ipcRenderer.invoke('mcp-update-config', config),
+  },
 });
