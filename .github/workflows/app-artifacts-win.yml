@@ -1,4 +1,8 @@
-name: Build and upload Windows app artifact
+name: Build and upload Windows app ar        cache: npm
+        cache-dependency-path: |
+          headlamp/package-lock.json
+          headlamp/app/package-lock.json
+          headlamp/frontend/package-lock.jsonct
 
 on:
   workflow_dispatch:
@@ -44,10 +48,6 @@ jobs:
         go-version: '1.24.*'
         cache-dependency-path: |
           headlamp/backend/go.sum
-    - name: Dependencies
-      uses: crazy-max/ghaction-chocolatey@e80bd39bb49cae70b67ea53d52d00833a7255c21 # v1.7.0
-      with:
-        args: install make
     - name: Azure login
       if: ${{ inputs.signBinaries }}
       uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
@@ -86,7 +86,7 @@ jobs:
         } else {
           echo "Not signing binaries"
         }
-        make app-win
+        npm run app:package:win
 
     - name: Upload artifact
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
