@@ -202,9 +202,6 @@ spec:
             {{- if .Values.config.inCluster }}
             - "-in-cluster"
             {{- end }}
-            {{- with .Values.config.enableHelm}}
-            - "-enable-helm"
-            {{- end }}
             {{- if .Values.config.watchPlugins }}
             - "-watch-plugins-changes"
             {{- end }}
