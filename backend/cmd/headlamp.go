@@ -262,6 +262,17 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 
 	r.PathPrefix("/plugins/").Handler(pluginHandler)
 
+	// Serve dev-plugins
+	devPluginDir := filepath.Join(filepath.Dir(config.PluginDir), "dev-plugins")
+	if _, err := os.Stat(devPluginDir); err == nil {
+		devPluginHandler := http.StripPrefix(config.BaseURL+"/dev-plugins/", http.FileServer(http.Dir(devPluginDir)))
+		if !config.UseInCluster {
+			devPluginHandler = serveWithNoCacheHeader(devPluginHandler)
+		}
+
+		r.PathPrefix("/dev-plugins/").Handler(devPluginHandler)
+	}
+
 	if config.StaticPluginDir != "" {
 		staticPluginsHandler := http.StripPrefix(config.BaseURL+"/static-plugins/",
 			http.FileServer(http.Dir(config.StaticPluginDir)))
