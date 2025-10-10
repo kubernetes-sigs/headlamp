@@ -36,6 +36,7 @@ import { setStatelessConfig } from '../../redux/configSlice';
 import { DialogTitle } from '../common/Dialog';
 import { DropZoneBox } from '../common/DropZoneBox';
 import Loader from '../common/Loader';
+import { TutorialToolTip } from '../common/Tutorial/TutorialToolTip';
 import { ClusterDialog } from './Chooser';
 
 interface Cluster {
@@ -226,6 +227,13 @@ function KubeConfigLoader() {
     }
   }
 
+  const buttonText = (
+    <TutorialToolTip
+      context="LoadDemoKubeConfig"
+      labelText={t('translation|Load example KubeConfig')}
+    />
+  );
+
   function renderSwitch() {
     switch (state) {
       case Step.LoadKubeConfig:
@@ -246,6 +254,16 @@ function KubeConfigLoader() {
                     {t('translation|Choose file')}
                   </Button>
                 </Tooltip>
+
+                {/* clean later: button for demo */}
+                <Button
+                  // variant="contained"
+                  sx={{
+                    marginTop: 2,
+                  }}
+                >
+                  {buttonText}
+                </Button>
               </FormControl>
             </DropZoneBox>
             <Box style={{ display: 'flex', justifyContent: 'center' }}>

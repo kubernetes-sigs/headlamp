@@ -26,7 +26,7 @@ export type ButtonStyle = 'action' | 'menu';
 
 export interface ActionButtonProps {
   /** A short description of the action. */
-  description: string;
+  description: string | React.ReactNode;
   /** Either a string icon, or imported icon. */
   icon: string | IconifyIcon;
   /** The action when it's activated. */
