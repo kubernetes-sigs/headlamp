@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import { useTheme } from '@mui/material/styles';
@@ -262,6 +263,10 @@ export default function Table<RowItem extends Record<string, any>>({
     enableColumnActions: false,
     localization: tableLocalizationMap[i18n.language],
     autoResetAll: false,
+    icons: {
+      ...tableProps.icons,
+      MoreHorizIcon: MoreVertIcon,
+    },
     onPaginationChange: (updater: any) => {
       if (!tableProps.data?.length) return;
       const pagination = updater({ pageIndex: Number(page) - 1, pageSize: Number(pageSize) });
