@@ -18,9 +18,9 @@ import { Icon, InlineIcon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import MuiLink from '@mui/material/Link';
+import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
-import { useTheme } from '@mui/system';
 import { useSnackbar } from 'notistack';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -40,7 +40,7 @@ import {
   PORT_FORWARDS_STORAGE_KEY,
 } from '../common/Resource/PortForward';
 import SectionBox from '../common/SectionBox';
-import SimpleTable from '../common/SimpleTable';
+import Table from '../common/Table';
 
 const enum PortForwardAction {
   Start = 'Start',
@@ -50,8 +50,6 @@ const enum PortForwardAction {
 
 export default function PortForwardingList() {
   const [portforwards, setPortForwards] = React.useState<any[]>([]);
-  const theme = useTheme();
-  const [anchorEl, setAnchorEl] = React.useState(null);
   const [portForwardInAction, setPortForwardInAction] = React.useState<any>(null);
   const { enqueueSnackbar } = useSnackbar();
   const cluster = getCluster();
@@ -116,27 +114,21 @@ export default function PortForwardingList() {
     fetchPortForwardList();
   }, []);
 
-  const handleClick = (event: any, portforward: any) => {
-    setPortForwardInAction(portforward);
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = (option: string) => {
-    setAnchorEl(null);
+  const handleAction = (option: string, portforward: any, closeMenu: () => void) => {
+    closeMenu();
     if (!option || typeof option !== 'string') {
       return;
     }
 
     const { id, namespace, cluster, port, targetPort, pod, service, serviceNamespace } =
-      portForwardInAction;
+      portforward;
 
     let address = 'localhost';
     if (isDockerDesktop()) {
       address = '0.0.0.0';
     }
 
-    portForwardInAction.loading = true;
-    setPortForwardInAction(portForwardInAction);
+    setPortForwardInAction({ ...portforward, loading: true });
     if (option === PortForwardAction.Start) {
       // start portforward
       startPortForward(
@@ -151,21 +143,19 @@ export default function PortForwardingList() {
         id
       )
         .then(() => {
-          portForwardInAction.loading = false;
-          setPortForwardInAction(portForwardInAction);
+          setPortForwardInAction(null);
           // update portforward list item
           fetchPortForwardList(true);
         })
         .catch(error => {
-          portForwardInAction.loading = false;
+          setPortForwardInAction(null);
           console.log('Error starting port forward:', error);
         });
     }
     if (option === PortForwardAction.Stop) {
       // stop portforward
       stopOrDeletePortForward(cluster, id, true).finally(() => {
-        portForwardInAction.loading = false;
-        setPortForwardInAction(portForwardInAction);
+        setPortForwardInAction(null);
         // update portforward list item
         fetchPortForwardList(true);
       });
@@ -173,8 +163,7 @@ export default function PortForwardingList() {
     if (option === PortForwardAction.Delete) {
       // delete portforward
       stopOrDeletePortForward(cluster, id, false).finally(() => {
-        portForwardInAction.loading = false;
-        setPortForwardInAction(portForwardInAction);
+        setPortForwardInAction(null);
 
         // remove portforward from storage too
         const portforwardInStorage = localStorage.getItem(PORT_FORWARDS_STORAGE_KEY);
@@ -189,6 +178,48 @@ export default function PortForwardingList() {
         fetchPortForwardList(true);
       });
     }
+  };
+
+  const PortForwardContextMenu = ({ portforward }: { portforward: any }) => {
+    const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+    const menuId = `pf-actions-${portforward.id}`;
+
+    const filteredOptions = options.filter(option => {
+      if (portforward.error) {
+        return option === PortForwardAction.Delete;
+      }
+      if (portforward.status === PORT_FORWARD_RUNNING_STATUS) {
+        return option !== PortForwardAction.Start;
+      } else if (portforward.status === PORT_FORWARD_STOP_STATUS) {
+        return option !== PortForwardAction.Stop;
+      }
+      return true;
+    });
+
+    function closeMenu() {
+      setAnchorEl(null);
+    }
+
+    return (
+      <>
+        <IconButton
+          size="small"
+          onClick={event => setAnchorEl(event.currentTarget)}
+          aria-haspopup="menu"
+          aria-controls={menuId}
+          aria-label={t('Actions')}
+        >
+          <Icon icon="mdi:more-vert" />
+        </IconButton>
+        <Menu id={menuId} anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={closeMenu}>
+          {filteredOptions.map(option => (
+            <MenuItem key={option} onClick={() => handleAction(option, portforward, closeMenu)}>
+              <ListItemText>{optionsTranslated[option]}</ListItemText>
+            </MenuItem>
+          ))}
+        </Menu>
+      </>
+    );
   };
 
   function prepareStatusLabel(portforward: any) {
@@ -208,11 +239,14 @@ export default function PortForwardingList() {
 
   return (
     <SectionBox title={t('glossary|Port Forwarding')}>
-      <SimpleTable
+      <Table
         columns={[
           {
-            label: t('translation|Name'),
-            getter: portforward => {
+            id: 'name',
+            header: t('translation|Name'),
+            accessorFn: portforward => portforward.service || portforward.pod,
+            Cell: ({ row }) => {
+              const portforward = row.original;
               const podOrService = portforward.service ? 'service' : 'pod';
               const name = portforward.service || portforward.pod;
               const namespace = portforward.serviceNamespace || portforward.namespace;
@@ -224,26 +258,26 @@ export default function PortForwardingList() {
             },
           },
           {
-            label: t('glossary|Namespace'),
-            getter: portforward => {
-              return portforward.serviceNamespace || portforward.namespace;
-            },
+            id: 'namespace',
+            header: t('glossary|Namespace'),
+            accessorFn: portforward => portforward.serviceNamespace || portforward.namespace,
           },
           {
-            label: t('glossary|Kind'),
-            getter: portforward => {
-              return !!portforward.service ? 'Service' : 'Pod';
-            },
+            id: 'kind',
+            header: t('glossary|Kind'),
+            accessorFn: portforward => (!!portforward.service ? 'Service' : 'Pod'),
           },
           {
-            label: t('translation|Pod Port'),
-            getter: portforward => {
-              return portforward.targetPort;
-            },
+            id: 'podPort',
+            header: t('translation|Pod Port'),
+            accessorFn: portforward => portforward.targetPort,
           },
           {
-            label: t('translation|Local Port'),
-            getter: portforward => {
+            id: 'localPort',
+            header: t('translation|Local Port'),
+            accessorFn: portforward => portforward.port,
+            Cell: ({ row }) => {
+              const portforward = row.original;
               return (
                 <Box display={'flex'} alignItems="center">
                   <MuiLink
@@ -263,56 +297,31 @@ export default function PortForwardingList() {
                     }
                   >
                     {portforward.port}
-                    <InlineIcon
-                      icon={'mdi:open-in-new'}
-                      style={{ marginLeft: theme.spacing(0.5) }}
-                    />
+                    <InlineIcon icon={'mdi:open-in-new'} style={{ marginLeft: '4px' }} />
                   </MuiLink>
                 </Box>
               );
             },
           },
           {
-            label: t('translation|Status'),
-            getter: portforward => {
-              return prepareStatusLabel(portforward);
-            },
+            id: 'status',
+            header: t('translation|Status'),
+            accessorFn: portforward => portforward.status,
+            Cell: ({ row }) => prepareStatusLabel(row.original),
           },
           {
-            label: t('translation|Actions'),
-            getter: portforward => {
-              const filteredOptions = options.filter(option => {
-                if (portForwardInAction?.error) {
-                  return option === PortForwardAction.Delete;
-                }
-                if (portForwardInAction?.status === PORT_FORWARD_RUNNING_STATUS) {
-                  return option !== PortForwardAction.Start;
-                } else if (portForwardInAction?.status === PORT_FORWARD_STOP_STATUS) {
-                  return option !== PortForwardAction.Stop;
-                }
-              });
-              return (
-                <>
-                  <IconButton
-                    aria-label={t('translation|More')}
-                    onClick={e => handleClick(e, portforward)}
-                    size="medium"
-                  >
-                    <Icon icon={'mdi:dots-vertical'} />
-                  </IconButton>
-                  <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
-                    {filteredOptions.map(option => (
-                      <MenuItem onClick={() => handleClose(option)}>
-                        {optionsTranslated[option]}
-                      </MenuItem>
-                    ))}
-                  </Menu>
-                </>
-              );
-            },
+            id: 'actions',
+            header: t('translation|Actions'),
+            gridTemplate: 'min-content',
+            muiTableBodyCellProps: { align: 'right' },
+            accessorFn: portforward => portforward.status,
+            Cell: ({ row }) => <PortForwardContextMenu portforward={row.original} />,
+            enableSorting: false,
+            enableColumnFilter: false,
           },
         ]}
         data={portforwards.filter((pf: any) => pf.cluster === cluster)}
+        getRowId={row => row.id}
       />
     </SectionBox>
   );
