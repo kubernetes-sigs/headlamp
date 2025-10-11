@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { PropsWithChildren, ReactElement, ReactNode } from 'react';
+import { PropsWithChildren, ReactElement, ReactNode } from 'react';
 import { KubeObject, KubeObjectClass } from '../../../lib/k8s/KubeObject';
 import { BackLinkProps } from '../BackLink';
 import { CreateResourceButton } from '../CreateResourceButton';
