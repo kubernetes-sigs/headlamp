@@ -186,6 +186,13 @@ jobs:
         else
           echo "Playwright tests passed successfully"
         fi
+    - name: Clean up Playwright browsers to free disk space
+      if: steps.cache-image-restore.outputs.cache-hit != 'true'
+      run: |
+        echo "Removing Playwright browsers to free up disk space..."
+        npx playwright uninstall --all
+        # Also clean up playwright cache directory
+        rm -rf ~/.cache/ms-playwright
     - name: Save Docker Images to Tar files in image-cache Folder
       if: steps.cache-image-restore.outputs.cache-hit != 'true'
       run: |
