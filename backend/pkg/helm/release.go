@@ -582,7 +582,7 @@ func (h *Handler) getChart(
 
 // Verify the user has minimal privileges by performing a whoami check.
 // This prevents spurious downloads by ensuring basic authentication before proceeding.
-func verifyUser(h *Handler, req InstallRequest) bool {
+func VerifyUser(h *Handler, req InstallRequest) bool {
 	restConfig, err := h.Configuration.RESTClientGetter.ToRESTConfig()
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name}, err, "getting chart")
@@ -619,7 +619,7 @@ func (h *Handler) installRelease(req InstallRequest) {
 	installClient.CreateNamespace = req.CreateNamespace
 	installClient.ChartPathOptions.Version = req.Version
 
-	if !verifyUser(h, req) {
+	if !VerifyUser(h, req) {
 		return
 	}
 

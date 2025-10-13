@@ -1,6 +1,7 @@
 package serviceproxy //nolint
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -41,23 +42,74 @@ func TestNewConnection(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
+	tests := []struct {
+		name       string
+		uri        string
+		requestURI string
+		wantBody   []byte
+		wantErr    bool
+	}{
+		{
+			name:       "valid request",
+			uri:        "http://example.com",
+			requestURI: "/test",
+			wantBody:   []byte("Hello, World!"),
+			wantErr:    false,
+		},
+		{
+			name:       "invalid URI",
+			uri:        " invalid-uri",
+			requestURI: "/test",
+			wantBody:   nil,
+			wantErr:    true,
+		},
+		{
+			name:       "invalid request URI",
+			uri:        "http://example.com",
+			requestURI: " invalid-request-uri",
+			wantBody:   nil,
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conn := &Connection{URI: tt.uri}
+
+			if tt.wantBody != nil {
+				ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					_, err := w.Write(tt.wantBody)
+					if err != nil {
+						t.Fatal(err)
+					}
+				}))
+				defer ts.Close()
+
+				conn.URI = ts.URL
+			}
+
+			body, err := conn.Get(tt.requestURI)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Get() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if !tt.wantErr && !bytes.Equal(body, tt.wantBody) {
+				t.Errorf("Get() body = %s, want %s", body, tt.wantBody)
+			}
+		})
+	}
+}
+
+func TestGetNonOKStatusCode(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, err := w.Write([]byte("Hello, World!")); err != nil {
-			t.Fatalf("write test: %v", err)
-		}
+		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer ts.Close()
 
-	// Create a connection to the test server
-	conn := NewConnection(&proxyService{URIPrefix: ts.URL})
+	conn := &Connection{URI: ts.URL}
 
-	// Test Get()
-	resp, err := conn.Get("/test")
-	if err != nil {
-		t.Errorf("Get() error = %v", err)
-	}
-
-	if string(resp) != "Hello, World!" {
-		t.Errorf("Get() response = %s, want Hello, World!", resp)
+	_, err := conn.Get("/test")
+	if err == nil {
+		t.Errorf("Get() error = nil, want error")
 	}
 }

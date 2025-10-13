@@ -1153,7 +1153,8 @@ func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 	router.HandleFunc("/clusters/{clusterName}/serviceproxy/{namespace}/{name}",
 		func(w http.ResponseWriter, r *http.Request) {
 			serviceproxy.RequestHandler(c.KubeConfigStore, w, r)
-		}).Queries("request", "{request}")
+		}).Queries("request", "{request}").
+		Methods("GET")
 }
 
 //nolint:funlen

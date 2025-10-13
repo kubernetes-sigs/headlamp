@@ -33,6 +33,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/action"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -250,4 +254,66 @@ func TestUninstallRelease(t *testing.T) {
 	require.Equal(t, http.StatusAccepted, rr.Code)
 
 	pingStatusTillSuccess(t, "uninstall", "helm-test-asdf", helmHandler.Cache)
+}
+
+type staticRESTGetter struct{ cfg *rest.Config }
+
+var _ genericclioptions.RESTClientGetter = (*staticRESTGetter)(nil)
+
+func (s *staticRESTGetter) ToRESTConfig() (*rest.Config, error) {
+	return s.cfg, nil
+}
+
+func (s *staticRESTGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
+	return nil, nil
+}
+
+func (s *staticRESTGetter) ToRESTMapper() (meta.RESTMapper, error) {
+	return nil, nil
+}
+
+func (s *staticRESTGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
+	return nil
+}
+
+func TestVerifyUser(t *testing.T) {
+	helmHandler := newHelmHandler(t)
+
+	tests := []struct {
+		name       string
+		req        helm.InstallRequest
+		wantResult bool
+	}{
+		{
+			name: "valid user",
+			req: helm.InstallRequest{
+				CommonInstallUpdateRequest: helm.CommonInstallUpdateRequest{
+					Name: "test-release",
+				},
+			},
+			wantResult: true,
+		},
+		{
+			name: "invalid user",
+			req: helm.InstallRequest{
+				CommonInstallUpdateRequest: helm.CommonInstallUpdateRequest{
+					Name: "test-release",
+				},
+			},
+			wantResult: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !tt.wantResult {
+				helmHandler.Configuration.RESTClientGetter = &staticRESTGetter{
+					cfg: &rest.Config{Host: ""}, // invalid/empty host triggers failure
+				}
+			}
+
+			result := helm.VerifyUser(helmHandler, tt.req)
+			assert.Equal(t, result, tt.wantResult)
+		})
+	}
 }
