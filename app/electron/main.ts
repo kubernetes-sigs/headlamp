@@ -1249,6 +1249,9 @@ function startElecron() {
       },
     });
 
+    // Set the main window reference in the MCP client for dialogs
+    mcpClient.setMainWindow(mainWindow);
+
     // Load the frontend
     mainWindow.loadURL(startUrl);
 
@@ -1464,6 +1467,10 @@ function startElecron() {
     i18n.off('languageChanged');
     if (mainWindow) {
       mainWindow.removeAllListeners('close');
+    }
+    // Cleanup MCP client
+    if (mcpClient) {
+      mcpClient.cleanup().catch(console.error);
     }
     // Cleanup MCP client
     if (mcpClient) {
