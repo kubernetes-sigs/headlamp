@@ -49,6 +49,17 @@ export default function DeploymentsList() {
       return null;
     }
 
+    function renderStatus(c: any) {
+      const type = c.type?.toLowerCase();
+      const status = String(c.status)?.toLowerCase();
+
+      if (!type || !status) {
+        return '';
+      }
+
+      return status === 'true' ? 'success' : status === 'false' ? 'warning' : 'error';
+    }
+
     return conditions
       .sort((c1: any, c2: any) => {
         if (c1.type < c2.type) {
@@ -63,7 +74,7 @@ export default function DeploymentsList() {
         const { type, message } = condition;
         return (
           <Box display="inline-block">
-            <StatusLabel status="">
+            <StatusLabel status={renderStatus(condition)}>
               <span title={message} key={type}>
                 {type}
               </span>
