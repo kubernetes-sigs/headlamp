@@ -19,8 +19,10 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -48,6 +50,11 @@ func main() {
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "fetching config:%v")
 		os.Exit(1)
+	}
+
+	if conf.Version {
+		fmt.Printf("%s %s (%s/%s)\n", kubeconfig.AppName, kubeconfig.Version, runtime.GOOS, runtime.GOARCH)
+		return
 	}
 
 	headlampConfig := createHeadlampConfig(conf)

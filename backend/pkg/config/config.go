@@ -21,6 +21,7 @@ import (
 const defaultPort = 4466
 
 type Config struct {
+	Version                   bool   `koanf:"version"`
 	InCluster                 bool   `koanf:"in-cluster"`
 	DevMode                   bool   `koanf:"dev"`
 	InsecureSsl               bool   `koanf:"insecure-ssl"`
@@ -319,6 +320,7 @@ func DefaultHeadlampKubeConfigFile() (string, error) {
 func flagset() *flag.FlagSet {
 	f := flag.NewFlagSet("config", flag.ContinueOnError)
 
+	f.Bool("version", false, "Print version information and exit")
 	f.Bool("in-cluster", false, "Set when running from a k8s cluster")
 	f.Bool("dev", false, "Allow connections from other origins")
 	f.Bool("cache-enabled", false, "K8s cache in backend")
