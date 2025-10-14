@@ -25,6 +25,16 @@ import (
 	"k8s.io/client-go/transport"
 )
 
+var (
+	Version = "unknown"
+	AppName = "Headlamp"
+)
+
+// buildUserAgent creates a User-Agent string for Headlamp
+func buildUserAgent() string {
+	return fmt.Sprintf("%s %s (%s/%s)", AppName, Version, runtime.GOOS, runtime.GOARCH)
+}
+
 // TODO: Use a different way to avoid name clashes with other clusters.
 const InClusterContextName = "main"
 

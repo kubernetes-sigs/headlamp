@@ -12,8 +12,13 @@ DOCKER_IMAGE_VERSION ?= $(shell git describe --tags --always --dirty)
 DOCKER_PLATFORM ?= local
 DOCKER_PUSH ?= false
 EMBED_BINARY_NAME := headlamp_app
+# Get version and app name from app/package.json
+APP_VERSION ?= $(shell node -p "require('./app/package.json').version" 2>/dev/null || echo "unknown")
+APP_NAME ?= $(shell node -p "require('./app/package.json').productName" 2>/dev/null || echo "Headlamp")
+# Build flags with version and app name
+BUILD_VERSION_FLAGS := -ldflags="-X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'"
 # embed build flags
-EMBED_BUILD_FLAGS := -trimpath -ldflags="-s -w" -tags embed
+EMBED_BUILD_FLAGS := -trimpath -ldflags="-s -w -X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'" -tags embed
 
 ifeq ($(OS), Windows_NT)
 	SERVER_EXE_EXT = .exe
@@ -67,7 +72,7 @@ app-tsc:
 
 .PHONY: backend
 backend:
-	cd backend && go build -o ./headlamp-server${SERVER_EXE_EXT} ./cmd
+	cd backend && go build $(BUILD_VERSION_FLAGS) -o ./headlamp-server${SERVER_EXE_EXT} ./cmd
 
 .PHONY: backend-embed
 backend-embed:
