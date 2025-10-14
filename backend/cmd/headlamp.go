@@ -1307,7 +1307,13 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 
 		r.Host = clusterURL.Host
 		r.Header.Set("X-Forwarded-Host", r.Host)
-		r.Header.Del("User-Agent")
+
+		// Remove User-Agent for WebSocket connections to avoid potential issues with some K8s API servers
+		// For regular HTTP requests, User-Agent is set by the transport layer (userAgentRoundTripper)
+		if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+			r.Header.Del("User-Agent")
+		}
+
 		r.URL.Host = clusterURL.Host
 		r.URL.Path = mux.Vars(r)["api"]
 		r.URL.Scheme = clusterURL.Scheme
