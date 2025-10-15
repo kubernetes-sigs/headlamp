@@ -196,6 +196,26 @@ export function NetworkPolicyDetails(props: {
                     );
                   }),
                 },
+                {
+                  name: t('namespaceSelector'),
+                  value: item.to?.map(to => {
+                    if (!to.namespaceSelector) {
+                      return <></>;
+                    }
+                    const { matchLabels = {}, matchExpressions = [] } = to.namespaceSelector || {};
+                    return prepareMatchLabelsAndExpressions(matchLabels, matchExpressions);
+                  }),
+                },
+                {
+                  name: t('podSelector'),
+                  value: item.to?.map(to => {
+                    if (!to.podSelector) {
+                      return <></>;
+                    }
+                    const { matchLabels = {}, matchExpressions = [] } = to.podSelector || {};
+                    return prepareMatchLabelsAndExpressions(matchLabels, matchExpressions);
+                  }),
+                },
               ]}
             />
           </SectionBox>
