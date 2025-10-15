@@ -359,6 +359,7 @@ func flagset() *flag.FlagSet {
 	// TLS flags
 	f.String("tls-cert-path", "", "Certificate for serving TLS")
 	f.String("tls-key-path", "", "Key for serving TLS")
+	f.Bool("enable-helm", false, "Enable Helm operations")
 
 	return f
 }
