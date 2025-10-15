@@ -175,49 +175,55 @@ export function NetworkPolicyDetails(props: {
                     <Port key={index} port={port} />
                   )),
                 },
-                {
-                  name: t('translation|To'),
-                  value: '',
-                },
-                {
-                  name: t('ipBlock'),
-                  value: item.to?.map(to => {
-                    const { cidr, except = [] } = to.ipBlock || {};
-                    if (!cidr) {
-                      return <></>;
-                    }
-                    if (cidr && except.length === 0) {
-                      return <>{`cidr: ${cidr}`}</>;
-                    }
-                    return (
-                      <>{`cidr: ${cidr}, ${t('except: {{ cidrExceptions }}', {
-                        cidrExceptions: except.join(', '),
-                      })}`}</>
-                    );
-                  }),
-                },
-                {
-                  name: t('namespaceSelector'),
-                  value: item.to?.map(to => {
-                    if (!to.namespaceSelector) {
-                      return <></>;
-                    }
-                    const { matchLabels = {}, matchExpressions = [] } = to.namespaceSelector || {};
-                    return prepareMatchLabelsAndExpressions(matchLabels, matchExpressions);
-                  }),
-                },
-                {
-                  name: t('podSelector'),
-                  value: item.to?.map(to => {
-                    if (!to.podSelector) {
-                      return <></>;
-                    }
-                    const { matchLabels = {}, matchExpressions = [] } = to.podSelector || {};
-                    return prepareMatchLabelsAndExpressions(matchLabels, matchExpressions);
-                  }),
-                },
               ]}
             />
+            {item.to && item.to.length > 0 && (
+              <Box sx={{ mt: 2 }}>
+                <Typography sx={{ fontWeight: 600, mb: 1 }}>{t('translation|To')}</Typography>
+                <NameValueTable
+                  rows={[
+                    {
+                      name: t('ipBlock'),
+                      value: item.to?.map(to => {
+                        const { cidr, except = [] } = to.ipBlock || {};
+                        if (!cidr) {
+                          return <></>;
+                        }
+                        if (cidr && except.length === 0) {
+                          return <>{`cidr: ${cidr}`}</>;
+                        }
+                        return (
+                          <>{`cidr: ${cidr}, ${t('except: {{ cidrExceptions }}', {
+                            cidrExceptions: except.join(', '),
+                          })}`}</>
+                        );
+                      }),
+                    },
+                    {
+                      name: t('namespaceSelector'),
+                      value: item.to?.map(to => {
+                        if (!to.namespaceSelector) {
+                          return <></>;
+                        }
+                        const { matchLabels = {}, matchExpressions = [] } =
+                          to.namespaceSelector || {};
+                        return prepareMatchLabelsAndExpressions(matchLabels, matchExpressions);
+                      }),
+                    },
+                    {
+                      name: t('podSelector'),
+                      value: item.to?.map(to => {
+                        if (!to.podSelector) {
+                          return <></>;
+                        }
+                        const { matchLabels = {}, matchExpressions = [] } = to.podSelector || {};
+                        return prepareMatchLabelsAndExpressions(matchLabels, matchExpressions);
+                      }),
+                    },
+                  ]}
+                />
+              </Box>
+            )}
           </SectionBox>
         ))}
       </>
