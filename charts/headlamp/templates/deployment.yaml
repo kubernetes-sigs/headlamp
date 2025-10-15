@@ -394,6 +394,9 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- if or .Values.pluginsManager.enabled .Values.volumes }}
       volumes:
         {{- if .Values.pluginsManager.enabled }}
