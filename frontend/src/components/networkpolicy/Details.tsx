@@ -70,6 +70,26 @@ export function NetworkPolicyDetails(props: {
     );
   }
 
+  function Port(props: { port: NetworkPolicyPort }) {
+    const { port } = props;
+    const { port: portValue, endPort, protocol } = port;
+    const hasRange =
+      typeof portValue === 'number' && typeof endPort === 'number' && endPort !== portValue;
+    const basePort = portValue ?? endPort;
+
+    if (basePort === undefined && !protocol) {
+      return null;
+    }
+
+    return (
+      <Box>
+        {protocol ? `${protocol}:` : ''}
+        {basePort}
+        {hasRange ? `:${endPort}` : ''}
+      </Box>
+    );
+  }
+
   function Ingress(props: { ingress: NetworkPolicyIngressRule[] }) {
     const { ingress } = props;
 
@@ -85,10 +105,8 @@ export function NetworkPolicyDetails(props: {
               rows={[
                 {
                   name: t('Ports'),
-                  value: item.ports?.map((port: NetworkPolicyPort) => (
-                    <Box>
-                      {port.protocol}:{port.port}
-                    </Box>
+                  value: item.ports?.map((port: NetworkPolicyPort, index) => (
+                    <Port key={index} port={port} />
                   )),
                 },
                 {
@@ -153,10 +171,8 @@ export function NetworkPolicyDetails(props: {
               rows={[
                 {
                   name: t('Ports'),
-                  value: item.ports?.map((port: NetworkPolicyPort) => (
-                    <Box>
-                      {port.protocol}:{port.port}
-                    </Box>
+                  value: item.ports?.map((port: NetworkPolicyPort, index) => (
+                    <Port key={index} port={port} />
                   )),
                 },
                 {
