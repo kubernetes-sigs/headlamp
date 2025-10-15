@@ -25,12 +25,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -43,6 +45,8 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
@@ -1554,4 +1558,124 @@ func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
 	assert.Equal(t, expectedResponse, resp1String)
 	assert.Equal(t, "true", resp1.Header.Get("X-HEADLAMP-CACHE"))
 	assert.Equal(t, http.StatusOK, resp1.StatusCode)
+}
+
+//nolint:funlen
+func TestHandleClusterServiceProxy(t *testing.T) {
+	cfg := &HeadlampConfig{
+		HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: kubeconfig.NewContextStore()},
+		telemetryHandler: &telemetry.RequestHandler{},
+		telemetryConfig:  GetDefaultTestTelemetryConfig(),
+	}
+
+	// Backend service the proxy should call
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("OK"))
+
+			return
+		}
+
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(backend.Close)
+
+	// Extract host:port to feed into the Service external name + port
+	bu, err := url.Parse(backend.URL)
+	require.NoError(t, err)
+	host, portStr, err := net.SplitHostPort(strings.TrimPrefix(bu.Host, "["))
+	require.NoError(t, err)
+	portNum, err := strconv.Atoi(strings.TrimSuffix(portStr, "]"))
+	require.NoError(t, err)
+
+	// Fake k8s API that returns a Service pointing to backend
+	kubeAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/namespaces/default/services/my-service" {
+			svc := &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-service",
+					Namespace: "default",
+				},
+				Spec: corev1.ServiceSpec{
+					ExternalName: host,
+					Ports: []corev1.ServicePort{
+						{
+							Name: "http",
+							Port: int32(portNum), //nolint:gosec
+						},
+					},
+				},
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(svc)
+
+			return
+		}
+
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	// Add a context that matches clusterName in URL
+	err = cfg.KubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: "kubernetes",
+		KubeContext: &api.Context{
+			Cluster:  "kubernetes",
+			AuthInfo: "kubernetes",
+		},
+		Cluster:  &api.Cluster{Server: kubeAPI.URL}, // client-go will talk to this
+		AuthInfo: &api.AuthInfo{},
+	})
+	require.NoError(t, err)
+
+	router := mux.NewRouter()
+	handleClusterServiceProxy(cfg, router)
+
+	cluster := "kubernetes"
+	ns := "default"
+	svc := "my-service"
+
+	// Case 1: Missing ?request => route doesn't match => 404, no headers set
+	{
+		req := httptest.NewRequest(http.MethodGet,
+			"/clusters/"+cluster+"/serviceproxy/"+ns+"/"+svc, nil)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+		assert.Empty(t, rr.Header().Get("Cache-Control"))
+	}
+
+	// Case 2: ?request present but missing Authorization => 401, headers set
+	{
+		req := httptest.NewRequest(http.MethodGet,
+			"/clusters/"+cluster+"/serviceproxy/"+ns+"/"+svc+"?request=/healthz", nil)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		assert.Equal(t, "no-cache, private, max-age=0", rr.Header().Get("Cache-Control"))
+		assert.Equal(t, "no-cache", rr.Header().Get("Pragma"))
+		assert.Equal(t, "0", rr.Header().Get("X-Accel-Expires"))
+	}
+
+	// Case 3 (Happy path): ?request present and Authorization provided => proxy reaches backend => 200 OK
+	{
+		req := httptest.NewRequest(http.MethodGet,
+			"/clusters/"+cluster+"/serviceproxy/"+ns+"/"+svc+"?request=/healthz", nil)
+		req.Header.Set("Authorization", "Bearer test-token")
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		// Handler always sets no-cache headers
+		assert.Equal(t, "no-cache, private, max-age=0", rr.Header().Get("Cache-Control"))
+		assert.Equal(t, "no-cache", rr.Header().Get("Pragma"))
+		assert.Equal(t, "0", rr.Header().Get("X-Accel-Expires"))
+
+		// Happy path: backend returns OK
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "OK", rr.Body.String())
+	}
 }
