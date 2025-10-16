@@ -334,4 +334,4 @@ For more details, refer to our [contributing guidelines](https://github.com/kube
 
 - [GitHub Repository](https://github.com/kubernetes-sigs/headlamp)
 - [Documentation](https://headlamp.dev/)
-- [Maintainers](https://github.com/kubernetes-sigs/headlamp/blob/main/MAINTAINERS.md)
+- [Maintainers](https://github.com/kubernetes-sigs/headlamp/blob/main/OWNERS_ALIASES)
