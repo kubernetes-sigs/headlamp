@@ -4,7 +4,10 @@ sidebar_label: Plugins Installation
 sidebar_position: 4
 ---
 
-Headlamp Desktop app supports installing plugins via a plugin catalog.
+Headlamp Desktop app supports installing plugins via the Plugin Catalog.
+
+There is also [documentation for using plugins Headlamp running in-cluster](../in-cluster/index.md#plugin-management).
+
 
 ## Plugin Catalog
 
