@@ -128,23 +128,23 @@ The following components are in separate GitHub repos:
 - **Plugins**: Extensible modules that add custom functionality to the UI. The Headlamp team maintains their plugins in the [headlamp-k8s/plugins repo](https://github.com/headlamp-k8s/plugins). These include plugins for projects like Flux, Backstage and Inspektor Gadget.
 - **Headlamp Website**: Maintained in the [headlamp-k8s/website repo](https://github.com/headlamp-k8s/website). This contains things like the blog and the documentation. The website can be found at https://headlamp.dev/
 
-### Makefile task entry point
+### npm scripts entry point
 
-The headlamp/ repo [Makefile](https://github.com/kubernetes-sigs/headlamp/blob/main/Makefile) contains targets for building and testing different components.
+The headlamp/ repo root [package.json](https://github.com/kubernetes-sigs/headlamp/blob/main/package.json) contains scripts for building and testing different components.
 
 Here are some examples:
 
 ```shell
-make backend
-make backend-lint
-make backend-test
-make run-backend
-make frontend
-make frontend-lint
-make frontend-test
-make run-frontend
-make app-test
-make run-app
+npm run backend:build
+npm run backend:lint
+npm run backend:test
+npm run backend:start
+npm run frontend:build
+npm run frontend:lint
+npm run frontend:test
+npm run frontend:start
+npm run app:test
+npm run start:app
 ```
 
 ### Frontend

@@ -15,13 +15,13 @@ The frontend is written in Typescript and React, as well as a few other importan
 The frontend can be quickly built using:
 
 ```bash
-make frontend
+npm run frontend:build
 ```
 
 Once built, it can be run in development mode (auto-refresh) using:
 
 ```bash
-make run-frontend
+npm run frontend:start
 ```
 
 This command leverages the `create-react-app`'s start script that launches
@@ -35,7 +35,7 @@ for network request, if you need the devtools for react-query, you can simply se
 API documentation for TypeScript is done with [typedoc](https://typedoc.org/) and [typedoc-plugin-markdown](https://github.com/tgreyuk/typedoc-plugin-markdown), and is configured in tsconfig.json
 
 ```bash
-make docs
+npm run docs
 ```
 
 The API output markdown is generated in docs/development/api and is not
@@ -49,7 +49,7 @@ Components can be discovered, developed, and tested inside the 'storybook'.
 From within the [Headlamp](https://github.com/kubernetes-sigs/headlamp/) repo run:
 
 ```bash
-make storybook
+npm run frontend:storybook
 ```
 
 If you are adding new stories, please wrap your story components with the `TestContext` helper
@@ -75,7 +75,7 @@ Any issues found are reported in the developer console.
 To enable the alert message during development, use the following:
 
 ```bash
-REACT_APP_SKIP_A11Y=false make run-frontend
+REACT_APP_SKIP_A11Y=false npm run frontend:start
 ```
 
 This shows an alert when an a11y issue is detected.
