@@ -41,17 +41,17 @@ To run the tests for the web mode, you will need to have the backend running. Fo
   `cd headlamp`
 
 - run the following command
-  `make backend` followed by `make run-backend`
+  `npm run backend:build` followed by `npm run backend:start`
 
 ### Frontend
 
 To run the tests for the web mode, you will need to have the frontend running. Follow the steps below to run the frontend:
 
 - cd into the headlamp directory in a separate terminal
-  `cd headlamp/frontend`
+  `cd headlamp`
 
 - run the following command
-  `make frontend` followed by `make run-frontend`
+  `npm run frontend:build` followed by `npm run frontend:start`
 
 ### Running the tests
 

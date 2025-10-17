@@ -18,13 +18,13 @@ redirects the requests to the defined proxies.
 The backend (Headlamp's server) can be quickly built using:
 
 ```bash
-make backend
+npm run backend:build
 ```
 
 Once built, it can be run in development mode (insecure / don't use in production) using:
 
 ```bash
-make run-backend
+npm run backend:start
 ```
 
 ## Lint
@@ -32,13 +32,13 @@ make run-backend
 To lint the backend/ code.
 
 ```bash
-make backend-lint
+npm run backend:lint
 ```
 
 This command can fix some lint issues.
 
 ```bash
-make backend-lint-fix
+npm run backend:lint:fix
 ```
 
 ## Format
@@ -46,23 +46,23 @@ make backend-lint-fix
 To format the backend code.
 
 ```bash
-make backend-format
+npm run backend:format
 ```
 
 ## Test
 
 ```bash
-make backend-test
+npm run backend:test
 ```
 
 Test coverage with a html report in the browser.
 
 ```bash
-make backend-coverage-html
+npm run backend:coverage:html
 ```
 
 To just print a simpler coverage report to the console.
 ```bash
-make backend-coverage
+npm run backend:coverage
 ```
 
