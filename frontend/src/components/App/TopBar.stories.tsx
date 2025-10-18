@@ -119,3 +119,26 @@ TwoCluster.args = {
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '', 'ak8s-desktop2': '' },
 };
+
+export const WithUserInfo = PureTemplate.bind({});
+WithUserInfo.args = {
+  appBarActions: [],
+  logout: () => {},
+  cluster: 'ak8s-desktop',
+  clusters: { 'ak8s-desktop': '' },
+  userInfo: {
+    username: 'Ada Lovelace',
+    email: 'ada@example.com',
+  },
+};
+
+export const WithEmailOnly = PureTemplate.bind({});
+WithEmailOnly.args = {
+  appBarActions: [],
+  logout: () => {},
+  cluster: 'ak8s-desktop',
+  clusters: { 'ak8s-desktop': '' },
+  userInfo: {
+    email: 'grace@example.com',
+  },
+};

@@ -20,6 +20,12 @@ import (
 
 const defaultPort = 4466
 
+const (
+	DefaultMeUsernamePath = "preferred_username,username,name"
+	DefaultMeEmailPath    = "email"
+	DefaultMeGroupsPath   = "groups,realm_access.roles"
+)
+
 type Config struct {
 	Version                   bool   `koanf:"version"`
 	InCluster                 bool   `koanf:"in-cluster"`
@@ -47,6 +53,9 @@ type Config struct {
 	OidcUseAccessToken        bool   `koanf:"oidc-use-access-token"`
 	OidcSkipTLSVerify         bool   `koanf:"oidc-skip-tls-verify"`
 	OidcCAFile                string `koanf:"oidc-ca-file"`
+	MeUsernamePath            string `koanf:"me-username-path"`
+	MeEmailPath               string `koanf:"me-email-path"`
+	MeGroupsPath              string `koanf:"me-groups-path"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -219,6 +228,21 @@ func setKubeConfigPath(config *Config) {
 	}
 }
 
+// setMeDefaults ensures the /clusters/{clusterName}/me claim paths fall back to defaults when unset.
+func setMeDefaults(config *Config) {
+	if strings.TrimSpace(config.MeUsernamePath) == "" {
+		config.MeUsernamePath = DefaultMeUsernamePath
+	}
+
+	if strings.TrimSpace(config.MeEmailPath) == "" {
+		config.MeEmailPath = DefaultMeEmailPath
+	}
+
+	if strings.TrimSpace(config.MeGroupsPath) == "" {
+		config.MeGroupsPath = DefaultMeGroupsPath
+	}
+}
+
 // Parse Loads the config from flags and env.
 // env vars should start with HEADLAMP_CONFIG_ and use _ as separator
 // If a value is set both in flags and env then flag takes priority.
@@ -267,6 +291,7 @@ func Parse(args []string) (*Config, error) {
 	// 7. Post-process: patch plugin flag and kubeconfig path.
 	patchWatchPluginsChanges(&config, explicitFlags)
 	setKubeConfigPath(&config)
+	setMeDefaults(&config)
 
 	// 8. Validate parsed config.
 	if err := config.Validate(); err != nil {
@@ -349,6 +374,12 @@ func flagset() *flag.FlagSet {
 	f.Bool("oidc-skip-tls-verify", false, "Skip TLS verification for OIDC")
 	f.String("oidc-ca-file", "", "CA file for OIDC")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
+	f.String("me-username-path", DefaultMeUsernamePath,
+		"Comma separated JMESPath expressions used to read username from the JWT payload")
+	f.String("me-email-path", DefaultMeEmailPath,
+		"Comma separated JMESPath expressions used to read email from the JWT payload")
+	f.String("me-groups-path", DefaultMeGroupsPath,
+		"Comma separated JMESPath expressions used to read groups from the JWT payload")
 	// Telemetry flags.
 	f.String("service-name", "headlamp", "Service name for telemetry")
 	f.String("service-version", "0.30.0", "Service version for telemetry")

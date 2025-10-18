@@ -33,6 +33,7 @@ import { useHistory } from 'react-router-dom';
 import { getProductName, getVersion } from '../../helpers/getProductInfo';
 import { logout } from '../../lib/auth';
 import { useCluster, useClustersConf } from '../../lib/k8s';
+import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import {
   AppBarAction,
@@ -87,6 +88,34 @@ export default function TopBar({}: TopBarProps) {
   const history = useHistory();
   const { appBarActions, appBarActionsProcessors } = useAppBarActionsProcessed();
 
+  // Fetch current user info from backend
+  const [me, setMe] = React.useState<{ username?: string; email?: string } | null>(null);
+  React.useEffect(() => {
+    let aborted = false;
+    async function loadMe() {
+      if (!cluster) {
+        setMe(null);
+        return;
+      }
+
+      try {
+        const res = await request('/me');
+        if (!res) return;
+        if (!aborted) {
+          setMe({ username: res.username, email: res.email });
+        }
+      } catch {
+        if (!aborted) {
+          setMe(null);
+        }
+      }
+    }
+    loadMe();
+    return () => {
+      aborted = true;
+    };
+  }, [cluster]);
+
   const logoutCallback = useCallback(async () => {
     if (!!cluster) {
       await logout(cluster);
@@ -118,6 +147,7 @@ export default function TopBar({}: TopBarProps) {
       onToggleOpen={handletoggleOpen}
       cluster={cluster || undefined}
       clusters={clustersConfig || undefined}
+      userInfo={me || undefined}
     />
   );
 }
@@ -134,6 +164,7 @@ export interface PureTopBarProps {
   cluster?: string;
   isSidebarOpen?: boolean;
   isSidebarOpenUserSelected?: boolean;
+  userInfo?: { username?: string; email?: string };
 
   /** Called when sidebar toggles between open and closed. */
   onToggleOpen: () => void;
@@ -210,6 +241,7 @@ export const PureTopBar = memo(
     isSidebarOpen,
     isSidebarOpenUserSelected,
     onToggleOpen,
+    userInfo,
   }: PureTopBarProps) => {
     const { t } = useTranslation();
     const theme = useTheme();
@@ -243,6 +275,11 @@ export const PureTopBar = memo(
       setMobileMoreAnchorEl(event.currentTarget);
     };
     const userMenuId = 'primary-user-menu';
+    const userDisplayName = userInfo?.username || userInfo?.email || '';
+    const userSecondaryInfo =
+      userInfo?.username && userInfo?.email && userInfo.username !== userInfo.email
+        ? userInfo.email
+        : undefined;
 
     const renderUserMenu = !!isClusterContext && (
       <Menu
@@ -262,6 +299,26 @@ export const PureTopBar = memo(
           },
         }}
       >
+        {userInfo && (
+          <MenuItem
+            disableRipple
+            sx={{
+              pointerEvents: 'none',
+              cursor: 'default',
+              '&:hover': { backgroundColor: 'inherit' },
+            }}
+          >
+            <ListItemIcon>
+              <Icon icon="mdi:account" />
+            </ListItemIcon>
+            <ListItemText
+              primaryTypographyProps={{ variant: 'subtitle2' }}
+              secondaryTypographyProps={{ variant: 'body2' }}
+              primary={userDisplayName}
+              secondary={userSecondaryInfo}
+            />
+          </MenuItem>
+        )}
         <MenuItem
           component="a"
           onClick={async () => {
