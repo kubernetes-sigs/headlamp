@@ -22,6 +22,8 @@ export interface MCPToolState {
   enabled: boolean;
   lastUsed?: Date;
   usageCount?: number;
+  inputSchema?: any; // JSON schema for tool parameters
+  description?: string; // Tool description from MCP server
 }
 
 export interface MCPServerToolState {
@@ -49,13 +51,10 @@ export class MCPConfigManager {
       if (fs.existsSync(this.configPath)) {
         const configData = fs.readFileSync(this.configPath, 'utf-8');
         this.config = JSON.parse(configData);
-        console.log('MCP tools configuration loaded successfully');
       } else {
-        console.log('MCP tools configuration file does not exist, using default empty config');
         this.config = {};
       }
     } catch (error) {
-      console.error('Error loading MCP tools configuration:', error);
       this.config = {};
     }
   }
@@ -66,7 +65,6 @@ export class MCPConfigManager {
   private saveConfig(): void {
     try {
       fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2), 'utf-8');
-      console.log('MCP tools configuration saved successfully');
     } catch (error) {
       console.error('Error saving MCP tools configuration:', error);
     }
@@ -183,9 +181,17 @@ export class MCPConfigManager {
   }
 
   /**
-   * Initialize default configuration for available tools
+   * Initialize default configuration for available tools with schemas
    */
-  initializeToolsConfig(serverName: string, toolNames: string[]): void {
+  initializeToolsConfig(
+    serverName: string,
+    toolsInfo: Array<{
+      name: string;
+      inputSchema?: any;
+      description?: string;
+    }>
+  ): void {
+    console.log('MCP config called ', this.config, serverName, toolsInfo);
     if (!this.config[serverName]) {
       this.config[serverName] = {};
     }
@@ -193,18 +199,52 @@ export class MCPConfigManager {
     const serverConfig = this.config[serverName];
     let hasChanges = false;
 
-    for (const toolName of toolNames) {
+    for (const toolInfo of toolsInfo) {
+      const toolName = toolInfo.name;
+
       if (!serverConfig[toolName]) {
+        console.log(`Creating new tool config for: ${toolName}`);
         serverConfig[toolName] = {
           enabled: true,
           usageCount: 0,
+          inputSchema: toolInfo.inputSchema || null,
+          description: toolInfo.description || '',
         };
         hasChanges = true;
+      } else {
+        console.log(`Updating existing tool config for: ${toolName}`);
+        // Always update schema and description for existing tools
+        let toolChanged = false;
+
+        // Update schema if it's different or missing
+        const currentSchema = JSON.stringify(serverConfig[toolName].inputSchema || null);
+        const newSchema = JSON.stringify(toolInfo.inputSchema || null);
+        if (currentSchema !== newSchema) {
+          console.log(`Updating schema for tool: ${toolName}`);
+          serverConfig[toolName].inputSchema = toolInfo.inputSchema || null;
+          toolChanged = true;
+        }
+
+        // Update description if it's different or missing
+        const currentDescription = serverConfig[toolName].description || '';
+        const newDescription = toolInfo.description || '';
+        if (currentDescription !== newDescription) {
+          console.log(`Updating description for tool: ${toolName}`);
+          serverConfig[toolName].description = newDescription;
+          toolChanged = true;
+        }
+
+        if (toolChanged) {
+          hasChanges = true;
+        }
       }
     }
 
     if (hasChanges) {
+      console.log(`Saving configuration changes for server: ${serverName}`);
       this.saveConfig();
+    } else {
+      console.log(`No changes needed for server: ${serverName}`);
     }
   }
 

@@ -1134,6 +1134,12 @@ function adjustZoom(delta: number) {
 function startElecron() {
   console.info('App starting...');
   mcpClient = new ElectronMCPClient();
+
+  // Initialize MCP client
+  mcpClient.initialize().catch(error => {
+    console.error('Failed to initialize MCP client on startup:', error);
+  });
+
   let appVersion: string;
   if (isDev && process.env.HEADLAMP_APP_VERSION) {
     appVersion = process.env.HEADLAMP_APP_VERSION;
