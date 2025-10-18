@@ -60,16 +60,32 @@ class ElectronMCPClient {
    */
   private initializeToolsConfiguration(): void {
     if (!this.tools || this.tools.length === 0) {
+      console.log('No tools available for configuration initialization');
       return;
     }
 
-    // Group tools by server name (assuming tool names are prefixed with server name)
-    const toolsByServer: Record<string, string[]> = {};
+    // Group tools by server name with their schemas
+    const toolsByServer: Record<
+      string,
+      Array<{
+        name: string;
+        inputSchema?: any;
+        description?: string;
+      }>
+    > = {};
 
     for (const tool of this.tools) {
+      console.log('Initializing tools configuration...', tool);
       // Extract server name from tool name (format: "serverName__toolName")
       const toolName = tool.name;
       const parts = toolName.split('__');
+
+      // Extract schema from the tool (LangChain tools use .schema property)
+      const toolSchema = (tool as any).schema || tool.inputSchema || null;
+      console.log('tool schema is ', toolSchema);
+      console.log(
+        `Processing tool: ${toolName}, has inputSchema: ${toolSchema}, description: "${tool.description}"`
+      );
 
       if (parts.length >= 2) {
         const serverName = parts[0];
@@ -78,19 +94,30 @@ class ElectronMCPClient {
         if (!toolsByServer[serverName]) {
           toolsByServer[serverName] = [];
         }
-        toolsByServer[serverName].push(actualToolName);
+        toolsByServer[serverName].push({
+          name: actualToolName,
+          inputSchema: toolSchema,
+          description: tool.description || '',
+        });
       } else {
         // Fallback for tools without server prefix
         if (!toolsByServer['default']) {
           toolsByServer['default'] = [];
         }
-        toolsByServer['default'].push(toolName);
+        toolsByServer['default'].push({
+          name: toolName,
+          inputSchema: toolSchema,
+          description: tool.description || '',
+        });
       }
     }
 
+    console.log('Tools grouped by server:', Object.keys(toolsByServer));
+
     // Initialize configuration for each server's tools
-    for (const [serverName, toolNames] of Object.entries(toolsByServer)) {
-      this.configManager.initializeToolsConfig(serverName, toolNames);
+    for (const [serverName, toolsInfo] of Object.entries(toolsByServer)) {
+      console.log(`Initializing ${toolsInfo.length} tools for server: ${serverName}`);
+      this.configManager.initializeToolsConfig(serverName, toolsInfo);
     }
   }
 
@@ -129,31 +156,38 @@ class ElectronMCPClient {
     }
 
     const currentConfig = this.configManager.getConfig();
-    const changes = this.compareToolsConfigs(currentConfig, newConfig);
+    const summary = this.createToolsConfigSummary(currentConfig, newConfig);
 
-    if (changes.length === 0) {
+    if (summary.totalChanges === 0) {
       return true; // No changes, allow operation
     }
-
-    const changesText = changes.join('\n');
 
     const result = await dialog.showMessageBox(this.mainWindow, {
       type: 'question',
       buttons: ['Apply Changes', 'Cancel'],
       defaultId: 1,
       title: 'MCP Tools Configuration Changes',
-      message: 'The following changes will be applied to your MCP tools configuration:',
-      detail: changesText + '\n\nDo you want to apply these changes?',
+      message: `${summary.totalChanges} tool configuration change(s) will be applied:`,
+      detail: summary.summaryText + '\n\nDo you want to apply these changes?',
     });
 
     return result.response === 0; // 0 is "Apply Changes"
   }
 
   /**
-   * Compare two tools configurations and return a list of changes
+   * Create a concise summary of tools configuration changes
    */
-  private compareToolsConfigs(currentConfig: any, newConfig: any): string[] {
-    const changes: string[] = [];
+  private createToolsConfigSummary(
+    currentConfig: any,
+    newConfig: any
+  ): {
+    totalChanges: number;
+    summaryText: string;
+  } {
+    const enabledTools: string[] = [];
+    const disabledTools: string[] = [];
+    const addedTools: string[] = [];
+    const removedTools: string[] = [];
 
     // Get all server names from both configs
     const allServers = new Set([
@@ -174,25 +208,50 @@ class ElectronMCPClient {
       for (const toolName of allTools) {
         const currentTool = currentServerConfig[toolName];
         const newTool = newServerConfig[toolName];
+        const displayName = `${toolName} (${serverName})`;
 
         if (!currentTool && newTool) {
           // New tool added
-          const status = newTool.enabled ? 'enabled' : 'disabled';
-          changes.push(`+ Add tool "${toolName}" on server "${serverName}" (${status})`);
+          addedTools.push(displayName);
+          if (newTool.enabled) {
+            enabledTools.push(displayName);
+          } else {
+            disabledTools.push(displayName);
+          }
         } else if (currentTool && !newTool) {
           // Tool removed
-          changes.push(`- Remove tool "${toolName}" from server "${serverName}"`);
+          removedTools.push(displayName);
         } else if (currentTool && newTool) {
           // Tool modified
           if (currentTool.enabled !== newTool.enabled) {
-            const status = newTool.enabled ? 'enabled' : 'disabled';
-            changes.push(`~ Change tool "${toolName}" on server "${serverName}" to ${status}`);
+            if (newTool.enabled) {
+              enabledTools.push(displayName);
+            } else {
+              disabledTools.push(displayName);
+            }
           }
         }
       }
     }
 
-    return changes;
+    // Build summary text
+    const summaryParts: string[] = [];
+
+    if (enabledTools.length > 0) {
+      summaryParts.push(`✓ ENABLE (${enabledTools.length}): ${enabledTools.join(', ')}`);
+    }
+
+    if (disabledTools.length > 0) {
+      summaryParts.push(`✗ DISABLE (${disabledTools.length}): ${disabledTools.join(', ')}`);
+    }
+
+    const totalChanges =
+      enabledTools.length + disabledTools.length + addedTools.length + removedTools.length;
+
+    return {
+      totalChanges,
+      summaryText: summaryParts.join('\n\n'),
+    };
   }
 
   /**
@@ -320,6 +379,90 @@ class ElectronMCPClient {
   }
 
   /**
+   * Validate tool parameters against schema from configuration
+   */
+  private validateToolParameters(
+    serverName: string,
+    toolName: string,
+    args: any
+  ): { valid: boolean; error?: string } {
+    const toolState = this.configManager.getToolStats(serverName, toolName);
+    if (!toolState || !toolState.inputSchema) {
+      // No schema available, assume valid
+      return { valid: true };
+    }
+
+    try {
+      const schema = toolState.inputSchema;
+
+      // Basic validation - check required properties
+      if (schema.required && Array.isArray(schema.required)) {
+        for (const requiredProp of schema.required) {
+          if (args[requiredProp] === undefined || args[requiredProp] === null) {
+            return {
+              valid: false,
+              error: `Required parameter '${requiredProp}' is missing`,
+            };
+          }
+        }
+      }
+
+      // Check property types if schema properties are defined
+      if (schema.properties) {
+        for (const [propName, propSchema] of Object.entries(schema.properties as any)) {
+          if (args[propName] !== undefined) {
+            const propType = (propSchema as any).type;
+            const actualType = typeof args[propName];
+
+            if (propType === 'string' && actualType !== 'string') {
+              return {
+                valid: false,
+                error: `Parameter '${propName}' should be a string, got ${actualType}`,
+              };
+            }
+            if (propType === 'number' && actualType !== 'number') {
+              return {
+                valid: false,
+                error: `Parameter '${propName}' should be a number, got ${actualType}`,
+              };
+            }
+            if (propType === 'boolean' && actualType !== 'boolean') {
+              return {
+                valid: false,
+                error: `Parameter '${propName}' should be a boolean, got ${actualType}`,
+              };
+            }
+            if (propType === 'array' && !Array.isArray(args[propName])) {
+              return {
+                valid: false,
+                error: `Parameter '${propName}' should be an array, got ${actualType}`,
+              };
+            }
+            if (
+              propType === 'object' &&
+              (actualType !== 'object' || Array.isArray(args[propName]) || args[propName] === null)
+            ) {
+              return {
+                valid: false,
+                error: `Parameter '${propName}' should be an object, got ${actualType}`,
+              };
+            }
+          }
+        }
+      }
+
+      return { valid: true };
+    } catch (error) {
+      return {
+        valid: false,
+        error: `Schema validation error: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+      };
+    }
+  }
+
+  /**
    * Load MCP server configuration from settings
    */
   private loadMCPConfig(): MCPConfig | null {
@@ -390,6 +533,7 @@ class ElectronMCPClient {
   }
 
   private async initializeClient(): Promise<void> {
+    console.log('initializeClient called');
     if (this.isInitialized) {
       return;
     }
@@ -398,6 +542,7 @@ class ElectronMCPClient {
       return this.initializationPromise;
     }
 
+    console.log('Starting MCP client initialization...');
     this.initializationPromise = this.doInitialize();
     return this.initializationPromise;
   }
@@ -467,7 +612,6 @@ class ElectronMCPClient {
 
       // Get and cache the tools
       this.tools = await this.client.getTools();
-
       // Initialize configuration for available tools
       this.initializeToolsConfiguration();
 
@@ -483,39 +627,6 @@ class ElectronMCPClient {
   }
 
   private setupIpcHandlers(): void {
-    // Handle MCP tools request
-    ipcMain.handle('mcp-get-tools', async () => {
-      try {
-        await this.initializeClient();
-
-        if (!this.client || this.tools.length === 0) {
-          return { success: true, tools: [] };
-        }
-
-        // Filter tools based on configuration and convert to our format
-        const enabledToolsInfo = this.tools
-          .filter(tool => {
-            const { serverName, toolName } = this.parseToolName(tool.name);
-            return this.configManager.isToolEnabled(serverName, toolName);
-          })
-          .map(tool => ({
-            name: tool.name,
-            description: tool.description,
-            inputSchema: tool.schema,
-          }));
-
-        console.log('MCP tools retrieved:', enabledToolsInfo.length, 'enabled tools');
-        return { success: true, tools: enabledToolsInfo };
-      } catch (error) {
-        console.error('Error getting MCP tools:', error);
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          tools: [],
-        };
-      }
-    });
-
     // Handle MCP tool execution
     ipcMain.handle('mcp-execute-tool', async (event, { toolName, args, toolCallId }) => {
       console.log('args in mcp-execute-tool:', args);
@@ -530,14 +641,22 @@ class ElectronMCPClient {
         const { serverName, toolName: actualToolName } = this.parseToolName(toolName);
 
         // Check if tool is enabled
-        if (!this.configManager.isToolEnabled(serverName, actualToolName)) {
-          throw new Error(`Tool ${toolName} is disabled`);
+        const isEnabled = this.configManager.isToolEnabled(serverName, actualToolName);
+
+        if (!isEnabled) {
+          throw new Error(`Tool ${actualToolName} from server ${serverName} is disabled`);
         }
 
         // Find the tool by name
         const tool = this.tools.find(t => t.name === toolName);
         if (!tool) {
           throw new Error(`Tool ${toolName} not found`);
+        }
+
+        // Validate parameters against schema from configuration
+        const validation = this.validateToolParameters(serverName, actualToolName, args);
+        if (!validation.valid) {
+          throw new Error(`Parameter validation failed: ${validation.error}`);
         }
 
         console.log(`Executing MCP tool: ${toolName} with args:`, args);
@@ -555,7 +674,6 @@ class ElectronMCPClient {
           toolCallId,
         };
       } catch (error) {
-        console.error(`Error executing MCP tool ${toolName}:`, error);
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -706,6 +824,7 @@ class ElectronMCPClient {
 
     // Handle updating MCP tools configuration with user confirmation
     ipcMain.handle('mcp-update-tools-config', async (event, toolsConfig: any) => {
+      console.log('Requested MCP tools configuration update:', toolsConfig);
       try {
         // Show confirmation dialog with detailed changes
         const userConfirmed = await this.showToolsConfigConfirmationDialog(toolsConfig);
@@ -759,6 +878,19 @@ class ElectronMCPClient {
         };
       }
     });
+  }
+
+  /**
+   * Public method to initialize the MCP client
+   * This should be called when the app starts
+   */
+  async initialize(): Promise<void> {
+    try {
+      await this.initializeClient();
+    } catch (error) {
+      console.error('Failed to initialize MCP client on startup:', error);
+      // Don't throw error to prevent app startup failure
+    }
   }
 
   /**
