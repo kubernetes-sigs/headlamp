@@ -18,6 +18,8 @@ import React from 'react';
 import { useHistory } from 'react-router';
 import NotFoundComponent from '../../components/404';
 import AuthToken from '../../components/account/Auth';
+import AdminNetworkPolicyDetails from '../../components/adminnetworkpolicy/Details';
+import AdminNetworkPolicyList from '../../components/adminnetworkpolicy/List';
 import AddCluster from '../../components/App/CreateCluster/AddCluster';
 import Home from '../../components/App/Home';
 import NotificationList from '../../components/App/Notifications/List';
@@ -386,6 +388,18 @@ const defaultRoutes: { [routeName: string]: Route } = {
     exact: true,
     sidebar: 'NetworkPolicies',
     component: () => <NetworkPolicyDetails />,
+  },
+  adminNetworkPolicies: {
+    path: '/adminnetworkpolicies',
+    exact: true,
+    sidebar: 'AdminNetworkPolicies',
+    component: () => <AdminNetworkPolicyList />,
+  },
+  adminNetworkPolicy: {
+    path: '/adminnetworkpolicies/:name',
+    exact: true,
+    sidebar: 'AdminNetworkPolicies',
+    component: () => <AdminNetworkPolicyDetails />,
   },
   gateways: {
     // fix magic name gateway
