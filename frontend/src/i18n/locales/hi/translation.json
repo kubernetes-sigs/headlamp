@@ -16,6 +16,8 @@
   "Fullscreen": "",
   "Close": "बंद करें",
   "Close All": "",
+  "Unpin": "",
+  "Pin": "",
   "Overview": "अवलोकन",
   "Loading": "",
   "Advanced Search (Beta)": "",
@@ -452,6 +454,7 @@
   "rules": "",
   "ParentRefs": "",
   "No rules data to be shown.": "दिखाने के लिए कोई नियम डेटा नहीं है।",
+
   "Section Name": "",
   "Press<1>/</1>to search": "खोजने के लिए <1>/</1> दबाएँ",
   "Search resources, pages, clusters by name": "नाम से रिसोर्सेज़, पेजेज़ और क्लस्टर खोजें",
