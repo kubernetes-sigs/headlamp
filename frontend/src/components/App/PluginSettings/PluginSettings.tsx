@@ -125,19 +125,22 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
    * pluginChanges state is the array of plugin data and any current changes made by the user to a plugin's "Enable" field via toggler.
    * The name and origin fields are split for consistency.
    */
-  const [pluginChanges, setPluginChanges] = useState(() =>
-    pluginArr.map((plugin: PluginInfo) => {
+  const [pluginChanges, setPluginChanges] = useState(() => {
+    console.log('PluginSettings: Received plugins:', pluginArr);
+    return pluginArr.map((plugin: PluginInfo) => {
       const [author, name] = plugin.name.includes('@')
         ? plugin.name.split(/\/(.+)/)
         : [null, plugin.name];
+
+      console.log(`Plugin: ${plugin.name}, pluginType: ${plugin.pluginType}`);
 
       return {
         ...plugin,
         displayName: name ?? plugin.name,
         origin: plugin.origin ?? author?.substring(1) ?? t('translation|Unknown'),
       };
-    })
-  );
+    });
+  });
 
   /**
    * useEffect to control the rendering of the save button.
@@ -198,8 +201,101 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
 
   return (
     <>
+      {/* Development Plugins Section */}
+      {pluginChanges.filter((plugin: PluginInfo) => plugin.pluginType === 'dev').length > 0 && (
+        <SectionBox
+          title={
+            <SectionFilterHeader title={t('translation|Development Plugins')} noNamespaceFilter />
+          }
+        >
+          <Table
+            columns={[
+              {
+                header: t('translation|Name'),
+                accessorKey: 'name',
+                muiTableBodyCellProps: {
+                  sx: {
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    width: 'unset',
+                  },
+                },
+                Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) => {
+                  return (
+                    <>
+                      <Typography variant="subtitle1">
+                        <HeadlampLink
+                          routeName={'pluginDetails'}
+                          params={{ name: plugin.name }}
+                          align="right"
+                        >
+                          {plugin.displayName}
+                        </HeadlampLink>
+                      </Typography>
+                      <Typography variant="caption">{plugin.version}</Typography>
+                    </>
+                  );
+                },
+              },
+              {
+                header: t('translation|Description'),
+                accessorKey: 'description',
+              },
+              {
+                header: t('translation|Origin'),
+                Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) => {
+                  const url = plugin?.homepage || plugin?.repository?.url;
+                  return plugin?.origin ? (
+                    url ? (
+                      <Link href={url}>{plugin.origin}</Link>
+                    ) : (
+                      plugin?.origin
+                    )
+                  ) : (
+                    t('translation|Development')
+                  );
+                },
+              },
+              // TODO: Fetch the plugin status from the plugin settings store
+              {
+                header: t('translation|Status'),
+                accessorFn: (plugin: PluginInfo) => {
+                  if (plugin.isCompatible === false) {
+                    return t('translation|Incompatible');
+                  }
+                  return plugin.isEnabled ? t('translation|Enabled') : t('translation|Disabled');
+                },
+              },
+              {
+                header: t('translation|Enable'),
+                accessorFn: (plugin: PluginInfo) => plugin.isEnabled,
+                Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) => {
+                  if (!plugin.isCompatible || !isElectron()) {
+                    return null;
+                  }
+                  return (
+                    <EnableSwitch
+                      aria-label={`Toggle ${plugin.name}`}
+                      checked={!!plugin.isEnabled}
+                      onChange={() => switchChangeHanlder(plugin)}
+                      color="primary"
+                      name={plugin.name}
+                    />
+                  );
+                },
+              },
+            ]
+              // remove the enable column if we're not in app mode
+              .filter(el => !(el.header === t('translation|Enable') && !isElectron()))}
+            data={pluginChanges.filter((plugin: PluginInfo) => plugin.pluginType === 'dev')}
+            filterFunction={useFilterFunc<PluginInfo>(['.name'])}
+          />
+        </SectionBox>
+      )}
+
+      {/* Catalog Plugins Section */}
       <SectionBox
-        title={<SectionFilterHeader title={t('translation|Plugins')} noNamespaceFilter />}
+        title={<SectionFilterHeader title={t('translation|Catalog Plugins')} noNamespaceFilter />}
       >
         <Table
           columns={[
@@ -280,7 +376,9 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
           ]
             // remove the enable column if we're not in app mode
             .filter(el => !(el.header === t('translation|Enable') && !isElectron()))}
-          data={pluginChanges}
+          data={pluginChanges.filter(
+            (plugin: PluginInfo) => plugin.pluginType === 'catalog' || !plugin.pluginType
+          )}
           filterFunction={useFilterFunc<PluginInfo>(['.name'])}
         />
       </SectionBox>
