@@ -18,7 +18,7 @@ import Box from '@mui/material/Box';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import EndpointSlice from '../../lib/k8s/endpointSlices';
-import { SectionBox, SimpleTable, StatusLabel } from '../common';
+import { CopyLabel, SectionBox, SimpleTable, StatusLabel } from '../common';
 import { DetailsGrid } from '../common/Resource';
 
 export default function EndpointSliceDetails(props: {
@@ -71,7 +71,14 @@ export default function EndpointSliceDetails(props: {
                     },
                     {
                       label: t('Addresses'),
-                      getter: endpoint => endpoint.addresses?.join(','),
+                      getter: endpoint => {
+                        const addresses = endpoint.addresses?.join(',');
+                        return addresses ? (
+                          <CopyLabel textToCopy={addresses}>{addresses}</CopyLabel>
+                        ) : (
+                          ''
+                        );
+                      },
                     },
                     {
                       label: t('Conditions'),
