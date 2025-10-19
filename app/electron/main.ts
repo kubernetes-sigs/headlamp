@@ -1474,10 +1474,7 @@ function startElecron() {
     if (mainWindow) {
       mainWindow.removeAllListeners('close');
     }
-    // Cleanup MCP client
-    if (mcpClient) {
-      mcpClient.cleanup().catch(console.error);
-    }
+
     // Cleanup MCP client
     if (mcpClient) {
       mcpClient.cleanup().catch(console.error);
