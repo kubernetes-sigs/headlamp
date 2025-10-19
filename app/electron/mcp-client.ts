@@ -57,10 +57,13 @@ class ElectronMCPClient {
 
   /**
    * Initialize tools configuration for all available tools
+   * This completely replaces the existing config with current tools
    */
   private initializeToolsConfiguration(): void {
     if (!this.tools || this.tools.length === 0) {
       console.log('No tools available for configuration initialization');
+      // Clear the config if no tools are available
+      this.configManager.replaceConfig({});
       return;
     }
 
@@ -75,16 +78,16 @@ class ElectronMCPClient {
     > = {};
 
     for (const tool of this.tools) {
-      console.log('Initializing tools configuration...', tool);
       // Extract server name from tool name (format: "serverName__toolName")
       const toolName = tool.name;
       const parts = toolName.split('__');
 
       // Extract schema from the tool (LangChain tools use .schema property)
       const toolSchema = (tool as any).schema || tool.inputSchema || null;
-      console.log('tool schema is ', toolSchema);
       console.log(
-        `Processing tool: ${toolName}, has inputSchema: ${toolSchema}, description: "${tool.description}"`
+        `Processing tool: ${toolName}, has inputSchema: ${!!toolSchema}, description: "${
+          tool.description
+        }"`
       );
 
       if (parts.length >= 2) {
@@ -114,11 +117,8 @@ class ElectronMCPClient {
 
     console.log('Tools grouped by server:', Object.keys(toolsByServer));
 
-    // Initialize configuration for each server's tools
-    for (const [serverName, toolsInfo] of Object.entries(toolsByServer)) {
-      console.log(`Initializing ${toolsInfo.length} tools for server: ${serverName}`);
-      this.configManager.initializeToolsConfig(serverName, toolsInfo);
-    }
+    // Replace the entire configuration with current tools
+    this.configManager.replaceToolsConfig(toolsByServer);
   }
 
   /**
@@ -608,6 +608,7 @@ class ElectronMCPClient {
         additionalToolNamePrefix: '',
         useStandardContentBlocks: true,
         mcpServers,
+        defaultToolTimeout: 2 * 60 * 1000, // 2 minutes
       });
 
       // Get and cache the tools

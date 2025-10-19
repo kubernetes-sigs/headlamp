@@ -191,7 +191,6 @@ export class MCPConfigManager {
       description?: string;
     }>
   ): void {
-    console.log('MCP config called ', this.config, serverName, toolsInfo);
     if (!this.config[serverName]) {
       this.config[serverName] = {};
     }
@@ -203,7 +202,6 @@ export class MCPConfigManager {
       const toolName = toolInfo.name;
 
       if (!serverConfig[toolName]) {
-        console.log(`Creating new tool config for: ${toolName}`);
         serverConfig[toolName] = {
           enabled: true,
           usageCount: 0,
@@ -212,7 +210,6 @@ export class MCPConfigManager {
         };
         hasChanges = true;
       } else {
-        console.log(`Updating existing tool config for: ${toolName}`);
         // Always update schema and description for existing tools
         let toolChanged = false;
 
@@ -220,7 +217,6 @@ export class MCPConfigManager {
         const currentSchema = JSON.stringify(serverConfig[toolName].inputSchema || null);
         const newSchema = JSON.stringify(toolInfo.inputSchema || null);
         if (currentSchema !== newSchema) {
-          console.log(`Updating schema for tool: ${toolName}`);
           serverConfig[toolName].inputSchema = toolInfo.inputSchema || null;
           toolChanged = true;
         }
@@ -229,7 +225,6 @@ export class MCPConfigManager {
         const currentDescription = serverConfig[toolName].description || '';
         const newDescription = toolInfo.description || '';
         if (currentDescription !== newDescription) {
-          console.log(`Updating description for tool: ${toolName}`);
           serverConfig[toolName].description = newDescription;
           toolChanged = true;
         }
@@ -241,10 +236,7 @@ export class MCPConfigManager {
     }
 
     if (hasChanges) {
-      console.log(`Saving configuration changes for server: ${serverName}`);
       this.saveConfig();
-    } else {
-      console.log(`No changes needed for server: ${serverName}`);
     }
   }
 
@@ -258,5 +250,53 @@ export class MCPConfigManager {
     }
 
     return { ...serverConfig[toolName] };
+  }
+
+  /**
+   * Replace the entire tools configuration with a new set of tools
+   * This overwrites all existing tools with only the current ones
+   */
+  replaceToolsConfig(
+    toolsByServer: Record<
+      string,
+      Array<{
+        name: string;
+        inputSchema?: any;
+        description?: string;
+      }>
+    >
+  ): void {
+    // Create a new config object
+    const newConfig: MCPToolsConfig = {};
+
+    for (const [serverName, toolsInfo] of Object.entries(toolsByServer)) {
+      newConfig[serverName] = {};
+
+      for (const toolInfo of toolsInfo) {
+        const toolName = toolInfo.name;
+
+        // Check if this tool existed in the old config to preserve enabled state and usage count
+        const oldToolState = this.config[serverName]?.[toolName];
+
+        newConfig[serverName][toolName] = {
+          enabled: oldToolState?.enabled ?? true, // Preserve enabled state or default to true
+          usageCount: oldToolState?.usageCount ?? 0, // Preserve usage count or default to 0
+          inputSchema: toolInfo.inputSchema || null,
+          description: toolInfo.description || '',
+        };
+      }
+    }
+
+    // Replace the entire config
+    this.config = newConfig;
+    this.saveConfig();
+  }
+
+  /**
+   * Replace the entire configuration with a new config object
+   */
+  replaceConfig(newConfig: MCPToolsConfig): void {
+    this.config = newConfig;
+    this.saveConfig();
   }
 }
