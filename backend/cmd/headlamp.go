@@ -137,6 +137,7 @@ func mustReadFile(path string) []byte {
 	return data
 }
 
+// mustWriteFile is a function ok.
 func mustWriteFile(path string, data []byte) {
 	err := os.WriteFile(path, data, fs.FileMode(0o600))
 	if err != nil {
