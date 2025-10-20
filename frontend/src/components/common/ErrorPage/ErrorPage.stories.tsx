@@ -58,3 +58,17 @@ export const ComponentMessage = Template.bind({});
 ComponentMessage.args = {
   message: <Typography variant="h3">Not sure what to do!</Typography>,
 };
+
+export const WithErrorStack = Template.bind({});
+WithErrorStack.args = {
+  error: (() => {
+    const error = new Error('Unexpected error occurred');
+    error.stack = `Error: Unexpected error occurred
+    at ComponentName (http://localhost:3000/static/js/main.chunk.js:1234:56)
+    at div
+    at ErrorBoundary (http://localhost:3000/static/js/main.chunk.js:5678:90)
+    at App (http://localhost:3000/static/js/main.chunk.js:9012:34)
+    at Router (http://localhost:3000/static/js/main.chunk.js:3456:78)`;
+    return error;
+  })(),
+};

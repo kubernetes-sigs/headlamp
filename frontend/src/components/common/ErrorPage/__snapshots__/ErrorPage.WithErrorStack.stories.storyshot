@@ -19,7 +19,14 @@
         <h2
           class="MuiTypography-root MuiTypography-h2 css-15otqr2-MuiTypography-root"
         >
-          Error loading My Test Route
+          Head back 
+          <a
+            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+            href="/"
+          >
+            home
+          </a>
+          .
         </h2>
       </div>
       <div
@@ -94,7 +101,12 @@
                       <pre
                         class="MuiTypography-root MuiTypography-body2 css-dna8j4-MuiTypography-root"
                       >
-                        Here is the stack trace
+                        Error: Unexpected error occurred
+    at ComponentName (http://localhost:3000/static/js/main.chunk.js:1234:56)
+    at div
+    at ErrorBoundary (http://localhost:3000/static/js/main.chunk.js:5678:90)
+    at App (http://localhost:3000/static/js/main.chunk.js:9012:34)
+    at Router (http://localhost:3000/static/js/main.chunk.js:3456:78)
                       </pre>
                     </div>
                   </div>

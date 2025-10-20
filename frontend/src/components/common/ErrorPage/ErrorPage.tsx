@@ -24,9 +24,11 @@ import Grid from '@mui/material/Grid';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import { styled } from '@mui/system';
+import { useSnackbar } from 'notistack';
 import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import headlampBrokenImage from '../../../assets/headlamp-broken.svg';
+import { getVersion } from '../../../helpers/getProductInfo';
 
 const WidthImg = styled('img')({
   width: '100%',
@@ -46,8 +48,60 @@ export interface ErrorComponentProps {
   error?: Error;
 }
 
+const MAX_STACK_LENGTH = 1000;
+const MAX_TITLE_LENGTH = 100;
+const GITHUB_REPO_URL = 'https://github.com/kubernetes-sigs/headlamp';
+
+function handleOpenGitHubIssue(
+  error: Error,
+  t: (key: string) => string,
+  enqueueSnackbar: (
+    message: string,
+    options?: { variant?: 'success' | 'error' | 'warning' | 'info' }
+  ) => void
+) {
+  const version = getVersion();
+
+  // Truncate stack trace to prevent URL length limits
+  const truncatedStack =
+    error.stack && error.stack.length > MAX_STACK_LENGTH
+      ? error.stack.substring(0, MAX_STACK_LENGTH) + '\n... (truncated)'
+      : error.stack || 'No stack trace available';
+
+  // Sanitize error message in issue title
+  const sanitizedMessage = (error.message || 'Application Error')
+    .replace(/[\r\n]+/g, ' ') // Replace newlines with spaces
+    .substring(0, MAX_TITLE_LENGTH); // Limit title length
+
+  const issueTitle = encodeURIComponent(`Crash Report: ${sanitizedMessage}`);
+  const issueBody = encodeURIComponent(
+    `## Crash Summary\n${error.message || 'An error occurred in the application'}\n\n` +
+      `## Error Stack\n\`\`\`\n${truncatedStack}\n\`\`\`\n\n` +
+      `## Headlamp Version\n${version.VERSION || 'Unknown'}\n\n` +
+      `## Git Commit\n${version.GIT_VERSION || 'Unknown'}\n\n` +
+      `## System Information\n` +
+      `- User Agent: ${navigator.userAgent}\n` +
+      `- Platform: ${navigator.platform}\n` +
+      `- Language: ${navigator.language}\n\n` +
+      `## Additional Context\n<!-- Please add any additional context about the crash here -->`
+  );
+  const githubUrl = `${GITHUB_REPO_URL}/issues/new?title=${issueTitle}&body=${issueBody}&labels=kind/bug`;
+
+  // Handle popup blocker - window.open returns null if blocked
+  const newWindow = window.open(githubUrl, '_blank');
+  if (!newWindow) {
+    enqueueSnackbar(
+      t(
+        'translation|Unable to open GitHub. Please check your popup blocker settings or copy the error details manually.'
+      ),
+      { variant: 'warning' }
+    );
+  }
+}
+
 export default function ErrorComponent(props: ErrorComponentProps) {
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
   const {
     title = t('Uh-oh! Something went wrong.'),
     message = '',
@@ -102,13 +156,30 @@ export default function ErrorComponent(props: ErrorComponentProps) {
                 <Typography>{t('translation|Error Details')}</Typography>
               </AccordionSummary>
               <AccordionDetails>
-                <Box textAlign="right">
+                <Box display="flex" justifyContent="flex-end" gap={1}>
                   <Button
                     onClick={() => {
-                      navigator.clipboard.writeText(error.stack!);
+                      navigator.clipboard
+                        .writeText(error.stack || '')
+                        .then(() => {
+                          enqueueSnackbar(t('translation|Copied to clipboard'), {
+                            variant: 'success',
+                          });
+                        })
+                        .catch(() => {
+                          enqueueSnackbar(t('translation|Failed to copy to clipboard'), {
+                            variant: 'error',
+                          });
+                        });
                     }}
                   >
                     {t('translation|Copy')}
+                  </Button>
+                  <Button
+                    color="primary"
+                    onClick={() => handleOpenGitHubIssue(error, t, enqueueSnackbar)}
+                  >
+                    {t('translation|Open Issue on GitHub')}
                   </Button>
                 </Box>
                 <Typography
