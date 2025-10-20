@@ -41,38 +41,38 @@ func TestNewConnection(t *testing.T) {
 	}
 }
 
-func TestGet(t *testing.T) {
-	tests := []struct {
-		name       string
-		uri        string
-		requestURI string
-		wantBody   []byte
-		wantErr    bool
-	}{
-		{
-			name:       "valid request",
-			uri:        "http://example.com",
-			requestURI: "/test",
-			wantBody:   []byte("Hello, World!"),
-			wantErr:    false,
-		},
-		{
-			name:       "invalid URI",
-			uri:        " invalid-uri",
-			requestURI: "/test",
-			wantBody:   nil,
-			wantErr:    true,
-		},
-		{
-			name:       "invalid request URI",
-			uri:        "http://example.com",
-			requestURI: " invalid-request-uri",
-			wantBody:   nil,
-			wantErr:    true,
-		},
-	}
+var getTests = []struct {
+	name       string
+	uri        string
+	requestURI string
+	wantBody   []byte
+	wantErr    bool
+}{
+	{
+		name:       "valid request",
+		uri:        "http://example.com",
+		requestURI: "/test",
+		wantBody:   []byte("Hello, World!"),
+		wantErr:    false,
+	},
+	{
+		name:       "invalid URI",
+		uri:        " invalid-uri",
+		requestURI: "/test",
+		wantBody:   nil,
+		wantErr:    true,
+	},
+	{
+		name:       "invalid request URI",
+		uri:        "http://example.com",
+		requestURI: " invalid-request-uri",
+		wantBody:   nil,
+		wantErr:    true,
+	},
+}
 
-	for _, tt := range tests {
+func TestGet(t *testing.T) {
+	for _, tt := range getTests {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := &Connection{URI: tt.uri}
 
