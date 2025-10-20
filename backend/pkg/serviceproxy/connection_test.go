@@ -69,6 +69,13 @@ var getTests = []struct {
 		wantBody:   nil,
 		wantErr:    true,
 	},
+	{
+		name:       "absolute request URI rejected",
+		uri:        "http://example.com",
+		requestURI: "http://malicious.local",
+		wantBody:   nil,
+		wantErr:    true,
+	},
 }
 
 func TestGet(t *testing.T) {
