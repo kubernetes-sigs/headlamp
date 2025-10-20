@@ -35,6 +35,10 @@ func (c *Connection) Get(requestURI string) ([]byte, error) {
 		return nil, fmt.Errorf("invalid request uri: %w", err)
 	}
 
+	if rel.IsAbs() {
+		return nil, fmt.Errorf("request uri must be a relative path")
+	}
+
 	fullURL := base.ResolveReference(rel)
 
 	body, err := HTTPGet(context.Background(), fullURL.String())
