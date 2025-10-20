@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { KubeObject } from '../../../lib/k8s/cluster';
 import Deployment from '../../../lib/k8s/deployment';
 import Endpoints from '../../../lib/k8s/endpoints';
-import Event from '../../../lib/k8s/event';
+import Event, { KubeEvent } from '../../../lib/k8s/event';
 import HPA from '../../../lib/k8s/hpa';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
@@ -41,7 +41,9 @@ export const KubeObjectGlance = memo(({ resource }: { resource: KubeObject }) =>
   const { t } = useTranslation();
   const [events, setEvents] = useState<Event[]>([]);
   useEffect(() => {
-    Event.objectEvents(resource).then(it => setEvents(it));
+    Event.objectEvents(resource).then(fetchedEvents =>
+      setEvents(fetchedEvents.map((event: KubeEvent) => new Event(event)))
+    );
   }, []);
 
   const kind = resource.kind;
