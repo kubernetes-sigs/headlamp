@@ -1,0 +1,113 @@
+<body>
+  <div>
+    <a
+      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1561pfm-MuiTypography-root-MuiLink-root"
+      href="#main"
+    >
+      Skip to main content
+    </a>
+    <div
+      class="MuiBox-root css-12ub0xu"
+    >
+      <div
+        class="MuiBox-root css-1uqao6u"
+      >
+        <nav
+          aria-label="Appbar Tools"
+          class="MuiPaper-root MuiPaper-outlined MuiAppBar-root MuiAppBar-colorPrimary MuiAppBar-positionStatic css-1sf61jf-MuiPaper-root-MuiAppBar-root"
+        >
+          <div
+            class="MuiToolbar-root MuiToolbar-gutters MuiToolbar-regular css-1g5gxk7-MuiToolbar-root"
+          >
+            <div
+              class="MuiBox-root css-19midj6"
+            />
+            <div
+              class="MuiBox-root css-p8ekiu"
+            >
+              <div
+                class="MuiBox-root css-xqhmuz"
+              >
+                <div
+                  class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                >
+                  <div
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedStart MuiInputBase-adornedEnd css-5ntm9s-MuiInputBase-root-MuiOutlinedInput-root"
+                  >
+                    <div
+                      class="MuiInputAdornment-root MuiInputAdornment-positionStart MuiInputAdornment-outlined MuiInputAdornment-sizeSmall css-16yk9m0-MuiInputAdornment-root"
+                    >
+                      <span
+                        class="notranslate"
+                      >
+                        ​
+                      </span>
+                    </div>
+                    <input
+                      aria-invalid="false"
+                      class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedStart MuiInputBase-inputAdornedEnd css-12yjm75-MuiInputBase-input-MuiOutlinedInput-input"
+                      id=":mock-test-id:"
+                      placeholder="Search"
+                      type="text"
+                      value=""
+                    />
+                    <div
+                      class="MuiBox-root css-1rstwa7"
+                    >
+                      Press
+                      <div
+                        class="MuiBox-root css-1y54l5z"
+                      >
+                        /
+                      </div>
+                      to search
+                    </div>
+                    <fieldset
+                      aria-hidden="true"
+                      class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                    >
+                      <legend
+                        class="css-ihdtdm"
+                      >
+                        <span
+                          class="notranslate"
+                        >
+                          ​
+                        </span>
+                      </legend>
+                    </fieldset>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="MuiBox-root css-0"
+            />
+          </div>
+        </nav>
+        <div
+          class="MuiBox-root css-1xd9zsj"
+        >
+          <main
+            class="css-afmxug"
+            id="main"
+          >
+            <div
+              class="MuiBox-root css-10klw3m"
+            >
+              <div
+                class="css-0"
+              />
+              <div
+                class="MuiContainer-root MuiContainer-maxWidthXl css-15p3enc-MuiContainer-root"
+              />
+            </div>
+          </main>
+          <div
+            class="MuiBox-root css-11hh78l"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
