@@ -89,7 +89,7 @@ window.matchMedia = () => ({
  * Recursively walks the tree and replaces any usage of useId
  */
 function replaceUseId(node: any) {
-  const attributesToReplace = ['id', 'for', 'aria-described', 'aria-labelledby', 'aria-controls'];
+  const attributesToReplace = ['id', 'for', 'aria-describedby', 'aria-labelledby', 'aria-controls'];
   if (node.nodeType === Node.ELEMENT_NODE) {
     for (const attr of node.attributes) {
       if (attributesToReplace.includes(attr.name)) {
