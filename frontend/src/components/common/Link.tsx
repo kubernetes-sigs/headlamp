@@ -143,6 +143,8 @@ function PureLink(
 
 export default function Link(props: React.PropsWithChildren<LinkProps | LinkObjectProps>) {
   const drawerEnabled = useTypedSelector(state => state.drawerMode.isDetailDrawerEnabled);
+  const activities = useTypedSelector(state => state.activity?.activities || {});
+  const activityHistory = useTypedSelector(state => state.activity?.history || []);
 
   const { tooltip, ...propsRest } = props as LinkObjectProps;
 
@@ -175,33 +177,50 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
                 }
               : { kind, metadata: { name, namespace }, cluster };
 
-          Activity.launch({
-            id:
-              'details' +
-              selectedResource.kind +
-              ' ' +
-              selectedResource.metadata.name +
-              selectedResource.cluster,
-            title: selectedResource.kind + ' ' + selectedResource.metadata.name,
-            hideTitleInHeader: true,
-            location: 'split-right',
-            cluster: selectedResource.cluster,
-            temporary: true,
-            content: (
-              <KubeObjectDetails
-                resource={{
-                  kind: selectedResource.kind,
-                  metadata: {
-                    name: selectedResource.metadata.name,
-                    namespace: selectedResource.metadata.namespace,
-                  },
-                  cluster: selectedResource.cluster,
-                }}
-                customResourceDefinition={selectedResource.customResourceDefinition}
-              />
-            ),
-            icon: <KubeIcon kind={selectedResource.kind} width="100%" height="100%" />,
-          });
+          const activityId =
+            'details' +
+            selectedResource.kind +
+            ' ' +
+            selectedResource.metadata.name +
+            selectedResource.cluster;
+
+          // Get the currently active (last) activity
+          const currentActivityId = activityHistory[activityHistory.length - 1];
+          const currentActivity = activities[activityId];
+
+          // Check if clicking the same resource that's currently open
+          if (currentActivityId === activityId && currentActivity) {
+            // Same resource clicked again - close or minimize based on pinned state
+            Activity.closeOrMinimize(activityId);
+          } else if (currentActivity && currentActivity.minimized) {
+            // If the activity exists but is minimized, restore it
+            Activity.update(activityId, { minimized: false });
+          } else {
+            // Different resource or not open - launch it
+            // (Activity.launch will automatically close other temporary activities)
+            Activity.launch({
+              id: activityId,
+              title: selectedResource.kind + ' ' + selectedResource.metadata.name,
+              hideTitleInHeader: true,
+              location: 'split-right',
+              cluster: selectedResource.cluster,
+              temporary: true,
+              content: (
+                <KubeObjectDetails
+                  resource={{
+                    kind: selectedResource.kind,
+                    metadata: {
+                      name: selectedResource.metadata.name,
+                      namespace: selectedResource.metadata.namespace,
+                    },
+                    cluster: selectedResource.cluster,
+                  }}
+                  customResourceDefinition={selectedResource.customResourceDefinition}
+                />
+              ),
+              icon: <KubeIcon kind={selectedResource.kind} width="100%" height="100%" />,
+            });
+          }
         }
       : undefined;
 
