@@ -36,6 +36,7 @@ import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import { Activity } from '../../activity/Activity';
 import ActionButton from '../ActionButton';
+import { LogsViewer } from '../LogsViewer/LogsViewer';
 import { LogViewer } from '../LogViewer';
 import { LightTooltip } from '../Tooltip';
 
@@ -51,6 +52,7 @@ const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   paddingRight: theme.spacing(2),
 }));
 
+// eslint-disable-next-line no-unused-vars
 function LogsButtonContent({ item }: LogsButtonProps) {
   const [pods, setPods] = useState<Pod[]>([]);
   const [selectedPodIndex, setSelectedPodIndex] = useState<number | 'all'>('all');
@@ -528,7 +530,7 @@ export function LogsButton({ item }: LogsButtonProps) {
       icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
       cluster: item.cluster,
       location: 'full',
-      content: <LogsButtonContent item={item} />,
+      content: <LogsViewer item={item as any} />,
     });
   };
 

@@ -29,13 +29,13 @@ import { Activity } from '../activity/Activity';
 import { StatusLabel } from '../common';
 import ActionButton from '../common/ActionButton/ActionButton';
 import Link from '../common/Link';
+import { LogsViewer } from '../common/LogsViewer/LogsViewer';
 import AuthVisible from '../common/Resource/AuthVisible';
 import DeleteButton from '../common/Resource/DeleteButton';
 import ScaleButton from '../common/Resource/ScaleButton';
 import { TableColumn } from '../common/Table';
 import Table from '../common/Table';
 import Terminal from '../common/Terminal';
-import { PodLogViewer } from '../pod/Details';
 import { getStatus, KubeObjectStatus } from '../resourceMap/nodes/KubeObjectStatus';
 import { getResourcesHealth } from './projectUtils';
 import { ResourceCategoriesList } from './ResourceCategoriesList';
@@ -339,14 +339,7 @@ export function ProjectResourcesTab({
                             <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />
                           ),
                           location: 'full',
-                          content: (
-                            <PodLogViewer
-                              noDialog
-                              open
-                              item={resource as Pod}
-                              onClose={() => Activity.close(id)}
-                            />
-                          ),
+                          content: <LogsViewer item={resource as Pod} />,
                         });
                       }}
                     />
