@@ -15,11 +15,11 @@
  */
 import React from 'react';
 import { ThemeProvider } from '@mui/material/styles';
-// import { initialize, mswLoader } from 'msw-storybook-addon';
-// import './index.css';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import './index.css';
 import { Title, Subtitle, Description, Primary, Controls } from '@storybook/addon-docs/blocks';
 
-// import { baseMocks } from './baseMocks';
+import { baseMocks } from './baseMocks';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   darkTheme,
@@ -28,10 +28,10 @@ import {
 import { createMuiTheme } from '@kinvolk/headlamp-plugin/lib/lib/themes';
 
 // https://github.com/mswjs/msw-storybook-addon
-// initialize({
-//   onUnhandledRequest: 'warn',
-//   waitUntilReady: true,
-// });
+initialize({
+  onUnhandledRequest: 'warn',
+  waitUntilReady: true,
+});
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -82,26 +82,26 @@ export const parameters = {
   },
 
   // https://github.com/mswjs/msw-storybook-addon#composing-request-handlers
-  // msw: {
-  //   handlers: {
-  //     /**
-  //      * If you wan't to override or disable them in a particular story
-  //      * set base to null in msw configuration
-  //      *
-  //      * parameters: {
-  //      *   msw: {
-  //      *     handlers: {
-  //      *       base: null,
-  //      *       story: [yourMocks]
-  //      *     }
-  //      *   }
-  //      * }
-  //      */
-  //     base: baseMocks,
-  //   },
-  // },
+  msw: {
+    handlers: {
+      /**
+       * If you wan't to override or disable them in a particular story
+       * set base to null in msw configuration
+       *
+       * parameters: {
+       *   msw: {
+       *     handlers: {
+       *       base: null,
+       *       story: [yourMocks]
+       *     }
+       *   }
+       * }
+       */
+      base: baseMocks,
+    },
+  },
 };
 
-// export const loaders = [mswLoader];
+export const loaders = [mswLoader];
 
 export const tags = ['autodocs'];

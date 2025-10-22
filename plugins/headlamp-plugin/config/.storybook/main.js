@@ -11,6 +11,7 @@ module.exports = {
     '@storybook/addon-webpack5-compiler-swc',
     '@storybook/addon-docs',
   ],
+  staticDirs: ['./public'],
   core: {
     disableTelemetry: true,
   },
