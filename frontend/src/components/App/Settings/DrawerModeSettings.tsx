@@ -143,7 +143,7 @@ const OptionButton = ({
 export default function DrawerModeSettings() {
   const dispatch = useDispatch();
 
-  const isDrawerEnabled = useTypedSelector(state => state.drawerMode.isDetailDrawerEnabled);
+  const isDrawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
 
   return (
     <Box sx={{ display: 'flex' }}>
