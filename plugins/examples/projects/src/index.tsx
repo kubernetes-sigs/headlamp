@@ -57,7 +57,7 @@ registerProjectDetailsTab({
   id: 'my-tab',
   label: 'Metrics',
   icon: 'mdi:chart-line',
-  component: ({ project }) => <div>Metrics for project {project.name}</div>,
+  component: ({ project }) => <div>Metrics for project {project.id}</div>,
 });
 
 // Example of overriding a default tab - Replace the Access tab with custom content
@@ -156,7 +156,7 @@ registerProjectDetailsTab({
 
 registerProjectOverviewSection({
   id: 'resource-usage',
-  component: ({ project }) => <div>Custom resource usage for project {project.name}</div>,
+  component: ({ project }) => <div>Custom resource usage for project {project.id}</div>,
 });
 
 registerProjectDeleteButton({
