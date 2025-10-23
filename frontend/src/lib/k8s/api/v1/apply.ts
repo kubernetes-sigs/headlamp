@@ -16,7 +16,7 @@
 
 import _ from 'lodash';
 import { getCluster } from '../../../cluster';
-import type { KubeObjectInterface } from '../../KubeObject';
+import type { KubeObjectInterface, KubeObjectInterfaceCreate } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
 import { getClusterDefaultNamespace } from './clusterApi';
 import { resourceDefToApiFactory } from './factories';
@@ -26,11 +26,19 @@ import { resourceDefToApiFactory } from './factories';
  *
  * Tries to POST, and if there's a conflict it does a PUT to the api endpoint.
  *
+ * Overloads:
+ * - When called with a KubeObjectInterfaceCreate body, the parameter type is the create type.
+ * - Otherwise it accepts a full KubeObjectInterface.
+ *
  * @param body - The kubernetes object body to apply.
  * @param clusterName - The cluster to apply the body to. By default uses the current cluster (URL defined).
  *
  * @returns The response from the kubernetes API server.
  */
+export async function apply<T extends KubeObjectInterfaceCreate>(
+  body: T,
+  clusterName?: string
+): Promise<T>;
 export async function apply<T extends KubeObjectInterface>(
   body: T,
   clusterName?: string

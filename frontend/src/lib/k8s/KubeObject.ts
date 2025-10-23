@@ -32,7 +32,7 @@ import type { ApiError } from './api/v2/ApiError';
 import { useKubeObject } from './api/v2/hooks';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
 import type { KubeEvent } from './event';
-import type { KubeMetadata } from './KubeMetadata';
+import type { KubeMetadata, KubeMetadataCreate } from './KubeMetadata';
 
 function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
   if (!cluster) {
@@ -688,6 +688,15 @@ export interface KubeObjectInterface {
   key?: any;
   [otherProps: string]: any;
 }
+
+/**
+ * KubeObjectInterfaceCreate is a version of KubeObjectInterface for creating objects
+ * where uid, creationTimestamp, etc. are optional
+ */
+export interface KubeObjectInterfaceCreate extends Omit<KubeObjectInterface, 'metadata'> {
+  metadata: KubeMetadataCreate;
+}
+
 export interface ApiListOptions extends QueryParameters {
   /**
    * The clusters to list objects from. By default uses the current clusters being viewed.
