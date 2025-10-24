@@ -81,6 +81,8 @@ export function ResourceSearch({
   const [isFocused, setIsFocused] = useState(false);
   const theme = useTheme();
   const monaco = useMonaco();
+
+  // console.log("resource: ", resources , "selectedClusters: ", selectedClusters , "maxItemsPerResource: ", maxItemsPerResource , "refreshIntervalMs: ", refetchIntervalMs)
   const {
     items: allItems,
     errors,
@@ -104,6 +106,8 @@ export function ResourceSearch({
 
     searchWithQuery(allItems, deferredQuery, interruptRef).then(result => {
       if (interruptRef.current === false) {
+
+        console.log("results: ", result.results , "query : ", deferredQuery)
         setResults({ items: result.results, query: deferredQuery });
       }
     });
