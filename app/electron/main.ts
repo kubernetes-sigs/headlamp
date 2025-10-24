@@ -40,6 +40,7 @@ import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import i18n from './i18next.config';
+import ElectronMCPClient from './mcp-client';
 import {
   addToPath,
   ArtifactHubHeadlampPkg,
@@ -131,6 +132,7 @@ const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false'
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
+let mcpClient: ElectronMCPClient;
 
 /**
  * `Action` is an interface for an action to be performed by the plugin manager.
@@ -1131,6 +1133,12 @@ function adjustZoom(delta: number) {
 
 function startElecron() {
   console.info('App starting...');
+  mcpClient = new ElectronMCPClient();
+
+  // Initialize MCP client
+  mcpClient.initialize().catch(error => {
+    console.error('Failed to initialize MCP client on startup:', error);
+  });
 
   let appVersion: string;
   if (isDev && process.env.HEADLAMP_APP_VERSION) {
@@ -1246,6 +1254,9 @@ function startElecron() {
         preload: `${__dirname}/preload.js`,
       },
     });
+
+    // Set the main window reference in the MCP client for dialogs
+    mcpClient.setMainWindow(mainWindow);
 
     // Load the frontend
     mainWindow.loadURL(startUrl);
@@ -1462,6 +1473,11 @@ function startElecron() {
     i18n.off('languageChanged');
     if (mainWindow) {
       mainWindow.removeAllListeners('close');
+    }
+
+    // Cleanup MCP client
+    if (mcpClient) {
+      mcpClient.cleanup().catch(console.error);
     }
   });
 }
