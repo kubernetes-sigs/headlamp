@@ -17,6 +17,7 @@
 import { generatePath } from 'react-router';
 import type { AppStore } from '../../redux/stores/store';
 import { getClusterPathParam } from '../cluster';
+import { debugLog } from '.';
 import { getRoute } from './getRoute';
 import { getRoutePath } from './getRoutePath';
 import { getRouteUseClusterURL } from './getRouteUseClusterURL';
@@ -46,17 +47,31 @@ export function setStore(newStore: AppStore) {
 }
 
 export function createRouteURL(routeName?: string, params: RouteURLProps = {}) {
-  if (!routeName) return '';
+  if (!routeName) {
+    debugLog('error', 'routeName is undefined/null/empty in createRouteURL');
+    return '';
+  }
+
+  // Additional validation to ensure routeName is a non-empty string
+  if (typeof routeName !== 'string' || routeName.trim() === '') {
+    debugLog('error', 'routeName is not a valid string:', routeName, 'type:', typeof routeName);
+    return '/';
+  }
 
   const store = getStore();
   const storeRoutes = !store ? {} : store.getState().routes.routes;
 
   // First try to find by name
-  const matchingStoredRouteByName =
-    storeRoutes &&
-    Object.entries(storeRoutes).find(
-      ([, route]) => route.name?.toLowerCase() === routeName.toLowerCase()
-    )?.[1];
+  let matchingStoredRouteByName;
+  try {
+    matchingStoredRouteByName =
+      storeRoutes &&
+      Object.entries(storeRoutes).find(
+        ([, route]) => route.name?.toLowerCase() === routeName.toLowerCase()
+      )?.[1];
+  } catch (error) {
+    debugLog('error', 'Error in matchingStoredRouteByPath:', error);
+  }
 
   // Then try to find by path
   const matchingStoredRouteByPath =
@@ -73,6 +88,12 @@ export function createRouteURL(routeName?: string, params: RouteURLProps = {}) {
   const route = matchingStoredRouteByName || matchingStoredRouteByPath || getRoute(routeName);
 
   if (!route) {
+    debugLog('error', 'No route found for routeName:', routeName);
+    return '';
+  }
+
+  if (!route.path) {
+    debugLog('error', 'Route found but has no path:', route);
     return '';
   }
 
@@ -80,6 +101,7 @@ export function createRouteURL(routeName?: string, params: RouteURLProps = {}) {
   if (!cluster && getRouteUseClusterURL(route)) {
     cluster = getClusterPathParam();
     if (!cluster) {
+      debugLog('warn', 'No cluster found, returning /');
       return '/';
     }
   }

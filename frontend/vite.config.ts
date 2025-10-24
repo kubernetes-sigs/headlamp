@@ -41,6 +41,10 @@ export default defineConfig({
         target: 'http://localhost:4466',
         changeOrigin: true,
       },
+      '/dev-plugins': {
+        target: 'http://localhost:4466',
+        changeOrigin: true,
+      },
     },
     cors: true,
   },
