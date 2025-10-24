@@ -975,7 +975,8 @@ func GetInClusterContext(oidcIssuerURL string,
 
 	var oidcConf *OidcConfig
 
-	if oidcClientID != "" && oidcClientSecret != "" && oidcIssuerURL != "" && oidcScopes != "" {
+	if oidcClientID != "" && oidcIssuerURL != "" && oidcScopes != "" {
+		// client secret is optional for in-cluster OIDC configuration
 		oidcConf = &OidcConfig{
 			ClientID:      oidcClientID,
 			ClientSecret:  oidcClientSecret,

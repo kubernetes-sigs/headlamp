@@ -8,6 +8,7 @@
 {{- $callbackURL := "" }}
 {{- $validatorClientID := "" }}
 {{- $validatorIssuerURL := "" }}
+{{- $usePKCE := "" }}
 {{- $useAccessToken := "" }}
 
 # This block of code is used to extract the values from the env.
@@ -36,6 +37,9 @@
   {{- end }}
   {{- if eq .name "OIDC_USE_ACCESS_TOKEN" }}
     {{- $useAccessToken = .value | toString }}
+  {{- end }}
+  {{- if eq .name "OIDC_USE_PKCE" }}
+    {{- $usePKCE = .value | toString }}
   {{- end }}
 {{- end }}
 
@@ -159,6 +163,13 @@ spec:
                   name: {{ $oidc.secret.name }}
                   key: useAccessToken
             {{- end }}
+            {{- if $oidc.usePKCE }}
+            - name: OIDC_USE_PKCE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: usePKCE
+            {{- end }}
             {{- else }}
             {{- if $oidc.clientID }}
             - name: OIDC_CLIENT_ID
@@ -191,6 +202,10 @@ spec:
             {{- if $oidc.useAccessToken }}
             - name: OIDC_USE_ACCESS_TOKEN
               value: {{ $oidc.useAccessToken }}
+            {{- end }}
+            {{- if $oidc.usePKCE }}
+            - name: OIDC_USE_PKCE
+              value: {{ $oidc.usePKCE }}
             {{- end }}
             {{- end }}
             {{- if .Values.env }}
@@ -244,6 +259,9 @@ spec:
             {{- if or (ne ($oidc.useAccessToken | toString) "false") (ne $useAccessToken "") }}
             # Check if useAccessToken is non false either from env or oidc.config
             - "-oidc-use-access-token=$(OIDC_USE_ACCESS_TOKEN)"
+            {{- end }}
+            {{- if or (eq ($oidc.usePKCE | toString) "true") (eq $usePKCE "true") }}
+            - "-oidc-use-pkce=$(OIDC_USE_PKCE)"
             {{- end }}
             {{- else }}
             - "-oidc-client-id=$(OIDC_CLIENT_ID)"

@@ -207,6 +207,10 @@
               "type": "string",
               "description": "Scopes of the OIDC provider"
             },
+            "usePKCE": {
+              "type": "boolean",
+              "description": "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow"
+            },
             "externalSecret": {
               "type": "object",
               "description": "External secret to use for OIDC configuration",
