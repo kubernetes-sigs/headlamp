@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: write # needed for commenting on issues for coverage changes
       pull-requests: write # needed for commenting on PRs for coverage changes
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -46,13 +47,13 @@ jobs:
           minikube addons enable headlamp
           kubectl wait deployment -n headlamp headlamp --for condition=Available=True --timeout=30s    
 
-      - name: setup and run golangci-lint 
-        uses: golangci/golangci-lint-action@2226d7cb06a077cd73e56eedd38eecad18e5d837 # 6.5.0
-        with:
-          version: v1.64
-          working-directory: backend
-          skip-cache: true
-          args: --timeout 3m
+      # - name: setup and run golangci-lint 
+      #   uses: golangci/golangci-lint-action@2226d7cb06a077cd73e56eedd38eecad18e5d837 # 6.5.0
+      #   with:
+      #     version: v1.64
+      #     working-directory: backend
+      #     skip-cache: true
+      #     args: --timeout 3m
 
       - name: Lint, Build & Check
         run: |
@@ -100,6 +101,8 @@ jobs:
           if [[ -f base_coverage.out ]]; then
             base_coverage=$(go tool cover -func=base_coverage.out | grep total | grep -Eo '[0-9]+\.[0-9]+')
             echo "Base branch code coverage: $base_coverage"
+            # export for later steps
+            echo "base_coverage=$base_coverage" >> $GITHUB_ENV
           else
             echo "Tests failed or base_coverage.out not found. Skipping code coverage calculation."
           fi
@@ -132,6 +135,8 @@ jobs:
 
       - name: Comment on PR
         if: ${{ github.event_name }} == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -x
           if [[ -z "${{ github.base_ref }}" ]]; then
@@ -177,13 +182,7 @@ jobs:
           "
 
           echo "$comment"
-
-          if [[ "${{github.event.pull_request.head.repo.full_name}}" == "${{github.repository}}" ]]; then
-            # Forks (like dependabot ones) do not have permission to comment on the PR,
-            #   so do not fail the action if this fails.
-            gh pr comment ${{github.event.number}} --body "${comment}" || true
-          else
-            echo "Pull request raised from a fork. Skipping comment."
-          fi
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+          pr_number="${{ github.event.pull_request.number }}"
+          gh api \
+            repos/${{ github.repository }}/issues/$pr_number/comments \
+            -f body="$comment"
