@@ -31,6 +31,23 @@ export const BASE_SC: KubeStorageClass = {
   reclaimPolicy: 'Delete',
   allowVolumeExpansion: true,
   volumeBindingMode: 'WaitForFirstConsumer',
+  parameters: {
+    type: 'gp3',
+    iopsPerGB: '10',
+    fsType: 'ext4',
+    encrypted: 'true',
+  },
+  mountOptions: ['debug', 'nfsvers=4.1'],
+  allowedTopologies: [
+    {
+      matchLabelExpressions: [
+        {
+          key: 'topology.kubernetes.io/zone',
+          values: ['us-east-1a', 'us-east-1b'],
+        },
+      ],
+    },
+  ],
 };
 
 export const BASE_PVC: KubePersistentVolumeClaim = {
