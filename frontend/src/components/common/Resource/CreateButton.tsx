@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../../lib/k8s';
 import { Activity } from '../../activity/Activity';
 import ActionButton from '../ActionButton';
+import { TutorialToolTip } from '../Tutorial/TutorialToolTip';
 import EditorDialog from './EditorDialog';
 
 interface CreateButtonProps {
@@ -52,6 +53,8 @@ export default function CreateButton(props: CreateButtonProps) {
       setTargetCluster(clusters[0]);
     }
   }, [clusters]);
+
+  const buttonText = <TutorialToolTip context="CreateButton" labelText={t('translation|Create')} />;
 
   const openActivity = () => {
     const id = 'create-button';
@@ -128,7 +131,7 @@ export default function CreateButton(props: CreateButtonProps) {
             },
           })}
         >
-          {t('translation|Create')}
+          {buttonText}
         </Button>
       )}
     </React.Fragment>
