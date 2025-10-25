@@ -128,6 +128,8 @@ export default function ClusterTable({
    * @returns A description of where the cluster is picked up from: dynamic, in-cluster, or from a kubeconfig file.
    */
   function getOrigin(cluster: Cluster): string {
+    console.log('cluster data', cluster);
+
     if (cluster?.meta_data?.source === 'kubeconfig') {
       const sourcePath = cluster?.meta_data?.origin?.kubeconfig;
       return sourcePath ? `Kubeconfig: ${sourcePath}` : 'Kubeconfig';

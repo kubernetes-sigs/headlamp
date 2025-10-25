@@ -61,7 +61,11 @@ interface kubeconfig {
   currentContext: string;
 }
 
-function configWithSelectedClusters(config: kubeconfig, selectedClusters: string[]): kubeconfig {
+function configWithSelectedClusters(
+  config: kubeconfig,
+  selectedClusters: string[],
+  configFileName: string
+): kubeconfig {
   const newConfig: kubeconfig = {
     clusters: [],
     users: [],
@@ -83,6 +87,14 @@ function configWithSelectedClusters(config: kubeconfig, selectedClusters: string
     if (!cluster) {
       return;
     }
+
+    // Add ClusterID to meta_data
+    if (!cluster.cluster.meta_data) {
+      cluster.cluster.meta_data = {};
+    }
+
+    cluster.cluster.meta_data.ClusterID = `${configFileName}+${cluster.name}`;
+
     clusters[cluster.name] = cluster;
 
     // Optionally add the user.
@@ -95,6 +107,10 @@ function configWithSelectedClusters(config: kubeconfig, selectedClusters: string
   });
 
   newConfig.clusters = Object.values(clusters);
+
+  console.log('more all clusters:', clusters);
+  debugger; // <-- This will pause execution if dev tools are open
+
   newConfig.users = Object.values(users);
 
   return newConfig;
@@ -155,14 +171,34 @@ function KubeConfigLoader() {
       }
     }
     if (state === Step.ConfigureClusters) {
-      function loadClusters() {
-        const selectedClusterConfig = configWithSelectedClusters(fileContent, selectedClusters);
-        setCluster({ kubeconfig: btoa(yaml.dump(selectedClusterConfig)) })
+      async function loadClusters() {
+        const selectedClusterConfig = configWithSelectedClusters(
+          fileContent,
+          selectedClusters,
+          configFileName
+        );
+
+        console.log('selectedClusterConfig:', JSON.stringify(selectedClusterConfig, null, 2)); // <-- Readable output
+        // debugger; // <-- This will pause execution if dev tools are open
+
+        await setCluster({ kubeconfig: btoa(yaml.dump(selectedClusterConfig)) })
           .then(res => {
             if (res?.clusters?.length > 0) {
+              console.log('READING RES FOR CLUSTER', res);
+              debugger; // <-- This will pause execution if dev tools are open
+
+              // for some reason, trying to udpate the redux stateless config does not work here???
+              // we run the dispatch and everything lookgs like it should fit, the console logs for the meta_data are maybe in the right place?
+              // - this could be an issue with the way I am injecting the meta_data clusterID above, maybe that is not the correct shape
+              // - also maybe the data is being rewritten? like the yaml shows it as meta_data there, but maybe it isnt a official format so it gets rewritten?
+              // this could maybe explain why when console logging in get origin, the cluster meta_data for ClusterID is not there
+              // it just says "dynamic_cluster", so maybe it is going > my injected meta_data > gets read somewhere else > rewritten to dynamic_cluster
               dispatch(setStatelessConfig(res));
             }
             setState(Step.Success);
+
+            console.log('READING RES FOR CLUSTER', res);
+            debugger; // <-- This will pause execution if dev tools are open
           })
           .catch(e => {
             console.debug('Error setting up clusters from kubeconfig:', e);
@@ -180,7 +216,13 @@ function KubeConfigLoader() {
   const dispatch = useDispatch();
   const { t } = useTranslation(['translation']);
 
-  const onDrop = (acceptedFiles: Blob[]) => {
+  const [configFileName, setConfigFileName] = useState<string>('');
+
+  const onDrop = (acceptedFiles: File[]) => {
+    if (acceptedFiles.length > 0) {
+      console.log('Selected file name:', acceptedFiles[0].name);
+      setConfigFileName(acceptedFiles[0].name);
+    }
     setError('');
     const reader = new FileReader();
     reader.onerror = () => setError(t("translation|Couldn't read kubeconfig file"));
@@ -189,7 +231,9 @@ function KubeConfigLoader() {
         const data = String.fromCharCode.apply(null, [
           ...new Uint8Array(reader.result as ArrayBuffer),
         ]);
+        console.log('Raw file data:', data); // <-- Add here to see the raw file contents
         const doc = yaml.load(data) as kubeconfig;
+        console.log('Parsed kubeconfig:', doc); // <-- Add here to see the parsed kubeconfig object
         if (!doc.clusters) {
           throw new Error(t('translation|No clusters found!'));
         }
