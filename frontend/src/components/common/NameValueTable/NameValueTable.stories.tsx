@@ -72,3 +72,23 @@ WithHiddenLastChildren.args = {
     },
   ],
 };
+
+export const WithCopyableValue = Template.bind({});
+WithCopyableValue.args = {
+  rows: [
+    {
+      name: 'IP Address',
+      value: '192.168.1.1',
+      copyValue: '192.168.1.1',
+    },
+    {
+      name: 'Pod Name',
+      value: 'my-pod-12345',
+      copyValue: 'my-pod-12345',
+    },
+    {
+      name: 'Regular Value',
+      value: 'Not copyable',
+    },
+  ],
+};
