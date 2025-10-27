@@ -1426,6 +1426,15 @@ function startElecron() {
       mainWindow?.webContents.send('backend-token', backendToken);
     });
 
+    // Handle cluster change notifications from frontend
+    ipcMain.on('cluster-changed', (event: IpcMainEvent, cluster: string | null) => {
+      if (mcpClient) {
+        mcpClient.handleClusterChange(cluster).catch(error => {
+          console.error('Failed to handle cluster change in MCP client:', error);
+        });
+      }
+    });
+
     setupRunCmdHandlers(mainWindow, ipcMain);
 
     new PluginManagerEventListeners().setupEventHandlers();

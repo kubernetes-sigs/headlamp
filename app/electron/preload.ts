@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'plugin-manager',
       'request-backend-token',
       'request-plugin-permission-secrets',
+      'cluster-changed',
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
@@ -73,5 +74,12 @@ contextBridge.exposeInMainWorld('desktopApi', {
       ipcRenderer.invoke('mcp-set-tool-enabled', { serverName, toolName, enabled }),
     getToolStats: (serverName: string, toolName: string) =>
       ipcRenderer.invoke('mcp-get-tool-stats', { serverName, toolName }),
+    clusterChange: (cluster: string | null) =>
+      ipcRenderer.invoke('mcp-cluster-change', { cluster }),
+  },
+
+  // Notify cluster change (for MCP server restart)
+  notifyClusterChange: (cluster: string | null) => {
+    ipcRenderer.send('cluster-changed', cluster);
   },
 });

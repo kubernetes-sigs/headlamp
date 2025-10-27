@@ -41,6 +41,7 @@ class ElectronMCPClient {
   private initializationPromise: Promise<void> | null = null;
   private configManager: MCPConfigManager;
   private mainWindow: BrowserWindow | null = null;
+  private currentCluster: string | null = null;
 
   constructor(mainWindow: BrowserWindow | null = null) {
     this.mainWindow = mainWindow;
@@ -483,10 +484,17 @@ class ElectronMCPClient {
   /**
    * Expand environment variables and resolve paths in arguments
    */
-  private expandArgs(args: string[]): string[] {
+  private expandArgs(args: string[], cluster: string | null = null): string[] {
+    const currentCluster = cluster || this.currentCluster || '';
+
     return args.map(arg => {
       // Replace Windows environment variables like %USERPROFILE%
       let expandedArg = arg;
+
+      // Handle HEADLAMP_CURRENT_CLUSTER placeholder
+      if (expandedArg.includes('HEADLAMP_CURRENT_CLUSTER')) {
+        expandedArg = expandedArg.replace(/HEADLAMP_CURRENT_CLUSTER/g, currentCluster);
+      }
 
       // Handle %USERPROFILE%
       if (expandedArg.includes('%USERPROFILE%')) {
@@ -574,7 +582,7 @@ class ElectronMCPClient {
         }
 
         // Expand environment variables and resolve paths in arguments
-        const expandedArgs = this.expandArgs(server.args || []);
+        const expandedArgs = this.expandArgs(server.args || [], this.currentCluster);
         console.log(`Expanded args for ${server.name}:`, expandedArgs);
 
         // Prepare environment variables
@@ -879,6 +887,83 @@ class ElectronMCPClient {
         };
       }
     });
+
+    // Handle cluster context changes
+    ipcMain.handle('mcp-cluster-change', async (event, { cluster }) => {
+      try {
+        console.log('Received cluster change event:', cluster);
+        await this.handleClusterChange(cluster);
+        return {
+          success: true,
+        };
+      } catch (error) {
+        console.error('Error handling cluster change:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
+    });
+  }
+
+  /**
+   * Check if any server in the config uses HEADLAMP_CURRENT_CLUSTER
+   */
+  private hasClusterDependentServers(mcpConfig: MCPConfig | null): boolean {
+    if (!mcpConfig || !mcpConfig.servers) {
+      return false;
+    }
+
+    return mcpConfig.servers.some(
+      server =>
+        server.enabled &&
+        server.args &&
+        server.args.some(arg => arg.includes('HEADLAMP_CURRENT_CLUSTER'))
+    );
+  }
+
+  /**
+   * Handle cluster context change
+   * This will restart MCP servers if any server uses HEADLAMP_CURRENT_CLUSTER
+   */
+  async handleClusterChange(newCluster: string | null): Promise<void> {
+    // If cluster hasn't actually changed, do nothing
+    if (this.currentCluster === newCluster) {
+      return;
+    }
+
+    const oldCluster = this.currentCluster;
+    this.currentCluster = newCluster;
+
+    // Check if we have any cluster-dependent servers
+    const mcpConfig = this.loadMCPConfig();
+    if (!this.hasClusterDependentServers(mcpConfig)) {
+      console.log('No cluster-dependent MCP servers found, skipping restart');
+      return;
+    }
+
+    try {
+      // Reset the client
+      if (this.client) {
+        if (typeof (this.client as any).close === 'function') {
+          await (this.client as any).close();
+        }
+      }
+
+      this.client = null;
+      this.isInitialized = false;
+      this.initializationPromise = null;
+
+      // Re-initialize with new cluster context
+      await this.initializeClient();
+
+      console.log('MCP client restarted successfully for new cluster:', newCluster);
+    } catch (error) {
+      console.error('Error restarting MCP client for cluster change:', error);
+      // Restore previous cluster on error
+      this.currentCluster = oldCluster;
+      throw error;
+    }
   }
 
   /**
