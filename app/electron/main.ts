@@ -1579,7 +1579,8 @@ function startElecron() {
     if a library is trying to open a url other than app url in electron take it
     to the default browser
     */
-    mainWindow.webContents.on('will-navigate', (event, url) => {
+    mainWindow.webContents.on('will-navigate', (event, encodedUrl) => {
+      const url = decodeURI(encodedUrl);
       if (url.startsWith(startUrl)) {
         return;
       }
