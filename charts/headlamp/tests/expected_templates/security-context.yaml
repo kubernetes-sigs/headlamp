@@ -159,13 +159,15 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              echo "Installing headlamp-plugin globally..."
-              npm install -g @headlamp-k8s/pluginctl@1.0.0
-              echo "Installed headlamp-plugin successfully."
               if [ -f "/config/plugin.yml" ]; then
                 echo "Installing plugins from config..."
                 cat /config/plugin.yml
-                pluginctl install --config /config/plugin.yml --folderName /headlamp/plugins --watch
+                # Use a writable cache directory
+                export NPM_CONFIG_CACHE=/tmp/npm-cache
+                # Use a writable config directory
+                export NPM_CONFIG_USERCONFIG=/tmp/npm-userconfig
+                mkdir -p /tmp/npm-cache /tmp/npm-userconfig
+                npx --yes @headlamp-k8s/pluginctl@1.0.0 install --config /config/plugin.yml --folderName /headlamp/plugins --watch
               fi
           volumeMounts:
             - name: plugins-dir
