@@ -302,8 +302,18 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 			return
 		}
 
-		token, err := GetTokenFromCookie(r, clusterName)
-		if err != nil || token == "" {
+		requestCluster, token := ParseClusterAndToken(r)
+
+		if requestCluster == "" {
+			requestCluster = clusterName
+		}
+
+		if requestCluster != clusterName {
+			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{"message": "cluster mismatch"})
+			return
+		}
+
+		if token == "" {
 			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{"message": "unauthorized"})
 			return
 		}
