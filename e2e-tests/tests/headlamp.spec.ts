@@ -38,7 +38,7 @@ test('GET /plugins/list returns plugins list', async ({ page }) => {
 
   const json = await response.json();
   expect(json.length).toBeGreaterThan(0);
-  expect(json.some(str => str.includes('plugins/'))).toBeTruthy();
+  expect(json.some(plugin => plugin.path && plugin.path.includes('plugins/'))).toBeTruthy();
 });
 // --- Plugin tests end --- //
 
