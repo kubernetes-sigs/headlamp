@@ -347,9 +347,19 @@ export async function fetchAndExecutePlugins(
 
   const headers = addBackstageAuthHeaders();
 
-  const pluginPaths = (await fetchWithRetry(`${getAppUrl()}plugins`, headers).then(resp =>
+  // Backend now returns plugin metadata with path, type, and name
+  interface PluginMetadata {
+    path: string;
+    type: 'development' | 'user' | 'shipped';
+    name: string;
+  }
+
+  const pluginMetadataList = (await fetchWithRetry(`${getAppUrl()}plugins`, headers).then(resp =>
     resp.json()
-  )) as string[];
+  )) as PluginMetadata[];
+
+  // Extract paths for fetching plugin files
+  const pluginPaths = pluginMetadataList.map(metadata => metadata.path);
 
   const sourcesPromise = Promise.all(
     pluginPaths.map(path =>
@@ -360,7 +370,7 @@ export async function fetchAndExecutePlugins(
   );
 
   const packageInfosPromise = await Promise.all<PluginInfo>(
-    pluginPaths.map(path =>
+    pluginPaths.map((path, index) =>
       fetch(`${getAppUrl()}${path}/package.json`, { headers: new Headers(headers) }).then(resp => {
         if (!resp.ok) {
           if (resp.status !== 404) {
@@ -378,10 +388,14 @@ export async function fetchAndExecutePlugins(
               version: '0.0.0',
               author: 'unknown',
               description: '',
+              type: pluginMetadataList[index].type, // Add plugin type from metadata
             };
           }
         }
-        return resp.json();
+        return resp.json().then(json => ({
+          ...json,
+          type: pluginMetadataList[index].type, // Add plugin type from metadata
+        }));
       })
     )
   );

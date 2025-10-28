@@ -78,6 +78,11 @@ export type PluginInfo = {
   isEnabled?: boolean;
 
   /**
+   * type indicates the source of the plugin: "development", "user", or "shipped"
+   */
+  type?: 'development' | 'user' | 'shipped';
+
+  /**
    * isCompatible is true when the plugin is compatible with this version of Headlamp.
    */
   isCompatible?: boolean;
