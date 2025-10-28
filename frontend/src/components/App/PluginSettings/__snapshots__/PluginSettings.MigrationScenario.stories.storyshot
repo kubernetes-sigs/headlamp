@@ -389,7 +389,7 @@
                 >
                   <a
                     class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
-                    href="/settings/plugins/prometheus"
+                    href="/settings/plugins/prometheus/user"
                   >
                     prometheus
                   </a>
@@ -452,7 +452,7 @@
                 >
                   <a
                     class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
-                    href="/settings/plugins/flux"
+                    href="/settings/plugins/flux/user"
                   >
                     flux
                   </a>
@@ -515,7 +515,7 @@
                 >
                   <a
                     class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
-                    href="/settings/plugins/my-dev-plugin"
+                    href="/settings/plugins/my-dev-plugin/development"
                   >
                     my-dev-plugin
                   </a>
@@ -578,7 +578,7 @@
                 >
                   <a
                     class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
-                    href="/settings/plugins/default-dashboard"
+                    href="/settings/plugins/default-dashboard/shipped"
                   >
                     default-dashboard
                   </a>

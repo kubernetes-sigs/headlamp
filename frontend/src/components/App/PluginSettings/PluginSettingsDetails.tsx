@@ -16,13 +16,14 @@
 
 import Box, { BoxProps } from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
 import _ from 'lodash';
 import { isValidElement, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useParams } from 'react-router-dom';
-import { useHistory } from 'react-router-dom';
+import { useHistory, useParams } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
 import { getCluster } from '../../../lib/cluster';
 import { deletePlugin } from '../../../lib/k8s/api/v1/pluginsApi';
@@ -32,6 +33,7 @@ import { clusterAction } from '../../../redux/clusterActionSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import type { AppDispatch } from '../../../redux/stores/store';
 import NotFoundComponent from '../../404';
+import { SectionHeader } from '../../common';
 import { ConfirmDialog } from '../../common/Dialog';
 import ErrorBoundary from '../../common/ErrorBoundary';
 import { SectionBox } from '../../common/SectionBox';
@@ -93,12 +95,22 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
 
 export default function PluginSettingsDetails() {
   const pluginSettings = useTypedSelector(state => state.plugins.pluginSettings);
-  const { name } = useParams<{ name: string }>();
+  const { name, type } = useParams<{ name: string; type?: string }>();
 
   const plugin = useMemo(() => {
     const decodedName = decodeURIComponent(name);
+    const decodedType = type ? decodeURIComponent(type) : undefined;
+
+    // If type is specified, find exact match by name and type
+    if (decodedType) {
+      return pluginSettings.find(
+        plugin => plugin.name === decodedName && (plugin.type || 'shipped') === decodedType
+      );
+    }
+
+    // Otherwise, find by name only (backwards compatibility)
     return pluginSettings.find(plugin => plugin.name === decodedName);
-  }, [pluginSettings, name]);
+  }, [pluginSettings, name, type]);
 
   if (!plugin) {
     return <NotFoundComponent />;
@@ -182,14 +194,19 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
   }
 
   let component;
-  if (isValidElement(plugin.settingsComponent)) {
-    component = plugin.settingsComponent;
-  } else if (typeof plugin.settingsComponent === 'function') {
-    const Comp = plugin.settingsComponent;
-    if (plugin.displaySettingsComponentWithSaveButton) {
-      component = <Comp onDataChange={onDataChange} data={data} />;
+  // Only show settings component if this plugin is actually loaded
+  if (plugin.isLoaded !== false) {
+    if (isValidElement(plugin.settingsComponent)) {
+      component = plugin.settingsComponent;
+    } else if (typeof plugin.settingsComponent === 'function') {
+      const Comp = plugin.settingsComponent;
+      if (plugin.displaySettingsComponentWithSaveButton) {
+        component = <Comp onDataChange={onDataChange} data={data} />;
+      } else {
+        component = <Comp />;
+      }
     } else {
-      component = <Comp />;
+      component = null;
     }
   } else {
     component = null;
@@ -199,11 +216,63 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
     <>
       <SectionBox
         aria-live="polite"
-        title={name}
-        subtitle={author ? `${t('translation|By')}: ${author}` : undefined}
+        title={
+          <SectionHeader
+            title={name}
+            titleSideActions={[
+              plugin.type && (
+                <Chip
+                  label={
+                    plugin.type === 'development'
+                      ? t('translation|Development')
+                      : plugin.type === 'user'
+                      ? t('translation|User-installed')
+                      : t('translation|Shipped')
+                  }
+                  size="small"
+                  color={
+                    plugin.type === 'development'
+                      ? 'primary'
+                      : plugin.type === 'user'
+                      ? 'info'
+                      : 'default'
+                  }
+                />
+              ),
+              plugin.isLoaded === false && plugin.overriddenBy && (
+                <Chip
+                  label={t('translation|Not Loaded')}
+                  size="small"
+                  color="warning"
+                  variant="outlined"
+                />
+              ),
+            ]}
+            subtitle={author ? `${t('translation|By')}: ${author}` : undefined}
+            noPadding={false}
+            headerStyle="subsection"
+          />
+        }
         backLink={'/settings/plugins'}
       >
         {plugin.description}
+        {plugin.isLoaded === false && plugin.overriddenBy && (
+          <Box mt={2} p={2} sx={{ bgcolor: 'warning.light', borderRadius: 1 }}>
+            <Typography variant="body2">
+              {t(
+                'translation|This plugin is not currently loaded because a "{{type}}" version is being used instead.',
+                {
+                  type:
+                    plugin.overriddenBy === 'development'
+                      ? t('translation|development')
+                      : plugin.overriddenBy === 'user'
+                      ? t('translation|user-installed')
+                      : t('translation|shipped'),
+                }
+              )}
+            </Typography>
+          </Box>
+        )}
         <ScrollableBox style={{ height: '70vh' }} py={0}>
           <ConfirmDialog
             open={openDeleteDialog}

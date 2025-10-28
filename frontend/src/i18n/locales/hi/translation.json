@@ -111,6 +111,7 @@
   "Deleted plugin {{ itemName }}.": "",
   "Error deleting plugin {{ itemName }}.": "",
   "By": "द्वारा",
+  "This plugin is not currently loaded because a \"{{type}}\" version is being used instead.": "",
   "Delete Plugin": "प्लगइन हटाएँ",
   "Are you sure you want to delete this plugin?": "क्या आप वाकई इस प्लगइन को हटाना चाहते हैं?",
   "Uh-oh! Something went wrong.": "अरे! कुछ गलत हो गया।",

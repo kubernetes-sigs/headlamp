@@ -240,7 +240,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                     <Typography variant="subtitle1">
                       <HeadlampLink
                         routeName={'pluginDetails'}
-                        params={{ name: plugin.name }}
+                        params={{ name: plugin.name, type: plugin.type || 'shipped' }}
                         align="right"
                       >
                         {plugin.displayName}

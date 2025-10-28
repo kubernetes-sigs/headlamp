@@ -111,6 +111,7 @@
   "Deleted plugin {{ itemName }}.": "Deleted plugin {{ itemName }}.",
   "Error deleting plugin {{ itemName }}.": "Error deleting plugin {{ itemName }}.",
   "By": "By",
+  "This plugin is not currently loaded because a \"{{type}}\" version is being used instead.": "This plugin is not currently loaded because a \"{{type}}\" version is being used instead.",
   "Delete Plugin": "Delete Plugin",
   "Are you sure you want to delete this plugin?": "Are you sure you want to delete this plugin?",
   "Uh-oh! Something went wrong.": "Uh-oh! Something went wrong.",

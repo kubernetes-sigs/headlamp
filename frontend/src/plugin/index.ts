@@ -478,12 +478,14 @@ export async function fetchAndExecutePlugins(
               author: 'unknown',
               description: '',
               type: pluginMetadataList[index].type,
+              folderName: pluginMetadataList[index].name,
             };
           }
         }
         return resp.json().then(json => ({
           ...json,
           type: pluginMetadataList[index].type,
+          folderName: pluginMetadataList[index].name,
         }));
       })
     )

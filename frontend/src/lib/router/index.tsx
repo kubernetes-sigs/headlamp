@@ -923,7 +923,7 @@ const defaultRoutes: { [routeName: string]: Route } = {
     component: () => <PluginSettings />,
   },
   pluginDetails: {
-    path: '/settings/plugins/:name',
+    path: '/settings/plugins/:name/:type?',
     exact: true,
     name: 'Plugin Details',
     sidebar: {

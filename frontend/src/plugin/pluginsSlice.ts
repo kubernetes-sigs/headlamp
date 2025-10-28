@@ -54,6 +54,11 @@ export type PluginInfo = {
    */
   name: string;
   /**
+   * folderName is the actual folder name on disk (used for deletion).
+   * This may differ from the package.json name, especially for scoped packages.
+   */
+  folderName?: string;
+  /**
    * description text of the plugin from npm with same restrictions as package.json description
    * @see https://docs.npmjs.com/cli/v9/configuring-npm/package-json?v=true#description
    */
