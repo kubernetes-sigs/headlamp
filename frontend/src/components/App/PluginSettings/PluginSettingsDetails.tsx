@@ -16,13 +16,13 @@
 
 import Box, { BoxProps } from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import _ from 'lodash';
 import { isValidElement, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useParams } from 'react-router-dom';
-import { useHistory } from 'react-router-dom';
+import { useHistory, useParams } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
 import { getCluster } from '../../../lib/cluster';
 import { deletePlugin } from '../../../lib/k8s/api/v1/pluginsApi';
@@ -32,6 +32,7 @@ import { clusterAction } from '../../../redux/clusterActionSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import type { AppDispatch } from '../../../redux/stores/store';
 import NotFoundComponent from '../../404';
+import { SectionHeader } from '../../common';
 import { ConfirmDialog } from '../../common/Dialog';
 import ErrorBoundary from '../../common/ErrorBoundary';
 import { SectionBox } from '../../common/SectionBox';
@@ -199,8 +200,35 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
     <>
       <SectionBox
         aria-live="polite"
-        title={name}
-        subtitle={author ? `${t('translation|By')}: ${author}` : undefined}
+        title={
+          <SectionHeader
+            title={name}
+            titleSideActions={[
+              plugin.type && (
+                <Chip
+                  label={
+                    plugin.type === 'development'
+                      ? t('translation|Development')
+                      : plugin.type === 'user'
+                      ? t('translation|User-installed')
+                      : t('translation|Shipped')
+                  }
+                  size="small"
+                  color={
+                    plugin.type === 'development'
+                      ? 'primary'
+                      : plugin.type === 'user'
+                      ? 'info'
+                      : 'default'
+                  }
+                />
+              ),
+            ]}
+            subtitle={author ? `${t('translation|By')}: ${author}` : undefined}
+            noPadding={false}
+            headerStyle="subsection"
+          />
+        }
         backLink={'/settings/plugins'}
       >
         {plugin.description}
