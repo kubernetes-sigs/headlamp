@@ -44,6 +44,7 @@ import {
   addToPath,
   ArtifactHubHeadlampPkg,
   defaultPluginsDir,
+  defaultUserPluginsDir,
   getMatchingExtraFiles,
   getPluginBinDirectories,
   PluginManager,
@@ -414,6 +415,9 @@ class PluginManagerEventListeners {
   /**
    * Handles the list event.
    *
+   * Lists plugins from all three directories (shipped, user-installed, development)
+   * and returns a combined list with their locations.
+   *
    * @method
    * @name handleList
    * @param {Electron.IpcMainEvent} event - The IPC Main Event.
@@ -422,9 +426,75 @@ class PluginManagerEventListeners {
    */
   private handleList(event: Electron.IpcMainEvent, eventData: Action) {
     const { identifier, destinationFolder } = eventData;
-    PluginManager.list(destinationFolder, progress => {
-      event.sender.send('plugin-manager', JSON.stringify({ identifier: identifier, ...progress }));
-    });
+
+    // If a specific folder is requested, list only from that folder
+    if (destinationFolder) {
+      PluginManager.list(destinationFolder, progress => {
+        event.sender.send(
+          'plugin-manager',
+          JSON.stringify({ identifier: identifier, ...progress })
+        );
+      });
+      return;
+    }
+
+    // Otherwise, list from all three directories
+    try {
+      const allPlugins: any[] = [];
+
+      // List from shipped plugins (.plugins)
+      const shippedDir = path.join(__dirname, '.plugins');
+      try {
+        const shippedPlugins = PluginManager.list(shippedDir);
+        if (shippedPlugins) {
+          allPlugins.push(...shippedPlugins);
+        }
+      } catch (error) {
+        // Ignore if directory doesn't exist
+      }
+
+      // List from user-installed plugins (user-plugins)
+      const userDir = defaultUserPluginsDir();
+      try {
+        const userPlugins = PluginManager.list(userDir);
+        if (userPlugins) {
+          allPlugins.push(...userPlugins);
+        }
+      } catch (error) {
+        // Ignore if directory doesn't exist
+      }
+
+      // List from development plugins (plugins)
+      const devDir = defaultPluginsDir();
+      try {
+        const devPlugins = PluginManager.list(devDir);
+        if (devPlugins) {
+          allPlugins.push(...devPlugins);
+        }
+      } catch (error) {
+        // Ignore if directory doesn't exist
+      }
+
+      // Send combined results
+      event.sender.send(
+        'plugin-manager',
+        JSON.stringify({
+          identifier: identifier,
+          type: 'success',
+          message: 'Plugins Listed',
+          data: allPlugins,
+        })
+      );
+    } catch (error) {
+      event.sender.send(
+        'plugin-manager',
+        JSON.stringify({
+          identifier: identifier,
+          type: 'error',
+          message: error instanceof Error ? error.message : String(error),
+        })
+      );
+    }
   }
 
   /**
