@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ChildProcessWithoutNullStreams, exec, execFileSync, spawn } from 'child_process';
+import { ChildProcessWithoutNullStreams, execFileSync, spawn } from 'child_process';
 import { randomBytes } from 'crypto';
 import dotenv from 'dotenv';
 import {
@@ -32,8 +32,6 @@ import { IpcMainEvent, MenuItemConstructorOptions } from 'electron/main';
 import find_process from 'find-process';
 import * as fsPromises from 'fs/promises';
 import * as net from 'net';
-import { userInfo } from 'node:os';
-import { promisify } from 'node:util';
 import { platform } from 'os';
 import path from 'path';
 import url from 'url';
@@ -67,6 +65,7 @@ import {
   setupRunCmdHandlers,
 } from './runCmd';
 import { loadSettings, SETTINGS_PATH } from './settings';
+import { getShellEnv } from './shellEnv';
 import {
   cleanupHeadlampTray,
   createHeadlampTray,
@@ -647,100 +646,6 @@ class PluginManagerEventListeners {
         })
       );
     }
-  }
-}
-
-/**
- * Returns the user's preferred shell or a fallback shell.
- * @returns A promise that resolves to the shell path.
- */
-async function getShell(): Promise<string> {
-  // Fallback chain
-  const shells = ['/bin/zsh', '/bin/bash', '/bin/sh'];
-  let userShell = '';
-
-  try {
-    userShell = userInfo().shell || process.env.SHELL || '';
-    if (userShell) shells.unshift(userShell);
-  } catch (error) {
-    console.error('Failed to get user shell:', error);
-  }
-
-  for (const shell of shells) {
-    try {
-      await fsPromises.stat(shell);
-      return shell;
-    } catch (error) {
-      console.error(`Shell not found: ${shell}, error: ${error}`);
-    }
-  }
-
-  console.error('No valid shell found, defaulting to /bin/sh');
-  return '/bin/sh';
-}
-
-/**
- * Retrieves the environment variables from the user's shell.
- * @returns A promise that resolves to the shell environment.
- */
-async function getShellEnv(): Promise<NodeJS.ProcessEnv> {
-  const execPromisify = promisify(exec);
-  const shell = await getShell();
-  const isWindows = process.platform === 'win32';
-
-  // For Windows, just return the current environment
-  if (isWindows) {
-    return { ...process.env };
-  }
-
-  // For Unix-like systems
-  const isZsh = shell.includes('zsh');
-  // interactive is supported only on zsh
-  const shellArgs = isZsh ? ['--login', '--interactive', '-c'] : ['--login', '-c'];
-
-  try {
-    const env = { ...process.env, DISABLE_AUTO_UPDATE: 'true' };
-    let stdout: string;
-    let isEnvNull = false;
-
-    try {
-      // Try env -0 first
-      const command = 'env -0';
-      ({ stdout } = await execPromisify(`${shell} ${shellArgs.join(' ')} '${command}'`, {
-        encoding: 'utf8',
-        timeout: 10000,
-        env,
-      }));
-      isEnvNull = true;
-    } catch (error) {
-      // If env -0 fails, fall back to env
-      console.log('env -0 failed, falling back to env');
-      const command = 'env';
-      ({ stdout } = await execPromisify(`${shell} ${shellArgs.join(' ')} '${command}'`, {
-        encoding: 'utf8',
-        timeout: 10000,
-        env,
-      }));
-    }
-
-    const processLines = (separator: string) => {
-      return stdout.split(separator).reduce((acc, line) => {
-        const firstEqualIndex = line.indexOf('=');
-        if (firstEqualIndex > 0) {
-          const key = line.slice(0, firstEqualIndex);
-          const value = line.slice(firstEqualIndex + 1);
-          acc[key] = value;
-        }
-        return acc;
-      }, {} as NodeJS.ProcessEnv);
-    };
-
-    const envVars = isEnvNull ? processLines('\0') : processLines('\n');
-    const mergedEnv = { ...process.env, ...envVars };
-    return mergedEnv;
-  } catch (error) {
-    console.error('Failed to get shell environment:', error);
-    return process.env;
   }
 }
 
