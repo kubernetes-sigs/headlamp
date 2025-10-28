@@ -143,53 +143,68 @@ func generateSeparatePluginPaths(
 	return pluginListURLStatic, pluginListURLUser, pluginListURL, nil
 }
 
-// GeneratePluginPaths generates a list of plugin paths with priority:
-// dev (pluginDir) > user (userPluginDir) > shipped (staticPluginDir).
-// When the same plugin exists in multiple directories, only the highest priority version is included.
-func GeneratePluginPaths(staticPluginDir, userPluginDir, pluginDir string) ([]PluginMetadata, error) {
+// GeneratePluginPaths generates a list of all plugin paths from all directories.
+// Returns all plugins with their type (development, user, or shipped).
+// The frontend is responsible for implementing priority-based loading and handling duplicates.
+//
+// Migration: Plugins in the development directory that have isManagedByHeadlampPlugin=true
+// in their package.json are treated as "user" plugins instead, as they were installed via
+// the catalog before the user-plugins directory was introduced.
+func GeneratePluginPaths(
+	staticPluginDir, userPluginDir, pluginDir string,
+) ([]PluginMetadata, error) {
 	pluginListURLStatic, pluginListURLUser, pluginListURLDev, err := generateSeparatePluginPaths(
-		staticPluginDir, userPluginDir, pluginDir)
+		staticPluginDir, userPluginDir, pluginDir,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	// Track plugin names to implement priority: dev > user > shipped
-	pluginMap := make(map[string]PluginMetadata) // plugin name -> metadata
+	pluginList := make([]PluginMetadata, 0)
 
-	// Add static (shipped) plugins first (lowest priority)
+	// Add shipped plugins (lowest priority)
 	for _, pluginURL := range pluginListURLStatic {
 		pluginName := filepath.Base(pluginURL)
-		pluginMap[pluginName] = PluginMetadata{
+		pluginList = append(pluginList, PluginMetadata{
 			Path: pluginURL,
 			Type: "shipped",
 			Name: pluginName,
-		}
+		})
 	}
 
-	// Add user plugins (medium priority) - these override shipped
+	// Add user-installed plugins (medium priority)
 	for _, pluginURL := range pluginListURLUser {
 		pluginName := filepath.Base(pluginURL)
-		pluginMap[pluginName] = PluginMetadata{
+		pluginList = append(pluginList, PluginMetadata{
 			Path: pluginURL,
 			Type: "user",
 			Name: pluginName,
-		}
+		})
 	}
 
-	// Add dev plugins (highest priority) - these override everything
+	// Add development plugins (highest priority)
+	// However, if a plugin in the development directory was installed via the catalog
+	// (has isManagedByHeadlampPlugin=true), treat it as a user plugin instead.
+	// This handles migration from older versions where catalog plugins were installed to plugins/ directory.
 	for _, pluginURL := range pluginListURLDev {
 		pluginName := filepath.Base(pluginURL)
-		pluginMap[pluginName] = PluginMetadata{
-			Path: pluginURL,
-			Type: "development",
-			Name: pluginName,
-		}
-	}
+		pluginType := "development"
 
-	// Convert map back to slice
-	pluginList := make([]PluginMetadata, 0, len(pluginMap))
-	for _, metadata := range pluginMap {
-		pluginList = append(pluginList, metadata)
+		// Check if this is a catalog-installed plugin that needs migration
+		if isCatalogInstalledPlugin(pluginDir, pluginName) {
+			pluginType = "user"
+
+			logger.Log(logger.LevelInfo, map[string]string{
+				"plugin": pluginName,
+				"path":   pluginURL,
+			}, nil, "Treating catalog-installed plugin in development directory as user plugin")
+		}
+
+		pluginList = append(pluginList, PluginMetadata{
+			Path: pluginURL,
+			Type: pluginType,
+			Name: pluginName,
+		})
 	}
 
 	return pluginList, nil
@@ -197,8 +212,6 @@ func GeneratePluginPaths(staticPluginDir, userPluginDir, pluginDir string) ([]Pl
 
 // isCatalogInstalledPlugin checks if a plugin was installed via the catalog.
 // Catalog-installed plugins have isManagedByHeadlampPlugin: true in their package.json.
-//
-//nolint:unused
 func isCatalogInstalledPlugin(pluginDir, pluginName string) bool {
 	packageJSONPath := filepath.Join(pluginDir, pluginName, "package.json")
 
