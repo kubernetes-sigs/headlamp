@@ -98,45 +98,103 @@ func periodicallyWatchSubfolders(watcher *fsnotify.Watcher, path string, interva
 	}
 }
 
-// generateSeparatePluginPaths takes the staticPluginDir and pluginDir and returns separate lists of plugin paths.
-func generateSeparatePluginPaths(staticPluginDir, pluginDir string) ([]string, []string, error) {
+// generateSeparatePluginPaths takes the staticPluginDir, userPluginDir,
+// and pluginDir (dev) and returns separate lists of plugin paths.
+func generateSeparatePluginPaths(
+	staticPluginDir, userPluginDir, pluginDir string,
+) ([]string, []string, []string, error) {
 	var pluginListURLStatic []string
+
+	var pluginListURLUser []string
 
 	if staticPluginDir != "" {
 		var err error
 
 		pluginListURLStatic, err = pluginBasePathListForDir(staticPluginDir, "static-plugins")
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
+		}
+	}
+
+	if userPluginDir != "" {
+		var err error
+
+		pluginListURLUser, err = pluginBasePathListForDir(userPluginDir, "user-plugins")
+		if err != nil {
+			return nil, nil, nil, err
 		}
 	}
 
 	pluginListURL, err := pluginBasePathListForDir(pluginDir, "plugins")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return pluginListURLStatic, pluginListURL, nil
+	return pluginListURLStatic, pluginListURLUser, pluginListURL, nil
 }
 
-// GeneratePluginPaths generates a concatenated list of plugin paths from the staticPluginDir and pluginDir.
-func GeneratePluginPaths(staticPluginDir, pluginDir string) ([]string, error) {
-	pluginListURLStatic, pluginListURL, err := generateSeparatePluginPaths(staticPluginDir, pluginDir)
+// GeneratePluginPaths generates a list of plugin paths with priority: dev (pluginDir) > user (userPluginDir) > shipped (staticPluginDir).
+// When the same plugin exists in multiple directories, only the highest priority version is included.
+func GeneratePluginPaths(staticPluginDir, userPluginDir, pluginDir string) ([]string, error) {
+	pluginListURLStatic, pluginListURLUser, pluginListURLDev, err := generateSeparatePluginPaths(staticPluginDir, userPluginDir, pluginDir)
 	if err != nil {
 		return nil, err
 	}
 
-	// Concatenate the static and user plugin lists.
-	if pluginListURLStatic != nil {
-		pluginListURL = append(pluginListURLStatic, pluginListURL...)
+	// Track plugin names to implement priority: dev > user > shipped
+	pluginMap := make(map[string]string) // plugin name -> URL
+
+	// Add static (shipped) plugins first (lowest priority)
+	for _, pluginURL := range pluginListURLStatic {
+		pluginName := filepath.Base(pluginURL)
+		pluginMap[pluginName] = pluginURL
 	}
 
-	return pluginListURL, nil
+	// Add user plugins (medium priority) - these override shipped
+	for _, pluginURL := range pluginListURLUser {
+		pluginName := filepath.Base(pluginURL)
+		pluginMap[pluginName] = pluginURL
+	}
+
+	// Add dev plugins (highest priority) - these override everything
+	for _, pluginURL := range pluginListURLDev {
+		pluginName := filepath.Base(pluginURL)
+		pluginMap[pluginName] = pluginURL
+	}
+
+	// Convert map back to slice
+	pluginList := make([]string, 0, len(pluginMap))
+	for _, pluginURL := range pluginMap {
+		pluginList = append(pluginList, pluginURL)
+	}
+
+	return pluginList, nil
 }
 
-// ListPlugins lists the plugins in the static and user-added plugin directories.
-func ListPlugins(staticPluginDir, pluginDir string) error {
-	staticPlugins, userPlugins, err := generateSeparatePluginPaths(staticPluginDir, pluginDir)
+// isCatalogInstalledPlugin checks if a plugin was installed via the catalog.
+// Catalog-installed plugins have isManagedByHeadlampPlugin: true in their package.json.
+func isCatalogInstalledPlugin(pluginDir, pluginName string) bool {
+	packageJSONPath := filepath.Join(pluginDir, pluginName, "package.json")
+
+	content, err := os.ReadFile(packageJSONPath)
+	if err != nil {
+		return false
+	}
+
+	var packageData struct {
+		IsManagedByHeadlampPlugin bool `json:"isManagedByHeadlampPlugin"`
+	}
+
+	if err := json.Unmarshal(content, &packageData); err != nil {
+		return false
+	}
+
+	return packageData.IsManagedByHeadlampPlugin
+}
+
+// ListPlugins lists the plugins in the static, user-installed, and development plugin directories.
+func ListPlugins(staticPluginDir, userPluginDir, pluginDir string) error {
+	staticPlugins, userPlugins, devPlugins, err := generateSeparatePluginPaths(staticPluginDir, userPluginDir, pluginDir)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "listing plugins")
 		return fmt.Errorf("listing plugins: %w", err)
@@ -164,24 +222,35 @@ func ListPlugins(staticPluginDir, pluginDir string) error {
 	}
 
 	if len(staticPlugins) > 0 {
-		fmt.Printf("Static Plugins (%s):\n", staticPluginDir)
+		fmt.Printf("Shipped Plugins (%s):\n", staticPluginDir)
 
 		for _, plugin := range staticPlugins {
 			fmt.Println(" -", getPluginName(plugin))
 		}
 	} else {
-		fmt.Println("No static plugins found.")
+		fmt.Println("No shipped plugins found.")
 	}
 
 	if len(userPlugins) > 0 {
-		fmt.Printf("\nUser-added Plugins (%s):\n", pluginDir)
+		fmt.Printf("\nUser-installed Plugins (%s):\n", userPluginDir)
 
 		for _, plugin := range userPlugins {
+			pluginName := getPluginName(filepath.Join(userPluginDir, plugin))
+			fmt.Println(" -", pluginName)
+		}
+	} else {
+		fmt.Println("No user-installed plugins found.")
+	}
+
+	if len(devPlugins) > 0 {
+		fmt.Printf("\nDevelopment Plugins (%s):\n", pluginDir)
+
+		for _, plugin := range devPlugins {
 			pluginName := getPluginName(filepath.Join(pluginDir, plugin))
 			fmt.Println(" -", pluginName)
 		}
 	} else {
-		fmt.Printf("No user-added plugins found.")
+		fmt.Println("No development plugins found.")
 	}
 
 	return nil
@@ -255,7 +324,7 @@ func canSendRefresh(c cache.Cache[interface{}]) bool {
 
 // HandlePluginEvents handles the plugin events by updating the plugin list
 // and plugin refresh key in the cache.
-func HandlePluginEvents(staticPluginDir, pluginDir string,
+func HandlePluginEvents(staticPluginDir, userPluginDir, pluginDir string,
 	notify <-chan string, cache cache.Cache[interface{}],
 ) {
 	for range notify {
@@ -268,7 +337,7 @@ func HandlePluginEvents(staticPluginDir, pluginDir string,
 		}
 
 		// generate the plugin list
-		pluginList, err := GeneratePluginPaths(staticPluginDir, pluginDir)
+		pluginList, err := GeneratePluginPaths(staticPluginDir, userPluginDir, pluginDir)
 		if err != nil && !os.IsNotExist(err) {
 			logger.Log(logger.LevelError, nil, err, "generating plugins path")
 		}
@@ -281,7 +350,7 @@ func HandlePluginEvents(staticPluginDir, pluginDir string,
 }
 
 // PopulatePluginsCache populates the plugin list and plugin refresh key in the cache.
-func PopulatePluginsCache(staticPluginDir, pluginDir string, cache cache.Cache[interface{}]) {
+func PopulatePluginsCache(staticPluginDir, userPluginDir, pluginDir string, cache cache.Cache[interface{}]) {
 	// set the plugin refresh key to false
 	err := cache.Set(context.Background(), PluginRefreshKey, false)
 	if err != nil {
@@ -290,10 +359,10 @@ func PopulatePluginsCache(staticPluginDir, pluginDir string, cache cache.Cache[i
 	}
 
 	// generate the plugin list
-	pluginList, err := GeneratePluginPaths(staticPluginDir, pluginDir)
+	pluginList, err := GeneratePluginPaths(staticPluginDir, userPluginDir, pluginDir)
 	if err != nil && !os.IsNotExist(err) {
 		logger.Log(logger.LevelError,
-			map[string]string{"staticPluginDir": staticPluginDir, "pluginDir": pluginDir},
+			map[string]string{"staticPluginDir": staticPluginDir, "userPluginDir": userPluginDir, "pluginDir": pluginDir},
 			err, "generating plugins path")
 	}
 

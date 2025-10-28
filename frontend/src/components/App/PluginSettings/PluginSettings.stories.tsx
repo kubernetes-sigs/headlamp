@@ -15,6 +15,7 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
+import { PluginInfo } from '../../../plugin/pluginsSlice';
 import { TestContext } from '../../../test';
 import { PluginSettingsPure, PluginSettingsPureProps } from './PluginSettings';
 

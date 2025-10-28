@@ -552,17 +552,17 @@ function checkValidPluginFolder(folder) {
 }
 
 /**
- * Returns the default directory where Headlamp plugins are installed.
+ * Returns the default directory where Headlamp user-installed plugins are stored.
  * If the data path exists, it is used as the base directory.
  * Otherwise, the config path is used as the base directory.
- * The 'plugins' subdirectory of the base directory is returned.
+ * The 'user-plugins' subdirectory of the base directory is returned.
  *
- * @returns {string} The path to the default plugins directory.
+ * @returns {string} The path to the default user-plugins directory.
  */
 function defaultPluginsDir() {
   const paths = envPaths('Headlamp', { suffix: '' });
   const configDir = fs.existsSync(paths.data) ? paths.data : paths.config;
-  return path.join(configDir, 'plugins');
+  return path.join(configDir, 'user-plugins');
 }
 
 module.exports = { PluginManager, validateArchiveURL };

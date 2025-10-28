@@ -253,7 +253,7 @@ func defaultHeadlampKubeConfigFile() (string, error) {
 
 // addPluginRoutes adds plugin routes to a router.
 // It serves plugin list base paths as json at "plugins".
-// It serves plugin static files at "plugins/" and "static-plugins/".
+// It serves plugin static files at "plugins/", "user-plugins/" and "static-plugins/".
 // It disables caching and reloads plugin list base paths if not in-cluster.
 func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 	// Delete plugin route.
@@ -264,7 +264,7 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 
 	addPluginListRoute(config, r)
 
-	// Serve plugins
+	// Serve development plugins
 	pluginHandler := http.StripPrefix(config.BaseURL+"/plugins/", http.FileServer(http.Dir(config.PluginDir)))
 	// If we're running locally, then do not cache the plugins. This ensures that reloading them (development,
 	// update) will actually get the new content.
@@ -274,6 +274,18 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 
 	r.PathPrefix("/plugins/").Handler(pluginHandler)
 
+	// Serve user-installed plugins
+	if config.UserPluginDir != "" {
+		userPluginsHandler := http.StripPrefix(config.BaseURL+"/user-plugins/",
+			http.FileServer(http.Dir(config.UserPluginDir)))
+		if !config.UseInCluster {
+			userPluginsHandler = serveWithNoCacheHeader(userPluginsHandler)
+		}
+
+		r.PathPrefix("/user-plugins/").Handler(userPluginsHandler)
+	}
+
+	// Serve shipped/static plugins
 	if config.StaticPluginDir != "" {
 		staticPluginsHandler := http.StripPrefix(config.BaseURL+"/static-plugins/",
 			http.FileServer(http.Dir(config.StaticPluginDir)))
@@ -384,6 +396,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	logger.Log(logger.LevelInfo, nil, nil, "Listen address: "+fmt.Sprintf("%s:%d", config.ListenAddr, config.Port))
 	logger.Log(logger.LevelInfo, nil, nil, "Kubeconfig path: "+kubeConfigPath)
 	logger.Log(logger.LevelInfo, nil, nil, "Static plugin dir: "+config.StaticPluginDir)
+	logger.Log(logger.LevelInfo, nil, nil, "User plugins dir: "+config.UserPluginDir)
 	logger.Log(logger.LevelInfo, nil, nil, "Plugins dir: "+config.PluginDir)
 	logger.Log(logger.LevelInfo, nil, nil, "Dynamic clusters support: "+fmt.Sprint(config.EnableDynamicClusters))
 	logger.Log(logger.LevelInfo, nil, nil, "Helm support: "+fmt.Sprint(config.EnableHelm))
@@ -391,7 +404,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	logger.Log(logger.LevelInfo, nil, nil, "TLS certificate path: "+config.TLSCertPath)
 	logger.Log(logger.LevelInfo, nil, nil, "TLS key path: "+config.TLSKeyPath)
 
-	plugins.PopulatePluginsCache(config.StaticPluginDir, config.PluginDir, config.cache)
+	plugins.PopulatePluginsCache(config.StaticPluginDir, config.UserPluginDir, config.PluginDir, config.cache)
 
 	skipFunc := kubeconfig.SkipKubeContextInCommaSeparatedString(config.SkippedKubeContexts)
 
@@ -399,7 +412,13 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		// in-cluster mode is unlikely to want reloading plugins.
 		pluginEventChan := make(chan string)
 		go plugins.Watch(config.PluginDir, pluginEventChan)
-		go plugins.HandlePluginEvents(config.StaticPluginDir, config.PluginDir, pluginEventChan, config.cache)
+		go plugins.HandlePluginEvents(
+			config.StaticPluginDir,
+			config.UserPluginDir,
+			config.PluginDir,
+			pluginEventChan,
+			config.cache,
+		)
 		// in-cluster mode is unlikely to want reloading kubeconfig.
 		go kubeconfig.LoadAndWatchFiles(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	}
