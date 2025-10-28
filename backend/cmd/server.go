@@ -74,6 +74,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		StaticDir:             conf.StaticDir,
 		Insecure:              conf.InsecureSsl,
 		PluginDir:             conf.PluginsDir,
+		UserPluginDir:         conf.UserPluginsDir,
 		EnableHelm:            conf.EnableHelm,
 		EnableDynamicClusters: conf.EnableDynamicClusters,
 		WatchPluginsChanges:   conf.WatchPluginsChanges,
@@ -237,7 +238,7 @@ func runListPlugins() {
 		os.Exit(1)
 	}
 
-	if err := plugins.ListPlugins(conf.StaticDir, conf.PluginsDir); err != nil {
+	if err := plugins.ListPlugins(conf.StaticDir, conf.UserPluginsDir, conf.PluginsDir); err != nil {
 		logger.Log(logger.LevelError, nil, err, "listing plugins")
 	}
 }

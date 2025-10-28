@@ -18,7 +18,10 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
-const defaultPort = 4466
+const (
+	defaultPort = 4466
+	osWindows   = "windows"
+)
 
 const (
 	DefaultMeUsernamePath = "preferred_username,upn,username,name"
@@ -42,6 +45,7 @@ type Config struct {
 	SkippedKubeContexts       string `koanf:"skipped-kube-contexts"`
 	StaticDir                 string `koanf:"html-static-dir"`
 	PluginsDir                string `koanf:"plugins-dir"`
+	UserPluginsDir            string `koanf:"user-plugins-dir"`
 	BaseURL                   string `koanf:"base-url"`
 	ProxyURLs                 string `koanf:"proxy-urls"`
 	OidcClientID              string `koanf:"oidc-client-id"`
@@ -77,7 +81,7 @@ type Config struct {
 func (c *Config) Validate() error {
 	if !c.InCluster && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
 		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
-		return errors.New(`oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, oidc-validator-client-id, 
+		return errors.New(`oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, oidc-validator-client-id,
 		oidc-validator-idp-issuer-url, flags are only meant to be used in inCluster mode`)
 	}
 
@@ -332,7 +336,7 @@ func MakeHeadlampKubeConfigsDir() (string, error) {
 
 	if err == nil {
 		kubeConfigDir := filepath.Join(userConfigDir, "Headlamp", "kubeconfigs")
-		if runtime.GOOS == "windows" {
+		if runtime.GOOS == osWindows {
 			// golang is wrong for config folder on windows.
 			// This matches env-paths and headlamp-plugin.
 			kubeConfigDir = filepath.Join(userConfigDir, "Headlamp", "Config", "kubeconfigs")
@@ -390,6 +394,7 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.String("skipped-kube-contexts", "", "Context name which should be ignored in kubeconfig file")
 	f.String("html-static-dir", "", "Static HTML directory to serve")
 	f.String("plugins-dir", defaultPluginDir(), "Specify the plugins directory to build the backend with")
+	f.String("user-plugins-dir", defaultUserPluginDir(), "Specify the user-installed plugins directory")
 	f.String("base-url", "", "Base URL path. eg. /headlamp")
 	f.String("listen-addr", "", "Address to listen on; default is empty, which means listening to any address")
 	f.Uint("port", defaultPort, "Port to listen from")
@@ -453,7 +458,7 @@ func defaultPluginDir() string {
 	}
 
 	pluginsConfigDir := filepath.Join(userConfigDir, "Headlamp", "plugins")
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == osWindows {
 		// golang is wrong for config folder on windows.
 		// This matches env-paths and headlamp-plugin.
 		pluginsConfigDir = filepath.Join(userConfigDir, "Headlamp", "Config", "plugins")
@@ -469,6 +474,40 @@ func defaultPluginDir() string {
 	}
 
 	return pluginsConfigDir
+}
+
+// Gets the default user-plugins-dir depending on platform.
+func defaultUserPluginDir() string {
+	// This is the folder we use for the default user-plugin-dir:
+	//  - ~/.config/Headlamp/user-plugins exists or it can be made
+	// Windows: %APPDATA%\Headlamp\Config\user-plugins
+	//   (for example, C:\Users\USERNAME\AppData\Roaming\Headlamp\Config\user-plugins)
+	// https://www.npmjs.com/package/env-paths
+	// https://pkg.go.dev/os#UserConfigDir
+	userConfigDir, err := os.UserConfigDir()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "getting user config dir")
+
+		return ""
+	}
+
+	userPluginsConfigDir := filepath.Join(userConfigDir, "Headlamp", "user-plugins")
+	if runtime.GOOS == osWindows {
+		// golang is wrong for config folder on windows.
+		// This matches env-paths and headlamp-plugin.
+		userPluginsConfigDir = filepath.Join(userConfigDir, "Headlamp", "Config", "user-plugins")
+	}
+
+	fileMode := 0o755
+
+	err = os.MkdirAll(userPluginsConfigDir, fs.FileMode(fileMode))
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "creating user-plugins directory")
+
+		return ""
+	}
+
+	return userPluginsConfigDir
 }
 
 func GetDefaultKubeConfigPath() string {
