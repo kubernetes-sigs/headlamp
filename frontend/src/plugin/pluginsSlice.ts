@@ -83,6 +83,18 @@ export type PluginInfo = {
   type?: 'development' | 'user' | 'shipped';
 
   /**
+   * isLoaded indicates if this plugin version is actually loaded and executed.
+   * When multiple versions of the same plugin exist, only the highest priority enabled version is loaded.
+   */
+  isLoaded?: boolean;
+
+  /**
+   * overriddenBy indicates which higher-priority version is loaded instead of this one.
+   * Format: "type" (e.g., "development" or "user")
+   */
+  overriddenBy?: 'development' | 'user' | 'shipped';
+
+  /**
    * isCompatible is true when the plugin is compatible with this version of Headlamp.
    */
   isCompatible?: boolean;
