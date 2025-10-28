@@ -16,10 +16,12 @@
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import Link from '@mui/material/Link';
 import { useTheme } from '@mui/material/styles';
 import { SwitchProps } from '@mui/material/Switch';
 import Switch from '@mui/material/Switch';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { MRT_Row } from 'material-react-table';
 import { useEffect, useState } from 'react';
@@ -145,13 +147,15 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
    * If props.plugins matches pluginChanges enableSave is set to false, disabling the save button.
    */
   useEffect(() => {
-    /** This matcher function compares the fields of name and isEnabled of each object in props.plugins to each object in pluginChanges */
+    /** This matcher function compares the fields of name, type and isEnabled of each object in props.plugins to each object in pluginChanges */
     function matcher(objA: PluginInfo, objB: PluginInfo) {
-      return objA.name === objB.name && objA.isEnabled === objB.isEnabled;
+      return (
+        objA.name === objB.name && objA.type === objB.type && objA.isEnabled === objB.isEnabled
+      );
     }
 
     /**
-     * arrayComp returns true if each object in both arrays are identical by name and isEnabled.
+     * arrayComp returns true if each object in both arrays are identical by name, type and isEnabled.
      * If both arrays are identical in this scope, then no changes need to be saved.
      * If they do not match, there are changes in the pluginChanges array that can be saved and thus enableSave should be enabled.
      */
@@ -182,13 +186,16 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
    * On change function handler to control the enableSave state and update the pluginChanges state.
    * This function is called on every plugin toggle action and recreates the state for pluginChanges.
    * Once the user clicks a toggle, the Save button is also rendered via setEnableSave.
+   * Now handles plugins by both name and type to support multiple versions of the same plugin.
    */
-  function switchChangeHanlder(plug: { name: any }) {
+  function switchChangeHanlder(plug: { name: any; type?: string }) {
     const plugName = plug.name;
+    const plugType = plug.type;
 
     setPluginChanges((currentInfo: any[]) =>
-      currentInfo.map((p: { name: any; isEnabled: any }) => {
-        if (p.name === plugName) {
+      currentInfo.map((p: { name: any; type?: string; isEnabled: any }) => {
+        // Match by both name and type to handle multiple versions
+        if (p.name === plugName && p.type === plugType) {
           return { ...p, isEnabled: !p.isEnabled };
         }
         return p;
@@ -235,6 +242,28 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
               accessorKey: 'description',
             },
             {
+              header: t('translation|Type'),
+              accessorFn: (plugin: PluginInfo) => plugin.type || 'unknown',
+              Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) => {
+                const typeLabels: Record<string, { label: string; color: any }> = {
+                  development: {
+                    label: t('translation|Development'),
+                    color: 'primary',
+                  },
+                  user: {
+                    label: t('translation|User-installed'),
+                    color: 'info',
+                  },
+                  shipped: {
+                    label: t('translation|Shipped'),
+                    color: 'default',
+                  },
+                };
+                const typeInfo = typeLabels[plugin.type || 'shipped'];
+                return <Chip label={typeInfo.label} size="small" color={typeInfo.color} />;
+              },
+            },
+            {
               header: t('translation|Origin'),
               Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) => {
                 const url = plugin?.homepage || plugin?.repository?.url;
@@ -249,14 +278,58 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                 );
               },
             },
-            // TODO: Fetch the plugin status from the plugin settings store
             {
               header: t('translation|Status'),
-              accessorFn: (plugin: PluginInfo) => {
+              Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) => {
                 if (plugin.isCompatible === false) {
-                  return t('translation|Incompatible');
+                  return (
+                    <Tooltip
+                      title={t(
+                        'translation|This plugin is not compatible with this version of Headlamp'
+                      )}
+                    >
+                      <Chip label={t('translation|Incompatible')} size="small" color="error" />
+                    </Tooltip>
+                  );
                 }
-                return plugin.isEnabled ? t('translation|Enabled') : t('translation|Disabled');
+
+                // Show if this plugin is overridden by a higher priority version
+                if (plugin.isLoaded === false && plugin.overriddenBy) {
+                  const overrideLabels: Record<string, string> = {
+                    development: t('translation|Development'),
+                    user: t('translation|User-installed'),
+                    shipped: t('translation|Shipped'),
+                  };
+                  return (
+                    <Tooltip
+                      title={t('translation|Overridden by {{type}} version', {
+                        type: overrideLabels[plugin.overriddenBy],
+                      })}
+                    >
+                      <Chip
+                        label={t('translation|Not Loaded')}
+                        size="small"
+                        color="warning"
+                        variant="outlined"
+                      />
+                    </Tooltip>
+                  );
+                }
+
+                // Show if disabled
+                if (plugin.isEnabled === false) {
+                  return (
+                    <Chip
+                      label={t('translation|Disabled')}
+                      size="small"
+                      color="default"
+                      variant="outlined"
+                    />
+                  );
+                }
+
+                // Show if loaded and enabled
+                return <Chip label={t('translation|Loaded')} size="small" color="success" />;
               },
             },
             {
