@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import path from 'path';
 import fs from 'fs';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { getRepoRoot, commitVersionChange } from '../utils/git.js';
 import { sanitizeVersion } from '../utils/version.js';
 
@@ -22,7 +22,10 @@ export function startRelease(releaseVersion: string): void {
 
     // Run npm install in app directory
     console.log(chalk.blue('Running npm install in app directory...'));
-    execSync('npm install', { stdio: 'inherit', cwd: path.join(repoRoot, 'app') });
+    execFileSync('npm', ['install'], {
+      stdio: 'inherit',
+      cwd: path.join(repoRoot, 'app'),
+    });
     console.log(chalk.green('✅ npm install completed'));
 
     // Commit the changes
