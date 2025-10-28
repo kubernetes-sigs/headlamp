@@ -61,7 +61,7 @@ if (process.env.HEADLAMP_RUN_SCRIPT) {
 
 dotenv.config({ path: path.join(process.resourcesPath, '.env') });
 
-const isDev = process.env.ELECTRON_DEV || false;
+const isDev = !!process.env.ELECTRON_DEV;
 let frontendPath = '';
 
 if (isDev) {
