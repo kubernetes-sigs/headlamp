@@ -363,13 +363,13 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 		w.Header().Set("Content-Type", "application/json")
 		pluginsList, err := config.cache.Get(context.Background(), plugins.PluginListKey)
 		if err != nil && err == cache.ErrNotFound {
-			pluginsList = []string{}
+			pluginsList = []plugins.PluginMetadata{}
 
 			if config.Telemetry != nil {
 				span.SetAttributes(attribute.Int("plugins.count", 0))
 			}
 		} else if config.Telemetry != nil && pluginsList != nil {
-			if list, ok := pluginsList.([]string); ok {
+			if list, ok := pluginsList.([]plugins.PluginMetadata); ok {
 				span.SetAttributes(attribute.Int("plugins.count", len(list)))
 			}
 		}

@@ -131,7 +131,8 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 		pathList, err := plugins.GeneratePluginPaths("", "", testDirName)
 		require.NoError(t, err)
 		require.Len(t, pathList, 1)
-		require.Equal(t, "plugins/"+subDirName, pathList[0])
+		require.Equal(t, "plugins/"+subDirName, pathList[0].Path)
+		require.Equal(t, "development", pathList[0].Type)
 
 		// delete the sub directory
 		err = os.RemoveAll(subDir)
@@ -162,7 +163,8 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 		pathList, err := plugins.GeneratePluginPaths(testDirName, "", "")
 		require.NoError(t, err)
 		require.Len(t, pathList, 1)
-		require.Equal(t, "static-plugins/"+subDirName, pathList[0])
+		require.Equal(t, "static-plugins/"+subDirName, pathList[0].Path)
+		require.Equal(t, "shipped", pathList[0].Type)
 
 		// delete the sub directory
 		err = os.RemoveAll(subDir)
@@ -400,9 +402,11 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 	require.NoError(t, err)
 	require.NotNil(t, pluginList)
 
-	pluginListArr, ok := pluginList.([]string)
+	pluginListArr, ok := pluginList.([]plugins.PluginMetadata)
 	require.True(t, ok)
-	require.Contains(t, pluginListArr, "plugins/"+pluginDirName)
+	require.Len(t, pluginListArr, 1)
+	require.Equal(t, "plugins/"+pluginDirName, pluginListArr[0].Path)
+	require.Equal(t, "development", pluginListArr[0].Type)
 
 	// clean up
 	err = os.RemoveAll(testDirPath)
@@ -469,8 +473,7 @@ func TestPopulatePluginsCache(t *testing.T) {
 	pluginList, err := ch.Get(context.Background(), plugins.PluginListKey)
 	require.NoError(t, err)
 
-	// pluginListArr, ok := pluginList.([]plugins.PluginMetadata)
-	pluginListArr, ok := pluginList.([]string)
+	pluginListArr, ok := pluginList.([]plugins.PluginMetadata)
 	require.True(t, ok)
 	require.Empty(t, pluginListArr)
 }

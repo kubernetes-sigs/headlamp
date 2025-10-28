@@ -42,6 +42,16 @@ const (
 	subFolderWatchInterval  = 5 * time.Second
 )
 
+// PluginMetadata represents metadata about a plugin including its source type.
+type PluginMetadata struct {
+	// Path is the URL path to access the plugin
+	Path string `json:"path"`
+	// Type indicates where the plugin comes from: "development", "user", or "shipped"
+	Type string `json:"type"`
+	// Name is the plugin's folder name
+	Name string `json:"name"`
+}
+
 // Watch watches the given path for changes and sends the events to the notify channel.
 func Watch(path string, notify chan<- string) {
 	watcher, err := fsnotify.NewWatcher()
@@ -136,7 +146,7 @@ func generateSeparatePluginPaths(
 // GeneratePluginPaths generates a list of plugin paths with priority:
 // dev (pluginDir) > user (userPluginDir) > shipped (staticPluginDir).
 // When the same plugin exists in multiple directories, only the highest priority version is included.
-func GeneratePluginPaths(staticPluginDir, userPluginDir, pluginDir string) ([]string, error) {
+func GeneratePluginPaths(staticPluginDir, userPluginDir, pluginDir string) ([]PluginMetadata, error) {
 	pluginListURLStatic, pluginListURLUser, pluginListURLDev, err := generateSeparatePluginPaths(
 		staticPluginDir, userPluginDir, pluginDir)
 	if err != nil {
@@ -144,30 +154,42 @@ func GeneratePluginPaths(staticPluginDir, userPluginDir, pluginDir string) ([]st
 	}
 
 	// Track plugin names to implement priority: dev > user > shipped
-	pluginMap := make(map[string]string) // plugin name -> URL
+	pluginMap := make(map[string]PluginMetadata) // plugin name -> metadata
 
 	// Add static (shipped) plugins first (lowest priority)
 	for _, pluginURL := range pluginListURLStatic {
 		pluginName := filepath.Base(pluginURL)
-		pluginMap[pluginName] = pluginURL
+		pluginMap[pluginName] = PluginMetadata{
+			Path: pluginURL,
+			Type: "shipped",
+			Name: pluginName,
+		}
 	}
 
 	// Add user plugins (medium priority) - these override shipped
 	for _, pluginURL := range pluginListURLUser {
 		pluginName := filepath.Base(pluginURL)
-		pluginMap[pluginName] = pluginURL
+		pluginMap[pluginName] = PluginMetadata{
+			Path: pluginURL,
+			Type: "user",
+			Name: pluginName,
+		}
 	}
 
 	// Add dev plugins (highest priority) - these override everything
 	for _, pluginURL := range pluginListURLDev {
 		pluginName := filepath.Base(pluginURL)
-		pluginMap[pluginName] = pluginURL
+		pluginMap[pluginName] = PluginMetadata{
+			Path: pluginURL,
+			Type: "development",
+			Name: pluginName,
+		}
 	}
 
 	// Convert map back to slice
-	pluginList := make([]string, 0, len(pluginMap))
-	for _, pluginURL := range pluginMap {
-		pluginList = append(pluginList, pluginURL)
+	pluginList := make([]PluginMetadata, 0, len(pluginMap))
+	for _, metadata := range pluginMap {
+		pluginList = append(pluginList, metadata)
 	}
 
 	return pluginList, nil
