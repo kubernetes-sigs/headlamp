@@ -44,7 +44,7 @@ import { LightTooltip } from '../Tooltip';
 import AuthVisible from './AuthVisible';
 
 interface ScaleButtonProps {
-  item: Deployment | StatefulSet | ReplicaSet;
+  item: (Deployment | StatefulSet | ReplicaSet) & { _class?: () => { isScalable?: boolean } };
   buttonStyle?: ButtonStyle;
   options?: CallbackActionOptions;
 }
@@ -91,7 +91,7 @@ export default function ScaleButton(props: ScaleButtonProps) {
     setOpenDialog(false);
   }
 
-  if (!item || !['Deployment', 'StatefulSet', 'ReplicaSet'].includes(item.kind)) {
+  if (!item || !item?.isScalable) {
     return null;
   }
 

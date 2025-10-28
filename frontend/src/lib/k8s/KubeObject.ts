@@ -61,6 +61,9 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
   /** Whether the object is namespaced. */
   static readonly isNamespaced: boolean;
 
+  /** Whether the object is scalable, and should have a ScaleButton */
+  static readonly isScalable: boolean;
+
   static _internalApiEndpoint?: ReturnType<typeof apiFactoryWithNamespace | typeof apiFactory>;
 
   static get apiEndpoint() {
@@ -72,7 +75,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     // Create factory arguments per API version, usually just one
     const factoryArgumentsArray = versions.map(apiVersion => {
       const [group, version] = apiVersion.includes('/') ? apiVersion.split('/') : ['', apiVersion];
-      const includeScaleApi = ['Deployment', 'ReplicaSet', 'StatefulSet'].includes(this.kind);
+      const includeScaleApi = this.isScalable;
 
       return [group, version, this.apiName, includeScaleApi];
     });
@@ -186,6 +189,10 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
   get isNamespaced() {
     return this._class().isNamespaced;
+  }
+
+  get isScalable() {
+    return this._class().isScalable;
   }
 
   getEditableObject() {
