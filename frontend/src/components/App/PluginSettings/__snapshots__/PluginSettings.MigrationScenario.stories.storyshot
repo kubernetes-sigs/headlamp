@@ -151,7 +151,7 @@
           </div>
         </div>
         <table
-          class="MuiTable-root css-1p2wpqe-MuiTable-root"
+          class="MuiTable-root css-j5wd0t-MuiTable-root"
         >
           <thead
             class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
@@ -271,31 +271,7 @@
               </th>
               <th
                 aria-sort="none"
-                class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-scuypy-MuiTableCell-root"
-                colspan="1"
-                data-index="-1"
-                scope="col"
-              >
-                <div
-                  class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
-                >
-                  <div
-                    class="Mui-TableHeadCell-Content-Labels MuiBox-root css-1byo2ey"
-                  >
-                    <div
-                      class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
-                    >
-                      Origin
-                    </div>
-                  </div>
-                  <div
-                    class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
-                  />
-                </div>
-              </th>
-              <th
-                aria-sort="none"
-                class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-usbwln-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-9s5e2s-MuiTableCell-root"
                 colspan="1"
                 data-can-sort="true"
                 data-index="-1"
@@ -310,15 +286,15 @@
                     <div
                       class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
                     >
-                      Status
+                      Type
                     </div>
                     <span
-                      aria-label="Sort by Status ascending"
+                      aria-label="Sort by Type ascending"
                       class="MuiBadge-root css-1c32n2y-MuiBadge-root"
                       data-mui-internal-clone-element="true"
                     >
                       <span
-                        aria-label="Sort by Status ascending"
+                        aria-label="Sort by Type ascending"
                         class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                         role="button"
                         tabindex="0"
@@ -342,6 +318,54 @@
                         0
                       </span>
                     </span>
+                  </div>
+                  <div
+                    class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                  />
+                </div>
+              </th>
+              <th
+                aria-sort="none"
+                class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1os7eds-MuiTableCell-root"
+                colspan="1"
+                data-index="-1"
+                scope="col"
+              >
+                <div
+                  class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                >
+                  <div
+                    class="Mui-TableHeadCell-Content-Labels MuiBox-root css-1byo2ey"
+                  >
+                    <div
+                      class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                    >
+                      Origin
+                    </div>
+                  </div>
+                  <div
+                    class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                  />
+                </div>
+              </th>
+              <th
+                aria-sort="none"
+                class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1m1rn7x-MuiTableCell-root"
+                colspan="1"
+                data-index="-1"
+                scope="col"
+              >
+                <div
+                  class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                >
+                  <div
+                    class="Mui-TableHeadCell-Content-Labels MuiBox-root css-1byo2ey"
+                  >
+                    <div
+                      class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                    >
+                      Status
+                    </div>
                   </div>
                   <div
                     class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
@@ -382,6 +406,19 @@
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
+                <div
+                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-1qavl4s-MuiChip-root"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                  >
+                    User-installed
+                  </span>
+                </div>
+              </td>
+              <td
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
+              >
                 <a
                   class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://artifacthub.io/packages/headlamp/headlamp/prometheus"
@@ -390,9 +427,17 @@
                 </a>
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
               >
-                Enabled
+                <div
+                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-filledSuccess css-xfrc9u-MuiChip-root"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                  >
+                    Loaded
+                  </span>
+                </div>
               </td>
             </tr>
             <tr
@@ -424,6 +469,19 @@
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
+                <div
+                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-1qavl4s-MuiChip-root"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                  >
+                    User-installed
+                  </span>
+                </div>
+              </td>
+              <td
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
+              >
                 <a
                   class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://artifacthub.io/packages/headlamp/headlamp/flux"
@@ -432,9 +490,17 @@
                 </a>
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
               >
-                Enabled
+                <div
+                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-filledSuccess css-xfrc9u-MuiChip-root"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                  >
+                    Loaded
+                  </span>
+                </div>
               </td>
             </tr>
             <tr
@@ -466,6 +532,19 @@
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
+                <div
+                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorPrimary MuiChip-filledPrimary css-zjbtey-MuiChip-root"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                  >
+                    Development
+                  </span>
+                </div>
+              </td>
+              <td
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
+              >
                 <a
                   class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://example.com/my-dev-plugin"
@@ -474,9 +553,17 @@
                 </a>
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
               >
-                Enabled
+                <div
+                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-filledSuccess css-xfrc9u-MuiChip-root"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                  >
+                    Loaded
+                  </span>
+                </div>
               </td>
             </tr>
             <tr
@@ -508,6 +595,19 @@
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
               >
+                <div
+                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                  >
+                    Shipped
+                  </span>
+                </div>
+              </td>
+              <td
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
+              >
                 <a
                   class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://headlamp.dev/plugins/dashboard"
@@ -516,9 +616,17 @@
                 </a>
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
               >
-                Enabled
+                <div
+                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-filledSuccess css-xfrc9u-MuiChip-root"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                  >
+                    Loaded
+                  </span>
+                </div>
               </td>
             </tr>
           </tbody>
