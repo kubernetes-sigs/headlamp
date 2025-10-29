@@ -959,8 +959,7 @@ function getDefaultAppMenu(): AppMenu[] {
         },
         {
           label: i18n.t('About'),
-          id: 'original-about',
-          url: 'https://github.com/kubernetes-sigs/headlamp',
+          id: 'original-about-help',
         },
       ],
     },
@@ -1054,7 +1053,12 @@ function menusToTemplate(mainWindow: BrowserWindow | null, menusFromPlugins: App
       return;
     }
 
-    if (!!url) {
+    // Handle the "About" menu item from the Help menu specially
+    if (appMenu.id === 'original-about-help') {
+      menu.click = () => {
+        mainWindow?.webContents.send('open-about-dialog');
+      };
+    } else if (!!url) {
       menu.click = async () => {
         // Open external links in the external browser.
         if (!!mainWindow && !url.startsWith('http')) {
