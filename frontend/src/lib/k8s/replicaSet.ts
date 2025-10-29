@@ -46,6 +46,7 @@ class ReplicaSet extends KubeObject<KubeReplicaSet> {
   static apiName = 'replicasets';
   static apiVersion = 'apps/v1';
   static isNamespaced = true;
+  static isScalable = true;
 
   get spec(): KubeReplicaSet['spec'] {
     return this.jsonData.spec;

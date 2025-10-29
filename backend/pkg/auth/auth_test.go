@@ -917,6 +917,47 @@ func TestHandleMe_Success(t *testing.T) {
 	assert.Equal(t, "Cookie", rr.Header().Get("Vary"))
 }
 
+func TestHandleMe_HeaderToken(t *testing.T) {
+	t.Parallel()
+
+	expiry := time.Now().Add(time.Hour).Unix()
+	claims := map[string]interface{}{
+		"preferred_username": "alice",
+		"email":              "alice@example.com",
+		"groups":             []string{"dev", "ops"},
+		"exp":                float64(expiry),
+	}
+
+	token := makeTestToken(t, claims)
+
+	req := httptest.NewRequest(http.MethodGet, "/clusters/test/me", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := httptest.NewRecorder()
+
+	handler := auth.HandleMe(auth.MeHandlerOptions{
+		UsernamePaths: "preferred_username",
+		EmailPaths:    "email",
+		GroupsPaths:   "groups",
+	})
+
+	handler(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var got struct {
+		Username string   `json:"username"`
+		Email    string   `json:"email"`
+		Groups   []string `json:"groups"`
+	}
+
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.Equal(t, "alice", got.Username)
+	assert.Equal(t, "alice@example.com", got.Email)
+	assert.Equal(t, []string{"dev", "ops"}, got.Groups)
+}
+
 func TestHandleMe_ExpiredToken(t *testing.T) {
 	t.Parallel()
 

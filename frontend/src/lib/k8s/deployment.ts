@@ -43,6 +43,7 @@ class Deployment extends KubeObject<KubeDeployment> {
   static apiName = 'deployments';
   static apiVersion = 'apps/v1';
   static isNamespaced = true;
+  static isScalable = true;
 
   get spec() {
     return this.getValue('spec');
