@@ -61,6 +61,8 @@
   "In-cluster": "En-cluster",
   "View Clusters": "",
   "Loading...": "",
+  "No clusters found": "",
+  "Add a cluster to get started.": "",
   "Origin": "Origen",
   "Status": "Estado",
   "Warnings": "Avisos",
