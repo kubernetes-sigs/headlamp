@@ -61,6 +61,8 @@
   "In-cluster": "In-cluster",
   "View Clusters": "View Clusters",
   "Loading...": "Loading...",
+  "No clusters found": "No clusters found",
+  "Add a cluster to get started.": "Add a cluster to get started.",
   "Origin": "Origin",
   "Status": "Status",
   "Warnings": "Warnings",
