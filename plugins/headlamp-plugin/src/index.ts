@@ -68,6 +68,7 @@ import Registry, {
   registerPluginSettings,
   registerProjectDeleteButton,
   registerProjectDetailsTab,
+  registerProjectHeaderAction,
   registerProjectOverviewSection,
   registerResourceTableColumnsProcessor,
   registerRoute,
@@ -129,6 +130,7 @@ export {
   registerCustomCreateProject,
   registerProjectDetailsTab,
   registerProjectOverviewSection,
+  registerProjectHeaderAction,
   registerClusterStatus,
   registerProjectDeleteButton,
 };

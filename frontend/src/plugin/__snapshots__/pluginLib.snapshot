@@ -492,6 +492,7 @@
   "registerPluginSettings": [Function],
   "registerProjectDeleteButton": [Function],
   "registerProjectDetailsTab": [Function],
+  "registerProjectHeaderAction": [Function],
   "registerProjectOverviewSection": [Function],
   "registerResourceTableColumnsProcessor": [Function],
   "registerRoute": [Function],
