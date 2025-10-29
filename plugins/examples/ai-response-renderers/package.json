@@ -1,0 +1,31 @@
+{
+  "name": "@headlamp-plugins/ai-response-renderers",
+  "version": "0.1.0",
+  "description": "Example plugin demonstrating custom AI response renderers for Headlamp AI Assistant",
+  "main": "dist/main.js",
+  "author": "Headlamp",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/headlamp-k8s/headlamp"
+  },
+  "scripts": {
+    "build": "headlamp-plugin build",
+    "start": "headlamp-plugin start",
+    "format": "headlamp-plugin format",
+    "lint": "headlamp-plugin lint",
+    "test": "headlamp-plugin test"
+  },
+  "dependencies": {
+    "@iconify/react": "^5.0.2",
+    "react-markdown": "^9.0.0"
+  },
+  "devDependencies": {
+    "@kinvolk/headlamp-plugin": "^0.11.0"
+  },
+  "peerDependencies": {
+    "@mui/material": "^5.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}

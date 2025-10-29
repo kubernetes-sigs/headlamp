@@ -225,6 +225,16 @@ class PluginManager {
     try {
       const pluginsData = [];
 
+      // Check if folder exists, if not return empty array
+      if (!fs.existsSync(folder)) {
+        if (progressCallback) {
+          progressCallback({ type: 'success', message: 'No plugins folder found', data: [] });
+        } else {
+          return [];
+        }
+        return;
+      }
+
       // Read all entries in the specified folder
       const entries = fs.readdirSync(folder, { withFileTypes: true });
 
