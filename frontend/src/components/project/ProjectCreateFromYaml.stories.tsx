@@ -45,7 +45,12 @@ const makeStore = () => {
           useEvict: true,
         },
       },
-      projects: { projects: {}, customCreateProject: {}, detailsTabs: {}, overviewSections: {} },
+      projects: {
+        headerActions: {},
+        customCreateProject: {},
+        detailsTabs: {},
+        overviewSections: {},
+      },
     },
   });
 };
