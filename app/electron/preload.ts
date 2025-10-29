@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'plugin-manager',
       'backend-token',
       'plugin-permission-secrets',
+      'open-about-dialog',
     ];
     if (validChannels.includes(channel)) {
       // Deliberately strip event as it includes `sender`
