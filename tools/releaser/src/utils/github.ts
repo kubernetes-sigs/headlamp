@@ -818,8 +818,12 @@ function displayExtendedAssetsResults(results: ExtendedAssetsStatus, version: st
  *
  * @param gitRef The git ref/branch/tag to build from
  * @param platform The platform to build: 'all', 'windows', 'mac', or 'linux'
+ * @returns Array of workflow run information
  */
-export async function triggerBuildWorkflows(gitRef: string, platform: string): Promise<void> {
+export async function triggerBuildWorkflows(
+  gitRef: string,
+  platform: string
+): Promise<Array<{ name: string; runId: number; url: string }>> {
   const octokit = getOctokit();
 
   interface WorkflowConfig {
@@ -836,7 +840,7 @@ export async function triggerBuildWorkflows(gitRef: string, platform: string): P
       workflowId: 'app-artifacts-win.yml',
       inputs: {
         buildBranch: gitRef,
-        signBinaries: 'true'
+        signBinaries: 'false'
       }
     });
   }
@@ -847,7 +851,7 @@ export async function triggerBuildWorkflows(gitRef: string, platform: string): P
       workflowId: 'app-artifacts-mac.yml',
       inputs: {
         buildBranch: gitRef,
-        signBinaries: 'true'
+        signBinaries: 'false'
       }
     });
   }
@@ -864,10 +868,13 @@ export async function triggerBuildWorkflows(gitRef: string, platform: string): P
 
   console.log(chalk.blue(`\nTriggering ${workflows.length} workflow(s)...`));
 
+  const triggeredRuns: Array<{ name: string; runId: number; url: string }> = [];
+
   for (const workflow of workflows) {
     try {
       console.log(chalk.blue(`  Triggering ${workflow.name} build workflow...`));
 
+      // Trigger the workflow
       await octokit.actions.createWorkflowDispatch({
         owner: OWNER,
         repo: REPO,
@@ -876,11 +883,161 @@ export async function triggerBuildWorkflows(gitRef: string, platform: string): P
         inputs: workflow.inputs
       });
 
-      console.log(chalk.green(`  ✅ ${workflow.name} workflow triggered`));
+      // Poll for the workflow run to be created with retry mechanism
+      let latestRun = null;
+      const maxRetries = 10;
+      const retryDelay = 1000; // Start with 1 second
+
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        // Wait before checking (with exponential backoff)
+        const delay = retryDelay * Math.pow(1.5, attempt);
+        await new Promise(resolve => setTimeout(resolve, delay));
+
+        // Get the latest workflow run for this workflow
+        const { data: runs } = await octokit.actions.listWorkflowRuns({
+          owner: OWNER,
+          repo: REPO,
+          workflow_id: workflow.workflowId,
+          per_page: 5
+        });
+
+        // Find the most recent run (should be the one we just triggered)
+        if (runs.workflow_runs.length > 0) {
+          latestRun = runs.workflow_runs[0];
+          break;
+        }
+      }
+
+      if (latestRun) {
+        triggeredRuns.push({
+          name: workflow.name,
+          runId: latestRun.id,
+          url: latestRun.html_url
+        });
+        console.log(chalk.green(`  ✅ ${workflow.name} workflow triggered`));
+        console.log(chalk.dim(`     Run ID: ${latestRun.id}`));
+      } else {
+        console.log(chalk.green(`  ✅ ${workflow.name} workflow triggered`));
+        console.log(chalk.yellow(`     (Run ID not immediately available)`));
+      }
     } catch (error: any) {
       console.error(chalk.red(`  ❌ Failed to trigger ${workflow.name} workflow:`));
       console.error(chalk.red(`     ${error?.message || error}`));
       throw error;
     }
   }
+
+  return triggeredRuns;
+}
+
+/**
+ * Get latest app build workflow runs
+ *
+ * @param limit Number of runs to fetch per workflow
+ * @param platform Filter by platform: 'all', 'windows', 'mac', or 'linux'
+ * @returns Array of workflow runs with their details and artifacts
+ */
+export async function getLatestAppRuns(
+  limit: number = 5,
+  platform: string = 'all'
+): Promise<
+  Array<{
+    workflowName: string;
+    runs: Array<{
+      id: number;
+      status: string;
+      conclusion: string | null;
+      headBranch: string;
+      headSha: string;
+      createdAt: string;
+      url: string;
+      artifacts: Array<{
+        name: string;
+        size: number;
+        downloadUrl: string;
+      }>;
+    }>;
+  }>
+> {
+  const octokit = getOctokit();
+
+  interface WorkflowConfig {
+    name: string;
+    workflowId: string;
+  }
+
+  const workflows: WorkflowConfig[] = [];
+
+  if (platform === 'all' || platform === 'windows') {
+    workflows.push({
+      name: 'Windows',
+      workflowId: 'app-artifacts-win.yml'
+    });
+  }
+
+  if (platform === 'all' || platform === 'mac') {
+    workflows.push({
+      name: 'Mac',
+      workflowId: 'app-artifacts-mac.yml'
+    });
+  }
+
+  if (platform === 'all' || platform === 'linux') {
+    workflows.push({
+      name: 'Linux',
+      workflowId: 'app-artifacts-linux.yml'
+    });
+  }
+
+  const results = [];
+
+  for (const workflow of workflows) {
+    try {
+      // Get workflow runs
+      const { data: runsData } = await octokit.actions.listWorkflowRuns({
+        owner: OWNER,
+        repo: REPO,
+        workflow_id: workflow.workflowId,
+        per_page: limit
+      });
+
+      const runs = [];
+
+      for (const run of runsData.workflow_runs) {
+        // Get artifacts for this run
+        const { data: artifactsData } = await octokit.actions.listWorkflowRunArtifacts({
+          owner: OWNER,
+          repo: REPO,
+          run_id: run.id
+        });
+
+        const artifacts = artifactsData.artifacts.map(artifact => ({
+          name: artifact.name,
+          size: artifact.size_in_bytes,
+          downloadUrl: `https://github.com/${OWNER}/${REPO}/actions/runs/${run.id}/artifacts/${artifact.id}`
+        }));
+
+        runs.push({
+          id: run.id,
+          status: run.status || 'unknown',
+          conclusion: run.conclusion,
+          headBranch: run.head_branch || 'unknown',
+          headSha: run.head_sha,
+          createdAt: run.created_at,
+          url: run.html_url,
+          artifacts
+        });
+      }
+
+      results.push({
+        workflowName: workflow.name,
+        runs
+      });
+    } catch (error: any) {
+      console.error(chalk.red(`Failed to fetch runs for ${workflow.name}:`));
+      console.error(chalk.red(`  ${error?.message || error}`));
+    }
+  }
+
+  return results;
 }
