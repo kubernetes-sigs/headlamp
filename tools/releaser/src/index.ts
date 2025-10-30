@@ -32,6 +32,7 @@ program.command('check')
 program.command('start')
   .description('Update package.json with new version and commit changes')
   .argument('<release-version>', 'New version number (e.g., 0.30.0)')
+  .option('--no-branch', 'Do not create a release branch (stay on current branch)')
   .action(startRelease);
 
 program.command('tag')
