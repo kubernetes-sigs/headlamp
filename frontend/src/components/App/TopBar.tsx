@@ -103,7 +103,37 @@ export default function TopBar({}: TopBarProps) {
           autoLogoutOnAuthError: false,
         });
 
-        return res ? { username: res.username, email: res.email } : null;
+        if (!res) {
+          return null;
+        }
+
+        if (!(typeof res.userInfoURL === 'string' && res.userInfoURL.length > 0)) {
+          return { username: res.username, email: res.email };
+        }
+
+        const ui: {
+          preferredUsername?: string;
+          email?: string;
+        } = await fetch(res.userInfoURL, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }).then(r => {
+          if (!r.ok) {
+            throw new Error(`Could not fetch user info from ${res.userInfoURL}`);
+          }
+          return r.json();
+        });
+
+        if (!ui || (!ui.preferredUsername && !ui.email)) {
+          return null;
+        }
+
+        return {
+          username: ui.preferredUsername,
+          email: ui.email,
+        };
       } catch {
         return null;
       }
