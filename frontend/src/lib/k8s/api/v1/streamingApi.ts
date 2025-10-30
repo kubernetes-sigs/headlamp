@@ -15,15 +15,23 @@
  */
 
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
+import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
 import { clusterRequest } from './clusterRequests';
-import { BASE_HTTP_URL, CLUSTERS_PREFIX } from './constants';
+import { CLUSTERS_PREFIX } from './constants';
 import { asQuery, combinePath } from './formatUrl';
 import type { QueryParameters } from './queryParameters';
+
+/**
+ * Get the WebSocket base URL dynamically to support runtime port configuration
+ */
+function getBaseWsUrl(): string {
+  return getAppUrl().replace('http', 'ws');
+}
 
 export type StreamUpdate<T = any> = {
   type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'ERROR';
@@ -33,8 +41,6 @@ export type StreamUpdate<T = any> = {
 export type StreamResultsCb<T = any> = (data: T) => void;
 export type StreamUpdatesCb<T = any> = (data: T | StreamUpdate<T>) => void;
 export type StreamErrCb = (err: Error & { status?: number }, cancelStreamFunc?: () => void) => void;
-
-const BASE_WS_URL = BASE_HTTP_URL.replace('http', 'ws');
 
 /**
  * Fetches the data and watches for changes to the data.
@@ -428,11 +434,11 @@ export async function connectStreamWithParams<T>(
         protocols.push(`base64url.headlamp.authorization.k8s.io.${userID}`);
       }
 
-      url = combinePath(BASE_WS_URL, fullPath);
+      url = combinePath(getBaseWsUrl(), fullPath);
     } catch (error) {
       console.error('Error while finding kubeconfig:', error);
       // If we can't find the kubeconfig, we'll just use the base URL.
-      url = combinePath(BASE_WS_URL, fullPath);
+      url = combinePath(getBaseWsUrl(), fullPath);
     }
   }
 

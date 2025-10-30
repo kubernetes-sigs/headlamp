@@ -15,14 +15,25 @@
  */
 
 import { useCallback, useEffect, useMemo } from 'react';
+import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
-import { BASE_HTTP_URL } from './fetch';
 import { makeUrl } from './makeUrl';
 
+/**
+ * Get the WebSocket base URL dynamically to support runtime port configuration
+ */
+export function getBaseWsUrl(): string {
+  return getAppUrl().replace('http', 'ws');
+}
+
+// @deprecated BASE_WS_URL is deprecated for Electron apps with custom ports.
+// It's evaluated at module load time, before window.headlampBackendPort is set.
+// Use getBaseWsUrl() instead for runtime port configuration.
+export const BASE_WS_URL = getBaseWsUrl();
+
 // Constants for WebSocket connection
-export const BASE_WS_URL = BASE_HTTP_URL.replace('http', 'ws');
 export const MULTIPLEXER_ENDPOINT = 'wsMultiplexer';
 
 /**
@@ -143,7 +154,7 @@ export const WebSocketManager = {
     }
 
     this.connecting = true;
-    const wsUrl = `${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`;
+    const wsUrl = `${getBaseWsUrl()}${MULTIPLEXER_ENDPOINT}`;
 
     return new Promise((resolve, reject) => {
       const socket = new WebSocket(wsUrl);
@@ -452,7 +463,7 @@ export function useWebSocket<T>({
 
     const connectWebSocket = async () => {
       try {
-        const parsedUrl = new URL(url, BASE_WS_URL);
+        const parsedUrl = new URL(url, getBaseWsUrl());
         cleanup = await WebSocketManager.subscribe(
           cluster,
           parsedUrl.pathname,
@@ -533,7 +544,7 @@ export async function openWebSocket<T>(
     }
   }
 
-  const socket = new WebSocket(makeUrl([BASE_WS_URL, ...path], {}), protocols);
+  const socket = new WebSocket(makeUrl([getBaseWsUrl(), ...path], {}), protocols);
   socket.binaryType = 'arraybuffer';
   socket.addEventListener('message', (body: MessageEvent) => {
     const data = type === 'json' ? JSON.parse(body.data) : body.data;

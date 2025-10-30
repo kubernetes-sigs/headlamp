@@ -113,6 +113,11 @@ const args = yargs(hideBin(process.argv))
       describe: 'Reloads plugins when there are changes to them or their directory',
       type: 'boolean',
     },
+    port: {
+      describe: 'Port for the backend server to listen on',
+      type: 'number',
+      default: 4466,
+    },
   })
   .positional('kubeconfig', {
     describe:
@@ -124,7 +129,8 @@ const args = yargs(hideBin(process.argv))
 
 const isHeadlessMode = args.headless === true;
 let disableGPU = args['disable-gpu'] === true;
-const defaultPort = 4466;
+const defaultPort = args.port || 4466;
+let actualPort = defaultPort; // Will be updated when backend starts
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
 const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false';
@@ -578,7 +584,7 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
     ? path.resolve('../backend/headlamp-server')
     : path.join(process.resourcesPath, './headlamp-server');
 
-  let serverArgs: string[] = ['--listen-addr=localhost'];
+  let serverArgs: string[] = ['--listen-addr=localhost', `--port=${defaultPort}`];
   if (!!args.kubeconfig) {
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);
   }
@@ -1284,6 +1290,9 @@ function startElecron() {
       if (startZoom !== 1.0) {
         setZoom(startZoom);
       }
+
+      // Inject the backend port into the window object
+      mainWindow?.webContents.executeJavaScript(`window.headlampBackendPort = ${actualPort};`);
     });
 
     mainWindow.webContents.on('dom-ready', () => {
@@ -1296,10 +1305,10 @@ function startElecron() {
       mainWindow = null;
     });
 
-    // Workaround to cookies to be saved, since file:// protocal and localhost:4466
+    // Workaround to cookies to be saved, since file:// protocal and localhost:port
     // are treated as a cross site request.
     mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-      if (details.url.startsWith('http://localhost:4466')) {
+      if (details.url.startsWith(`http://localhost:${actualPort}`)) {
         callback({
           responseHeaders: {
             ...details.responseHeaders,
@@ -1415,6 +1424,10 @@ function startElecron() {
       mainWindow?.webContents.send('backend-token', backendToken);
     });
 
+    ipcMain.on('request-backend-port', () => {
+      mainWindow?.webContents.send('backend-port', actualPort);
+    });
+
     setupRunCmdHandlers(mainWindow, ipcMain);
 
     new PluginManagerEventListeners().setupEventHandlers();
@@ -1482,9 +1495,26 @@ function attachServerEventHandlers(serverProcess: ChildProcessWithoutNullStreams
   serverProcess.on('error', err => {
     console.error(`server process failed to start: ${err}`);
   });
+
+  const extractPortFromOutput = (data: Buffer) => {
+    const output = data.toString();
+    const portMatch = output.match(/Listen address:.*:(\d+)/);
+    if (portMatch && portMatch[1]) {
+      actualPort = parseInt(portMatch[1], 10);
+      console.info(`Backend server listening on port: ${actualPort}`);
+
+      // Update the environment variable for the frontend
+      if (mainWindow) {
+        mainWindow.webContents.executeJavaScript(`window.headlampBackendPort = ${actualPort};`);
+      }
+    }
+  };
+
   serverProcess.stdout.on('data', data => {
     console.info(`server process stdout: ${data}`);
+    extractPortFromOutput(data);
   });
+
   serverProcess.stderr.on('data', data => {
     const sterrMessage = `server process stderr: ${data}`;
     if (data && data.indexOf && data.indexOf('Requesting') !== -1) {
@@ -1493,7 +1523,9 @@ function attachServerEventHandlers(serverProcess: ChildProcessWithoutNullStreams
     } else {
       console.error(sterrMessage);
     }
+    extractPortFromOutput(data);
   });
+
   serverProcess.on('close', (code, signal) => {
     const closeMessage = `server process process exited with code:${code} signal:${signal}`;
     if (!intentionalQuit) {
@@ -1512,7 +1544,7 @@ if (isHeadlessMode) {
       attachServerEventHandlers(serverProcess);
 
       // Give 1s for backend to start
-      setTimeout(() => shell.openExternal(`http://localhost:${defaultPort}`), 1000);
+      setTimeout(() => shell.openExternal(`http://localhost:${actualPort}`), 1000);
     }
   );
 } else {

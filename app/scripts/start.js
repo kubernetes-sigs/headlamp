@@ -170,6 +170,9 @@ if (process.platform !== 'win32') {
 const frontendProcess = spawn(frontendCmd, [], {
   stdio: 'inherit',
   shell: true,
+  env: {
+    ...process.env,
+  },
 });
 
 let appProcess = null;

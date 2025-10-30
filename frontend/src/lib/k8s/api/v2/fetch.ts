@@ -21,6 +21,9 @@ import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLo
 import { ApiError } from './ApiError';
 import { makeUrl } from './makeUrl';
 
+// @deprecated BASE_HTTP_URL is deprecated for Electron apps with custom ports.
+// It's evaluated at module load time, before window.headlampBackendPort is set.
+// Use getAppUrl() directly instead for runtime port configuration.
 export const BASE_HTTP_URL = getAppUrl();
 
 /**
@@ -36,7 +39,7 @@ export async function backendFetch(url: string | URL, init: RequestInit = {}) {
   // Always include credentials
   init.credentials = 'include';
   init.headers = addBackstageAuthHeaders(init.headers);
-  const response = await fetch(makeUrl([BASE_HTTP_URL, url]), init);
+  const response = await fetch(makeUrl([getAppUrl(), url]), init);
 
   // The backend signals through this header that it wants a reload.
   // See plugins.go

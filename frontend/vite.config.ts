@@ -20,6 +20,10 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import svgr from 'vite-plugin-svgr';
 import { viteStaticCopy } from "vite-plugin-static-copy";
 
+// Use environment variable for backend port, defaulting to 4466
+const backendPort = process.env.HEADLAMP_PORT || '4466';
+const backendTarget = `http://localhost:${backendPort}`;
+
 export default defineConfig({
   define: {
     global: 'globalThis',
@@ -30,15 +34,60 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:4466',
+        target: backendTarget,
         changeOrigin: true,
       },
       '/clusters': {
-        target: 'http://localhost:4466',
+        target: backendTarget,
         changeOrigin: true,
       },
       '/plugins': {
-        target: 'http://localhost:4466',
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/config': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/auth': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/oidc': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/oidc-callback': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/wsMultiplexer': {
+        target: backendTarget,
+        changeOrigin: true,
+        ws: true,
+      },
+      '/externalproxy': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/drain-node': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/drain-node-status': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/parseKubeConfig': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/cluster': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/metrics': {
+        target: backendTarget,
         changeOrigin: true,
       },
     },
