@@ -327,7 +327,7 @@ export const PureTopBar = memo(
           },
         }}
       >
-        {userInfo && (
+        {!!userDisplayName && (
           <MenuItem
             disableRipple
             sx={{
