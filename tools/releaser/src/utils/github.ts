@@ -812,3 +812,75 @@ function displayExtendedAssetsResults(results: ExtendedAssetsStatus, version: st
     }
   });
 }
+
+/**
+ * Trigger build artifact workflows for specified platform(s)
+ *
+ * @param gitRef The git ref/branch/tag to build from
+ * @param platform The platform to build: 'all', 'windows', 'mac', or 'linux'
+ */
+export async function triggerBuildWorkflows(gitRef: string, platform: string): Promise<void> {
+  const octokit = getOctokit();
+
+  interface WorkflowConfig {
+    name: string;
+    workflowId: string;
+    inputs: Record<string, string>;
+  }
+
+  const workflows: WorkflowConfig[] = [];
+
+  if (platform === 'all' || platform === 'windows') {
+    workflows.push({
+      name: 'Windows',
+      workflowId: 'app-artifacts-win.yml',
+      inputs: {
+        buildBranch: gitRef,
+        signBinaries: 'true'
+      }
+    });
+  }
+
+  if (platform === 'all' || platform === 'mac') {
+    workflows.push({
+      name: 'Mac',
+      workflowId: 'app-artifacts-mac.yml',
+      inputs: {
+        buildBranch: gitRef,
+        signBinaries: 'true'
+      }
+    });
+  }
+
+  if (platform === 'all' || platform === 'linux') {
+    workflows.push({
+      name: 'Linux',
+      workflowId: 'app-artifacts-linux.yml',
+      inputs: {
+        buildBranch: gitRef
+      }
+    });
+  }
+
+  console.log(chalk.blue(`\nTriggering ${workflows.length} workflow(s)...`));
+
+  for (const workflow of workflows) {
+    try {
+      console.log(chalk.blue(`  Triggering ${workflow.name} build workflow...`));
+
+      await octokit.actions.createWorkflowDispatch({
+        owner: OWNER,
+        repo: REPO,
+        workflow_id: workflow.workflowId,
+        ref: gitRef,
+        inputs: workflow.inputs
+      });
+
+      console.log(chalk.green(`  ✅ ${workflow.name} workflow triggered`));
+    } catch (error: any) {
+      console.error(chalk.red(`  ❌ Failed to trigger ${workflow.name} workflow:`));
+      console.error(chalk.red(`     ${error?.message || error}`));
+      throw error;
+    }
+  }
+}
