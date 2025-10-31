@@ -1,0 +1,50 @@
+name: Push Chocolatey Package
+
+# This action will run when a PR that updates the Chocolatey package is merged to main
+# It can also be triggered manually
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/windows/chocolatey/headlamp.nuspec'
+      - 'app/windows/chocolatey/tools/chocolateyinstall.ps1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  push-chocolatey:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Headlamp
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          ref: main
+
+      - name: Install Chocolatey
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+        shell: powershell
+
+      - name: Pack Chocolatey Package
+        run: |
+          cd app/windows/chocolatey
+          choco pack
+        shell: powershell
+
+      - name: Push to Chocolatey
+        run: |
+          cd app/windows/chocolatey
+          $nupkg = Get-ChildItem -Filter *.nupkg | Select-Object -First 1
+          if ($nupkg) {
+            Write-Host "Pushing package: $($nupkg.Name)"
+            choco push $nupkg.FullName --source https://push.chocolatey.org/ --key ${{ secrets.CHOCOLATEY_API_KEY }}
+          } else {
+            Write-Error "No .nupkg file found"
+            exit 1
+          }
+        shell: powershell
