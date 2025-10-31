@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ChildProcessWithoutNullStreams, exec, execSync, spawn } from 'child_process';
+import { ChildProcessWithoutNullStreams, exec, execFileSync, spawn } from 'child_process';
 import { randomBytes } from 'crypto';
 import dotenv from 'dotenv';
 import {
@@ -91,7 +91,7 @@ const args = yargs(hideBin(process.argv))
     () => {
       try {
         const backendPath = path.join(process.resourcesPath, 'headlamp-server');
-        const stdout = execSync(`${backendPath} list-plugins`);
+        const stdout = execFileSync(backendPath, ['list-plugins']);
         process.stdout.write(stdout);
         process.exit(0);
       } catch (error) {
@@ -1090,7 +1090,7 @@ async function getRunningHeadlampPIDs() {
 function killProcess(pid: number) {
   if (process.platform === 'win32') {
     // Otherwise on Windows the process will stick around.
-    execSync('taskkill /pid ' + pid + ' /T /F');
+    execFileSync('taskkill', ['/pid', String(pid), '/T', '/F']);
   } else {
     process.kill(pid, 'SIGHUP');
   }
