@@ -156,3 +156,15 @@ UndefinedData.args = {
   clusters: { 'ak8s-desktop': '' },
   userInfo: undefined,
 };
+
+export const EmptyUserInfo = PureTemplate.bind({});
+EmptyUserInfo.args = {
+  appBarActions: [],
+  logout: () => {},
+  cluster: 'ak8s-desktop',
+  clusters: { 'ak8s-desktop': '' },
+  userInfo: {
+    email: '',
+    username: '',
+  },
+};

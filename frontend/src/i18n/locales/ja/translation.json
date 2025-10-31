@@ -61,6 +61,8 @@
   "In-cluster": "クラスター内",
   "View Clusters": "",
   "Loading...": "",
+  "No clusters found": "",
+  "Add a cluster to get started.": "",
   "Origin": "元",
   "Status": "ステータス",
   "Warnings": "警告",

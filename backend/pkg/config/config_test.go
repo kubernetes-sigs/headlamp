@@ -101,11 +101,13 @@ var ParseWithEnvTests = []struct {
 			"HEADLAMP_CONFIG_ME_USERNAME_PATH": "user.name",
 			"HEADLAMP_CONFIG_ME_EMAIL_PATH":    "user.email",
 			"HEADLAMP_CONFIG_ME_GROUPS_PATH":   "user.groups",
+			"HEADLAMP_CONFIG_ME_USER_INFO_URL": "/oauth2/userinfo",
 		},
 		verify: func(t *testing.T, conf *config.Config) {
 			assert.Equal(t, "user.name", conf.MeUsernamePath)
 			assert.Equal(t, "user.email", conf.MeEmailPath)
 			assert.Equal(t, "user.groups", conf.MeGroupsPath)
+			assert.Equal(t, "/oauth2/userinfo", conf.MeUserInfoURL)
 		},
 	},
 	{

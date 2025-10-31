@@ -90,6 +90,7 @@ $ helm install my-headlamp headlamp/headlamp \
 | config.oidc.secret.name | string | `"oidc"` | Name of the OIDC secret |
 | config.oidc.externalSecret.enabled | bool | `false` | Enable using external secret for OIDC |
 | config.oidc.externalSecret.name | string | `""` | Name of external OIDC secret |
+| config.oidc.meUserInfoURL | string | `""` | URL to fetch additional user info for the /me endpoint. For oauth2proxy /oauth2/userinfo can be used. |
 
 There are three ways to configure OIDC:
 

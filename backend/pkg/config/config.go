@@ -24,6 +24,7 @@ const (
 	DefaultMeUsernamePath = "preferred_username,upn,username,name"
 	DefaultMeEmailPath    = "email"
 	DefaultMeGroupsPath   = "groups,realm_access.roles"
+	DefaultMeUserInfoURL  = ""
 )
 
 type Config struct {
@@ -56,6 +57,7 @@ type Config struct {
 	MeUsernamePath            string `koanf:"me-username-path"`
 	MeEmailPath               string `koanf:"me-email-path"`
 	MeGroupsPath              string `koanf:"me-groups-path"`
+	MeUserInfoURL             string `koanf:"me-user-info-url"`
 	OidcUsePKCE               bool   `koanf:"oidc-use-pkce"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
@@ -230,7 +232,7 @@ func setKubeConfigPath(config *Config) {
 }
 
 // ApplyMeDefaults trims and applies defaults to the JMESPath expressions used for the /me endpoint.
-func ApplyMeDefaults(usernamePath, emailPath, groupsPath string) (string, string, string) {
+func ApplyMeDefaults(usernamePath, emailPath, groupsPath, userInfoURL string) (string, string, string, string) {
 	username := strings.TrimSpace(usernamePath)
 	if username == "" {
 		username = DefaultMeUsernamePath
@@ -246,15 +248,21 @@ func ApplyMeDefaults(usernamePath, emailPath, groupsPath string) (string, string
 		groups = DefaultMeGroupsPath
 	}
 
-	return username, email, groups
+	userInfo := strings.TrimSpace(userInfoURL)
+	if userInfo == "" {
+		userInfo = DefaultMeUserInfoURL
+	}
+
+	return username, email, groups, userInfo
 }
 
 // setMeDefaults ensures the /clusters/{clusterName}/me claim paths fall back to defaults when unset.
 func setMeDefaults(config *Config) {
-	config.MeUsernamePath, config.MeEmailPath, config.MeGroupsPath = ApplyMeDefaults(
+	config.MeUsernamePath, config.MeEmailPath, config.MeGroupsPath, config.MeUserInfoURL = ApplyMeDefaults(
 		config.MeUsernamePath,
 		config.MeEmailPath,
 		config.MeGroupsPath,
+		config.MeUserInfoURL,
 	)
 }
 
@@ -407,6 +415,8 @@ func addOIDCFlags(f *flag.FlagSet) {
 		"Comma separated JMESPath expressions used to read email from the JWT payload")
 	f.String("me-groups-path", DefaultMeGroupsPath,
 		"Comma separated JMESPath expressions used to read groups from the JWT payload")
+	f.String("me-user-info-url", DefaultMeUserInfoURL,
+		"URL to fetch additional user info for the /me endpoint. For oauth2proxy /oauth2/userinfo can be used.")
 }
 
 func addTelemetryFlags(f *flag.FlagSet) {

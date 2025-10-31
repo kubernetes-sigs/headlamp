@@ -21,21 +21,6 @@ metadata:
 type: Opaque
 data:
 ---
-# Source: headlamp/templates/plugin-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: headlamp-plugin-config
-  namespace: default
-  labels:
-    helm.sh/chart: headlamp-0.36.0
-    app.kubernetes.io/name: headlamp
-    app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.36.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  plugin.yml: |
----
 # Source: headlamp/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -110,33 +95,25 @@ spec:
       serviceAccountName: headlamp
       automountServiceAccountToken: true
       securityContext:
-        fsGroup: 2000
-        runAsGroup: 3000
-        runAsUser: 1000
-        seccompProfile:
-          type: RuntimeDefault
+        {}
       containers:
         - name: headlamp
           securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
             privileged: false
-            readOnlyRootFilesystem: true
             runAsGroup: 101
             runAsNonRoot: true
             runAsUser: 100
-            seccompProfile:
-              type: RuntimeDefault
           image: "ghcr.io/headlamp-k8s/headlamp:v0.36.0"
           imagePullPolicy: IfNotPresent
           
           env:
+            - name: ME_USER_INFO_URL
+              value: /oauth2/userinfocustom1
           args:
             - "-in-cluster"
             - "-plugins-dir=/headlamp/plugins"
             # Check if externalSecret is disabled
+            - "-me-user-info-url=$(ME_USER_INFO_URL)"
           ports:
             - name: http
               containerPort: 4466
@@ -151,42 +128,3 @@ spec:
               port: http
           resources:
             {}
-          volumeMounts:
-            - name: plugins-dir
-              mountPath: /headlamp/plugins
-        - name: headlamp-plugin
-          image: node:18-alpine
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              if [ -f "/config/plugin.yml" ]; then
-                echo "Installing plugins from config..."
-                cat /config/plugin.yml
-                # Use a writable cache directory
-                export NPM_CONFIG_CACHE=/tmp/npm-cache
-                # Use a writable config directory
-                export NPM_CONFIG_USERCONFIG=/tmp/npm-userconfig
-                mkdir -p /tmp/npm-cache /tmp/npm-userconfig
-                npx --yes @headlamp-k8s/pluginctl@1.0.0 install --config /config/plugin.yml --folderName /headlamp/plugins --watch
-              fi
-          volumeMounts:
-            - name: plugins-dir
-              mountPath: /headlamp/plugins
-            - name: plugin-config
-              mountPath: /config
-          resources:
-            null
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 1001
-      volumes:
-        - name: plugins-dir
-          emptyDir: {}
-        - name: plugin-config
-          configMap:
-            name: headlamp-plugin-config

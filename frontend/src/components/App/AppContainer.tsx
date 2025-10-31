@@ -22,6 +22,8 @@ import { getBaseUrl } from '../../helpers/getBaseUrl';
 import { setBackendToken } from '../../helpers/getHeadlampAPIHeaders';
 import { isElectron } from '../../helpers/isElectron';
 import Plugins from '../../plugin/Plugins';
+import store from '../../redux/stores/store';
+import { uiSlice } from '../../redux/uiSlice';
 import ReleaseNotes from '../common/ReleaseNotes/ReleaseNotes';
 import { MonacoEditorLoaderInitializer } from '../monaco/MonacoEditorLoaderInitializer';
 import Layout from './Layout';
@@ -30,6 +32,11 @@ import { PreviousRouteProvider } from './RouteSwitcher';
 window.desktopApi?.send('request-backend-token');
 window.desktopApi?.receive('backend-token', (token: string) => {
   setBackendToken(token);
+});
+
+// Listen for the open-about-dialog event from the Electron app menu
+window.desktopApi?.receive('open-about-dialog', () => {
+  store.dispatch(uiSlice.actions.setVersionDialogOpen(true));
 });
 
 /**
