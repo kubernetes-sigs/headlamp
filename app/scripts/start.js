@@ -4,11 +4,9 @@
  *
  * Assumes being run from within the app/ folder
  */
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const { statSync, existsSync } = require('fs');
 const { join } = require('path');
-const { execSync } = require('child_process');
-const { spawnSync } = require('child_process');
 
 /**
  * @returns the last commit date of the backend/ in milliseconds since epoch,
