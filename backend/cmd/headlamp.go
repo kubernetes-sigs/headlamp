@@ -93,8 +93,8 @@ type HeadlampConfig struct {
 	meEmailPaths string
 	// meGroupsPaths lists the JMESPath expressions tried for the groups in /clusters/{cluster}/me.
 	meGroupsPaths string
-	// MeUserInfoURL is the URL to fetch additional user info for the /me endpoint. /oauth2/userinfo
-	MeUserInfoURL string
+	// meUserInfoURL is the URL to fetch additional user info for the /me endpoint. /oauth2/userinfo
+	meUserInfoURL string
 }
 
 const DrainNodeCacheTTL = 20 // seconds
@@ -496,7 +496,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			UsernamePaths: config.meUsernamePaths,
 			EmailPaths:    config.meEmailPaths,
 			GroupsPaths:   config.meGroupsPaths,
-			UserInfoURL:   config.MeUserInfoURL,
+			UserInfoURL:   config.meUserInfoURL,
 		}),
 	).Methods("GET")
 

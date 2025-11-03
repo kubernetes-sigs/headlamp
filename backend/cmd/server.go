@@ -120,6 +120,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		meUsernamePaths:           conf.MeUsernamePath,
 		meEmailPaths:              conf.MeEmailPath,
 		meGroupsPaths:             conf.MeGroupsPath,
+		meUserInfoURL:             conf.MeUserInfoURL,
 		cache:                     cache,
 		multiplexer:               multiplexer,
 		telemetryConfig:           buildTelemetryConfig(conf),
