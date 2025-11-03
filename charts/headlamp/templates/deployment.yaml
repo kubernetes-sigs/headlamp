@@ -298,6 +298,10 @@ spec:
             # Check if validatorIssuerURL is non empty either from env or oidc.config
             - "-oidc-validator-idp-issuer-url=$(OIDC_VALIDATOR_ISSUER_URL)"
             {{- end }}
+            {{- if or (eq ($oidc.useAccessToken | toString) "true") (eq $useAccessToken "true") }}
+            # Check if useAccessToken is non false either from env or oidc.config
+            - "-oidc-use-access-token=$(OIDC_USE_ACCESS_TOKEN)"
+            {{- end }}
             {{- if or (ne $oidc.meUserInfoURL "") (ne $meUserInfoURL "") }}
             - "-me-user-info-url=$(ME_USER_INFO_URL)"
             {{- end }}
