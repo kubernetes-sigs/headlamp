@@ -41,12 +41,14 @@ declare global {
  *
  */
 export function getAppUrl(): string {
-  let url = window.location.origin;
+  let url = '';
   let backendPort = 4466;
   let useLocalhost = false;
 
-  if (isElectron() && window.headlampBackendPort) {
-    backendPort = window.headlampBackendPort;
+  if (isElectron()) {
+    if (window?.headlampBackendPort) {
+      backendPort = window.headlampBackendPort;
+    }
     useLocalhost = true;
   }
 
@@ -61,6 +63,8 @@ export function getAppUrl(): string {
 
   if (useLocalhost) {
     url = `http://localhost:${backendPort}`;
+  } else {
+    url = window.location.origin;
   }
 
   const baseUrl = getBaseUrl();

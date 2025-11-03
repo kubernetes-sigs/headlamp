@@ -46,6 +46,12 @@
   "Continue": "继续",
   "Failed to quit the other running process": "退出运行中的进程失败",
   "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "无法退出运行中的进程，PIDs: {{ process_list }}。请手动关闭进程并重启应用",
+  "No available ports": "",
+  "Could not find an available port. There are processes running on ports {{startPort}}-{{endPort}}. Terminate these processes and retry?": "",
+  "Terminate and Retry": "",
+  "Failed to start": "",
+  "Could not start the server even after terminating existing processes.": "",
+  "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "",
   "Invalid URL": "非法的URL",
   "Application opened with an invalid URL: {{ url }}": "应用程序打开了一个非法URL: {{ url }}"
 }

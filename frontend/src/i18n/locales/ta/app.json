@@ -46,6 +46,12 @@
   "Continue": "தொடர்க",
   "Failed to quit the other running process": "மற்ற இயங்கும் ப்ராசஸிலிருந்து வெளியேற முடியவில்லை",
   "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "மற்ற இயங்கும் ப்ராசஸிலிருந்து வெளியேற முடியவில்லை, PIDs: {{ process_list }}. தயவுசெய்து அந்த ப்ராசஸை நிறுத்தி பயன்பாட்டை மீண்டும் தொடங்கவும்.",
+  "No available ports": "",
+  "Could not find an available port. There are processes running on ports {{startPort}}-{{endPort}}. Terminate these processes and retry?": "",
+  "Terminate and Retry": "",
+  "Failed to start": "",
+  "Could not start the server even after terminating existing processes.": "",
+  "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "",
   "Invalid URL": "தவறான URL",
   "Application opened with an invalid URL: {{ url }}": "பயன்பாடு தவறான URL உடன் திறக்கப்பட்டது: {{ url }}"
 }
