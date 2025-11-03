@@ -224,6 +224,31 @@ describe('ProjectDetails overview sections', () => {
     }
   });
 
+  it('continues evaluating sections when an isEnabled predicate throws', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const isEnabled = vi.fn(() => {
+        throw new Error('predicate threw');
+      });
+      renderProjectOverview([
+        {
+          id: 'failed',
+          component: () => <div>Failed section</div>,
+          isEnabled,
+        },
+        {
+          id: 'visible',
+          component: () => <div>Visible section</div>,
+        },
+      ]);
+
+      expect(await screen.findByText('Visible section')).toBeInTheDocument();
+      expect(screen.queryByText('Failed section')).not.toBeInTheDocument();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it('rechecks conditional sections when the project changes', async () => {
     const isEnabled = vi.fn().mockResolvedValue(true);
     const store = configureStore({
@@ -254,6 +279,45 @@ describe('ProjectDetails overview sections', () => {
 
     await waitFor(() => expect(isEnabled).toHaveBeenCalledWith({ project: nextProject }));
     expect(isEnabled).toHaveBeenCalledTimes(2);
+  });
+
+  it('hides sections from the previous project while predicates are rechecked', async () => {
+    let resolveNextProject: (enabled: boolean) => void = () => {};
+    const isEnabled = vi.fn(({ project: currentProject }: { project: ProjectDefinition }) =>
+      currentProject.id === overviewProject.id
+        ? Promise.resolve(true)
+        : new Promise<boolean>(resolve => {
+            resolveNextProject = resolve;
+          })
+    );
+    const store = configureStore({
+      reducer: reducers,
+      middleware: getDefaultMiddleware => getDefaultMiddleware({ serializableCheck: false }),
+    });
+    store.dispatch(
+      addOverviewSection({
+        id: 'project-specific',
+        component: ({ project }) => <div>Section for {project.id}</div>,
+        isEnabled,
+      })
+    );
+
+    const { rerender } = render(
+      <TestContext store={store}>
+        <ProjectDetailsContent project={overviewProject} />
+      </TestContext>
+    );
+    await screen.findByText('Section for project-a');
+
+    const nextProject = { ...overviewProject, id: 'project-b' };
+    rerender(
+      <TestContext store={store}>
+        <ProjectDetailsContent project={nextProject} />
+      </TestContext>
+    );
+
+    expect(screen.queryByText('Section for project-b')).not.toBeInTheDocument();
+    await act(async () => resolveNextProject(false));
   });
 
   it('ignores a predicate result from the previously rendered project', async () => {

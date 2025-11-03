@@ -293,7 +293,24 @@ Each tab needs a unique ID, a label, and a React component that receives the pro
 
 Add custom sections to the project overview page with
 [registerProjectOverviewSection](../../api/plugin/registry/functions/registerProjectOverviewSection).
-These sections appear in the project's main overview area.
+Each section needs a unique `id` and a component. The component receives the current
+`project` and its loaded `projectResources`.
+
+Use the optional asynchronous `isEnabled` callback to display a section only for
+matching projects. The callback receives `{ project }` and returns a `Promise<boolean>`.
+Sections without the callback are displayed by default. A section is hidden when the
+callback resolves to `false`, rejects, or throws, and eligibility is checked again when
+the project changes.
+
+```tsx
+registerProjectOverviewSection({
+  id: 'multi-cluster-summary',
+  component: ({ project, projectResources }) => (
+    <MultiClusterSummary project={project} resources={projectResources} />
+  ),
+  isEnabled: async ({ project }) => project.clusters.length > 1,
+});
+```
 
 Register custom API resources (e.g. CRDs) for project resource tracking with
 [registerProjectApiResource](../../api/plugin/registry/functions/registerProjectApiResource).
@@ -301,7 +318,8 @@ Once registered, the CRD resources will appear in the project's resource count,
 health status, and Resources tab. Only namespaced resources can be registered,
 since Projects are scoped to namespaces.
 
-Example plugin: [How to customize projects](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/projects)
+Example plugin: [How to customize projects](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/projects),
+including conditionally displayed overview sections.
 
 ### Activities
 
