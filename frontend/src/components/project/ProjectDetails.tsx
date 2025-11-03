@@ -25,7 +25,11 @@ import Role from '../../lib/k8s/role';
 import RoleBinding from '../../lib/k8s/roleBinding';
 import { SelectedClustersContext } from '../../lib/k8s/SelectedClustersContext';
 import { useTypedSelector } from '../../redux/hooks';
-import { ProjectDefinition, ProjectDetailsTab } from '../../redux/projectsSlice';
+import {
+  ProjectDefinition,
+  ProjectDetailsTab,
+  ProjectOverviewSection,
+} from '../../redux/projectsSlice';
 import { Activity } from '../activity/Activity';
 import { ButtonStyle, EditButton, EditorDialog, Loader, StatusLabel } from '../common';
 import Link from '../common/Link';
@@ -36,6 +40,7 @@ import { GraphView } from '../resourceMap/GraphView';
 import { ResourceQuotaTable } from '../resourceQuota/Details';
 import { ProjectDeleteButton } from './ProjectDeleteButton';
 import { useProject } from './ProjectList';
+import { getEnabledProjectOverviewSections } from './projectOverviewSections';
 import { ProjectResourcesTab, useResourceCategoriesList } from './ProjectResourcesTab';
 import { getHealthIcon, getResourcesHealth } from './projectUtils';
 import { ResourceCategoriesList } from './ResourceCategoriesList';
@@ -110,9 +115,33 @@ function ProjectOverview({
     throw new Error('Missing ProjectDetailsContext');
   }
   const { setSelectedCategoryName, setSelectedTab } = detailsContext;
-  const additionalOverviewSections = Object.values(
-    useTypedSelector(state => state.projects.overviewSections)
-  );
+  const additionalOverviewSections = useTypedSelector(state => state.projects.overviewSections);
+  const [evaluatedSections, setEvaluatedSections] = useState<{
+    project: ProjectDefinition;
+    sections: ProjectOverviewSection[];
+  }>();
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadSections() {
+      const enabledSections = await getEnabledProjectOverviewSections(
+        Object.values(additionalOverviewSections),
+        project
+      );
+
+      if (isCurrent) {
+        setEvaluatedSections({ project, sections: enabledSections });
+      }
+    }
+
+    loadSections();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [additionalOverviewSections, project]);
+
   const resourceQuotas = useMemo(
     () => (projectResources?.filter(it => it.kind === 'ResourceQuota') as ResourceQuota[]) ?? [],
     [projectResources]
@@ -121,6 +150,7 @@ function ProjectOverview({
   const categoryList = useResourceCategoriesList(projectResources);
 
   const projectHealth = useMemo(() => getResourcesHealth(projectResources), [projectResources]);
+  const projectSections = evaluatedSections?.project === project ? evaluatedSections.sections : [];
 
   return (
     <Grid container spacing={3} sx={{ pt: 2 }}>
@@ -292,15 +322,11 @@ function ProjectOverview({
         </Card>
       </Grid>
 
-      {additionalOverviewSections.map(section => (
-        <Grid item xs={12} md={4}>
+      {projectSections.map(section => (
+        <Grid key={section.id} item xs={12} md={4}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
-              <section.component
-                key={section.id}
-                project={project}
-                projectResources={projectResources}
-              />
+              <section.component project={project} projectResources={projectResources} />
             </CardContent>
           </Card>
         </Grid>
