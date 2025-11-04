@@ -385,6 +385,7 @@ export const PureSidebar = memo(
           variant={isTemporaryDrawer ? 'temporary' : 'permanent'}
           PaperProps={{
             sx: {
+              borderTop: 'none',
               position: 'initial',
             },
           }}
