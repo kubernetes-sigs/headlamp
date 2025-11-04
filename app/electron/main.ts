@@ -41,6 +41,7 @@ import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import i18n from './i18next.config';
+import MCPClient from './mcp/MCPClient';
 import {
   addToPath,
   ArtifactHubHeadlampPkg,
@@ -57,6 +58,9 @@ if (process.env.HEADLAMP_RUN_SCRIPT) {
   isRunningScript = true;
   runScript();
 }
+
+// Enabled by default, set HEADLAMP_MCP_ENABLE=false to disable MCP features
+const ENABLE_MCP = process.env.HEADLAMP_MCP_ENABLE !== 'false';
 
 dotenv.config({ path: path.join(process.resourcesPath, '.env') });
 
@@ -139,6 +143,7 @@ const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false'
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
+let mcpClient: MCPClient | null = null;
 
 /**
  * `Action` is an interface for an action to be performed by the plugin manager.
@@ -1602,6 +1607,12 @@ function startElecron() {
     if (userPluginBinDirs.length > 0) {
       addToPath(userPluginBinDirs, 'userPluginBinDirs plugin');
     }
+
+    if (ENABLE_MCP) {
+      mcpClient = new MCPClient();
+      await mcpClient.initialize();
+      mcpClient.setMainWindow(mainWindow);
+    }
   }
 
   if (disableGPU) {
@@ -1632,11 +1643,20 @@ function startElecron() {
 
   app.once('window-all-closed', app.quit);
 
-  app.once('before-quit', () => {
+  app.once('before-quit', async () => {
     saveZoomFactor(cachedZoom);
     i18n.off('languageChanged');
     if (mainWindow) {
       mainWindow.removeAllListeners('close');
+    }
+
+    if (mcpClient) {
+      try {
+        await mcpClient.cleanup();
+        mcpClient = null;
+      } catch (err) {
+        console.error('Failed to clean up mcpClient:', err);
+      }
     }
   });
 }

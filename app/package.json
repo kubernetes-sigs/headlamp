@@ -123,7 +123,8 @@
       "electron/windowSize.js",
       "electron/env-paths.js",
       "electron/plugin-management.js",
-      "electron/runCmd.js"
+      "electron/runCmd.js",
+      "electron/mcp/MCPClient.js"
     ],
     "extraResources": [
       {

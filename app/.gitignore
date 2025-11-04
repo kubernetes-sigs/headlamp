@@ -13,3 +13,5 @@
 electron/windowSize.test.js
 electron/env-paths.js
 electron/runCmd.test.js
+electron/mcp/MCPClient.js
+electron/mcp/MCPClient.test.js
