@@ -57,6 +57,88 @@ export interface MCPToolsConfig {
 }
 
 /**
+ * Create a summary of changes between two MCP tool configurations.
+ *
+ * @param currentConfig - The current MCP tools configuration.
+ * @param newConfig - The new MCP tools configuration.
+ *
+ * @returns An object containing the total number of changes and a summary text.
+ */
+export function summarizeMcpToolStateChanges(
+  currentConfig: Record<string, Record<string, MCPToolState>>,
+  newConfig: Record<string, Record<string, MCPToolState>>
+): { totalChanges: number; summaryText: string } {
+  const enabledTools: string[] = [];
+  const disabledTools: string[] = [];
+  const addedTools: string[] = [];
+  const removedTools: string[] = [];
+
+  // Get all server names from both configs
+  const allServers = new Set([
+    ...Object.keys(currentConfig || {}),
+    ...Object.keys(newConfig || {}),
+  ]);
+
+  for (const serverName of allServers) {
+    const currentServerConfig = currentConfig[serverName] || {};
+    const newServerConfig = newConfig[serverName] || {};
+
+    // Get all tool names from both configs
+    const allTools = new Set([
+      ...Object.keys(currentServerConfig),
+      ...Object.keys(newServerConfig),
+    ]);
+
+    for (const toolName of allTools) {
+      const currentTool = currentServerConfig[toolName];
+      const newTool = newServerConfig[toolName];
+      const displayName = `${toolName} (${serverName})`;
+
+      if (!currentTool && newTool) {
+        // New tool added
+        addedTools.push(displayName);
+        if (newTool.enabled) {
+          enabledTools.push(displayName);
+        } else {
+          disabledTools.push(displayName);
+        }
+      } else if (currentTool && !newTool) {
+        // Tool removed
+        removedTools.push(displayName);
+      } else if (currentTool && newTool) {
+        // Tool modified
+        if (currentTool.enabled !== newTool.enabled) {
+          if (newTool.enabled) {
+            enabledTools.push(displayName);
+          } else {
+            disabledTools.push(displayName);
+          }
+        }
+      }
+    }
+  }
+
+  // Build summary text
+  const summaryParts: string[] = [];
+
+  if (enabledTools.length > 0) {
+    summaryParts.push(`✓ ENABLE (${enabledTools.length}): ${enabledTools.join(', ')}`);
+  }
+
+  if (disabledTools.length > 0) {
+    summaryParts.push(`✗ DISABLE (${disabledTools.length}): ${disabledTools.join(', ')}`);
+  }
+
+  const totalChanges =
+    enabledTools.length + disabledTools.length + addedTools.length + removedTools.length;
+
+  return {
+    totalChanges,
+    summaryText: summaryParts.join('\n\n'),
+  };
+}
+
+/**
  * MCPToolStateStore manages configuration for MCP (Multi-Cluster Platform)
  * tools, including enabled/disabled state and usage statistics.
  *
