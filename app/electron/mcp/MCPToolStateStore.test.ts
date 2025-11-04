@@ -17,7 +17,11 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { MCPToolStateStore, parseServerNameToolName } from './MCPToolStateStore';
+import {
+  MCPToolStateStore,
+  parseServerNameToolName,
+  summarizeMcpToolStateChanges,
+} from './MCPToolStateStore';
 
 function tmpPath(): string {
   return path.join(os.tmpdir(), `mcp-test-${Date.now()}-${Math.random()}.json`);
@@ -208,5 +212,115 @@ describe('parseServerNameToolName', () => {
     const res = parseServerNameToolName('myserver__helm__test');
     expect(res.serverName).toBe('myserver');
     expect(res.toolName).toBe('helm__test');
+  });
+});
+
+describe('summarizeMcpToolStateChanges', () => {
+  it('returns zero changes for identical empty configs', () => {
+    const res = summarizeMcpToolStateChanges({}, {});
+    expect(res.totalChanges).toBe(0);
+    expect(res.summaryText).toBe('');
+  });
+
+  it('counts added enabled tools and includes them in ENABLE summary', () => {
+    const current = {};
+    const nw = {
+      srv1: {
+        'tool-a': { enabled: true },
+      },
+    };
+    const res = summarizeMcpToolStateChanges(current, nw);
+    // addedTools (1) + enabledTools (1) => total 2
+    expect(res.totalChanges).toBe(2);
+    expect(res.summaryText).toContain('✓ ENABLE (1)');
+    expect(res.summaryText).toContain('tool-a (srv1)');
+    expect(res.summaryText).not.toContain('✗ DISABLE');
+  });
+
+  it('counts removed tools even when no summary lines are produced', () => {
+    const current = {
+      srv1: {
+        'tool-x': { enabled: true },
+      },
+    };
+    const nw = {};
+    const res = summarizeMcpToolStateChanges(current, nw);
+    // removedTools (1) => total 1
+    expect(res.totalChanges).toBe(1);
+    // removed tools are not printed in summaryText, so should be empty
+    expect(res.summaryText).toBe('');
+  });
+
+  it('detects enable/disable changes between configs', () => {
+    const current = {
+      srvA: {
+        'tool-1': { enabled: true },
+        'tool-2': { enabled: false },
+      },
+    };
+    const nw = {
+      srvA: {
+        'tool-1': { enabled: false }, // changed to disabled
+        'tool-2': { enabled: true }, // changed to enabled
+      },
+    };
+    const res = summarizeMcpToolStateChanges(current, nw);
+    // two changes (one disabled, one enabled)
+    expect(res.totalChanges).toBe(2);
+    expect(res.summaryText).toContain('✓ ENABLE (1): tool-2 (srvA)');
+    expect(res.summaryText).toContain('✗ DISABLE (1): tool-1 (srvA)');
+    // Ensure ENABLE and DISABLE sections are separated by a blank line
+    expect(res.summaryText.split('\n\n').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('aggregates changes across multiple servers', () => {
+    // This test verifies that summarizeMcpToolConfigChanges correctly
+    // aggregates changes across multiple servers, counting:
+    // - added tools (whether enabled or disabled),
+    // - removed tools (which are counted but not included in the human-readable summary),
+    // - tools that changed enabled state (enable -> disable and vice-versa).
+    // It ensures both the numeric totals and the generated ENABLE/DISABLE summary
+    // lines include the expected entries and server names.
+    const current = {
+      s1: { a: { enabled: true } },
+      s2: { x: { enabled: false } },
+    };
+    const nw = {
+      s1: { a: { enabled: false }, b: { enabled: true } }, // a->disabled, b added+enabled
+      s2: {
+        /* x removed */
+      },
+      s3: { y: { enabled: false } }, // new disabled
+    };
+    const res = summarizeMcpToolStateChanges(current, nw);
+    // Changes: a (changed), b (added), x (removed), y (added)
+    // enabledTools: b (added enabled) => 1
+    // disabledTools: a (changed), y (added disabled) => 2
+    // addedTools: b,y => 2
+    // removedTools: x => 1
+    // total = 1+2+2+1 = 6
+    expect(res.totalChanges).toBe(6);
+    expect(res.summaryText).toContain('✓ ENABLE (1)');
+    expect(res.summaryText).toContain('✗ DISABLE (2)');
+    expect(res.summaryText).toContain('b (s1)');
+    expect(res.summaryText).toContain('a (s1)');
+    expect(res.summaryText).toContain('y (s3)');
+  });
+
+  it('ignores non-enabled metadata-only changes (description/inputSchema)', () => {
+    const current = {
+      srvM: {
+        'tool-meta': { enabled: true, description: 'old', inputSchema: { type: 'string' } },
+      },
+    };
+    const nw = {
+      srvM: {
+        'tool-meta': { enabled: true, description: 'new', inputSchema: { type: 'string' } },
+      },
+    };
+    const res = summarizeMcpToolStateChanges(current, nw);
+    // Only metadata changed; enabled state unchanged => no counted changes
+    expect(res.totalChanges).toBe(0);
+    expect(res.summaryText).toBe('');
   });
 });
