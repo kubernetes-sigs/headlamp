@@ -15,6 +15,7 @@
  */
 
 import type { BrowserWindow } from 'electron';
+import { MCPToolStateStore } from './MCPToolStateStore';
 
 const DEBUG = true;
 
@@ -26,7 +27,8 @@ const DEBUG = true;
  *
  * Example:
  * ```ts
- *   const mcpClient = new MCPClient();
+ *   const configPath = path.join(app.getPath('userData'), 'mcp-tools-config.json');
+ *   const mcpClient = new MCPClient(configPath);
  *   await mcpClient.initialize();
  *   mcpClient.setMainWindow(mainWindow);
  *   await mcpClient.handleClustersChange(['cluster-1']);
@@ -36,8 +38,12 @@ const DEBUG = true;
 export default class MCPClient {
   private mainWindow: BrowserWindow | null = null;
   private initialized = false;
+  private mcpToolState: MCPToolStateStore | null = null;
+  private readonly configPath: string;
 
-  constructor() {}
+  constructor(configPath: string) {
+    this.configPath = configPath;
+  }
 
   /**
    * Initialize the MCP client.
@@ -46,6 +52,8 @@ export default class MCPClient {
     if (this.initialized) {
       return;
     }
+    this.mcpToolState = new MCPToolStateStore(this.configPath);
+
     this.initialized = true;
     if (DEBUG) {
       console.info('MCPClient: initialized');
