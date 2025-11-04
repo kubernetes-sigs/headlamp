@@ -392,3 +392,35 @@ export class MCPToolStateStore {
     this.saveConfig();
   }
 }
+
+/**
+ * Parse tool name to extract server name and tool name components.
+ *
+ * @param fullToolName - The full tool name string, potentially including server name.
+ *
+ * @returns An object containing serverName and toolName.
+ *
+ * @example
+ * ```ts
+ *  parseServerNameToolName('myserver__helm')
+ *  // returns { serverName: 'myserver', toolName: 'helm' }
+ *  parseServerNameToolName('kubectl')
+ *  // returns { serverName: 'default', toolName: 'kubectl' }
+ * ```
+ */
+export function parseServerNameToolName(fullToolName: string): {
+  serverName: string;
+  toolName: string;
+} {
+  const parts = fullToolName.split('__');
+  if (parts.length >= 2) {
+    return {
+      serverName: parts[0],
+      toolName: parts.slice(1).join('__'),
+    };
+  }
+  return {
+    serverName: 'default',
+    toolName: fullToolName,
+  };
+}
