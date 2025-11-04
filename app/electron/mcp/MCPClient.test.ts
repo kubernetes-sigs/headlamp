@@ -111,3 +111,22 @@ describe('MCPClient', () => {
     expect(infoSpy).not.toHaveBeenCalledWith('MCPClient: cleaned up');
   });
 });
+
+describe('MCPClient logging behavior', () => {
+  it('logs clusters change even when not initialized', async () => {
+    const cfgPath = path.join(os.tmpdir(), `mcp-test-${Date.now()}-${Math.random()}.json`);
+    const client = new (require('./MCPClient').default)(cfgPath) as InstanceType<
+      typeof import('./MCPClient').default
+    >;
+
+    const infoSpy = jest.spyOn(console, 'info').mockImplementation(() => {}) as jest.Mock;
+
+    await expect(client.handleClustersChange(['cluster-log'])).rejects.toThrow(
+      'MCPClient: not initialized'
+    );
+
+    expect(infoSpy).toHaveBeenCalledWith('MCPClient: clusters changed ->', ['cluster-log']);
+
+    infoSpy.mockRestore();
+  });
+});

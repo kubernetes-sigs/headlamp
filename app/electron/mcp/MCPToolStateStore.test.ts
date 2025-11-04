@@ -17,7 +17,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { MCPToolStateStore } from './MCPToolStateStore';
+import { MCPToolStateStore, parseServerNameToolName } from './MCPToolStateStore';
 
 function tmpPath(): string {
   return path.join(os.tmpdir(), `mcp-test-${Date.now()}-${Math.random()}.json`);
@@ -187,5 +187,26 @@ describe('MCPConfig', () => {
     const toolState2 = new MCPToolStateStore(toolStatePath);
     await toolState2.initialize();
     expect(toolState2.getConfig()).toEqual(replaced);
+  });
+});
+
+describe('parseServerNameToolName', () => {
+  it('returns default serverName when no separator is present', () => {
+    const res = parseServerNameToolName('kubectl');
+    expect(res.serverName).toBe('default');
+    expect(res.toolName).toBe('kubectl');
+  });
+
+  it('splits server and tool when a single separator is present', () => {
+    const res = parseServerNameToolName('myserver__helm');
+
+    expect(res.serverName).toBe('myserver');
+    expect(res.toolName).toBe('helm');
+  });
+
+  it('preserves additional separators in the toolName when multiple separators are present', () => {
+    const res = parseServerNameToolName('myserver__helm__test');
+    expect(res.serverName).toBe('myserver');
+    expect(res.toolName).toBe('helm__test');
   });
 });
