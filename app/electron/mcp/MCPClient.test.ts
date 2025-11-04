@@ -14,14 +14,40 @@
  * limitations under the License.
  */
 
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import MCPClient from './MCPClient';
+
+function tmpPath(): string {
+  return path.join(os.tmpdir(), `mcp-test-${Date.now()}-${Math.random()}.json`);
+}
 
 describe('MCPClient', () => {
   let client: MCPClient;
   let infoSpy: jest.Mock;
 
+  let cfgPath: string;
+
   beforeEach(() => {
-    client = new MCPClient();
+    cfgPath = tmpPath();
+    try {
+      if (fs.existsSync(cfgPath)) fs.unlinkSync(cfgPath);
+    } catch {
+      // ignore
+    }
+  });
+
+  afterEach(() => {
+    try {
+      if (fs.existsSync(cfgPath)) fs.unlinkSync(cfgPath);
+    } catch {
+      // ignore
+    }
+  });
+
+  beforeEach(() => {
+    client = new MCPClient(cfgPath);
     // spy on console.info to avoid noisy output and to assert calls
     infoSpy = jest.spyOn(console, 'info').mockImplementation(() => {}) as unknown as jest.Mock;
   });
@@ -42,6 +68,12 @@ describe('MCPClient', () => {
 
     expect(infoSpy).toHaveBeenCalledTimes(1);
     expect(infoSpy).toHaveBeenCalledWith('MCPClient: initialized');
+  });
+
+  it('config is set after initialize', async () => {
+    expect((client as any).mcpToolState).toBeNull();
+    await client.initialize();
+    expect((client as any).mcpToolState).not.toBeNull();
   });
 
   it('handleClustersChange resolves when initialized and logs clusters', async () => {
