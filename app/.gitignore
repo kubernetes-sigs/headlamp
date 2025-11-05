@@ -19,3 +19,5 @@ electron/mcp/MCPToolStateStore.js
 electron/mcp/MCPToolStateStore.test.js
 electron/settings.js
 electron/settings.test.js
+electron/mcp/MCPSettings.js
+electron/mcp/MCPSettings.test.js
