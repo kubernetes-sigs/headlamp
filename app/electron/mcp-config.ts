@@ -55,6 +55,7 @@ export class MCPConfigManager {
         this.config = {};
       }
     } catch (error) {
+      console.error('Error loading MCP tools configuration:', error);
       this.config = {};
     }
   }

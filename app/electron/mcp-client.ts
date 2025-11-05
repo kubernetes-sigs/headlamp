@@ -21,28 +21,78 @@ import * as os from 'os';
 import * as path from 'path';
 import { MCPConfigManager } from './mcp-config';
 
+/**
+ * Enable debug logging for MCP client operations.
+ * Set to false in production to reduce console output.
+ */
+const DEBUG = true;
+
+/**
+ * Helper function for debug logging
+ * @param args - Arguments to log
+ */
+function debugLog(...args: any[]): void {
+  if (DEBUG) {
+    console.log('[MCP]', ...args);
+  }
+}
+
+/**
+ * Configuration for an MCP (Model Context Protocol) server
+ */
 interface MCPServer {
+  /** Unique name identifier for the MCP server */
   name: string;
+  /** Command to execute to start the MCP server */
   command: string;
+  /** Arguments to pass to the server command */
   args: string[];
+  /** Whether this server is enabled */
   enabled: boolean;
+  /** Optional environment variables to set for the server process */
   env?: Record<string, string>;
 }
 
+/**
+ * Main MCP configuration containing server definitions
+ */
 interface MCPConfig {
+  /** Whether MCP integration is enabled globally */
   enabled: boolean;
+  /** List of configured MCP servers */
   servers: MCPServer[];
 }
 
+/**
+ * Manages MCP (Model Context Protocol) client for Electron desktop application.
+ *
+ * This class handles:
+ * - MCP server lifecycle (initialization, restart, cleanup)
+ * - Tool discovery and execution with user confirmation
+ * - Configuration management and validation
+ * - IPC communication with renderer process
+ * - Cluster context changes
+ */
 class ElectronMCPClient {
+  /** The LangChain MCP client instance managing multiple servers */
   private client: MultiServerMCPClient | null = null;
+  /** Cached list of available tools from all MCP servers */
   private tools: any[] = [];
+  /** Whether the MCP client has been successfully initialized */
   private isInitialized = false;
+  /** Promise tracking ongoing initialization to prevent duplicate initializations */
   private initializationPromise: Promise<void> | null = null;
+  /** Manages tool-level configuration and statistics */
   private configManager: MCPConfigManager;
+  /** Reference to the main Electron window for displaying dialogs */
   private mainWindow: BrowserWindow | null = null;
+  /** Currently active Kubernetes cluster context */
   private currentCluster: string | null = null;
 
+  /**
+   * Creates a new ElectronMCPClient instance
+   * @param mainWindow - Optional reference to the main browser window for dialogs
+   */
   constructor(mainWindow: BrowserWindow | null = null) {
     this.mainWindow = mainWindow;
     this.configManager = new MCPConfigManager();
@@ -62,7 +112,7 @@ class ElectronMCPClient {
    */
   private initializeToolsConfiguration(): void {
     if (!this.tools || this.tools.length === 0) {
-      console.log('No tools available for configuration initialization');
+      debugLog('No tools available for configuration initialization');
       // Clear the config if no tools are available
       this.configManager.replaceConfig({});
       return;
@@ -85,7 +135,7 @@ class ElectronMCPClient {
 
       // Extract schema from the tool (LangChain tools use .schema property)
       const toolSchema = (tool as any).schema || tool.inputSchema || null;
-      console.log(
+      debugLog(
         `Processing tool: ${toolName}, has inputSchema: ${!!toolSchema}, description: "${
           tool.description
         }"`
@@ -116,14 +166,20 @@ class ElectronMCPClient {
       }
     }
 
-    console.log('Tools grouped by server:', Object.keys(toolsByServer));
+    debugLog('Tools grouped by server:', Object.keys(toolsByServer));
 
     // Replace the entire configuration with current tools
     this.configManager.replaceToolsConfig(toolsByServer);
   }
 
   /**
-   * Show user confirmation dialog for MCP operations
+   * Show user confirmation dialog for MCP operations.
+   * Displays a dialog to the user for security confirmation before executing MCP operations.
+   *
+   * @param title - Dialog title
+   * @param message - Main message to display to the user
+   * @param operation - Description of the operation being performed
+   * @returns Promise resolving to true if user allows the operation, false otherwise
    */
   private async showConfirmationDialog(
     title: string,
@@ -148,7 +204,11 @@ class ElectronMCPClient {
   }
 
   /**
-   * Show detailed confirmation dialog for tools configuration changes
+   * Show detailed confirmation dialog for tools configuration changes.
+   * Compares current and new configurations and displays a summary of changes.
+   *
+   * @param newConfig - The new configuration to be applied
+   * @returns Promise resolving to true if user approves changes, false otherwise
    */
   private async showToolsConfigConfirmationDialog(newConfig: any): Promise<boolean> {
     if (!this.mainWindow) {
@@ -176,7 +236,12 @@ class ElectronMCPClient {
   }
 
   /**
-   * Create a concise summary of tools configuration changes
+   * Create a concise summary of tools configuration changes.
+   * Analyzes differences between current and new tool configurations.
+   *
+   * @param currentConfig - Current tool configuration
+   * @param newConfig - New tool configuration to compare against
+   * @returns Object containing total changes count and formatted summary text
    */
   private createToolsConfigSummary(
     currentConfig: any,
@@ -256,14 +321,19 @@ class ElectronMCPClient {
   }
 
   /**
-   * Show detailed configuration change confirmation dialog
+   * Show detailed configuration change confirmation dialog.
+   * Displays specific changes between current and new MCP server configurations.
+   *
+   * @param currentConfig - Current MCP configuration, or null if none exists
+   * @param newConfig - New MCP configuration to be applied
+   * @returns Promise resolving to true if user approves changes, false otherwise
    */
   private async showConfigChangeDialog(
     currentConfig: MCPConfig | null,
     newConfig: MCPConfig
   ): Promise<boolean> {
-    console.log('Current MCP Config:', currentConfig);
-    console.log('New MCP Config:', newConfig);
+    debugLog('Current MCP Config:', currentConfig);
+    debugLog('New MCP Config:', newConfig);
     if (!this.mainWindow) {
       console.warn('No main window available for confirmation dialog, allowing operation');
       return true;
@@ -289,7 +359,12 @@ class ElectronMCPClient {
   }
 
   /**
-   * Analyze differences between current and new configuration
+   * Analyze differences between current and new configuration.
+   * Creates a human-readable list of changes to MCP server configurations.
+   *
+   * @param currentConfig - Current MCP configuration, or null if none exists
+   * @param newConfig - New MCP configuration to compare against
+   * @returns Array of human-readable change descriptions
    */
   private analyzeConfigChanges(currentConfig: MCPConfig | null, newConfig: MCPConfig): string[] {
     const changes: string[] = [];
@@ -363,7 +438,11 @@ class ElectronMCPClient {
   }
 
   /**
-   * Parse tool name to extract server and tool components
+   * Parse tool name to extract server and tool components.
+   * Tool names follow format "serverName__toolName" where serverName is the MCP server prefix.
+   *
+   * @param fullToolName - Complete tool name potentially including server prefix
+   * @returns Object with serverName and toolName components
    */
   private parseToolName(fullToolName: string): { serverName: string; toolName: string } {
     const parts = fullToolName.split('__');
@@ -380,7 +459,13 @@ class ElectronMCPClient {
   }
 
   /**
-   * Validate tool parameters against schema from configuration
+   * Validate tool parameters against schema from configuration.
+   * Performs basic JSON schema validation on tool parameters before execution.
+   *
+   * @param serverName - Name of the MCP server providing the tool
+   * @param toolName - Name of the tool being validated
+   * @param args - Tool arguments to validate
+   * @returns Object with validation result and optional error message
    */
   private validateToolParameters(
     serverName: string,
@@ -482,7 +567,15 @@ class ElectronMCPClient {
   }
 
   /**
-   * Expand environment variables and resolve paths in arguments
+   * Expand environment variables and resolve paths in arguments.
+   * Handles:
+   * - Windows environment variables (%USERPROFILE%, %APPDATA%, etc.)
+   * - HEADLAMP_CURRENT_CLUSTER placeholder
+   * - Docker volume mount path conversions for Windows
+   *
+   * @param args - Array of argument strings to expand
+   * @param cluster - Optional cluster context to substitute
+   * @returns Array of expanded argument strings
    */
   private expandArgs(args: string[], cluster: string | null = null): string[] {
     const currentCluster = cluster || this.currentCluster || '';
@@ -517,22 +610,33 @@ class ElectronMCPClient {
 
       // Handle Docker volume mount format and ensure proper Windows path format
       if (expandedArg.includes('type=bind,src=')) {
-        const match = expandedArg.match(/type=bind,src=(.+?),dst=(.+)/);
-        if (match) {
-          let srcPath = match[1];
-          const dstPath = match[2];
+        // Parse Docker mount options more carefully to handle paths with commas
+        // Format: type=bind,src=<path>,dst=<path>[,other-options]
+        const typeBindMatch = expandedArg.match(/^type=bind,src=(.+),dst=(.+?)(?:,|$)/);
+        if (typeBindMatch) {
+          // For paths with commas, we need to find the last occurrence of ,dst=
+          const srcStartIdx = expandedArg.indexOf('src=') + 4;
+          const dstStartIdx = expandedArg.lastIndexOf(',dst=');
 
-          // Resolve the source path
-          if (process.platform === 'win32') {
-            srcPath = path.resolve(srcPath);
-            // For Docker on Windows, we might need to convert C:\ to /c/ format
-            if (srcPath.match(/^[A-Za-z]:/)) {
-              srcPath =
-                '/' + srcPath.charAt(0).toLowerCase() + srcPath.slice(2).replace(/\\/g, '/');
+          if (dstStartIdx > srcStartIdx) {
+            let srcPath = expandedArg.substring(srcStartIdx, dstStartIdx);
+            const remainingPart = expandedArg.substring(dstStartIdx + 5); // Skip ",dst="
+            const dstEndIdx = remainingPart.indexOf(',');
+            const dstPath = dstEndIdx > 0 ? remainingPart.substring(0, dstEndIdx) : remainingPart;
+
+            // Resolve the source path
+            if (process.platform === 'win32') {
+              srcPath = path.resolve(srcPath);
+              // For Docker on Windows, we might need to convert C:\ to /c/ format
+              if (srcPath.match(/^[A-Za-z]:/)) {
+                srcPath =
+                  '/' + srcPath.charAt(0).toLowerCase() + srcPath.slice(2).replace(/\\/g, '/');
+              }
             }
-          }
 
-          expandedArg = `type=bind,src=${srcPath},dst=${dstPath}`;
+            const otherOptions = dstEndIdx > 0 ? ',' + remainingPart.substring(dstEndIdx + 1) : '';
+            expandedArg = `type=bind,src=${srcPath},dst=${dstPath}${otherOptions}`;
+          }
         }
       }
 
@@ -541,7 +645,7 @@ class ElectronMCPClient {
   }
 
   private async initializeClient(): Promise<void> {
-    console.log('initializeClient called');
+    debugLog('initializeClient called');
     if (this.isInitialized) {
       return;
     }
@@ -550,14 +654,14 @@ class ElectronMCPClient {
       return this.initializationPromise;
     }
 
-    console.log('Starting MCP client initialization...');
+    debugLog('Starting MCP client initialization...');
     this.initializationPromise = this.doInitialize();
     return this.initializationPromise;
   }
 
   private async doInitialize(): Promise<void> {
     try {
-      console.log('Initializing MCP client in Electron main process...');
+      debugLog('Initializing MCP client in Electron main process...');
 
       // Load MCP configuration from settings
       const mcpConfig = this.loadMCPConfig();
@@ -568,7 +672,7 @@ class ElectronMCPClient {
         !mcpConfig.servers ||
         mcpConfig.servers.length === 0
       ) {
-        console.log('MCP is disabled or no servers configured');
+        debugLog('MCP is disabled or no servers configured');
         this.isInitialized = true;
         return;
       }
@@ -586,7 +690,7 @@ class ElectronMCPClient {
         console.log(`Expanded args for ${server.name}:`, expandedArgs);
 
         // Prepare environment variables
-        const serverEnv = server.env ? { ...process.env, ...server.env } : process.env;
+        const serverEnv = { ...process.env, ...(server.env || {}) };
 
         mcpServers[server.name] = {
           transport: 'stdio',
@@ -907,7 +1011,11 @@ class ElectronMCPClient {
   }
 
   /**
-   * Check if any server in the config uses HEADLAMP_CURRENT_CLUSTER
+   * Check if any server in the config uses HEADLAMP_CURRENT_CLUSTER placeholder.
+   * This determines whether the MCP client needs to be restarted on cluster changes.
+   *
+   * @param mcpConfig - MCP configuration to check
+   * @returns True if any enabled server has HEADLAMP_CURRENT_CLUSTER in its arguments
    */
   private hasClusterDependentServers(mcpConfig: MCPConfig | null): boolean {
     if (!mcpConfig || !mcpConfig.servers) {
