@@ -40,6 +40,7 @@ import Pod from '../../../lib/k8s/pod';
 import Service from '../../../lib/k8s/service';
 import ActionButton from '../ActionButton';
 export { type PortForward as PortForwardState } from '../../../lib/k8s/api/v1/portForward';
+import PortForwardStartDialog from '../../portforward/PortForwardStartDialog';
 
 interface PortForwardKubeObjectProps {
   containerPort: number | string;
@@ -57,6 +58,8 @@ type PortForwardProps = PortForwardKubeObjectProps | PortForwardLegacyProps;
 export const PORT_FORWARDS_STORAGE_KEY = 'portforwards';
 export const PORT_FORWARD_STOP_STATUS = 'Stopped';
 export const PORT_FORWARD_RUNNING_STATUS = 'Running';
+export const DOCKER_DESKTOP_MIN_PORT = 30000;
+export const DOCKER_DESKTOP_MAX_PORT = 32000;
 
 function getPortNumberFromPortName(containers: KubeContainer[], namedPort: string) {
   let portNumber = 0;
@@ -107,9 +110,10 @@ function PortForwardContent(props: PortForwardProps) {
   const service = !isPod ? (resource as Service) : undefined;
   const namespace = resource?.metadata?.namespace || '';
   const name = resource?.metadata?.name || '';
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<string | null>(null);
   const [portForward, setPortForward] = React.useState<PortForwardState | null>(null);
   const [loading, setLoading] = React.useState(false);
+  const [startDialogOpen, setStartDialogOpen] = React.useState(false);
   const { t } = useTranslation(['translation', 'resource']);
   const [pods, podsFetchError] = Pod.useList({
     namespace,
@@ -173,7 +177,7 @@ function PortForwardContent(props: PortForwardProps) {
 
       localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify(serverAndStoragePortForwards));
     });
-  }, []);
+  }, [cluster, namespace, name, numericContainerPort]);
 
   if (!isElectron()) {
     return null;
@@ -187,7 +191,7 @@ function PortForwardContent(props: PortForwardProps) {
     return null;
   }
 
-  function handlePortForward() {
+  function startPortForwardWithSelection(chosenPort?: string) {
     if (!namespace || !cluster || !pods) {
       return;
     }
@@ -199,37 +203,48 @@ function PortForwardContent(props: PortForwardProps) {
     const serviceNamespace = namespace;
     const serviceName = !isPod ? resourceName : '';
     const podName = isPod ? resourceName : pods![0].metadata.name;
-    var port = portForward?.port;
+    let port = chosenPort || portForward?.port;
 
     let address = 'localhost';
     // In case of docker desktop only a range of ports are open
     // so we need to generate a random port from that range
     // while making sure that it is not already in use
     if (isDockerDesktop()) {
-      const validMinPort = 30000;
-      const validMaxPort = 32000;
+      address = '0.0.0.0';
 
-      // create a list of active ports
-      const activePorts: string[] = [];
-      const portForwardsInStorage = localStorage.getItem(PORT_FORWARDS_STORAGE_KEY);
-      const parsedPortForwards = JSON.parse(portForwardsInStorage || '[]');
-      parsedPortForwards.forEach((pf: any) => {
-        if (pf.status === PORT_FORWARD_RUNNING_STATUS) {
-          activePorts.push(pf.port);
+      // Only auto-assign if user didn't specify a port
+      if (!chosenPort && !portForward?.port) {
+        // create a list of active ports
+        const activePorts: string[] = [];
+        const portForwardsInStorage = localStorage.getItem(PORT_FORWARDS_STORAGE_KEY);
+        const parsedPortForwards = JSON.parse(portForwardsInStorage || '[]');
+        parsedPortForwards.forEach((pf: any) => {
+          if (pf.status === PORT_FORWARD_RUNNING_STATUS) {
+            activePorts.push(pf.port);
+          }
+        });
+
+        // Generate random port in Docker Desktop range
+        const portRange = DOCKER_DESKTOP_MAX_PORT - DOCKER_DESKTOP_MIN_PORT + 1;
+        const maxAttempts = portRange;
+        let attempts = 0;
+
+        while (attempts < maxAttempts) {
+          const randomPort = (
+            Math.floor(Math.random() * portRange) + DOCKER_DESKTOP_MIN_PORT
+          ).toString();
+          if (!activePorts.includes(randomPort)) {
+            port = randomPort;
+            break;
+          }
+          attempts++;
         }
-      });
 
-      // generate random port till it is not in use
-      while (true) {
-        const randomPort = (
-          Math.floor(Math.random() * (validMaxPort - validMinPort + 1)) + validMinPort
-        ).toString();
-        if (!activePorts.includes(randomPort)) {
-          port = randomPort;
-          break;
+        // Fallback: if all ports seem taken, use a random one anyway
+        if (!port) {
+          port = Math.floor(Math.random() * portRange + DOCKER_DESKTOP_MIN_PORT).toString();
         }
       }
-      address = '0.0.0.0';
     }
 
     setLoading(true);
@@ -259,6 +274,14 @@ function PortForwardContent(props: PortForwardProps) {
         setLoading(false);
         setPortForward(null);
       });
+  }
+
+  function openStartDialog() {
+    setStartDialogOpen(true);
+  }
+
+  function closeStartDialog() {
+    setStartDialogOpen(false);
   }
 
   function portForwardStopHandler() {
@@ -305,96 +328,118 @@ function PortForwardContent(props: PortForwardProps) {
   }
 
   const forwardBaseURL = 'http://127.0.0.1';
+  const displayPodName = React.useMemo(() => {
+    return isPod ? name : pods && pods.length > 0 ? pods[0].metadata.name : '';
+  }, [isPod, name, pods]);
 
-  return !portForward ? (
+  return (
     <Box>
-      {loading ? (
-        <CircularProgress size={18} />
-      ) : (
-        <Button
-          onClick={handlePortForward}
-          aria-label={t('translation|Start port forward')}
-          color="primary"
-          variant="outlined"
-          style={{
-            textTransform: 'none',
-          }}
-          disabled={loading}
-        >
-          <InlineIcon icon="mdi:fast-forward" width={20} />
-          <Typography>{t('translation|Forward port')}</Typography>
-        </Button>
-      )}
-      {error && (
-        <Box mt={1}>
-          {
-            <Alert
-              severity="error"
-              onClose={() => {
-                setError(null);
+      {!portForward ? (
+        <>
+          {loading ? (
+            <CircularProgress size={18} />
+          ) : (
+            <Button
+              onClick={openStartDialog}
+              aria-label={t('translation|Start port forward')}
+              color="primary"
+              variant="outlined"
+              style={{
+                textTransform: 'none',
               }}
+              disabled={loading}
             >
-              <Tooltip title="error">
-                <Box style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{error}</Box>
-              </Tooltip>
-            </Alert>
-          }
-        </Box>
-      )}
-    </Box>
-  ) : (
-    <Box>
-      {portForward.status === PORT_FORWARD_STOP_STATUS ? (
-        <Box display={'flex'} alignItems="center">
-          <Typography
-            style={{
-              color: grey[500],
-            }}
-          >{`${forwardBaseURL}:${portForward.port}`}</Typography>
-          <ActionButton
-            onClick={handlePortForward}
-            description={t('translation|Start port forward')}
-            color="primary"
-            icon="mdi:fast-forward"
-            iconButtonProps={{
-              size: 'small',
-              color: 'primary',
-              disabled: loading,
-            }}
-            width={'25'}
-          />
-          <ActionButton
-            onClick={deletePortForwardHandler}
-            description={t('translation|Delete port forward')}
-            color="primary"
-            icon="mdi:delete-outline"
-            iconButtonProps={{
-              size: 'small',
-              color: 'primary',
-              disabled: loading,
-            }}
-            width={'25'}
-          />
-        </Box>
+              <InlineIcon icon="mdi:fast-forward" width={20} />
+              <Typography>{t('translation|Forward port')}</Typography>
+            </Button>
+          )}
+          {error && (
+            <Box mt={1}>
+              <Alert
+                severity="error"
+                onClose={() => {
+                  setError(null);
+                }}
+              >
+                <Tooltip title="error">
+                  <Box style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{error}</Box>
+                </Tooltip>
+              </Alert>
+            </Box>
+          )}
+        </>
       ) : (
         <>
-          <MuiLink href={`${forwardBaseURL}:${portForward.port}`} target="_blank" color="primary">
-            {`${forwardBaseURL}:${portForward.port}`}
-          </MuiLink>
-          <ActionButton
-            onClick={portForwardStopHandler}
-            description={t('translation|Stop port forward')}
-            color="primary"
-            icon="mdi:stop-circle-outline"
-            iconButtonProps={{
-              size: 'small',
-              color: 'primary',
-              disabled: loading,
-            }}
-            width={'25'}
-          />
+          {portForward.status === PORT_FORWARD_STOP_STATUS ? (
+            <Box display={'flex'} alignItems="center">
+              <Typography
+                style={{
+                  color: grey[500],
+                }}
+              >{`${forwardBaseURL}:${portForward.port}`}</Typography>
+              <ActionButton
+                onClick={openStartDialog}
+                description={t('translation|Start port forward')}
+                color="primary"
+                icon="mdi:fast-forward"
+                iconButtonProps={{
+                  size: 'small',
+                  color: 'primary',
+                  disabled: loading,
+                }}
+                width={'25'}
+              />
+              <ActionButton
+                onClick={deletePortForwardHandler}
+                description={t('translation|Delete port forward')}
+                color="primary"
+                icon="mdi:delete-outline"
+                iconButtonProps={{
+                  size: 'small',
+                  color: 'primary',
+                  disabled: loading,
+                }}
+                width={'25'}
+              />
+            </Box>
+          ) : (
+            <>
+              <MuiLink
+                href={`${forwardBaseURL}:${portForward.port}`}
+                target="_blank"
+                color="primary"
+              >
+                {`${forwardBaseURL}:${portForward.port}`}
+              </MuiLink>
+              <ActionButton
+                onClick={portForwardStopHandler}
+                description={t('translation|Stop port forward')}
+                color="primary"
+                icon="mdi:stop-circle-outline"
+                iconButtonProps={{
+                  size: 'small',
+                  color: 'primary',
+                  disabled: loading,
+                }}
+                width={'25'}
+              />
+            </>
+          )}
         </>
       )}
+      <PortForwardStartDialog
+        open={startDialogOpen}
+        defaultPort={portForward?.port}
+        podName={displayPodName}
+        namespace={namespace}
+        containerPort={numericContainerPort}
+        isDockerDesktop={isDockerDesktop()}
+        onCancel={closeStartDialog}
+        onConfirm={portInput => {
+          closeStartDialog();
+          startPortForwardWithSelection(portInput);
+        }}
+      />
     </Box>
   );
 }

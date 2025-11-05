@@ -41,6 +41,7 @@ import {
 } from '../common/Resource/PortForward';
 import SectionBox from '../common/SectionBox';
 import Table from '../common/Table';
+import PortForwardStartDialog from './PortForwardStartDialog';
 
 const enum PortForwardAction {
   Start = 'Start',
@@ -51,6 +52,8 @@ const enum PortForwardAction {
 export default function PortForwardingList() {
   const [portforwards, setPortForwards] = React.useState<any[]>([]);
   const [portForwardInAction, setPortForwardInAction] = React.useState<any>(null);
+  const [startDialogOpen, setStartDialogOpen] = React.useState(false);
+  const [selectedForStart, setSelectedForStart] = React.useState<any | null>(null);
   const { enqueueSnackbar } = useSnackbar();
   const cluster = getCluster();
   const { t, i18n } = useTranslation(['translation', 'glossary']);
@@ -120,39 +123,19 @@ export default function PortForwardingList() {
       return;
     }
 
-    const { id, namespace, cluster, port, targetPort, pod, service, serviceNamespace } =
-      portforward;
+    const { id, namespace, cluster } = portforward;
 
-    let address = 'localhost';
-    if (isDockerDesktop()) {
-      address = '0.0.0.0';
-    }
-
-    setPortForwardInAction({ ...portforward, loading: true });
     if (option === PortForwardAction.Start) {
-      // start portforward
-      startPortForward(
-        cluster,
-        namespace,
-        pod,
-        targetPort,
-        service,
-        serviceNamespace,
-        port,
-        address,
-        id
-      )
-        .then(() => {
-          setPortForwardInAction(null);
-          // update portforward list item
-          fetchPortForwardList(true);
-        })
-        .catch(error => {
-          setPortForwardInAction(null);
-          console.log('Error starting port forward:', error);
-        });
+      let address = 'localhost';
+      if (isDockerDesktop()) {
+        address = '0.0.0.0';
+      }
+      setSelectedForStart({ ...portforward, cluster, namespace, address });
+      setStartDialogOpen(true);
+      return;
     }
     if (option === PortForwardAction.Stop) {
+      setPortForwardInAction({ ...portforward, loading: true });
       // stop portforward
       stopOrDeletePortForward(cluster, id, true).finally(() => {
         setPortForwardInAction(null);
@@ -161,6 +144,7 @@ export default function PortForwardingList() {
       });
     }
     if (option === PortForwardAction.Delete) {
+      setPortForwardInAction({ ...portforward, loading: true });
       // delete portforward
       stopOrDeletePortForward(cluster, id, false).finally(() => {
         setPortForwardInAction(null);
@@ -322,6 +306,50 @@ export default function PortForwardingList() {
         ]}
         data={portforwards.filter((pf: any) => pf.cluster === cluster)}
         getRowId={row => row.id}
+      />
+      <PortForwardStartDialog
+        open={startDialogOpen}
+        defaultPort={selectedForStart?.port}
+        podName={selectedForStart?.pod || selectedForStart?.service || ''}
+        namespace={selectedForStart?.serviceNamespace || selectedForStart?.namespace || ''}
+        containerPort={selectedForStart?.targetPort || ''}
+        isDockerDesktop={isDockerDesktop()}
+        onCancel={() => {
+          setStartDialogOpen(false);
+          setSelectedForStart(null);
+        }}
+        onConfirm={portInput => {
+          if (!selectedForStart) return;
+
+          const { cluster, namespace, pod, targetPort, service, serviceNamespace, id } =
+            selectedForStart;
+          const chosenPort = portInput || selectedForStart.port;
+          const address = selectedForStart.address || 'localhost';
+
+          setStartDialogOpen(false);
+          setSelectedForStart(null);
+          setPortForwardInAction({ ...selectedForStart, loading: true });
+
+          startPortForward(
+            cluster,
+            namespace,
+            pod,
+            targetPort,
+            service,
+            serviceNamespace,
+            chosenPort,
+            address,
+            id
+          )
+            .then(() => {
+              setPortForwardInAction(null);
+              fetchPortForwardList(true);
+            })
+            .catch(error => {
+              setPortForwardInAction(null);
+              console.log('Error starting port forward:', error);
+            });
+        }}
       />
     </SectionBox>
   );
