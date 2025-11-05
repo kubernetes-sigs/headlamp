@@ -1137,6 +1137,7 @@ function adjustZoom(delta: number) {
 
 function startElecron() {
   console.info('App starting...');
+
   mcpClient = new ElectronMCPClient();
 
   // Initialize MCP client
