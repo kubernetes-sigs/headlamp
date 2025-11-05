@@ -23,9 +23,11 @@ import { MCPConfigManager } from './mcp-config';
 
 /**
  * Enable debug logging for MCP client operations.
- * Set to false in production to reduce console output.
+ * Controlled by the HEADLAMP_MCP_DEBUG environment variable.
+ * Set HEADLAMP_MCP_DEBUG=true to enable debug logging, or HEADLAMP_MCP_DEBUG=false to disable it.
+ * Defaults to false if not set.
  */
-const DEBUG = true;
+const DEBUG = process.env.HEADLAMP_MCP_DEBUG === 'true';
 
 /**
  * Helper function for debug logging
