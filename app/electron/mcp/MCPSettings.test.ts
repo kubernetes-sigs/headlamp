@@ -15,7 +15,7 @@
  */
 
 import { loadSettings, saveSettings } from '../settings';
-import { loadMCPSettings, saveMCPSettings } from './MCPSettings';
+import { expandEnvAndResolvePaths, loadMCPSettings, saveMCPSettings } from './MCPSettings';
 
 jest.mock('../settings', () => ({
   loadSettings: jest.fn(),
@@ -63,5 +63,71 @@ describe('MCPSettings', () => {
     expect(loadSettings).toHaveBeenCalledWith('/cfg');
     expect((existing as any).mcp).toBe(newMCP);
     expect(saveSettings).toHaveBeenCalledWith('/cfg', existing);
+  });
+});
+
+describe('expandEnvAndResolvePaths', () => {
+  beforeEach(() => {
+    // Ensure predictable environment vars
+    process.env.APPDATA = process.env.APPDATA || '';
+    process.env.LOCALAPPDATA = process.env.LOCALAPPDATA || '';
+  });
+
+  it('replaces HEADLAMP_CURRENT_CLUSTER with cluster', () => {
+    const result = expandEnvAndResolvePaths(['connect HEADLAMP_CURRENT_CLUSTER'], 'my-current');
+    expect(result).toEqual(['connect my-current']);
+  });
+
+  it('replaces %APPDATA% and %LOCALAPPDATA% with environment values', () => {
+    process.env.APPDATA = '/some/appdata';
+    process.env.LOCALAPPDATA = '/some/localappdata';
+
+    const result = expandEnvAndResolvePaths(['%APPDATA%/file', '%LOCALAPPDATA%\\other']);
+
+    if (process.platform === 'win32') {
+      expect(result).toEqual(['/some/appdata/file', '/some/localappdata/other']);
+    } else {
+      // on non-windows we expect backslashes to be preserved here
+      expect(result).toEqual(['/some/appdata/file', '/some/localappdata\\other']);
+    }
+  });
+
+  it('converts backslashes to forward slashes on win32', () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    try {
+      const result = expandEnvAndResolvePaths(['C:\\path\\to\\file', 'nochange/needed']);
+      expect(result).toEqual(['C:/path/to/file', 'nochange/needed']);
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    }
+  });
+
+  it('handles docker bind src path conversion on Windows', () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    try {
+      const arg = 'type=bind,src=C:\\path\\to\\dir,dst=/data';
+      const result = expandEnvAndResolvePaths([arg]);
+      // allow a possible current-working-directory prefix (seen on some environments),
+      // but ensure the drive letter path was converted to /c/path/to/dir or kept as C:/path/to/dir
+      expect(result[0]).toMatch(
+        /type=bind,src=(?:.*(?:\/c\/path\/to\/dir|\/[A-Za-z]:\/path\/to\/dir)),dst=\/data/
+      );
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    }
+  });
+
+  it('does not alter docker bind src path on non-Windows', () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'linux' });
+    try {
+      const arg = 'type=bind,src=/home/user/dir,dst=/data';
+      const result = expandEnvAndResolvePaths([arg]);
+      expect(result).toEqual([arg]);
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    }
   });
 });
