@@ -15,13 +15,13 @@
  */
 
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
-import { app, BrowserWindow, dialog } from 'electron';
+import { BrowserWindow, dialog } from 'electron';
 import { IpcMainEvent } from 'electron/main';
 import crypto from 'node:crypto';
-import fs from 'node:fs';
 import path from 'path';
 import i18n from './i18next.config';
 import { defaultPluginsDir, defaultUserPluginsDir } from './plugin-management';
+import { loadSettings, saveSettings, SETTINGS_PATH } from './settings';
 
 /**
  * Data sent from the renderer process when a 'run-command' event is emitted.
@@ -65,30 +65,6 @@ function confirmCommandDialog(command: string, mainWindow: BrowserWindow): boole
   return resp === 0;
 }
 
-const SETTINGS_PATH = path.join(app?.getPath('userData') || 'testing', 'settings.json');
-
-/**
- * Loads the user settings.
- * If the settings file does not exist, an empty object is returned.
- * @returns The settings object.
- */
-function loadSettings(): Record<string, any> {
-  try {
-    const data = fs.readFileSync(SETTINGS_PATH, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    return {};
-  }
-}
-
-/**
- * Saves the user settings.
- * @param settings - The settings object to save.
- */
-function saveSettings(settings: Record<string, any>) {
-  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings), 'utf-8');
-}
-
 /**
  * Checks if the user has already consented to running the command.
  *
@@ -99,7 +75,7 @@ function saveSettings(settings: Record<string, any>) {
  * @returns true if the user has consented to running the command, false otherwise.
  */
 function checkCommandConsent(command: string, args: string[], mainWindow: BrowserWindow): boolean {
-  const settings = loadSettings();
+  const settings = loadSettings(SETTINGS_PATH);
   const confirmedCommands = settings?.confirmedCommands;
 
   // Build the consent key: command + (first arg if present)
@@ -121,7 +97,7 @@ function checkCommandConsent(command: string, args: string[], mainWindow: Browse
       settings.confirmedCommands = {};
     }
     settings.confirmedCommands[consentKey] = commandChoice;
-    saveSettings(settings);
+    saveSettings(SETTINGS_PATH, settings);
   }
   return true;
 }
@@ -151,7 +127,7 @@ const COMMANDS_WITH_CONSENT = {
  * @param pluginInfo artifacthub plugin info
  */
 export function addRunCmdConsent(pluginInfo: { name: string }): void {
-  const settings = loadSettings();
+  const settings = loadSettings(SETTINGS_PATH);
   if (!settings.confirmedCommands) {
     settings.confirmedCommands = {};
   }
@@ -170,7 +146,7 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
     }
   }
 
-  saveSettings(settings);
+  saveSettings(SETTINGS_PATH, settings);
 }
 
 /**
@@ -179,7 +155,7 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
  * @param pluginName The package.json name of the plugin.
  */
 export function removeRunCmdConsent(pluginName: string): void {
-  const settings = loadSettings();
+  const settings = loadSettings(SETTINGS_PATH);
   if (!settings.confirmedCommands) {
     return;
   }
@@ -194,7 +170,7 @@ export function removeRunCmdConsent(pluginName: string): void {
     delete settings.confirmedCommands[command];
   }
 
-  saveSettings(settings);
+  saveSettings(SETTINGS_PATH, settings);
 }
 
 /**
