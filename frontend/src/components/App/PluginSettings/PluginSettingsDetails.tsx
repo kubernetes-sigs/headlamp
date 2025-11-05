@@ -293,7 +293,7 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
           sx={{ borderTop: '2px solid', borderColor: 'silver', padding: '10px' }}
         >
           <Stack direction="row" spacing={1}>
-            {plugin.displaySettingsComponentWithSaveButton && (
+            {plugin.isLoaded !== false && plugin.displaySettingsComponentWithSaveButton && (
               <>
                 <Button
                   variant="contained"
@@ -309,7 +309,7 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
               </>
             )}
           </Stack>
-          {isElectron() ? (
+          {isElectron() && plugin.type !== 'shipped' ? (
             <Button variant="text" color="error" onClick={handleDelete}>
               {t('translation|Delete Plugin')}
             </Button>

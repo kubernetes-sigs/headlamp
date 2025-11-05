@@ -420,14 +420,21 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
           }}
         />
       </SectionBox>
-      {enableSave && (
-        <Box sx={{ display: `flex`, justifyContent: `flex-end`, margin: `5px` }}>
-          <Button
-            variant="contained"
-            color="primary"
-            sx={{ margin: `5px` }}
-            onClick={() => onSaveButtonHandler()}
-          >
+      {enableSave && isElectron() && (
+        <Box
+          sx={{
+            position: 'sticky',
+            bottom: 0,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            padding: '12px 16px',
+            backgroundColor: theme => theme.palette.background.paper,
+            borderTop: theme => `1px solid ${theme.palette.divider}`,
+            zIndex: 10,
+            margin: '-16px -16px 0 -16px',
+          }}
+        >
+          <Button variant="contained" color="primary" onClick={() => onSaveButtonHandler()}>
             {t('translation|Save & Apply')}
           </Button>
         </Box>
