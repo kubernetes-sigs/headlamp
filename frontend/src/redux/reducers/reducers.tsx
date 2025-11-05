@@ -35,6 +35,7 @@ import resourceTableReducer from './../../components/common/Resource/resourceTab
 import detailsViewSectionReducer from './../../components/DetailsViewSection/detailsViewSectionSlice';
 import sidebarReducer from './../../components/Sidebar/sidebarSlice';
 import pluginConfigReducer from './../../plugin/pluginConfigSlice';
+import pageReducer from '../pageSlice'
 
 const reducers = combineReducers({
   filter: filterReducer,
@@ -58,6 +59,7 @@ const reducers = combineReducers({
   clusterProvider: clusterProviderReducer,
   activity: activityReducer,
   projects: projectsReducer,
+  page: pageReducer,
 });
 
 export type RootState = ReturnType<typeof reducers>;

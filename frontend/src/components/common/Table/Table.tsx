@@ -46,7 +46,7 @@ import { MRT_Localization_KO } from 'material-react-table/locales/ko';
 import { MRT_Localization_PT } from 'material-react-table/locales/pt';
 import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
 import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
-import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
+import { memo, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
@@ -55,6 +55,8 @@ import { useSettings } from '../../App/Settings/hook';
 import { useQueryParamsState } from '../../resourceMap/useQueryParamsState';
 import Empty from '../EmptyContent';
 import Loader from '../Loader';
+import { useDispatch } from 'react-redux';
+import { setPage as setPageAction } from '../../../redux/pageSlice';
 
 /**
  * Column definition
@@ -123,6 +125,12 @@ export type TableProps<RowItem extends Record<string, any>> = Omit<
    */
   loading?: boolean;
   renderRowSelectionToolbar?: (props: { table: MRT_TableInstance<RowItem> }) => ReactNode;
+
+  /**
+   * Optional callback to notify parent when page changes (1-indexed).
+   * If provided, it's called after the page change is committed.
+   */
+  onPageChange?: (page: number, pageSize: number) => void;
 };
 
 // Use a zero-indexed "useURLState" hook, so pages are shown in the URL as 1-indexed
@@ -140,7 +148,6 @@ function usePageURLState(
       if (page - 1 !== zeroIndexPage) {
         return page - 1;
       }
-
       return zeroIndexPage;
     });
   }, [page]);
@@ -190,11 +197,13 @@ export default function Table<RowItem extends Record<string, any>>({
   filterFunction,
   errorMessage,
   loading,
+  onPageChange,
   ...tableProps
 }: TableProps<RowItem>) {
   const shouldReflectInURL = reflectInURL !== undefined && reflectInURL !== false;
   const prefix = reflectInURL === true ? '' : reflectInURL || '';
-  const [page, setPage] = usePageURLState(shouldReflectInURL ? 'p' : '', prefix, initialPage);
+  // pageIndex is zero-indexed
+  const [pageIndex, setPageIndex] = usePageURLState(shouldReflectInURL ? 'p' : '', prefix, initialPage);
   const filterKey = prefix ? `${prefix}filter` : 'filter';
   const [globalFilter, setGlobalFilter] = useQueryParamsState<string | undefined>(
     shouldReflectInURL ? filterKey : '',
@@ -253,6 +262,13 @@ export default function Table<RowItem extends Record<string, any>>({
     return ids;
   }, [tableProps.columns, tableProps.enableRowActions, tableProps.enableRowSelection]);
 
+  const dispatch = useDispatch();
+  // Prevent dispatching during initial mount (material-react-table may call pagination updater on init)
+  const didMountRef = useRef(false);
+  useEffect(() => {
+    didMountRef.current = true;
+  }, []);
+
   const table = useMaterialReactTable({
     ...tableProps,
     columns: tableColumns ?? [],
@@ -269,9 +285,46 @@ export default function Table<RowItem extends Record<string, any>>({
     },
     onPaginationChange: (updater: any) => {
       if (!tableProps.data?.length) return;
-      const pagination = updater({ pageIndex: Number(page) - 1, pageSize: Number(pageSize) });
-      setPage(pagination.pageIndex + 1);
-      setPageSize(pagination.pageSize);
+
+      // Current pagination (zero-indexed)
+      const currentPagination = { pageIndex: Number(pageIndex), pageSize: Number(pageSize) };
+
+      // Compute newPagination from updater (updater can be function or object)
+      const newPagination = typeof updater === 'function' ? updater(currentPagination) : updater;
+
+      const newPageIndex = Number(newPagination?.pageIndex ?? currentPagination.pageIndex);
+      const newPageSize = Number(newPagination?.pageSize ?? currentPagination.pageSize);
+
+      // If nothing changed, bail out
+      if (newPageIndex === currentPagination.pageIndex && newPageSize === currentPagination.pageSize) {
+        return;
+      }
+
+      // Update local URL / table state (zero-indexed)
+      setPageIndex(newPageIndex);
+      setPageSize(newPageSize);
+
+      // Notify redux/global state and parent callback ONLY after mount (i.e., on user navigation)
+      const newPageOneIndexed = newPageIndex + 1;
+      if (didMountRef.current) {
+        try {
+          dispatch(setPageAction(newPageOneIndexed));
+        } catch (e) {
+          // swallow redux dispatch errors here to avoid crashing the table
+          // console.error('dispatch setPageAction failed', e);
+        }
+
+        if (onPageChange) {
+          try {
+            onPageChange(newPageOneIndexed, newPageSize);
+          } catch (e) {
+            // ignore errors in callback
+          }
+        }
+      }
+
+      // Debug logging (can be removed)
+      // console.log('pagination changed ->', { page: newPageOneIndexed, pageSize: newPageSize });
     },
     onGlobalFilterChange: setGlobalFilter,
     renderToolbarInternalActions: props => {
@@ -298,13 +351,13 @@ export default function Table<RowItem extends Record<string, any>>({
         ...(tableProps.state ?? {}),
         columnOrder,
         pagination: {
-          pageIndex: page - 1,
+          pageIndex: pageIndex,
           pageSize: pageSize,
         },
         globalFilter,
         ...(globalFilter ? { showGlobalFilter: true } : {}),
       }),
-      [tableProps.state, columnOrder, page, pageSize, globalFilter]
+      [tableProps.state, columnOrder, pageIndex, pageSize, globalFilter]
     ),
     positionActionsColumn: 'last',
     layoutMode: 'grid',

@@ -165,9 +165,15 @@ func GetContextKeyAndKContext(w http.ResponseWriter,
 	return ctx, span, contextKey, kContext, nil
 }
 
+func shouldSkipCache(path string) bool {
+	return strings.Contains(path, "version") ||
+		strings.Contains(path, "selfsubjectrulesreview") ||
+		strings.Contains(path, "selfsubjectaccessreviews")
+}
+
 // CacheMiddleWare is Middleware for Caching purpose. It involves generating key for a request,
 // authorizing user , store resource data in cache and returns data if key is present.
-func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
+func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc { //no-lint:gocognit
 	return func(next http.Handler) http.Handler {
 		if !c.CacheEnabled {
 			return next
@@ -175,6 +181,11 @@ func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if k8cache.SkipWebSocket(r, next, w) {
+				return
+			}
+
+			if shouldSkipCache(r.URL.Path) {
+				next.ServeHTTP(w, r)
 				return
 			}
 
@@ -213,7 +224,7 @@ func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 			}
 
 			if served {
-				c.telemetryHandler.RecordEvent(span, "Served from cache")
+				c.telemetryHandler.RecordEvent(span, "served from cache")
 				return
 			}
 

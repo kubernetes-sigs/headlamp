@@ -78,7 +78,8 @@ export function kubeObjectListQuery<K extends KubeObject>(
       kubeObjectClass.apiName,
       cluster,
       namespace ?? '',
-      queryParams,
+      // queryParams,
+      Math.floor(Math.random() * 10) + 1, // <--- add this
     ],
     queryFn: async () => {
       // If no valid endpoint is passed, don't make the request
@@ -403,6 +404,7 @@ export function useKubeObjectList<K extends KubeObject>({
   watch = true,
   refetchInterval,
 }: {
+  
   requests: Array<{ cluster: string; namespaces?: string[] }>;
   /** Class to instantiate the object with */
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
@@ -413,6 +415,7 @@ export function useKubeObjectList<K extends KubeObject>({
   refetchInterval?: number;
 }): [Array<K> | null, ApiError | null] &
   QueryListResponse<Array<ListResponse<K> | undefined | null>, K, ApiError> {
+  const randomId = useMemo(() => Math.floor(Math.random() * 10) + 1, []); 
   const maybeNamespace = requests.find(it => it.namespaces)?.namespaces?.[0];
 
   // Get working endpoint from the first cluster
@@ -439,8 +442,7 @@ export function useKubeObjectList<K extends KubeObject>({
                     namespace,
                     cluster,
                     cleanedUpQueryParams,
-                    refetchInterval
-                  )
+                    refetchInterval,                  )
                 )
               : kubeObjectListQuery<K>(
                   kubeObjectClass,

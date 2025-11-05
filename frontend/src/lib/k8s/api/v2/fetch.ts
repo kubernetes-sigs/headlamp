@@ -16,8 +16,10 @@
 
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
+import store from '../../../../redux/stores/store';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
+import { incrementPage } from '../../../../redux/pageSlice';
 import { ApiError } from './ApiError';
 import { makeUrl } from './makeUrl';
 
@@ -32,13 +34,34 @@ export const BASE_HTTP_URL = getAppUrl();
  *
  * @returns fetch Response
  */
+
 export async function backendFetch(url: string | URL, init: RequestInit = {}) {
   // Always include credentials
   init.credentials = 'include';
   init.headers = addBackstageAuthHeaders(init.headers);
-  const response = await fetch(makeUrl([BASE_HTTP_URL, url]), init);
 
-  // The backend signals through this header that it wants a reload.
+  store.dispatch(incrementPage());
+
+  
+  const state = store.getState();
+
+  const page= String(state.page.currentPage);
+  const urlStr = makeUrl([BASE_HTTP_URL, url]);
+  const urlObj = new URL(urlStr, window.location.origin);
+
+  // Set or overwrite ?p=
+  urlObj.searchParams.set('p', page);
+
+  // console.log('Fetching:', urlObj.toString());
+
+  const response = await fetch(urlObj.toString(), init);
+
+  console.log("url was: ", page)
+
+  // const response = await fetch(makeUrl([BASE_HTTP_URL, url]), init);
+
+
+  // The backend signals through this header tha  t it wants a reload.
   // See plugins.go
   const headerVal = response.headers.get('X-Reload');
   if (headerVal && headerVal.indexOf('reload') !== -1) {
