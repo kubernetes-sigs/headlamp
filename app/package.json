@@ -125,7 +125,8 @@
       "electron/plugin-management.js",
       "electron/runCmd.js",
       "electron/mcp/MCPClient.js",
-      "electron/mcp/MCPToolStateStore.js"      
+      "electron/mcp/MCPToolStateStore.js",
+      "electron/settings.js"
     ],
     "extraResources": [
       {
