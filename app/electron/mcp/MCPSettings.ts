@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import os from 'os';
+import path from 'path';
 import { loadSettings, saveSettings } from '../settings';
 
 interface MCPSettings {
@@ -76,4 +78,66 @@ export function saveMCPSettings(settingsPath: string, mcpSettings: MCPSettings):
   const settings = loadSettings(settingsPath);
   settings.mcp = mcpSettings;
   saveSettings(settingsPath, settings);
+}
+
+/**
+ * Expand environment variables and resolve paths in arguments.
+ *
+ * @param args - The array of argument strings to expand.
+ * @param currentCluster - The current cluster name to replace HEADLAMP_CURRENT_CLUSTER.
+ * @param cluster - The specific cluster name to replace HEADLAMP_CURRENT_CLUSTER, if provided.
+ *
+ * @returns The array of expanded argument strings.
+ */
+export function expandEnvAndResolvePaths(args: string[], cluster: string | null = null): string[] {
+  return args.map(arg => {
+    // Replace Windows environment variables like %USERPROFILE%
+    let expandedArg = arg;
+
+    // Handle HEADLAMP_CURRENT_CLUSTER placeholder
+    if (expandedArg.includes('HEADLAMP_CURRENT_CLUSTER')) {
+      expandedArg = expandedArg.replace(/HEADLAMP_CURRENT_CLUSTER/g, cluster || '');
+    }
+
+    // Handle %USERPROFILE%
+    if (expandedArg.includes('%USERPROFILE%')) {
+      expandedArg = expandedArg.replace(/%USERPROFILE%/g, os.homedir());
+    }
+
+    // Handle other common Windows environment variables
+    if (expandedArg.includes('%APPDATA%')) {
+      expandedArg = expandedArg.replace(/%APPDATA%/g, process.env.APPDATA || '');
+    }
+
+    if (expandedArg.includes('%LOCALAPPDATA%')) {
+      expandedArg = expandedArg.replace(/%LOCALAPPDATA%/g, process.env.LOCALAPPDATA || '');
+    }
+
+    // Convert Windows backslashes to forward slashes for Docker
+    if (process.platform === 'win32' && expandedArg.includes('\\')) {
+      expandedArg = expandedArg.replace(/\\/g, '/');
+    }
+
+    // Handle Docker volume mount format and ensure proper Windows path format
+    if (expandedArg.includes('type=bind,src=')) {
+      const match = expandedArg.match(/type=bind,src=(.+?),dst=(.+)/);
+      if (match) {
+        let srcPath = match[1];
+        const dstPath = match[2];
+
+        // Resolve the source path
+        if (process.platform === 'win32') {
+          srcPath = path.resolve(srcPath);
+          // For Docker on Windows, we might need to convert C:\ to /c/ format
+          if (srcPath.match(/^[A-Za-z]:/)) {
+            srcPath = '/' + srcPath.charAt(0).toLowerCase() + srcPath.slice(2).replace(/\\/g, '/');
+          }
+        }
+
+        expandedArg = `type=bind,src=${srcPath},dst=${dstPath}`;
+      }
+    }
+
+    return expandedArg;
+  });
 }
