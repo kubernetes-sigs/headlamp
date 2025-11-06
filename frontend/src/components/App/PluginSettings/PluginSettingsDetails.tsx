@@ -33,6 +33,7 @@ import { useTypedSelector } from '../../../redux/hooks';
 import type { AppDispatch } from '../../../redux/stores/store';
 import NotFoundComponent from '../../404';
 import { SectionHeader } from '../../common';
+import ActionButton from '../../common/ActionButton';
 import { ConfirmDialog } from '../../common/Dialog';
 import ErrorBoundary from '../../common/ErrorBoundary';
 import { SectionBox } from '../../common/SectionBox';
@@ -240,6 +241,18 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
                 />
               ),
             ]}
+            actions={
+              isElectron() && plugin.type !== 'shipped'
+                ? [
+                    <ActionButton
+                      description={t('translation|Delete Plugin')}
+                      icon="mdi:delete"
+                      onClick={handleDelete}
+                      color="error"
+                    />,
+                  ]
+                : []
+            }
             subtitle={author ? `${t('translation|By')}: ${author}` : undefined}
             noPadding={false}
             headerStyle="subsection"
@@ -276,38 +289,29 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
           <ErrorBoundary>{component}</ErrorBoundary>
         </ScrollableBox>
       </SectionBox>
-      <Box py={0}>
-        <Stack
-          direction="row"
-          spacing={2}
-          justifyContent="space-between"
-          alignItems="center"
-          sx={{ borderTop: '2px solid', borderColor: 'silver', padding: '10px' }}
-        >
-          <Stack direction="row" spacing={1}>
-            {plugin.isLoaded !== false && plugin.displaySettingsComponentWithSaveButton && (
-              <>
-                <Button
-                  variant="contained"
-                  disabled={!enableSaveButton}
-                  style={{ backgroundColor: 'silver', color: 'black' }}
-                  onClick={handleSave}
-                >
-                  {t('translation|Save')}
-                </Button>
-                <Button style={{ color: 'silver' }} onClick={handleCancel}>
-                  {t('translation|Cancel')}
-                </Button>
-              </>
-            )}
-          </Stack>
-          {isElectron() && plugin.type !== 'shipped' ? (
-            <Button variant="text" color="error" onClick={handleDelete}>
-              {t('translation|Delete Plugin')}
+      {plugin.isLoaded !== false && plugin.displaySettingsComponentWithSaveButton && (
+        <Box py={0}>
+          <Stack
+            direction="row"
+            spacing={2}
+            justifyContent="flex-start"
+            alignItems="center"
+            sx={{ borderTop: '2px solid', borderColor: 'silver', padding: '10px' }}
+          >
+            <Button
+              variant="contained"
+              disabled={!enableSaveButton}
+              style={{ backgroundColor: 'silver', color: 'black' }}
+              onClick={handleSave}
+            >
+              {t('translation|Save')}
             </Button>
-          ) : null}
-        </Stack>
-      </Box>
+            <Button style={{ color: 'silver' }} onClick={handleCancel}>
+              {t('translation|Cancel')}
+            </Button>
+          </Stack>
+        </Box>
+      )}
     </>
   );
 }
