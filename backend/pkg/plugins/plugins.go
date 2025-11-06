@@ -24,7 +24,6 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -51,6 +50,12 @@ type PluginMetadata struct {
 	// Name is the plugin's folder name
 	Name string `json:"name"`
 }
+
+const (
+	PluginTypeDevelopment = "development"
+	PluginTypeUser        = "user"
+	PluginTypeShipped     = "shipped"
+)
 
 // Watch watches the given path for changes and sends the events to the notify channel.
 func Watch(path string, notify chan<- string) {
@@ -188,11 +193,11 @@ func GeneratePluginPaths(
 	// This handles migration from older versions where catalog plugins were installed to plugins/ directory.
 	for _, pluginURL := range pluginListURLDev {
 		pluginName := filepath.Base(pluginURL)
-		pluginType := "development"
+		pluginType := PluginTypeDevelopment
 
 		// Check if this is a catalog-installed plugin that needs migration
 		if isCatalogInstalledPlugin(pluginDir, pluginName) {
-			pluginType = "user"
+			pluginType = PluginTypeUser
 
 			logger.Log(logger.LevelInfo, map[string]string{
 				"plugin": pluginName,
@@ -456,60 +461,76 @@ func HandlePluginReload(cache cache.Cache[interface{}], w http.ResponseWriter) {
 	}
 }
 
-// Delete deletes the plugin from the appropriate plugin directory (user or development).
-// Shipped plugins cannot be deleted.
-// Returns an error if the plugin is not found or if it's a shipped plugin.
-func Delete(userPluginDir, pluginDir, filename string) error {
-	deleted := false
+// tryDeletePlugin attempts to delete the plugin at the given directory and filename.
+// It returns true if the plugin was deleted, false if it did not exist.
+// It returns an error if there was an issue during deletion.
+func tryDeletePlugin(dir string, filename string) (bool, error) {
+	if dir == "" {
+		return false, nil
+	}
 
-	tryDelete := func(baseDir string) (bool, error) {
-		if baseDir == "" {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return false, err
+	}
+
+	absPath := filepath.Join(absDir, filename)
+	if _, err := os.Stat(absPath); err != nil {
+		if os.IsNotExist(err) {
 			return false, nil
 		}
 
-		absBaseDir, err := filepath.Abs(baseDir)
-		if err != nil {
-			return false, err
-		}
-
-		absPluginPath := path.Join(absBaseDir, filename)
-		if _, err := os.Stat(absPluginPath); err != nil {
-			if os.IsNotExist(err) {
-				return false, nil
-			}
-
-			return false, err
-		}
-
-		if !isSubdirectory(absBaseDir, absPluginPath) {
-			return false, fmt.Errorf("plugin path '%s' is not a subdirectory of '%s'", absPluginPath, absBaseDir)
-		}
-
-		if err := os.RemoveAll(absPluginPath); err != nil && !os.IsNotExist(err) {
-			return false, err
-		}
-
-		return true, nil
+		return false, err
 	}
 
-	if userPluginDir != "" {
-		if d, err := tryDelete(userPluginDir); err != nil {
+	if !isSubdirectory(absDir, absPath) {
+		return false, fmt.Errorf("plugin path '%s' is not a subdirectory of '%s'", absPath, absDir)
+	}
+
+	if err := os.RemoveAll(absPath); err != nil && !os.IsNotExist(err) {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// Delete deletes the plugin from the appropriate plugin directory (user or development).
+// Shipped plugins cannot be deleted.
+// If pluginType is specified ("user" or "development"), only that directory is checked.
+// If pluginType is empty, it checks user-plugins first, then development (for backward compatibility).
+// Returns an error if the plugin is not found or if it's a shipped plugin.
+func Delete(userPluginDir, pluginDir, filename, pluginType string) error {
+	// Validate plugin type if provided
+	if pluginType != "" && pluginType != PluginTypeUser && pluginType != PluginTypeDevelopment {
+		return fmt.Errorf("invalid plugin type '%s': must be 'user' or 'development'", pluginType)
+	}
+
+	// Attempt deletion according to requested/implicit order
+	deleted := false
+
+	var err error
+
+	if pluginType != PluginTypeDevelopment {
+		if deleted, err = tryDeletePlugin(userPluginDir, filename); err != nil {
 			return err
-		} else if d {
-			deleted = true
+		}
+
+		if pluginType == PluginTypeUser && !deleted {
+			return fmt.Errorf("plugin '%s' not found in user-plugins directory", filename)
+		}
+	}
+
+	if !deleted && (pluginType == "" || pluginType == PluginTypeDevelopment) {
+		if deleted, err = tryDeletePlugin(pluginDir, filename); err != nil {
+			return err
+		}
+
+		if pluginType == PluginTypeDevelopment && !deleted {
+			return fmt.Errorf("plugin '%s' not found in development directory", filename)
 		}
 	}
 
 	if !deleted {
-		if d, err := tryDelete(pluginDir); err != nil {
-			return err
-		} else {
-			deleted = d
-		}
-	}
-
-	if !deleted {
-		// Plugin not found in deletable directories
 		return fmt.Errorf("plugin '%s' not found or cannot be deleted (shipped plugins cannot be deleted)", filename)
 	}
 

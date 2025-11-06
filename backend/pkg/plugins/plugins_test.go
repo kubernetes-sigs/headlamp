@@ -507,34 +507,90 @@ func TestDelete(t *testing.T) {
 	err = os.Mkdir(devPluginPath, 0o755)
 	require.NoError(t, err)
 
+	// Create a plugin with the same name in both directories for type-specific deletion tests
+	sharedPluginUser := path.Join(userPluginDir, "shared-plugin")
+	err = os.Mkdir(sharedPluginUser, 0o755)
+	require.NoError(t, err)
+
+	sharedPluginDev := path.Join(devPluginDir, "shared-plugin")
+	err = os.Mkdir(sharedPluginDev, 0o755)
+	require.NoError(t, err)
+
 	// Test cases
 	tests := []struct {
 		name          string
 		userPluginDir string
 		devPluginDir  string
 		pluginName    string
+		pluginType    string
 		expectErr     bool
 		errContains   string
 	}{
 		{
-			name:          "Delete user plugin",
+			name:          "Delete user plugin (no type specified)",
 			userPluginDir: userPluginDir,
 			devPluginDir:  devPluginDir,
 			pluginName:    "user-plugin-1",
+			pluginType:    "",
 			expectErr:     false,
 		},
 		{
-			name:          "Delete dev plugin",
+			name:          "Delete dev plugin (no type specified)",
 			userPluginDir: userPluginDir,
 			devPluginDir:  devPluginDir,
 			pluginName:    "dev-plugin-1",
+			pluginType:    "",
 			expectErr:     false,
 		},
 		{
-			name:          "Non-existent plugin",
+			name:          "Delete user plugin with type=user",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "shared-plugin",
+			pluginType:    "user",
+			expectErr:     false,
+		},
+		{
+			name:          "Delete dev plugin with type=development",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "shared-plugin",
+			pluginType:    "development",
+			expectErr:     false,
+		},
+		{
+			name:          "Invalid plugin type",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "shared-plugin",
+			pluginType:    "invalid",
+			expectErr:     true,
+			errContains:   "invalid plugin type",
+		},
+		{
+			name:          "Non-existent plugin with type=user",
 			userPluginDir: userPluginDir,
 			devPluginDir:  devPluginDir,
 			pluginName:    "non-existent",
+			pluginType:    "user",
+			expectErr:     true,
+			errContains:   "not found in user-plugins directory",
+		},
+		{
+			name:          "Non-existent plugin with type=development",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "non-existent",
+			pluginType:    "development",
+			expectErr:     true,
+			errContains:   "not found in development directory",
+		},
+		{
+			name:          "Non-existent plugin (no type specified)",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "non-existent",
+			pluginType:    "",
 			expectErr:     true,
 			errContains:   "not found or cannot be deleted",
 		},
@@ -543,13 +599,14 @@ func TestDelete(t *testing.T) {
 			userPluginDir: userPluginDir,
 			devPluginDir:  devPluginDir,
 			pluginName:    "../",
+			pluginType:    "",
 			expectErr:     true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := plugins.Delete(tt.userPluginDir, tt.devPluginDir, tt.pluginName)
+			err := plugins.Delete(tt.userPluginDir, tt.devPluginDir, tt.pluginName, tt.pluginType)
 			if tt.expectErr {
 				assert.Error(t, err, "Delete should return an error")
 
@@ -558,13 +615,16 @@ func TestDelete(t *testing.T) {
 				}
 			} else {
 				assert.NoError(t, err, "Delete should not return an error")
-				// check if the plugin was deleted
-				userPath := path.Join(tt.userPluginDir, tt.pluginName)
-				devPath := path.Join(tt.devPluginDir, tt.pluginName)
-				_, userErr := os.Stat(userPath)
-				_, devErr := os.Stat(devPath)
-				// At least one should not exist
-				assert.True(t, os.IsNotExist(userErr) || os.IsNotExist(devErr), "Plugin should be deleted")
+				// check if the plugin was deleted from the correct directory
+				if tt.pluginType == "user" || (tt.pluginType == "" && tt.pluginName == "user-plugin-1") {
+					userPath := path.Join(tt.userPluginDir, tt.pluginName)
+					_, userErr := os.Stat(userPath)
+					assert.True(t, os.IsNotExist(userErr), "User plugin should be deleted")
+				} else if tt.pluginType == "development" || (tt.pluginType == "" && tt.pluginName == "dev-plugin-1") {
+					devPath := path.Join(tt.devPluginDir, tt.pluginName)
+					_, devErr := os.Stat(devPath)
+					assert.True(t, os.IsNotExist(devErr), "Dev plugin should be deleted")
+				}
 			}
 		})
 	}

@@ -303,6 +303,9 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 		var span trace.Span
 		pluginName := mux.Vars(r)["name"]
 
+		// Get plugin type from query parameter (optional)
+		pluginType := r.URL.Query().Get("type")
+
 		// Start tracing for deletePlugin.
 		if config.Telemetry != nil {
 			_, span = telemetry.CreateSpan(ctx, r, "plugins", "deletePlugin",
@@ -325,7 +328,7 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 			return
 		}
 
-		err := plugins.Delete(config.UserPluginDir, config.PluginDir, pluginName)
+		err := plugins.Delete(config.UserPluginDir, config.PluginDir, pluginName, pluginType)
 		if err != nil {
 			config.telemetryHandler.RecordError(span, err, "Failed to delete plugin")
 
