@@ -108,6 +108,7 @@
   "Cancelled deletion of {{ itemName }}.": "A eliminação do item {{ itemName }} foi cancelada.",
   "Deleted plugin {{ itemName }}.": "",
   "Error deleting plugin {{ itemName }}.": "",
+  "Open Plugin Folder": "",
   "Delete Plugin": "Eliminar Plugin",
   "By": "Por",
   "This plugin is not currently loaded because a \"{{type}}\" version is being used instead.": "",

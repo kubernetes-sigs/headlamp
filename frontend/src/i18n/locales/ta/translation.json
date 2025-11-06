@@ -108,6 +108,7 @@
   "Cancelled deletion of {{ itemName }}.": "{{ itemName }} உருப்படியை நீக்குவது ரத்து செய்யப்பட்டது.",
   "Deleted plugin {{ itemName }}.": "",
   "Error deleting plugin {{ itemName }}.": "",
+  "Open Plugin Folder": "",
   "Delete Plugin": "பிளக்-இன் நீக்கு",
   "By": "மூலம்",
   "This plugin is not currently loaded because a \"{{type}}\" version is being used instead.": "",

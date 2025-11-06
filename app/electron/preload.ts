@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'plugin-manager',
       'request-backend-token',
       'request-plugin-permission-secrets',
+      'open-plugin-folder',
       'request-backend-port',
     ];
     if (validChannels.includes(channel)) {

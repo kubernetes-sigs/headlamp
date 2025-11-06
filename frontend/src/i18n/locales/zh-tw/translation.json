@@ -108,6 +108,7 @@
   "Cancelled deletion of {{ itemName }}.": "取消刪除 {{ itemName }}。",
   "Deleted plugin {{ itemName }}.": "",
   "Error deleting plugin {{ itemName }}.": "",
+  "Open Plugin Folder": "",
   "Delete Plugin": "刪除外掛",
   "By": "由",
   "This plugin is not currently loaded because a \"{{type}}\" version is being used instead.": "",

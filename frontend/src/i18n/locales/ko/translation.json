@@ -108,6 +108,7 @@
   "Cancelled deletion of {{ itemName }}.": "{{ itemName }} 삭제 취소됨.",
   "Deleted plugin {{ itemName }}.": "",
   "Error deleting plugin {{ itemName }}.": "",
+  "Open Plugin Folder": "",
   "Delete Plugin": "플러그인 삭제",
   "By": "작성자",
   "This plugin is not currently loaded because a \"{{type}}\" version is being used instead.": "",

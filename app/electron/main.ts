@@ -1669,6 +1669,31 @@ function startElecron() {
 
     new PluginManagerEventListeners().setupEventHandlers();
 
+    // Handle opening plugin folder in file explorer
+    ipcMain.on(
+      'open-plugin-folder',
+      (
+        event: IpcMainEvent,
+        pluginInfo: { folderName: string; type: 'development' | 'user' | 'shipped' }
+      ) => {
+        let folderPath: string | null = null;
+
+        if (pluginInfo.type === 'user') {
+          folderPath = path.join(defaultUserPluginsDir(), pluginInfo.folderName);
+        } else if (pluginInfo.type === 'development') {
+          folderPath = path.join(defaultPluginsDir(), pluginInfo.folderName);
+        } else if (pluginInfo.type === 'shipped') {
+          folderPath = path.join(process.resourcesPath, '.plugins', pluginInfo.folderName);
+        }
+
+        if (folderPath) {
+          shell.openPath(folderPath).catch((err: Error) => {
+            console.error('Failed to open plugin folder:', err);
+          });
+        }
+      }
+    );
+
     // Also add bundled plugin bin directories to PATH
     const bundledPlugins = path.join(process.resourcesPath, '.plugins');
     const bundledPluginBinDirs = getPluginBinDirectories(bundledPlugins);

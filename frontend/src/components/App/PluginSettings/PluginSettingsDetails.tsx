@@ -38,6 +38,36 @@ import { ConfirmDialog } from '../../common/Dialog';
 import ErrorBoundary from '../../common/ErrorBoundary';
 import { SectionBox } from '../../common/SectionBox';
 
+// Helper function to open plugin folder in file explorer (Electron only)
+function openPluginFolder(plugin: PluginInfo) {
+  if (!isElectron()) {
+    return;
+  }
+
+  const folderName = plugin.folderName || plugin.name.split('/').pop();
+  if (!folderName || !plugin.type) {
+    return;
+  }
+
+  const { desktopApi } = window as any;
+  if (desktopApi?.send) {
+    desktopApi.send('open-plugin-folder', {
+      folderName,
+      type: plugin.type,
+    });
+  }
+}
+
+// Helper to check if we can open the plugin folder
+function canOpenPluginFolder(plugin: PluginInfo): boolean {
+  if (!isElectron()) {
+    return false;
+  }
+
+  const folderName = plugin.folderName || plugin.name.split('/').pop();
+  return !!(folderName && plugin.type);
+}
+
 const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   const { plugin } = props;
   const { t } = useTranslation(['translation']);
@@ -242,14 +272,27 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
               ),
             ]}
             actions={
-              isElectron() && plugin.type !== 'shipped'
+              isElectron()
                 ? [
-                    <ActionButton
-                      description={t('translation|Delete Plugin')}
-                      icon="mdi:delete"
-                      onClick={handleDelete}
-                      color="error"
-                    />,
+                    ...(canOpenPluginFolder(plugin)
+                      ? [
+                          <ActionButton
+                            description={t('translation|Open Plugin Folder')}
+                            icon="mdi:folder-open"
+                            onClick={() => openPluginFolder(plugin)}
+                          />,
+                        ]
+                      : []),
+                    ...(plugin.type !== 'shipped'
+                      ? [
+                          <ActionButton
+                            description={t('translation|Delete Plugin')}
+                            icon="mdi:delete"
+                            onClick={handleDelete}
+                            color="error"
+                          />,
+                        ]
+                      : []),
                   ]
                 : []
             }
