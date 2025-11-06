@@ -241,3 +241,95 @@ describe('MultiServerMCPClient', () => {
     expect(entry.args).toEqual(['connect', 'my-current-cluster']);
   });
 });
+
+describe('settingsChanges', () => {
+  it('reports enabling and added servers when current is null', () => {
+    const nextSettings = {
+      enabled: true,
+      servers: [{ name: 's1', command: 'cmd1', args: [], enabled: true }],
+    };
+
+    const result = MCP.settingsChanges(null, nextSettings as any);
+    expect(result).toContain('• MCP will be ENABLED');
+    expect(result).toContain('• ADD server: "s1" (cmd1)');
+  });
+
+  it('returns empty array when both current and next settings are null', () => {
+    const result = MCP.settingsChanges(null, null as any);
+    expect(result).toEqual([]);
+  });
+
+  it('reports disabling and removed servers when next is null', () => {
+    const current = {
+      enabled: true,
+      servers: [
+        { name: 's1', command: 'cmd1', args: [], enabled: true },
+        { name: 's2', command: 'cmd2', args: [], enabled: true },
+      ],
+    };
+
+    const result = MCP.settingsChanges(current as any, null as any);
+    expect(result).toContain('• MCP will be DISABLED');
+    expect(result).toContain('• REMOVE server: "s1"');
+    expect(result).toContain('• REMOVE server: "s2"');
+  });
+
+  it('reports disabling when enabled -> disabled and no servers', () => {
+    const current = { enabled: true, servers: [] };
+    const next = { enabled: false, servers: [] };
+
+    const result = MCP.settingsChanges(current as any, next as any);
+    expect(result).toEqual(['• MCP will be DISABLED']);
+  });
+
+  it('detects added, removed and modified servers including command/args/env/enable changes', () => {
+    const current = {
+      enabled: true,
+      servers: [
+        { name: 'keep', command: 'cmd', args: ['a'], enabled: true, env: { X: '1' } },
+        { name: 'removed', command: 'rm', args: [], enabled: true },
+        { name: 'modified', command: 'old', args: ['one'], enabled: true, env: { A: 'a' } },
+      ],
+    };
+
+    const next = {
+      enabled: true,
+      servers: [
+        { name: 'keep', command: 'cmd', args: ['a'], enabled: true, env: { X: '1' } }, // unchanged
+        { name: 'added', command: 'new', args: [], enabled: true }, // new
+        {
+          name: 'modified',
+          command: 'newcmd',
+          args: ['one', 'two'],
+          enabled: false, // toggled
+          env: { A: 'b' }, // changed
+        },
+      ],
+    };
+
+    const result = MCP.settingsChanges(current as any, next as any);
+
+    expect(result).toEqual(
+      expect.arrayContaining(['• ADD server: "added" (new)', '• REMOVE server: "removed"'])
+    );
+
+    // find the modify message for 'modified' server
+    const modifyMsg = result.find(r => r.startsWith('• MODIFY server "modified"'));
+    expect(modifyMsg).toBeDefined();
+    // should mention enable/disable, command change, args change, and env change
+    expect(modifyMsg).toMatch(/enable|disable/);
+    expect(modifyMsg).toMatch(/change command: "old" → "newcmd"/);
+    expect(modifyMsg).toMatch(/change arguments: \["one"\] → \["one","two"\]/);
+    expect(modifyMsg).toMatch(/change environment variables/);
+  });
+
+  it('returns empty array when there are no changes', () => {
+    const s = {
+      enabled: true,
+      servers: [{ name: 's', command: 'c', args: ['x'], enabled: true, env: { K: 'v' } }],
+    };
+
+    const result = MCP.settingsChanges(s as any, s as any);
+    expect(result).toEqual([]);
+  });
+});
