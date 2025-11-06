@@ -15,6 +15,7 @@
  */
 
 import type { DynamicStructuredTool } from '@langchain/core/dist/tools/index';
+import { type BrowserWindow, dialog } from 'electron';
 import * as fs from 'fs';
 
 /**
@@ -673,4 +674,34 @@ export function validateToolArgs(
       error: `Schema validation error: ${error instanceof Error ? error.message : 'Unknown error'}`,
     };
   }
+}
+
+/**
+ * Show detailed confirmation dialog for tools configuration changes.
+ * Compares current and new configurations and displays a summary of changes.
+ *
+ * @param mainWindow - The main BrowserWindow to parent the dialog.
+ * @param currentConfig - The current configuration.
+ * @param nextConfig - The new configuration to be applied.
+ *
+ * @returns Promise resolving to true if user approves changes, false otherwise
+ */
+export async function showToolsConfigConfirmationDialog(
+  mainWindow: BrowserWindow,
+  currentConfig: MCPToolsConfig,
+  nextConfig: MCPToolsConfig
+): Promise<boolean> {
+  const summary = summarizeMcpToolStateChanges(currentConfig, nextConfig);
+  if (summary.totalChanges === 0) {
+    return true; // No changes, allow operation
+  }
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    buttons: ['Apply Changes', 'Cancel'],
+    defaultId: 1,
+    title: 'MCP Tools Configuration Changes',
+    message: `${summary.totalChanges} tool configuration change(s) will be applied:`,
+    detail: summary.summaryText + '\n\nDo you want to apply these changes?',
+  });
+  return result.response === 0; // 0 is "Apply Changes"
 }
