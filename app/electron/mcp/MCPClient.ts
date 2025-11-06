@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { BrowserWindow } from 'electron';
+import { type BrowserWindow, dialog } from 'electron';
 import { MCPToolStateStore } from './MCPToolStateStore';
 
 const DEBUG = true;
@@ -96,4 +96,30 @@ export default class MCPClient {
       console.info('MCPClient: cleaned up');
     }
   }
+}
+
+/**
+ * Show user confirmation dialog for MCP operations.
+ * Displays a dialog to the user for security confirmation before executing MCP operations.
+ *
+ * @param title - Dialog title
+ * @param message - Main message to display to the user
+ * @param operation - Description of the operation being performed
+ * @returns Promise resolving to true if user allows the operation, false otherwise
+ */
+export async function showConfirmationDialog(
+  mainWindow: BrowserWindow,
+  title: string,
+  message: string,
+  operation: string
+): Promise<boolean> {
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    buttons: ['Allow', 'Cancel'],
+    defaultId: 1,
+    title,
+    message,
+    detail: `Operation: ${operation}\n\nDo you want to allow this MCP operation?`,
+  });
+  return result.response === 0; // 0 is "Allow"
 }
