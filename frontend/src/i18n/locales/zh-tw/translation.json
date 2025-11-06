@@ -104,8 +104,6 @@
   "Loaded": "",
   "Enable": "啟用",
   "Save & Apply": "儲存並應用",
-  "Unknown error": "",
-  "Failed to delete plugin: {{ msg }}": "",
   "Deleting plugin {{ itemName }}...": "",
   "Cancelled deletion of {{ itemName }}.": "取消刪除 {{ itemName }}。",
   "Deleted plugin {{ itemName }}.": "",

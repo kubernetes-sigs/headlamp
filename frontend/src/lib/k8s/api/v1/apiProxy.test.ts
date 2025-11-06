@@ -1092,13 +1092,19 @@ describe('apiProxy', () => {
 
   describe('deletePlugin', () => {
     const pluginName = 'test-plugin';
+    const pluginType = 'user';
     const fakePluginName = 'fake-plugin';
 
     beforeEach(() => {
       (global.fetch as MockedFunction<typeof fetch>) = vi
         .fn()
         .mockImplementation((url, options) => {
-          if (url.endsWith(`/plugins/${pluginName}`) && options.method === 'DELETE') {
+          const isSuccessfulDelete =
+            options.method === 'DELETE' &&
+            (url.endsWith(`/plugins/${pluginName}`) ||
+              url.endsWith(`/plugins/${pluginName}?type=${pluginType}`));
+
+          if (isSuccessfulDelete) {
             return Promise.resolve(
               new Response(JSON.stringify(mockResponse), {
                 status: 200,
@@ -1127,6 +1133,18 @@ describe('apiProxy', () => {
       expect(response).toEqual(mockResponse);
       expect(fetch).toHaveBeenCalledWith(
         expect.stringContaining(`plugins/${pluginName}`),
+        expect.objectContaining({
+          method: 'DELETE',
+          headers: {},
+        })
+      );
+    });
+
+    it('Successfully deletes a user plugin when type is provided', async () => {
+      const response = await apiProxy.deletePlugin(pluginName, 'user');
+      expect(response).toEqual(mockResponse);
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining(`plugins/${pluginName}?type=${pluginType}`),
         expect.objectContaining({
           method: 'DELETE',
           headers: {},

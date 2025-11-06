@@ -25,10 +25,9 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useParams } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
-import { getCluster } from '../../../lib/cluster';
 import { deletePlugin } from '../../../lib/k8s/api/v1/pluginsApi';
 import { ConfigStore } from '../../../plugin/configStore';
-import { PluginInfo } from '../../../plugin/pluginsSlice';
+import { PluginInfo, reloadPage } from '../../../plugin/pluginsSlice';
 import { clusterAction } from '../../../redux/clusterActionSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import type { AppDispatch } from '../../../redux/stores/store';
@@ -37,7 +36,6 @@ import { SectionHeader } from '../../common';
 import { ConfirmDialog } from '../../common/Dialog';
 import ErrorBoundary from '../../common/ErrorBoundary';
 import { SectionBox } from '../../common/SectionBox';
-import { setNotifications } from '../Notifications/notificationsSlice';
 
 const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   const { plugin } = props;
@@ -46,40 +44,34 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   const pluginConf = store.useConfig();
   const config = pluginConf() as { [key: string]: any };
   const dispatch: AppDispatch = useDispatch();
+  const history = useHistory();
 
   function handleSave(data: { [key: string]: any }) {
     store.set(data);
   }
 
   function handleDeleteConfirm() {
-    const name = plugin.name.split('/').splice(-1)[0];
+    // Use folderName if available (the actual folder name on disk),
+    // otherwise fall back to extracting from the name
+    const pluginFolderName = plugin.folderName || plugin.name.split('/').splice(-1)[0];
+
+    // Determine plugin type for deletion - only allow deletion of user and development plugins
+    const pluginType =
+      plugin.type === 'development' || plugin.type === 'user' ? plugin.type : undefined;
 
     dispatch(
-      clusterAction(
-        () =>
-          deletePlugin(name).catch(err => {
-            const msg = err instanceof Error ? err.message : t('Unknown error');
-            dispatch(
-              setNotifications({
-                cluster: getCluster(),
-                date: new Date().toISOString(),
-                deleted: false,
-                id: Math.random().toString(36).substring(2),
-                message: t('Failed to delete plugin: {{ msg }}', { msg: msg }),
-                seen: false,
-              })
-            );
-            throw err;
-          }),
-        {
-          startMessage: t('Deleting plugin {{ itemName }}...', { itemName: name }),
-          cancelledMessage: t('Cancelled deletion of {{ itemName }}.', { itemName: name }),
-          successMessage: t('Deleted plugin {{ itemName }}.', { itemName: name }),
-          errorMessage: t('Error deleting plugin {{ itemName }}.', { itemName: name }),
-        }
-      )
-    ).finally(() => {
-      history.back();
+      clusterAction(() => deletePlugin(pluginFolderName, pluginType), {
+        startMessage: t('Deleting plugin {{ itemName }}...', { itemName: pluginFolderName }),
+        cancelledMessage: t('Cancelled deletion of {{ itemName }}.', {
+          itemName: pluginFolderName,
+        }),
+        successMessage: t('Deleted plugin {{ itemName }}.', { itemName: pluginFolderName }),
+        errorMessage: t('Error deleting plugin {{ itemName }}.', { itemName: pluginFolderName }),
+      })
+    ).then(() => {
+      // Navigate to plugins list page, then reload to refresh plugin list from backend
+      history.push('/settings/plugins');
+      dispatch(reloadPage());
     });
   }
 

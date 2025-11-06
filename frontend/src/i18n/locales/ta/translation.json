@@ -104,8 +104,6 @@
   "Loaded": "",
   "Enable": "இயக்கு",
   "Save & Apply": "சேமித்து பயன்படுத்து",
-  "Unknown error": "",
-  "Failed to delete plugin: {{ msg }}": "",
   "Deleting plugin {{ itemName }}...": "",
   "Cancelled deletion of {{ itemName }}.": "{{ itemName }} உருப்படியை நீக்குவது ரத்து செய்யப்பட்டது.",
   "Deleted plugin {{ itemName }}.": "",

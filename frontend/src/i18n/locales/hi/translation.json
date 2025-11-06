@@ -104,8 +104,6 @@
   "Loaded": "",
   "Enable": "सक्षम करें",
   "Save & Apply": "सहेजें और लागू करें",
-  "Unknown error": "",
-  "Failed to delete plugin: {{ msg }}": "",
   "Deleting plugin {{ itemName }}...": "",
   "Cancelled deletion of {{ itemName }}.": "{{ itemName }} के हटाने को रद्द किया गया।",
   "Deleted plugin {{ itemName }}.": "",

@@ -104,8 +104,6 @@
   "Loaded": "",
   "Enable": "Abilita",
   "Save & Apply": "Salva e Applica",
-  "Unknown error": "",
-  "Failed to delete plugin: {{ msg }}": "",
   "Deleting plugin {{ itemName }}...": "",
   "Cancelled deletion of {{ itemName }}.": "Eliminazione di {{ itemName }} annullata.",
   "Deleted plugin {{ itemName }}.": "",

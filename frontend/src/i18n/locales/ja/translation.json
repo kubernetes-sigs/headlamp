@@ -104,8 +104,6 @@
   "Loaded": "",
   "Enable": "有効にする",
   "Save & Apply": "保存して適用",
-  "Unknown error": "",
-  "Failed to delete plugin: {{ msg }}": "",
   "Deleting plugin {{ itemName }}...": "",
   "Cancelled deletion of {{ itemName }}.": "{{ itemName }} の削除をキャンセルしました。",
   "Deleted plugin {{ itemName }}.": "",
