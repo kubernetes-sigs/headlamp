@@ -15,6 +15,7 @@
  */
 
 import type { ClientConfig } from '@langchain/mcp-adapters';
+import { type BrowserWindow, dialog } from 'electron';
 import os from 'os';
 import path from 'path';
 import { loadSettings, saveSettings } from '../settings';
@@ -279,4 +280,37 @@ export function settingsChanges(
   }
 
   return changes;
+}
+
+/**
+ * Shows a dialog asking user for confirmation if MCP settings changes are ok.
+ *
+ * Displays a summary of changes between currentSettings and nextSettings.
+ *
+ * @param mainWindow - The main BrowserWindow to parent the dialog.
+ * @param currentSettings - Current MCP settings, or null if none exists.
+ * @param nextSettings - New MCP settings to be applied.
+ *
+ * @returns Promise resolving to true if user approves changes, false if cancelled.
+ */
+export async function showSettingsChangeDialog(
+  mainWindow: BrowserWindow,
+  currentSettings: MCPSettings | null,
+  nextSettings: MCPSettings
+): Promise<boolean> {
+  const changes = settingsChanges(currentSettings, nextSettings);
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    buttons: ['Apply Changes', 'Cancel'],
+    defaultId: 1,
+    title: 'MCP Settings Changes',
+    message: 'The application wants to update the MCP settings.',
+    detail:
+      changes.length > 0
+        ? `The following changes will be applied:\n\n${changes.join(
+            '\n'
+          )}\n\nDo you want to apply these changes?`
+        : 'No changes detected in the MCP settings.\n\nDo you want to proceed anyway?',
+  });
+  return result.response === 0; // 0 is "Apply Changes"
 }
