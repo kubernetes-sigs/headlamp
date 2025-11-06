@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import type { DynamicStructuredTool } from '@langchain/core/dist/tools/index';
 import * as fs from 'fs';
 
 /**
@@ -472,6 +473,59 @@ export class MCPToolStateStore {
   replaceConfig(newConfig: MCPToolsConfig): void {
     this.config = newConfig;
     this.saveConfig();
+  }
+
+  /**
+   * Initialize tools configuration for all available tools from client tools.
+   * This completely replaces the existing config with current tools.
+   *
+   * @param clientTools - Array of available tools with their schemas. From MultiServerMCPClient.getTools()
+   */
+  initConfigFromClientTools(clientTools: DynamicStructuredTool[]): void {
+    if (!clientTools || clientTools.length === 0) {
+      console.log('No tools available for configuration initialization');
+      // Clear the config if no tools are available
+      this.replaceConfig({});
+      return;
+    }
+
+    // Group tools by server name with their schemas
+    const toolsByServer: Record<
+      string,
+      Array<{
+        name: string;
+        inputSchema?: any;
+        description?: string;
+      }>
+    > = {};
+
+    for (const tool of clientTools) {
+      // Extract server name from tool name (format: "serverName__toolName")
+      const { serverName, toolName } = parseServerNameToolName(tool.name);
+
+      // Extract schema from the tool (LangChain tools use .schema property)
+      const toolSchema = tool.schema || (tool as any).inputSchema || null;
+      console.log(
+        `Processing tool: ${toolName}, has inputSchema: ${!!toolSchema}, description: "${
+          tool.description
+        }"`
+      );
+
+      if (!toolsByServer[serverName]) {
+        toolsByServer[serverName] = [];
+      }
+
+      toolsByServer[serverName].push({
+        name: toolName,
+        inputSchema: toolSchema,
+        description: tool.description || '',
+      });
+    }
+
+    console.log('Tools grouped by server:', Object.keys(toolsByServer));
+
+    // Replace the entire configuration with current tools
+    this.replaceToolsConfig(toolsByServer);
   }
 }
 
