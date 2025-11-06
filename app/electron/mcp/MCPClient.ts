@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+import type { DynamicStructuredTool } from '@langchain/core/dist/tools/index';
+import { MultiServerMCPClient } from '@langchain/mcp-adapters';
 import { type BrowserWindow, dialog } from 'electron';
+import { hasClusterDependentServers, makeMcpServersFromSettings } from './MCPSettings';
 import { MCPToolStateStore } from './MCPToolStateStore';
 
 const DEBUG = true;
@@ -28,7 +31,9 @@ const DEBUG = true;
  * Example:
  * ```ts
  *   const configPath = path.join(app.getPath('userData'), 'mcp-tools-config.json');
- *   const mcpClient = new MCPClient(configPath);
+ *   const mainWindow = new BrowserWindow({ ... });
+ *   const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+ *   const mcpClient = new MCPClient(configPath, settingsPath);
  *   await mcpClient.initialize();
  *   mcpClient.setMainWindow(mainWindow);
  *   await mcpClient.handleClustersChange(['cluster-1']);
@@ -41,8 +46,24 @@ export default class MCPClient {
   private mcpToolState: MCPToolStateStore | null = null;
   private readonly configPath: string;
 
-  constructor(configPath: string) {
+  /** Cached list of available tools from all MCP servers */
+  private clientTools: DynamicStructuredTool[] = [];
+  /** The LangChain MCP client instance managing multiple servers */
+  private client: MultiServerMCPClient | null = null;
+  /** Whether the MCP client has been successfully initialized */
+  private isInitialized = false;
+  /** Promise tracking ongoing initialization to prevent duplicate initializations */
+  private initializationPromise: Promise<void> | null = null;
+
+  private settingsPath: string;
+  private clusters: string[] = [];
+
+  private currentClusters: string[] | null = null;
+  private oldClusters: string[] | null = null;
+
+  constructor(configPath: string, settingsPath: string) {
     this.configPath = configPath;
+    this.settingsPath = settingsPath;
   }
 
   /**
@@ -54,9 +75,119 @@ export default class MCPClient {
     }
     this.mcpToolState = new MCPToolStateStore(this.configPath);
 
+    await this.initializeClient();
+
     this.initialized = true;
+
     if (DEBUG) {
       console.info('MCPClient: initialized');
+    }
+  }
+
+  /**
+   * Initialize the MCP client if not already initialized.
+   *
+   * @return Promise that resolves when initialization is complete.
+   */
+  private async initializeClient(): Promise<void> {
+    if (DEBUG) {
+      console.log('MCPClient: initializeClient: ', {
+        isInitialized: this.isInitialized,
+        initializationPromise: this.initializationPromise,
+      });
+    }
+
+    if (this.isInitialized) {
+      return;
+    }
+    if (this.initializationPromise) {
+      return this.initializationPromise;
+    }
+
+    if (DEBUG) {
+      console.log('MCPClient: initializeClient: Starting doInitialize()...');
+    }
+
+    this.initializationPromise = this.doInitializeClient();
+    return this.initializationPromise;
+  }
+
+  /**
+   * Perform the actual initialization of the MCP client.
+   *
+   * @throws {Error} If initialization fails
+   */
+  private async doInitializeClient(): Promise<void> {
+    try {
+      const mcpServers = makeMcpServersFromSettings(this.settingsPath, this.clusters);
+
+      // If no enabled servers, skip initialization
+      if (Object.keys(mcpServers).length === 0) {
+        if (DEBUG) {
+          console.log('MCPClient: doInitialize: No enabled MCP servers found');
+        }
+        this.isInitialized = true;
+        return;
+      }
+      if (DEBUG) {
+        console.log(
+          'MCPClient: doInitialize: Initializing MCP client with servers:',
+          Object.keys(mcpServers)
+        );
+      }
+      this.client = new MultiServerMCPClient({
+        throwOnLoadError: false, // Don't throw on load error to allow partial initialization
+        prefixToolNameWithServerName: true, // Prefix to avoid name conflicts
+        additionalToolNamePrefix: '',
+        useStandardContentBlocks: true,
+        mcpServers,
+        defaultToolTimeout: 2 * 60 * 1000, // 2 minutes
+      });
+      // Get and cache the tools
+      this.clientTools = await this.client.getTools();
+      this.mcpToolState?.initConfigFromClientTools(this.clientTools);
+
+      this.isInitialized = true;
+      if (DEBUG) {
+        console.log(
+          'MCPClient: doInitialize: MCP client initialized successfully with',
+          this.clientTools.length,
+          'tools'
+        );
+      }
+    } catch (error) {
+      console.error('Failed to initialize MCP client:', error);
+      this.client = null;
+      this.isInitialized = false;
+      this.initializationPromise = null;
+      throw error;
+    }
+  }
+
+  /**
+   * Clean up resources used by the MCP client.
+   */
+  async cleanup(): Promise<void> {
+    if (!this.initialized) {
+      return;
+    }
+    this.mainWindow = null;
+    this.initialized = false;
+
+    if (this.client) {
+      try {
+        await this.client.close();
+      } catch (error) {
+        console.error('Error cleaning up MCP client:', error);
+      }
+    }
+    this.client = null;
+    this.clientTools = [];
+    this.isInitialized = false;
+    this.initializationPromise = null;
+
+    if (DEBUG) {
+      console.info('MCPClient: cleaned up');
     }
   }
 
@@ -74,26 +205,47 @@ export default class MCPClient {
    *
    * @param clusters - The new active clusters array, or null if none.
    */
-  async handleClustersChange(clusters: string[] | null): Promise<void> {
+  async handleClustersChange(newClusters: string[] | null): Promise<void> {
     if (DEBUG) {
-      console.info('MCPClient: clusters changed ->', clusters);
+      console.info('MCPClient: clusters changed ->', newClusters);
     }
+
     if (!this.initialized) {
       throw new Error('MCPClient: not initialized');
     }
-  }
 
-  /**
-   * Clean up resources used by the MCP client.
-   */
-  async cleanup(): Promise<void> {
-    if (!this.initialized) {
+    // If cluster hasn't actually changed, do nothing.
+    if (JSON.stringify(this.currentClusters) === JSON.stringify(newClusters)) {
       return;
     }
-    this.mainWindow = null;
-    this.initialized = false;
-    if (DEBUG) {
-      console.info('MCPClient: cleaned up');
+
+    const oldClusters = this.currentClusters;
+    this.currentClusters = newClusters;
+
+    // Check if we have any cluster-dependent servers
+    if (!hasClusterDependentServers(this.settingsPath)) {
+      console.log('No cluster-dependent MCP servers found, skipping restart');
+      return;
+    }
+
+    try {
+      // Reset the client
+      if (this.client) {
+        if (typeof (this.client as any).close === 'function') {
+          await (this.client as any).close();
+        }
+      }
+      this.client = null;
+      this.isInitialized = false;
+      this.initializationPromise = null;
+      // Re-initialize with new cluster context
+      await this.initializeClient();
+      console.log('MCP client restarted successfully for new cluster:', newClusters);
+    } catch (error) {
+      console.error('Error restarting MCP client for cluster change:', error);
+      // Restore previous cluster on error
+      this.currentClusters = oldClusters;
+      throw error;
     }
   }
 }
