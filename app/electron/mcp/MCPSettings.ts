@@ -314,3 +314,22 @@ export async function showSettingsChangeDialog(
   });
   return result.response === 0; // 0 is "Apply Changes"
 }
+
+/**
+ * Check if any server in the settings uses HEADLAMP_CURRENT_CLUSTER placeholder.
+ * This determines whether the MCP client needs to be restarted on cluster changes.
+ *
+ * @param settingsPath - path to settings file
+ *
+ * @returns True if any enabled server has HEADLAMP_CURRENT_CLUSTER in its arguments
+ */
+export function hasClusterDependentServers(settingsPath: string): boolean {
+  return (
+    loadMCPSettings(settingsPath)?.servers.some(
+      server =>
+        server.enabled &&
+        server.args &&
+        server.args.some(arg => arg.includes('HEADLAMP_CURRENT_CLUSTER'))
+    ) || false
+  );
+}
