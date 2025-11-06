@@ -560,3 +560,117 @@ export function parseServerNameToolName(fullToolName: string): {
     toolName: fullToolName,
   };
 }
+
+/**
+ * Validate tool arguments against tool schema.
+ *
+ * Note: this validates as true if it doesn't recognize the schema format,
+ *       and validates as true if it doesn't cover the type of the input.
+ *
+ * @todo: @langchain/mcp-adapters does validation internally, so this may be redundant?
+ *
+ * @param schema - The tool's input schema.
+ *                 From toolState.inputSchema from @langchain/mcp-adapters tool input schemas.
+ * @param args - The arguments to validate.
+ *
+ * @returns An object indicating whether the arguments are valid and any error message.
+ *
+ * @example
+ * ```ts
+ *   const schema = {
+ *     type: 'object',
+ *     properties: {
+ *       param1: { type: 'string' },
+ *       param2: { type: 'number' },
+ *     },
+ *     required: ['param1'],
+ *   };
+ *   const args = { param1: 'value1', param2: 42 };
+ *   const result = validateToolArgs(schema, args);
+ *   // result: { valid: true }
+ * ```
+ */
+export function validateToolArgs(
+  schema: MCPToolState['inputSchema'] | null,
+  args: Record<string, any>
+): { valid: boolean; error?: string } {
+  if (!schema) {
+    // No schema available, assume valid
+    return { valid: true };
+  }
+
+  try {
+    // Basic validation - check required properties
+    if (schema.required && Array.isArray(schema.required)) {
+      for (const requiredProp of schema.required) {
+        if (args[requiredProp] === undefined || args[requiredProp] === null) {
+          return {
+            valid: false,
+            error: `Required parameter '${requiredProp}' is missing`,
+          };
+        }
+      }
+    }
+
+    // Check property types if schema properties are defined
+    if (schema.properties) {
+      for (const [propName, propSchema] of Object.entries(schema.properties as any)) {
+        if (args[propName] !== undefined) {
+          const propType = (propSchema as any).type;
+          const actualType = typeof args[propName];
+
+          if (propType === 'string' && actualType !== 'string') {
+            return {
+              valid: false,
+              error: `Parameter '${propName}' should be a string, got ${actualType}`,
+            };
+          }
+          if (propType === 'number' && actualType !== 'number') {
+            return {
+              valid: false,
+              error: `Parameter '${propName}' should be a number, got ${actualType}`,
+            };
+          }
+          if (propType === 'boolean' && actualType !== 'boolean') {
+            return {
+              valid: false,
+              error: `Parameter '${propName}' should be a boolean, got ${actualType}`,
+            };
+          }
+          if (propType === 'array' && !Array.isArray(args[propName])) {
+            return {
+              valid: false,
+              error: `Parameter '${propName}' should be an array, got ${actualType}`,
+            };
+          }
+          if (
+            propType === 'object' &&
+            (actualType !== 'object' || Array.isArray(args[propName]) || args[propName] === null)
+          ) {
+            return {
+              valid: false,
+              error: `Parameter '${propName}' should be an object, got ${actualType}`,
+            };
+          }
+
+          // If the types are not covered above? We warn, and skip validation.
+          if (!['string', 'number', 'boolean', 'array', 'object'].includes(propType)) {
+            console.warn(`Unsupported parameter type in schema: ${propType}`);
+
+            // return {
+            //   valid: false,
+            //   error: `Unsupported parameter type '${propType}' for '${propName}'`,
+            // };
+          }
+        }
+      }
+    }
+
+    return { valid: true };
+  } catch (error) {
+    return {
+      valid: false,
+      error: `Schema validation error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    };
+  }
+}

@@ -21,6 +21,7 @@ import {
   MCPToolStateStore,
   parseServerNameToolName,
   summarizeMcpToolStateChanges,
+  validateToolArgs,
 } from './MCPToolStateStore';
 
 function tmpPath(): string {
@@ -425,5 +426,81 @@ describe('initConfigFromClientTools', () => {
     // schema/description should be updated from client tools
     expect((p as any).inputSchema).toEqual({ type: 'string' });
     expect((p as any).description).toBe('new desc');
+  });
+});
+
+describe('validateToolArgs', () => {
+  it('returns valid when schema is null', () => {
+    const res = validateToolArgs(null, { any: 1 });
+    expect(res.valid).toBe(true);
+    expect(res.error).toBeUndefined();
+  });
+
+  it('fails when a required property is missing', () => {
+    const schema = {
+      type: 'object',
+      required: ['name'],
+      properties: {
+        name: { type: 'string' },
+      },
+    };
+    const res = validateToolArgs(schema, {});
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain("Required parameter 'name'");
+  });
+
+  it('fails when property type does not match (number expected)', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        age: { type: 'number' },
+      },
+    };
+    const res = validateToolArgs(schema, { age: 'not-a-number' });
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain('should be a number');
+  });
+
+  it('validates array types correctly', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        items: { type: 'array' },
+      },
+    };
+    const ok = validateToolArgs(schema, { items: [1, 2, 3] });
+    expect(ok.valid).toBe(true);
+
+    const notOk = validateToolArgs(schema, { items: 'not-an-array' });
+    expect(notOk.valid).toBe(false);
+    expect(notOk.error).toContain('should be an array');
+  });
+
+  it('validates object types and rejects arrays/null for object type', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        cfg: { type: 'object' },
+      },
+    };
+    expect(validateToolArgs(schema, { cfg: { a: 1 } }).valid).toBe(true);
+    const asArray = validateToolArgs(schema, { cfg: [1, 2] });
+    expect(asArray.valid).toBe(false);
+    expect(asArray.error).toContain('should be an object');
+    const asNull = validateToolArgs(schema, { cfg: null });
+    expect(asNull.valid).toBe(false);
+    expect(asNull.error).toContain('should be an object');
+  });
+
+  it('treats unsupported property types as non-fatal and returns valid', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        count: { type: 'integer' }, // unsupported type in validator
+      },
+    };
+    const res = validateToolArgs(schema, { count: 42 });
+    expect(res.valid).toBe(true);
+    expect(res.error).toBeUndefined();
   });
 });
