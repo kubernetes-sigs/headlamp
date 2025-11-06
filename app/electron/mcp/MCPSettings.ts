@@ -197,3 +197,86 @@ export function makeMcpServersFromSettings(
 
   return mcpServers;
 }
+
+/**
+ * settingsChanges returns a list of human-readable descriptions of changes
+ * between the current MCP settings and next MCP settings.
+ *
+ * @param currentSettings - The current MCP settings, or null if none exist.
+ * @param nextSettings - The next MCP settings to compare against.
+ *
+ * @returns An array of strings describing the changes.
+ */
+export function settingsChanges(
+  currentSettings: MCPSettings | null,
+  nextSettings: MCPSettings | null
+): string[] {
+  const changes: string[] = [];
+
+  // Check if MCP is being enabled/disabled
+  const currentEnabled = currentSettings?.enabled ?? false;
+  const nextEnabled = nextSettings?.enabled ?? false;
+
+  if (currentEnabled !== nextEnabled) {
+    changes.push(`• MCP will be ${nextEnabled ? 'ENABLED' : 'DISABLED'}`);
+  }
+
+  // Get current and next server lists
+  const currentServers = currentSettings?.servers ?? [];
+  const nextServers = nextSettings?.servers ?? [];
+
+  // Check for added servers
+  const currentServerNames = new Set(currentServers.map(s => s.name));
+  const nextServerNames = new Set(nextServers.map(s => s.name));
+
+  for (const server of nextServers) {
+    if (!currentServerNames.has(server.name)) {
+      changes.push(`• ADD server: "${server.name}" (${server.command})`);
+    }
+  }
+
+  // Check for removed servers
+  for (const server of currentServers) {
+    if (!nextServerNames.has(server.name)) {
+      changes.push(`• REMOVE server: "${server.name}"`);
+    }
+  }
+
+  // Check for modified servers
+  for (const nextServer of nextServers) {
+    const currentServer = currentServers.find(s => s.name === nextServer.name);
+    if (currentServer) {
+      const serverChanges: string[] = [];
+
+      // Check enabled status
+      if (currentServer.enabled !== nextServer.enabled) {
+        serverChanges.push(`${nextServer.enabled ? 'enable' : 'disable'}`);
+      }
+
+      // Check command
+      if (currentServer.command !== nextServer.command) {
+        serverChanges.push(`change command: "${currentServer.command}" → "${nextServer.command}"`);
+      }
+
+      // Check arguments
+      const currentArgs = JSON.stringify(currentServer.args || []);
+      const nextArgs = JSON.stringify(nextServer.args || []);
+      if (currentArgs !== nextArgs) {
+        serverChanges.push(`change arguments: ${currentArgs} → ${nextArgs}`);
+      }
+
+      // Check environment variables
+      const currentEnv = JSON.stringify(currentServer.env || {});
+      const nextEnv = JSON.stringify(nextServer.env || {});
+      if (currentEnv !== nextEnv) {
+        serverChanges.push(`change environment variables`);
+      }
+
+      if (serverChanges.length > 0) {
+        changes.push(`• MODIFY server "${nextServer.name}": ${serverChanges.join(', ')}`);
+      }
+    }
+  }
+
+  return changes;
+}
