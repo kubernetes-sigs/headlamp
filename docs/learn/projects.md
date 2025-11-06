@@ -5,9 +5,21 @@ sidebar_position: 5
 
 # Projects
 
-The Projects feature in Headlamp allows you to group and manage Kubernetes resources across multiple clusters. A project combines one or more clusters under a single namespace, providing a unified view and management interface. This is particularly useful for teams working on multi-cluster deployments, as it enables easier resource organization and access control.
+Headlamp Projects make Kubernetes easier to manage by grouping related resources into a single, application-centric view that is designed with developers in mind. Instead of navigating cluster-wide lists or searching for labels, Projects let you organize workloads across one or more namespaces and even multiple clusters into a logical group. This approach gives developers clarity on their application as a whole, making collaboration, troubleshooting, and onboarding much simpler.
 
-By default, Headlamp provides a cluster-centric view of your Kubernetes resources. However, with Projects, you can shift to a namespace-centric perspective that spans multiple clusters. This allows you to see all resources associated with a specific project in one place, regardless of which cluster they reside in.
+## Why Use Projects
+
+Kubernetes applications often span multiple resources and namespaces, which can make management feel fragmented. Projects solve this by:
+
+- Providing a cluster-scoped view of everything that belongs to your application
+
+- Reducing complexity for developers and new users
+
+- Supporting multi-cluster environments without extra configuration
+
+- Respecting Kubernetes RBAC so users only see resources they have permission to access
+
+Projects are built on native Kubernetes resources with no custom CRDs required. Headlamp adds a visual layer that brings these resources together, lowering the barrier to entry and making Kubernetes more approachable.
 
 ## Creating a Project
 
@@ -15,36 +27,35 @@ By default, Headlamp provides a cluster-centric view of your Kubernetes resource
 
 1. From the home dashboard, open **Projects**.
 2. Click **Create Project**.
-3. Fill in the required details:
+3. Fill in these details:
 
    - **Project Name** — A unique name for your project.
    - **Cluster(s)** — Select one or more clusters to include.
    - **Namespace** — Choose or create the namespace associated with this project.
 
-4. Click **Create** to finalize setup.
+4. Click **Create** to finalize.
 
 Once created, the project appears in your list.  
 Selecting it opens a detailed view that includes tabs for **Overview**, **Resources**, **Access**, and **Map**.
+
+![Create Project UI](https://github.com/user-attachments/assets/b8c495e9-dc56-454f-a450-bf742a8d82f5)
 
 ---
 
 ### Option 2: Create a Project from YAML
 
-You can also add resources to a project by importing a YAML configuration file. This associates existing clusters and resources into the project’s namespace.
-Resources defined in your YAML file are added to the **project’s namespace** automatically.
+You can also associate resources with a project by importing a YAML file:
 
 1. In the **Create Project** dialog, select **From YAML**.
-2. Fill in the required details:
+2. Fill in these details:
 
    - **Project Name** — A unique name for your project.
-   - **Cluster(s)** — Select a cluster to add resources to.
+   - **Cluster(s)** — Select one or more clusters to include.
 
-3. Choose one of the following options:
-   - **Upload File** – Import a YAML file from your computer.
-   - **Use URL** – Paste a link to a hosted YAML file.
-4. Click **Create** once the configuration loads.
+3. Upload a file or paste a URL to a hosted YAML file.
+4. Click **Create** to finalize.
 
-Once created, your projects will be listed in the "Projects" section.
+![Create Project from YAML](https://github.com/user-attachments/assets/44469721-09b3-4822-ae5c-3b266a65c9ae)
 
 ## Working with Projects
 
@@ -54,26 +65,42 @@ After creating a project, you can explore it using the available tabs in the Pro
 
 ![Project Overview](https://github.com/user-attachments/assets/a03ed234-e734-47e2-86d6-2bf11bf71963)
 
-Provides a high-level summary of the project — similar to a namespace view, but extended across multiple clusters.  
-Here you can see general information like labels, annotations, and linked clusters.
+Teams often struggle to understand application context because labels, annotations, and cluster details are scattered across multiple views. The Overview tab solves this by providing a single, project-scoped snapshot that brings labels, annotations, linked clusters, and included namespaces together. This clarity helps teams align quickly and reduces time spent piecing information together.
 
 ### Resources Tab
 
 ![Project Resources](https://github.com/user-attachments/assets/fbca87df-34ad-423f-995c-3c04d72ac5b9)
 
-Lists most of the same resources you’d see in a cluster view, scoped to your project namespace.  
-Some resource types may not appear (like Pods in certain cluster configurations).  
-This tab aggregates resources from all clusters associated with the project.
+Finding the right resources across clusters and namespaces can be slow and error-prone when using cluster-wide views. The Resources tab eliminates this friction by listing deployments, pods, services, and other objects scoped to the project. Everything is aggregated across associated clusters, so developers can navigate faster and focus on the application instead of searching through unrelated data.
 
 ### Access Tab
 
 ![Project Access](https://github.com/user-attachments/assets/c0e56948-6fdd-4a4e-b678-7cb5418cb9a3)
 
-Displays and manages access controls for the project, similar to how you’d manage permissions within a namespace.
+Managing permissions in Kubernetes can be confusing, and developers often do not know where they have access. The Access tab provides confidence and safety by showing who can interact with project resources. Headlamp respects Kubernetes RBAC, so users only see and manage what they are allowed to, reducing mistakes and improving security.
 
 ### Map Tab
 
 ![Project Map](https://github.com/user-attachments/assets/87341cfd-3978-4555-b34b-020e4666c789)
 
-Shows a visual map of the resources within your project.  
-This view uses the same resource map as in cluster mode, but filters results to only display items belonging to your project namespace.
+Understanding dependencies and relationships through lists alone is difficult, which slows troubleshooting and planning. The Map tab gives teams a visual representation of how resources within the project connect, such as services to pods and configurations. This makes it easier to spot broken links, missing dependencies, and unhealthy workloads, speeding up issue resolution and improving application reliability.
+
+## Use Cases
+
+### Multi-environment management
+
+Teams often juggle development, test, and production with resources spread across clusters and namespaces, which leads to drift, mistakes, and slow handoffs. Projects give each environment a clear and scoped home so the team sees only what belongs to that environment. By grouping resources across namespaces and even clusters under a single project, you reduce confusion, prevent accidental changes in the wrong place, and create a shared context for releases and rollbacks.
+
+### Developer onboarding
+
+New developers usually face a wall of Kubernetes complexity with scattered views, YAML hunting, and uncertainty about where they have access. Projects provide an application centric space that shows only the resources that matter, while honoring Kubernetes RBAC so people see what they are allowed to work with. A lead can create a project in a few clicks, and a new developer can sign in, find the app, deploy changes, and monitor results without navigating cluster internals.
+
+### Troubleshooting and monitoring
+
+Triage slows down when logs, events, metrics, and relationships are spread across tools and cluster wide views. Projects scope operational data to the application boundary so teams can focus on relevant signals instead of sifting through noise. With resources, logs, events, metrics, and the map all filtered to the project, developers can spot broken links, understand dependencies, and resolve issues faster with greater confidence.
+
+## Get Started Today
+
+Headlamp Projects make Kubernetes simpler, and more application focused. Create a project, link the right namespaces, and give your team a clear, scoped space to collaborate and manage workloads without cluster-wide complexity.
+
+Open Headlamp, select Projects, and start organizing your applications for faster onboarding, easier troubleshooting, and better team alignment.
