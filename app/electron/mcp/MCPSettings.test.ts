@@ -16,6 +16,7 @@
 
 import { loadSettings, saveSettings } from '../settings';
 import { expandEnvAndResolvePaths, loadMCPSettings, saveMCPSettings } from './MCPSettings';
+import * as MCP from './MCPSettings';
 
 jest.mock('../settings', () => ({
   loadSettings: jest.fn(),
@@ -129,5 +130,114 @@ describe('expandEnvAndResolvePaths', () => {
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
     }
+  });
+});
+
+describe('MultiServerMCPClient', () => {
+  beforeEach(() => {
+    // ensure predictable env for merging tests
+    process.env.TEST_ORIG_ENV = 'orig';
+    jest.resetAllMocks();
+  });
+
+  afterEach(() => {
+    delete process.env.TEST_ORIG_ENV;
+  });
+
+  it('returns empty when no mcp settings', () => {
+    jest.spyOn(MCP, 'loadMCPSettings').mockReturnValue(null);
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['cluster1']);
+
+    // Cannot reliably assert the internal call to loadMCPSettings when both functions
+    // are in the same module (jest.spyOn does not intercept internal local references),
+    // so only assert the returned result.
+    expect(result).toEqual({});
+  });
+
+  it('returns empty when mcp is disabled or has no servers', () => {
+    jest.spyOn(MCP, 'loadMCPSettings').mockReturnValue({ enabled: false, servers: [] });
+    expect(MCP.makeMcpServersFromSettings('/cfg', ['c'])).toEqual({});
+
+    jest.spyOn(MCP, 'loadMCPSettings').mockReturnValue({ enabled: true, servers: [] });
+    expect(MCP.makeMcpServersFromSettings('/cfg', ['c'])).toEqual({});
+  });
+
+  it('filters out disabled or invalid servers and builds server entries', () => {
+    const mcpSettings = {
+      enabled: true,
+      servers: [
+        {
+          name: 'valid',
+          command: 'cmd',
+          args: ['arg1'],
+          enabled: true,
+          env: { MCP_VAR: 'mcp' },
+        },
+        {
+          name: 'disabled',
+          command: 'cmd',
+          args: [],
+          enabled: false,
+        },
+        {
+          // missing command
+          name: 'nocmd',
+          command: '',
+          args: [],
+          enabled: true,
+        },
+        {
+          // missing name
+          name: '',
+          command: 'cmd',
+          args: [],
+          enabled: true,
+        },
+      ],
+    };
+
+    (loadSettings as jest.Mock).mockReturnValue({ mcp: mcpSettings });
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
+
+    expect(result).toHaveProperty('valid');
+    expect(Object.keys(result)).toEqual(['valid']);
+
+    const entry = result['valid'] as any;
+    expect(entry.transport).toBe('stdio');
+    expect(entry.command).toBe('cmd');
+    expect(entry.args).toEqual(['arg1']);
+    // env should include process.env and server.env overrides
+    expect(entry.env.MCP_VAR).toBe('mcp');
+    expect(entry.env.TEST_ORIG_ENV).toBe('orig');
+    // restart settings
+    expect(entry.restart).toBeDefined();
+    expect(entry.restart.enabled).toBe(true);
+    expect(entry.restart.maxAttempts).toBe(3);
+    expect(entry.restart.delayMs).toBe(2000);
+  });
+
+  it('expands HEADLAMP_CURRENT_CLUSTER placeholder using provided clusters[0]', () => {
+    const mcpSettings = {
+      enabled: true,
+      servers: [
+        {
+          name: 'withCluster',
+          command: 'cmd',
+          args: ['connect', 'HEADLAMP_CURRENT_CLUSTER'],
+          enabled: true,
+        },
+      ],
+    };
+
+    (loadSettings as jest.Mock).mockReturnValue({ mcp: mcpSettings });
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['my-current-cluster']);
+
+    expect(result).toHaveProperty('withCluster');
+    const entry = result['withCluster'] as any;
+    // the expand function should have replaced the placeholder
+    expect(entry.args).toEqual(['connect', 'my-current-cluster']);
   });
 });

@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
+import type { ClientConfig } from '@langchain/mcp-adapters';
 import os from 'os';
 import path from 'path';
 import { loadSettings, saveSettings } from '../settings';
+
+const DEBUG = true;
 
 interface MCPSettings {
   /**
@@ -140,4 +143,57 @@ export function expandEnvAndResolvePaths(args: string[], cluster: string | null 
 
     return expandedArg;
   });
+}
+
+/**
+ * Make mpcServers from settings for the mpcServers arg of MultiServerMCPClient.
+ *
+ * @param settingsPath - path to settings file
+ * @param clusters - list of current clusters
+ *
+ * @returns Record of MCP servers
+ */
+export function makeMcpServersFromSettings(
+  settingsPath: string,
+  clusters: string[]
+): ClientConfig['mcpServers'] {
+  const mcpServers: ClientConfig['mcpServers'] = {};
+
+  const mcpSettings = loadMCPSettings(settingsPath);
+  if (
+    !mcpSettings ||
+    !mcpSettings.enabled ||
+    !mcpSettings.servers ||
+    mcpSettings.servers.length === 0
+  ) {
+    return mcpServers;
+  }
+
+  for (const server of mcpSettings.servers) {
+    if (!server.enabled || !server.name || !server.command) {
+      continue;
+    }
+
+    const expandedArgs = expandEnvAndResolvePaths(server.args || [], clusters[0] || null);
+
+    if (DEBUG) {
+      console.log(`Expanded args for ${server.name}:`, expandedArgs);
+    }
+
+    const serverEnv = server.env ? { ...process.env, ...server.env } : process.env;
+
+    mcpServers[server.name] = {
+      transport: 'stdio',
+      command: server.command,
+      args: expandedArgs,
+      env: serverEnv as Record<string, string>,
+      restart: {
+        enabled: true,
+        maxAttempts: 3,
+        delayMs: 2000,
+      },
+    };
+  }
+
+  return mcpServers;
 }
