@@ -324,3 +324,106 @@ describe('summarizeMcpToolStateChanges', () => {
     expect(res.summaryText).toBe('');
   });
 });
+
+describe('initConfigFromClientTools', () => {
+  let toolStatePath: string;
+
+  beforeEach(() => {
+    toolStatePath = tmpPath();
+    try {
+      if (fs.existsSync(toolStatePath)) fs.unlinkSync(toolStatePath);
+    } catch {
+      // ignore
+    }
+  });
+
+  afterEach(() => {
+    try {
+      if (fs.existsSync(toolStatePath)) fs.unlinkSync(toolStatePath);
+    } catch {
+      // ignore
+    }
+  });
+
+  it('clears config when no client tools are provided', async () => {
+    const toolState = new MCPToolStateStore(toolStatePath);
+    await toolState.initialize();
+
+    // Seed with some config
+    toolState.setConfig({
+      someServer: {
+        someTool: { enabled: false, usageCount: 2, inputSchema: null, description: '' },
+      },
+    });
+    expect(Object.keys(toolState.getConfig()).length).toBeGreaterThan(0);
+
+    // init with empty client tools should clear the config
+    toolState.initConfigFromClientTools([]);
+    expect(Object.keys(toolState.getConfig())).toHaveLength(0);
+  });
+
+  it('groups tools by server, extracts schema and description, and sets defaults', async () => {
+    const toolState = new MCPToolStateStore(toolStatePath);
+    await toolState.initialize();
+
+    const clientTools: any[] = [
+      {
+        name: 'srvA__tool-x',
+        schema: { type: 'object', properties: { a: { type: 'string' } } },
+        description: 'desc x',
+      },
+      { name: 'tool-no-server', description: 'global tool' }, // no schema provided
+    ];
+
+    toolState.initConfigFromClientTools(clientTools);
+
+    const sx = toolState.getToolStats('srvA', 'tool-x');
+    expect(sx).not.toBeNull();
+    expect((sx as any).inputSchema).toEqual({
+      type: 'object',
+      properties: { a: { type: 'string' } },
+    });
+    expect((sx as any).description).toBe('desc x');
+    expect(sx?.enabled).toBe(true);
+    expect(sx?.usageCount).toBe(0);
+
+    const gn = toolState.getToolStats('default', 'tool-no-server');
+    expect(gn).not.toBeNull();
+    expect((gn as any).inputSchema).toBeNull();
+    expect((gn as any).description).toBe('global tool');
+    expect(gn?.enabled).toBe(true);
+  });
+
+  it('preserves enabled state and usageCount from existing config when tool still exists', async () => {
+    const toolState = new MCPToolStateStore(toolStatePath);
+    await toolState.initialize();
+
+    // Seed with a tool that has specific enabled/usage values
+    toolState.setConfig({
+      myServer: {
+        preservedTool: {
+          enabled: false,
+          usageCount: 5,
+          inputSchema: null,
+          description: 'old desc',
+        },
+      },
+    });
+
+    // Client reports same tool (with updated schema/description)
+    const clientTools: any[] = [
+      { name: 'myServer__preservedTool', schema: { type: 'string' }, description: 'new desc' },
+    ];
+
+    toolState.initConfigFromClientTools(clientTools);
+
+    const p = toolState.getToolStats('myServer', 'preservedTool');
+    expect(p).not.toBeNull();
+    // preserved values should remain
+    expect(p?.enabled).toBe(false);
+    expect(p?.usageCount).toBe(5);
+    // schema/description should be updated from client tools
+    expect((p as any).inputSchema).toEqual({ type: 'string' });
+    expect((p as any).description).toBe('new desc');
+  });
+});
