@@ -290,6 +290,9 @@ spec:
             # Check if callbackURL is non empty either from env or oidc.config
             - "-oidc-callback-url=$(OIDC_CALLBACK_URL)"
             {{- end }}
+            {{- if or (eq ($oidc.usePKCE | toString) "true") (eq $usePKCE "true") }}
+            - "-oidc-use-pkce=$(OIDC_USE_PKCE)"
+            {{- end }}
             {{- if or (ne $oidc.validatorClientID "") (ne $validatorClientID "") }}
             # Check if validatorClientID is non empty either from env or oidc.config
             - "-oidc-validator-client-id=$(OIDC_VALIDATOR_CLIENT_ID)"
