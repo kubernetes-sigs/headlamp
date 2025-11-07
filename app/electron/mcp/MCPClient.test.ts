@@ -301,3 +301,166 @@ describe('MCPClient logging behavior', () => {
     infoSpy.mockRestore();
   });
 });
+
+describe('MCPClient#mcpExecuteTool', () => {
+  const cfgPath = tmpPath();
+  const settingsPath = tmpPath();
+
+  beforeEach(() => {
+    try {
+      if (fs.existsSync(cfgPath)) fs.unlinkSync(cfgPath);
+    } catch {}
+    try {
+      if (fs.existsSync(settingsPath)) fs.unlinkSync(settingsPath);
+    } catch {}
+  });
+
+  it('executes a tool successfully and records usage', async () => {
+    jest.resetModules();
+    jest.doMock('./MCPToolStateStore', () => ({
+      parseServerNameToolName: jest.fn().mockImplementation((fullName: string) => {
+        const [serverName, ...rest] = fullName.split('.');
+        return { serverName, toolName: rest.join('.') };
+      }),
+      validateToolArgs: jest.fn().mockReturnValue({ valid: true }),
+      MCPToolStateStore: jest.fn().mockImplementation(() => ({
+        // initialize config from client tools is invoked during MCPClient.initialize
+        // provide a no-op mock so tests that don't assert this behavior don't fail
+        initConfigFromClientTools: jest.fn(),
+      })),
+    }));
+
+    // Ensure initialize can construct a client with getTools/close methods
+    jest.doMock('@langchain/mcp-adapters', () => ({
+      MultiServerMCPClient: jest.fn().mockImplementation(() => ({
+        getTools: jest.fn().mockResolvedValue([]),
+        close: jest.fn().mockResolvedValue(undefined),
+      })),
+    }));
+
+    const MCPClient = require('./MCPClient').default as typeof import('./MCPClient').default;
+    const client = new MCPClient(cfgPath, settingsPath) as any;
+
+    await client.initialize();
+
+    const invoke = jest.fn().mockResolvedValue({ ok: true });
+    client.clientTools = [{ name: 'serverA.tool1', schema: {}, invoke }];
+    client.mcpToolState = {
+      isToolEnabled: jest.fn().mockReturnValue(true),
+      recordToolUsage: jest.fn(),
+    };
+    client.isInitialized = true;
+    client.client = {};
+
+    const res = await client.mcpExecuteTool('serverA.tool1', [{ a: 1 }], 'call-1');
+
+    expect(res.success).toBe(true);
+    expect(res.result).toEqual({ ok: true });
+    expect(res.toolCallId).toBe('call-1');
+    expect(client.mcpToolState.recordToolUsage).toHaveBeenCalledWith('serverA', 'tool1');
+  });
+
+  it('returns error when parameter validation fails', async () => {
+    jest.resetModules();
+    jest.doMock('./MCPToolStateStore', () => ({
+      parseServerNameToolName: jest
+        .fn()
+        .mockReturnValue({ serverName: 'serverA', toolName: 'tool1' }),
+      validateToolArgs: jest.fn().mockReturnValue({ valid: false, error: 'bad-params' }),
+      MCPToolStateStore: jest.fn().mockImplementation(() => ({
+        initConfigFromClientTools: jest.fn(),
+      })),
+    }));
+
+    const MCPClient = require('./MCPClient').default as typeof import('./MCPClient').default;
+    const client = new MCPClient(cfgPath, settingsPath) as any;
+
+    // ensure the client is initialized so mcpExecuteTool follows the normal execution path
+    await client.initialize();
+
+    client.clientTools = [{ name: 'serverA.tool1', schema: {}, invoke: jest.fn() }];
+    client.mcpToolState = {
+      isToolEnabled: jest.fn().mockReturnValue(true),
+      recordToolUsage: jest.fn(),
+    };
+    client.isInitialized = true;
+    // provide a minimal client object so mcpExecuteTool does not early-return
+    client.client = {};
+
+    const res = await client.mcpExecuteTool('serverA.tool1', [], 'call-2');
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/Parameter validation failed: bad-params/);
+    expect(res.toolCallId).toBe('call-2');
+  });
+
+  it('returns error when tool is disabled', async () => {
+    jest.resetModules();
+    jest.doMock('./MCPToolStateStore', () => ({
+      parseServerNameToolName: jest.fn().mockReturnValue({ serverName: 's', toolName: 't' }),
+      validateToolArgs: jest.fn().mockReturnValue({ valid: true }),
+      MCPToolStateStore: jest.fn().mockImplementation(() => ({})),
+    }));
+
+    const client = new MCPClient(cfgPath, settingsPath) as any;
+
+    client.clientTools = [{ name: 's.t', schema: {}, invoke: jest.fn() }];
+    client.mcpToolState = {
+      isToolEnabled: jest.fn().mockReturnValue(false),
+      recordToolUsage: jest.fn(),
+    };
+    client.isInitialized = true;
+    client.client = {};
+
+    const res = await client.mcpExecuteTool('s.t', [], 'call-3');
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/disabled/);
+    expect(res.toolCallId).toBe('call-3');
+  });
+
+  it('returns error when tool not found', async () => {
+    jest.resetModules();
+    jest.doMock('./MCPToolStateStore', () => ({
+      parseServerNameToolName: jest
+        .fn()
+        .mockReturnValue({ serverName: 'srv', toolName: 'missing' }),
+      validateToolArgs: jest.fn().mockReturnValue({ valid: true }),
+      MCPToolStateStore: jest.fn().mockImplementation(() => ({})),
+    }));
+
+    const client = new MCPClient(cfgPath, settingsPath) as any;
+
+    // clientTools does not contain the requested tool
+    client.clientTools = [{ name: 'srv.other', schema: {}, invoke: jest.fn() }];
+    client.mcpToolState = {
+      isToolEnabled: jest.fn().mockReturnValue(true),
+      recordToolUsage: jest.fn(),
+    };
+    client.isInitialized = true;
+    // provide a minimal client object so mcpExecuteTool does not early-return
+    client.client = {};
+
+    const res = await client.mcpExecuteTool('srv.missing', [], 'call-4');
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/not found/);
+    expect(res.toolCallId).toBe('call-4');
+  });
+
+  it('returns undefined when mcpToolState is not set', async () => {
+    jest.resetModules();
+    // Keep default behavior for parse/validate but it's irrelevant here
+    jest.doMock('./MCPToolStateStore', () => ({
+      parseServerNameToolName: jest.fn().mockReturnValue({ serverName: 'x', toolName: 'y' }),
+      validateToolArgs: jest.fn().mockReturnValue({ valid: true }),
+      MCPToolStateStore: jest.fn().mockImplementation(() => ({})),
+    }));
+
+    const client = new MCPClient(cfgPath, settingsPath) as any;
+
+    client.clientTools = [{ name: 'x.y', schema: {}, invoke: jest.fn() }];
+    client.mcpToolState = null;
+    client.isInitialized = true;
+
+    const res = await client.mcpExecuteTool('x.y', [], 'call-5');
+    expect(res).toBeUndefined();
+  });
+});
