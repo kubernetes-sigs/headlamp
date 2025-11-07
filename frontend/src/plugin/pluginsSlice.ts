@@ -104,6 +104,14 @@ export type PluginInfo = {
    */
   isCompatible?: boolean;
 
+  /** Headlamp-specific plugin package configuration. */
+  headlamp?: {
+    /** Whether the plugin is enabled when first discovered. */
+    enabledByDefault?: boolean;
+    /** Array of supported locales for i18n. */
+    i18n?: string[];
+  };
+
   version?: string; // unused by PluginSettings
   author?: string; // unused by PluginSettings
   /**

@@ -52,6 +52,9 @@ type PluginSource = {
 
   /** Expected hexadecimal SHA-256 digest of the selected archive. */
   sha256?: string;
+
+  /** Whether the bundled plugin is enabled when first discovered. */
+  enabledByDefault?: boolean;
 };
 
 /** Parsed subset of an app build manifest used during plugin setup. */
@@ -578,7 +581,7 @@ export async function main(): Promise<void> {
 
   const stagingFolder = fs.mkdtempSync(path.join(path.dirname(PLUGIN_FOLDER), '.plugins-stage-'));
   try {
-    for (const { name, packageName, archive, file, sha256 } of plugins) {
+    for (const { name, packageName, archive, file, sha256, enabledByDefault } of plugins) {
       if (archive) {
         await fetchArchive(name, archive, sha256, stagingFolder);
       }
@@ -597,8 +600,14 @@ export async function main(): Promise<void> {
           fs.rmSync(privateArchive.directory, { recursive: true, force: true });
         }
       }
-
-      verifyPluginIdentity(path.join(stagingFolder, name, 'package.json'), packageName);
+      const packageJsonPath = path.join(stagingFolder, name, 'package.json');
+  verifyPluginIdentity(packageJsonPath, packageName);
+      if (enabledByDefault !== undefined && fs.existsSync(packageJsonPath)) {
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+        packageJson.headlamp = packageJson.headlamp || {};
+        packageJson.headlamp.enabledByDefault = enabledByDefault;
+        fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+      }
     }
     replacePluginFolder(stagingFolder);
   } finally {
