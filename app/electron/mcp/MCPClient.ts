@@ -18,7 +18,7 @@ import type { DynamicStructuredTool } from '@langchain/core/dist/tools/index';
 import { MultiServerMCPClient } from '@langchain/mcp-adapters';
 import { type BrowserWindow, dialog } from 'electron';
 import { hasClusterDependentServers, makeMcpServersFromSettings } from './MCPSettings';
-import { MCPToolStateStore } from './MCPToolStateStore';
+import { MCPToolStateStore, parseServerNameToolName, validateToolArgs } from './MCPToolStateStore';
 
 const DEBUG = true;
 
@@ -246,6 +246,64 @@ export default class MCPClient {
       // Restore previous cluster on error
       this.currentClusters = oldClusters;
       throw error;
+    }
+  }
+
+  /**
+   * Execute an MCP tool with given parameters.
+   *
+   * @param toolName - The full name of the tool to execute (including server prefix)
+   * @param args - The arguments to pass to the tool
+   * @param toolCallId - Unique identifier for this tool call
+   *
+   * @returns Result object containing success status and output or error message
+   */
+  private async mcpExecuteTool(toolName: string, args: any[], toolCallId: string) {
+    console.log('args in mcp-execute-tool:', args);
+    if (!this.mcpToolState) {
+      return;
+    }
+    try {
+      await this.initializeClient();
+      if (!this.client || this.clientTools.length === 0) {
+        throw new Error('MCP client not initialized or no tools available');
+      }
+      // Parse tool name
+      const { serverName, toolName: actualToolName } = parseServerNameToolName(toolName);
+
+      // Check if tool is enabled
+      const isEnabled = this.mcpToolState.isToolEnabled(serverName, actualToolName);
+      if (!isEnabled) {
+        throw new Error(`Tool ${actualToolName} from server ${serverName} is disabled`);
+      }
+      // Find the tool by name
+      const tool = this.clientTools.find(t => t.name === toolName);
+      if (!tool) {
+        throw new Error(`Tool ${toolName} not found`);
+      }
+      // Validate parameters against schema from configuration
+      const validation = validateToolArgs(tool.schema, args);
+
+      if (!validation.valid) {
+        throw new Error(`Parameter validation failed: ${validation.error}`);
+      }
+      console.log(`Executing MCP tool: ${toolName} with args:`, args);
+      // Execute the tool directly using LangChain's invoke method
+      const result = await tool.invoke(args);
+      console.log(`MCP tool ${toolName} executed successfully`);
+      // Record tool usage
+      this.mcpToolState.recordToolUsage(serverName, actualToolName);
+      return {
+        success: true,
+        result,
+        toolCallId,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        toolCallId,
+      };
     }
   }
 }
