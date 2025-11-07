@@ -17,6 +17,7 @@
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import { BrowserWindow, dialog } from 'electron';
 import { IpcMainEvent } from 'electron/main';
+import fs from 'fs';
 import crypto from 'node:crypto';
 import path from 'path';
 import i18n from './i18next.config';
