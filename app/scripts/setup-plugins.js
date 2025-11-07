@@ -138,7 +138,7 @@ async function main(plugins = manifest.plugins) {
   // Fetch the plugins from the manifest
   if (!!plugins) {
     for (const plugin of plugins) {
-      const { name, archive, file } = plugin;
+      const { name, archive, file, enabledByDefault } = plugin;
 
       console.log('Setting up plugin', name, 'from', archive || file, '...');
 
@@ -149,6 +149,18 @@ async function main(plugins = manifest.plugins) {
       if (!!file) {
         const absPath = path.resolve(path.dirname(MANIFEST_FILE), file);
         await extractArchive(name, absPath);
+      }
+
+      const pluginFolder = path.join(PLUGIN_FOLDER, name);
+      const packageJsonPath = path.join(pluginFolder, 'package.json');
+
+      if (enabledByDefault !== undefined && fs.existsSync(packageJsonPath)) {
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+        packageJson.headlamp = packageJson.headlamp || {};
+        packageJson.headlamp.enabledByDefault = enabledByDefault;
+
+        fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+        console.log(`Plugin ${name} enabledByDefault: ${enabledByDefault}`);
       }
     }
   }
