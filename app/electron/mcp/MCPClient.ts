@@ -16,9 +16,22 @@
 
 import type { DynamicStructuredTool } from '@langchain/core/dist/tools/index';
 import { MultiServerMCPClient } from '@langchain/mcp-adapters';
-import { type BrowserWindow, dialog } from 'electron';
-import { hasClusterDependentServers, makeMcpServersFromSettings } from './MCPSettings';
-import { MCPToolStateStore, parseServerNameToolName, validateToolArgs } from './MCPToolStateStore';
+import { type BrowserWindow, dialog, ipcMain } from 'electron';
+import {
+  hasClusterDependentServers,
+  loadMCPSettings,
+  makeMcpServersFromSettings,
+  MCPSettings,
+  saveMCPSettings,
+  showSettingsChangeDialog,
+} from './MCPSettings';
+import {
+  MCPToolsConfig,
+  MCPToolStateStore,
+  parseServerNameToolName,
+  showToolsConfigConfirmationDialog,
+  validateToolArgs,
+} from './MCPToolStateStore';
 
 const DEBUG = true;
 
@@ -64,6 +77,7 @@ export default class MCPClient {
   constructor(configPath: string, settingsPath: string) {
     this.configPath = configPath;
     this.settingsPath = settingsPath;
+    this.setupIpcHandlers();
   }
 
   /**
@@ -305,6 +319,250 @@ export default class MCPClient {
         toolCallId,
       };
     }
+  }
+
+  private async mcpGetStatus() {
+    return {
+      isInitialized: this.isInitialized,
+      hasClient: this.client !== null,
+    };
+  }
+
+  private async mcpResetClient() {
+    try {
+      if (!this.mainWindow) {
+        throw new Error('Main window not set for MCP client');
+      }
+      // Show confirmation dialog
+      const userConfirmed = await showConfirmationDialog(
+        this.mainWindow,
+        'MCP Client Reset',
+        'The application wants to reset the MCP client. This will restart all MCP server connections.',
+        'Reset MCP client'
+      );
+
+      if (!userConfirmed) {
+        return {
+          success: false,
+          error: 'User cancelled the operation',
+        };
+      }
+
+      console.log('Resetting MCP client...');
+
+      if (this.client) {
+        // If the client has a close/dispose method, call it
+        if (typeof (this.client as any).close === 'function') {
+          await (this.client as any).close();
+        }
+      }
+
+      this.client = null;
+      this.isInitialized = false;
+      this.initializationPromise = null;
+
+      // Re-initialize
+      await this.initializeClient();
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error resetting MCP client:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  private async mcpUpdateConfig(mcpSettings: MCPSettings) {
+    try {
+      if (!this.mainWindow) {
+        throw new Error('Main window not set for MCP client');
+      }
+      // Get current configuration for comparison
+      const currentSettings = loadMCPSettings(this.settingsPath);
+      console.log('Requested MCP configuration update:', mcpSettings);
+      // Show detailed confirmation dialog with changes
+      const userConfirmed = await showSettingsChangeDialog(
+        this.mainWindow,
+        currentSettings,
+        mcpSettings
+      );
+
+      if (!userConfirmed) {
+        return {
+          success: false,
+          error: 'User cancelled the configuration update',
+        };
+      }
+
+      console.log('Updating MCP configuration with user confirmation...');
+      saveMCPSettings(this.settingsPath, mcpSettings);
+
+      // Reset and reinitialize client with new config
+      if (this.client && typeof this.client.close === 'function') {
+        await this.client.close();
+      }
+      this.client = null;
+      this.isInitialized = false;
+      this.initializationPromise = null;
+
+      // Re-initialize with new config
+      await this.initializeClient();
+
+      console.log('MCP configuration updated successfully');
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating MCP configuration:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  private async mcpGetConfig() {
+    try {
+      const currentSettings = loadMCPSettings(this.settingsPath);
+
+      return {
+        success: true,
+        config: currentSettings || { enabled: false, servers: [] },
+      };
+    } catch (error) {
+      console.error('Error getting MCP configuration:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        config: { enabled: false, servers: [] },
+      };
+    }
+  }
+
+  private async mcpGetToolsConfig() {
+    try {
+      const toolsConfig = this.mcpToolState?.getConfig();
+      return {
+        success: true,
+        config: toolsConfig,
+      };
+    } catch (error) {
+      console.error('Error getting MCP tools configuration:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        config: {},
+      };
+    }
+  }
+
+  private async mcpUpdateToolsConfig(toolsConfig: MCPToolsConfig) {
+    console.log('Requested MCP tools configuration update:', toolsConfig);
+    try {
+      if (!this.mainWindow) {
+        throw new Error('Main window not set for MCP client');
+      }
+      // Show confirmation dialog with detailed changes
+      const currentToolsConfig = this.mcpToolState?.getConfig() || {};
+      const userConfirmed = await showToolsConfigConfirmationDialog(
+        this.mainWindow,
+        currentToolsConfig,
+        toolsConfig
+      );
+
+      if (!userConfirmed) {
+        return {
+          success: false,
+          error: 'User cancelled the operation',
+        };
+      }
+
+      this.mcpToolState?.setConfig(toolsConfig);
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating MCP tools configuration:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  private async mcpSetToolEnabled(serverName: string, toolName: string, enabled: boolean) {
+    try {
+      this.mcpToolState?.setToolEnabled(serverName, toolName, enabled);
+      return { success: true };
+    } catch (error) {
+      console.error('Error setting tool enabled state:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  private async mcpGetToolStats(serverName: string, toolName: string) {
+    try {
+      const stats = this.mcpToolState?.getToolStats(serverName, toolName);
+      return {
+        success: true,
+        stats,
+      };
+    } catch (error) {
+      console.error('Error getting tool statistics:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stats: null,
+      };
+    }
+  }
+
+  private async mcpClusterChange(cluster: string | null) {
+    try {
+      console.log('Received cluster change event:', cluster);
+      if (cluster !== null) {
+        // @todo: support multiple clusters
+        await this.handleClustersChange([cluster]);
+      }
+      return {
+        success: true,
+      };
+    } catch (error) {
+      console.error('Error handling cluster change:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Setup IPC handlers for MCP operations.
+   */
+  private setupIpcHandlers(): void {
+    ipcMain?.handle('mcp-execute-tool', async (event, { toolName, args, toolCallId }) =>
+      this.mcpExecuteTool(toolName, args, toolCallId)
+    );
+    ipcMain?.handle('mcp-get-status', async () => this.mcpGetStatus());
+    ipcMain?.handle('mcp-reset-client', async () => this.mcpResetClient());
+    ipcMain?.handle('mcp-update-config', async (event, mcpSettings: MCPSettings) =>
+      this.mcpUpdateConfig(mcpSettings)
+    );
+    ipcMain?.handle('mcp-get-config', async () => this.mcpGetConfig());
+    ipcMain?.handle('mcp-get-tools-config', async () => this.mcpGetToolsConfig());
+    ipcMain?.handle('mcp-update-tools-config', async (event, toolsConfig: MCPToolsConfig) =>
+      this.mcpUpdateToolsConfig(toolsConfig)
+    );
+    ipcMain?.handle('mcp-set-tool-enabled', async (event, { serverName, toolName, enabled }) =>
+      this.mcpSetToolEnabled(serverName, toolName, enabled)
+    );
+    ipcMain?.handle('mcp-get-tool-stats', async (event, { serverName, toolName }) =>
+      this.mcpGetToolStats(serverName, toolName)
+    );
+    ipcMain?.handle('mcp-cluster-change', async (event, { cluster }) =>
+      this.mcpClusterChange(cluster)
+    );
   }
 }
 

@@ -22,7 +22,7 @@ import { loadSettings, saveSettings } from '../settings';
 
 const DEBUG = true;
 
-interface MCPSettings {
+export interface MCPSettings {
   /**
    * Whether MCP is enabled or not
    */
