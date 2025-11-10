@@ -123,7 +123,11 @@
       "electron/windowSize.js",
       "electron/env-paths.js",
       "electron/plugin-management.js",
-      "electron/runCmd.js"
+      "electron/runCmd.js",
+      "electron/mcp/MCPClient.js",
+      "electron/mcp/MCPToolStateStore.js",
+      "electron/settings.js",
+      "electron/mcp/MCPSettings.js"
     ],
     "extraResources": [
       {
@@ -171,6 +175,7 @@
     "typescript": "5.5.4"
   },
   "dependencies": {
+    "@langchain/mcp-adapters": "^1.0.0",
     "copyfiles": "^2.4.1",
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.5",
