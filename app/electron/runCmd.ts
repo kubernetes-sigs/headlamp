@@ -21,7 +21,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'path';
 import i18n from './i18next.config';
-import { defaultPluginsDir } from './plugin-management';
+import { defaultPluginsDir, defaultUserPluginsDir } from './plugin-management';
 
 /**
  * Data sent from the renderer process when a 'run-command' event is emitted.
@@ -225,8 +225,22 @@ export function checkPermissionSecret(
  * @param scriptName script relative to plugins folder. "headlamp-k8s-minikube/bin/manage-minikube.js"
  */
 function getPluginsScriptPath(scriptName: string) {
-  const userPlugins = defaultPluginsDir();
-  return path.join(userPlugins, scriptName);
+  const userPlugins = defaultUserPluginsDir();
+  if (fs.existsSync(path.join(userPlugins, scriptName))) {
+    return path.join(userPlugins, scriptName);
+  }
+
+  const devPlugins = defaultPluginsDir();
+  if (fs.existsSync(path.join(devPlugins, scriptName))) {
+    return path.join(devPlugins, scriptName);
+  }
+
+  const shippedPlugins = path.join(process.resourcesPath, '.plugins');
+  if (fs.existsSync(path.join(shippedPlugins, scriptName))) {
+    return path.join(shippedPlugins, scriptName);
+  }
+
+  return path.join(devPlugins, scriptName);
 }
 
 /**

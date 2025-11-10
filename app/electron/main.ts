@@ -1702,7 +1702,7 @@ function startElecron() {
     }
 
     // Add the installed plugins as well
-    const userPluginBinDirs = getPluginBinDirectories(defaultPluginsDir());
+    const userPluginBinDirs = getPluginBinDirectories(defaultUserPluginsDir());
     if (userPluginBinDirs.length > 0) {
       addToPath(userPluginBinDirs, 'userPluginBinDirs plugin');
     }
