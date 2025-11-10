@@ -66,15 +66,15 @@ These capabilities make Headlamp a powerful tool for working with Kubernetes loc
 
 With these detailed instructions we're going to show how to add a local cluster, deploy something, and then delete the cluster.
 
-### Add Local Cluster 
+### Add Local Cluster
 
 #### Add Local Cluster (Step 1) - Select the Add cluster button
 
-<img alt="The Overview Home page with the Add cluster link highlighted" src="select-add-cluster-1.png" />
+![The Overview Home page with the Add cluster link highlighted](./select-add-cluster-1.png)
 
 #### Add Local Cluster (Step 2) - Select the local cluster provider to create a local cluster on your PC
 
-<img alt="Page with a Providers list and the Create Local Cluster section add button highlighted" src="select-local-cluster-provider-2.png" />
+![Page with a Providers list and the Create Local Cluster section add button highlighted](./select-local-cluster-provider-2.png)
 
 #### Add Local Cluster (Step 3) - appropriate driver is detected
 
@@ -84,14 +84,13 @@ Note how there is a warning about memory usage? We try to limit the amount of me
 
 On Windows HyperV can be used which comes built into Windows. On Mac no extra software is required (it gets bundled with vfkit).
 
-<img alt="Create cluster screen with the start button highlighted. Shows the user is warned about being low on memory." src="create-cluster-start-3.png" />
-
+![Create cluster screen with the start button highlighted. Shows the user is warned about being low on memory.](./create-cluster-start-3.png)
 
 #### Add Local Cluster (Step 4) - Cluster has been created, now go Home to use it
 
 It shows some logs during cluster creation to show what's happening. When it's done we can go to the Overview on the Home to see what's happening in our cluster.
 
-<img alt="Headlamp cluster creation information showing the cluster has been created" src="cluster-started-press-home-4.png" />
+![Headlamp cluster creation information showing the cluster has been created](./cluster-started-press-home-4.png)
 
 The cluster has been created. How do you access it from the command line? If you use kubectl on the command line you can access your cluster with that. The `.kube/config` file has been modified with the new cluster added.
 
@@ -142,22 +141,17 @@ spec:
       targetPort: 80
   type: NodePort
 ```
-
-<img alt="Screen shot of headlamp showing the YAML getting applied" src="apply-yaml-5.png" />
-
+![Screen shot of headlamp showing the YAML getting applied](./apply-yaml-5.png)
 
 #### Deploy an Application (Step 2) - See the pod details that it has deployed
 
-<img alt="A screen shot of Headlamp showing the pod details that it has deployed" src="pod-details-6.png" />
-
+![A screen shot of Headlamp showing the pod details that it has deployed](./pod-details-6.png)
 
 #### Deploy an Application (Step 3) - See the deployment in the browser
 
 Here we see the deployed application in the browser.
 
-<img alt="We see the nginx demo application deployed in the browser" src="nginx-in-browser-7.png" />
-
-
+![We see the nginx demo application deployed in the browser](./nginx-in-browser-7.png)
 
 ### Show Cluster Details
 
@@ -165,15 +159,13 @@ Here we see the deployed application in the browser.
 
 On the cluster overview page you can see events related to the cluster and CPU and memory, if the pods are running and if the nodes are healthy.
 
-<img alt="Cluster overview with cpu memory and events shown" src="cluster-overview-8.png" />
+![Cluster overview with cpu memory and events shown](./cluster-overview-8.png)
 
 #### Show Cluster Details (Search for our demo deployment)
 
 You can search for different resources in the Kubernetes cluster. Here we see the search results for the demo deployment we just made.
 
-<img alt="Shows the search items for nginx used in the demo" src="search-results-nginx-9.png" />
-
-
+![Shows the search items for nginx used in the demo](./search-results-nginx-9.png)
 
 ### Delete Cluster
 
@@ -182,25 +174,21 @@ When you want to clean up the cluster you have the option of deleting it, or sto
 Deleting it frees all the memory and disk used by the cluster, and deletes all resources in the local Kubernetes cluster.
 
 #### Delete Cluster (Step 1) - select action menu for cluster you want to delete
-<img alt="Cluster action menu with delete option highlighted" src="cluster-action-delete-10.png" />
-
+![Cluster action menu with delete option highlighted](./cluster-action-delete-10.png)
 
 #### Delete Cluster (Step 2) - confirm deletion
 
-
-<img alt="Headlamp is showing a dialog confirming deletion" src="delete-confirmation-11.png" />
-
+![Headlamp is showing a dialog confirming deletion](./delete-confirmation-11.png)
 
 ### Starting and stopping clusters
 
 Instead of deleting a cluster, you might want to just stop it instead. This frees up the memory and CPU usage on your laptop, but the disk space is still allocated to the cluster.
 
-
 Go to the Overview Home page, and you'll see a start and stop button.
 
-<img alt="Cluster overview page showing start and stop buttons" src="start-stop-buttons-12.png" />
+![Cluster overview page showing start and stop buttons](./start-stop-buttons-12.png)
 
-<img alt="Headlamp Overview Home page showing start and stop cluster buttons" src="overview-start-stop-13.png" />
+![Headlamp Overview Home page showing start and stop cluster buttons](./overview-start-stop-13.png)
 
 ## Post-Deployment Experience
 
@@ -230,23 +218,21 @@ With your local cluster running, you can begin exploring Kubernetes in a hands-o
 
 This is a safe space to learn, explore, and build without needing cloud infrastructure or command line tools.
 
-
 ### See relationships between resources with the map view
 
-<img alt="The map view showing relationships between deployments pods and namespaces" src="map-view-14.png" />
+![The map view showing relationships between deployments pods and namespaces](./map-view-14.png)
 
 ### Experiment with resource configurations using the YAML editor
 
-<img alt="Showing the YAML editor for a deployment" src="yaml-editor-15.png" />
+![Showing the YAML editor for a deployment](./yaml-editor-15.png)
 
 ### Extend your environment with plugins for metrics and insights
 
-<img alt="Plugin catalog screen shot showing different plugins available" src="plugin-catalog-16.png" />
+![Plugin catalog screen shot showing different plugins available](./plugin-catalog-16.png)
 
 ### Ask the AI assistant
 
-<img alt="ai assistant plugin showing a chat interface" src="ai-assistant-17.png" />
-
+![AI assistant plugin showing a chat interface](./ai-assistant-17.png)
 
 
 
