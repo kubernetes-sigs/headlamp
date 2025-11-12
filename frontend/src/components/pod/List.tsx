@@ -16,6 +16,7 @@
 
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
+import Fade from '@mui/material/Fade';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '../../lib/k8s/api/v2/ApiError';
@@ -60,7 +61,18 @@ export function makePodStatusLabel(pod: Pod, showContainerStatus: boolean = true
   const containerIndicators = containerStatuses.map((cs, index) => {
     const { color, tooltip } = getContainerDisplayStatus(cs);
     return (
-      <LightTooltip title={tooltip} key={index}>
+      <LightTooltip
+        title={tooltip}
+        key={index}
+        TransitionComponent={Fade}
+        TransitionProps={{ timeout: 0 }}
+        slotProps={{
+          popper: {
+            modifiers: [{ name: 'computeStyles', options: { gpuAcceleration: false } }],
+          },
+          tooltip: { sx: { maxWidth: 'none', willChange: 'opacity' } },
+        }}
+      >
         <Icon icon="mdi:circle" style={{ color }} width="1rem" height="1rem" />
       </LightTooltip>
     );
@@ -68,7 +80,18 @@ export function makePodStatusLabel(pod: Pod, showContainerStatus: boolean = true
 
   return (
     <Box display="flex" alignItems="center" gap={1}>
-      <LightTooltip title={tooltip} interactive>
+      <LightTooltip
+        title={tooltip}
+        interactive
+        TransitionComponent={Fade}
+        TransitionProps={{ timeout: 0 }}
+        slotProps={{
+          popper: {
+            modifiers: [{ name: 'computeStyles', options: { gpuAcceleration: false } }],
+          },
+          tooltip: { sx: { maxWidth: 'none', willChange: 'opacity' } },
+        }}
+      >
         <Box display="inline">
           <StatusLabel status={status}>
             {(status === 'warning' || status === 'error') && (
