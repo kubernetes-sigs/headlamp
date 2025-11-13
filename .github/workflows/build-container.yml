@@ -33,6 +33,8 @@ jobs:
     - uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7 # v3.8.2
       with:
         node-version: 20.x
+    - name: Verify container image digests
+      run: npm run image:verify-image-digests
     - name: Start Cluster 1
       uses: helm/kind-action@0025e74a8c7512023d06dc019c617aa3cf561fde # v1.0.0
       with:
