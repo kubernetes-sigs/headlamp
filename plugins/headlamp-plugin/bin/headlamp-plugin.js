@@ -95,6 +95,7 @@ function create(name, link, noInstall) {
   replaceFileVariables(indexPath);
   replaceFileVariables(readmePath);
 
+
   // This can be used to make testing locally easier.
   if (link) {
     console.log('Linking @kinvolk/headlamp-plugin');
@@ -106,6 +107,29 @@ function create(name, link, noInstall) {
   if (noInstall) {
     console.log('Skipping dependency installation...');
   } else {
+    // In the package-lock.json we need to update the integrity field of the @kinvolk/headlamp-plugin package 
+    // to match the integrity of it on npmjs registry for this version.
+    // This is because when creating the template package-lock.json there is a circle where we need the
+    // integrity field inside it... which changes because of this loop.
+    const npmJsPkgResponse = child_process.execFileSync(
+      'npm',
+      ['view', `@kinvolk/headlamp-plugin@${headlampPluginPkg.version}`, 'dist', '--json'],
+      { encoding: 'utf8' }
+    );
+    const npmJsPkg = JSON.parse(npmJsPkgResponse);
+    const npmJsIntegrity = npmJsPkg.integrity;
+
+    // Now replace integrity in the package-lock.json to match npmjs registry integrity.
+    // "node_modules/@kinvolk/headlamp-plugin": {
+    //   "version": "0.13.0-alpha.13",
+    //   "resolved": "https://registry.npmjs.org/@kinvolk/headlamp-plugin/-/headlamp-plugin-0.13.0-alpha.13.tgz",
+    //   "integrity": "sha512-iDIo0afLpITCRNxV7j8whPDFNPLPzeCXIOah0+q1VtCcRrwiCerl5LCT+vnufU98C/HgEIeK6aLMIdqp53Mv7Q==",
+    let packageLockContent = fs.readFileSync(packageLockPath, 'utf8');
+    const integrityPattern = new RegExp(`("node_modules/@kinvolk/headlamp-plugin": \\{[\\s\\S]*?"integrity": ")[^"]+(")`, 'g');
+    packageLockContent = packageLockContent.replace(integrityPattern, `$1${npmJsIntegrity}$2`);
+    fs.writeFileSync(packageLockPath, packageLockContent);
+    console.log(`Replaced integrity field of @kinvolk/headlamp-plugin in package-lock.json to match npmjs registry.`);
+
     console.log('Installing dependencies...');
     try {
       child_process.execSync('npm ci', {
@@ -505,8 +529,8 @@ async function start() {
           const url = `https://github.com/kubernetes-sigs/headlamp/releases`;
           console.warn(
             '    @kinvolk/headlamp-plugin is out of date. Run the following command to upgrade \n' +
-              `    See release notes here: ${url}` +
-              '    npx @kinvolk/headlamp-plugin upgrade'
+            `    See release notes here: ${url}` +
+            '    npx @kinvolk/headlamp-plugin upgrade'
           );
           return;
         }
@@ -1236,9 +1260,8 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
  * @returns {0 | 1} - Exit code, where 0 is success, 1 is failure.
  */
 function lint(packageFolder, fix) {
-  const script = `eslint --cache -c package.json --max-warnings 0 --ext .js,.ts,.tsx src/${
-    fix ? ' --fix' : ''
-  }`;
+  const script = `eslint --cache -c package.json --max-warnings 0 --ext .js,.ts,.tsx src/${fix ? ' --fix' : ''
+    }`;
   return runScriptOnPackages(packageFolder, 'lint', script, {});
 }
 
@@ -1347,8 +1370,7 @@ function setupI18n(packageFolder) {
       // Check if i18n is already enabled (array of locales)
       if (Array.isArray(packageJson.headlamp.i18n) && packageJson.headlamp.i18n.length > 0) {
         console.log(
-          `✅ i18n is already enabled for ${
-            packageJson.name
+          `✅ i18n is already enabled for ${packageJson.name
           } with locales: ${packageJson.headlamp.i18n.join(', ')}`
         );
       } else {
@@ -1514,8 +1536,7 @@ function extractI18n(packageFolder, newLocale) {
     // Auto-setup i18n if not already configured
     if (!Array.isArray(packageJson.headlamp?.i18n)) {
       console.log(
-        `🔧 i18n not configured for "${
-          packageJson.name || packageFolder
+        `🔧 i18n not configured for "${packageJson.name || packageFolder
         }". Setting up automatically...`
       );
 
@@ -1746,7 +1767,7 @@ yargs(process.argv.slice(2))
   .command(
     'extract <pluginPackages> <outputPlugins>',
     'Copies folders of packages from pluginPackages/packageName/dist/main.js ' +
-      'to outputPlugins/packageName/main.js.',
+    'to outputPlugins/packageName/main.js.',
     yargs => {
       yargs.positional('pluginPackages', {
         describe:
@@ -1801,7 +1822,7 @@ yargs(process.argv.slice(2))
   .command(
     'format [package]',
     'format the plugin code with prettier. <package> defaults to current working directory.' +
-      ' Can also be a folder of packages.',
+    ' Can also be a folder of packages.',
     yargs => {
       yargs
         .positional('package', {
@@ -1822,8 +1843,8 @@ yargs(process.argv.slice(2))
   .command(
     'lint [package]',
     'Lint the plugin for coding issues with eslint. ' +
-      '<package> defaults to current working directory.' +
-      ' Can also be a folder of packages.',
+    '<package> defaults to current working directory.' +
+    ' Can also be a folder of packages.',
     yargs => {
       yargs
         .positional('package', {
@@ -1844,8 +1865,8 @@ yargs(process.argv.slice(2))
   .command(
     'tsc [package]',
     'Type check the plugin for coding issues with tsc. ' +
-      '<package> defaults to current working directory.' +
-      ' Can also be a folder of packages.',
+    '<package> defaults to current working directory.' +
+    ' Can also be a folder of packages.',
     yargs => {
       yargs.positional('package', {
         describe: 'Package to type check',
@@ -1876,7 +1897,7 @@ yargs(process.argv.slice(2))
   .command(
     'storybook-build [package]',
     'Build static storybook. <package> defaults to current working directory.' +
-      ' Can also be a folder of packages.',
+    ' Can also be a folder of packages.',
     yargs => {
       yargs.positional('package', {
         describe: 'Package to build storybook for',
@@ -1892,8 +1913,8 @@ yargs(process.argv.slice(2))
   .command(
     'upgrade [package]',
     'Upgrade the plugin to latest headlamp-plugin; ' +
-      'upgrades headlamp-plugin and audits packages, formats, lints, type checks.' +
-      '<package> defaults to current working directory. Can also be a folder of packages.',
+    'upgrades headlamp-plugin and audits packages, formats, lints, type checks.' +
+    '<package> defaults to current working directory. Can also be a folder of packages.',
     yargs => {
       yargs
         .positional('package', {
@@ -1980,28 +2001,28 @@ yargs(process.argv.slice(2))
       const { URL, config, folderName, headlampVersion, quiet, watch } = argv;
       try {
         const progressCallback = quiet
-          ? () => {}
+          ? () => { }
           : data => {
-              const { type = 'info', message, raise = true } = data;
-              if (config && !URL) {
-                // bulk installation
-                let prefix = '';
-                if (data.current || data.total || data.plugin) {
-                  prefix = `${data.current} of ${data.total} (${data.plugin}): `;
-                }
-                if (type === 'info' || type === 'success') {
-                  console.log(`${prefix}${type}: ${message}`);
-                } else if (type === 'error' && raise) {
-                  throw new Error(message);
-                } else {
-                  console.error(`${prefix}${type}: ${message}`);
-                }
-              } else {
-                if (type === 'error' || type === 'success') {
-                  console.error(`${type}: ${message}`);
-                }
+            const { type = 'info', message, raise = true } = data;
+            if (config && !URL) {
+              // bulk installation
+              let prefix = '';
+              if (data.current || data.total || data.plugin) {
+                prefix = `${data.current} of ${data.total} (${data.plugin}): `;
               }
-            };
+              if (type === 'info' || type === 'success') {
+                console.log(`${prefix}${type}: ${message}`);
+              } else if (type === 'error' && raise) {
+                throw new Error(message);
+              } else {
+                console.error(`${prefix}${type}: ${message}`);
+              }
+            } else {
+              if (type === 'error' || type === 'success') {
+                console.error(`${type}: ${message}`);
+              }
+            }
+          };
 
         /**
          * @param {string} configPath
@@ -2097,10 +2118,10 @@ yargs(process.argv.slice(2))
       const progressCallback = quiet
         ? null
         : data => {
-            if (data.type === 'error' || data.type === 'success') {
-              console.error(data.type, ':', data.message);
-            }
-          }; // Use console.log for logs if not in quiet mode
+          if (data.type === 'error' || data.type === 'success') {
+            console.error(data.type, ':', data.message);
+          }
+        }; // Use console.log for logs if not in quiet mode
       try {
         await PluginManager.update(pluginName, folderName, headlampVersion, progressCallback);
       } catch (e) {
@@ -2133,10 +2154,10 @@ yargs(process.argv.slice(2))
       const progressCallback = quiet
         ? null
         : data => {
-            if (data.type === 'error' || data.type === 'success') {
-              console.error(data.type, ':', data.message);
-            }
-          }; // Use console.log for logs if not in quiet mode
+          if (data.type === 'error' || data.type === 'success') {
+            console.error(data.type, ':', data.message);
+          }
+        }; // Use console.log for logs if not in quiet mode
       try {
         await PluginManager.uninstall(pluginName, folderName, progressCallback);
       } catch (e) {
