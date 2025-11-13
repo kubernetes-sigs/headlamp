@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Final container image
-ARG IMAGE_BASE=alpine:3.22.2@sha256:85f2b723e106c34644cd5851d7e81ee87da98ac54672b29947c052a45d31dc2f
+ARG IMAGE_BASE=alpine:3.22.2@sha256:4b7ce07002c69e8f3d704a9c5d6fd3053be500b7f1c69fc0d80990c2ad8dd412
 FROM ${IMAGE_BASE} AS image-base
 
 
