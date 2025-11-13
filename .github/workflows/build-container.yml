@@ -24,7 +24,12 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    # run the job on both x86_64 and arm64 Ubuntu hosted runners
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-22.04, ubuntu-24.04-arm64]
+    runs-on: ${{ matrix.runner }}
     name: build discover and deploy
     permissions:
       actions: write # needed to upload artifacts
@@ -56,7 +61,7 @@ jobs:
       with:
         path: ~/image-cache
         # cache the container image. All the paths this PR depends on except the e2e-tests folder for the key.
-        key: ${{ runner.os }}-image-${{ hashFiles('backend/pkg/**', 'backend/cmd/**', 'backend/go.*', 'frontend/src/**', 'frontend/package.json', 'frontend/package-lock.json', 'Makefile', '.github/workflows/build-container.yml', 'Dockerfile', 'Dockerfile.plugins') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-image-${{ hashFiles('backend/pkg/**', 'backend/cmd/**', 'backend/go.*', 'frontend/src/**', 'frontend/package.json', 'frontend/package-lock.json', 'Makefile', '.github/workflows/build-container.yml', 'Dockerfile', 'Dockerfile.plugins') }}
     - name: Restore Cached Docker Images
       if: steps.cache-image-restore2.outputs.cache-hit == 'true'
       run: |
