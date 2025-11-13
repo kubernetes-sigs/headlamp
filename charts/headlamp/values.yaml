@@ -208,6 +208,9 @@ tolerations: []
 # -- Affinity settings for pod assignment
 affinity: {}
 
+# -- Pod priority class
+priorityClassName: ""
+
 # Plugin Manager Sidecar Container Configuration
 pluginsManager:
   # -- Enable plugin manager

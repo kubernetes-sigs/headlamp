@@ -17,6 +17,8 @@
 import { http, HttpResponse } from 'msw';
 import { NODE_DUMMY_DATA } from '../src/components/node/storyHelper';
 
+// NOTE: Please keep this synced with headlamp/plugins/headlamp-plugin/config/.storybook/baseMocks.ts
+
 /**
  * This contains several mocked endpoints
  * Those are used in most of the stories

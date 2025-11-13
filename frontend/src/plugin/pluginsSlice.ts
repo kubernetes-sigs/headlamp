@@ -54,6 +54,11 @@ export type PluginInfo = {
    */
   name: string;
   /**
+   * folderName is the actual folder name on disk (used for deletion).
+   * This may differ from the package.json name, especially for scoped packages.
+   */
+  folderName?: string;
+  /**
    * description text of the plugin from npm with same restrictions as package.json description
    * @see https://docs.npmjs.com/cli/v9/configuring-npm/package-json?v=true#description
    */
@@ -76,6 +81,23 @@ export type PluginInfo = {
    * isEnable is true when the plugin is enabled
    */
   isEnabled?: boolean;
+
+  /**
+   * type indicates the source of the plugin: "development", "user", or "shipped"
+   */
+  type?: 'development' | 'user' | 'shipped';
+
+  /**
+   * isLoaded indicates if this plugin version is actually loaded and executed.
+   * When multiple versions of the same plugin exist, only the highest priority enabled version is loaded.
+   */
+  isLoaded?: boolean;
+
+  /**
+   * overriddenBy indicates which higher-priority version is loaded instead of this one.
+   * Format: "type" (e.g., "development" or "user")
+   */
+  overriddenBy?: 'development' | 'user' | 'shipped';
 
   /**
    * isCompatible is true when the plugin is compatible with this version of Headlamp.

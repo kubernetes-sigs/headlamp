@@ -18,6 +18,7 @@
 
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
+import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { isBackstage } from '../../../../helpers/isBackstage';
 import store from '../../../../redux/stores/store';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
@@ -26,7 +27,7 @@ import { logout } from '../../../auth';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
-import { BASE_HTTP_URL, CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
+import { CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
 import { asQuery, combinePath } from './formatUrl';
 import type { QueryParameters } from './queryParameters';
 
@@ -156,7 +157,7 @@ export async function clusterRequest(
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
 
-  let url = combinePath(BASE_HTTP_URL, fullPath);
+  let url = combinePath(getAppUrl(), fullPath);
   url += asQuery(queryParams);
   const requestData = {
     signal: controller.signal,

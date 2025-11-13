@@ -526,8 +526,18 @@ func TestDeletePlugin(t *testing.T) {
 
 	defer os.RemoveAll(tempDir)
 
-	// create plugin
-	pluginDir := tempDir + "/test-plugin"
+	// create user-plugins dir
+	userPluginDir := tempDir + "/user-plugins"
+	err = os.Mkdir(userPluginDir, 0o755)
+	require.NoError(t, err)
+
+	// create dev plugins dir
+	devPluginDir := tempDir + "/plugins"
+	err = os.Mkdir(devPluginDir, 0o755)
+	require.NoError(t, err)
+
+	// create plugin in dev dir
+	pluginDir := devPluginDir + "/test-plugin"
 	err = os.Mkdir(pluginDir, 0o755)
 	require.NoError(t, err)
 
@@ -543,7 +553,8 @@ func TestDeletePlugin(t *testing.T) {
 		HeadlampCFG: &headlampconfig.HeadlampCFG{
 			UseInCluster:    false,
 			KubeConfigPath:  config.GetDefaultKubeConfigPath(),
-			PluginDir:       tempDir,
+			PluginDir:       devPluginDir,
+			UserPluginDir:   userPluginDir,
 			KubeConfigStore: kubeConfigStore,
 		},
 		cache: cache,

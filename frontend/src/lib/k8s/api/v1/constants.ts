@@ -16,7 +16,11 @@
 
 import { getAppUrl } from '../../../../helpers/getAppUrl';
 
+// @deprecated BASE_HTTP_URL is deprecated for Electron apps with custom ports.
+// It's evaluated at module load time, before window.headlampBackendPort is set.
+// Use getAppUrl() directly instead for runtime port configuration.
 export const BASE_HTTP_URL = getAppUrl();
+
 export const CLUSTERS_PREFIX = 'clusters';
 export const JSON_HEADERS = { Accept: 'application/json', 'Content-Type': 'application/json' };
 export const DEFAULT_TIMEOUT = 2 * 60 * 1000; // ms

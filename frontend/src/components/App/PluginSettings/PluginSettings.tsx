@@ -16,10 +16,12 @@
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import Link from '@mui/material/Link';
 import { useTheme } from '@mui/material/styles';
 import { SwitchProps } from '@mui/material/Switch';
 import Switch from '@mui/material/Switch';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { MRT_Row } from 'material-react-table';
 import { useEffect, useState } from 'react';
@@ -124,6 +126,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
   /**
    * pluginChanges state is the array of plugin data and any current changes made by the user to a plugin's "Enable" field via toggler.
    * The name and origin fields are split for consistency.
+   * Plugins that are not loaded (isLoaded === false) are initialized with isEnabled = false.
    */
   const [pluginChanges, setPluginChanges] = useState(() =>
     pluginArr.map((plugin: PluginInfo) => {
@@ -135,6 +138,8 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
         ...plugin,
         displayName: name ?? plugin.name,
         origin: plugin.origin ?? author?.substring(1) ?? t('translation|Unknown'),
+        // If the plugin is not loaded, ensure it's disabled
+        isEnabled: plugin.isLoaded === false ? false : plugin.isEnabled,
       };
     })
   );
@@ -145,13 +150,15 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
    * If props.plugins matches pluginChanges enableSave is set to false, disabling the save button.
    */
   useEffect(() => {
-    /** This matcher function compares the fields of name and isEnabled of each object in props.plugins to each object in pluginChanges */
+    /** This matcher function compares the fields of name, type and isEnabled of each object in props.plugins to each object in pluginChanges */
     function matcher(objA: PluginInfo, objB: PluginInfo) {
-      return objA.name === objB.name && objA.isEnabled === objB.isEnabled;
+      return (
+        objA.name === objB.name && objA.type === objB.type && objA.isEnabled === objB.isEnabled
+      );
     }
 
     /**
-     * arrayComp returns true if each object in both arrays are identical by name and isEnabled.
+     * arrayComp returns true if each object in both arrays are identical by name, type and isEnabled.
      * If both arrays are identical in this scope, then no changes need to be saved.
      * If they do not match, there are changes in the pluginChanges array that can be saved and thus enableSave should be enabled.
      */
@@ -182,14 +189,23 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
    * On change function handler to control the enableSave state and update the pluginChanges state.
    * This function is called on every plugin toggle action and recreates the state for pluginChanges.
    * Once the user clicks a toggle, the Save button is also rendered via setEnableSave.
+   * Now handles plugins by both name and type to support multiple versions of the same plugin.
+   * When enabling a plugin, it automatically disables other versions of the same plugin.
    */
-  function switchChangeHanlder(plug: { name: any }) {
+  function switchChangeHanlder(plug: { name: any; type?: string; isEnabled?: boolean }) {
     const plugName = plug.name;
+    const plugType = plug.type;
+    const newEnabledState = !plug.isEnabled;
 
     setPluginChanges((currentInfo: any[]) =>
-      currentInfo.map((p: { name: any; isEnabled: any }) => {
-        if (p.name === plugName) {
-          return { ...p, isEnabled: !p.isEnabled };
+      currentInfo.map((p: { name: any; type?: string; isEnabled: any }) => {
+        // Match by both name and type to handle multiple versions
+        if (p.name === plugName && p.type === plugType) {
+          return { ...p, isEnabled: newEnabledState };
+        }
+        // If we're enabling this plugin, disable other versions with the same name
+        if (newEnabledState && p.name === plugName && p.type !== plugType) {
+          return { ...p, isEnabled: false };
         }
         return p;
       })
@@ -214,16 +230,30 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                 },
               },
               Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) => {
+                // Check if there are clashing plugins (same name, different type)
+                const hasClashingPlugins = pluginChanges.some(
+                  (p: PluginInfo) => p.name === plugin.name && p.type !== plugin.type
+                );
+
                 return (
                   <>
                     <Typography variant="subtitle1">
                       <HeadlampLink
                         routeName={'pluginDetails'}
-                        params={{ name: plugin.name }}
+                        params={{ name: plugin.name, type: plugin.type || 'shipped' }}
                         align="right"
                       >
                         {plugin.displayName}
                       </HeadlampLink>
+                      {hasClashingPlugins && (
+                        <Chip
+                          label={t('translation|Multiple versions')}
+                          size="small"
+                          color="warning"
+                          variant="outlined"
+                          sx={{ ml: 1, fontSize: '0.7rem', height: '18px' }}
+                        />
+                      )}
                     </Typography>
                     <Typography variant="caption">{plugin.version}</Typography>
                   </>
@@ -233,6 +263,28 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
             {
               header: t('translation|Description'),
               accessorKey: 'description',
+            },
+            {
+              header: t('translation|Type'),
+              accessorFn: (plugin: PluginInfo) => plugin.type || 'unknown',
+              Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) => {
+                const typeLabels: Record<string, { label: string; color: any }> = {
+                  development: {
+                    label: t('translation|Development'),
+                    color: 'primary',
+                  },
+                  user: {
+                    label: t('translation|User-installed'),
+                    color: 'info',
+                  },
+                  shipped: {
+                    label: t('translation|Shipped'),
+                    color: 'default',
+                  },
+                };
+                const typeInfo = typeLabels[plugin.type || 'shipped'];
+                return <Chip label={typeInfo.label} size="small" color={typeInfo.color} />;
+              },
             },
             {
               header: t('translation|Origin'),
@@ -249,14 +301,58 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                 );
               },
             },
-            // TODO: Fetch the plugin status from the plugin settings store
             {
               header: t('translation|Status'),
-              accessorFn: (plugin: PluginInfo) => {
+              Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) => {
                 if (plugin.isCompatible === false) {
-                  return t('translation|Incompatible');
+                  return (
+                    <Tooltip
+                      title={t(
+                        'translation|This plugin is not compatible with this version of Headlamp'
+                      )}
+                    >
+                      <Chip label={t('translation|Incompatible')} size="small" color="error" />
+                    </Tooltip>
+                  );
                 }
-                return plugin.isEnabled ? t('translation|Enabled') : t('translation|Disabled');
+
+                // Show if this plugin is overridden by a higher priority version
+                if (plugin.isLoaded === false && plugin.overriddenBy) {
+                  const overrideLabels: Record<string, string> = {
+                    development: t('translation|Development'),
+                    user: t('translation|User-installed'),
+                    shipped: t('translation|Shipped'),
+                  };
+                  return (
+                    <Tooltip
+                      title={t('translation|Overridden by {{type}} version', {
+                        type: overrideLabels[plugin.overriddenBy],
+                      })}
+                    >
+                      <Chip
+                        label={t('translation|Not Loaded')}
+                        size="small"
+                        color="warning"
+                        variant="outlined"
+                      />
+                    </Tooltip>
+                  );
+                }
+
+                // Show if disabled
+                if (plugin.isEnabled === false) {
+                  return (
+                    <Chip
+                      label={t('translation|Disabled')}
+                      size="small"
+                      color="default"
+                      variant="outlined"
+                    />
+                  );
+                }
+
+                // Show if loaded and enabled
+                return <Chip label={t('translation|Loaded')} size="small" color="success" />;
               },
             },
             {
@@ -266,10 +362,19 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                 if (!plugin.isCompatible || !isElectron()) {
                   return null;
                 }
+
+                // Find the current state of this plugin in pluginChanges
+                const currentPlugin = pluginChanges.find(
+                  (p: PluginInfo) => p.name === plugin.name && p.type === plugin.type
+                );
+
+                // Plugin should be checked if it's enabled in the current state
+                const isChecked = currentPlugin?.isEnabled !== false;
+
                 return (
                   <EnableSwitch
                     aria-label={`Toggle ${plugin.name}`}
-                    checked={!!plugin.isEnabled}
+                    checked={isChecked}
                     onChange={() => switchChangeHanlder(plugin)}
                     color="primary"
                     name={plugin.name}
@@ -282,16 +387,54 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
             .filter(el => !(el.header === t('translation|Enable') && !isElectron()))}
           data={pluginChanges}
           filterFunction={useFilterFunc<PluginInfo>(['.name'])}
+          muiTableBodyRowProps={({ row }) => {
+            const plugin = row.original as PluginInfo;
+            // Check if there are clashing plugins (same name, different type)
+            const hasClashingPlugins = pluginChanges.some(
+              (p: PluginInfo) => p.name === plugin.name && p.type !== plugin.type
+            );
+
+            // Generate a consistent color based on plugin name
+            if (hasClashingPlugins) {
+              const hash = plugin.name.split('').reduce((acc, char) => {
+                return char.charCodeAt(0) + ((acc << 5) - acc);
+              }, 0);
+              const hue = Math.abs(hash) % 360;
+
+              return {
+                sx: {
+                  backgroundColor: theme =>
+                    theme.palette.mode === 'dark'
+                      ? `hsla(${hue}, 30%, 20%, 0.3)`
+                      : `hsla(${hue}, 50%, 85%, 0.4)`,
+                  '&:hover': {
+                    backgroundColor: theme =>
+                      theme.palette.mode === 'dark'
+                        ? `hsla(${hue}, 30%, 25%, 0.4) !important`
+                        : `hsla(${hue}, 50%, 80%, 0.5) !important`,
+                  },
+                },
+              };
+            }
+            return {};
+          }}
         />
       </SectionBox>
-      {enableSave && (
-        <Box sx={{ display: `flex`, justifyContent: `flex-end`, margin: `5px` }}>
-          <Button
-            variant="contained"
-            color="primary"
-            sx={{ margin: `5px` }}
-            onClick={() => onSaveButtonHandler()}
-          >
+      {enableSave && isElectron() && (
+        <Box
+          sx={{
+            position: 'sticky',
+            bottom: 0,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            padding: '12px 16px',
+            backgroundColor: theme => theme.palette.background.paper,
+            borderTop: theme => `1px solid ${theme.palette.divider}`,
+            zIndex: 10,
+            margin: '-16px -16px 0 -16px',
+          }}
+        >
+          <Button variant="contained" color="primary" onClick={() => onSaveButtonHandler()}>
             {t('translation|Save & Apply')}
           </Button>
         </Box>

@@ -96,7 +96,7 @@ For quick reference if you are already familiar with setting up Entra ID,
 - Set `-oidc-client-id` to your Azure App Registration's clientID
 - Set `-oidc-client-secret` to your Azure App Registration's clientSecret
 - Set `-oidc-idp-issuer-url` to `https://login.microsoftonline.com/<Your Azure Directory (tenant) ID>/v2.0`
-- Set `-oidc-scopes` to `6dae42f8-4368-4678-94ff-3960e28e3630/user.read openid email profile`
+- Set `-oidc-scopes` to `6dae42f8-4368-4678-94ff-3960e28e3630/user.read,openid,email,profile`
 - Set `--oidc-validator-idp-issuer-url` to `https://sts.windows.net/<Your Directory (tenant) ID>/`
 - Set `-oidc-validator-client-id` to `6dae42f8-4368-4678-94ff-3960e28e3630`
 - Set `-oidc-use-access-token=true`

@@ -24,7 +24,6 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -40,6 +39,22 @@ const (
 	PluginListKey           = "PLUGIN_LIST"
 	PluginCanSendRefreshKey = "PLUGIN_CAN_SEND_REFRESH"
 	subFolderWatchInterval  = 5 * time.Second
+)
+
+// PluginMetadata represents metadata about a plugin including its source type.
+type PluginMetadata struct {
+	// Path is the URL path to access the plugin
+	Path string `json:"path"`
+	// Type indicates where the plugin comes from: "development", "user", or "shipped"
+	Type string `json:"type"`
+	// Name is the plugin's folder name
+	Name string `json:"name"`
+}
+
+const (
+	PluginTypeDevelopment = "development"
+	PluginTypeUser        = "user"
+	PluginTypeShipped     = "shipped"
 )
 
 // Watch watches the given path for changes and sends the events to the notify channel.
@@ -98,45 +113,132 @@ func periodicallyWatchSubfolders(watcher *fsnotify.Watcher, path string, interva
 	}
 }
 
-// generateSeparatePluginPaths takes the staticPluginDir and pluginDir and returns separate lists of plugin paths.
-func generateSeparatePluginPaths(staticPluginDir, pluginDir string) ([]string, []string, error) {
+// generateSeparatePluginPaths takes the staticPluginDir, userPluginDir,
+// and pluginDir (dev) and returns separate lists of plugin paths.
+func generateSeparatePluginPaths(
+	staticPluginDir, userPluginDir, pluginDir string,
+) ([]string, []string, []string, error) {
 	var pluginListURLStatic []string
+
+	var pluginListURLUser []string
 
 	if staticPluginDir != "" {
 		var err error
 
 		pluginListURLStatic, err = pluginBasePathListForDir(staticPluginDir, "static-plugins")
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
+		}
+	}
+
+	if userPluginDir != "" {
+		var err error
+
+		pluginListURLUser, err = pluginBasePathListForDir(userPluginDir, "user-plugins")
+		if err != nil {
+			return nil, nil, nil, err
 		}
 	}
 
 	pluginListURL, err := pluginBasePathListForDir(pluginDir, "plugins")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return pluginListURLStatic, pluginListURL, nil
+	return pluginListURLStatic, pluginListURLUser, pluginListURL, nil
 }
 
-// GeneratePluginPaths generates a concatenated list of plugin paths from the staticPluginDir and pluginDir.
-func GeneratePluginPaths(staticPluginDir, pluginDir string) ([]string, error) {
-	pluginListURLStatic, pluginListURL, err := generateSeparatePluginPaths(staticPluginDir, pluginDir)
+// GeneratePluginPaths generates a list of all plugin paths from all directories.
+// Returns all plugins with their type (development, user, or shipped).
+// The frontend is responsible for implementing priority-based loading and handling duplicates.
+//
+// Migration: Plugins in the development directory that have isManagedByHeadlampPlugin=true
+// in their package.json are treated as "user" plugins instead, as they were installed via
+// the catalog before the user-plugins directory was introduced.
+func GeneratePluginPaths(
+	staticPluginDir, userPluginDir, pluginDir string,
+) ([]PluginMetadata, error) {
+	pluginListURLStatic, pluginListURLUser, pluginListURLDev, err := generateSeparatePluginPaths(
+		staticPluginDir, userPluginDir, pluginDir,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	// Concatenate the static and user plugin lists.
-	if pluginListURLStatic != nil {
-		pluginListURL = append(pluginListURLStatic, pluginListURL...)
+	pluginList := make([]PluginMetadata, 0)
+
+	// Add shipped plugins (lowest priority)
+	for _, pluginURL := range pluginListURLStatic {
+		pluginName := filepath.Base(pluginURL)
+		pluginList = append(pluginList, PluginMetadata{
+			Path: pluginURL,
+			Type: "shipped",
+			Name: pluginName,
+		})
 	}
 
-	return pluginListURL, nil
+	// Add user-installed plugins (medium priority)
+	for _, pluginURL := range pluginListURLUser {
+		pluginName := filepath.Base(pluginURL)
+		pluginList = append(pluginList, PluginMetadata{
+			Path: pluginURL,
+			Type: "user",
+			Name: pluginName,
+		})
+	}
+
+	// Add development plugins (highest priority)
+	// However, if a plugin in the development directory was installed via the catalog
+	// (has isManagedByHeadlampPlugin=true), treat it as a user plugin instead.
+	// This handles migration from older versions where catalog plugins were installed to plugins/ directory.
+	for _, pluginURL := range pluginListURLDev {
+		pluginName := filepath.Base(pluginURL)
+		pluginType := PluginTypeDevelopment
+
+		// Check if this is a catalog-installed plugin that needs migration
+		if isCatalogInstalledPlugin(pluginDir, pluginName) {
+			pluginType = PluginTypeUser
+
+			logger.Log(logger.LevelInfo, map[string]string{
+				"plugin": pluginName,
+				"path":   pluginURL,
+			}, nil, "Treating catalog-installed plugin in development directory as user plugin")
+		}
+
+		pluginList = append(pluginList, PluginMetadata{
+			Path: pluginURL,
+			Type: pluginType,
+			Name: pluginName,
+		})
+	}
+
+	return pluginList, nil
 }
 
-// ListPlugins lists the plugins in the static and user-added plugin directories.
-func ListPlugins(staticPluginDir, pluginDir string) error {
-	staticPlugins, userPlugins, err := generateSeparatePluginPaths(staticPluginDir, pluginDir)
+// isCatalogInstalledPlugin checks if a plugin was installed via the catalog.
+// Catalog-installed plugins have isManagedByHeadlampPlugin: true in their package.json.
+func isCatalogInstalledPlugin(pluginDir, pluginName string) bool {
+	packageJSONPath := filepath.Join(pluginDir, pluginName, "package.json")
+
+	content, err := os.ReadFile(packageJSONPath)
+	if err != nil {
+		return false
+	}
+
+	var packageData struct {
+		IsManagedByHeadlampPlugin bool `json:"isManagedByHeadlampPlugin"`
+	}
+
+	if err := json.Unmarshal(content, &packageData); err != nil {
+		return false
+	}
+
+	return packageData.IsManagedByHeadlampPlugin
+}
+
+// ListPlugins lists the plugins in the static, user-installed, and development plugin directories.
+func ListPlugins(staticPluginDir, userPluginDir, pluginDir string) error {
+	staticPlugins, userPlugins, devPlugins, err := generateSeparatePluginPaths(staticPluginDir, userPluginDir, pluginDir)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "listing plugins")
 		return fmt.Errorf("listing plugins: %w", err)
@@ -164,24 +266,35 @@ func ListPlugins(staticPluginDir, pluginDir string) error {
 	}
 
 	if len(staticPlugins) > 0 {
-		fmt.Printf("Static Plugins (%s):\n", staticPluginDir)
+		fmt.Printf("Shipped Plugins (%s):\n", staticPluginDir)
 
 		for _, plugin := range staticPlugins {
 			fmt.Println(" -", getPluginName(plugin))
 		}
 	} else {
-		fmt.Println("No static plugins found.")
+		fmt.Println("No shipped plugins found.")
 	}
 
 	if len(userPlugins) > 0 {
-		fmt.Printf("\nUser-added Plugins (%s):\n", pluginDir)
+		fmt.Printf("\nUser-installed Plugins (%s):\n", userPluginDir)
 
 		for _, plugin := range userPlugins {
+			pluginName := getPluginName(filepath.Join(userPluginDir, plugin))
+			fmt.Println(" -", pluginName)
+		}
+	} else {
+		fmt.Println("No user-installed plugins found.")
+	}
+
+	if len(devPlugins) > 0 {
+		fmt.Printf("\nDevelopment Plugins (%s):\n", pluginDir)
+
+		for _, plugin := range devPlugins {
 			pluginName := getPluginName(filepath.Join(pluginDir, plugin))
 			fmt.Println(" -", pluginName)
 		}
 	} else {
-		fmt.Printf("No user-added plugins found.")
+		fmt.Println("No development plugins found.")
 	}
 
 	return nil
@@ -212,8 +325,11 @@ func pluginBasePathListForDir(pluginDir string, baseURL string) ([]string, error
 
 		_, err := os.Stat(pluginPath)
 		if err != nil {
-			logger.Log(logger.LevelInfo, map[string]string{"pluginPath": pluginPath},
-				err, "Not including plugin path, main.js not found")
+			// Only log if it's not a "does not exist" error (which is expected during deletion)
+			if !os.IsNotExist(err) {
+				logger.Log(logger.LevelInfo, map[string]string{"pluginPath": pluginPath},
+					err, "Not including plugin path, error checking main.js")
+			}
 
 			continue
 		}
@@ -222,9 +338,12 @@ func pluginBasePathListForDir(pluginDir string, baseURL string) ([]string, error
 
 		_, err = os.Stat(packageJSONPath)
 		if err != nil {
-			logger.Log(logger.LevelInfo, map[string]string{"packageJSONPath": packageJSONPath},
-				err, `Not including plugin path, package.json not found.
+			// Only log if it's not a "does not exist" error (which is expected during deletion)
+			if !os.IsNotExist(err) {
+				logger.Log(logger.LevelInfo, map[string]string{"packageJSONPath": packageJSONPath},
+					err, `Not including plugin path, package.json not found.
 				Please run 'headlamp-plugin extract' again with headlamp-plugin >= 0.6.0`)
+			}
 		}
 
 		pluginFileURL := filepath.Join(baseURL, f.Name())
@@ -255,7 +374,7 @@ func canSendRefresh(c cache.Cache[interface{}]) bool {
 
 // HandlePluginEvents handles the plugin events by updating the plugin list
 // and plugin refresh key in the cache.
-func HandlePluginEvents(staticPluginDir, pluginDir string,
+func HandlePluginEvents(staticPluginDir, userPluginDir, pluginDir string,
 	notify <-chan string, cache cache.Cache[interface{}],
 ) {
 	for range notify {
@@ -268,7 +387,7 @@ func HandlePluginEvents(staticPluginDir, pluginDir string,
 		}
 
 		// generate the plugin list
-		pluginList, err := GeneratePluginPaths(staticPluginDir, pluginDir)
+		pluginList, err := GeneratePluginPaths(staticPluginDir, userPluginDir, pluginDir)
 		if err != nil && !os.IsNotExist(err) {
 			logger.Log(logger.LevelError, nil, err, "generating plugins path")
 		}
@@ -281,7 +400,7 @@ func HandlePluginEvents(staticPluginDir, pluginDir string,
 }
 
 // PopulatePluginsCache populates the plugin list and plugin refresh key in the cache.
-func PopulatePluginsCache(staticPluginDir, pluginDir string, cache cache.Cache[interface{}]) {
+func PopulatePluginsCache(staticPluginDir, userPluginDir, pluginDir string, cache cache.Cache[interface{}]) {
 	// set the plugin refresh key to false
 	err := cache.Set(context.Background(), PluginRefreshKey, false)
 	if err != nil {
@@ -290,10 +409,10 @@ func PopulatePluginsCache(staticPluginDir, pluginDir string, cache cache.Cache[i
 	}
 
 	// generate the plugin list
-	pluginList, err := GeneratePluginPaths(staticPluginDir, pluginDir)
+	pluginList, err := GeneratePluginPaths(staticPluginDir, userPluginDir, pluginDir)
 	if err != nil && !os.IsNotExist(err) {
 		logger.Log(logger.LevelError,
-			map[string]string{"staticPluginDir": staticPluginDir, "pluginDir": pluginDir},
+			map[string]string{"staticPluginDir": staticPluginDir, "userPluginDir": userPluginDir, "pluginDir": pluginDir},
 			err, "generating plugins path")
 	}
 
@@ -342,20 +461,80 @@ func HandlePluginReload(cache cache.Cache[interface{}], w http.ResponseWriter) {
 	}
 }
 
-// Delete deletes the plugin from the plugin directory.
-func Delete(pluginDir, filename string) error {
-	absPluginDir, err := filepath.Abs(pluginDir)
+// tryDeletePlugin attempts to delete the plugin at the given directory and filename.
+// It returns true if the plugin was deleted, false if it did not exist.
+// It returns an error if there was an issue during deletion.
+func tryDeletePlugin(dir string, filename string) (bool, error) {
+	if dir == "" {
+		return false, nil
+	}
+
+	absDir, err := filepath.Abs(dir)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	absPluginPath := path.Join(absPluginDir, filename)
+	absPath := filepath.Join(absDir, filename)
+	if _, err := os.Stat(absPath); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
 
-	if !isSubdirectory(absPluginDir, absPluginPath) {
-		return fmt.Errorf("plugin path '%s' is not a subdirectory of '%s'", absPluginPath, absPluginDir)
+		return false, err
 	}
 
-	return os.RemoveAll(absPluginPath)
+	if !isSubdirectory(absDir, absPath) {
+		return false, fmt.Errorf("plugin path '%s' is not a subdirectory of '%s'", absPath, absDir)
+	}
+
+	if err := os.RemoveAll(absPath); err != nil && !os.IsNotExist(err) {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// Delete deletes the plugin from the appropriate plugin directory (user or development).
+// Shipped plugins cannot be deleted.
+// If pluginType is specified ("user" or "development"), only that directory is checked.
+// If pluginType is empty, it checks user-plugins first, then development (for backward compatibility).
+// Returns an error if the plugin is not found or if it's a shipped plugin.
+func Delete(userPluginDir, pluginDir, filename, pluginType string) error {
+	// Validate plugin type if provided
+	if pluginType != "" && pluginType != PluginTypeUser && pluginType != PluginTypeDevelopment {
+		return fmt.Errorf("invalid plugin type '%s': must be 'user' or 'development'", pluginType)
+	}
+
+	// Attempt deletion according to requested/implicit order
+	deleted := false
+
+	var err error
+
+	if pluginType != PluginTypeDevelopment {
+		if deleted, err = tryDeletePlugin(userPluginDir, filename); err != nil {
+			return err
+		}
+
+		if pluginType == PluginTypeUser && !deleted {
+			return fmt.Errorf("plugin '%s' not found in user-plugins directory", filename)
+		}
+	}
+
+	if !deleted && (pluginType == "" || pluginType == PluginTypeDevelopment) {
+		if deleted, err = tryDeletePlugin(pluginDir, filename); err != nil {
+			return err
+		}
+
+		if pluginType == PluginTypeDevelopment && !deleted {
+			return fmt.Errorf("plugin '%s' not found in development directory", filename)
+		}
+	}
+
+	if !deleted {
+		return fmt.Errorf("plugin '%s' not found or cannot be deleted (shipped plugins cannot be deleted)", filename)
+	}
+
+	return nil
 }
 
 func isSubdirectory(parentDir, dirPath string) bool {

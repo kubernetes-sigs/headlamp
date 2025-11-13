@@ -88,7 +88,8 @@
     "vite": "^6.4.1",
     "vite-plugin-node-polyfills": "^0.23.0",
     "vite-plugin-static-copy": "^3.1.2",
-    "vite-plugin-svgr": "^4.3.0"
+    "vite-plugin-svgr": "^4.3.0",
+    "yaml": "^2.7.0"
   },
   "overrides": {
     "axe-core": "npm:dry-uninstall",

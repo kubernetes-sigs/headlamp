@@ -195,16 +195,98 @@ export function filterSources(
 }
 
 /**
- * Gives back updates settings from the backend.
+ * Apply priority-based plugin loading logic.
  *
- * If there are new plugins, it includes the new ones with isEnabled=true.
+ * When multiple versions of the same plugin exist across different locations:
+ * - Priority order: development > user > shipped
+ * - Only the highest priority ENABLED version is loaded
+ * - If a higher priority version is disabled, the next enabled version is loaded
+ * - Lower priority versions are marked with isLoaded=false and overriddenBy info
  *
- * If plugins are not there anymore in the backend list,
- * then it removes them from the settings list of plugins.
+ * @param plugins List of all plugins from all locations
+ * @returns Plugins with isLoaded and overriddenBy fields set appropriately
+ */
+export function applyPluginPriority(plugins: PluginInfo[]): PluginInfo[] {
+  // Group plugins by name
+  const pluginsByName = new Map<string, PluginInfo[]>();
+
+  plugins.forEach(plugin => {
+    const existing = pluginsByName.get(plugin.name) || [];
+    existing.push(plugin);
+    pluginsByName.set(plugin.name, existing);
+  });
+
+  const result: PluginInfo[] = [];
+
+  // Process each plugin name group
+  pluginsByName.forEach(versions => {
+    if (versions.length === 1) {
+      // Only one version exists, mark it as loaded if enabled
+      result.push({
+        ...versions[0],
+        isLoaded: versions[0].isEnabled !== false,
+      });
+      return;
+    }
+
+    // Multiple versions exist - apply priority
+    const priorityOrder: Array<'development' | 'user' | 'shipped'> = [
+      'development',
+      'user',
+      'shipped',
+    ];
+
+    // Sort versions by priority (highest first)
+    const sortedVersions = versions.sort((a, b) => {
+      const aPriority = priorityOrder.indexOf(a.type || 'shipped');
+      const bPriority = priorityOrder.indexOf(b.type || 'shipped');
+      return aPriority - bPriority;
+    });
+
+    // Find the highest priority enabled version
+    let loadedVersion: PluginInfo | null = null;
+
+    for (const version of sortedVersions) {
+      if (version.isEnabled !== false) {
+        loadedVersion = version;
+        break;
+      }
+    }
+
+    // Mark each version appropriately
+    sortedVersions.forEach(version => {
+      if (loadedVersion && version === loadedVersion) {
+        // This is the version that will be loaded
+        result.push({
+          ...version,
+          isLoaded: true,
+        });
+      } else {
+        // This version is overridden by a higher priority version
+        result.push({
+          ...version,
+          isLoaded: false,
+          overriddenBy: loadedVersion?.type,
+        });
+      }
+    });
+  });
+
+  return result;
+}
+
+/**
+ * Updates settings packages based on what the backend provides.
+ *
+ * - For new plugins (not in settings), includes them with isEnabled=true
+ * - For existing plugins (in settings), preserves their isEnabled preference
+ * - Returns only plugins that exist in the backend list (automatically removing any that are gone)
+ * - Treats plugins with the same name but different types as separate entries
+ * - Each plugin is identified by name + type combination
  *
  * @param backendPlugins the list of plugins info from the backend.
  * @param settingsPlugins the list of plugins the settings already knows about.
- * @returns plugin info for the settings.
+ * @returns plugin info for the settings (only includes plugins from backend).
  */
 export function updateSettingsPackages(
   backendPlugins: PluginInfo[],
@@ -212,27 +294,35 @@ export function updateSettingsPackages(
 ): PluginInfo[] {
   if (backendPlugins.length === 0) return [];
 
+  // Create a unique key for each plugin (name + type)
+  const getPluginKey = (plugin: PluginInfo) => `${plugin.name}@${plugin.type || 'unknown'}`;
+
   const pluginsChanged =
     backendPlugins.length !== settingsPlugins.length ||
-    backendPlugins.map(p => p.name + p.version).join('') !==
-      settingsPlugins.map(p => p.name + p.version).join('');
+    backendPlugins.map(p => getPluginKey(p) + p.version).join('') !==
+      settingsPlugins.map(p => getPluginKey(p) + p.version).join('');
 
   if (!pluginsChanged) {
     return settingsPlugins;
   }
 
   return backendPlugins.map(plugin => {
-    const index = settingsPlugins.findIndex(x => x.name === plugin.name);
+    // Find matching plugin by name AND type
+    const index = settingsPlugins.findIndex(x => x.name === plugin.name && x.type === plugin.type);
+
     if (index === -1) {
-      // It's a new one settings doesn't know about so we do not enable it by default
+      // It's a new one settings doesn't know about, enable it by default
       return {
         ...plugin,
         isEnabled: true,
       };
     }
+
+    // Merge settings with backend info, preserving user's isEnabled preference
     return {
       ...settingsPlugins[index],
       ...plugin,
+      isEnabled: settingsPlugins[index].isEnabled,
     };
   });
 }
@@ -327,11 +417,10 @@ async function fetchWithRetry(
  * Get the list of plugins,
  *   download all the plugin source,
  *   download all the plugin package.json files,
- *   ask app for permission secrets,
- *   filter the sources to execute,
- *   filter the incompatible plugins and plugins enabled in settings,
- *   execute the plugins,
- *   .initialize() plugins that register (not all do).
+ *   apply priority-based filtering (dev > user > shipped),
+ *   filter incompatible plugins and respect enable/disable settings,
+ *   execute only the highest priority enabled version of each plugin,
+ *   initialize() plugins that register.
  *
  * @param settingsPackages The packages settings knows about.
  * @param onSettingsChange Called when the plugins are different to what is in settings.
@@ -347,9 +436,19 @@ export async function fetchAndExecutePlugins(
 
   const headers = addBackstageAuthHeaders();
 
-  const pluginPaths = (await fetchWithRetry(`${getAppUrl()}plugins`, headers).then(resp =>
+  // Backend now returns plugin metadata with path, type, and name
+  interface PluginMetadata {
+    path: string;
+    type: 'development' | 'user' | 'shipped';
+    name: string;
+  }
+
+  const pluginMetadataList = (await fetchWithRetry(`${getAppUrl()}plugins`, headers).then(resp =>
     resp.json()
-  )) as string[];
+  )) as PluginMetadata[];
+
+  // Extract paths for fetching plugin files
+  const pluginPaths = pluginMetadataList.map(metadata => metadata.path);
 
   const sourcesPromise = Promise.all(
     pluginPaths.map(path =>
@@ -360,7 +459,7 @@ export async function fetchAndExecutePlugins(
   );
 
   const packageInfosPromise = await Promise.all<PluginInfo>(
-    pluginPaths.map(path =>
+    pluginPaths.map((path, index) =>
       fetch(`${getAppUrl()}${path}/package.json`, { headers: new Headers(headers) }).then(resp => {
         if (!resp.ok) {
           if (resp.status !== 404) {
@@ -378,10 +477,16 @@ export async function fetchAndExecutePlugins(
               version: '0.0.0',
               author: 'unknown',
               description: '',
+              type: pluginMetadataList[index].type,
+              folderName: pluginMetadataList[index].name,
             };
           }
         }
-        return resp.json();
+        return resp.json().then(json => ({
+          ...json,
+          type: pluginMetadataList[index].type,
+          folderName: pluginMetadataList[index].name,
+        }));
       })
     )
   );
@@ -390,37 +495,76 @@ export async function fetchAndExecutePlugins(
   const packageInfos = await packageInfosPromise;
   const permissionSecrets = await permissionSecretsPromise;
 
-  const updatedSettingsPackages = updateSettingsPackages(packageInfos, settingsPackages);
-  const settingsChanged = packageInfos.length !== settingsPackages.length;
-  if (settingsChanged) {
-    onSettingsChange(updatedSettingsPackages);
-  }
+  // Update settings to include all plugin versions (by name + type)
+  let updatedSettingsPackages = updateSettingsPackages(packageInfos, settingsPackages);
+
+  // Apply priority-based loading logic
+  updatedSettingsPackages = applyPluginPriority(updatedSettingsPackages);
+
+  // Notify settings of changes
+  onSettingsChange(updatedSettingsPackages);
 
   // Can set this to a semver version range like '>=0.8.0-alpha.3'.
   // '' means all versions.
   const compatibleHeadlampPluginVersion = '>=0.8.0-alpha.3';
 
-  const { sourcesToExecute, incompatiblePlugins } = filterSources(
-    sources,
-    packageInfos,
-    isElectron(),
-    compatibleHeadlampPluginVersion,
-    updatedSettingsPackages
-  );
+  // Mark incompatible plugins
+  const incompatiblePlugins: Record<string, PluginInfo> = {};
+  updatedSettingsPackages = updatedSettingsPackages.map(plugin => {
+    const isCompatible = semver.satisfies(
+      semver.coerce(plugin.devDependencies?.['@kinvolk/headlamp-plugin']) || '',
+      compatibleHeadlampPluginVersion
+    );
+
+    if (!isCompatible) {
+      incompatiblePlugins[`${plugin.name}@${plugin.type}`] = plugin;
+    }
+
+    return {
+      ...plugin,
+      isCompatible,
+    };
+  });
 
   if (Object.keys(incompatiblePlugins).length > 0) {
     onIncompatible(incompatiblePlugins);
   }
 
-  const packagesIncompatibleSet: PluginInfo[] = updatedSettingsPackages.map(
-    (plugin: PluginInfo) => {
-      return {
-        ...plugin,
-        isCompatible: !incompatiblePlugins[plugin.name],
-      };
+  // Update settings with compatibility info
+  onSettingsChange(updatedSettingsPackages);
+
+  // Filter to only execute plugins that should be loaded
+  // A plugin is executed if:
+  // 1. It's marked as isLoaded=true (highest priority enabled version)
+  // 2. It's compatible with this version of Headlamp
+  // 3. In app mode, it must be enabled
+  const pluginsToExecute = updatedSettingsPackages.filter(plugin => {
+    // Must be marked as the version to load
+    if (!plugin.isLoaded) {
+      return false;
     }
+
+    // Must be compatible
+    if (!plugin.isCompatible) {
+      return false;
+    }
+
+    // In app mode, must be enabled
+    if (isElectron() && plugin.isEnabled === false) {
+      return false;
+    }
+
+    return true;
+  });
+
+  // Get indices of plugins to execute for matching with sources
+  const indicesToExecute = pluginsToExecute.map(plugin =>
+    packageInfos.findIndex(p => p.name === plugin.name && p.type === plugin.type)
   );
-  onSettingsChange(packagesIncompatibleSet);
+
+  const sourcesToExecute = indicesToExecute.map(index => sources[index]);
+  const pluginPathsToExecute = indicesToExecute.map(index => pluginPaths[index]);
+  const packageInfosToExecute = indicesToExecute.map(index => packageInfos[index]);
 
   // Save references to the pluginRunCommand and desktopApiSend/Receive.
   // Plugins can use without worrying about modified global window.desktopApi.
@@ -433,19 +577,22 @@ export async function fetchAndExecutePlugins(
   const isDevelopmentMode = process.env.NODE_ENV === 'development';
   const consoleError = console.error;
 
-  const pluginsLoaded = updatedSettingsPackages.map(plugin => ({
-    name: plugin.name,
-    version: plugin.version,
-    isEnabled: plugin.isEnabled,
-  }));
+  const pluginsLoaded = updatedSettingsPackages
+    .filter(plugin => plugin.isLoaded)
+    .map(plugin => ({
+      name: plugin.name,
+      version: plugin.version,
+      isEnabled: plugin.isEnabled,
+      type: plugin.type,
+    }));
 
   const infoForRunningPlugins = sourcesToExecute
     .map((source, index) => {
       return getInfoForRunningPlugins({
         source,
-        pluginPath: pluginPaths[index],
-        packageName: packageInfos[index].name,
-        packageVersion: packageInfos[index].version || '',
+        pluginPath: pluginPathsToExecute[index],
+        packageName: packageInfosToExecute[index].name,
+        packageVersion: packageInfosToExecute[index].version || '',
         permissionSecrets,
         handleError: handlePluginRunError,
         getAllowedPermissions: (pluginName, pluginPath, secrets): Record<string, number> => {

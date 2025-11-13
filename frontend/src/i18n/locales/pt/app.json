@@ -46,6 +46,12 @@
   "Continue": "Continuar",
   "Failed to quit the other running process": "Falha ao eliminar o outro processo em execução",
   "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "Não foi possível eliminar o outro processo em execução. PIDs: {{ process_list }}. Por favor pare esse processo e reinicie o programa.",
+  "No available ports": "",
+  "Could not find an available port. There are processes running on ports {{startPort}}-{{endPort}}. Terminate these processes and retry?": "",
+  "Terminate and Retry": "",
+  "Failed to start": "",
+  "Could not start the server even after terminating existing processes.": "",
+  "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "",
   "Invalid URL": "URL inválido",
   "Application opened with an invalid URL: {{ url }}": "Aplicação aberta com um URL inválido: {{ url }}"
 }
