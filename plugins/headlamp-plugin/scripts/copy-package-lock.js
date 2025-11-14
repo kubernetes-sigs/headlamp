@@ -22,11 +22,30 @@ const child_process = require('child_process');
  * Copies the package-lock.json file to the template folder and modifies its contents.
  */
 function copyPackageLock() {
-  console.log('copy_package_lock: Copying package-lock.json to template folder...');
-  fs.copyFileSync(
-    'package-lock.json',
-    path.join('template', 'package-lock.json')
-  );
+  // Remove all kinvolk-headlamp-plugin*.tgz
+  const oldTgzFiles = fs.readdirSync('.').filter(file => file.startsWith('kinvolk-headlamp-plugin') && file.endsWith('.tgz'));
+  oldTgzFiles.forEach(file => {
+    console.log(`copy_package_lock: Removing old package file ${file}`);
+    fs.rmSync(file, { force: true })
+  });
+
+  // Build a .tgz package. "npm run build && npm pack"
+  console.log('copy_package_lock: Building kinvolk-headlamp-plugin package...');
+  child_process.spawnSync('npm', ['run', 'build'], {
+    stdio: 'inherit',
+  });
+  child_process.spawnSync('npm', ['pack'], {
+    stdio: 'inherit',
+  });
+
+  // Get filename of new kinvolk-headlamp-plugin*.tgz
+  const tgzFiles = fs.readdirSync('.').filter(file => file.startsWith('kinvolk-headlamp-plugin') && file.endsWith('.tgz'));
+  if (tgzFiles.length === 0) {
+    console.error('copy_package_lock: Error: No kinvolk-headlamp-plugin*.tgz file found after npm pack');
+    process.exit(1);
+  }
+  const tgzFile = tgzFiles[0];
+  console.log(`copy_package_lock: Found package file ${tgzFile}`);
 
   // Make a tmp mypkgtmp with bin/headlamp-plugin.js create mypkgtmp
   // If mypkgtmp exists remove it first
@@ -38,9 +57,9 @@ function copyPackageLock() {
     stdio: 'inherit',
   });
 
-  // Go into the folder and run "npm install"
-  console.log('copy_package_lock: Installing dependencies in temporary folder to make sure everything is up to date...');
-  child_process.spawnSync('npm', ['install'], {
+  // npm i the .tgz into mypkgtmp
+  console.log(`copy_package_lock: Installing package ${tgzFile} into temporary folder...`);
+  child_process.spawnSync('npm', ['install', path.join('..', tgzFile)], {
     cwd: packageName,
     stdio: 'inherit',
   });
@@ -74,6 +93,29 @@ function copyPackageLock() {
   let packageLockContent = fs.readFileSync('template/package-lock.json', 'utf8');
   // Use a replacer function so the replacement string is inserted literally as $${name}
   packageLockContent = packageLockContent.replace(new RegExp(packageName, 'g'), () => '$${name}');
+
+  // replace in template/package-lock.json  "@kinvolk/headlamp-plugin": "file:../kinvolk-headlamp-plugin-<version>.tgz"
+  // with the version field of from ./package.json with a ^ in front
+  const mainPackageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  const pluginVersion = mainPackageJson.version;
+  const tgzPattern = new RegExp(`"@kinvolk/headlamp-plugin": "file:\\.\\./${tgzFile.replace(/\./g, '\\.')}"`, 'g');
+  const replacementString = `"@kinvolk/headlamp-plugin": "^${pluginVersion}"`;
+  packageLockContent = packageLockContent.replace(tgzPattern, replacementString);
+
+  // Also replace the resolved fields for @kinvolk/headlamp-plugin in 
+  // template/package-lock.json to match the version from main package.json
+  //
+  // Example of the change:
+  //    "packages": {
+  //      ...
+  //      "node_modules/@kinvolk/headlamp-plugin": {
+  //        ...
+  // -      "resolved": "file:../kinvolk-headlamp-plugin-0.13.0-alpha.13.tgz",
+  // +      "resolved": "https://registry.npmjs.org/@kinvolk/headlamp-plugin/-/headlamp-plugin-0.13.0-alpha.13.tgz",
+  const resolvedPattern = new RegExp(`"resolved": "file:\\.\\./${tgzFile.replace(/\./g, '\\.')}"`, 'g');
+  const resolvedReplacement = `"resolved": "https://registry.npmjs.org/@kinvolk/headlamp-plugin/-/headlamp-plugin-${pluginVersion}.tgz"`;
+  packageLockContent = packageLockContent.replace(resolvedPattern, resolvedReplacement);
+    
   fs.writeFileSync('template/package-lock.json', packageLockContent);
   console.log('copy_package_lock: Updated template/package-lock.json');
 }
