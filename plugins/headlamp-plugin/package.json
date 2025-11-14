@@ -77,7 +77,7 @@
     "i18next-browser-languagedetector": "^8.0.0",
     "i18next-parser": "^9.1.0",
     "js-base64": "^3.7.2",
-    "js-yaml": "^4.1.0",
+    "js-yaml": "^4.1.1",
     "jsdom": "^24.0.0",
     "jsonpath-plus": "^10.3.0",
     "lodash": "^4.17.21",
