@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import Fade from '@mui/material/Fade';
 import Tooltip, { TooltipProps } from '@mui/material/Tooltip';
 import { ReactElement, ReactNode } from 'react';
 
@@ -35,6 +36,8 @@ export default function TooltipLight(props: TooltipLightProps) {
     return (
       <Tooltip
         disableInteractive={disableInteractive}
+        TransitionComponent={Fade}
+        TransitionProps={{ timeout: 0 }}
         sx={theme => ({
           backgroundColor: theme.palette.background.default,
           color: theme.palette.resourceToolTip.color,
@@ -52,6 +55,8 @@ export default function TooltipLight(props: TooltipLightProps) {
   return (
     <Tooltip
       {...rest}
+      TransitionComponent={Fade}
+      TransitionProps={{ timeout: 0 }}
       // children prop in the mui Tooltip is defined as ReactElement which is not totally correct
       // string should be a valid child and is used a lot in this project
       // but it's not included in the ReactElement type
