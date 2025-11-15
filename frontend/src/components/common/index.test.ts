@@ -36,6 +36,7 @@ const checkExports = [
   'Chart',
   'ConfirmDialog',
   'ConfirmButton',
+  'CopyLabel',
   'CreateResourceButton',
   'Dialog',
   'EmptyContent',

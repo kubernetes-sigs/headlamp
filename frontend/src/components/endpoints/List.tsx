@@ -17,6 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import Endpoints from '../../lib/k8s/endpoints';
 import { useFilterFunc } from '../../lib/util';
+import CopyLabel from '../common/CopyLabel';
 import LabelListItem from '../common/LabelListItem';
 import ResourceListView from '../common/Resource/ResourceListView';
 
@@ -41,7 +42,18 @@ export default function EndpointList() {
           id: 'addresses',
           label: t('translation|Addresses'),
           getValue: endpoint => endpoint.getAddresses().join(', '),
-          render: endpoint => <LabelListItem labels={endpoint.getAddresses()} />,
+          render: endpoint => {
+            const addresses = endpoint.getAddresses();
+            if (addresses.length === 0) return null;
+            
+            // If there's only one address, show it with copy button
+            if (addresses.length === 1) {
+              return <CopyLabel textToCopy={addresses[0]}>{addresses[0]}</CopyLabel>;
+            }
+            
+            // If multiple addresses, show as list (the addresses themselves are IPs)
+            return <LabelListItem labels={endpoint.getAddresses()} />;
+          },
           gridTemplate: 1.5,
         },
         'age',

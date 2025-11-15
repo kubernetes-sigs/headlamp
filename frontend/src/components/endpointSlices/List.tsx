@@ -18,6 +18,7 @@ import Box from '@mui/material/Box';
 import { useTranslation } from 'react-i18next';
 import EndpointSlice from '../../lib/k8s/endpointSlices';
 import { LabelListItem } from '../common';
+import CopyLabel from '../common/CopyLabel';
 import { StatusLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 
@@ -27,12 +28,18 @@ function renderEndpoints(endpointSlice: EndpointSlice) {
     return null;
   }
 
-  return endpoints.map((endpoint: any) => {
+  return endpoints.map((endpoint: any, index: number) => {
     const { addresses, conditions } = endpoint;
+    const addressesStr = addresses.join(',');
+    
     return (
-      <Box display="inline-block">
+      <Box display="inline-block" key={index}>
         <StatusLabel status={conditions?.ready ? 'success' : 'error'}>
-          {addresses.join(',')}
+          {addresses.length === 1 ? (
+            <CopyLabel textToCopy={addresses[0]}>{addresses[0]}</CopyLabel>
+          ) : (
+            addressesStr
+          )}
         </StatusLabel>
       </Box>
     );
