@@ -128,7 +128,7 @@
   "Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "நேம்ஸ்பேஸ்கள் சிறிய எழுத்துக்கள், எண்கள் அல்லது '-' மட்டுமே கொண்டிருக்க வேண்டும், மேலும் எழுத்து அல்லது எண்ணுடன் தொடங்கி முடிய வேண்டும்.",
   "Node Shell Settings": "நோட் ஷெல் அமைப்புகள்",
   "The default image is used for dropping a shell into a node (when not specified directly).": "நோடில் ஷெல் திறப்பதற்கு டிஃபால்ட் இமேஜ் பயன்படுத்தப்படுகிறது (நேரடியாக குறிப்பிடப்படாதபோது).",
-  "The default namespace is kube-system.": "டிஃபால்ட் நேம்ஸ்பேஸ் kube-system ஆகும்.",
+  "The default namespace is default.": "டிஃபால்ட் நேம்ஸ்பேஸ் default ஆகும்.",
   "Enter a value between {{ minRows }} and {{ maxRows }}.": "{{ minRows }} மற்றும் {{ maxRows }} இடையில் ஒரு மதிப்பை உள்ளிடவும்.",
   "Custom row value": "தனிப்பயன் வரிசை மதிப்பு",
   "Custom value": "தனிப்பயன் மதிப்பு",

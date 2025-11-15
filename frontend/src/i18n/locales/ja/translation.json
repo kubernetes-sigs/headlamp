@@ -128,7 +128,7 @@
   "Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "ネームスペースは小文字の英数字または「-」のみを含み、最初と最後は英数字である必要があります。",
   "Node Shell Settings": "",
   "The default image is used for dropping a shell into a node (when not specified directly).": "",
-  "The default namespace is kube-system.": "",
+  "The default namespace is default.": "",
   "Enter a value between {{ minRows }} and {{ maxRows }}.": "{{ minRows }} から {{ maxRows }} の間の値を入力してください。",
   "Custom row value": "カスタム行数",
   "Custom value": "カスタム値",

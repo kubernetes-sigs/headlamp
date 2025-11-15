@@ -128,7 +128,7 @@
   "Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "命名空间只能包含小写字母数字字符或 '-'，且必须以字母数字字符开头和结尾。",
   "Node Shell Settings": "节点 Shell 设置",
   "The default image is used for dropping a shell into a node (when not specified directly).": "默认镜像用于在节点中启动 shell（当未直接指定时）。",
-  "The default namespace is kube-system.": "默认命名空间为 kube-system。",
+  "The default namespace is default.": "默认命名空间为 default。",
   "Enter a value between {{ minRows }} and {{ maxRows }}.": "输入一个 {{ minRows }} 和 {{ maxRows }} 之间的值。",
   "Custom row value": "自定义行值",
   "Custom value": "自定义值",

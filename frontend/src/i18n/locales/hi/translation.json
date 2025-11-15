@@ -128,7 +128,7 @@
   "Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "Namespaces में केवल लोअरकेस अल्फ़ान्यूमेरिक वर्ण या '-' होने चाहिए, और उन्हें अल्फ़ान्यूमेरिक वर्ण से शुरू और समाप्त होना चाहिए।",
   "Node Shell Settings": "नोड शेल सेटिंग्स",
   "The default image is used for dropping a shell into a node (when not specified directly).": "डिफ़ॉल्ट छवि नोड में शेल ड्रॉप करने के लिए उपयोग की जाती है (जब सीधे निर्दिष्ट नहीं किया जाता है)।",
-  "The default namespace is kube-system.": "डिफ़ॉल्ट namespace kube-system है।",
+  "The default namespace is default.": "डिफ़ॉल्ट namespace default है।",
   "Enter a value between {{ minRows }} and {{ maxRows }}.": "{{ minRows }} और {{ maxRows }} के बीच एक मान दर्ज करें।",
   "Custom row value": "कस्टम पंक्ति मान",
   "Custom value": "कस्टम मान",
