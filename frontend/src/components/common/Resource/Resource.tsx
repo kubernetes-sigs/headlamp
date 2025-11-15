@@ -24,11 +24,14 @@ import IconButton from '@mui/material/IconButton';
 import Input, { InputProps } from '@mui/material/Input';
 import InputLabel from '@mui/material/InputLabel';
 import Paper from '@mui/material/Paper';
+import Snackbar from '@mui/material/Snackbar';
 import { BaseTextFieldProps } from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/system';
 import { Location } from 'history';
-import _, { has } from 'lodash';
+import { Base64 } from 'js-base64';
+import { JSONPath } from 'jsonpath-plus';
+import _, { ceil, has } from 'lodash';
 import React, { PropsWithChildren, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath, NavLinkProps, useLocation } from 'react-router-dom';
@@ -36,15 +39,18 @@ import YAML from 'yaml';
 import { labelSelectorToQuery, ResourceClasses, useCluster } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { KubeCondition, KubeContainer, KubeContainerStatus } from '../../../lib/k8s/cluster';
+import ConfigMap from '../../../lib/k8s/configMap';
 import { KubeEvent } from '../../../lib/k8s/event';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 import Pod, { KubePod, KubeVolume } from '../../../lib/k8s/pod';
 import { METRIC_REFETCH_INTERVAL_MS, PodMetrics } from '../../../lib/k8s/PodMetrics';
+import Secret from '../../../lib/k8s/secret';
 import { RouteURLProps } from '../../../lib/router';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { getThemeName } from '../../../lib/themes';
+import { divideK8sResources } from '../../../lib/units';
 import { localeDate, useId } from '../../../lib/util';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../../redux/hooks';
@@ -540,12 +546,12 @@ export function SecretField(props: InputProps) {
   );
 
   return (
-    <Grid container alignItems="stretch" spacing={2}>
+    <Grid container alignItems={!!other?.disableUnderline ? 'center' : 'stretch'} spacing={2}>
       <Grid item>
         {!!secret ? <LightTooltip title={tooltipTitle}>{copyButton}</LightTooltip> : copyButton}
         <IconButton
           edge="end"
-          aria-label={t('toggle field visibility')}
+          aria-label={t('glossary|toggle field visibility')}
           onClick={handleClickShowPassword}
           onMouseDown={event => event.preventDefault()}
           size="medium"
@@ -555,12 +561,12 @@ export function SecretField(props: InputProps) {
       </Grid>
       <Grid item xs>
         <Input
-          readOnly={!showPassword}
-          type="password"
+          readOnly
+          type="text"
           fullWidth
           multiline={showPassword}
           maxRows="20"
-          value={showPassword ? (value as string) : '******'}
+          value={showPassword ? Base64.decode(value as string) : '••••••••'}
           {...other}
         />
       </Grid>
@@ -631,6 +637,420 @@ export function ConditionsTable(props: ConditionsTableProps) {
       columns={getColumns()}
     />
   );
+}
+
+export type EnvironmentVariablesProps = {
+  pod?: KubePod;
+  container?: KubeContainer;
+};
+
+export type EnvironmentVariable = {
+  from?: KubeObject | string | null;
+  value: string;
+  isError: boolean;
+  isSecret: boolean;
+  isOutOfSync: boolean; // If cm/sec creation timestamp is newer that pod's start timestamp
+};
+
+function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) {
+  const { pod, container } = props;
+  const { t } = useTranslation();
+  const [copied, setCopied] = React.useState(false);
+
+  if (
+    (!container?.env && !container?.envFrom) ||
+    !pod?.status?.containerStatuses ||
+    !pod?.metadata?.namespace
+  ) {
+    return null;
+  }
+
+  const namespace = pod.metadata.namespace;
+  const containerStartTimestamp = (() => {
+    // Default to pod creation timestamp
+    let timestamp = pod.metadata.creationTimestamp;
+    const containerStatus = pod.status.containerStatuses.find(c => c.name === container.name);
+    if (containerStatus?.started && containerStatus.state?.running?.startedAt) {
+      timestamp = containerStatus.state.running.startedAt;
+    }
+    return timestamp;
+  })();
+
+  // Copy to clipboard and show snackbar
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+      err => {
+        console.error('Failed to copy: ', err);
+      }
+    );
+  };
+
+  // Process env variables
+  const variables = ((): EnvironmentVariable[] => {
+    const variables = new Map<string, EnvironmentVariable>();
+
+    // Function to parse ISO 8601 timestamps and compare them
+    function compareTimestamps(a: string | undefined, b: string | undefined): number {
+      if (!a || !b) {
+        return 0;
+      }
+      const aDate = new Date(a!).getTime();
+      const bDate = new Date(b!).getTime();
+      // Check if either timestamp failed to parse
+      if (isNaN(aDate) || isNaN(bDate)) {
+        throw new Error('Invalid timestamp format');
+      }
+      // Compare the dates
+      if (aDate < bDate) {
+        return -1; // First is older
+      } else if (aDate > bDate) {
+        return 1; // Second is older
+      } else {
+        return 0; // Both have the same timestamp
+      }
+    }
+
+    // Function to process secret data
+    const useValueFromSecret = (
+      name: string,
+      secretKeyRef: { name: string; key: string; optional?: boolean }
+    ) => {
+      const [secret, error] = Secret.useGet(secretKeyRef.name, namespace);
+      const key = secretKeyRef.key;
+      let value = secret?.data?.[key] ? atob(secret.data[key]) : '';
+      let isSecret = true;
+
+      if (error) {
+        if (error.status === 404 && !!secretKeyRef.optional) {
+          return;
+        }
+        value = error.message;
+        isSecret = false;
+      }
+      variables.set(name, {
+        from: secret,
+        value,
+        isError: !!error,
+        isSecret,
+        isOutOfSync:
+          compareTimestamps(secret?.metadata.creationTimestamp, containerStartTimestamp) === 1,
+      });
+    };
+
+    // Function to process configMap data
+    const useValueFromConfigMap = (
+      name: string,
+      configMapKeyRef: { name: string; key: string; optional?: boolean }
+    ) => {
+      const [configMap, error] = ConfigMap.useGet(configMapKeyRef.name, namespace);
+      const key = configMapKeyRef.key;
+      let value = configMap?.data?.[key] || '';
+
+      if (error) {
+        if (error.status === 404 && !!configMapKeyRef.optional) {
+          return;
+        }
+        value = error.message;
+      }
+      variables.set(name, {
+        from: configMap,
+        value,
+        isError: !!error,
+        isSecret: false,
+        isOutOfSync:
+          compareTimestamps(configMap?.metadata.creationTimestamp, containerStartTimestamp) === 1,
+      });
+    };
+
+    // Function to process all keys from a secret and add them to the variables map
+    const useAllSecretKeys = (
+      secretRef: { name: string; optional?: boolean },
+      prefix: string = ''
+    ) => {
+      const [secret, error] = Secret.useGet(secretRef.name, namespace);
+      const isOutOfSync =
+        compareTimestamps(secret?.metadata.creationTimestamp, containerStartTimestamp) === 1;
+
+      if (error) {
+        if (error.status === 404 && !!secretRef.optional) {
+          return;
+        }
+        variables.set(`${prefix}${secretRef.name}`, {
+          from: secret,
+          value: error.message,
+          isError: true,
+          isSecret: false,
+          isOutOfSync: false,
+        });
+      } else if (secret?.data) {
+        Object.entries(secret.data).forEach(([key, value]) => {
+          variables.set(`${prefix}${key}`, {
+            from: secret,
+            value: atob(value),
+            isError: false,
+            isSecret: true,
+            isOutOfSync,
+          });
+        });
+      }
+    };
+
+    // Function to process all keys from a configMap and add them to the variables map
+    const useAllConfigMapKeys = (
+      configMapRef: { name: string; optional?: boolean },
+      prefix: string = ''
+    ) => {
+      const [configMap, error] = ConfigMap.useGet(configMapRef.name, namespace);
+      const isOutOfSync =
+        compareTimestamps(configMap?.metadata.creationTimestamp, containerStartTimestamp) === 1;
+
+      if (error) {
+        if (error.status === 404 && !!configMapRef.optional) {
+          return;
+        }
+        variables.set(`${prefix}${configMapRef.name}`, {
+          from: configMap,
+          value: error.message,
+          isError: true,
+          isSecret: false,
+          isOutOfSync: false,
+        });
+      } else if (configMap?.data) {
+        Object.entries(configMap.data).forEach(([key, value]) => {
+          variables.set(`${prefix}${key}`, {
+            from: configMap,
+            value,
+            isError: false,
+            isSecret: false,
+            isOutOfSync,
+          });
+        });
+      }
+    };
+
+    const useValueFromFieldRef = (name: string, fieldRef: { fieldPath: string }) => {
+      let value: string | undefined;
+      let isError = false;
+      try {
+        value = JSONPath({ path: '$.' + fieldRef.fieldPath, json: pod });
+      } catch (err) {
+        isError = true;
+        if (err instanceof Error) {
+          value = `Error processing fieldPath: ${err.message}`;
+        } else {
+          value = 'Unknown error occurred.';
+        }
+      }
+      variables.set(name, {
+        value: value!,
+        from: `fieldRef: ${fieldRef.fieldPath}`,
+        isSecret: false,
+        isError: isError,
+        isOutOfSync: false,
+      });
+    };
+
+    const useValueFromResourceFieldRef = (
+      name: string,
+      resourceFieldRef: { resource: string; containerName?: string; divisor?: string }
+    ) => {
+      let value = '';
+      let isError = false;
+      const containerName = resourceFieldRef.containerName || container.name;
+      const resourceType = resourceFieldRef.resource;
+      let divisor = resourceFieldRef.divisor || '1';
+      if (divisor === '0') {
+        divisor = '1';
+      }
+
+      try {
+        // Find the container based on the containerName
+        const targetContainer = pod.spec.containers.find(c => c.name === containerName);
+        if (!targetContainer) {
+          isError = true;
+          throw new Error(`Container ${containerName} not found`);
+        }
+
+        // Fetch the resource value from container resources (CPU, memory, etc.)
+        const [category, type] = resourceType.split('.');
+        const resourceValue =
+          targetContainer.resources?.[category as 'requests' | 'limits']?.[
+            type as 'cpu' | 'memory'
+          ];
+        if (!resourceValue) {
+          isError = true;
+          throw new Error(`Resource ${resourceType} not found for container ${containerName}`);
+        }
+
+        // Handle the divisor if it exists (for formatting purposes, e.g., 1k, 1M, etc.
+        value = `${ceil(divideK8sResources(resourceValue, divisor))}`;
+      } catch (err) {
+        isError = true;
+        if (err instanceof Error) {
+          value = err.message;
+        } else {
+          value = 'Unknown error occurred.';
+        }
+      }
+
+      variables.set(name, {
+        value: value,
+        from: `resourceFieldRef: ${containerName}.${resourceType} / ${divisor}`,
+        isSecret: false,
+        isError: isError,
+        isOutOfSync: false,
+      });
+    };
+
+    // Process env variables directly from env
+    container?.env?.forEach(item => {
+      if (item.value) {
+        variables.set(item.name, {
+          value: item.value,
+          from: 'manifest',
+          isSecret: false,
+          isError: false,
+          isOutOfSync: false,
+        });
+      } else if (item.valueFrom) {
+        const ref = item.valueFrom;
+        if (ref.secretKeyRef) {
+          useValueFromSecret(item.name, ref.secretKeyRef);
+        } else if (ref.configMapKeyRef) {
+          useValueFromConfigMap(item.name, ref.configMapKeyRef);
+        } else if (ref.fieldRef) {
+          useValueFromFieldRef(item.name, ref.fieldRef);
+        } else if (ref.resourceFieldRef) {
+          useValueFromResourceFieldRef(item.name, ref.resourceFieldRef);
+        }
+      }
+    });
+
+    // Process env variables from envFrom (configMap or secret references)
+    container?.envFrom?.forEach(item => {
+      if (item.secretRef) {
+        useAllSecretKeys(item.secretRef, item.prefix);
+      } else if (item.configMapRef) {
+        useAllConfigMapKeys(item.configMapRef, item.prefix);
+      }
+    });
+
+    return Array.from(variables.entries())
+      .map(([key, value]) => ({
+        key,
+        ...value,
+      }))
+      .sort((a, b) => a.key.localeCompare(b.key));
+  })();
+
+  // Define columns for the table
+  const columns = [
+    {
+      label: t('translation|Name'),
+      getter: (data: any) => {
+        return (
+          <Box display="flex" alignItems="center">
+            <StatusLabel status="" sx={{ fontFamily: 'monospace' }}>
+              {data.key}
+            </StatusLabel>
+            {data.isOutOfSync && (
+              <Box aria-label="hidden" display="flex" alignItems="center" px={1}>
+                <HoverInfoLabel
+                  label=""
+                  aria-label="error"
+                  icon="mdi:alert-outline"
+                  hoverInfo={t(
+                    'translation|This value may differ in the container, since the pod is older than {{from}}',
+                    {
+                      from: (() => {
+                        if (typeof data.from === 'object' && data.from !== null) {
+                          const o = data.from as KubeObject;
+                          return `${o.kind} ${o.metadata.name}`;
+                        }
+                        return 'in referenced object';
+                      })(),
+                    }
+                  )}
+                />
+              </Box>
+            )}
+          </Box>
+        );
+      },
+    },
+    {
+      label: t('translation|Value'),
+      getter: (data: any) => {
+        return (
+          <Box display="flex" alignItems="center">
+            {data.isError && (
+              <Box aria-label="hidden" display="flex" alignItems="center" px={1}>
+                <Icon icon="mdi:alert-outline" aria-label="error" />
+                <Typography color="error" sx={{ marginLeft: 1 }}>
+                  {data.value}
+                </Typography>
+              </Box>
+            )}
+            {!data.isError && (
+              <Box display="flex" alignItems="center">
+                <IconButton
+                  edge="end"
+                  aria-label={t('translation|Copy')}
+                  onClick={() => handleCopy(data.value)}
+                  onMouseDown={event => event.preventDefault()}
+                  size="medium"
+                >
+                  <Icon icon="mdi:content-copy" />
+                  <Snackbar open={copied} message="Copied!" autoHideDuration={2000} />
+                </IconButton>
+                <SecretField
+                  disableUnderline
+                  value={btoa(data.value)}
+                  sx={{ fontFamily: 'monospace' }}
+                />
+              </Box>
+            )}
+          </Box>
+        );
+      },
+    },
+    {
+      label: t('translation|From'),
+      getter: (data: any) => {
+        if (typeof data.from === 'object' && data !== null) {
+          let routeName;
+          try {
+            routeName =
+              ResourceClasses[data.from?.kind as keyof typeof ResourceClasses].detailsRoute;
+          } catch (e) {
+            console.error(`Error getting routeName for {data.from.kind}`, e);
+            return null;
+          }
+          return (
+            <Link
+              routeName={routeName}
+              params={{
+                name: data.from?.metadata?.name,
+                namespace: data.from?.metadata?.namespace,
+              }}
+            >
+              {`${data.from?.kind}: ${data.from?.metadata?.name}`}
+            </Link>
+          );
+        } else if (typeof data.from === 'string') {
+          return data.from;
+        }
+        console.error(`Unknown type of data.from: ${typeof data.from}`);
+        return null;
+      },
+    },
+  ];
+
+  return <InnerTable columns={columns} data={variables} />;
 }
 
 export interface VolumeMountsProps {
@@ -853,23 +1273,6 @@ export function ContainerInfo(props: ContainerInfoProps) {
   }
 
   function containerRows() {
-    const env: { [name: string]: string } = {};
-    (container.env || []).forEach(envVar => {
-      let value = '';
-
-      if (envVar.value) {
-        value = envVar.value;
-      } else if (envVar.valueFrom) {
-        if (envVar.valueFrom.fieldRef) {
-          value = envVar.valueFrom.fieldRef.fieldPath;
-        } else if (envVar.valueFrom.secretKeyRef) {
-          value = envVar.valueFrom.secretKeyRef.key;
-        }
-      }
-
-      env[envVar.name] = value;
-    });
-
     return [
       {
         name: container.name,
@@ -975,11 +1378,6 @@ export function ContainerInfo(props: ContainerInfoProps) {
         hide: !container.command,
       },
       {
-        name: t('Environment'),
-        value: <MetadataDictGrid dict={env} />,
-        hide: _.isEmpty(env),
-      },
-      {
         name: t('Liveness Probes'),
         value: <LivenessProbes liveness={container.livenessProbe} />,
         hide: _.isEmpty(container.livenessProbe),
@@ -1013,6 +1411,12 @@ export function ContainerInfo(props: ContainerInfoProps) {
           </Grid>
         ),
         hide: _.isEmpty(container.ports),
+      },
+      {
+        name: 'Environment',
+        value: <ContainerEnvironmentVariables pod={resource as KubePod} container={container} />,
+        valueCellProps: { sm: 12 as GridSize },
+        hide: _.isEmpty(container?.env) && _.isEmpty(container?.envFrom),
       },
       {
         name: t('Volume Mounts'),
