@@ -95,7 +95,8 @@
     "axe-core": "npm:dry-uninstall",
     "domain-browser": "npm:dry-uninstall",
     "typescript": "5.6.2",
-    "cheerio": "1.0.0-rc.12"
+    "cheerio": "1.0.0-rc.12",
+    "js-yaml": "^4.1.1"
   },
   "optionalDependencies": {
     "@rollup/rollup-darwin-arm64": "*",
