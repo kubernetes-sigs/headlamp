@@ -168,7 +168,8 @@
     "typescript": "5.5.4"
   },
   "overrides": {
-    "typescript": "5.5.4"
+    "typescript": "5.5.4",
+    "js-yaml": "^4.1.1"
   },
   "dependencies": {
     "copyfiles": "^2.4.1",
