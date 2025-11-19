@@ -3,6 +3,8 @@ name: Trigger Headlamp website update
 # See https://github.com/kubernetes-sigs/headlamp-website
 on:
   push:
+    branches:
+      - main
     paths:
       - 'docs/**'
   workflow_dispatch:
