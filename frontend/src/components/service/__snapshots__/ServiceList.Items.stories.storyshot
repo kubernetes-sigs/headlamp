@@ -851,11 +851,11 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-ccolv7-MuiTableCell-root"
               >
                 <span
-                  aria-label="80"
+                  aria-label="80:8080/TCP"
                   class=""
                   data-mui-internal-clone-element="true"
                 >
-                  80
+                  80:8080/TCP
                 </span>
               </td>
               <td
