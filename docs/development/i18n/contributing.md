@@ -26,7 +26,7 @@ In Headlamp, namespaces are separated by a `|` character. E.g. `t('glossary|Pod'
 
 ## Context
 
-In order to better express context for a translation, we use the [i18next context](https://www.i18next.com/principles/context) feature. It is used like this:
+In order to better express context for a translation, we use the [i18next context](https://www.i18next.com/translation-function/context) feature. It is used like this:
 
 ```typescript
 return t("translation|Desired", { context: "pods" });

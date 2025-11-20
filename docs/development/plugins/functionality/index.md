@@ -90,7 +90,7 @@ Change the Cluster Chooser button in the top middle of the app bar with
 
 ![screenshot of the cluster chooser button](../images/cluster-chooser.png)
 
-- Example plugin: [How To Register Cluster Chooser button](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/clusterchooser)
+- Example plugin: [How To Register Cluster Chooser button](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/cluster-chooser)
 - API reference: [registerClusterChooser](../../api/plugin/registry/functions/registerclusterchooser)
 
 ### Details View Header Action
