@@ -16,11 +16,13 @@
 
 'use strict';
 // Creates the .env file
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 const appInfo = JSON.parse(fs.readFileSync('../app/package.json', 'utf8'));
 
-const gitVersion = execSync('git rev-parse HEAD').toString().trim();
+const gitVersion = execFileSync('git', ['rev-parse', 'HEAD'], {
+  encoding: 'utf8',
+}).trim();
 
 const envContents = {
   REACT_APP_HEADLAMP_VERSION: appInfo.version,

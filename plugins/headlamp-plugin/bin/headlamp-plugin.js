@@ -108,7 +108,7 @@ function create(name, link, noInstall) {
   } else {
     console.log('Installing dependencies...');
     try {
-      child_process.execSync('npm ci', {
+      child_process.execFileSync('npm', ['ci'], {
         stdio: 'inherit',
         cwd: dstFolder,
         encoding: 'utf8',
@@ -603,7 +603,7 @@ function runScriptOnPackages(packageFolder, scriptName, cmdLine, env) {
       console.log(`No node_modules in "${folder}" found. Running npm install...`);
 
       try {
-        child_process.execSync('npm install', {
+        child_process.execFileSync('npm', ['install'], {
           stdio: 'inherit',
           encoding: 'utf8',
         });
@@ -864,7 +864,7 @@ function getNpmOutdated() {
   let result = null;
 
   try {
-    result = child_process.execSync('npm outdated --json', {
+    result = child_process.execFileSync('npm', ['outdated', '--json'], {
       encoding: 'utf8',
     });
   } catch (error) {
@@ -1030,7 +1030,6 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
         encoding: 'utf8',
       });
     } catch (e) {
-      console.error(`Problem running ${cmd}`);
       return e.status;
     }
     return 0;
