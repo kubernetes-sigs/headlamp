@@ -67,12 +67,12 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
           <ActionButton
             description={
               isLinux(item)
-                ? t('Node Shell')
-                : t('Node shell is not supported in this OS: {{ nodeOS }}', {
+                ? t('Debug Node')
+                : t('Debug node is not supported in this OS: {{ nodeOS }}', {
                     nodeOS: item?.status?.nodeInfo?.operatingSystem,
                   })
             }
-            icon="mdi:console"
+            icon="mdi:bug"
             onClick={() => {
               Activity.launch({
                 id: activityId,

@@ -238,7 +238,7 @@ export default function NodeShellSettings(props: SettingsProps) {
                 error={!isValidNamespace}
                 helperText={
                   isValidNamespace
-                    ? t('translation|The default namespace is kube-system.')
+                    ? t('translation|The default namespace is default.')
                     : invalidNamespaceMessage
                 }
                 variant="outlined"

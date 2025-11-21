@@ -31,8 +31,8 @@ export interface ClusterSettings {
   };
 }
 
-export const DEFAULT_NODE_SHELL_LINUX_IMAGE = 'docker.io/library/alpine:latest';
-export const DEFAULT_NODE_SHELL_NAMESPACE = 'kube-system';
+export const DEFAULT_NODE_SHELL_LINUX_IMAGE = 'docker.io/library/busybox:latest';
+export const DEFAULT_NODE_SHELL_NAMESPACE = 'default';
 
 /**
  * Stores the cluster settings in local storage.
