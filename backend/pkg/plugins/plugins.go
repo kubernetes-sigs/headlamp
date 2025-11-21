@@ -25,13 +25,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/utils"
 )
 
 const (
@@ -86,7 +86,7 @@ func periodicallyWatchSubfolders(watcher *fsnotify.Watcher, path string, interva
 	for ; true; <-ticker.C {
 		// Walk the path and add any new directories to the watcher.
 		_ = filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
-			if d != nil && d.IsDir() && !utils.Contains(watcher.WatchList(), path) {
+			if d != nil && d.IsDir() && !slices.Contains(watcher.WatchList(), path) {
 				err := watcher.Add(path)
 				if err != nil {
 					logger.Log(logger.LevelError, map[string]string{"path": path},
