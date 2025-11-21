@@ -21,6 +21,19 @@ export const queryClient = new QueryClient({
     queries: {
       staleTime: 3 * 60_000,
       refetchOnWindowFocus: false,
+      retry(failureCount, error: unknown) {
+        // Do not retry for unauthorized or bad requests
+        if (
+          !!error &&
+          typeof error === 'object' &&
+          'status' in error &&
+          !isNaN(Number(error.status)) &&
+          Number(error.status) < 500
+        ) {
+          return false;
+        }
+        return failureCount < 3;
+      },
     },
   },
 });
