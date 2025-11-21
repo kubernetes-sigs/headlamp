@@ -101,7 +101,19 @@ class Service extends KubeObject<KubeService> {
   }
 
   getPorts() {
-    return this.spec?.ports?.map(port => port.port);
+    return this.spec?.ports?.map(port => {
+      let portDisplay = String(port.port);
+      if (port.nodePort) {
+        portDisplay += `:${port.nodePort}`;
+      } else if (port.targetPort && port.targetPort !== port.port) {
+        portDisplay += `:${port.targetPort}`;
+      }
+
+      if (port.protocol) {
+        portDisplay += `/${port.protocol}`;
+      }
+      return portDisplay;
+    });
   }
 
   getSelector() {
