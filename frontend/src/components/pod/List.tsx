@@ -28,6 +28,7 @@ import { timeAgo } from '../../lib/util';
 import { useNamespaces } from '../../redux/filterSlice';
 import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { CreateResourceButton } from '../common';
+import CopyLabel from '../common/CopyLabel';
 import { StatusLabel, StatusLabelProps } from '../common/Label';
 import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
@@ -369,6 +370,10 @@ export function PodListRenderer(props: PodListProps) {
           gridTemplate: 'min-content',
           label: t('glossary|IP'),
           getValue: pod => pod.status?.podIP ?? '',
+          render: pod => {
+            const podIP = pod.status?.podIP;
+            return podIP ? <CopyLabel textToCopy={podIP}>{podIP}</CopyLabel> : null;
+          },
         },
         {
           id: 'node',

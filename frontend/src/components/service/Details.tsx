@@ -70,10 +70,12 @@ export default function ServiceDetails(props: {
           {
             name: t('Cluster IP'),
             value: item.spec.clusterIP,
+            copyValue: item.spec.clusterIP,
           },
           {
             name: t('External IP'),
             value: item.getExternalAddresses(),
+            copyValue: item.getExternalAddresses(),
             hide: _.isEmpty,
           },
           {

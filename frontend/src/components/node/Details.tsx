@@ -80,6 +80,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
         return {
           name: type,
           value: address,
+          copyValue: address,
         };
       }) || []
     );
