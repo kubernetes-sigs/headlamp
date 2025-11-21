@@ -277,7 +277,7 @@ test('warns and preserves edits when a pod is modified externally', async ({ pag
   }
 });
 
-test('opens resource YAML in a floating window', async ({ page }) => {
+test('opens resource YAML beside the current content', async ({ page }) => {
   test.setTimeout(60000);
   const name = `headlamp-view-yaml-${Date.now()}`;
   const tempDirectory = await mkdtemp(join(tmpdir(), 'headlamp-e2e-'));
@@ -334,17 +334,18 @@ test('opens resource YAML in a floating window', async ({ page }) => {
     await expect(activity).toBeVisible({ timeout: 15000 });
     await expect
       .poll(async () => {
-        const [mainBox, viewerBox, borderRadius] = await Promise.all([
-          main.boundingBox(),
-          viewer.boundingBox(),
-          viewer.evaluate(element => getComputedStyle(element).borderRadius),
-        ]);
-        return {
-          isFloating: Boolean(mainBox && viewerBox && viewerBox.height < mainBox.height * 0.9),
-          borderRadius,
-        };
+        const [mainBox, viewerBox] = await Promise.all([main.boundingBox(), viewer.boundingBox()]);
+        if (!mainBox || !viewerBox) {
+          return false;
+        }
+
+        return (
+          Math.abs(viewerBox.width - mainBox.width / 2) < 2 &&
+          Math.abs(viewerBox.height - mainBox.height) < 2 &&
+          Math.abs(viewerBox.x + viewerBox.width - (mainBox.x + mainBox.width)) < 2
+        );
       })
-      .toEqual({ isFloating: true, borderRadius: '10px' });
+      .toBe(true);
   } finally {
     await kubectl(
       kubeconfig,

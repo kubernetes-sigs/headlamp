@@ -76,7 +76,7 @@ describe('ViewButton', () => {
     mockFetchLatestKubeObject.mockReset();
   });
 
-  it('opens the latest resource in a window when clicked', async () => {
+  it('opens the latest resource beside the current content when clicked', async () => {
     mockFetchLatestKubeObject.mockResolvedValue(latestItem);
 
     render(<ViewButton item={item} />);
@@ -88,7 +88,7 @@ describe('ViewButton', () => {
         expect.objectContaining({
           cluster: 'test-cluster',
           id: 'yaml-test-uid',
-          location: 'window',
+          location: 'split-right',
           title: 'test-pod',
         })
       );
@@ -132,9 +132,7 @@ describe('ViewButton', () => {
     const firstRequest = new Promise<KubeObject>(resolve => {
       resolveFirstRequest = resolve;
     });
-    mockFetchLatestKubeObject
-      .mockReturnValueOnce(firstRequest)
-      .mockResolvedValueOnce(latestItem);
+    mockFetchLatestKubeObject.mockReturnValueOnce(firstRequest).mockResolvedValueOnce(latestItem);
 
     render(<ViewButton item={item} />);
     const button = screen.getByRole('button', { name: 'View' });
@@ -151,9 +149,7 @@ describe('ViewButton', () => {
     const firstRequest = new Promise<KubeObject>((_resolve, reject) => {
       rejectFirstRequest = reject;
     });
-    mockFetchLatestKubeObject
-      .mockReturnValueOnce(firstRequest)
-      .mockResolvedValueOnce(latestItem);
+    mockFetchLatestKubeObject.mockReturnValueOnce(firstRequest).mockResolvedValueOnce(latestItem);
 
     render(<ViewButton item={item} />);
     const button = screen.getByRole('button', { name: 'View' });
