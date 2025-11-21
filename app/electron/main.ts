@@ -1324,7 +1324,7 @@ function adjustZoom(delta: number) {
   setZoom(newZoom);
 }
 
-function startElecron() {
+function startElectron() {
   console.info('App starting...');
 
   let appVersion: string;
@@ -1812,6 +1812,6 @@ if (isHeadlessMode) {
   );
 } else {
   if (!isRunningScript) {
-    startElecron();
+    startElectron();
   }
 }
