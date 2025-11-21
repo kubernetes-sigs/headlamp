@@ -17,6 +17,7 @@
 import type { QueryObserverOptions } from '@tanstack/react-query';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { loadClusterSettings } from '../../../../helpers/clusterSettings';
 import type { KubeObject, KubeObjectClass } from '../../KubeObject';
 import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
@@ -63,6 +64,65 @@ export interface ListResponse<K extends KubeObject> {
   cluster: string;
   /** If the list only has items from one namespace */
   namespace?: string;
+  /** Whether this synthesized list must not start a cluster-wide watch */
+  skipWatch?: boolean;
+}
+
+function allowedNamespaceListQuery<K extends KubeObject>(
+  kubeObjectClass: KubeObjectClass,
+  cluster: string,
+  refetchInterval?: number
+): QueryObserverOptions<ListResponse<K> | undefined | null, ApiError> {
+  const allowedNamespaces = loadClusterSettings(cluster).allowedNamespaces ?? [];
+
+  return {
+    placeholderData: null,
+    refetchInterval,
+    retry: kubeRequestRetry,
+    queryKey: [
+      'kubeObject',
+      'list',
+      kubeObjectClass.apiVersion,
+      kubeObjectClass.apiName,
+      cluster,
+      '',
+      { allowedNamespaces },
+    ],
+    queryFn: async () => {
+      const items = await Promise.all(
+        allowedNamespaces.map(async name => {
+          try {
+            const item = await clusterFetch(makeUrl(['api', 'v1', 'namespaces', name]), {
+              cluster,
+            }).then(response => response.json());
+            if (item.metadata?.managedFields) {
+              delete item.metadata.managedFields;
+            }
+            const kubeObject = new kubeObjectClass(item) as K;
+            kubeObject.cluster = cluster;
+            return kubeObject;
+          } catch (error) {
+            if (error instanceof ApiError) {
+              error.cluster = cluster;
+              error.namespace = name;
+            }
+            throw error;
+          }
+        })
+      );
+
+      return {
+        list: {
+          items,
+          kind: 'NamespaceList',
+          apiVersion: 'v1',
+          metadata: { resourceVersion: '0' },
+        } as KubeList<K>,
+        cluster,
+        skipWatch: true,
+      };
+    },
+  };
 }
 
 /**
@@ -83,6 +143,13 @@ export function kubeObjectListQuery<K extends KubeObject>(
   queryParams: QueryParameters,
   refetchInterval?: number
 ): QueryObserverOptions<ListResponse<K> | undefined | null, ApiError> {
+  if (
+    kubeObjectClass.kind === 'Namespace' &&
+    (loadClusterSettings(cluster).allowedNamespaces?.length ?? 0) > 0
+  ) {
+    return allowedNamespaceListQuery<K>(kubeObjectClass, cluster, refetchInterval);
+  }
+
   return {
     placeholderData: null,
     refetchInterval,
@@ -663,11 +730,13 @@ export function useKubeObjectList<K extends KubeObject>({
           : keptListsToWatch;
       }
 
-      const nextListsToWatch = query.data.filter(Boolean).map(data => ({
-        cluster: data!.cluster,
-        namespace: data!.namespace,
-        resourceVersion: data!.list.metadata.resourceVersion,
-      }));
+      const nextListsToWatch = query.data
+        .filter(data => data && !data.skipWatch)
+        .map(data => ({
+          cluster: data!.cluster,
+          namespace: data!.namespace,
+          resourceVersion: data!.list.metadata.resourceVersion,
+        }));
 
       if (
         nextListsToWatch.length === currentListsToWatch.length &&
