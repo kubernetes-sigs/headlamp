@@ -17,6 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import { KubeContainer } from '../../lib/k8s/cluster';
 import ReplicaSet from '../../lib/k8s/replicaSet';
+import { MetadataDictGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
 import LightTooltip from '../common/Tooltip/TooltipLight';
 
@@ -100,14 +101,8 @@ export default function ReplicaSetList() {
           label: t('Selector'),
           getValue: replicaSet => replicaSet.getMatchLabelsList().join(''),
           render: replicaSet => {
-            const selectorText = replicaSet.getMatchLabelsList().join('\n');
-            return (
-              selectorText && (
-                <LightTooltip title={selectorText} interactive>
-                  {selectorText}
-                </LightTooltip>
-              )
-            );
+            const matchLabels = replicaSet.spec.selector?.matchLabels;
+            return matchLabels && <MetadataDictGrid dict={matchLabels} />;
           },
         },
         'age',

@@ -675,13 +675,11 @@
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-s360z4-MuiTableCell-root"
               >
-                <span
-                  aria-label="app=frontend"
-                  class=""
-                  data-mui-internal-clone-element="true"
+                <p
+                  class="MuiTypography-root MuiTypography-body1 css-cwic1g-MuiTypography-root"
                 >
-                  app=frontend
-                </span>
+                  app: frontend
+                </p>
               </td>
               <td
                 class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
@@ -783,13 +781,11 @@
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-s360z4-MuiTableCell-root"
               >
-                <span
-                  aria-label="app=database"
-                  class=""
-                  data-mui-internal-clone-element="true"
+                <p
+                  class="MuiTypography-root MuiTypography-body1 css-cwic1g-MuiTypography-root"
                 >
-                  app=database
-                </span>
+                  app: database
+                </p>
               </td>
               <td
                 class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
