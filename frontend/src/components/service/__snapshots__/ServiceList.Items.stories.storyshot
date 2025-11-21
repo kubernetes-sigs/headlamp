@@ -861,13 +861,19 @@
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-13vbnfx-MuiTableCell-root"
               >
-                <span
-                  aria-label="app=example"
-                  class=""
-                  data-mui-internal-clone-element="true"
+                <div
+                  class="MuiBox-root css-0"
                 >
-                  app=example
-                </span>
+                  <div
+                    class="MuiBox-root css-yi3mkw"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                    >
+                      app: example
+                    </p>
+                  </div>
+                </div>
               </td>
               <td
                 class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
