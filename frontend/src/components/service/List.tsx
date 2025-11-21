@@ -47,7 +47,7 @@ export default function ServiceList() {
           id: 'externalIP',
           label: t('External IP'),
           gridTemplate: 'min-content',
-          getValue: service => service.getExternalAddresses(),
+          getValue: service => service.getExternalAddresses() || '-',
         },
         {
           id: 'ports',
