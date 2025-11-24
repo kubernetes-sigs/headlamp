@@ -24,7 +24,7 @@ import { clusterFetch } from './fetch';
 import type { KubeListUpdateEvent } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
-import { useWebSocket } from './webSocket';
+import { useWebSockets } from './webSocket';
 
 export type QueryStatus = 'pending' | 'success' | 'error';
 
@@ -149,20 +149,29 @@ export function useKubeObject<K extends KubeObject>({
 
   const data: Instance | null = query.error ? null : query.data ?? null;
 
-  useWebSocket<KubeListUpdateEvent<K>>({
-    url: () =>
-      makeUrl([KubeObjectEndpoint.toUrl(endpoint!)], {
-        ...cleanedUpQueryParams,
-        watch: 1,
-        fieldSelector: `metadata.name=${name}`,
-      }),
+  const connectionRequests = useMemo(() => {
+    if (!endpoint) return [];
+
+    return [
+      {
+        url: makeUrl([KubeObjectEndpoint.toUrl(endpoint!)], {
+          ...cleanedUpQueryParams,
+          watch: 1,
+          fieldSelector: `metadata.name=${name}`,
+        }),
+        cluster,
+        onMessage(update: KubeListUpdateEvent<K>) {
+          if (update.type !== 'ADDED' && update.object) {
+            client.setQueryData(queryKey, new kubeObjectClass(update.object));
+          }
+        },
+      },
+    ];
+  }, [endpoint]);
+
+  useWebSockets({
     enabled: !!endpoint && !!data,
-    cluster,
-    onMessage(update: KubeListUpdateEvent<K>) {
-      if (update.type !== 'ADDED' && update.object) {
-        client.setQueryData(queryKey, new kubeObjectClass(update.object));
-      }
-    },
+    connections: connectionRequests,
   });
 
   // @ts-ignore
