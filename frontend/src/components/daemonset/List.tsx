@@ -17,6 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import { KubeContainer } from '../../lib/k8s/cluster';
 import DaemonSet from '../../lib/k8s/daemonSet';
+import { MetadataDictGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
 import LightTooltip from '../common/Tooltip/TooltipLight';
 
@@ -59,16 +60,10 @@ export default function DaemonSetList() {
           id: 'nodeSelector',
           label: t('Node Selector'),
           getValue: daemonSet => daemonSet.getNodeSelectors().join(', '),
-          render: daemonSet => {
-            const selectors = daemonSet.getNodeSelectors();
-            const nodeSelectorTooltip = selectors.join('\n');
-            const nodeSelectorText = selectors.join(', ');
-            return (
-              <LightTooltip title={nodeSelectorTooltip} interactive>
-                {nodeSelectorText}
-              </LightTooltip>
-            );
-          },
+          render: daemonSet =>
+            daemonSet.spec?.template?.spec?.nodeSelector ? (
+              <MetadataDictGrid dict={daemonSet.spec.template.spec.nodeSelector} />
+            ) : null,
         },
         {
           id: 'containers',
