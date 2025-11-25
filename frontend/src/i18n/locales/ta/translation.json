@@ -206,6 +206,7 @@
   "Finish": "முடிக்கவும்",
   "Only warnings ({{ numWarnings }})": "எச்சரிக்கைகள் ({{ numWarnings }})",
   "Reason": "காரணம்",
+  "Count": "",
   "Last Seen": "கடைசியாக பார்க்கப்பட்டது",
   "Offline": "ஆஃப்லைன்",
   "Lost connection to the cluster.": "க்ளஸ்டருக்கான இணைப்பு துண்டிக்கப்பட்டது.",

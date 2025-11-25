@@ -206,6 +206,7 @@
   "Finish": "完了",
   "Only warnings ({{ numWarnings }})": "警告のみ ({{ numWarnings }})",
   "Reason": "理由",
+  "Count": "",
   "Last Seen": "最終確認",
   "Offline": "オフライン",
   "Lost connection to the cluster.": "クラスターへの接続が失われました。",

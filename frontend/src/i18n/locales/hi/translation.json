@@ -206,6 +206,7 @@
   "Finish": "समाप्त करें",
   "Only warnings ({{ numWarnings }})": "केवल चेतावनियाँ ({{ numWarnings }})",
   "Reason": "कारण",
+  "Count": "",
   "Last Seen": "अंतिम बार देखा गया",
   "Offline": "ऑफलाइन",
   "Lost connection to the cluster.": "क्लस्टर से कनेक्शन खो गया।",

@@ -206,6 +206,7 @@
   "Finish": "Beenden",
   "Only warnings ({{ numWarnings }})": "Nur Warnungen ({{ numWarnings }})",
   "Reason": "Ereignis",
+  "Count": "",
   "Last Seen": "Zuletzt gesehen",
   "Offline": "Offline",
   "Lost connection to the cluster.": "",

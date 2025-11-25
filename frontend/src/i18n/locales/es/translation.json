@@ -206,6 +206,7 @@
   "Finish": "Finalizar",
   "Only warnings ({{ numWarnings }})": "Solo advertencias ({{ numWarnings }})",
   "Reason": "Razón",
+  "Count": "",
   "Last Seen": "Últi. ocurrencia",
   "Offline": "Desconectado",
   "Lost connection to the cluster.": "Perdida de conexión al cluster.",
