@@ -81,8 +81,9 @@ export default {
     msw: {
       handlers: {
         storyBase: [
-          http.get('http://localhost:4466/apis/policy/v1/poddisruptionbudgets', () =>
-            HttpResponse.error()
+          http.get(
+            'http://localhost:4466/apis/policy/v1/namespaces/my-namespace/poddisruptionbudgets',
+            () => HttpResponse.error()
           ),
         ],
       },
