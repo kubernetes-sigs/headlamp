@@ -24,7 +24,7 @@ import { clusterFetch } from './fetch';
 import type { KubeListUpdateEvent } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
-import { useWebSocket } from './webSocket';
+import { useWebSocket } from './multiplexer';
 
 export type QueryStatus = 'pending' | 'success' | 'error';
 

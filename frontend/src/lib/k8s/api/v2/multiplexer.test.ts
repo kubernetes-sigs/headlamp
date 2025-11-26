@@ -20,7 +20,10 @@ import WS from 'vitest-websocket-mock';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
-import { BASE_WS_URL, MULTIPLEXER_ENDPOINT, useWebSocket, WebSocketManager } from './webSocket';
+import { MULTIPLEXER_ENDPOINT } from './multiplexer';
+import { useWebSocket } from './multiplexer';
+import { WebSocketManager } from './multiplexer';
+import { BASE_WS_URL } from './webSocket';
 
 // Mock dependencies
 vi.mock('../../../cluster', () => ({
@@ -51,7 +54,7 @@ vi.mock('./makeUrl', () => ({
 const clusterName = 'test-cluster';
 const userId = 'test-user';
 
-describe('WebSocket Tests', () => {
+describe('WebSocket Multiplexer', () => {
   let mockServer: WS;
   let onMessage: ReturnType<typeof vi.fn>;
   let onError: ReturnType<typeof vi.fn>;

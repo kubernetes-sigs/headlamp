@@ -32,10 +32,13 @@ const mockSubscribe = vi.fn().mockImplementation(() => Promise.resolve(() => {})
 
 vi.mock('./webSocket', () => ({
   useWebSockets: (...args: any[]) => mockUseWebSockets(...args),
+  BASE_WS_URL: 'http://localhost:3000',
+}));
+
+vi.mock('./multiplexer', () => ({
   WebSocketManager: {
     subscribe: (...args: any[]) => mockSubscribe(...args),
   },
-  BASE_WS_URL: 'http://localhost:3000',
 }));
 
 describe('makeListRequests', () => {
