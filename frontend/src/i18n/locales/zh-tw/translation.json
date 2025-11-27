@@ -446,7 +446,7 @@
   "Min Retry Rate": "最小重試率",
   "Port": "連接埠",
   "Protocol": "通訊協定",
-  "No addresses data to be shown.": "無地址資料顯示。",
+  "No addresses data to be shown.": "無位址資料顯示。",
   "Listeners": "收聽器",
   "Matches": "符合",
   "BackendRefs": "後端引用",
