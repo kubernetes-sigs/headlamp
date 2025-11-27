@@ -232,7 +232,7 @@
   "Next Match (Enter)": "下一個符合 (Enter)",
   "All namespaces": "所有命名空間",
   "From": "從",
-  "Age": "存在時間",
+  "Age": "存活時間",
   "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_other": "{{ eventDate }} (自 {{ firstEventDate }} 起 {{ count }} 次)",
   "Release Notes ({{ appVersion }})": "發行說明 ({{ appVersion }})",
   "Fetching release information…": "正在獲取發行訊息…",
