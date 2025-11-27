@@ -1,0 +1,27 @@
+{
+  "name": "@headlamp-k8s/i18n",
+  "version": "0.1.0",
+  "description": "i18n tool for translators",
+  "main": "src/index.ts",
+  "scripts": {
+    "status": "ts-node src/index.ts status",
+    "list": "ts-node src/index.ts list"
+  },
+  "keywords": [
+    "i18n",
+    "internationalization",
+    "localization",
+    "translation"
+  ],
+  "author": "Headlamp Contributors",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "yargs": "^17.7.2",
+    "ts-node": "^10.9.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/yargs": "^17.0.32",
+    "typescript": "^5.0.0"
+  }
+}
