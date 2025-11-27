@@ -61,7 +61,7 @@ if (process.env.HEADLAMP_RUN_SCRIPT) {
 
 dotenv.config({ path: path.join(process.resourcesPath, '.env') });
 
-const isDev = process.env.ELECTRON_DEV || false;
+const isDev = !!process.env.ELECTRON_DEV;
 let frontendPath = '';
 
 if (isDev) {
@@ -1324,7 +1324,7 @@ function adjustZoom(delta: number) {
   setZoom(newZoom);
 }
 
-function startElecron() {
+function startElectron() {
   console.info('App starting...');
 
   let appVersion: string;
@@ -1812,6 +1812,6 @@ if (isHeadlessMode) {
   );
 } else {
   if (!isRunningScript) {
-    startElecron();
+    startElectron();
   }
 }

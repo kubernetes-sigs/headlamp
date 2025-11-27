@@ -17,6 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import Service from '../../lib/k8s/service';
 import LabelListItem from '../common/LabelListItem';
+import { MetadataDictGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 export default function ServiceList() {
@@ -47,7 +48,7 @@ export default function ServiceList() {
           id: 'externalIP',
           label: t('External IP'),
           gridTemplate: 'min-content',
-          getValue: service => service.getExternalAddresses(),
+          getValue: service => service.getExternalAddresses() || '-',
         },
         {
           id: 'ports',
@@ -61,7 +62,8 @@ export default function ServiceList() {
           label: t('Selector'),
           gridTemplate: 'auto',
           getValue: service => service.getSelector().join(', '),
-          render: service => <LabelListItem labels={service.getSelector()} />,
+          render: service =>
+            service.spec.selector ? <MetadataDictGrid dict={service.spec.selector} /> : null,
         },
         'age',
       ]}

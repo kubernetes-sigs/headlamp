@@ -167,7 +167,7 @@ const endpointSlicesToServices = makeRelation(
 );
 
 const ingressToService = makeRelation(Ingress, Service, (ingress, service) =>
-  ingress.spec.rules?.find((rule: any) =>
+  ingress.spec?.rules?.find((rule: any) =>
     rule.http?.paths?.find((path: any) => service.metadata.name === path?.backend?.service?.name)
   )
 );

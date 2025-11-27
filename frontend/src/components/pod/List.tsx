@@ -302,12 +302,16 @@ export function PodListRenderer(props: PodListProps) {
                   }
 
                   return (
-                    <Box display="flex" alignItems="center">
+                    <Box display="flex" alignItems="center" width="100%">
                       <span style={{ whiteSpace: 'nowrap' }}>{`${aValue} ${aUnit}`}</span>
                       {tooltipLines.length > 0 && (
-                        <TooltipIcon>
-                          <span style={{ whiteSpace: 'pre-line' }}>{tooltipLines.join('\n')}</span>
-                        </TooltipIcon>
+                        <Box component="span" sx={{ display: 'inline-flex', ml: 'auto' }}>
+                          <TooltipIcon>
+                            <span style={{ whiteSpace: 'pre-line' }}>
+                              {tooltipLines.join('\n')}
+                            </span>
+                          </TooltipIcon>
+                        </Box>
                       )}
                     </Box>
                   );
@@ -350,12 +354,16 @@ export function PodListRenderer(props: PodListProps) {
                   }
 
                   return (
-                    <Box display="flex" alignItems="center">
+                    <Box display="flex" alignItems="center" width="100%">
                       <span style={{ whiteSpace: 'nowrap' }}>{`${aValue} ${aUnit}`}</span>
                       {tooltipLines.length > 0 && (
-                        <TooltipIcon>
-                          <span style={{ whiteSpace: 'pre-line' }}>{tooltipLines.join('\n')}</span>
-                        </TooltipIcon>
+                        <Box component="span" sx={{ display: 'inline-flex', ml: 'auto' }}>
+                          <TooltipIcon>
+                            <span style={{ whiteSpace: 'pre-line' }}>
+                              {tooltipLines.join('\n')}
+                            </span>
+                          </TooltipIcon>
+                        </Box>
                       )}
                     </Box>
                   );
