@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+// ⚠️ DEPRECATED: This script is deprecated. Use the new i18n tool instead:
+//   npm run i18n:copy -- <srcFile> <destFile> [--force] [--all]
+//
 // This script copies the translations from a translations file to an existing file.
 // By default, it 1) only overwrites translations that are missing or are empty, in the destination file,
 // and 2) only copies translations that are in the destination file.

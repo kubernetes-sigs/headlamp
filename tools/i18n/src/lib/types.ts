@@ -33,3 +33,8 @@ export interface LanguageStats {
 export interface Translations {
   [key: string]: string;
 }
+
+export interface CopyOptions {
+  force?: boolean;
+  all?: boolean;
+}

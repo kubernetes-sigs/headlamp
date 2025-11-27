@@ -51,6 +51,8 @@
     "i18n:check": "cd frontend && npm run i18n -- --fail-on-update",
     "i18n:status": "cd tools/i18n && npm run status",
     "i18n:list": "cd tools/i18n && npm run list",
+    "i18n:extract": "cd tools/i18n && npm run extract --",
+    "i18n:copy": "cd tools/i18n && npm run copy --",
     "app:install": "cd app && npm install",
     "app:build": "npm run frontend:build && cd app && node ./scripts/setup-plugins.js && npm run build",
     "app:build:dir": "npm run frontend:build && cd app && node ./scripts/setup-plugins.js && npm run build -- --dir",

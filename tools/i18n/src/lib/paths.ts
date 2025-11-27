@@ -32,3 +32,7 @@ export function findProjectRoot(): string {
 export function getLocalesDir(projectRoot: string): string {
   return path.join(projectRoot, 'frontend/src/i18n/locales');
 }
+
+export function resolveFilePath(projectRoot: string, filePath: string): string {
+  return path.isAbsolute(filePath) ? filePath : path.resolve(projectRoot, filePath);
+}
