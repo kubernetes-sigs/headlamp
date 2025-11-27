@@ -74,7 +74,7 @@
   "No validation settings": "沒有驗證設定",
   "Backend TLS Policies": "後端 TLS 政策",
   "Retry Constraint": "重試限制",
-  "No retry constraint configured": "尚未配置重試限制",
+  "No retry constraint configured": "尚未設定重試限制",
   "Session Persistence": "會話持久性",
   "No session persistence configured": "尚未配置會話持久性",
   "Backend Traffic Policies": "後端流量政策",
