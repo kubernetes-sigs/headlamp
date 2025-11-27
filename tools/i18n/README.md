@@ -6,15 +6,28 @@ A TypeScript tool to help translators work with Headlamp's internationalization 
 
 - **Status**: View translation completion status for all languages with progress bars
 - **List**: Show all translation files with completion percentages and detect missing files
+- **Extract**: Extract empty translations to a separate file for easy translation
+- **Copy**: Copy translations from one file to another (with options to force overwrite or copy all)
 
 ## Usage from Project Root
 
 From the Headlamp project root, use the npm scripts:
 
 ```bash
-npm run i18n:status       # Show translation status overview
-npm run i18n:list         # List all translation files with completion
-npm run i18n:list -- es   # List files for specific language (e.g., Spanish)
+# View translation status
+npm run i18n:status
+
+# List translation files
+npm run i18n:list         # All languages
+npm run i18n:list -- es   # Specific language (e.g., Spanish)
+
+# Extract empty translations for easier translation
+npm run i18n:extract -- frontend/src/i18n/locales/de/translation.json
+
+# Copy translations between files
+npm run i18n:copy -- source.json dest.json           # Copy only missing translations
+npm run i18n:copy -- source.json dest.json --force   # Overwrite all translations
+npm run i18n:copy -- source.json dest.json --all     # Copy even keys not in dest
 ```
 
 ## Development
@@ -26,6 +39,8 @@ npm run i18n:list -- es   # List files for specific language (e.g., Spanish)
 npm run status
 npm run list       # All languages
 npm run list -- zh # Specific language
+npm run extract -- ../../../frontend/src/i18n/locales/de/translation.json
+npm run copy -- source.json dest.json
 ```
 
 The tool runs directly with ts-node, no build step needed.
