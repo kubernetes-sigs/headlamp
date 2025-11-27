@@ -75,7 +75,7 @@
   "Backend TLS Policies": "後端 TLS 政策",
   "Retry Constraint": "重試限制",
   "No retry constraint configured": "尚未設定重試限制",
-  "Session Persistence": "會話持久性",
+  "Session Persistence": "工作階段持續性",
   "No session persistence configured": "尚未設定工作階段持續性",
   "Backend Traffic Policies": "後端流量政策",
   "Controller Name": "控制器名稱",
