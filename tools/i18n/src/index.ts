@@ -19,7 +19,7 @@
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { findProjectRoot, getLocalesDir } from './lib/paths';
-import { commandStatus, commandList } from './lib/commands';
+import { commandStatus, commandList, commandExtract, commandCopy } from './lib/commands';
 
 const PROJECT_ROOT = findProjectRoot();
 const LOCALES_DIR = getLocalesDir(PROJECT_ROOT);
@@ -36,6 +36,43 @@ void yargs(hideBin(process.argv))
       type: 'string',
     });
   }, (argv) => commandList(LOCALES_DIR, argv.lang))
+  .command('extract <file> [output]', 'Extract empty translations to a separate file', (yargs) => {
+    return yargs
+      .positional('file', {
+        describe: 'Path to the translation file to extract from',
+        type: 'string',
+        demandOption: true,
+      })
+      .positional('output', {
+        describe: 'Path to the output file (defaults to <file>_empty.json)',
+        type: 'string',
+      });
+  }, (argv) => commandExtract(PROJECT_ROOT, argv.file as string, argv.output))
+  .command('copy <src> <dest>', 'Copy translations from one file to another', (yargs) => {
+    return yargs
+      .positional('src', {
+        describe: 'Path to the source translation file',
+        type: 'string',
+        demandOption: true,
+      })
+      .positional('dest', {
+        describe: 'Path to the destination translation file',
+        type: 'string',
+        demandOption: true,
+      })
+      .option('force', {
+        alias: 'f',
+        type: 'boolean',
+        default: false,
+        describe: 'Force overwrite non-empty values in destination',
+      })
+      .option('all', {
+        alias: 'a',
+        type: 'boolean',
+        default: false,
+        describe: 'Copy all translations, even if not in destination',
+      });
+  }, (argv) => commandCopy(PROJECT_ROOT, argv.src as string, argv.dest as string, { force: argv.force, all: argv.all }))
   .demandCommand(1, 'Please specify a command')
   .help()
   .alias('h', 'help')
@@ -43,5 +80,8 @@ void yargs(hideBin(process.argv))
   .example('$0 status', 'Show translation status for all languages')
   .example('$0 list', 'List all translation files with completion status')
   .example('$0 list de', 'List German translation files with completion status')
+  .example('$0 extract frontend/src/i18n/locales/de/translation.json', 'Extract empty translations')
+  .example('$0 copy source.json dest.json', 'Copy missing translations from source to dest')
+  .example('$0 copy source.json dest.json --force', 'Overwrite all translations from source to dest')
   .epilogue('For more information, see https://headlamp.dev/docs/latest/development/i18n/contributing/')
   .parse();

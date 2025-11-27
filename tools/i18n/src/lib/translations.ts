@@ -16,7 +16,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { Translations, Namespace, TranslationCounts } from './types';
+import { Translations, Namespace, TranslationCounts, CopyOptions } from './types';
 
 export function getLanguages(localesDir: string): string[] {
   return fs.readdirSync(localesDir)
@@ -47,4 +47,43 @@ export function countTranslations(translations: Translations | null): Translatio
   const translated = total - empty;
 
   return { total, translated, empty };
+}
+
+export function saveTranslationFile(filePath: string, translations: Translations): void {
+  fs.writeFileSync(filePath, JSON.stringify(translations, null, 2) + '\n');
+}
+
+export function extractEmptyTranslations(translations: Translations): Translations {
+  const emptyKeys = Object.keys(translations).filter(key => translations[key] === '');
+  const result: Translations = {};
+  emptyKeys.forEach(key => {
+    result[key] = '';
+  });
+  return result;
+}
+
+export function copyTranslations(
+  srcData: Translations,
+  destData: Translations,
+  options: CopyOptions = {}
+): { copiedCount: number; skippedCount: number; updatedTranslations: Translations } {
+  let copiedCount = 0;
+  let skippedCount = 0;
+  const updatedTranslations = { ...destData };
+
+  for (const key in srcData) {
+    const shouldCopy =
+      (srcData[key] || options.all) &&
+      (destData.hasOwnProperty(key) || options.all) &&
+      (!destData[key] || options.force);
+
+    if (shouldCopy) {
+      updatedTranslations[key] = srcData[key];
+      copiedCount++;
+    } else if (srcData[key] && destData.hasOwnProperty(key)) {
+      skippedCount++;
+    }
+  }
+
+  return { copiedCount, skippedCount, updatedTranslations };
 }
