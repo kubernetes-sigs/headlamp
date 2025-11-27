@@ -5,7 +5,9 @@
   "main": "src/index.ts",
   "scripts": {
     "status": "ts-node src/index.ts status",
-    "list": "ts-node src/index.ts list"
+    "list": "ts-node src/index.ts list",
+    "extract": "ts-node src/index.ts extract",
+    "copy": "ts-node src/index.ts copy"
   },
   "keywords": [
     "i18n",
