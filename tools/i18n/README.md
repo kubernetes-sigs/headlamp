@@ -45,6 +45,31 @@ npm run copy -- source.json dest.json
 
 The tool runs directly with ts-node, no build step needed.
 
+### Running Tests
+
+```bash
+# From tools/i18n directory
+npm install    # Install dependencies first
+
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
+```
+
+The test suite includes comprehensive end-to-end tests for:
+- All CLI commands (status, list, extract, copy)
+- Command options (--force, --all)
+- Error handling (missing files, malformed JSON)
+- Edge cases (empty files, path resolution)
+- Help and usage documentation
+
+Tests run the CLI as a subprocess to test the real user experience.
+
 ## Translation File Location
 
 All translation files are located in: `frontend/src/i18n/locales/`
