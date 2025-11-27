@@ -91,7 +91,7 @@
   "Hostnames": "主機名稱",
   "From": "來源",
   "To": "目標",
-  "Reference Grants": "參考授權",
+  "Reference Grants": "引用授權",
   "Horizontal Pod Autoscalers": "水平 Pod 自動擴縮",
   "Ingress Classes": "Ingress 類別",
   "Default": "預設",
