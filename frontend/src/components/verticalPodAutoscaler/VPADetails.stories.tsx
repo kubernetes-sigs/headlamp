@@ -135,8 +135,9 @@ export default {
     msw: {
       handlers: {
         storyBase: [
-          http.get('http://localhost:4466/apis/autoscaling.k8s.io/v1/verticalpodautoscalers', () =>
-            HttpResponse.error()
+          http.get(
+            'http://localhost:4466/apis/autoscaling.k8s.io/v1/namespaces/default/verticalpodautoscalers',
+            () => HttpResponse.error()
           ),
         ],
       },

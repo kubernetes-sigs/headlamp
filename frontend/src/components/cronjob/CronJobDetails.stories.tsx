@@ -28,7 +28,9 @@ export default {
     msw: {
       handlers: {
         storyBase: [
-          http.get('http://localhost:4466/apis/batch/v1/cronjobs', () => HttpResponse.json({})),
+          http.get('http://localhost:4466/apis/batch/v1/namespaces/default/cronjobs', () =>
+            HttpResponse.error()
+          ),
           http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
             HttpResponse.json({
               kind: 'EventList',
