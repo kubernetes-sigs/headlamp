@@ -1,0 +1,114 @@
+.ansi-bold {
+  font-weight: bold;
+}
+.ansi-italic {
+  font-style: italic;
+}
+.ansi-underline {
+  text-decoration: underline;
+}
+
+/* Foreground colors */
+.ansi-black-fg {
+  color: #000;
+}
+.ansi-red-fg {
+  color: #cc0000;
+}
+.ansi-green-fg {
+  color: #00aa00;
+}
+.ansi-yellow-fg {
+  color: #aa5500;
+}
+.ansi-blue-fg {
+  color: #3465a4;
+}
+.ansi-magenta-fg {
+  color: #aa00aa;
+}
+.ansi-cyan-fg {
+  color: #00aaaa;
+}
+.ansi-white-fg {
+  color: #aaaaaa;
+}
+.ansi-bright-black-fg {
+  color: #555555;
+}
+.ansi-bright-red-fg {
+  color: #ff5555;
+}
+.ansi-bright-green-fg {
+  color: #55ff55;
+}
+.ansi-bright-yellow-fg {
+  color: #ffff55;
+}
+.ansi-bright-blue-fg {
+  color: #5555ff;
+}
+.ansi-bright-magenta-fg {
+  color: #ff55ff;
+}
+.ansi-bright-cyan-fg {
+  color: #55ffff;
+}
+.ansi-bright-white-fg {
+  color: #ffffff;
+}
+
+/* Background colors */
+.ansi-black-bg {
+  background-color: #000;
+}
+.ansi-red-bg {
+  background-color: #aa0000;
+}
+.ansi-green-bg {
+  background-color: #00aa00;
+}
+.ansi-yellow-bg {
+  background-color: #aa5500;
+}
+.ansi-blue-bg {
+  background-color: #0000aa;
+}
+.ansi-magenta-bg {
+  background-color: #aa00aa;
+}
+.ansi-cyan-bg {
+  background-color: #00aaaa;
+}
+.ansi-white-bg {
+  background-color: #aaaaaa;
+}
+.ansi-bright-black-bg {
+  background-color: #555555;
+}
+.ansi-bright-red-bg {
+  background-color: #ff5555;
+}
+.ansi-bright-green-bg {
+  background-color: #55ff55;
+}
+.ansi-bright-yellow-bg {
+  background-color: #ffff55;
+}
+.ansi-bright-blue-bg {
+  background-color: #5555ff;
+}
+.ansi-bright-magenta-bg {
+  background-color: #ff55ff;
+}
+.ansi-bright-cyan-bg {
+  background-color: #55ffff;
+}
+.ansi-bright-white-bg {
+  background-color: #ffffff;
+}
+
+.search-highlight {
+  background-color: #fceb92;
+  color: #333;
+}
