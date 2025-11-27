@@ -371,10 +371,13 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
   const { t } = useTranslation();
   const registeredTabs = useTypedSelector(state => state.projects.detailsTabs);
   const customDeleteButton = useTypedSelector(state => state.projects.projectDeleteButton);
+  const registeredHeaderActions = useTypedSelector(state => state.projects.headerActions);
 
   const [DeleteButton, setDeleteButton] = useState<
     (p: { project: ProjectDefinition; buttonStyle?: ButtonStyle }) => ReactNode
   >(() => ProjectDeleteButton);
+
+  const [headerActions, setHeaderActions] = useState<ReactNode[]>([]);
 
   // Load custom delete button
   useEffect(() => {
@@ -401,6 +404,45 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
       isCurrent = false;
     };
   }, [customDeleteButton, project]);
+
+  // Load custom header actions
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadHeaderActions() {
+      const actionsList = Object.values(registeredHeaderActions);
+
+      // Get a list of enabled header actions
+      const enabledActions = (
+        await Promise.all(
+          actionsList.map(action =>
+            action.isEnabled
+              ? action
+                  .isEnabled({ project })
+                  .then(isEnabled => (isEnabled ? action : undefined))
+                  .catch(e => {
+                    console.error('Failed to check if header action is enabled', action, e);
+                    return undefined;
+                  })
+              : Promise.resolve(action)
+          )
+        )
+      ).filter(Boolean);
+
+      if (isCurrent) {
+        const actions = enabledActions
+          .map(action => (action ? <action.component key={action.id} project={project} /> : null))
+          .filter(Boolean);
+        setHeaderActions(actions);
+      }
+    }
+
+    loadHeaderActions();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [registeredHeaderActions, project]);
 
   const [selectedTab, setSelectedTab] = useState<string>();
   const [selectedCategoryName, setSelectedCategoryName] = React.useState<string>();
@@ -494,6 +536,7 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
                 {project.id}
               </Typography>
 
+              {headerActions}
               <DeleteButton project={project} />
             </Box>
           }

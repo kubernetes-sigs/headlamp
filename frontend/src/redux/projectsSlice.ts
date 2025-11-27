@@ -62,17 +62,26 @@ export interface ProjectDeleteButton {
   component: (props: { project: ProjectDefinition; buttonStyle?: ButtonStyle }) => ReactNode;
 }
 
+export interface ProjectHeaderAction {
+  id: string;
+  component: (props: { project: ProjectDefinition }) => ReactNode;
+  /** Function to check if this action should be displayed in the given project. If not provided the action will be enabled. */
+  isEnabled?: ({ project }: { project: ProjectDefinition }) => Promise<boolean>;
+}
+
 export interface ProjectsState {
   customCreateProject: Record<string, CustomCreateProject>;
   overviewSections: Record<string, ProjectOverviewSection>;
   detailsTabs: Record<string, ProjectDetailsTab>;
   projectDeleteButton?: ProjectDeleteButton;
+  headerActions: Record<string, ProjectHeaderAction>;
 }
 
 const initialState: ProjectsState = {
   customCreateProject: {},
   detailsTabs: {},
   overviewSections: {},
+  headerActions: {},
 };
 
 const projectsSlice = createSlice({
@@ -98,10 +107,20 @@ const projectsSlice = createSlice({
     setProjectDeleteButton(state, action: PayloadAction<ProjectDeleteButton>) {
       state.projectDeleteButton = action.payload;
     },
+
+    /** Register additional action button for project header */
+    addHeaderAction(state, action: PayloadAction<ProjectHeaderAction>) {
+      state.headerActions[action.payload.id] = action.payload;
+    },
   },
 });
 
-export const { addCustomCreateProject, addDetailsTab, addOverviewSection, setProjectDeleteButton } =
-  projectsSlice.actions;
+export const {
+  addCustomCreateProject,
+  addDetailsTab,
+  addOverviewSection,
+  setProjectDeleteButton,
+  addHeaderAction,
+} = projectsSlice.actions;
 
 export default projectsSlice.reducer;

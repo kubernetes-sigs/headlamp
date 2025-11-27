@@ -94,10 +94,12 @@ import { addOverviewChartsProcessor, OverviewChartsProcessor } from '../redux/ov
 import {
   addCustomCreateProject,
   addDetailsTab,
+  addHeaderAction,
   addOverviewSection,
   CustomCreateProject,
   ProjectDeleteButton,
   ProjectDetailsTab,
+  ProjectHeaderAction,
   ProjectOverviewSection,
   setProjectDeleteButton,
 } from '../redux/projectsSlice';
@@ -1121,6 +1123,33 @@ export function registerProjectOverviewSection(projectOverviewSection: ProjectOv
  */
 export function registerProjectDeleteButton(projectDeleteButton: ProjectDeleteButton) {
   store.dispatch(setProjectDeleteButton(projectDeleteButton));
+}
+
+/**
+ * Register a new action button in the project details header.
+ *
+ * This allows plugins to add custom action buttons next to the delete button
+ * in the project details page header.
+ *
+ * @param projectHeaderAction - The action configuration to register
+ * @param projectHeaderAction.id - Unique identifier for the action
+ * @param projectHeaderAction.component - React component to render as the action button
+ * @param projectHeaderAction.isEnabled - Optional function to determine if action is displayed
+ *
+ * @example
+ * ```tsx
+ * registerProjectHeaderAction({
+ *   id: 'deploy-app',
+ *   component: ({ project }) => (
+ *     <Button onClick={() => navigate(`/deploy/${project.id}`)}>
+ *       Deploy App
+ *     </Button>
+ *   )
+ * });
+ * ```
+ */
+export function registerProjectHeaderAction(projectHeaderAction: ProjectHeaderAction) {
+  store.dispatch(addHeaderAction(projectHeaderAction));
 }
 
 export {
