@@ -16,10 +16,11 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { NAMESPACES, REFERENCE_LANG } from './types';
-import { getLanguages, loadTranslationFile, countTranslations } from './translations';
+import { NAMESPACES, REFERENCE_LANG, CopyOptions, Translations } from './types';
+import { getLanguages, loadTranslationFile, countTranslations, saveTranslationFile, extractEmptyTranslations, copyTranslations } from './translations';
 import { getLanguageStats, getProgressBar, getStatusInfo } from './stats';
 import { colors, color } from './colors';
+import { resolveFilePath } from './paths';
 
 export function commandStatus(localesDir: string): void {
   console.log(color('\n📊 Translation Status for All Languages', colors.bright + colors.cyan));
@@ -118,4 +119,91 @@ export function commandList(localesDir: string, targetLang?: string): void {
   console.log(color('   npm run i18n:status', colors.cyan) + '  - Show translation status overview');
   console.log(color('   npm run i18n:list', colors.cyan) + '    - List all translation files (this command)');
   console.log(color('   npm run i18n:list de', colors.cyan) + ' - List files for specific language\n');
+}
+
+export function commandExtract(projectRoot: string, translationsFile: string, outputFile?: string): void {
+  const absoluteTranslationsFile = resolveFilePath(projectRoot, translationsFile);
+
+  if (!fs.existsSync(absoluteTranslationsFile)) {
+    console.error(color(`\n❌ Error: File not found: ${translationsFile}`, colors.red));
+    process.exit(1);
+  }
+
+  try {
+    const translations = JSON.parse(fs.readFileSync(absoluteTranslationsFile, 'utf8')) as Translations;
+    const emptyTranslations = extractEmptyTranslations(translations);
+    const emptyKeys = Object.keys(emptyTranslations);
+
+    if (emptyKeys.length === 0) {
+      console.log(color('\n✅ No missing translations found.', colors.green));
+      process.exit(0);
+    }
+
+    const outputFileName = outputFile
+      ? resolveFilePath(projectRoot, outputFile)
+      : absoluteTranslationsFile.slice(0, absoluteTranslationsFile.lastIndexOf('.')) + '_empty.json';
+
+    saveTranslationFile(outputFileName, emptyTranslations);
+
+    console.log(color('\n✅ Success!', colors.green));
+    console.log(`\nExtracted ${color(emptyKeys.length, colors.bright)} empty translations to:`);
+    console.log(color(`   ${path.relative(projectRoot, outputFileName)}`, colors.cyan));
+    console.log(`\n${color('Next steps:', colors.bright)}`);
+    console.log('   1. Translate the empty values in the output file');
+    console.log('   2. Use the copy command to merge them back:');
+    console.log(color(`      npm run i18n:copy -- ${path.relative(projectRoot, outputFileName)} ${path.relative(projectRoot, absoluteTranslationsFile)}`, colors.cyan));
+    console.log();
+  } catch (error) {
+    console.error(color(`\n❌ Error: Failed to process file: ${(error as Error).message}`, colors.red));
+    process.exit(1);
+  }
+}
+
+export function commandCopy(projectRoot: string, srcFile: string, destFile: string, options: CopyOptions = {}): void {
+  const absoluteSrcFile = resolveFilePath(projectRoot, srcFile);
+  const absoluteDestFile = resolveFilePath(projectRoot, destFile);
+
+  if (!fs.existsSync(absoluteSrcFile)) {
+    console.error(color(`\n❌ Error: Source file not found: ${srcFile}`, colors.red));
+    process.exit(1);
+  }
+
+  if (!fs.existsSync(absoluteDestFile)) {
+    console.error(color(`\n❌ Error: Destination file not found: ${destFile}`, colors.red));
+    process.exit(1);
+  }
+
+  try {
+    const srcData = JSON.parse(fs.readFileSync(absoluteSrcFile, 'utf8')) as Translations;
+    const destData = JSON.parse(fs.readFileSync(absoluteDestFile, 'utf8')) as Translations;
+
+    const { copiedCount, skippedCount, updatedTranslations } = copyTranslations(srcData, destData, options);
+
+    if (copiedCount === 0) {
+      console.log(color('\n⚠️  No translations copied.', colors.yellow));
+      if (skippedCount > 0) {
+        console.log(`\n${skippedCount} translations were skipped (already exist and not empty).`);
+        console.log(`Use ${color('--force', colors.cyan)} to overwrite existing translations.`);
+      }
+      console.log();
+      process.exit(0);
+    }
+
+    saveTranslationFile(absoluteDestFile, updatedTranslations);
+
+    console.log(color('\n✅ Success!', colors.green));
+    console.log(`\nCopied ${color(copiedCount, colors.bright)} translations from:`);
+    console.log(color(`   ${path.relative(projectRoot, absoluteSrcFile)}`, colors.cyan));
+    console.log('to:');
+    console.log(color(`   ${path.relative(projectRoot, absoluteDestFile)}`, colors.cyan));
+
+    if (skippedCount > 0) {
+      console.log(`\nSkipped ${color(skippedCount, colors.yellow)} translations (already exist and not empty).`);
+      console.log(`Use ${color('--force', colors.cyan)} to overwrite existing translations.`);
+    }
+    console.log();
+  } catch (error) {
+    console.error(color(`\n❌ Error: Failed to process files: ${(error as Error).message}`, colors.red));
+    process.exit(1);
+  }
 }
