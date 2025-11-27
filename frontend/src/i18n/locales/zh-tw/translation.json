@@ -436,7 +436,7 @@
   "Current": "當前",
   "Desired//context:pods": "期望",
   "Addresses": "地址",
-  "Address Type": "",
+  "Address Type": "位址類型",
   "Hostname": "主機名稱",
   "Node Name": "節點名稱",
   "Zone": "區域",
