@@ -592,7 +592,7 @@
   "No Workloads": "無工作負載",
   "Unhealthy": "不健康",
   "Degraded": "降級",
-  "Healthy": "",
+  "Healthy": "健康",
   "Warning": "",
   "Resource Quotas": "資源配額",
   "Create Resource Quota to limit resource consumption within this project": "建立資源配額以限制此專案內的資源消耗",
