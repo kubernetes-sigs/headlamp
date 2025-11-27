@@ -62,7 +62,7 @@
   "Port": "埠",
   "Protocol": "通訊協定",
   "Endpoints": "端點",
-  "Addresses": "地址",
+  "Addresses": "位址",
   "Conditions": "狀態",
   "Ready": "已就緒",
   "Serving": "服務中",
