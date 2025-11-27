@@ -12,12 +12,23 @@ Headlamp can be used [in-cluster](./installation/in-cluster), where it's accesse
 or as a [desktop application](./installation/desktop) (using the information defined in the user's
 kubeconfig).
 
+## Learn
+
+Learn how to use Headlamp and its unique features in a section dedicated to users. [Learn section](./learn)
+
+## Develop
+
+Read about how to build Headlamp for different use-cases, or learn how to create a Headlamp Plugin.
+
+- [Plugins get started guide](./development/plugins/getting-started)
+
 ## Get involved
 
-Check out our: 
+Check out our:
+
 - [Guidelines](https://headlamp.dev/docs/latest/contributing/)
 - [Code of Conduct](https://github.com/kubernetes/community/blob/master/code-of-conduct.md)
-- [#headlamp](https://kubernetes.slack.com/messages/headlamp) slack channel in the Kubernetes Slack 
+- [#headlamp](https://kubernetes.slack.com/messages/headlamp) slack channel in the Kubernetes Slack
 - [Monthly Community Meeting](https://zoom-lfx.platform.linuxfoundation.org/meetings/headlamp)
 
 ## Frequently Asked Questions

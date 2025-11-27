@@ -153,7 +153,7 @@ npx playwright test -g "404 page is present" --headed
 
    - Inside `.github/workflows/build-container.yml` is the source line we need, locate the step for building the image and run in your terminal:
      ```
-     DOCKER_IMAGE_VERSION=latest make image
+     DOCKER_IMAGE_VERSION=latest npm run image:build
      ```
 
 2. **Tag and push the Docker image to a registry (e.g., ttl.sh):**

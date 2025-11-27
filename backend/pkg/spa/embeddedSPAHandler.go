@@ -34,6 +34,8 @@ func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fullPath := filepath.Join("static", path)
 
 	content, err := h.serveFile(fullPath)
+	isServingIndex := false
+
 	if err != nil {
 		// If there's any error, serve the index file
 		content, err = h.serveFile(filepath.Join("static", h.indexPath))
@@ -41,12 +43,22 @@ func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Unable to read index file", http.StatusInternalServerError)
 			return
 		}
+
+		isServingIndex = true
+	} else {
+		// Check if we're directly serving the index file
+		isServingIndex = path == h.indexPath || path == "/"+h.indexPath || path == "/"+h.indexPath+"/"
 	}
 
-	// if request is for / or index.html replace the headlampBaseUrl with the baseURL in the index.html file
-	if (path == h.indexPath || path == "/"+h.indexPath || path == "/"+h.indexPath+"/") && h.baseURL != "" {
-		content = bytes.ReplaceAll(content, []byte("headlampBaseUrl = './"), []byte("headlampBaseUrl = '"+h.baseURL+""))
+	// if we're serving the index.html file and have a baseURL, replace the headlampBaseUrl with the baseURL
+	if h.baseURL != "" && isServingIndex {
+		// Replace the __baseUrl__ assignment to use the baseURL instead of './'
+		oldPattern := "__baseUrl__ = './<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');"
+		newPattern := "__baseUrl__ = '" + h.baseURL + "';"
+		content = bytes.ReplaceAll(content, []byte(oldPattern), []byte(newPattern))
+		// Replace any remaining './' patterns in the content
 		content = bytes.ReplaceAll(content, []byte("'./'"), []byte(h.baseURL+"/"))
+		// Replace url( patterns for CSS
 		content = bytes.ReplaceAll(content, []byte("url("), []byte("url("+h.baseURL+"/"))
 	}
 

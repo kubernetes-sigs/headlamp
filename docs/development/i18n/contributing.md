@@ -26,7 +26,7 @@ In Headlamp, namespaces are separated by a `|` character. E.g. `t('glossary|Pod'
 
 ## Context
 
-In order to better express context for a translation, we use the [i18next context](https://www.i18next.com/principles/context) feature. It is used like this:
+In order to better express context for a translation, we use the [i18next context](https://www.i18next.com/translation-function/context) feature. It is used like this:
 
 ```typescript
 return t("translation|Desired", { context: "pods" });
@@ -91,7 +91,7 @@ Here's an example of using date formatting:
 Create a folder using the locale code in:
 `frontend/src/i18n/locales/`
 
-Then run `make i18n`. This command parses the translatable strings in
+Then run `npm run i18n`. This command parses the translatable strings in
 the project and creates the corresponding catalog files.
 
 Integrated components may need to be adjusted (MaterialUI/Monaco etc).

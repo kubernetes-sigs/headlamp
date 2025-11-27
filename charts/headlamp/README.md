@@ -67,14 +67,15 @@ $ helm install my-headlamp headlamp/headlamp \
 
 ### Application Configuration
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| config.inCluster | bool | `true` | Run Headlamp in-cluster |
-| config.baseURL | string | `""` | Base URL path for Headlamp UI |
-| config.pluginsDir | string | `"/headlamp/plugins"` | Directory to load Headlamp plugins from |
-| config.extraArgs | array | `[]` | Additional arguments for Headlamp server |
-| config.tlsCertPath | string | `""` | Certificate for serving TLS |
-| config.tlsKeyPath | string | `""` | Key for serving TLS |
+| Key                | Type   | Default               | Description                                                               |
+|--------------------|--------|-----------------------|---------------------------------------------------------------------------|
+| config.inCluster   | bool   | `true`                | Run Headlamp in-cluster                                                   |
+| config.baseURL     | string | `""`                  | Base URL path for Headlamp UI                                             |
+| config.pluginsDir  | string | `"/headlamp/plugins"` | Directory to load Headlamp plugins from                                   |
+| config.enableHelm  | bool   | `false`               | Enable Helm operations like install, upgrade and uninstall of Helm charts |
+| config.extraArgs   | array  | `[]`                  | Additional arguments for Headlamp server                                  |
+| config.tlsCertPath | string | `""`                  | Certificate for serving TLS                                               |
+| config.tlsKeyPath  | string | `""`                  | Key for serving TLS                                                       |
 
 ### OIDC Configuration
 
@@ -84,10 +85,12 @@ $ helm install my-headlamp headlamp/headlamp \
 | config.oidc.clientSecret | string | `""` | OIDC client secret |
 | config.oidc.issuerURL | string | `""` | OIDC issuer URL |
 | config.oidc.scopes | string | `""` | OIDC scopes to be used |
+| config.oidc.usePKCE | bool | `false` | Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow |
 | config.oidc.secret.create | bool | `true` | Create OIDC secret using provided values |
 | config.oidc.secret.name | string | `"oidc"` | Name of the OIDC secret |
 | config.oidc.externalSecret.enabled | bool | `false` | Enable using external secret for OIDC |
 | config.oidc.externalSecret.name | string | `""` | Name of external OIDC secret |
+| config.oidc.meUserInfoURL | string | `""` | URL to fetch additional user info for the /me endpoint. For oauth2proxy /oauth2/userinfo can be used. |
 
 There are three ways to configure OIDC:
 
@@ -333,4 +336,4 @@ For more details, refer to our [contributing guidelines](https://github.com/kube
 
 - [GitHub Repository](https://github.com/kubernetes-sigs/headlamp)
 - [Documentation](https://headlamp.dev/)
-- [Maintainers](https://github.com/kubernetes-sigs/headlamp/blob/main/MAINTAINERS.md)
+- [Maintainers](https://github.com/kubernetes-sigs/headlamp/blob/main/OWNERS_ALIASES)

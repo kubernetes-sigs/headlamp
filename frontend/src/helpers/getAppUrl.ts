@@ -19,6 +19,16 @@ import { isDevMode } from './isDevMode';
 import { isDockerDesktop } from './isDockerDesktop';
 import { isElectron } from './isElectron';
 
+declare global {
+  interface Window {
+    /**
+     * headlampBackendPort is set by Electron to specify the backend server port.
+     * It allows the frontend to connect to the backend on a configurable port.
+     */
+    headlampBackendPort?: number;
+  }
+}
+
 /**
  * @returns URL depending on dev-mode/electron/docker desktop, base-url, and window.location.origin.
  *
@@ -31,9 +41,30 @@ import { isElectron } from './isElectron';
  *
  */
 export function getAppUrl(): string {
-  let url = isDevMode() || isElectron() ? 'http://localhost:4466' : window.location.origin;
+  let url = '';
+  let backendPort = 4466;
+  let useLocalhost = false;
+
+  if (isElectron()) {
+    if (window?.headlampBackendPort) {
+      backendPort = window.headlampBackendPort;
+    }
+    useLocalhost = true;
+  }
+
+  if (isDevMode()) {
+    useLocalhost = true;
+  }
+
   if (isDockerDesktop()) {
-    url = 'http://localhost:64446';
+    backendPort = 64446;
+    useLocalhost = true;
+  }
+
+  if (useLocalhost) {
+    url = `http://localhost:${backendPort}`;
+  } else {
+    url = window.location.origin;
   }
 
   const baseUrl = getBaseUrl();

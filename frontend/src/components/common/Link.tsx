@@ -142,7 +142,7 @@ function PureLink(
 }
 
 export default function Link(props: React.PropsWithChildren<LinkProps | LinkObjectProps>) {
-  const drawerEnabled = useTypedSelector(state => state.drawerMode.isDetailDrawerEnabled);
+  const drawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
 
   const { tooltip, ...propsRest } = props as LinkObjectProps;
 

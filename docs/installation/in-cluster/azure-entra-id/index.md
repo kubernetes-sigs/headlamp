@@ -141,13 +141,15 @@ config:
     clientID: "<Your Application (client) ID>"
     clientSecret: "<Your Application (client) Secret>"
     issuerURL: "https://login.microsoftonline.com/<Your Directory (tenant) ID>/v2.0"
-    scopes: "6dae42f8-4368-4678-94ff-3960e28e3630/user.read openid email profile"
+    scopes: "6dae42f8-4368-4678-94ff-3960e28e3630/user.read,openid,email,profile"
     validatorClientID: "6dae42f8-4368-4678-94ff-3960e28e3630"
     validatorIssuerURL: "https://sts.windows.net/<Your Directory (tenant) ID>/"
     useAccessToken: true
 ```
 
 Replace `<Your Application (client) ID>`,`<Your Application (client) Secret>`, and `<Your Directory (tenant) ID>`, with your specific Azure Entra ID app registration details obtained in the steps above.
+
+> Note: The `scopes` string must be comma separated so each scope is passed individually to the OIDC provider.
 
 4. Save the `values.yaml` file and Install Headlamp using helm with the following commands:
 

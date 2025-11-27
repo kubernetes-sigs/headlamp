@@ -1,0 +1,122 @@
+<body>
+  <div>
+    <div
+      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-1 css-1ub3t8b-MuiGrid-root"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-p0cik4"
+        >
+          <div
+            class="MuiBox-root css-j1fy4m"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+            >
+              <div
+                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              >
+                <div
+                  class="MuiBox-root css-70qvj9"
+                >
+                  <h1
+                    class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+                  >
+                    Home
+                  </h1>
+                  <div
+                    class="MuiBox-root css-ldp2l3"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="MuiBox-root css-1txv3mw"
+            >
+              <div
+                class="MuiBox-root css-1fkybvm"
+              >
+                <div
+                  class="MuiTabs-root css-1ujnqem-MuiTabs-root"
+                >
+                  <div
+                    class="MuiTabs-scroller MuiTabs-fixed css-jpln7h-MuiTabs-scroller"
+                    style="overflow: hidden; margin-bottom: 0px;"
+                  >
+                    <div
+                      class="MuiTabs-flexContainer css-heg063-MuiTabs-flexContainer"
+                      role="tablist"
+                    >
+                      <button
+                        aria-selected="true"
+                        class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-mn9ohw-MuiButtonBase-root-MuiTab-root"
+                        role="tab"
+                        tabindex="0"
+                        type="button"
+                      >
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                        >
+                          All Clusters
+                        </p>
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                      <button
+                        aria-selected="false"
+                        class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-mn9ohw-MuiButtonBase-root-MuiTab-root"
+                        role="tab"
+                        tabindex="-1"
+                        type="button"
+                      >
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                        >
+                          Projects
+                        </p>
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                    </div>
+                    <span
+                      class="MuiTabs-indicator css-1s2zz1g-MuiTabs-indicator"
+                      style="left: 0px; width: 0px;"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-5cned0"
+              >
+                <span
+                  class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
+                  role="progressbar"
+                  style="width: 40px; height: 40px;"
+                  title="Loading..."
+                >
+                  <svg
+                    class="MuiCircularProgress-svg css-1idz92c-MuiCircularProgress-svg"
+                    viewBox="22 22 44 44"
+                  >
+                    <circle
+                      class="MuiCircularProgress-circle MuiCircularProgress-circleIndeterminate css-176wh8e-MuiCircularProgress-circle"
+                      cx="44"
+                      cy="44"
+                      fill="none"
+                      r="20.2"
+                      stroke-width="3.6"
+                    />
+                  </svg>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

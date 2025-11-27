@@ -234,7 +234,7 @@ export function ProjectResourcesTab({
         gridTemplate: 'min-content',
         accessorFn: resource => {
           const kind = resource.kind;
-          if (['Deployment', 'StatefulSet', 'ReplicaSet'].includes(kind)) {
+          if (resource.isScalable) {
             const res = resource as Deployment | StatefulSet | ReplicaSet;
             return `Replicas: ${res.status?.readyReplicas || res.status?.availableReplicas || 0}/${
               res.spec?.replicas || 0
@@ -256,7 +256,7 @@ export function ProjectResourcesTab({
         Cell: ({ row }) => {
           const resource = row.original;
           const kind = resource.kind;
-          if (['Deployment', 'StatefulSet', 'ReplicaSet'].includes(kind)) {
+          if (resource.isScalable) {
             const res = resource as Deployment | StatefulSet | ReplicaSet;
             return (
               <Typography variant="body2" color="text.secondary" whiteSpace="nowrap">
@@ -315,7 +315,7 @@ export function ProjectResourcesTab({
         Cell: ({ row }) => {
           const resource = row.original;
           const kind = resource.kind;
-          const isScalable = ['Deployment', 'StatefulSet', 'ReplicaSet'].includes(kind);
+          const isScalable = resource.isScalable;
           const isPod = kind === 'Pod';
 
           return (

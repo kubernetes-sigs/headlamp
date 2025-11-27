@@ -74,7 +74,7 @@ In the event your OIDC Provider issues `access_tokens` from a different Issuer U
 
 ### Use Access Tokens instead of ID Tokens
 
-Be default, headlamp leverages the `id_token` provided back from the OIDC Provider after authentication returned to the `/oidc-callback` endpoint. For some Identity Providers like Azure Entra ID, the `access_token` is what is used for authorization to Kubernetes clusters. To instruct headlamp to use the `access_token` instead of the `id_token`, the following flag can be used.
+By default, headlamp leverages the `id_token` provided back from the OIDC Provider after authentication returned to the `/oidc-callback` endpoint. For some Identity Providers like Azure Entra ID, the `access_token` is what is used for authorization to Kubernetes clusters. To instruct headlamp to use the `access_token` instead of the `id_token`, the following flag can be used.
 
 - `-oidc-use-access-token=true` or env var `HEADLAMP_CONFIG_OIDC_USE_ACCESS_TOKEN`
 
@@ -96,7 +96,7 @@ For quick reference if you are already familiar with setting up Entra ID,
 - Set `-oidc-client-id` to your Azure App Registration's clientID
 - Set `-oidc-client-secret` to your Azure App Registration's clientSecret
 - Set `-oidc-idp-issuer-url` to `https://login.microsoftonline.com/<Your Azure Directory (tenant) ID>/v2.0`
-- Set `-oidc-scopes` to `6dae42f8-4368-4678-94ff-3960e28e3630/user.read openid email profile`
+- Set `-oidc-scopes` to `6dae42f8-4368-4678-94ff-3960e28e3630/user.read,openid,email,profile`
 - Set `--oidc-validator-idp-issuer-url` to `https://sts.windows.net/<Your Directory (tenant) ID>/`
 - Set `-oidc-validator-client-id` to `6dae42f8-4368-4678-94ff-3960e28e3630`
 - Set `-oidc-use-access-token=true`

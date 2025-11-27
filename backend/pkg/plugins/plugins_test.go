@@ -128,16 +128,18 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 		_, err = os.Create(packageJSONPath)
 		require.NoError(t, err)
 
-		pathList, err := plugins.GeneratePluginPaths("", testDirName)
+		pathList, err := plugins.GeneratePluginPaths("", "", testDirName)
 		require.NoError(t, err)
-		require.Contains(t, pathList, "plugins/"+subDirName)
+		require.Len(t, pathList, 1)
+		require.Equal(t, "plugins/"+subDirName, pathList[0].Path)
+		require.Equal(t, "development", pathList[0].Type)
 
 		// delete the sub directory
 		err = os.RemoveAll(subDir)
 		require.NoError(t, err)
 
 		// test without any valid plugin
-		pathList, err = plugins.GeneratePluginPaths("", testDirName)
+		pathList, err = plugins.GeneratePluginPaths("", "", testDirName)
 		require.NoError(t, err)
 		require.Empty(t, pathList)
 	})
@@ -158,16 +160,18 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 		_, err = os.Create(packageJSONPath)
 		require.NoError(t, err)
 
-		pathList, err := plugins.GeneratePluginPaths(testDirName, "")
+		pathList, err := plugins.GeneratePluginPaths(testDirName, "", "")
 		require.NoError(t, err)
-		require.Contains(t, pathList, "static-plugins/"+subDirName)
+		require.Len(t, pathList, 1)
+		require.Equal(t, "static-plugins/"+subDirName, pathList[0].Path)
+		require.Equal(t, "shipped", pathList[0].Type)
 
 		// delete the sub directory
 		err = os.RemoveAll(subDir)
 		require.NoError(t, err)
 
 		// test without any valid plugin
-		pathList, err = plugins.GeneratePluginPaths(testDirName, "")
+		pathList, err = plugins.GeneratePluginPaths(testDirName, "", "")
 		require.NoError(t, err)
 		require.Empty(t, pathList)
 	})
@@ -185,7 +189,7 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 		require.NoError(t, err)
 
 		// test with file as plugin Dir
-		pathList, err := plugins.GeneratePluginPaths(fileName, "")
+		pathList, err := plugins.GeneratePluginPaths(fileName, "", "")
 		assert.Error(t, err)
 		assert.Nil(t, pathList)
 	})
@@ -265,21 +269,21 @@ func TestListPlugins(t *testing.T) {
 
 	// capture the output of the ListPlugins function
 	output, err := captureOutput(func() {
-		err := plugins.ListPlugins(staticPluginDir, pluginDir)
+		err := plugins.ListPlugins(staticPluginDir, "", pluginDir)
 		require.NoError(t, err)
 	})
 	require.NoError(t, err)
 
-	require.Contains(t, output, "Static Plugins")
+	require.Contains(t, output, "Shipped Plugins")
 	require.Contains(t, output, "static-plugin-1")
-	require.Contains(t, output, "User-added Plugins")
+	require.Contains(t, output, "Development Plugins")
 	require.Contains(t, output, "user-plugin-1")
 
 	// test missing package.json
 	os.Remove(path.Join(plugin1Dir, "package.json"))
 
 	output, err = captureOutput(func() {
-		err := plugins.ListPlugins(staticPluginDir, pluginDir)
+		err := plugins.ListPlugins(staticPluginDir, "", pluginDir)
 		require.NoError(t, err)
 	})
 	require.NoError(t, err)
@@ -289,7 +293,7 @@ func TestListPlugins(t *testing.T) {
 	err = os.WriteFile(path.Join(plugin1Dir, "package.json"), []byte("invalid json"), 0o600)
 	require.NoError(t, err)
 	output, err = captureOutput(func() {
-		err := plugins.ListPlugins(staticPluginDir, pluginDir)
+		err := plugins.ListPlugins(staticPluginDir, "", pluginDir)
 		require.NoError(t, err)
 	})
 	require.NoError(t, err)
@@ -331,7 +335,7 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 	// create cache
 	ch := cache.New[interface{}]()
 
-	go plugins.HandlePluginEvents("", testDirPath, events, ch)
+	go plugins.HandlePluginEvents("", "", testDirPath, events, ch)
 
 	// plugin list key should be empty
 	pluginList, err := ch.Get(context.Background(), plugins.PluginListKey)
@@ -372,7 +376,7 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 	err = ch.Delete(context.Background(), plugins.PluginListKey)
 	require.NoError(t, err)
 
-	go plugins.HandlePluginEvents("", testDirPath, events, ch)
+	go plugins.HandlePluginEvents("", "", testDirPath, events, ch)
 
 	// send event
 	events <- "test"
@@ -398,9 +402,11 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 	require.NoError(t, err)
 	require.NotNil(t, pluginList)
 
-	pluginListArr, ok := pluginList.([]string)
+	pluginListArr, ok := pluginList.([]plugins.PluginMetadata)
 	require.True(t, ok)
-	require.Contains(t, pluginListArr, "plugins/"+pluginDirName)
+	require.Len(t, pluginListArr, 1)
+	require.Equal(t, "plugins/"+pluginDirName, pluginListArr[0].Path)
+	require.Equal(t, "development", pluginListArr[0].Type)
 
 	// clean up
 	err = os.RemoveAll(testDirPath)
@@ -453,7 +459,7 @@ func TestPopulatePluginsCache(t *testing.T) {
 	ch := cache.New[interface{}]()
 
 	// call PopulatePluginsCache
-	plugins.PopulatePluginsCache("", "", ch)
+	plugins.PopulatePluginsCache("", "", "", ch)
 
 	// check if the plugin refresh key is set to false
 	pluginRefresh, err := ch.Get(context.Background(), plugins.PluginRefreshKey)
@@ -467,44 +473,158 @@ func TestPopulatePluginsCache(t *testing.T) {
 	pluginList, err := ch.Get(context.Background(), plugins.PluginListKey)
 	require.NoError(t, err)
 
-	pluginListArr, ok := pluginList.([]string)
+	pluginListArr, ok := pluginList.([]plugins.PluginMetadata)
 	require.True(t, ok)
 	require.Empty(t, pluginListArr)
 }
 
 // TestDelete checks the Delete function.
+//
+//nolint:funlen
 func TestDelete(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "testdelete")
 	require.NoError(t, err)
 
 	defer os.RemoveAll(tempDir) // clean up
 
-	// Create a temporary file
-	tempFile, err := os.CreateTemp(tempDir, "testfile")
+	// Create user-plugins directory
+	userPluginDir := path.Join(tempDir, "user-plugins")
+	err = os.Mkdir(userPluginDir, 0o755)
 	require.NoError(t, err)
-	tempFile.Close() // Close the file
+
+	// Create development plugins directory
+	devPluginDir := path.Join(tempDir, "plugins")
+	err = os.Mkdir(devPluginDir, 0o755)
+	require.NoError(t, err)
+
+	// Create a user plugin
+	userPluginPath := path.Join(userPluginDir, "user-plugin-1")
+	err = os.Mkdir(userPluginPath, 0o755)
+	require.NoError(t, err)
+
+	// Create a dev plugin
+	devPluginPath := path.Join(devPluginDir, "dev-plugin-1")
+	err = os.Mkdir(devPluginPath, 0o755)
+	require.NoError(t, err)
+
+	// Create a plugin with the same name in both directories for type-specific deletion tests
+	sharedPluginUser := path.Join(userPluginDir, "shared-plugin")
+	err = os.Mkdir(sharedPluginUser, 0o755)
+	require.NoError(t, err)
+
+	sharedPluginDev := path.Join(devPluginDir, "shared-plugin")
+	err = os.Mkdir(sharedPluginDev, 0o755)
+	require.NoError(t, err)
 
 	// Test cases
 	tests := []struct {
-		pluginDir  string
-		pluginName string
-		expectErr  bool
+		name          string
+		userPluginDir string
+		devPluginDir  string
+		pluginName    string
+		pluginType    string
+		expectErr     bool
+		errContains   string
 	}{
-		{pluginDir: tempDir, pluginName: tempFile.Name(), expectErr: false},          // Existing file
-		{pluginDir: tempDir, pluginName: "non-existent-directory", expectErr: false}, // Non-existent file
-		{pluginDir: tempDir, pluginName: "../", expectErr: true},                     // Directory traversal
-
+		{
+			name:          "Delete user plugin (no type specified)",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "user-plugin-1",
+			pluginType:    "",
+			expectErr:     false,
+		},
+		{
+			name:          "Delete dev plugin (no type specified)",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "dev-plugin-1",
+			pluginType:    "",
+			expectErr:     false,
+		},
+		{
+			name:          "Delete user plugin with type=user",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "shared-plugin",
+			pluginType:    "user",
+			expectErr:     false,
+		},
+		{
+			name:          "Delete dev plugin with type=development",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "shared-plugin",
+			pluginType:    "development",
+			expectErr:     false,
+		},
+		{
+			name:          "Invalid plugin type",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "shared-plugin",
+			pluginType:    "invalid",
+			expectErr:     true,
+			errContains:   "invalid plugin type",
+		},
+		{
+			name:          "Non-existent plugin with type=user",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "non-existent",
+			pluginType:    "user",
+			expectErr:     true,
+			errContains:   "not found in user-plugins directory",
+		},
+		{
+			name:          "Non-existent plugin with type=development",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "non-existent",
+			pluginType:    "development",
+			expectErr:     true,
+			errContains:   "not found in development directory",
+		},
+		{
+			name:          "Non-existent plugin (no type specified)",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "non-existent",
+			pluginType:    "",
+			expectErr:     true,
+			errContains:   "not found or cannot be deleted",
+		},
+		{
+			name:          "Directory traversal attempt",
+			userPluginDir: userPluginDir,
+			devPluginDir:  devPluginDir,
+			pluginName:    "../",
+			pluginType:    "",
+			expectErr:     true,
+		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.pluginName, func(t *testing.T) {
-			err := plugins.Delete(tt.pluginDir, tt.pluginName)
+		t.Run(tt.name, func(t *testing.T) {
+			err := plugins.Delete(tt.userPluginDir, tt.devPluginDir, tt.pluginName, tt.pluginType)
 			if tt.expectErr {
 				assert.Error(t, err, "Delete should return an error")
+
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
 			} else {
-				// check if the file exists
-				_, err := os.Stat(path.Join(tt.pluginDir, tt.pluginName))
-				assert.True(t, os.IsNotExist(err), "File should not exist")
+				assert.NoError(t, err, "Delete should not return an error")
+				// check if the plugin was deleted from the correct directory
+				if tt.pluginType == "user" || (tt.pluginType == "" && tt.pluginName == "user-plugin-1") {
+					userPath := path.Join(tt.userPluginDir, tt.pluginName)
+					_, userErr := os.Stat(userPath)
+					assert.True(t, os.IsNotExist(userErr), "User plugin should be deleted")
+				} else if tt.pluginType == "development" || (tt.pluginType == "" && tt.pluginName == "dev-plugin-1") {
+					devPath := path.Join(tt.devPluginDir, tt.pluginName)
+					_, devErr := os.Stat(devPath)
+					assert.True(t, os.IsNotExist(devErr), "Dev plugin should be deleted")
+				}
 			}
 		})
 	}

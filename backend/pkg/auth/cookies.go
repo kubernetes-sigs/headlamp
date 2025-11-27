@@ -29,6 +29,16 @@ const (
 	chunkSize = 3800
 )
 
+// GetCookiePath returns the full cookie path including baseURL.
+func GetCookiePath(baseURL, cluster string) string {
+	if baseURL != "" {
+		baseURL = "/" + strings.Trim(baseURL, "/")
+		return baseURL + "/clusters/" + cluster
+	}
+
+	return "/clusters/" + cluster
+}
+
 // SanitizeClusterName ensures cluster names are safe for use in cookie names.
 func SanitizeClusterName(cluster string) string {
 	// Only allow alphanumeric characters, hyphens, and underscores
@@ -65,7 +75,7 @@ func IsSecureContext(r *http.Request) bool {
 }
 
 // SetTokenCookie sets an authentication cookie for a specific cluster.
-func SetTokenCookie(w http.ResponseWriter, r *http.Request, cluster, token string) {
+func SetTokenCookie(w http.ResponseWriter, r *http.Request, cluster, token, baseURL string) {
 	// Validate inputs
 	if cluster == "" || token == "" {
 		return
@@ -77,7 +87,7 @@ func SetTokenCookie(w http.ResponseWriter, r *http.Request, cluster, token strin
 	}
 
 	// Clear any existing cookies
-	ClearTokenCookie(w, r, cluster)
+	ClearTokenCookie(w, r, cluster, baseURL)
 
 	secure := IsSecureContext(r)
 
@@ -90,7 +100,7 @@ func SetTokenCookie(w http.ResponseWriter, r *http.Request, cluster, token strin
 			HttpOnly: true,
 			Secure:   secure,
 			SameSite: http.SameSiteStrictMode,
-			Path:     "/clusters/" + cluster,
+			Path:     GetCookiePath(baseURL, cluster),
 			MaxAge:   86400, // 24 hours
 		}
 
@@ -125,7 +135,7 @@ func GetTokenFromCookie(r *http.Request, cluster string) (string, error) {
 }
 
 // ClearTokenCookie clears an authentication cookie for a specific cluster.
-func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster string) {
+func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL string) {
 	sanitizedCluster := SanitizeClusterName(cluster)
 	if sanitizedCluster == "" {
 		return
@@ -149,7 +159,7 @@ func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster string) {
 			HttpOnly: true,
 			Secure:   secure,
 			SameSite: http.SameSiteStrictMode,
-			Path:     "/clusters/" + cluster,
+			Path:     GetCookiePath(baseURL, cluster),
 			MaxAge:   -1,
 		}
 		http.SetCookie(w, cookie)

@@ -93,7 +93,9 @@ export default function AddCluster(props: DialogProps & { onChoice: () => void }
           {isElectron() && isPluginCatalogRegistered && addClusterProviders.length === 0 && (
             <Grid item xs={12}>
               <Button
-                onClick={() => history.push('/#/plugin-catalog/headlamp-plugins/headlamp_minikube')}
+                onClick={() => {
+                  window.location.href = '#/plugin-catalog/headlamp-plugins/headlamp_minikube';
+                }}
                 startIcon={<InlineIcon icon="mdi:plus-box-outline" />}
               >
                 {t('translation|Add Local Cluster Provider')}

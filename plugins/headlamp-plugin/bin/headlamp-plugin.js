@@ -106,15 +106,67 @@ function create(name, link, noInstall) {
   if (noInstall) {
     console.log('Skipping dependency installation...');
   } else {
-    console.log('Installing dependencies...');
+    console.log('Installing...');
+
+    // In the package-lock.json we try to update the integrity field of the
+    // @kinvolk/headlamp-plugin package to match the integrity field on npmjs
+    // registry for this version. If that fails (e.g. version not published yet),
+    // we fall back to running `npm install` instead of `npm ci` and skip the update.
+    let useNpmCi = false;
     try {
-      child_process.execSync('npm ci', {
-        stdio: 'inherit',
-        cwd: dstFolder,
-        encoding: 'utf8',
-      });
+      const npmJsPkgResponse = child_process.execFileSync(
+        'npm',
+        ['view', `@kinvolk/headlamp-plugin@${headlampPluginPkg.version}`, 'dist', '--json'],
+        { encoding: 'utf8' }
+      );
+      const npmJsPkg = JSON.parse(npmJsPkgResponse);
+      const npmJsIntegrity = npmJsPkg.integrity;
+
+      // Now replace integrity in the package-lock.json to match npmjs registry integrity.
+      // "node_modules/@kinvolk/headlamp-plugin": {
+      //   "version": "0.13.0-alpha.13",
+      //   "resolved": "...",
+      //   "integrity": "sha512-..."
+      const packageLockContent = fs.readFileSync(packageLockPath, 'utf8');
+      const integrityPattern = new RegExp(
+        `("node_modules/@kinvolk/headlamp-plugin": \\{[\\s\\S]*?"integrity": ")[^"]+(")`,
+        'g'
+      );
+      const packageLockContentNew = packageLockContent.replace(
+        integrityPattern,
+        `$1${npmJsIntegrity}$2`
+      );
+      if (packageLockContent !== packageLockContentNew) {
+        fs.writeFileSync(packageLockPath, packageLockContentNew);
+      }
+
+      useNpmCi = true;
     } catch (e) {
-      console.error(`Problem running npm ci inside of "${dstFolder}" abs: "${resolve(dstFolder)}"`);
+      // no warning, we just fall back to npm install
+    }
+
+    try {
+      if (useNpmCi) {
+        console.log('Running npm ci...');
+        child_process.execSync('npm ci', {
+          stdio: 'inherit',
+          cwd: dstFolder,
+          encoding: 'utf8',
+        });
+      } else {
+        console.log('Running npm install...');
+        child_process.execSync('npm install', {
+          stdio: 'inherit',
+          cwd: dstFolder,
+          encoding: 'utf8',
+        });
+      }
+    } catch (e) {
+      console.error(
+        `Problem running ${
+          useNpmCi ? 'npm ci' : 'npm install'
+        } inside of "${dstFolder}" abs: "${resolve(dstFolder)}"`
+      );
       return 3;
     }
 

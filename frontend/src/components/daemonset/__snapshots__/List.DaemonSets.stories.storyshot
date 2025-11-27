@@ -968,13 +968,19 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yzp8vs-MuiTableCell-root"
                 >
-                  <span
-                    aria-label="kubernetes.io/os=linux"
-                    class=""
-                    data-mui-internal-clone-element="true"
+                  <div
+                    class="MuiBox-root css-0"
                   >
-                    kubernetes.io/os=linux
-                  </span>
+                    <div
+                      class="MuiBox-root css-yi3mkw"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                      >
+                        kubernetes.io/os: linux
+                      </p>
+                    </div>
+                  </div>
                 </td>
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-136f0b-MuiTableCell-root"
@@ -1022,12 +1028,12 @@
                     <svg
                       aria-hidden="true"
                       class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
-                      data-testid="MoreHorizIcon"
+                      data-testid="MoreVertIcon"
                       focusable="false"
                       viewBox="0 0 24 24"
                     >
                       <path
-                        d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2"
+                        d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2m0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2"
                       />
                     </svg>
                     <span

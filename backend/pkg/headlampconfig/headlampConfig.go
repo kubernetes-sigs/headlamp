@@ -19,6 +19,7 @@ type HeadlampCFG struct {
 	SkippedKubeContexts   string
 	StaticDir             string
 	PluginDir             string
+	UserPluginDir         string
 	StaticPluginDir       string
 	KubeConfigStore       kubeconfig.ContextStore
 	Telemetry             *telemetry.Telemetry

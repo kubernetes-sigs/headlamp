@@ -31,6 +31,7 @@ import {
 import { IpcMainEvent, MenuItemConstructorOptions } from 'electron/main';
 import find_process from 'find-process';
 import * as fsPromises from 'fs/promises';
+import * as net from 'net';
 import fs from 'node:fs';
 import { userInfo } from 'node:os';
 import { promisify } from 'node:util';
@@ -44,6 +45,7 @@ import {
   addToPath,
   ArtifactHubHeadlampPkg,
   defaultPluginsDir,
+  defaultUserPluginsDir,
   getMatchingExtraFiles,
   getPluginBinDirectories,
   PluginManager,
@@ -59,7 +61,7 @@ if (process.env.HEADLAMP_RUN_SCRIPT) {
 
 dotenv.config({ path: path.join(process.resourcesPath, '.env') });
 
-const isDev = process.env.ELECTRON_DEV || false;
+const isDev = !!process.env.ELECTRON_DEV;
 let frontendPath = '';
 
 if (isDev) {
@@ -113,6 +115,11 @@ const args = yargs(hideBin(process.argv))
       describe: 'Reloads plugins when there are changes to them or their directory',
       type: 'boolean',
     },
+    port: {
+      describe: 'Port for the backend server to listen on',
+      type: 'number',
+      default: 4466,
+    },
   })
   .positional('kubeconfig', {
     describe:
@@ -124,13 +131,12 @@ const args = yargs(hideBin(process.argv))
 
 const isHeadlessMode = args.headless === true;
 let disableGPU = args['disable-gpu'] === true;
-const defaultPort = 4466;
+const defaultPort = args.port || 4466;
+let actualPort = defaultPort; // Will be updated when backend starts
+const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS) || 100); // Maximum number of ports to try
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
 const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false';
-const manifestDir = isDev ? path.resolve('./') : process.resourcesPath;
-const manifestFile = path.join(manifestDir, 'app-build-manifest.json');
-const buildManifest = fs.existsSync(manifestFile) ? require(manifestFile) : {};
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
@@ -417,6 +423,9 @@ class PluginManagerEventListeners {
   /**
    * Handles the list event.
    *
+   * Lists plugins from all three directories (shipped, user-installed, development)
+   * and returns a combined list with their locations.
+   *
    * @method
    * @name handleList
    * @param {Electron.IpcMainEvent} event - The IPC Main Event.
@@ -425,9 +434,84 @@ class PluginManagerEventListeners {
    */
   private handleList(event: Electron.IpcMainEvent, eventData: Action) {
     const { identifier, destinationFolder } = eventData;
-    PluginManager.list(destinationFolder, progress => {
-      event.sender.send('plugin-manager', JSON.stringify({ identifier: identifier, ...progress }));
-    });
+
+    // If a specific folder is requested, list only from that folder
+    if (destinationFolder) {
+      PluginManager.list(destinationFolder, progress => {
+        event.sender.send(
+          'plugin-manager',
+          JSON.stringify({ identifier: identifier, ...progress })
+        );
+      });
+      return;
+    }
+
+    // Otherwise, list from all three directories
+    try {
+      const allPlugins: any[] = [];
+
+      // List from shipped plugins (.plugins)
+      const shippedDir = path.join(__dirname, '.plugins');
+      try {
+        const shippedPlugins = PluginManager.list(shippedDir);
+        if (shippedPlugins) {
+          allPlugins.push(...shippedPlugins);
+        }
+      } catch (error: any) {
+        // Only ignore if directory doesn't exist, log other errors
+        if (error?.code !== 'ENOENT') {
+          console.error('Error listing shipped plugins:', error);
+        }
+      }
+
+      // List from user-installed plugins (user-plugins)
+      const userDir = defaultUserPluginsDir();
+      try {
+        const userPlugins = PluginManager.list(userDir);
+        if (userPlugins) {
+          allPlugins.push(...userPlugins);
+        }
+      } catch (error: any) {
+        // Only ignore if directory doesn't exist, log other errors
+        if (error?.code !== 'ENOENT') {
+          console.error('Error listing user plugins:', error);
+        }
+      }
+
+      // List from development plugins (plugins)
+      const devDir = defaultPluginsDir();
+      try {
+        const devPlugins = PluginManager.list(devDir);
+        if (devPlugins) {
+          allPlugins.push(...devPlugins);
+        }
+      } catch (error: any) {
+        // Only ignore if directory doesn't exist, log other errors
+        if (error?.code !== 'ENOENT') {
+          console.error('Error listing development plugins:', error);
+        }
+      }
+
+      // Send combined results
+      event.sender.send(
+        'plugin-manager',
+        JSON.stringify({
+          identifier: identifier,
+          type: 'success',
+          message: 'Plugins Listed',
+          data: allPlugins,
+        })
+      );
+    } catch (error) {
+      event.sender.send(
+        'plugin-manager',
+        JSON.stringify({
+          identifier: identifier,
+          type: 'error',
+          message: error instanceof Error ? error.message : String(error),
+        })
+      );
+    }
   }
 
   /**
@@ -576,15 +660,87 @@ async function getShellEnv(): Promise<NodeJS.ProcessEnv> {
   }
 }
 
+/**
+ * Check if a port is available by attempting to create a server on it
+ */
+async function isPortAvailable(port: number): Promise<boolean> {
+  return new Promise(resolve => {
+    const server = net.createServer();
+
+    server.once('error', () => {
+      resolve(false);
+    });
+
+    server.once('listening', () => {
+      server.close(() => resolve(true));
+    });
+
+    try {
+      server.listen({ port, host: 'localhost', exclusive: true });
+    } catch (err) {
+      server.emit('error', err as NodeJS.ErrnoException);
+    }
+  });
+}
+
+/**
+ * Find an available port starting from the default port
+ * Tries to find a free port, skipping all occupied ports (including Headlamp)
+ * @returns Available port number, or throws if no port found after MAX_PORT_ATTEMPTS
+ */
+async function findAvailablePort(startPort: number): Promise<number> {
+  for (let i = 0; i < MAX_PORT_ATTEMPTS; i++) {
+    const port = startPort + i;
+    // Skip ports already used by another Headlamp instance.
+    const headlampPIDs = await getHeadlampPIDsOnPort(port);
+    if (headlampPIDs && headlampPIDs.length > 0) {
+      console.info(
+        `Port ${port} is occupied by Headlamp process(es) ${headlampPIDs.join(
+          ', '
+        )}, trying next port...`
+      );
+      continue;
+    }
+    const available = await isPortAvailable(port);
+
+    if (available) {
+      if (port !== startPort) {
+        console.info(`Port ${startPort} is in use, using port ${port} instead`);
+      }
+      return port;
+    }
+
+    console.info(`Port ${port} is occupied by another process, trying next port...`);
+  }
+
+  throw new Error(
+    `Could not find an available port after ${MAX_PORT_ATTEMPTS} attempts starting from ${startPort}`
+  );
+}
+
 async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNullStreams> {
   const serverFilePath = isDev
     ? path.resolve('../backend/headlamp-server')
     : path.join(process.resourcesPath, './headlamp-server');
 
-  let serverArgs: string[] = ['--listen-addr=localhost'];
+  actualPort = await findAvailablePort(defaultPort);
+
+  let serverArgs: string[] = ['--listen-addr=localhost', `--port=${actualPort}`];
   if (!!args.kubeconfig) {
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);
   }
+
+  const manifestDir = isDev ? path.resolve('./') : process.resourcesPath;
+  const manifestFile = path.join(manifestDir, 'app-build-manifest.json');
+  let buildManifest: Record<string, any> = {};
+  try {
+    const manifestContent = await fsPromises.readFile(manifestFile, 'utf8');
+    buildManifest = JSON.parse(manifestContent);
+  } catch (err) {
+    // If the manifest doesn't exist or can't be read, fall back to empty object
+    buildManifest = {};
+  }
+
   const proxyUrls = !!buildManifest && buildManifest['proxy-urls'];
   if (!!proxyUrls && proxyUrls.length > 0) {
     serverArgs = serverArgs.concat(['--proxy-urls', proxyUrls.join(',')]);
@@ -603,8 +759,16 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   process.env.HEADLAMP_BACKEND_TOKEN = backendToken;
 
   // Set the bundled plugins in addition to the the user's plugins.
-  if (fs.existsSync(bundledPlugins) && fs.readdirSync(bundledPlugins).length !== 0) {
-    process.env.HEADLAMP_STATIC_PLUGINS_DIR = bundledPlugins;
+  try {
+    const stat = await fsPromises.stat(bundledPlugins);
+    if (stat.isDirectory()) {
+      const entries = await fsPromises.readdir(bundledPlugins);
+      if (entries.length !== 0) {
+        process.env.HEADLAMP_STATIC_PLUGINS_DIR = bundledPlugins;
+      }
+    }
+  } catch (err) {
+    // Directory doesn't exist or is not readable — ignore and continue.
   }
 
   serverArgs = serverArgs.concat(flags);
@@ -633,13 +797,18 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
  * Are we running inside WSL?
  * @returns true if we are running inside WSL.
  */
-function isWSL(): boolean {
+async function isWSL(): Promise<boolean> {
+  // Cheap platform check first to avoid reading /proc on non-Linux platforms.
+  if (platform() !== 'linux') {
+    return false;
+  }
+
   try {
-    const data = fs.readFileSync('/proc/version', {
+    const data = await fsPromises.readFile('/proc/version', {
       encoding: 'utf8',
-      flag: 'r',
     });
-    return data.indexOf('icrosoft') !== -1;
+    const lower = data.toLowerCase();
+    return lower.includes('microsoft') || lower.includes('wsl');
   } catch {
     return false;
   }
@@ -935,8 +1104,7 @@ function getDefaultAppMenu(): AppMenu[] {
         },
         {
           label: i18n.t('About'),
-          id: 'original-about',
-          url: 'https://github.com/kubernetes-sigs/headlamp',
+          id: 'original-about-help',
         },
       ],
     },
@@ -1030,7 +1198,12 @@ function menusToTemplate(mainWindow: BrowserWindow | null, menusFromPlugins: App
       return;
     }
 
-    if (!!url) {
+    // Handle the "About" menu item from the Help menu specially
+    if (appMenu.id === 'original-about-help') {
+      menu.click = () => {
+        mainWindow?.webContents.send('open-about-dialog');
+      };
+    } else if (!!url) {
       menu.click = async () => {
         // Open external links in the external browser.
         if (!!mainWindow && !url.startsWith('http')) {
@@ -1061,6 +1234,50 @@ async function getRunningHeadlampPIDs() {
   return processes.map(pInfo => pInfo.pid);
 }
 
+/**
+ * Check if a specific port is occupied by a Headlamp process
+ * @returns Array of Headlamp PIDs using the port, or null if port is free or used by another process
+ */
+async function getHeadlampPIDsOnPort(port: number): Promise<number[] | null> {
+  try {
+    // Get all Headlamp processes
+    const headlampProcesses = await find_process('name', 'headlamp-server');
+    if (headlampProcesses.length === 0) {
+      return null;
+    }
+
+    // Parse command line arguments to find which Headlamp process is using this port
+    const headlampOnPort = headlampProcesses.filter(p => {
+      if (!p.cmd) return false;
+
+      // Look for --port=XXXX or --port XXXX in the command line
+      const portRegex = /--port[=\s]+(\d+)/;
+      const match = p.cmd.match(portRegex);
+
+      if (match && match[1]) {
+        const processPort = parseInt(match[1], 10);
+        return processPort === port;
+      }
+
+      // If no port specified, Headlamp uses default port 4466
+      if (port === 4466 && !p.cmd.includes('--port')) {
+        return true;
+      }
+
+      return false;
+    });
+
+    if (headlampOnPort.length === 0) {
+      return null;
+    }
+
+    return headlampOnPort.map(p => p.pid);
+  } catch (error) {
+    console.error(`Error checking if port ${port} is used by Headlamp:`, error);
+    return null;
+  }
+}
+
 function killProcess(pid: number) {
   if (process.platform === 'win32') {
     // Otherwise on Windows the process will stick around.
@@ -1081,10 +1298,11 @@ function saveZoomFactor(factor: number) {
   }
 }
 
-function loadZoomFactor() {
+async function loadZoomFactor(): Promise<number> {
   try {
-    const { zoomFactor = 1.0 } = JSON.parse(fs.readFileSync(ZOOM_FILE_PATH, 'utf-8'));
-    return zoomFactor;
+    const content = await fsPromises.readFile(ZOOM_FILE_PATH, 'utf-8');
+    const { zoomFactor = 1.0 } = JSON.parse(content);
+    return typeof zoomFactor === 'number' ? zoomFactor : 1.0;
   } catch (err) {
     console.error('Failed to load zoom factor, defaulting to 1.0:', err);
     return 1.0;
@@ -1106,7 +1324,7 @@ function adjustZoom(delta: number) {
   setZoom(newZoom);
 }
 
-function startElecron() {
+function startElectron() {
   console.info('App starting...');
 
   let appVersion: string;
@@ -1119,97 +1337,151 @@ function startElecron() {
 
   console.log('Check for updates: ', shouldCheckForUpdates);
 
-  async function createWindow() {
+  async function startServerIfNeeded() {
     if (!useExternalServer) {
-      serverProcess = await startServer();
-      attachServerEventHandlers(serverProcess);
+      try {
+        // Try to start the server (it will find an available port)
+        serverProcess = await startServer();
+        attachServerEventHandlers(serverProcess);
 
-      serverProcess.addListener('exit', async e => {
-        const ERROR_ADDRESS_IN_USE = 98;
-        if (e === ERROR_ADDRESS_IN_USE) {
-          const runningHeadlamp = await getRunningHeadlampPIDs();
-          let shouldWaitForKill = true;
+        serverProcess.addListener('exit', async e => {
+          const ERROR_ADDRESS_IN_USE = 98;
+          if (e === ERROR_ADDRESS_IN_USE) {
+            // This is a fallback - we should have already checked for port conflicts
+            // before starting the server. This handles edge cases where the port
+            // became occupied between our check and the server start.
+            console.warn('Server failed to start due to address in use (unexpected)');
 
-          if (!mainWindow) {
-            return;
-          }
+            const runningHeadlamp = await getRunningHeadlampPIDs();
 
-          if (!!runningHeadlamp) {
-            const resp = dialog.showMessageBoxSync(mainWindow, {
-              // Avoiding mentioning Headlamp here because it may run under a different name depending on branding (plugins).
-              title: i18n.t('Another process is running'),
-              message: i18n.t(
-                'Looks like another process is already running. Continue by terminating that process automatically, or quit?'
-              ),
-              type: 'question',
-              buttons: [i18n.t('Continue'), i18n.t('Quit')],
-            });
+            if (!mainWindow) {
+              return;
+            }
 
-            if (resp === 0) {
-              runningHeadlamp.forEach(pid => {
-                try {
-                  killProcess(pid);
-                } catch (e: unknown) {
-                  const message = e instanceof Error ? e.message : String(e);
-                  console.error(
-                    `Failed to kill headlamp-server process with PID ${pid}: ${message}`
-                  );
-                  shouldWaitForKill = false;
-                }
+            if (!!runningHeadlamp) {
+              const resp = dialog.showMessageBoxSync(mainWindow, {
+                title: i18n.t('Another process is running'),
+                message: i18n.t(
+                  'Looks like another process is already running. Continue by terminating that process automatically, or quit?'
+                ),
+                type: 'question',
+                buttons: [i18n.t('Continue'), i18n.t('Quit')],
               });
-            } else {
+
+              if (resp === 0) {
+                runningHeadlamp.forEach(pid => {
+                  try {
+                    killProcess(pid);
+                  } catch (e: unknown) {
+                    const message = e instanceof Error ? e.message : String(e);
+                    console.error(`Failed to kill process with PID ${pid}: ${message}`);
+                  }
+                });
+
+                // Wait a bit and retry
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              } else {
+                mainWindow.close();
+                return;
+              }
+            }
+
+            // If we couldn't kill the process, warn the user and quit.
+            const processes = await getRunningHeadlampPIDs();
+            if (!!processes) {
+              dialog.showMessageBoxSync({
+                type: 'warning',
+                title: i18n.t('Failed to quit the other running process'),
+                message: i18n.t(
+                  `Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.`,
+                  { process_list: processes }
+                ),
+              });
+
               mainWindow.close();
               return;
             }
+            serverProcess = await startServer();
+            attachServerEventHandlers(serverProcess);
           }
+        });
+      } catch (error: unknown) {
+        // Failed to find an available port after all attempts
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('Failed to find an available port:', message);
 
-          // If we reach here, then we attempted to kill headlamp-server. Let's make sure it's killed
-          // before starting our own, or else we may end up in a race condition (failing to start the
-          // new one before the existing one is fully killed).
-          if (!!runningHeadlamp && shouldWaitForKill) {
-            let stillRunning = true;
-            let timeWaited = 0;
-            const maxWaitTime = 3000; // ms
-            // @todo: Use an iterative back-off strategy for the wait (so we can start by waiting for shorter times).
-            for (let tries = 1; timeWaited < maxWaitTime && stillRunning; tries++) {
-              console.debug(
-                `Checking if Headlamp is still running after we asked it to be killed; ${tries} ${timeWaited}/${maxWaitTime}ms wait.`
-              );
+        if (!mainWindow) {
+          console.error('Cannot show dialog - no main window available');
+          return;
+        }
 
-              // Wait (10 * powers of 2) ms with a max of 250 ms
-              const waitTime = Math.min(10 * tries ** 2, 250); // ms
-              await new Promise(f => setTimeout(f, waitTime));
+        // Ask user if they want to kill existing Headlamp processes and retry
+        const headlampPIDs = await getRunningHeadlampPIDs();
 
-              timeWaited += waitTime;
+        if (headlampPIDs && headlampPIDs.length > 0) {
+          const resp = dialog.showMessageBoxSync(mainWindow, {
+            title: i18n.t('No available ports'),
+            message: i18n.t(
+              'Could not find an available port. There are processes running on ports {{startPort}}-{{endPort}}. Terminate these processes and retry?',
+              { startPort: defaultPort, endPort: defaultPort + MAX_PORT_ATTEMPTS - 1 }
+            ),
+            type: 'warning',
+            buttons: [i18n.t('Terminate and Retry'), i18n.t('Quit')],
+          });
 
-              stillRunning = !!(await getRunningHeadlampPIDs());
-              console.debug(stillRunning ? 'Still running...' : 'No longer running!');
-            }
-          }
-
-          // If we couldn't kill the process, warn the user and quit.
-          const processes = await getRunningHeadlampPIDs();
-          if (!!processes) {
-            dialog.showMessageBoxSync({
-              type: 'warning',
-              title: i18n.t('Failed to quit the other running process'),
-              message: i18n.t(
-                `Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.`,
-                { process_list: processes }
-              ),
+          if (resp === 0) {
+            // User chose to terminate and retry
+            console.info(`Terminating ${headlampPIDs.length} Headlamp process(es)...`);
+            headlampPIDs.forEach(pid => {
+              try {
+                killProcess(pid);
+              } catch (e: unknown) {
+                const killMessage = e instanceof Error ? e.message : String(e);
+                console.error(
+                  `Failed to kill headlamp-server process with PID ${pid}: ${killMessage}`
+                );
+              }
             });
 
-            mainWindow.close();
-            return;
-          }
-          serverProcess = await startServer();
-          attachServerEventHandlers(serverProcess);
-        }
-      });
-    }
+            // Wait for processes to be killed
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
+            // Retry starting the server
+            try {
+              serverProcess = await startServer();
+              attachServerEventHandlers(serverProcess);
+            } catch (retryError: unknown) {
+              const retryMessage =
+                retryError instanceof Error ? retryError.message : String(retryError);
+              console.error('Failed to start server after killing processes:', retryMessage);
+              dialog.showErrorBox(
+                i18n.t('Failed to start'),
+                i18n.t('Could not start the server even after terminating existing processes.')
+              );
+              mainWindow.close();
+            }
+          } else {
+            // User chose to quit
+            mainWindow.close();
+          }
+        } else {
+          // No Headlamp processes found, but still can't find a port
+          dialog.showErrorBox(
+            i18n.t('No available ports'),
+            i18n.t(
+              'Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.',
+              { startPort: defaultPort, endPort: defaultPort + MAX_PORT_ATTEMPTS - 1 }
+            )
+          );
+          mainWindow.close();
+        }
+      }
+    }
+  }
+
+  async function createWindow() {
     // WSL has a problem with full size window placement, so make it smaller.
-    const withMargin = isWSL();
+    const withMargin = await isWSL();
     const { width, height } = windowSize(screen.getPrimaryDisplay().workAreaSize, withMargin);
 
     mainWindow = new BrowserWindow({
@@ -1250,9 +1522,14 @@ function startElecron() {
       }
     });
 
-    mainWindow.webContents.on('did-finish-load', () => {
-      const startZoom = loadZoomFactor();
-      setZoom(startZoom);
+    mainWindow.webContents.on('did-finish-load', async () => {
+      const startZoom = await loadZoomFactor();
+      if (startZoom !== 1.0) {
+        setZoom(startZoom);
+      }
+
+      // Inject the backend port into the window object
+      mainWindow?.webContents.executeJavaScript(`window.headlampBackendPort = ${actualPort};`);
     });
 
     mainWindow.webContents.on('dom-ready', () => {
@@ -1265,10 +1542,10 @@ function startElecron() {
       mainWindow = null;
     });
 
-    // Workaround to cookies to be saved, since file:// protocal and localhost:4466
+    // Workaround to cookies to be saved, since file:// protocal and localhost:port
     // are treated as a cross site request.
     mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-      if (details.url.startsWith('http://localhost:4466')) {
+      if (details.url.startsWith(`http://localhost:${actualPort}`)) {
         callback({
           responseHeaders: {
             ...details.responseHeaders,
@@ -1302,7 +1579,8 @@ function startElecron() {
     if a library is trying to open a url other than app url in electron take it
     to the default browser
     */
-    mainWindow.webContents.on('will-navigate', (event, url) => {
+    mainWindow.webContents.on('will-navigate', (event, encodedUrl) => {
+      const url = decodeURI(encodedUrl);
       if (url.startsWith(startUrl)) {
         return;
       }
@@ -1384,9 +1662,38 @@ function startElecron() {
       mainWindow?.webContents.send('backend-token', backendToken);
     });
 
+    ipcMain.on('request-backend-port', () => {
+      mainWindow?.webContents.send('backend-port', actualPort);
+    });
+
     setupRunCmdHandlers(mainWindow, ipcMain);
 
     new PluginManagerEventListeners().setupEventHandlers();
+
+    // Handle opening plugin folder in file explorer
+    ipcMain.on(
+      'open-plugin-folder',
+      (
+        event: IpcMainEvent,
+        pluginInfo: { folderName: string; type: 'development' | 'user' | 'shipped' }
+      ) => {
+        let folderPath: string | null = null;
+
+        if (pluginInfo.type === 'user') {
+          folderPath = path.join(defaultUserPluginsDir(), pluginInfo.folderName);
+        } else if (pluginInfo.type === 'development') {
+          folderPath = path.join(defaultPluginsDir(), pluginInfo.folderName);
+        } else if (pluginInfo.type === 'shipped') {
+          folderPath = path.join(process.resourcesPath, '.plugins', pluginInfo.folderName);
+        }
+
+        if (folderPath) {
+          shell.openPath(folderPath).catch((err: Error) => {
+            console.error('Failed to open plugin folder:', err);
+          });
+        }
+      }
+    );
 
     // Also add bundled plugin bin directories to PATH
     const bundledPlugins = path.join(process.resourcesPath, '.plugins');
@@ -1396,7 +1703,7 @@ function startElecron() {
     }
 
     // Add the installed plugins as well
-    const userPluginBinDirs = getPluginBinDirectories(defaultPluginsDir());
+    const userPluginBinDirs = getPluginBinDirectories(defaultUserPluginsDir());
     if (userPluginBinDirs.length > 0) {
       addToPath(userPluginBinDirs, 'userPluginBinDirs plugin');
     }
@@ -1419,10 +1726,12 @@ function startElecron() {
     app.disableHardwareAcceleration();
   }
 
-  app.on('ready', createWindow);
-  app.on('activate', function () {
+  app.on('ready', async () => {
+    await Promise.all([startServerIfNeeded(), createWindow()]);
+  });
+  app.on('activate', async function () {
     if (mainWindow === null) {
-      createWindow();
+      await Promise.all([startServerIfNeeded(), createWindow()]);
     }
   });
 
@@ -1449,9 +1758,26 @@ function attachServerEventHandlers(serverProcess: ChildProcessWithoutNullStreams
   serverProcess.on('error', err => {
     console.error(`server process failed to start: ${err}`);
   });
+
+  const extractPortFromOutput = (data: Buffer) => {
+    const output = data.toString();
+    const portMatch = output.match(/Listen address:.*:(\d+)/);
+    if (portMatch && portMatch[1]) {
+      actualPort = parseInt(portMatch[1], 10);
+      console.info(`Backend server listening on port: ${actualPort}`);
+
+      // Update the environment variable for the frontend
+      if (mainWindow) {
+        mainWindow.webContents.executeJavaScript(`window.headlampBackendPort = ${actualPort};`);
+      }
+    }
+  };
+
   serverProcess.stdout.on('data', data => {
     console.info(`server process stdout: ${data}`);
+    extractPortFromOutput(data);
   });
+
   serverProcess.stderr.on('data', data => {
     const sterrMessage = `server process stderr: ${data}`;
     if (data && data.indexOf && data.indexOf('Requesting') !== -1) {
@@ -1460,7 +1786,9 @@ function attachServerEventHandlers(serverProcess: ChildProcessWithoutNullStreams
     } else {
       console.error(sterrMessage);
     }
+    extractPortFromOutput(data);
   });
+
   serverProcess.on('close', (code, signal) => {
     const closeMessage = `server process process exited with code:${code} signal:${signal}`;
     if (!intentionalQuit) {
@@ -1479,11 +1807,11 @@ if (isHeadlessMode) {
       attachServerEventHandlers(serverProcess);
 
       // Give 1s for backend to start
-      setTimeout(() => shell.openExternal(`http://localhost:${defaultPort}`), 1000);
+      setTimeout(() => shell.openExternal(`http://localhost:${actualPort}`), 1000);
     }
   );
 } else {
   if (!isRunningScript) {
-    startElecron();
+    startElectron();
   }
 }

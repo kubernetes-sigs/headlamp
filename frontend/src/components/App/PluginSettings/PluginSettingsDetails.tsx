@@ -16,26 +16,57 @@
 
 import Box, { BoxProps } from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
 import _ from 'lodash';
 import { isValidElement, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useParams } from 'react-router-dom';
-import { useHistory } from 'react-router-dom';
+import { useHistory, useParams } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
-import { getCluster } from '../../../lib/cluster';
 import { deletePlugin } from '../../../lib/k8s/api/v1/pluginsApi';
 import { ConfigStore } from '../../../plugin/configStore';
-import { PluginInfo } from '../../../plugin/pluginsSlice';
+import { PluginInfo, reloadPage } from '../../../plugin/pluginsSlice';
 import { clusterAction } from '../../../redux/clusterActionSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import type { AppDispatch } from '../../../redux/stores/store';
 import NotFoundComponent from '../../404';
+import { SectionHeader } from '../../common';
+import ActionButton from '../../common/ActionButton';
 import { ConfirmDialog } from '../../common/Dialog';
 import ErrorBoundary from '../../common/ErrorBoundary';
 import { SectionBox } from '../../common/SectionBox';
-import { setNotifications } from '../Notifications/notificationsSlice';
+
+// Helper function to open plugin folder in file explorer (Electron only)
+function openPluginFolder(plugin: PluginInfo) {
+  if (!isElectron()) {
+    return;
+  }
+
+  const folderName = plugin.folderName || plugin.name.split('/').pop();
+  if (!folderName || !plugin.type) {
+    return;
+  }
+
+  const { desktopApi } = window as any;
+  if (desktopApi?.send) {
+    desktopApi.send('open-plugin-folder', {
+      folderName,
+      type: plugin.type,
+    });
+  }
+}
+
+// Helper to check if we can open the plugin folder
+function canOpenPluginFolder(plugin: PluginInfo): boolean {
+  if (!isElectron()) {
+    return false;
+  }
+
+  const folderName = plugin.folderName || plugin.name.split('/').pop();
+  return !!(folderName && plugin.type);
+}
 
 const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   const { plugin } = props;
@@ -44,40 +75,34 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   const pluginConf = store.useConfig();
   const config = pluginConf() as { [key: string]: any };
   const dispatch: AppDispatch = useDispatch();
+  const history = useHistory();
 
   function handleSave(data: { [key: string]: any }) {
     store.set(data);
   }
 
   function handleDeleteConfirm() {
-    const name = plugin.name.split('/').splice(-1)[0];
+    // Use folderName if available (the actual folder name on disk),
+    // otherwise fall back to extracting from the name
+    const pluginFolderName = plugin.folderName || plugin.name.split('/').splice(-1)[0];
+
+    // Determine plugin type for deletion - only allow deletion of user and development plugins
+    const pluginType =
+      plugin.type === 'development' || plugin.type === 'user' ? plugin.type : undefined;
 
     dispatch(
-      clusterAction(
-        () =>
-          deletePlugin(name).catch(err => {
-            const msg = err instanceof Error ? err.message : t('Unknown error');
-            dispatch(
-              setNotifications({
-                cluster: getCluster(),
-                date: new Date().toISOString(),
-                deleted: false,
-                id: Math.random().toString(36).substring(2),
-                message: t('Failed to delete plugin: {{ msg }}', { msg: msg }),
-                seen: false,
-              })
-            );
-            throw err;
-          }),
-        {
-          startMessage: t('Deleting plugin {{ itemName }}...', { itemName: name }),
-          cancelledMessage: t('Cancelled deletion of {{ itemName }}.', { itemName: name }),
-          successMessage: t('Deleted plugin {{ itemName }}.', { itemName: name }),
-          errorMessage: t('Error deleting plugin {{ itemName }}.', { itemName: name }),
-        }
-      )
-    ).finally(() => {
-      history.back();
+      clusterAction(() => deletePlugin(pluginFolderName, pluginType), {
+        startMessage: t('Deleting plugin {{ itemName }}...', { itemName: pluginFolderName }),
+        cancelledMessage: t('Cancelled deletion of {{ itemName }}.', {
+          itemName: pluginFolderName,
+        }),
+        successMessage: t('Deleted plugin {{ itemName }}.', { itemName: pluginFolderName }),
+        errorMessage: t('Error deleting plugin {{ itemName }}.', { itemName: pluginFolderName }),
+      })
+    ).then(() => {
+      // Navigate to plugins list page, then reload to refresh plugin list from backend
+      history.push('/settings/plugins');
+      dispatch(reloadPage());
     });
   }
 
@@ -93,12 +118,22 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
 
 export default function PluginSettingsDetails() {
   const pluginSettings = useTypedSelector(state => state.plugins.pluginSettings);
-  const { name } = useParams<{ name: string }>();
+  const { name, type } = useParams<{ name: string; type?: string }>();
 
   const plugin = useMemo(() => {
     const decodedName = decodeURIComponent(name);
+    const decodedType = type ? decodeURIComponent(type) : undefined;
+
+    // If type is specified, find exact match by name and type
+    if (decodedType) {
+      return pluginSettings.find(
+        plugin => plugin.name === decodedName && (plugin.type || 'shipped') === decodedType
+      );
+    }
+
+    // Otherwise, find by name only (backwards compatibility)
     return pluginSettings.find(plugin => plugin.name === decodedName);
-  }, [pluginSettings, name]);
+  }, [pluginSettings, name, type]);
 
   if (!plugin) {
     return <NotFoundComponent />;
@@ -182,14 +217,19 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
   }
 
   let component;
-  if (isValidElement(plugin.settingsComponent)) {
-    component = plugin.settingsComponent;
-  } else if (typeof plugin.settingsComponent === 'function') {
-    const Comp = plugin.settingsComponent;
-    if (plugin.displaySettingsComponentWithSaveButton) {
-      component = <Comp onDataChange={onDataChange} data={data} />;
+  // Only show settings component if this plugin is actually loaded
+  if (plugin.isLoaded !== false) {
+    if (isValidElement(plugin.settingsComponent)) {
+      component = plugin.settingsComponent;
+    } else if (typeof plugin.settingsComponent === 'function') {
+      const Comp = plugin.settingsComponent;
+      if (plugin.displaySettingsComponentWithSaveButton) {
+        component = <Comp onDataChange={onDataChange} data={data} />;
+      } else {
+        component = <Comp />;
+      }
     } else {
-      component = <Comp />;
+      component = null;
     }
   } else {
     component = null;
@@ -199,11 +239,88 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
     <>
       <SectionBox
         aria-live="polite"
-        title={name}
-        subtitle={author ? `${t('translation|By')}: ${author}` : undefined}
+        title={
+          <SectionHeader
+            title={name}
+            titleSideActions={[
+              plugin.type && (
+                <Chip
+                  label={
+                    plugin.type === 'development'
+                      ? t('translation|Development')
+                      : plugin.type === 'user'
+                      ? t('translation|User-installed')
+                      : t('translation|Shipped')
+                  }
+                  size="small"
+                  color={
+                    plugin.type === 'development'
+                      ? 'primary'
+                      : plugin.type === 'user'
+                      ? 'info'
+                      : 'default'
+                  }
+                />
+              ),
+              plugin.isLoaded === false && plugin.overriddenBy && (
+                <Chip
+                  label={t('translation|Not Loaded')}
+                  size="small"
+                  color="warning"
+                  variant="outlined"
+                />
+              ),
+            ]}
+            actions={
+              isElectron()
+                ? [
+                    ...(canOpenPluginFolder(plugin)
+                      ? [
+                          <ActionButton
+                            description={t('translation|Open Plugin Folder')}
+                            icon="mdi:folder-open"
+                            onClick={() => openPluginFolder(plugin)}
+                          />,
+                        ]
+                      : []),
+                    ...(plugin.type !== 'shipped'
+                      ? [
+                          <ActionButton
+                            description={t('translation|Delete Plugin')}
+                            icon="mdi:delete"
+                            onClick={handleDelete}
+                            color="error"
+                          />,
+                        ]
+                      : []),
+                  ]
+                : []
+            }
+            subtitle={author ? `${t('translation|By')}: ${author}` : undefined}
+            noPadding={false}
+            headerStyle="subsection"
+          />
+        }
         backLink={'/settings/plugins'}
       >
         {plugin.description}
+        {plugin.isLoaded === false && plugin.overriddenBy && (
+          <Box mt={2} p={2} sx={{ bgcolor: 'warning.light', borderRadius: 1 }}>
+            <Typography variant="body2">
+              {t(
+                'translation|This plugin is not currently loaded because a "{{type}}" version is being used instead.',
+                {
+                  type:
+                    plugin.overriddenBy === 'development'
+                      ? t('translation|development')
+                      : plugin.overriddenBy === 'user'
+                      ? t('translation|user-installed')
+                      : t('translation|shipped'),
+                }
+              )}
+            </Typography>
+          </Box>
+        )}
         <ScrollableBox style={{ height: '70vh' }} py={0}>
           <ConfirmDialog
             open={openDeleteDialog}
@@ -215,38 +332,29 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
           <ErrorBoundary>{component}</ErrorBoundary>
         </ScrollableBox>
       </SectionBox>
-      <Box py={0}>
-        <Stack
-          direction="row"
-          spacing={2}
-          justifyContent="space-between"
-          alignItems="center"
-          sx={{ borderTop: '2px solid', borderColor: 'silver', padding: '10px' }}
-        >
-          <Stack direction="row" spacing={1}>
-            {plugin.displaySettingsComponentWithSaveButton && (
-              <>
-                <Button
-                  variant="contained"
-                  disabled={!enableSaveButton}
-                  style={{ backgroundColor: 'silver', color: 'black' }}
-                  onClick={handleSave}
-                >
-                  {t('translation|Save')}
-                </Button>
-                <Button style={{ color: 'silver' }} onClick={handleCancel}>
-                  {t('translation|Cancel')}
-                </Button>
-              </>
-            )}
-          </Stack>
-          {isElectron() ? (
-            <Button variant="text" color="error" onClick={handleDelete}>
-              {t('translation|Delete Plugin')}
+      {plugin.isLoaded !== false && plugin.displaySettingsComponentWithSaveButton && (
+        <Box py={0}>
+          <Stack
+            direction="row"
+            spacing={2}
+            justifyContent="flex-start"
+            alignItems="center"
+            sx={{ borderTop: '2px solid', borderColor: 'silver', padding: '10px' }}
+          >
+            <Button
+              variant="contained"
+              disabled={!enableSaveButton}
+              style={{ backgroundColor: 'silver', color: 'black' }}
+              onClick={handleSave}
+            >
+              {t('translation|Save')}
             </Button>
-          ) : null}
-        </Stack>
-      </Box>
+            <Button style={{ color: 'silver' }} onClick={handleCancel}>
+              {t('translation|Cancel')}
+            </Button>
+          </Stack>
+        </Box>
+      )}
     </>
   );
 }

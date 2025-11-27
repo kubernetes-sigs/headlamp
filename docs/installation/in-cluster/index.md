@@ -107,6 +107,8 @@ Headlamp supports managing plugins through a sidecar container when deployed in-
 You can directly specify the plugin configuration in your `values.yaml`:
 
 ```yaml
+config:
+  watchPlugins: true
 pluginsManager:
   enabled: true
   configContent: |

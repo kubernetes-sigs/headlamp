@@ -33,6 +33,50 @@ jobs:
     - uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7 # v3.8.2
       with:
         node-version: 20.x
+    - name: Check if sha256 lines changed in this PR for verifying image digest changes
+      id: check-sha
+      if: github.event_name == 'pull_request'
+      run: |
+        set -euo pipefail
+
+        echo "Checking only Dockerfile and Dockerfile.plugins for sha256 changes"
+
+        # Prefer the base SHA from the PR event, which works for both forks and same-repo branches.
+        BASE_SHA="${{ github.event.pull_request.base.sha }}"
+        echo "Initial diff target from PR base SHA: $BASE_SHA"
+
+        # If the base SHA is not present in the local clone (e.g., shallow fetch), try fetching the base ref.
+        if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+          echo "Base SHA not found locally, trying to fetch base ref"
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          git fetch origin "$BASE_REF" --depth=5000 || git fetch origin "$BASE_REF" || true
+          if git show-ref --verify --quiet "refs/remotes/origin/${BASE_REF}"; then
+            BASE_SHA="origin/${BASE_REF}"
+            echo "Using origin/${BASE_REF} as diff target"
+          else
+            echo "Warning: could not fetch base ref; falling back to PR base SHA (may fail if missing)"
+          fi
+        fi
+
+        # Try three-dot first; if there is no merge base (e.g., unrelated histories),
+        # fall back to a simple two-dot diff which doesn't require a merge base.
+        if git merge-base "$BASE_SHA" HEAD >/dev/null 2>&1; then
+          DIFF_RANGE="${BASE_SHA}...HEAD"
+        else
+          echo "No merge-base between $BASE_SHA and HEAD; using two-dot diff"
+          DIFF_RANGE="${BASE_SHA}..HEAD"
+        fi
+
+        if git diff -U0 "$DIFF_RANGE" -- Dockerfile Dockerfile.plugins | grep -E '^[+-].*sha256:' >/dev/null; then
+          echo "sha_changed=true"
+          echo "sha_changed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "sha_changed=false"
+          echo "sha_changed=false" >> "$GITHUB_OUTPUT"
+        fi
+    - name: Verify container image digests
+      if: github.event_name == 'pull_request' && steps.check-sha.outputs.sha_changed == 'true'
+      run: npm run image:verify-image-digests
     - name: Start Cluster 1
       uses: helm/kind-action@0025e74a8c7512023d06dc019c617aa3cf561fde # v1.0.0
       with:
@@ -51,20 +95,21 @@ jobs:
     - name: Try the cluster!
       run: kubectl get pods -A
     - name: Restore image-cache Folder
-      id: cache-image-restore
+      id: cache-image-restore2
       uses: actions/cache/restore@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
       with:
         path: ~/image-cache
         # cache the container image. All the paths this PR depends on except the e2e-tests folder for the key.
         key: ${{ runner.os }}-image-${{ hashFiles('backend/pkg/**', 'backend/cmd/**', 'backend/go.*', 'frontend/src/**', 'frontend/package.json', 'frontend/package-lock.json', 'Makefile', '.github/workflows/build-container.yml', 'Dockerfile', 'Dockerfile.plugins') }}
     - name: Restore Cached Docker Images
-      if: steps.cache-image-restore.outputs.cache-hit == 'true'
+      if: steps.cache-image-restore2.outputs.cache-hit == 'true'
       run: |
         export SHELL=/bin/bash
-        docker load -i ~/image-cache/headlamp-plugins-test.tar
-        docker load -i ~/image-cache/headlamp.tar
+        mkdir -p ~/image-cache
+        gzip -dc ~/image-cache/headlamp-plugins-test.tar.gz | docker load
+        gzip -dc ~/image-cache/headlamp.tar.gz | docker load
     - name: Make a .plugins folder for testing later
-      if: steps.cache-image-restore.outputs.cache-hit != 'true'
+      if: steps.cache-image-restore2.outputs.cache-hit != 'true'
       run: |
         echo "Extract pod-counter plugin into .plugins folder, which will be copied into image later by 'make image'."
         cd plugins/examples/pod-counter
@@ -77,12 +122,12 @@ jobs:
         cd ../../
         ls -laR .plugins
     - name: Remove unnecessary files
-      if: steps.cache-image-restore.outputs.cache-hit != 'true'
+      if: steps.cache-image-restore2.outputs.cache-hit != 'true'
       run: |
         sudo rm -rf /usr/share/dotnet
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
     - name: Build image
-      if: steps.cache-image-restore.outputs.cache-hit != 'true'
+      if: steps.cache-image-restore2.outputs.cache-hit != 'true'
       run: |
         export SHELL=/bin/bash
         DOCKER_IMAGE_VERSION=latest make image
@@ -95,7 +140,7 @@ jobs:
         kind load docker-image ghcr.io/headlamp-k8s/headlamp-plugins-test:latest --name test
         kind load docker-image ghcr.io/headlamp-k8s/headlamp:latest --name test
     - name: Test .plugins folder
-      if: steps.cache-image-restore.outputs.cache-hit != 'true'
+      if: steps.cache-image-restore2.outputs.cache-hit != 'true'
       run: |
         export SHELL=/bin/bash
         echo "----------------------------"
@@ -186,20 +231,30 @@ jobs:
         else
           echo "Playwright tests passed successfully"
         fi
+    # Clear disk space by removing unnecessary files, apt files and uninstall some playwright dependencies
+    - name: Clear Disk Space
+      if: steps.cache-image-restore2.outputs.cache-hit != 'true'
+      run: |
+        export SHELL=/bin/bash
+        sudo rm -rf /var/lib/apt/lists/*
+        sudo apt-get remove -y libgbm-dev libxcb-dri3-0 libxcb-dri2-0 libxcb-xfixes0 libxcb-shape0 libxcb-shm0 libxcb-render0 libxcb-glx0 || true
+        sudo rm -rf e2e-tests/node_modules/
+        kind delete cluster --name test
+        kind delete cluster --name test2
     - name: Save Docker Images to Tar files in image-cache Folder
-      if: steps.cache-image-restore.outputs.cache-hit != 'true'
+      if: steps.cache-image-restore2.outputs.cache-hit != 'true'
       run: |
         export SHELL=/bin/bash
         mkdir -p ~/image-cache
-        docker save -o ~/image-cache/headlamp-plugins-test.tar ghcr.io/headlamp-k8s/headlamp-plugins-test
-        docker save -o ~/image-cache/headlamp.tar ghcr.io/headlamp-k8s/headlamp
+        docker save ghcr.io/headlamp-k8s/headlamp-plugins-test | gzip -9 > ~/image-cache/headlamp-plugins-test.tar.gz
+        docker save ghcr.io/headlamp-k8s/headlamp | gzip -9 > ~/image-cache/headlamp.tar.gz
     - name: Cache image-cache Folder
-      if: steps.cache-image-restore.outputs.cache-hit != 'true'
+      if: steps.cache-image-restore2.outputs.cache-hit != 'true'
       id: cache-image-save
       uses: actions/cache/save@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
       with:
         path: ~/image-cache
-        key: ${{ steps.cache-image-restore.outputs.cache-primary-key }}
+        key: ${{ steps.cache-image-restore2.outputs.cache-primary-key }}
     - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       if: always()
       with:

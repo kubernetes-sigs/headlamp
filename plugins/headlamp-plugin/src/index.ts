@@ -66,6 +66,7 @@ import Registry, {
   registerMapSource,
   registerOverviewChartsProcessor,
   registerPluginSettings,
+  registerProjectDeleteButton,
   registerProjectDetailsTab,
   registerProjectOverviewSection,
   registerResourceTableColumnsProcessor,
@@ -129,6 +130,7 @@ export {
   registerProjectDetailsTab,
   registerProjectOverviewSection,
   registerClusterStatus,
+  registerProjectDeleteButton,
 };
 
 export type {

@@ -28,6 +28,7 @@ import { useTypedSelector } from '../../redux/hooks';
 import { ProjectDefinition, ProjectDetailsTab } from '../../redux/projectsSlice';
 import { Activity } from '../activity/Activity';
 import { ButtonStyle, EditButton, EditorDialog, Loader, StatusLabel } from '../common';
+import Link from '../common/Link';
 import ResourceTable from '../common/Resource/ResourceTable';
 import SectionBox from '../common/SectionBox';
 import { GraphFilter } from '../resourceMap/graph/graphFiltering';
@@ -181,6 +182,20 @@ function ProjectOverview({
                     )}
                   </Box>
                 )}
+              </Box>
+            </Box>
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                {project.clusters.length === 1
+                  ? t('translation|Cluster')
+                  : t('translation|Clusters')}
+              </Typography>
+              <Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 0.5 }}>
+                {project.clusters.map(cluster => (
+                  <Link key={cluster} routeName="cluster" params={{ cluster }}>
+                    {cluster}
+                  </Link>
+                ))}
               </Box>
             </Box>
           </CardContent>

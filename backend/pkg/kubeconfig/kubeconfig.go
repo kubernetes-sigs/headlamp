@@ -25,6 +25,30 @@ import (
 	"k8s.io/client-go/transport"
 )
 
+var (
+	Version = "unknown"
+	AppName = "Headlamp"
+)
+
+// userAgentRoundTripper wraps an http.RoundTripper and adds a Headlamp User-Agent header.
+type userAgentRoundTripper struct {
+	base      http.RoundTripper
+	userAgent string
+}
+
+func (rt *userAgentRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	newReq := req.Clone(req.Context())
+
+	newReq.Header.Set("User-Agent", rt.userAgent)
+
+	return rt.base.RoundTrip(newReq)
+}
+
+// buildUserAgent creates a User-Agent string for Headlamp.
+func buildUserAgent() string {
+	return fmt.Sprintf("%s %s (%s/%s)", AppName, Version, runtime.GOOS, runtime.GOARCH)
+}
+
 // TODO: Use a different way to avoid name clashes with other clusters.
 const InClusterContextName = "main"
 
@@ -347,7 +371,11 @@ func (c *Context) SetupProxy() error {
 	if err == nil {
 		roundTripper, err := makeTransportFor(restConf)
 		if err == nil {
-			proxy.Transport = roundTripper
+			// Wrap the round tripper to add Headlamp User-Agent
+			proxy.Transport = &userAgentRoundTripper{
+				base:      roundTripper,
+				userAgent: buildUserAgent(),
+			}
 		}
 	}
 
@@ -947,7 +975,8 @@ func GetInClusterContext(oidcIssuerURL string,
 
 	var oidcConf *OidcConfig
 
-	if oidcClientID != "" && oidcClientSecret != "" && oidcIssuerURL != "" && oidcScopes != "" {
+	if oidcClientID != "" && oidcIssuerURL != "" && oidcScopes != "" {
+		// client secret is optional for in-cluster OIDC configuration
 		oidcConf = &OidcConfig{
 			ClientID:      oidcClientID,
 			ClientSecret:  oidcClientSecret,

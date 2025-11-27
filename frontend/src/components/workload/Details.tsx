@@ -132,6 +132,14 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
             ),
           },
           {
+            name: t('Node Selector'),
+            value: item.spec?.template?.spec?.nodeSelector && (
+              <MetadataDictGrid
+                dict={item.spec.template.spec.nodeSelector as { [key: string]: string }}
+              />
+            ),
+          },
+          {
             name: t('Replicas'),
             value: renderReplicas(item),
             hide: !showReplicas(item),

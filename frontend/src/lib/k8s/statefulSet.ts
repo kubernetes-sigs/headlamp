@@ -45,6 +45,7 @@ class StatefulSet extends KubeObject<KubeStatefulSet> {
   static apiName = 'statefulsets';
   static apiVersion = 'apps/v1';
   static isNamespaced = true;
+  static isScalable = true;
 
   get spec() {
     return this.jsonData.spec;

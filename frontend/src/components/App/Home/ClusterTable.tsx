@@ -22,12 +22,15 @@ import Typography from '@mui/material/Typography';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath, useHistory } from 'react-router-dom';
+import { isElectron } from '../../../helpers/isElectron';
 import { formatClusterPathParam } from '../../../lib/cluster';
 import { useClustersConf, useClustersVersion } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { Cluster } from '../../../lib/k8s/cluster';
+import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { getClusterPrefixedPath } from '../../../lib/util';
 import { useTypedSelector } from '../../../redux/hooks';
+import { Loader } from '../../common';
 import Link from '../../common/Link';
 import Table from '../../common/Table';
 import ClusterContextMenu from './ClusterContextMenu';
@@ -139,6 +142,47 @@ export default function ClusterTable({
   }
   const viewClusters = t('View Clusters');
 
+  const loading = clusters === null;
+  if (loading) {
+    return <Loader title={t('Loading...')} />;
+  }
+
+  const clustersList = Object.values(customNameClusters);
+  if (clustersList.length === 0) {
+    return (
+      <Box
+        display="flex"
+        flexDirection="column"
+        alignItems="center"
+        justifyContent="center"
+        minHeight="400px"
+        textAlign="center"
+      >
+        <Icon
+          icon="mdi:hexagon-multiple-outline"
+          style={{ fontSize: 64, color: '#ccc', marginBottom: 16 }}
+        />
+        <Typography variant="h6" gutterBottom>
+          {t('No clusters found')}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          {t('Add a cluster to get started.')}
+        </Typography>
+        {isElectron() && (
+          <Button
+            variant="contained"
+            startIcon={<Icon icon="mdi:plus" />}
+            onClick={() => {
+              history.push(createRouteURL('addCluster'));
+            }}
+          >
+            {t('Add Cluster')}
+          </Button>
+        )}
+      </Box>
+    );
+  }
+
   return (
     <Table
       columns={[
@@ -174,7 +218,8 @@ export default function ClusterTable({
         },
         {
           id: 'actions',
-          header: '',
+          header: t('Actions'),
+          gridTemplate: 'min-content',
           muiTableBodyCellProps: {
             align: 'right',
           },
@@ -183,9 +228,11 @@ export default function ClusterTable({
           Cell: ({ row: { original: cluster } }) => {
             return <ClusterContextMenu cluster={cluster} />;
           },
+          enableSorting: false,
+          enableColumnFilter: false,
         },
       ]}
-      data={Object.values(customNameClusters)}
+      data={clustersList}
       enableRowSelection={
         MULTI_HOME_ENABLED
           ? row => {

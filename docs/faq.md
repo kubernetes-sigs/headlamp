@@ -31,7 +31,7 @@ The source code for Headlamp is publicly available on [GitHub](https://github.co
 
 ### Who maintains Headlamp?
 
-You can find the list of Headlamp's maintainers in its [MAINTAINERS.md](https://github.com/kubernetes-sigs/headlamp/blob/main/MAINTAINERS.md) file in the repository. As a 100% open source project and a CNCF Sandbox project, Headlamp encourages any users/developers to participate in it.
+You can find the list of Headlamp's maintainers in its [OWNERS_ALIASES](https://github.com/kubernetes-sigs/headlamp/blob/main/OWNERS_ALIASES) file in the repository. As a 100% open source project and a CNCF Sandbox project, Headlamp encourages any users/developers to participate in it.
 
 ### What capabilities / credentials does Headlamp require to access my Kubernetes cluster?
 

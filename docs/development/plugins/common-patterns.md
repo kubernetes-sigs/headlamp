@@ -32,7 +32,7 @@ Show dynamic information in the top navigation bar.
 
 **Example: Pod Counter**
 
-See the [Pod Counter example](../../../plugins/examples/pod-counter/). It shows how to:
+See the [Pod Counter example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/pod-counter/). It shows how to:
 - Use the K8s API to count pods.
 - Show the count in the app bar with status colors.
 - Handle loading and errors.
@@ -52,7 +52,7 @@ Add new sections to the sidebar.
 
 **Example: Sidebar Items**
 
-See the [Sidebar example](../../../plugins/examples/sidebar/). It shows how to:
+See the [Sidebar example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/sidebar/). It shows how to:
 - Add top-level sidebar items.
 - Add nested items.
 - Remove sidebar items and routes.
@@ -72,7 +72,7 @@ Add custom sections to resource detail pages.
 
 **Example: Details View Enhancements**
 
-See the [Details View example](../../../plugins/examples/details-view/). It shows how to:
+See the [Details View example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/details-view/). It shows how to:
 - Add custom sections to detail pages.
 - Add action buttons to the header.
 - Access and show resource data.
@@ -92,7 +92,7 @@ Add custom actions to resource tables.
 
 **Example: Table Customization**
 
-See the [Tables example](../../../plugins/examples/tables/). It shows how to:
+See the [Tables example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/tables/). It shows how to:
 - Override existing table views.
 - Add context menus to rows.
 - Implement custom row actions.
@@ -110,7 +110,7 @@ Integrate with external tools and desktop app features.
 
 **Example: App Menus**
 
-See the [App Menus example](../../../plugins/examples/app-menus/). It shows how to:
+See the [App Menus example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/app-menus/). It shows how to:
 - Add custom menus to the desktop app.
 - Run local commands from the app.
 - Handle app-specific functions.
@@ -130,7 +130,7 @@ Manage cluster connections dynamically.
 
 **Example: Dynamic Clusters**
 
-See the [Dynamic Clusters example](../../../plugins/examples/dynamic-clusters/). It shows how to:
+See the [Dynamic Clusters example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/dynamic-clusters/). It shows how to:
 - Add and remove clusters dynamically.
 - Manage cluster configurations.
 - Handle cluster selection.
@@ -148,7 +148,7 @@ Create plugins with user settings.
 
 **Example: Configurable Logo**
 
-See the [Change Logo example](../../../plugins/examples/change-logo/). It shows how to:
+See the [Change Logo example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/change-logo/). It shows how to:
 - Create plugin settings forms.
 - Handle user configuration.
 - Persist settings.
@@ -170,7 +170,7 @@ Create custom themes for Headlamp.
 
 **Example: Custom Theme**
 
-See the [Custom Theme example](../../../plugins/examples/custom-theme/). It shows how to:
+See the [Custom Theme example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/custom-theme/). It shows how to:
 - Create custom color palettes.
 - Define typography styles.
 - Register new themes.
@@ -190,7 +190,7 @@ Replace the default Headlamp logo.
 
 **Example: Custom Logo**
 
-See the [Change Logo example](../../../plugins/examples/change-logo/). It shows how to:
+See the [Change Logo example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/change-logo/). It shows how to:
 - Create responsive logos.
 - Handle different logo sizes.
 - Support theme-aware logos.
@@ -213,7 +213,7 @@ Create custom charts for cluster data.
 
 **Example: Resource Charts**
 
-See the [Resource Charts example](../../../plugins/examples/resource-charts/). It shows how to:
+See the [Resource Charts example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/resource-charts/). It shows how to:
 - Create interactive charts.
 - Visualize Kubernetes data.
 - Implement custom dashboards.
@@ -231,7 +231,7 @@ Build custom UI panels and reusable components.
 
 **Example: UI Panels**
 
-See the [UI Panels example](../../../plugins/examples/ui-panels/). It shows how to:
+See the [UI Panels example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/ui-panels/). It shows how to:
 - Create custom UI panels.
 - Build reusable components.
 - Handle complex layouts.
@@ -249,7 +249,7 @@ Customize the cluster selection UI.
 
 **Example: Cluster Chooser**
 
-See the [Cluster Chooser example](../../../plugins/examples/cluster-chooser/). It shows how to:
+See the [Cluster Chooser example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/cluster-chooser/). It shows how to:
 - Customize the cluster selection UI.
 - Add custom cluster metadata.
 - Implement cluster filtering.

@@ -122,7 +122,10 @@ export function useClustersConf(): ConfigState['allClusters'] {
     Object.assign(allClusters, statelessClusters);
   }
 
-  return useMemo(() => allClusters, [Object.keys(allClusters).join(',')]);
+  return useMemo(
+    () => (state.clusters === null ? null : allClusters),
+    [state.clusters === null, Object.keys(allClusters).join(',')]
+  );
 }
 
 /**

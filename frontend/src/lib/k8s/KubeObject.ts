@@ -32,7 +32,7 @@ import type { ApiError } from './api/v2/ApiError';
 import { useKubeObject } from './api/v2/hooks';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
 import type { KubeEvent } from './event';
-import type { KubeMetadata } from './KubeMetadata';
+import type { KubeMetadata, KubeMetadataCreate } from './KubeMetadata';
 
 function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
   if (!cluster) {
@@ -61,6 +61,9 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
   /** Whether the object is namespaced. */
   static readonly isNamespaced: boolean;
 
+  /** Whether the object is scalable, and should have a ScaleButton */
+  static readonly isScalable: boolean;
+
   static _internalApiEndpoint?: ReturnType<typeof apiFactoryWithNamespace | typeof apiFactory>;
 
   static get apiEndpoint() {
@@ -72,7 +75,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     // Create factory arguments per API version, usually just one
     const factoryArgumentsArray = versions.map(apiVersion => {
       const [group, version] = apiVersion.includes('/') ? apiVersion.split('/') : ['', apiVersion];
-      const includeScaleApi = ['Deployment', 'ReplicaSet', 'StatefulSet'].includes(this.kind);
+      const includeScaleApi = this.isScalable;
 
       return [group, version, this.apiName, includeScaleApi];
     });
@@ -186,6 +189,10 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
   get isNamespaced() {
     return this._class().isNamespaced;
+  }
+
+  get isScalable() {
+    return this._class().isScalable;
   }
 
   getEditableObject() {
@@ -688,6 +695,15 @@ export interface KubeObjectInterface {
   key?: any;
   [otherProps: string]: any;
 }
+
+/**
+ * KubeObjectInterfaceCreate is a version of KubeObjectInterface for creating objects
+ * where uid, creationTimestamp, etc. are optional
+ */
+export interface KubeObjectInterfaceCreate extends Omit<KubeObjectInterface, 'metadata'> {
+  metadata: KubeMetadataCreate;
+}
+
 export interface ApiListOptions extends QueryParameters {
   /**
    * The clusters to list objects from. By default uses the current clusters being viewed.

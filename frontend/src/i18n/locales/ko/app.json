@@ -46,6 +46,12 @@
   "Continue": "계속",
   "Failed to quit the other running process": "다른 실행 중인 프로세스를 종료하지 못했습니다",
   "Could not quit the other running process, PIDs: {{ process_list }}. Please stop that process and relaunch the app.": "다른 실행 중인 프로세스를 종료할 수 없습니다. PID: {{ process_list }}. 해당 프로세스를 종료한 후 앱을 다시 실행하세요.",
+  "No available ports": "",
+  "Could not find an available port. There are processes running on ports {{startPort}}-{{endPort}}. Terminate these processes and retry?": "",
+  "Terminate and Retry": "",
+  "Failed to start": "",
+  "Could not start the server even after terminating existing processes.": "",
+  "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "",
   "Invalid URL": "잘못된 URL",
   "Application opened with an invalid URL: {{ url }}": "잘못된 URL로 애플리케이션이 열렸습니다: {{ url }}"
 }

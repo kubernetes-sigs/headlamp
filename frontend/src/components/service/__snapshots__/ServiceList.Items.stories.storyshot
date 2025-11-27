@@ -861,13 +861,19 @@
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-13vbnfx-MuiTableCell-root"
               >
-                <span
-                  aria-label="app=example"
-                  class=""
-                  data-mui-internal-clone-element="true"
+                <div
+                  class="MuiBox-root css-0"
                 >
-                  app=example
-                </span>
+                  <div
+                    class="MuiBox-root css-yi3mkw"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                    >
+                      app: example
+                    </p>
+                  </div>
+                </div>
               </td>
               <td
                 class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
@@ -893,12 +899,12 @@
                   <svg
                     aria-hidden="true"
                     class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
-                    data-testid="MoreHorizIcon"
+                    data-testid="MoreVertIcon"
                     focusable="false"
                     viewBox="0 0 24 24"
                   >
                     <path
-                      d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2"
+                      d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2m0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2"
                     />
                   </svg>
                   <span

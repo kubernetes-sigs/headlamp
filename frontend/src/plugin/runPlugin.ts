@@ -185,12 +185,20 @@ export function identifyPackages(
   isDevelopmentMode: boolean
 ): Record<string, boolean> {
   // Normalize path for Windows compatibility
-  const pluginPathNormalized = pluginPath.replace(/plugins[\\/]/, 'plugins/');
+  const pluginPathNormalized = pluginPath
+    .replace(/plugins[\\/]/, 'plugins/')
+    .replace(/user-plugins[\\/]/, 'user-plugins/');
 
   // For artifacthub installed packages, the package name is the folder name.
   const pluginPaths: Record<string, string[]> = {
-    '@headlamp-k8s/minikube': ['plugins/headlamp_minikube', 'plugins/headlamp_minikubeprerelease'],
+    '@headlamp-k8s/minikube': [
+      'plugins/headlamp_minikube',
+      'user-plugins/headlamp_minikube',
+      'plugins/headlamp_minikubeprerelease',
+      'user-plugins/headlamp_minikubeprerelease',
+    ],
   };
+
   if (isDevelopmentMode) {
     pluginPaths['@headlamp-k8s/minikube'][pluginPaths['@headlamp-k8s/minikube'].length] =
       'plugins/minikube';

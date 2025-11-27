@@ -81,11 +81,11 @@
                 class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd css-14f1a7d-MuiInputBase-root-MuiOutlinedInput-root"
               >
                 <input
-                  aria-describedby=":r19:-helper-text"
+                  aria-describedby=":mock-test-id:"
                   aria-invalid="false"
                   class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
                   id=":mock-test-id:"
-                  placeholder="docker.io/library/alpine:latest"
+                  placeholder="docker.io/library/busybox:latest"
                   type="text"
                   value=""
                 />
@@ -127,11 +127,11 @@
                 class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd css-8secpz-MuiInputBase-root-MuiOutlinedInput-root"
               >
                 <input
-                  aria-describedby=":r1a:-helper-text"
+                  aria-describedby=":mock-test-id:"
                   aria-invalid="false"
                   class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
                   id=":mock-test-id:"
-                  placeholder="kube-system"
+                  placeholder="default"
                   type="text"
                   value=""
                 />
@@ -154,7 +154,7 @@
                 class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained css-153yz37-MuiFormHelperText-root"
                 id=":mock-test-id:"
               >
-                The default namespace is kube-system.
+                The default namespace is default.
               </p>
             </div>
           </dd>

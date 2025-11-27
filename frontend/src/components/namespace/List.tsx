@@ -21,6 +21,7 @@ import { useCluster } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
 import { StatusLabel } from '../common/Label';
 import Link from '../common/Link';
+import { MetadataDictGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
 import {
   ResourceTableFromResourceClassProps,
@@ -103,6 +104,17 @@ export default function NamespacesList() {
           filterVariant: 'multi-select',
           getValue: ns => ns.status.phase,
           render: makeStatusLabel,
+        },
+        {
+          id: 'labels',
+          label: t('translation|Labels'),
+          gridTemplate: 'auto',
+          getValue: ns =>
+            Object.entries(ns.metadata.labels || {})
+              .map(([k, v]) => `${k}=${v}`)
+              .join(', '),
+          render: ns =>
+            ns.metadata.labels ? <MetadataDictGrid dict={ns.metadata.labels} /> : null,
         },
         'age',
       ],
