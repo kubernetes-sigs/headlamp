@@ -141,6 +141,7 @@ const COMMANDS_WITH_CONSENT = {
     'scriptjs minikube/manage-minikube.js',
   ],
 };
+
 /**
  * Adds the runCmd consent for the plugin.
  *
@@ -323,12 +324,21 @@ export function handleRunCommand(
  */
 export function runScript() {
   const baseDir = path.resolve(defaultPluginsDir());
+  const userPluginsDir = path.resolve(defaultUserPluginsDir());
+  const staticPluginsDir = path.resolve(path.join(process.resourcesPath, '.plugins'));
   const scriptPath = path.resolve(process.argv[1]);
 
-  if (!scriptPath.startsWith(baseDir)) {
-    console.error(`Invalid script path: ${scriptPath}. Must be within ${baseDir}.`);
-    return;
+  if (
+    !scriptPath.startsWith(baseDir) &&
+    !scriptPath.startsWith(userPluginsDir) &&
+    !scriptPath.startsWith(staticPluginsDir)
+  ) {
+    console.error(
+      `Invalid script path: ${scriptPath}. Must be within ${baseDir}, ${userPluginsDir}, or ${staticPluginsDir}.`
+    );
+    process.exit(1);
   }
+
   import(scriptPath);
 }
 

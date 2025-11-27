@@ -187,6 +187,7 @@ export function identifyPackages(
   // Normalize path for Windows compatibility
   const pluginPathNormalized = pluginPath
     .replace(/plugins[\\/]/, 'plugins/')
+    .replace(/static-plugins[\\/]/, 'static-plugins/')
     .replace(/user-plugins[\\/]/, 'user-plugins/');
 
   // For artifacthub installed packages, the package name is the folder name.
@@ -194,8 +195,10 @@ export function identifyPackages(
     '@headlamp-k8s/minikube': [
       'plugins/headlamp_minikube',
       'user-plugins/headlamp_minikube',
+      'static-plugins/headlamp_minikube',
       'plugins/headlamp_minikubeprerelease',
       'user-plugins/headlamp_minikubeprerelease',
+      'static-plugins/headlamp_minikubeprerelease',
     ],
   };
 

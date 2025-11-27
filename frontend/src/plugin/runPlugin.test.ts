@@ -337,6 +337,24 @@ describe('identifyPackages', () => {
     expect(result).toEqual({ '@headlamp-k8s/minikube': true });
   });
 
+  test('should identify package by static-plugins path and name in production mode', () => {
+    const result = identifyPackages(
+      'static-plugins/headlamp_minikube',
+      '@headlamp-k8s/minikube',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': true });
+  });
+
+  test('should identify package by static-plugins prerelease path and name in production mode', () => {
+    const result = identifyPackages(
+      'static-plugins/headlamp_minikubeprerelease',
+      '@headlamp-k8s/minikubeprerelease',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': true });
+  });
+
   test('should not identify package if path does not match', () => {
     const result = identifyPackages('plugins/other_plugin', '@headlamp-k8s/minikube', false);
     expect(result).toEqual({ '@headlamp-k8s/minikube': false });
@@ -371,6 +389,15 @@ describe('identifyPackages', () => {
     const result = identifyPackages(
       'plugins\\headlamp_minikubeprerelease',
       '@headlamp-k8s/minikubeprerelease',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': true });
+  });
+
+  test('should handle windows paths for static-plugins', () => {
+    const result = identifyPackages(
+      'static-plugins\\headlamp_minikube',
+      '@headlamp-k8s/minikube',
       false
     );
     expect(result).toEqual({ '@headlamp-k8s/minikube': true });
