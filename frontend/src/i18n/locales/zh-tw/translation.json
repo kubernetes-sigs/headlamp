@@ -593,7 +593,7 @@
   "Unhealthy": "不健康",
   "Degraded": "降級",
   "Healthy": "健康",
-  "Warning": "",
+  "Warning": "警告",
   "Resource Quotas": "資源配額",
   "Create Resource Quota to limit resource consumption within this project": "建立資源配額以限制此專案內的資源消耗",
   "Create resource quota": "建立資源配額",
