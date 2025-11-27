@@ -15,10 +15,13 @@
  */
 
 import { Icon } from '@iconify/react';
+import { compare } from 'fast-json-patch';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
+import { patch } from '../../../lib/k8s/api/v1/clusterRequests';
+import { KubeObjectEndpoint } from '../../../lib/k8s/api/v2/KubeObjectEndpoint';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
@@ -51,6 +54,10 @@ export default function EditButton(props: EditButtonProps) {
   const dispatchHeadlampEditEvent = useEventCallback(HeadlampEventType.EDIT_RESOURCE);
   const activityId = 'edit-' + item.metadata.uid;
 
+  // Store the original resource snapshot (firstDraft) for JSON Patch comparison
+  // This is set when the editor is opened
+  const originalResourceRef = React.useRef<any>(null);
+
   function makeErrorMessage(err: any) {
     const status: number = err.status;
     switch (status) {
@@ -63,7 +70,41 @@ export default function EditButton(props: EditButtonProps) {
 
   async function updateFunc(newItem: KubeObjectInterface) {
     try {
-      await item.update(newItem);
+      if (!originalResourceRef.current) {
+        throw new Error('Original resource snapshot not found');
+      }
+
+      // Calculate JSON Patch: diff between original (when editor opened) and new (user edited)
+      const patches = compare(originalResourceRef.current, newItem);
+
+      if (patches.length === 0) {
+        // No changes detected
+        Activity.close(activityId);
+        return;
+      }
+
+      // Build the API URL
+      const apiInfo = item._class().apiEndpoint.apiInfo[0];
+      const endpoint: KubeObjectEndpoint = {
+        group: apiInfo.group,
+        version: apiInfo.version,
+        resource: apiInfo.resource,
+      };
+
+      const namespace = item.getNamespace();
+      const name = item.getName();
+      const urlParts = [KubeObjectEndpoint.toUrl(endpoint, namespace), name];
+      const url = urlParts.filter(Boolean).join('/');
+
+      // Use the patch function with JSON Patch content type
+      // Override the default 'application/merge-patch+json' to 'application/json-patch+json'
+      await patch(url, patches, true, {
+        cluster: item._clusterName,
+        headers: {
+          'Content-Type': 'application/json-patch+json',
+        },
+      });
+
       Activity.close(activityId);
     } catch (err) {
       Activity.update(activityId, { minimized: false });
@@ -128,6 +169,9 @@ export default function EditButton(props: EditButtonProps) {
           if (afterConfirm) {
             afterConfirm();
           }
+          const editableObject = item.getEditableObject();
+          originalResourceRef.current = editableObject;
+
           Activity.launch({
             id: activityId,
             title: t('translation|Edit') + ': ' + item.metadata.name,
@@ -136,7 +180,7 @@ export default function EditButton(props: EditButtonProps) {
             content: (
               <EditorDialog
                 noDialog
-                item={item.getEditableObject()}
+                item={editableObject}
                 open
                 onClose={() => Activity.close(activityId)}
                 onSave={handleSave}
