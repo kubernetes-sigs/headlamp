@@ -45,7 +45,7 @@ export function getCompletionPercentage(translated: number, total: number): numb
 }
 
 export function getProgressBar(percentage: number, length: number = 10): string {
-  const filled = Math.round((percentage / 100) * length);
+  const filled = Math.max(0, Math.min(length, Math.round((percentage / 100) * length)));
   return '█'.repeat(filled) + '░'.repeat(length - filled);
 }
 
