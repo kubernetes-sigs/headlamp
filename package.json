@@ -47,7 +47,7 @@
     "frontend:start": "cd frontend && npm start",
     "frontend:storybook": "cd frontend && npm run storybook",
     "docs": "cd frontend && npm run build-typedoc",
-    "i18n": "cd frontend && npm run i18n",
+    "i18n": "cd frontend && npm run i18n && cd ../app && npm run i18n",
     "i18n:check": "cd frontend && npm run i18n -- --fail-on-update",
     "i18n:status": "cd tools/i18n && npm run status",
     "i18n:list": "cd tools/i18n && npm run list",
