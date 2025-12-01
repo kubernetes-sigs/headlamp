@@ -16,6 +16,7 @@ import (
 	"github.com/knadh/koanf/providers/basicflag"
 	"github.com/knadh/koanf/providers/env"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 )
 
 const (
@@ -31,10 +32,14 @@ const (
 )
 
 type Config struct {
-	Version                   bool   `koanf:"version"`
-	InCluster                 bool   `koanf:"in-cluster"`
-	DevMode                   bool   `koanf:"dev"`
-	InsecureSsl               bool   `koanf:"insecure-ssl"`
+	Version     bool `koanf:"version"`
+	InCluster   bool `koanf:"in-cluster"`
+	DevMode     bool `koanf:"dev"`
+	InsecureSsl bool `koanf:"insecure-ssl"`
+	// NoBrowser disables automatically opening the default browser when running
+	// a locally embedded Headlamp binary (non in-cluster with spa.UseEmbeddedFiles == true).
+	// It has no effect in in-cluster mode or when running without embedded frontend.
+	NoBrowser                 bool   `koanf:"no-browser"`
 	CacheEnabled              bool   `koanf:"cache-enabled"`
 	EnableHelm                bool   `koanf:"enable-helm"`
 	EnableDynamicClusters     bool   `koanf:"enable-dynamic-clusters"`
@@ -320,7 +325,13 @@ func Parse(args []string) (*Config, error) {
 	setKubeConfigPath(&config)
 	setMeDefaults(&config)
 
-	// 8. Validate parsed config.
+	// 8. Validate flags that depend on build-time behaviour.
+	if err := validateOpenBrowser(&config, explicitFlags); err != nil {
+		logger.Log(logger.LevelError, nil, err, "validating open-browser flag")
+		return nil, err
+	}
+
+	// 9. Validate parsed config.
 	if err := config.Validate(); err != nil {
 		logger.Log(logger.LevelError, nil, err, "validating config")
 		return nil, err
@@ -369,6 +380,24 @@ func DefaultHeadlampKubeConfigFile() (string, error) {
 	return filepath.Join(kubeConfigDir, "config"), nil
 }
 
+// validateOpenBrowser ensures the open-browser option is only used when the
+// binary was built with embedded static files.
+func validateOpenBrowser(config *Config, explicitFlags map[string]bool) error {
+	// no-browser is only meaningful when running locally (non in-cluster) with
+	// an embedded frontend. Validate explicit usage accordingly.
+	if explicitFlags["no-browser"] {
+		if config.InCluster {
+			return errors.New("no-browser cannot be used in in-cluster mode")
+		}
+
+		if !spa.UseEmbeddedFiles {
+			return errors.New("no-browser cannot be used when running without embedded frontend")
+		}
+	}
+
+	return nil
+}
+
 func flagset() *flag.FlagSet {
 	f := flag.NewFlagSet("config", flag.ContinueOnError)
 
@@ -385,6 +414,7 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Bool("in-cluster", false, "Set when running from a k8s cluster")
 	f.Bool("dev", false, "Allow connections from other origins")
 	f.Bool("cache-enabled", false, "K8s cache in backend")
+	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
 	f.Bool("enable-dynamic-clusters", false, "Enable dynamic clusters, which stores stateless clusters in the frontend.")
 	// Note: When running in-cluster and if not explicitly set, this flag defaults to false.

@@ -28,6 +28,7 @@ require (
 )
 
 require (
+	github.com/cli/browser v1.3.0
 	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/jmespath/go-jmespath v0.4.0

@@ -24,7 +24,9 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
+	"github.com/cli/browser"
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -33,6 +35,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -55,6 +58,17 @@ func main() {
 	if conf.Version {
 		fmt.Printf("%s %s (%s/%s)\n", kubeconfig.AppName, kubeconfig.Version, runtime.GOOS, runtime.GOARCH)
 		return
+	}
+
+	// Open browser if running locally with embedded frontend and not in cluster and no-browser is not set
+	if spa.UseEmbeddedFiles && !conf.NoBrowser && !conf.InCluster {
+		go func() {
+			time.Sleep(500 * time.Millisecond) // give server time to start
+
+			if err := browser.OpenURL(fmt.Sprintf("http://localhost:%d", conf.Port)); err != nil {
+				logger.Log(logger.LevelError, nil, err, "failed to open browser")
+			}
+		}()
 	}
 
 	headlampConfig := createHeadlampConfig(conf)
