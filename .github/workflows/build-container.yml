@@ -137,8 +137,12 @@ jobs:
     - name: Import images to kind
       run: |
         export SHELL=/bin/bash
+        # Load images into Cluster 1 (test)
         kind load docker-image ghcr.io/headlamp-k8s/headlamp-plugins-test:latest --name test
         kind load docker-image ghcr.io/headlamp-k8s/headlamp:latest --name test
+
+        # Load Headlamp image into Cluster 2 (test2) so it can run in-cluster tests there
+        kind load docker-image ghcr.io/headlamp-k8s/headlamp:latest --name test2
     - name: Test .plugins folder
       if: steps.cache-image-restore2.outputs.cache-hit != 'true'
       run: |
@@ -230,6 +234,70 @@ jobs:
           exit 1
         else
           echo "Playwright tests passed successfully"
+        fi
+    - name: Deploy Headlamp in in-cluster mode and run TS API tests
+      run: |
+        # Reuse Cluster 2 context for in-cluster tests
+        kubectl config use-context test2
+
+        # Setup service account and RBAC for Headlamp
+        kubectl create serviceaccount headlamp --namespace kube-system || true
+        kubectl create clusterrolebinding headlamp --serviceaccount=kube-system:headlamp --clusterrole=cluster-admin || true
+        kubectl get serviceaccount headlamp -n kube-system
+
+        # Deploy Headlamp with in-cluster mode
+        kubectl apply -f e2e-tests/kubernetes-headlamp-incluster-ci.yaml
+
+        echo "Waiting for headlamp deployment to be available (in-cluster)..."
+        kubectl wait deployment -n kube-system headlamp --for condition=Available=True --timeout=120s
+        kubectl get pods -n kube-system -l app.kubernetes.io/name=headlamp
+
+        echo "Checking headlamp pod status (in-cluster)..."
+        kubectl logs -n kube-system -l app.kubernetes.io/name=headlamp --tail=50 || true
+
+        # Start port-forward in background
+        echo "Starting port-forward to headlamp service (in-cluster)..."
+        kubectl port-forward -n kube-system service/headlamp 8080:80 &
+        PORT_FORWARD_PID=$!
+
+        # Wait for port-forward to be ready
+        sleep 5
+
+        # Verify port-forward is working
+        if ! kill -0 $PORT_FORWARD_PID 2>/dev/null; then
+          echo "❌ Port-forward failed to start for in-cluster test"
+          exit 1
+        fi
+
+        export HEADLAMP_TEST_URL="http://localhost:8080"
+        echo "In-cluster Headlamp URL: $HEADLAMP_TEST_URL"
+
+        # Get service account token for API checks
+        echo "Getting service account token for in-cluster test..."
+        export HEADLAMP_SA_TOKEN=$(kubectl create token headlamp --duration=1h -n kube-system)
+
+        if [ -z "$HEADLAMP_SA_TOKEN" ]; then
+          echo "❌ Failed to get service account token for in-cluster test"
+          kill $PORT_FORWARD_PID 2>/dev/null || true
+          exit 1
+        fi
+
+        echo "✅ Service account token obtained"
+        echo "Running in-cluster API Playwright tests..."
+
+        # Run the TypeScript in-cluster API tests
+        cd e2e-tests
+        npm ci
+        npx playwright install --with-deps
+        npx playwright test tests/incluster-api.spec.ts
+        EXIT_CODE=$?
+
+        # Cleanup port-forward
+        kill $PORT_FORWARD_PID 2>/dev/null || true
+
+        if [ $EXIT_CODE -ne 0 ]; then
+          echo "❌ In-cluster API tests failed with exit code $EXIT_CODE"
+          exit $EXIT_CODE
         fi
     # Clear disk space by removing unnecessary files, apt files and uninstall some playwright dependencies
     - name: Clear Disk Space
