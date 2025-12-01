@@ -36,6 +36,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -604,6 +605,17 @@ func newOIDCProviderServer(t *testing.T, tokenHandler http.HandlerFunc) *httptes
 	return srv
 }
 
+func findAuthCookie(resp *http.Response, cluster string) (string, bool) {
+	want := fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName(cluster))
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == want {
+			return cookie.Value, true
+		}
+	}
+
+	return "", false
+}
+
 var oauthSuccessBody = map[string]any{
 	"access_token":  "AT",
 	"token_type":    "Bearer",
@@ -793,6 +805,131 @@ func TestRefreshAndCacheNewToken_TokenError(t *testing.T) {
 	assert.Contains(t, err.Error(), "refreshing token")
 	assert.Len(t, fc.setCalls, 0)
 	assert.Len(t, fc.setWithTTLCalls, 0)
+}
+
+func TestRefreshAndSetToken_DefaultsToIDToken(t *testing.T) {
+	const (
+		oldToken = "OLD"
+		cluster  = "test"
+	)
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
+
+	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
+		require.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/clusters/"+cluster, nil)
+	rr := httptest.NewRecorder()
+
+	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+		Ctx:              context.Background(),
+		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret", IdpIssuerURL: srv.URL},
+		Cache:            fc,
+		Token:            oldToken,
+		Cluster:          cluster,
+		Writer:           rr,
+		Request:          req,
+		TelemetryHandler: &telemetry.RequestHandler{},
+		OIDCIdpIssuerURL: "",
+		BaseURL:          "",
+	})
+
+	resp := rr.Result()
+	defer resp.Body.Close()
+
+	cookieVal, ok := findAuthCookie(resp, cluster)
+	require.True(t, ok, "expected auth cookie to be set")
+	assert.Equal(t, "NEW", cookieVal)
+}
+
+func TestRefreshAndSetToken_UsesAccessToken(t *testing.T) {
+	const (
+		oldToken = "OLD"
+		cluster  = "test"
+	)
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
+
+	tokenBody := map[string]any{
+		"access_token":  "ACCESS_NEW",
+		"token_type":    "Bearer",
+		"expires_in":    3600,
+		"refresh_token": refreshNew,
+		"id_token":      "IGNORED",
+	}
+
+	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		require.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(tokenBody))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/clusters/"+cluster, nil)
+	rr := httptest.NewRecorder()
+
+	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+		Ctx:                context.Background(),
+		OIDCAuthConfig:     &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"},
+		Cache:              fc,
+		Token:              oldToken,
+		Cluster:            cluster,
+		Writer:             rr,
+		Request:            req,
+		TelemetryHandler:   &telemetry.RequestHandler{},
+		OIDCUseAccessToken: true,
+		OIDCIdpIssuerURL:   srv.URL,
+		BaseURL:            "",
+	})
+
+	resp := rr.Result()
+	defer resp.Body.Close()
+
+	cookieVal, ok := findAuthCookie(resp, cluster)
+	require.True(t, ok, "expected auth cookie to be set")
+	assert.Equal(t, "ACCESS_NEW", cookieVal)
+}
+
+func TestRefreshAndSetToken_ErrorDoesNotSetCookie(t *testing.T) {
+	const (
+		oldToken = "OLD"
+		cluster  = "test"
+	)
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
+
+	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "token refresh failed", http.StatusInternalServerError)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/clusters/"+cluster, nil)
+	rr := httptest.NewRecorder()
+
+	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+		Ctx:              context.Background(),
+		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"},
+		Cache:            fc,
+		Token:            oldToken,
+		Cluster:          cluster,
+		Writer:           rr,
+		Request:          req,
+		TelemetryHandler: &telemetry.RequestHandler{},
+		OIDCIdpIssuerURL: srv.URL,
+		BaseURL:          "",
+	})
+
+	resp := rr.Result()
+	defer resp.Body.Close()
+
+	_, ok := findAuthCookie(resp, cluster)
+	assert.False(t, ok, "expected no auth cookie to be set on error")
 }
 
 // TestConfigureTLSContext_NoConfig tests when both skipTLSVerify and caCert are not set.

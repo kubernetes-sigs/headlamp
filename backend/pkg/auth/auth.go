@@ -36,6 +36,9 @@ import (
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
 )
 
@@ -485,4 +488,63 @@ func marshalToString(val interface{}) (string, bool) {
 	}
 
 	return string(b), true
+}
+
+// RefreshAndSetTokenParams groups the inputs required to refresh a token and
+// update the Headlamp auth cookie.
+type RefreshAndSetTokenParams struct {
+	Ctx                context.Context
+	OIDCAuthConfig     *kubeconfig.OidcConfig
+	Cache              cache.Cache[interface{}]
+	Token              string
+	Cluster            string
+	Span               trace.Span
+	Writer             http.ResponseWriter
+	Request            *http.Request
+	TelemetryHandler   *telemetry.RequestHandler
+	OIDCUseAccessToken bool
+	OIDCIdpIssuerURL   string
+	BaseURL            string
+}
+
+// RefreshAndSetToken refreshes an expiring token, updates the auth cookie,
+// and records telemetry based on the provided parameters.
+func RefreshAndSetToken(params RefreshAndSetTokenParams) {
+	// The token type to use
+	tokenType := "id_token"
+	if params.OIDCUseAccessToken {
+		tokenType = "access_token"
+	}
+
+	idpIssuerURL := params.OIDCIdpIssuerURL
+	if idpIssuerURL == "" {
+		idpIssuerURL = params.OIDCAuthConfig.IdpIssuerURL
+	}
+
+	newToken, err := RefreshAndCacheNewToken(
+		params.Ctx,
+		params.OIDCAuthConfig,
+		params.Cache,
+		tokenType,
+		params.Token,
+		idpIssuerURL,
+	)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"cluster": params.Cluster},
+			err, "failed to refresh token")
+		params.TelemetryHandler.RecordError(params.Span, err, "Token refresh failed")
+		params.TelemetryHandler.RecordErrorCount(params.Ctx, attribute.String("error", "token_refresh_failure"))
+	} else if newToken != nil {
+		var newTokenString string
+		if params.OIDCUseAccessToken {
+			newTokenString = newToken.Extra("access_token").(string)
+		} else {
+			newTokenString = newToken.Extra("id_token").(string)
+		}
+
+		// Set refreshed token in cookie
+		SetTokenCookie(params.Writer, params.Request, params.Cluster, newTokenString, params.BaseURL)
+
+		params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
+	}
 }
