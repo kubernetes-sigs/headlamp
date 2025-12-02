@@ -15,10 +15,10 @@
  */
 
 import * as jsyaml from 'js-yaml';
-import { KubeconfigObject } from '../lib/k8s/kubeconfig';
+import type { KubeconfigObject } from '../lib/k8s/kubeconfig';
 import {
-  CursorSuccessEvent,
-  DatabaseEvent,
+  type CursorSuccessEvent,
+  type DatabaseEvent,
   findMatchingContexts,
   handleDataBaseError,
   handleDatabaseUpgrade,

@@ -18,15 +18,15 @@ import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '../../lib/k8s/api/v2/ApiError';
-import { KubeContainer } from '../../lib/k8s/cluster';
+import type { KubeContainer } from '../../lib/k8s/cluster';
 import Job from '../../lib/k8s/job';
 import { formatDuration } from '../../lib/util';
 import { useNamespaces } from '../../redux/filterSlice';
 import { CreateResourceButton } from '../common';
+import type { StatusLabelProps } from '../common/Label';
 import { StatusLabel } from '../common/Label';
-import { StatusLabelProps } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
-import { SimpleTableProps } from '../common/SimpleTable';
+import type { SimpleTableProps } from '../common/SimpleTable';
 import LightTooltip from '../common/Tooltip/TooltipLight';
 
 export function makeJobStatusValue(job: Job) {

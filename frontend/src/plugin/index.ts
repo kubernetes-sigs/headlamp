@@ -53,9 +53,14 @@ import store from '../redux/stores/store';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
-import { PluginInfo } from './pluginsSlice';
+import type { PluginInfo } from './pluginsSlice';
 import Registry, * as registryToExport from './registry';
-import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
+import {
+  getInfoForRunningPlugins,
+  identifyPackages,
+  runPlugin,
+  type runPluginProps,
+} from './runPlugin';
 
 window.pluginLib = {
   ApiProxy,

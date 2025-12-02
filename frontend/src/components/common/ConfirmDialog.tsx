@@ -15,11 +15,11 @@
  */
 
 import Button from '@mui/material/Button';
-import MuiDialog, { DialogProps as MuiDialogProps } from '@mui/material/Dialog';
+import MuiDialog, { type DialogProps as MuiDialogProps } from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
-import React, { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DialogTitle } from './Dialog';
 

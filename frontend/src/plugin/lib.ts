@@ -47,7 +47,37 @@ import { setCluster } from '../lib/k8s/api/v1/clusterApi';
  *
  * @see {@link https://headlamp.dev/docs/latest/development/plugins/functionality/ Plugin functionality}
  */
-import { ClusterRequest } from '../lib/k8s/api/v1/clusterRequests';
+/**
+ * The lib.ts file should carry the bits to be used by plugins whereas
+ * the index.ts should have the functions that Headlamp itself needs for
+ * loading the plugins.
+ */
+/**
+ * ## Simple plugin example
+ *
+ * @example
+ *
+ * ```tsx
+ * import { registerAppBarAction } from '@kinvolk/headlamp-plugin/lib';
+ * registerAppBarAction(<span>Hello Kubernetes</span>);
+ * ```
+ *
+ * ## Entry point
+ *
+ * initializePlugins is the main entry point, and it is called by App.tsx near the beginning.
+ *
+ * ## Loading JavaScript files/URLs, which register Plugins
+ *
+ * External JavaScripts are first loaded from the "/plugins/list" URL of URLs into the browser.
+ * The backend "server" can currently be configured to load plugins from a folder to make this list.
+ *
+ * Local in-development plugins are then loaded from the "frontend/src/plugin/plugins/" folder.
+ *
+ * To see more on what plugins can do, please see the plugin functionality.md documentation.
+ *
+ * @see {@link https://headlamp.dev/docs/latest/development/plugins/functionality/ Plugin functionality}
+ */
+import type { ClusterRequest } from '../lib/k8s/api/v1/clusterRequests';
 import Registry from './registry';
 
 /**

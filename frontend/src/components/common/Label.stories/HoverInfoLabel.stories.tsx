@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
-import { HoverInfoLabel as HoverInfoLabelComponent, HoverInfoLabelProps } from '../Label';
+import type { Meta, StoryFn } from '@storybook/react';
+import { HoverInfoLabel as HoverInfoLabelComponent, type HoverInfoLabelProps } from '../Label';
 
 export default {
   title: 'Label/HoverInfoLabel',

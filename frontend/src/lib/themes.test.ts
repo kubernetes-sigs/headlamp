@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { AppTheme } from './AppTheme';
+import type { AppTheme } from './AppTheme';
 import { createMuiTheme, getThemeName, setTheme } from './themes';
 
 describe('themes.ts', () => {

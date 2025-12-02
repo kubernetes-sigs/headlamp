@@ -15,7 +15,7 @@
  */
 
 import Grid from '@mui/material/Grid';
-import { MRT_TableInstance } from 'material-react-table';
+import type { MRT_TableInstance } from 'material-react-table';
 import { useCallback } from 'react';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import DeleteMultipleButton from './DeleteMultipleButton';

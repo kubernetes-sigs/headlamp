@@ -15,9 +15,9 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import { Cluster } from '../../lib/k8s/cluster';
+import type { Cluster } from '../../lib/k8s/cluster';
 import { initialState } from '../../redux/configSlice';
 import { TestContext } from '../../test';
 import Chooser from './Chooser';

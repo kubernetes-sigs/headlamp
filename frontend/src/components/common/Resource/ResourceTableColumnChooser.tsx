@@ -21,7 +21,7 @@ import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
 import Popover from '@mui/material/Popover';
 import React from 'react';
-import { ResourceTableColumn } from './ResourceTable';
+import type { ResourceTableColumn } from './ResourceTable';
 
 interface ColumnsPopupProps<T> {
   columns: ResourceTableColumn<T>[];

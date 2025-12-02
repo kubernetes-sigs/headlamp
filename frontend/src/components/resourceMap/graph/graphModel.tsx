@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ComponentType, ReactNode } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 export type GraphNode = {
   /**

@@ -19,11 +19,11 @@ import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 import { matchExpressionSimplifier, matchLabelsSimplifier } from '../../lib/k8s';
-import { LabelSelector } from '../../lib/k8s/cluster';
+import type { LabelSelector } from '../../lib/k8s/cluster';
 import NetworkPolicy, {
-  NetworkPolicyEgressRule,
-  NetworkPolicyIngressRule,
-  NetworkPolicyPort,
+  type NetworkPolicyEgressRule,
+  type NetworkPolicyIngressRule,
+  type NetworkPolicyPort,
 } from '../../lib/k8s/networkpolicy';
 import NameValueTable from '../common/NameValueTable';
 import { DetailsGrid } from '../common/Resource';

@@ -35,7 +35,7 @@ import SectionFilterHeader from '../../../common/SectionFilterHeader';
 import Table from '../../../common/Table';
 import {
   Notification,
-  NotificationIface,
+  type NotificationIface,
   setNotifications,
   updateNotifications,
 } from '../notificationsSlice';

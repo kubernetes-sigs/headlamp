@@ -23,8 +23,8 @@ import sidebarReducer, {
   setSidebarSelected,
   setSidebarVisible,
   setWhetherSidebarOpen,
-  SidebarEntry,
-  SidebarState,
+  type SidebarEntry,
+  type SidebarState,
 } from './sidebarSlice';
 
 describe('sidebarSlice', () => {

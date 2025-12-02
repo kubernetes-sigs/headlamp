@@ -23,15 +23,15 @@ import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';
-import { CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
+import { type CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
 import {
   EventStatus,
   HeadlampEventType,
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
-import { AppDispatch } from '../../../redux/stores/store';
+import type { AppDispatch } from '../../../redux/stores/store';
 import { useSettings } from '../../App/Settings/hook';
-import ActionButton, { ButtonStyle } from '../ActionButton';
+import ActionButton, { type ButtonStyle } from '../ActionButton';
 import { ConfirmDialog } from '../Dialog';
 import AuthVisible from './AuthVisible';
 

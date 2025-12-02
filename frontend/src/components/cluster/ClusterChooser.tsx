@@ -17,7 +17,7 @@
 import { Icon } from '@iconify/react';
 import Button from '@mui/material/Button';
 import { alpha, styled } from '@mui/system';
-import React, { ReactElement } from 'react';
+import React, { type ReactElement } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 export interface ClusterChooserProps {

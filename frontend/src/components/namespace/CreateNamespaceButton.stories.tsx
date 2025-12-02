@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react';
 import { screen } from '@testing-library/react';
 import React from 'react';
 import { expect, userEvent, waitFor } from 'storybook/test';

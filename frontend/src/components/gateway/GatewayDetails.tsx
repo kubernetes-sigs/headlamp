@@ -17,15 +17,15 @@
 import Box from '@mui/system/Box';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { KubeCondition } from '../../lib/k8s/cluster';
+import type { KubeCondition } from '../../lib/k8s/cluster';
 import Gateway, {
-  GatewayListener,
-  GatewayListenerStatus,
-  GatewayStatusAddress,
+  type GatewayListener,
+  type GatewayListenerStatus,
+  type GatewayStatusAddress,
 } from '../../lib/k8s/gateway';
 import EmptyContent from '../common/EmptyContent';
+import type { StatusLabelProps } from '../common/Label';
 import { StatusLabel } from '../common/Label';
-import { StatusLabelProps } from '../common/Label';
 import Link from '../common/Link';
 import { ConditionsTable, DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';

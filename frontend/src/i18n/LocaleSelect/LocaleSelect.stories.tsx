@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import LocaleSelect, { LocaleSelectProps } from './LocaleSelect';
+import LocaleSelect, { type LocaleSelectProps } from './LocaleSelect';
 
 export default {
   title: 'LocaleSelect',

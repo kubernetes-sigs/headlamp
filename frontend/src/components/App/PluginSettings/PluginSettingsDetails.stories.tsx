@@ -15,10 +15,13 @@
  */
 
 import TextField from '@mui/material/TextField';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import { PluginInfo, PluginSettingsDetailsProps } from '../../../plugin/pluginsSlice';
-import { PluginSettingsDetailsPure, PluginSettingsDetailsPureProps } from './PluginSettingsDetails';
+import type { PluginInfo, PluginSettingsDetailsProps } from '../../../plugin/pluginsSlice';
+import {
+  PluginSettingsDetailsPure,
+  type PluginSettingsDetailsPureProps,
+} from './PluginSettingsDetails';
 
 const testAutoSaveComponent: React.FC<PluginSettingsDetailsProps> = () => {
   const [data, setData] = React.useState<{ [key: string]: any }>({});

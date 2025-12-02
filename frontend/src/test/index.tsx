@@ -15,7 +15,7 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
-import { PropsWithChildren } from 'react';
+import type { PropsWithChildren } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route } from 'react-router-dom';
 import defaultStore from '../redux/stores/store';

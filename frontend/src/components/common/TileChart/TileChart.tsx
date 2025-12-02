@@ -18,7 +18,7 @@ import '../../../i18n/config';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import { PercentageCircle, PercentageCircleProps } from '../Chart';
+import { PercentageCircle, type PercentageCircleProps } from '../Chart';
 import { TooltipIcon } from '../Tooltip';
 
 export interface TileChartProps extends Omit<PercentageCircleProps, 'data'> {

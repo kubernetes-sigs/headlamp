@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { ResourceTableProps } from './ResourceTable';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import type { ResourceTableProps } from './ResourceTable';
 
 export interface ResourceTableState {
   /**

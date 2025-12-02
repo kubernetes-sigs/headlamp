@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import Node from '../../../lib/k8s/node';
 import Pod from '../../../lib/k8s/pod';
 import { NodesStatusCircleChart, PodsStatusCircleChart } from './StatusCharts';

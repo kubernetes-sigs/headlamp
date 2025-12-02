@@ -16,7 +16,7 @@
 
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Grid from '@mui/material/Grid';
-import { Theme } from '@mui/material/styles';
+import type { Theme } from '@mui/material/styles';
 import Switch from '@mui/material/Switch';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -27,7 +27,7 @@ import Pod from '../../lib/k8s/pod';
 import { useFilterFunc } from '../../lib/util';
 import { useNamespaces } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
-import { OverviewChart } from '../../redux/overviewChartsSlice';
+import type { OverviewChart } from '../../redux/overviewChartsSlice';
 import { DateLabel } from '../common/Label';
 import { StatusLabel } from '../common/Label';
 import Link from '../common/Link';

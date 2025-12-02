@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { KubeMetadata } from '../../../lib/k8s/KubeMetadata';
+import type { KubeMetadata } from '../../../lib/k8s/KubeMetadata';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { getMainNode, groupGraph } from './graphGrouping';
-import { GraphEdge, GraphNode } from './graphModel';
+import type { GraphEdge, GraphNode } from './graphModel';
 
 describe('getMainNode', () => {
   it('returns undefined for empty array', () => {

@@ -15,10 +15,10 @@
  */
 
 import { Box, Typography } from '@mui/material';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { TestContext } from '../../test'; // Adjust path if necessary for your project structure
-import Loader, { LoaderProps } from './Loader'; // Assuming LoaderProps is exported from Loader.tsx
+import Loader, { type LoaderProps } from './Loader'; // Assuming LoaderProps is exported from Loader.tsx
 
 export default {
   title: 'common/Loader', // Updated title to match the 'common' category

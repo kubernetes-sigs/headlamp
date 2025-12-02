@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import { InfoLabel as InfoLabelComponent, InfoLabelProps } from '../Label';
+import { InfoLabel as InfoLabelComponent, type InfoLabelProps } from '../Label';
 
 export default {
   title: 'Label/InfoLabel',

@@ -26,8 +26,8 @@ import { styled } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/system/colorManipulator';
 import { memo, useState } from 'react';
-import { GraphSource } from '../graph/graphModel';
-import { getFlatSources, SourceData } from './GraphSources';
+import type { GraphSource } from '../graph/graphModel';
+import { getFlatSources, type SourceData } from './GraphSources';
 
 const Node = styled('div')(() => ({
   display: 'flex',

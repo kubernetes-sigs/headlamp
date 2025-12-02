@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { get, set } from 'lodash';
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { KubeObject } from '../../lib/k8s/KubeObject';
-import { DetailsViewSectionType } from './DetailsViewSection';
+import type { DetailsViewSectionType } from './DetailsViewSection';
 
 export type DetailsViewSection = {
   id: string;

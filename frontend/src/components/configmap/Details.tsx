@@ -23,11 +23,11 @@ import { useDispatch } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import ConfigMap from '../../lib/k8s/configMap';
 import { clusterAction } from '../../redux/clusterActionSlice';
-import { AppDispatch } from '../../redux/stores/store';
+import type { AppDispatch } from '../../redux/stores/store';
 import EmptyContent from '../common/EmptyContent';
 import { DataField, DetailsGrid } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
-import { NameValueTable, NameValueTableRow } from '../common/SimpleTable';
+import { NameValueTable, type NameValueTableRow } from '../common/SimpleTable';
 
 export default function ConfigDetails(props: {
   name?: string;

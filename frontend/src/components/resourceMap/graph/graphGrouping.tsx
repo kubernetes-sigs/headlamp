@@ -19,7 +19,7 @@ import Namespace from '../../../lib/k8s/namespace';
 import Node from '../../../lib/k8s/node';
 import Pod from '../../../lib/k8s/pod';
 import { makeGraphLookup } from './graphLookup';
-import { forEachNode, getNodeWeight, GraphEdge, GraphNode } from './graphModel';
+import { forEachNode, getNodeWeight, type GraphEdge, type GraphNode } from './graphModel';
 
 export type GroupBy = 'node' | 'namespace' | 'instance';
 

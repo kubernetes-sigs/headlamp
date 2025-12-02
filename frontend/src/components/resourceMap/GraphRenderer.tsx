@@ -22,11 +22,11 @@ import {
   BackgroundVariant,
   ConnectionMode,
   Controls,
-  Edge,
-  EdgeMouseHandler,
-  Node,
-  NodeMouseHandler,
-  OnMoveStart,
+  type Edge,
+  type EdgeMouseHandler,
+  type Node,
+  type NodeMouseHandler,
+  type OnMoveStart,
   ReactFlow,
 } from '@xyflow/react';
 import React from 'react';

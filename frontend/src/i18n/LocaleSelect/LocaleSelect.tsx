@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import FormControl, { FormControlProps } from '@mui/material/FormControl';
+import FormControl, { type FormControlProps } from '@mui/material/FormControl';
 import FormLabel from '@mui/material/FormLabel';
 import MenuItem from '@mui/material/MenuItem';
-import Select, { SelectChangeEvent } from '@mui/material/Select';
+import Select, { type SelectChangeEvent } from '@mui/material/Select';
 import { useTheme } from '@mui/material/styles';
 import React from 'react';
 import { useTranslation } from 'react-i18next';

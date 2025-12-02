@@ -16,7 +16,7 @@
 
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import HTTPRoute, { HTTPRouteRule } from '../../lib/k8s/httpRoute';
+import HTTPRoute, { type HTTPRouteRule } from '../../lib/k8s/httpRoute';
 import EmptyContent from '../common/EmptyContent';
 import InnerTable from '../common/InnerTable';
 import LabelListItem from '../common/LabelListItem';

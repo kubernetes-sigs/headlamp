@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { Icon, IconProps } from '@iconify/react';
+import { Icon, type IconProps } from '@iconify/react';
 import { grey } from '@mui/material/colors';
 import Grid from '@mui/material/Grid';
-import { alpha, SxProps, Theme, useTheme } from '@mui/material/styles';
-import Typography, { TypographyProps } from '@mui/material/Typography';
+import { alpha, type SxProps, type Theme, useTheme } from '@mui/material/styles';
+import Typography, { type TypographyProps } from '@mui/material/Typography';
 import React, { forwardRef, useEffect, useState } from 'react';
-import { DateFormatOptions, localeDate, timeAgo } from '../../lib/util';
+import { type DateFormatOptions, localeDate, timeAgo } from '../../lib/util';
 import { LightTooltip, TooltipIcon } from './Tooltip';
 
 export interface InfoLabelProps {

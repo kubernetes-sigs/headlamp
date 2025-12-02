@@ -15,7 +15,7 @@
  */
 
 import { useDeferredValue } from 'react';
-import { GraphNode } from '../graph/graphModel';
+import type { GraphNode } from '../graph/graphModel';
 import { KubeObjectDetails } from './KubeNodeDetails';
 
 export interface GraphNodeDetailsProps {

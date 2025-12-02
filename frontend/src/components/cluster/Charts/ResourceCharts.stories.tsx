@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
-import { KubeMetrics } from '../../../lib/k8s/cluster';
+import type { Meta, StoryFn } from '@storybook/react';
+import type { KubeMetrics } from '../../../lib/k8s/cluster';
 import Node from '../../../lib/k8s/node';
 import Pod from '../../../lib/k8s/pod';
-import { CircularChartProps } from '../../common/Resource/CircularChart';
+import type { CircularChartProps } from '../../common/Resource/CircularChart';
 import { CpuCircularChart, MemoryCircularChart } from './ResourceCharts';
 
 interface ResourceCircularChartProps {

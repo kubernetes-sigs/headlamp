@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ExoticComponent, ReactNode } from 'react';
+import type { ExoticComponent, ReactNode } from 'react';
 import type { DefaultSidebars } from '../../components/Sidebar';
 
 export interface Route {

@@ -16,9 +16,9 @@
 
 import { useTheme } from '@mui/material/styles';
 import { alpha } from '@mui/system/colorManipulator';
-import { BaseEdge, EdgeProps } from '@xyflow/react';
+import { BaseEdge, type EdgeProps } from '@xyflow/react';
 import { memo } from 'react';
-import { GraphEdge } from '../graph/graphModel';
+import type { GraphEdge } from '../graph/graphModel';
 
 /**
  * An edge between Kube Objects

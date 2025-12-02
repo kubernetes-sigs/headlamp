@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { TestContext } from '../../../test';
 import Settings from '.';
 

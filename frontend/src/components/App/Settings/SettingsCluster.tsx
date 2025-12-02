@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
 import {
-  ClusterSettings,
+  type ClusterSettings,
   loadClusterSettings,
   storeClusterSettings,
 } from '../../../helpers/clusterSettings';

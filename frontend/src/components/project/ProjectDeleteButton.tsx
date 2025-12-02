@@ -17,8 +17,8 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Namespace from '../../lib/k8s/namespace';
-import { ProjectDefinition } from '../../redux/projectsSlice';
-import ActionButton, { ButtonStyle } from '../common/ActionButton';
+import type { ProjectDefinition } from '../../redux/projectsSlice';
+import ActionButton, { type ButtonStyle } from '../common/ActionButton';
 import AuthVisible from '../common/Resource/AuthVisible';
 import { ProjectDeleteDialog } from './ProjectDeleteDialog';
 

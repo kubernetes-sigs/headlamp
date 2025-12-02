@@ -19,13 +19,13 @@ import './GraphView.css';
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
-import { Theme } from '@mui/material/styles';
+import type { Theme } from '@mui/material/styles';
 import { styled } from '@mui/material/styles';
 import ThemeProvider from '@mui/system/ThemeProvider';
-import { Edge, Node, Panel, ReactFlowProvider } from '@xyflow/react';
+import { type Edge, type Node, Panel, ReactFlowProvider } from '@xyflow/react';
 import {
   createContext,
-  ReactNode,
+  type ReactNode,
   StrictMode,
   useCallback,
   useContext,
@@ -42,17 +42,23 @@ import K8sNode from '../../lib/k8s/node';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { NamespacesAutocomplete } from '../common/NamespacesAutocomplete';
-import { filterGraph, GraphFilter } from './graph/graphFiltering';
+import { filterGraph, type GraphFilter } from './graph/graphFiltering';
 import {
   collapseGraph,
   findGroupContaining,
   getGraphSize,
-  GroupBy,
+  type GroupBy,
   groupGraph,
 } from './graph/graphGrouping';
 import { applyGraphLayout } from './graph/graphLayout';
-import { GraphLookup, makeGraphLookup } from './graph/graphLookup';
-import { forEachNode, GraphEdge, GraphNode, GraphSource, Relation } from './graph/graphModel';
+import { type GraphLookup, makeGraphLookup } from './graph/graphLookup';
+import {
+  forEachNode,
+  type GraphEdge,
+  type GraphNode,
+  type GraphSource,
+  type Relation,
+} from './graph/graphModel';
 import { GraphControlButton } from './GraphControls';
 import { GraphRenderer } from './GraphRenderer';
 import { SelectionBreadcrumbs } from './SelectionBreadcrumbs';

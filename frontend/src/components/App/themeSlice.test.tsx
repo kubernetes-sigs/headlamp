@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { AppLogoProps, AppLogoType } from './AppLogo';
+import type { AppLogoProps, AppLogoType } from './AppLogo';
 import themeReducer, { initialState, setBrandingAppLogoComponent, setTheme } from './themeSlice';
 
 describe('themeSlice', () => {

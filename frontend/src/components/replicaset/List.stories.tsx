@@ -15,7 +15,7 @@
  */
 
 import Container from '@mui/material/Container';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { TestContext } from '../../test';
 import List from './List';

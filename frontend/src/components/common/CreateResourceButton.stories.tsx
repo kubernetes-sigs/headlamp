@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react';
 import { screen } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import { expect, userEvent, waitFor } from 'storybook/test';
-import { KubeObjectClass } from '../../lib/k8s/cluster';
+import type { KubeObjectClass } from '../../lib/k8s/cluster';
 import ConfigMap from '../../lib/k8s/configMap';
 import store from '../../redux/stores/store';
 import { TestContext } from '../../test';
-import { CreateResourceButton, CreateResourceButtonProps } from './CreateResourceButton';
+import { CreateResourceButton, type CreateResourceButtonProps } from './CreateResourceButton';
 
 export default {
   title: 'CreateResourceButton',

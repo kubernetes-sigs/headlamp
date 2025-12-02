@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
+import type { HeaderActionState } from './actionButtonsSlice';
 import reducer, {
   addDetailsViewHeaderActionsProcessor,
   setAppBarAction,
   setAppBarActionsProcessor,
   setDetailsViewHeaderAction,
 } from './actionButtonsSlice';
-import { HeaderActionState } from './actionButtonsSlice';
 
 describe('actionButtonsSlice', () => {
   const initialState: HeaderActionState = {

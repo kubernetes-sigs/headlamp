@@ -19,19 +19,19 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import { useTheme } from '@mui/material/styles';
 import MuiTable from '@mui/material/Table';
-import { TableCellProps } from '@mui/material/TableCell';
+import type { TableCellProps } from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import { alpha, styled } from '@mui/system';
 import {
   MRT_BottomToolbar,
-  MRT_Cell,
-  MRT_ColumnDef as MaterialTableColumn,
-  MRT_Header,
-  MRT_Localization,
+  type MRT_Cell,
+  type MRT_ColumnDef as MaterialTableColumn,
+  type MRT_Header,
+  type MRT_Localization,
   MRT_TableBodyCell,
   MRT_TableHeadCell,
-  MRT_TableInstance,
-  MRT_TableOptions as MaterialTableOptions,
+  type MRT_TableInstance,
+  type MRT_TableOptions as MaterialTableOptions,
   MRT_TopToolbar,
   useMaterialReactTable,
   useMRT_Rows,
@@ -46,7 +46,7 @@ import { MRT_Localization_KO } from 'material-react-table/locales/ko';
 import { MRT_Localization_PT } from 'material-react-table/locales/pt';
 import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
 import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
-import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
+import { memo, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';

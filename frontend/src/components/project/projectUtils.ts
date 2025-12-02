@@ -15,10 +15,10 @@
  */
 
 import { countBy } from 'lodash';
-import { ApiResource } from '../../lib/k8s/api/v2/ApiResource';
+import type { ApiResource } from '../../lib/k8s/api/v2/ApiResource';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import Namespace from '../../lib/k8s/namespace';
-import { getStatus, KubeObjectStatus } from '../resourceMap/nodes/KubeObjectStatus';
+import { getStatus, type KubeObjectStatus } from '../resourceMap/nodes/KubeObjectStatus';
 
 export const PROJECT_ID_LABEL = 'headlamp.dev/project-id';
 

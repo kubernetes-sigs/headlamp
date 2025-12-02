@@ -18,7 +18,7 @@ import { Icon } from '@iconify/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../lib/k8s';
-import { KubeObjectClass } from '../../lib/k8s/cluster';
+import type { KubeObjectClass } from '../../lib/k8s/cluster';
 import { Activity } from '../activity/Activity';
 import ActionButton from '../common/ActionButton';
 import { AuthVisible } from '../common/Resource';

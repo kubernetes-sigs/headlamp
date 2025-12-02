@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { makeGraphLookup } from './graphLookup';
-import { GraphEdge, GraphNode } from './graphModel';
+import type { GraphEdge, GraphNode } from './graphModel';
 
 describe('GraphLookup', () => {
   const nodes: GraphNode[] = [

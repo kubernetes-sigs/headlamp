@@ -15,7 +15,7 @@
  */
 
 import { configureStore, createSlice } from '@reduxjs/toolkit';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
 import React from 'react';
@@ -27,8 +27,8 @@ import NavigationTabs from './NavigationTabs';
 import {
   DefaultSidebars,
   initialState as sidebarInitialState,
-  SidebarEntry,
-  SidebarState,
+  type SidebarEntry,
+  type SidebarState,
 } from './sidebarSlice';
 
 const mockClusterSidebarEntries: Record<string, SidebarEntry> = {

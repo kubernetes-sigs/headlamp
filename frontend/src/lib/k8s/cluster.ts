@@ -16,7 +16,7 @@
 
 import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { getCluster } from '../cluster';
-import { KubeMetadata } from './KubeMetadata';
+import type { KubeMetadata } from './KubeMetadata';
 export {
   KubeObject,
   type KubeObjectClass,

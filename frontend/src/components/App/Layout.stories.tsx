@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { delay, http, HttpResponse } from 'msw';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';

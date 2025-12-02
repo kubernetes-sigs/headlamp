@@ -15,8 +15,8 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { KubeObjectClass, KubeObjectInterface } from '../../KubeObject';
-import { KubeList, KubeListUpdateEvent } from './KubeList';
+import type { KubeObjectClass, KubeObjectInterface } from '../../KubeObject';
+import { KubeList, type KubeListUpdateEvent } from './KubeList';
 
 class MockKubeObject implements KubeObjectInterface {
   apiVersion = 'v1';

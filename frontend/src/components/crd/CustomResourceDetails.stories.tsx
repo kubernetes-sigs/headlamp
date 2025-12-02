@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { TestContext } from '../../test';
-import { CustomResourceDetails, CustomResourceDetailsProps } from './CustomResourceDetails';
+import { CustomResourceDetails, type CustomResourceDetailsProps } from './CustomResourceDetails';
 import { mockCRD, mockCRList } from './storyHelper';
 
 export default {

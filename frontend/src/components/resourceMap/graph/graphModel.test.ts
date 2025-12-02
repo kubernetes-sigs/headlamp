@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { getNodeWeight, GraphNode } from './graphModel';
+import { getNodeWeight, type GraphNode } from './graphModel';
 
 describe('getNodeWeight', () => {
   it('correctly assigns default weights to different Kubernetes resource types', () => {

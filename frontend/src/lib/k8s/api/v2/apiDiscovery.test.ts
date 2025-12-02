@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { beforeEach, describe, expect, it, MockedFunction, vi } from 'vitest';
+import { beforeEach, describe, expect, it, type MockedFunction, vi } from 'vitest';
 import { apiDiscovery } from './apiDiscovery'; // Adjust path as needed
 // Adjust path as needed
 import { clusterFetch } from './fetch'; // Adjust path as needed

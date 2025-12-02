@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import React from 'react';
 import { I18nextProvider } from 'react-i18next';

@@ -16,7 +16,7 @@
 
 import Chip from '@mui/material/Chip';
 import { styled } from '@mui/system';
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import HPA from '../../lib/k8s/hpa';
 import Link from '../common/Link';

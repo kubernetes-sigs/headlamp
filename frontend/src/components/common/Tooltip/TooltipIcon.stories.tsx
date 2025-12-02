@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import TooltipIcon, { TooltipIconProps } from './TooltipIcon';
+import TooltipIcon, { type TooltipIconProps } from './TooltipIcon';
 
 export default {
   title: 'Tooltip/TooltipIcon',

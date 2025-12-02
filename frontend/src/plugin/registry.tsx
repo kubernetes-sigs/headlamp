@@ -15,49 +15,56 @@
  */
 
 import { has } from 'lodash';
-import React, { ReactNode } from 'react';
-import { AppLogoProps, AppLogoType } from '../components/App/AppLogo';
+import React, { type ReactNode } from 'react';
+import type { AppLogoProps, AppLogoType } from '../components/App/AppLogo';
 import { PluginManager } from '../components/App/pluginManager';
 import { runCommand } from '../components/App/runCommand';
 import { setBrandingAppLogoComponent, themeSlice } from '../components/App/themeSlice';
-import { ClusterChooserProps, ClusterChooserType } from '../components/cluster/ClusterChooser';
+import type { ClusterChooserProps, ClusterChooserType } from '../components/cluster/ClusterChooser';
 import {
   addResourceTableColumnsProcessor,
-  TableColumnsProcessor,
+  type TableColumnsProcessor,
 } from '../components/common/Resource/resourceTableSlice';
 import { SectionBox } from '../components/common/SectionBox';
-import { DetailsViewSectionProps, DetailsViewSectionType } from '../components/DetailsViewSection';
+import type {
+  DetailsViewSectionProps,
+  DetailsViewSectionType,
+} from '../components/DetailsViewSection';
 import {
   addDetailsViewSectionsProcessor,
   DefaultDetailsViewSection,
-  DetailsViewsSectionProcessor,
+  type DetailsViewsSectionProcessor,
   setDetailsViewSection,
 } from '../components/DetailsViewSection/detailsViewSectionSlice';
-import { GraphSource } from '../components/resourceMap/graph/graphModel';
-import { Glance, graphViewSlice, IconDefinition } from '../components/resourceMap/graphViewSlice';
-import { DefaultSidebars, SidebarEntryProps } from '../components/Sidebar';
+import type { GraphSource } from '../components/resourceMap/graph/graphModel';
+import {
+  type Glance,
+  graphViewSlice,
+  type IconDefinition,
+} from '../components/resourceMap/graphViewSlice';
+import type { DefaultSidebars, SidebarEntryProps } from '../components/Sidebar';
 import { setSidebarItem, setSidebarItemFilter } from '../components/Sidebar/sidebarSlice';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
-import { AppTheme } from '../lib/AppTheme';
+import type { AppTheme } from '../lib/AppTheme';
 import { KubeObject } from '../lib/k8s/KubeObject';
 import type { Route } from '../lib/router/Route';
 import {
   addDetailsViewHeaderActionsProcessor,
-  AppBarAction,
-  AppBarActionProcessorType,
-  AppBarActionsProcessor,
-  AppBarActionType,
+  type AppBarAction,
+  type AppBarActionProcessorType,
+  type AppBarActionsProcessor,
+  type AppBarActionType,
   DefaultAppBarAction,
   DefaultHeaderAction,
-  HeaderActionsProcessor,
-  HeaderActionType,
+  type HeaderActionsProcessor,
+  type HeaderActionType,
   setAppBarAction,
   setAppBarActionsProcessor,
   setDetailsViewHeaderAction,
 } from '../redux/actionButtonsSlice';
 import {
-  CallbackAction,
-  CallbackActionOptions,
+  type CallbackAction,
+  type CallbackActionOptions,
   clusterAction as sendClusterAction,
 } from '../redux/clusterActionSlice';
 import {
@@ -65,49 +72,52 @@ import {
   addClusterStatus,
   addDialog,
   addMenuItem,
-  ClusterProviderInfo,
-  ClusterStatusComponent,
-  DialogComponent,
-  MenuItemComponent,
+  type ClusterProviderInfo,
+  type ClusterStatusComponent,
+  type DialogComponent,
+  type MenuItemComponent,
 } from '../redux/clusterProviderSlice';
 import {
   addEventCallback,
-  CreateResourceEvent,
-  DeleteResourceEvent,
-  EditResourceEvent,
-  ErrorBoundaryEvent,
-  EventListEvent,
-  HeadlampEvent,
-  HeadlampEventCallback,
+  type CreateResourceEvent,
+  type DeleteResourceEvent,
+  type EditResourceEvent,
+  type ErrorBoundaryEvent,
+  type EventListEvent,
+  type HeadlampEvent,
+  type HeadlampEventCallback,
   HeadlampEventType,
-  LogsEvent,
-  PluginLoadingErrorEvent,
-  PluginsLoadedEvent,
-  PodAttachEvent,
-  ResourceDetailsViewLoadedEvent,
-  ResourceListViewLoadedEvent,
-  RestartResourceEvent,
-  ScaleResourceEvent,
-  TerminalEvent,
+  type LogsEvent,
+  type PluginLoadingErrorEvent,
+  type PluginsLoadedEvent,
+  type PodAttachEvent,
+  type ResourceDetailsViewLoadedEvent,
+  type ResourceListViewLoadedEvent,
+  type RestartResourceEvent,
+  type ScaleResourceEvent,
+  type TerminalEvent,
 } from '../redux/headlampEventSlice';
-import { addOverviewChartsProcessor, OverviewChartsProcessor } from '../redux/overviewChartsSlice';
+import {
+  addOverviewChartsProcessor,
+  type OverviewChartsProcessor,
+} from '../redux/overviewChartsSlice';
 import {
   addCustomCreateProject,
   addDetailsTab,
   addOverviewSection,
-  CustomCreateProject,
-  ProjectDeleteButton,
-  ProjectDetailsTab,
-  ProjectOverviewSection,
+  type CustomCreateProject,
+  type ProjectDeleteButton,
+  type ProjectDetailsTab,
+  type ProjectOverviewSection,
   setProjectDeleteButton,
 } from '../redux/projectsSlice';
 import { setRoute, setRouteFilter } from '../redux/routesSlice';
 import store from '../redux/stores/store';
-import { UIPanel, uiSlice } from '../redux/uiSlice';
+import { type UIPanel, uiSlice } from '../redux/uiSlice';
 import { ConfigStore } from './configStore';
 import {
-  PluginSettingsComponentType,
-  PluginSettingsDetailsProps,
+  type PluginSettingsComponentType,
+  type PluginSettingsDetailsProps,
   setPluginSettingsComponent,
 } from './pluginsSlice';
 

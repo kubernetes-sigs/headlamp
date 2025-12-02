@@ -16,8 +16,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect } from 'react';
+import type { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 
 /** List of valid request verbs. See https://kubernetes.io/docs/reference/access-authn-authz/authorization/#determine-the-request-verb. */
 const VALID_AUTH_VERBS = [

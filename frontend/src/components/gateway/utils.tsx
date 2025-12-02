@@ -15,7 +15,7 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { GatewayParentReference } from '../../lib/k8s/gateway';
+import type { GatewayParentReference } from '../../lib/k8s/gateway';
 import Link from '../common/Link';
 import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';

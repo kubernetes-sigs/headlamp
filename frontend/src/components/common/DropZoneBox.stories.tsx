@@ -17,7 +17,7 @@
 import { InlineIcon } from '@iconify/react';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { DropZoneBox } from './DropZoneBox';
 
 export default {

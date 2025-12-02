@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { KubeObject, Workload } from '../../../lib/k8s/cluster';
+import { KubeObject, type Workload } from '../../../lib/k8s/cluster';
 import Pod from '../../../lib/k8s/pod';
 import { getReadyReplicas, getTotalReplicas } from '../../../lib/util';
 

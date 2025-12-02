@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import React, { ReactElement } from 'react';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import React, { type ReactElement } from 'react';
 
 /**
  * Props for PluginSettingsDetailsProps component.

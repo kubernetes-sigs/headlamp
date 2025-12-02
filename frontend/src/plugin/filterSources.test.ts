@@ -15,7 +15,7 @@
  */
 
 import { filterSources } from './index';
-import { PluginInfo } from './pluginsSlice';
+import type { PluginInfo } from './pluginsSlice';
 
 describe('filterSources', () => {
   test('when sources is empty, it also returns an empty array', () => {

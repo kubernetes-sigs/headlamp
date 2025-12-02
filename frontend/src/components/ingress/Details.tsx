@@ -19,7 +19,7 @@ import MuiLink from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import Ingress, { IngressBackend, IngressRule } from '../../lib/k8s/ingress';
+import Ingress, { type IngressBackend, type IngressRule } from '../../lib/k8s/ingress';
 import { useSettings } from '../App/Settings/hook';
 import LabelListItem from '../common/LabelListItem';
 import Link from '../common/Link';

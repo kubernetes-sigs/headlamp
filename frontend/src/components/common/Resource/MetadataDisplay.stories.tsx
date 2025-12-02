@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
-import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
+import type { Meta, StoryFn } from '@storybook/react';
+import type { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { TestContext } from '../../../test';
 import {
   MetadataDisplay as MetadataDisplayComponent,
-  MetadataDisplayProps,
+  type MetadataDisplayProps,
 } from './MetadataDisplay';
 
 export default {

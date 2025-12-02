@@ -23,7 +23,7 @@ import { StatusLabel } from '../common/Label';
 import Link from '../common/Link';
 import { MetadataDictGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
-import {
+import type {
   ResourceTableFromResourceClassProps,
   ResourceTableProps,
 } from '../common/Resource/ResourceTable';

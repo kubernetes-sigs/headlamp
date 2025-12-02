@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { Cluster } from '../lib/k8s/cluster';
+import type { Cluster } from '../lib/k8s/cluster';
 import configReducer, {
-  ConfigState,
+  type ConfigState,
   defaultTableRowsPerPageOptions,
   initialState,
   setAppSettings,

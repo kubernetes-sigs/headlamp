@@ -15,7 +15,7 @@
  */
 
 import { Box } from '@mui/material';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import store from '../../redux/stores/store';

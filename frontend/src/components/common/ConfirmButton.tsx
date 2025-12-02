@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import Button, { ButtonProps } from '@mui/material/Button';
+import Button, { type ButtonProps } from '@mui/material/Button';
 import React from 'react';
 import { ConfirmDialog } from './Dialog';
 

@@ -17,8 +17,8 @@
 import Box from '@mui/material/Box';
 import { useTranslation } from 'react-i18next';
 import GatewayClass from '../../lib/k8s/gatewayClass';
+import type { StatusLabelProps } from '../common/Label';
 import { StatusLabel } from '../common/Label';
-import { StatusLabelProps } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 import LightTooltip from '../common/Tooltip/TooltipLight';
 

@@ -15,8 +15,8 @@
  */
 
 import Box from '@mui/material/Box';
-import MuiDialog, { DialogProps as MuiDialogProps } from '@mui/material/Dialog';
-import MuiDialogTitle, { DialogTitleProps } from '@mui/material/DialogTitle';
+import MuiDialog, { type DialogProps as MuiDialogProps } from '@mui/material/Dialog';
+import MuiDialogTitle, { type DialogTitleProps } from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import React from 'react';

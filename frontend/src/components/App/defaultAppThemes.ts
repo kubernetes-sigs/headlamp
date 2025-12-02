@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { AppTheme } from '../../lib/AppTheme';
+import type { AppTheme } from '../../lib/AppTheme';
 
 const headlampClassicLightTheme: AppTheme = {
   name: 'Headlamp Classic',

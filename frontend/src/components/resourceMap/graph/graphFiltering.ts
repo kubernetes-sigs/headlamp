@@ -16,7 +16,7 @@
 
 import { getStatus } from '../nodes/KubeObjectStatus';
 import { makeGraphLookup } from './graphLookup';
-import { GraphEdge, GraphNode } from './graphModel';
+import type { GraphEdge, GraphNode } from './graphModel';
 
 export type GraphFilter =
   | {

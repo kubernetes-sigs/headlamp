@@ -30,12 +30,12 @@ import { isElectron } from '../../../helpers/isElectron';
 import { getCluster } from '../../../lib/cluster';
 import {
   listPortForward,
-  PortForward as PortForwardState,
+  type PortForward as PortForwardState,
   startPortForward,
   stopOrDeletePortForward,
 } from '../../../lib/k8s/api/v1/portForward';
-import { KubeContainer } from '../../../lib/k8s/cluster';
-import { KubeObject, KubeObjectInterface } from '../../../lib/k8s/KubeObject';
+import type { KubeContainer } from '../../../lib/k8s/cluster';
+import { KubeObject, type KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';
 import Service from '../../../lib/k8s/service';
 import ActionButton from '../ActionButton';

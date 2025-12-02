@@ -129,7 +129,7 @@ import { getDefaultRoutes, setDefaultRoutes } from './getDefaultRoutes';
 import { getRoute } from './getRoute';
 import { getRoutePath } from './getRoutePath';
 import { getRouteUseClusterURL } from './getRouteUseClusterURL';
-import { Route } from './Route';
+import type { Route } from './Route';
 export type { Route, RouteURLProps };
 
 export { getDefaultRoutes, getRouteUseClusterURL, getRoutePath, getRoute, createRouteURL };

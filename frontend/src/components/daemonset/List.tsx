@@ -15,7 +15,7 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { KubeContainer } from '../../lib/k8s/cluster';
+import type { KubeContainer } from '../../lib/k8s/cluster';
 import DaemonSet from '../../lib/k8s/daemonSet';
 import { MetadataDictGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';

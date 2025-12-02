@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { isValidElement, ReactElement, ReactNode, useMemo } from 'react';
+import React, { isValidElement, type ReactElement, type ReactNode, useMemo } from 'react';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../redux/hooks';

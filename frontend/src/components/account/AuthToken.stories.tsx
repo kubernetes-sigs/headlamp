@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { TestContext } from '../../test';
-import { PureAuthToken, PureAuthTokenProps } from './Auth';
+import { PureAuthToken, type PureAuthTokenProps } from './Auth';
 
 export default {
   title: 'AuthToken',

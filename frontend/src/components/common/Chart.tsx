@@ -19,7 +19,7 @@ import Paper from '@mui/material/Paper';
 import { useTheme } from '@mui/material/styles';
 import { styled } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
-import React, { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 import { useRef } from 'react';
 import ReactDOM from 'react-dom';
 import {

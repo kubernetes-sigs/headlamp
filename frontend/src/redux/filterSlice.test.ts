@@ -15,7 +15,7 @@
  */
 
 import filterReducer, {
-  FilterState,
+  type FilterState,
   initialState,
   resetFilter,
   setNamespaceFilter,

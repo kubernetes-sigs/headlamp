@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import Box, { BoxProps } from '@mui/material/Box';
+import Box, { type BoxProps } from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
@@ -27,7 +27,7 @@ import { useHistory, useParams } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
 import { deletePlugin } from '../../../lib/k8s/api/v1/pluginsApi';
 import { ConfigStore } from '../../../plugin/configStore';
-import { PluginInfo, reloadPage } from '../../../plugin/pluginsSlice';
+import { type PluginInfo, reloadPage } from '../../../plugin/pluginsSlice';
 import { clusterAction } from '../../../redux/clusterActionSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import type { AppDispatch } from '../../../redux/stores/store';

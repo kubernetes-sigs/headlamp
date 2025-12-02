@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import Pod from '../../../../lib/k8s/pod';
 import { TestContext } from '../../../../test';
 import { podList } from '../../../pod/storyHelper';
-import { MainInfoSection, MainInfoSectionProps } from './MainInfoSection';
+import { MainInfoSection, type MainInfoSectionProps } from './MainInfoSection';
 
 const resource = new Pod(podList[0]);
 

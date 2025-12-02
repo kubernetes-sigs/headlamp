@@ -15,7 +15,7 @@
  */
 
 import { updateSettingsPackages } from './index';
-import { PluginInfo } from './pluginsSlice';
+import type { PluginInfo } from './pluginsSlice';
 
 describe('updateSettingsPackages tests', () => {
   test('when sources is empty, it also returns an empty array', () => {

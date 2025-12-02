@@ -15,7 +15,7 @@
  */
 
 import Box from '@mui/material/Box';
-import CircularProgress, { CircularProgressProps } from '@mui/material/CircularProgress';
+import CircularProgress, { type CircularProgressProps } from '@mui/material/CircularProgress';
 import React from 'react';
 
 export interface LoaderProps extends CircularProgressProps {

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
-import BackLink, { BackLinkProps } from './BackLink';
+import type { Meta, StoryFn } from '@storybook/react';
+import BackLink, { type BackLinkProps } from './BackLink';
 
 export default {
   title: 'common/BackLink',

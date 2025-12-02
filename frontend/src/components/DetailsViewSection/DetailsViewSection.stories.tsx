@@ -15,14 +15,14 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import { useDispatch } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { makeMockKubeObject } from '../../test/mocker';
 import { SectionBox } from '../common/SectionBox';
-import DetailsViewSection, { DetailsViewSectionProps } from './DetailsViewSection';
+import DetailsViewSection, { type DetailsViewSectionProps } from './DetailsViewSection';
 import { setDetailsView } from './detailsViewSectionSlice';
 
 const ourState = {

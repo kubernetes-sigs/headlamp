@@ -16,10 +16,10 @@
 
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { configureStore } from '@reduxjs/toolkit';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { Provider } from 'react-redux';
-import ClusterSelector, { ClusterSelectorProps } from './ClusterSelector';
+import ClusterSelector, { type ClusterSelectorProps } from './ClusterSelector';
 
 const theme = createTheme({
   palette: {

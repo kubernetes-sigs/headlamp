@@ -17,7 +17,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import resourceTableReducer, {
   addResourceTableColumnsProcessor,
-  TableColumnsProcessor,
+  type TableColumnsProcessor,
 } from './resourceTableSlice';
 
 describe('resourceTableSlice', () => {

@@ -15,9 +15,9 @@
  */
 
 import Container from '@mui/material/Container';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { KubeDeployment } from '../../lib/k8s/deployment';
+import type { KubeDeployment } from '../../lib/k8s/deployment';
 import { TestContext } from '../../test';
 import List from './List';
 

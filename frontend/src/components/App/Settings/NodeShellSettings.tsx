@@ -22,7 +22,7 @@ import TextField from '@mui/material/TextField';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ClusterSettings,
+  type ClusterSettings,
   DEFAULT_NODE_SHELL_LINUX_IMAGE,
   DEFAULT_NODE_SHELL_NAMESPACE,
   loadClusterSettings,

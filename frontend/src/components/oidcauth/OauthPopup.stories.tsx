@@ -15,7 +15,7 @@
  */
 
 import Button from '@mui/material/Button';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { TestContext } from '../../test';
 import OauthPopup from './OauthPopup';
 

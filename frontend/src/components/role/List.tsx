@@ -22,7 +22,7 @@ import Role from '../../lib/k8s/role';
 import { useNamespaces } from '../../redux/filterSlice';
 import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
-import { ColumnType } from '../common/Resource/ResourceTable';
+import type { ColumnType } from '../common/Resource/ResourceTable';
 
 export default function RoleList({ namespaces }: { namespaces?: string[] }) {
   const { t } = useTranslation('glossary');

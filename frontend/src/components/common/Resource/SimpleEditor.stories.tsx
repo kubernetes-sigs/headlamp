@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
+import type { SimpleEditorProps } from './SimpleEditor';
 import SimpleEditor from './SimpleEditor';
-import { SimpleEditorProps } from './SimpleEditor';
 
 export default {
   title: 'Resource/SimpleEditor',

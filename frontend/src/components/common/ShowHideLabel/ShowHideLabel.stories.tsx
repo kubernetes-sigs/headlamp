@@ -15,8 +15,8 @@
  */
 
 import Box from '@mui/material/Box';
-import { Meta, StoryFn } from '@storybook/react';
-import ShowHideLabel, { ShowHideLabelProps } from './ShowHideLabel';
+import type { Meta, StoryFn } from '@storybook/react';
+import ShowHideLabel, { type ShowHideLabelProps } from './ShowHideLabel';
 
 export default {
   title: 'common/ShowHideLabel',

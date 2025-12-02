@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { KubeSecret } from '../../lib/k8s/secret';
+import type { KubeSecret } from '../../lib/k8s/secret';
 
 export const BASE_SECRET: KubeSecret = {
   apiVersion: 'v1',

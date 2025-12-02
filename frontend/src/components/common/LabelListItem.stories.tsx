@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
-import LabelListItem, { LabelListItemProps } from './LabelListItem';
+import type { Meta, StoryFn } from '@storybook/react';
+import LabelListItem, { type LabelListItemProps } from './LabelListItem';
 
 export default {
   title: 'LabelListItem',

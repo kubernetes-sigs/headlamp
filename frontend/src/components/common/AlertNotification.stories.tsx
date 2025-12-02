@@ -15,14 +15,14 @@
  */
 
 import { Button } from '@mui/material';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { SnackbarProvider, useSnackbar } from 'notistack';
 import React, { useEffect } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import store from '../../redux/stores/store';
 import { TestContext } from '../../test';
-import { PureAlertNotification, PureAlertNotificationProps } from './AlertNotification';
+import { PureAlertNotification, type PureAlertNotificationProps } from './AlertNotification';
 
 const SnackbarDisplay: React.FC<{
   show: boolean;

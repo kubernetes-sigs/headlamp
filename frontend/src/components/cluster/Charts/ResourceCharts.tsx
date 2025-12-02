@@ -16,12 +16,12 @@
 
 import '../../../i18n/config';
 import { useTranslation } from 'react-i18next';
-import { KubeMetrics } from '../../../lib/k8s/cluster';
+import type { KubeMetrics } from '../../../lib/k8s/cluster';
 import Node from '../../../lib/k8s/node';
 import Pod from '../../../lib/k8s/pod';
 import { parseCpu, parseRam, TO_GB, TO_ONE_CPU } from '../../../lib/units';
 import ResourceCircularChart, {
-  CircularChartProps as ResourceCircularChartProps,
+  type CircularChartProps as ResourceCircularChartProps,
 } from '../../common/Resource/CircularChart';
 
 export function MemoryCircularChart(props: ResourceCircularChartProps) {

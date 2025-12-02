@@ -15,13 +15,13 @@
  */
 
 import '../../../i18n/config';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import store from '../../../redux/stores/store';
+import type { ViewButtonProps } from './ViewButton';
 import ViewButton from './ViewButton';
-import { ViewButtonProps } from './ViewButton';
 
 export default {
   title: 'Resource/ViewButton',

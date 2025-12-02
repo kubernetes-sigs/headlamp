@@ -16,8 +16,8 @@
 
 import { useSelector } from 'react-redux';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-import { RootState } from '../../../redux/stores/store';
-import { GraphNode } from '../graph/graphModel';
+import type { RootState } from '../../../redux/stores/store';
+import type { GraphNode } from '../graph/graphModel';
 import { KubeObjectGlance } from './KubeObjectGlance';
 
 /**

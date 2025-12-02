@@ -22,7 +22,7 @@ import { useSelectedClusters } from '../../lib/k8s';
 import CRD from '../../lib/k8s/crd';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
-import { DefaultSidebars, SidebarItemProps } from '.';
+import { DefaultSidebars, type SidebarItemProps } from '.';
 
 /** Iterates over every entry in the list, including children */
 const forEachEntry = (items: SidebarItemProps[], cb: (item: SidebarItemProps) => void) => {

@@ -32,7 +32,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { getCluster } from '../../../lib/cluster';
 import { apply } from '../../../lib/k8s/api/v1/apply';
-import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
+import type { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { useId } from '../../../lib/util';
 import { clusterAction } from '../../../redux/clusterActionSlice';
 import {
@@ -40,11 +40,11 @@ import {
   HeadlampEventType,
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
-import { AppDispatch } from '../../../redux/stores/store';
+import type { AppDispatch } from '../../../redux/stores/store';
 import { useCurrentAppTheme } from '../../App/themeSlice';
 import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import ConfirmButton from '../ConfirmButton';
-import { Dialog, DialogProps } from '../Dialog';
+import { Dialog, type DialogProps } from '../Dialog';
 import Loader from '../Loader';
 import Tabs from '../Tabs';
 import DocsViewer from './DocsViewer';

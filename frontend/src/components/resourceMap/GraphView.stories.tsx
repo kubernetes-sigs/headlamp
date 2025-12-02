@@ -19,7 +19,7 @@ import { http, HttpResponse } from 'msw';
 import Pod from '../../lib/k8s/pod';
 import { TestContext } from '../../test';
 import { podList } from '../pod/storyHelper';
-import { GraphNode, GraphSource } from './graph/graphModel';
+import type { GraphNode, GraphSource } from './graph/graphModel';
 import { GraphView } from './GraphView';
 
 export default {

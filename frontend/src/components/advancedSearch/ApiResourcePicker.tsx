@@ -27,12 +27,12 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import Fuse, { IFuseOptions } from 'fuse.js';
+import Fuse, { type IFuseOptions } from 'fuse.js';
 import { t } from 'i18next';
 import { groupBy, xor } from 'lodash';
 import { memo, useMemo, useState } from 'react';
 import { Trans } from 'react-i18next';
-import { ApiResource, apiResourceId } from '../../lib/k8s/api/v2/ApiResource';
+import { type ApiResource, apiResourceId } from '../../lib/k8s/api/v2/ApiResource';
 import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
 
 const Node = styled('div')(() => ({

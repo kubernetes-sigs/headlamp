@@ -15,7 +15,7 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import React from 'react';
 import { Provider } from 'react-redux';

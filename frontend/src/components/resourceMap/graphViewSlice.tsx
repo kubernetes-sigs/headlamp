@@ -18,9 +18,9 @@
  * This slice contains custom graph elements and glances registered by plugins
  */
 
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { ReactNode } from 'react';
-import { GraphNode, GraphSource } from './graph/graphModel';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import type { ReactNode } from 'react';
+import type { GraphNode, GraphSource } from './graph/graphModel';
 
 export interface IconDefinition {
   /**

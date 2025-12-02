@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { KubeBackendTLSPolicy } from '../../lib/k8s/backendTLSPolicy';
-import { KubeBackendTrafficPolicy } from '../../lib/k8s/backendTrafficPolicy';
-import { KubeGateway } from '../../lib/k8s/gateway';
-import { KubeGatewayClass } from '../../lib/k8s/gatewayClass';
-import { KubeGRPCRoute } from '../../lib/k8s/grpcRoute';
-import { KubeHTTPRoute } from '../../lib/k8s/httpRoute';
-import { KubeReferenceGrant } from '../../lib/k8s/referenceGrant';
+import type { KubeBackendTLSPolicy } from '../../lib/k8s/backendTLSPolicy';
+import type { KubeBackendTrafficPolicy } from '../../lib/k8s/backendTrafficPolicy';
+import type { KubeGateway } from '../../lib/k8s/gateway';
+import type { KubeGatewayClass } from '../../lib/k8s/gatewayClass';
+import type { KubeGRPCRoute } from '../../lib/k8s/grpcRoute';
+import type { KubeHTTPRoute } from '../../lib/k8s/httpRoute';
+import type { KubeReferenceGrant } from '../../lib/k8s/referenceGrant';
 
 export const DEFAULT_GATEWAY: KubeGateway = {
   apiVersion: 'gateway.networking.k8s.io/v1beta1',

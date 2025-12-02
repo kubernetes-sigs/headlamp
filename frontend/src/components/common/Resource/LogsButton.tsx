@@ -28,7 +28,7 @@ import { useSnackbar } from 'notistack';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { clusterFetch } from '../../../lib/k8s/api/v2/fetch';
-import { KubeContainerStatus } from '../../../lib/k8s/cluster';
+import type { KubeContainerStatus } from '../../../lib/k8s/cluster';
 import DaemonSet from '../../../lib/k8s/daemonSet';
 import Deployment from '../../../lib/k8s/deployment';
 import { KubeObject } from '../../../lib/k8s/KubeObject';

@@ -15,8 +15,8 @@
  */
 
 import Fade from '@mui/material/Fade';
-import Tooltip, { TooltipProps } from '@mui/material/Tooltip';
-import { ReactElement, ReactNode } from 'react';
+import Tooltip, { type TooltipProps } from '@mui/material/Tooltip';
+import type { ReactElement, ReactNode } from 'react';
 
 export interface TooltipLightProps extends Omit<TooltipProps, 'children'> {
   /**

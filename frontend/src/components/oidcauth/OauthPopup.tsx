@@ -15,7 +15,7 @@
  */
 
 import Button from '@mui/material/Button';
-import React, { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 
 interface OauthPopupProps {
   width?: number;

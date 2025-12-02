@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { getTestDate } from '../../helpers/testHelpers';
 import Deployment from '../../lib/k8s/deployment';
 import StatefulSet from '../../lib/k8s/statefulSet';
-import { WorkloadCircleChart, WorkloadCircleChartProps } from './Charts';
+import { WorkloadCircleChart, type WorkloadCircleChartProps } from './Charts';
 
 const createMockDeployment = (name: string, readyReplicas: number, replicas: number) => {
   return new Deployment(

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { TypedUseSelectorHook, useDispatch, useSelector, useStore } from 'react-redux';
+import { type TypedUseSelectorHook, useDispatch, useSelector, useStore } from 'react-redux';
 import type { AppDispatch, AppStore, RootState } from './stores/store';
 
 // These know the types from our store.

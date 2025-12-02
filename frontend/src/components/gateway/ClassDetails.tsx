@@ -16,7 +16,7 @@
 
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import GatewayClass, { KubeGatewayClass } from '../../lib/k8s/gatewayClass';
+import GatewayClass, { type KubeGatewayClass } from '../../lib/k8s/gatewayClass';
 import { ConditionsTable, DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 

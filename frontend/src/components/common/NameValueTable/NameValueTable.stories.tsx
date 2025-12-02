@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
-import NameValueTable, { NameValueTableProps } from './NameValueTable';
+import type { Meta, StoryFn } from '@storybook/react';
+import NameValueTable, { type NameValueTableProps } from './NameValueTable';
 
 export default {
   title: 'NameValueTable',

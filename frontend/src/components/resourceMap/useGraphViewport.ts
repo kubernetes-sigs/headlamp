@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
-import { getNodesBounds, getViewportForBounds, Node, useReactFlow, useStore } from '@xyflow/react';
+import {
+  getNodesBounds,
+  getViewportForBounds,
+  type Node,
+  useReactFlow,
+  useStore,
+} from '@xyflow/react';
 import { useCallback, useMemo } from 'react';
 import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { maxZoom, minZoom, viewportPaddingPx } from './graphConstants';

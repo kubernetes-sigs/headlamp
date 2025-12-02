@@ -31,7 +31,7 @@ import { useTypedSelector } from '../../redux/hooks';
 import ActionButton from '../common/ActionButton';
 import CreateButton from '../common/Resource/CreateButton';
 import NavigationTabs from './NavigationTabs';
-import SidebarItem, { SidebarItemProps } from './SidebarItem';
+import SidebarItem, { type SidebarItemProps } from './SidebarItem';
 import { DefaultSidebars, setSidebarSelected, setWhetherSidebarOpen } from './sidebarSlice';
 import { useSidebarItems } from './useSidebarItems';
 import VersionButton from './VersionButton';

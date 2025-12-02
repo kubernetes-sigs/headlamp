@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import { ApiResource } from '../../lib/k8s/api/v2/ApiResource';
+import type { ApiResource } from '../../lib/k8s/api/v2/ApiResource';
 import { TestContext } from '../../test';
 import { EmptyResults } from './EmptyResults';
 

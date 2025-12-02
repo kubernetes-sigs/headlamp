@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import Ingress from '../../lib/k8s/ingress';
-import { LinkStringFormat, LinkStringFormatProps } from './Details';
+import { LinkStringFormat, type LinkStringFormatProps } from './Details';
 
 export default {
   title: 'ingress/LinkStringFormat',
