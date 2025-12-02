@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { Edge, EdgeMarker, Node } from '@xyflow/react';
-import { ElkExtendedEdge, ElkNode } from 'elkjs';
+import type { Edge, EdgeMarker, Node } from '@xyflow/react';
+import type { ElkExtendedEdge, ElkNode } from 'elkjs';
 import ELK, { type ELK as ELKInterface } from 'elkjs/lib/elk-api';
 import elkWorker from 'elkjs/lib/elk-worker.min.js?url';
-import { forEachNode, getNodeWeight, GraphNode } from './graphModel';
+import { forEachNode, getNodeWeight, type GraphNode } from './graphModel';
 
 type ElkNodeWithData = Omit<ElkNode, 'edges'> & {
   type: string;

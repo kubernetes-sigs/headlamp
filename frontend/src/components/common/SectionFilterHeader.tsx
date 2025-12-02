@@ -22,7 +22,7 @@ import { useLocation } from 'react-router-dom';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { NamespacesAutocomplete } from './NamespacesAutocomplete';
-import SectionHeader, { SectionHeaderProps } from './SectionHeader';
+import SectionHeader, { type SectionHeaderProps } from './SectionHeader';
 
 /**
  * Get the filter value by name from the URL

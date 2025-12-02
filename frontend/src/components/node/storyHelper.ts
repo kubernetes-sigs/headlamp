@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { KubeNode } from '../../lib/k8s/node';
+import type { KubeNode } from '../../lib/k8s/node';
 
 const creationTimestamp = new Date('2022-01-01').toISOString();
 

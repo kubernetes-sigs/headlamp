@@ -17,13 +17,13 @@
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { configureStore } from '@reduxjs/toolkit';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { useLocation } from 'react-router-dom';
-import { KubeObjectInterface } from '../../lib/k8s/KubeObject';
+import type { KubeObjectInterface } from '../../lib/k8s/KubeObject';
 import { useFilterFunc } from '../../lib/util';
-import { TestContext, TestContextProps } from '../../test';
+import { TestContext, type TestContextProps } from '../../test';
 import SectionFilterHeader from './SectionFilterHeader';
-import SimpleTable, { SimpleTableProps } from './SimpleTable';
+import SimpleTable, { type SimpleTableProps } from './SimpleTable';
 
 export default {
   title: 'SimpleTable',

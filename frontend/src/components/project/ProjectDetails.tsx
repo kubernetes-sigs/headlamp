@@ -16,7 +16,14 @@
 
 import { Icon } from '@iconify/react';
 import { Box, Button, Card, CardContent, Grid, Tab, Tabs, Typography } from '@mui/material';
-import React, { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { KubeObject } from '../../lib/k8s/KubeObject';
@@ -25,13 +32,13 @@ import Role from '../../lib/k8s/role';
 import RoleBinding from '../../lib/k8s/roleBinding';
 import { SelectedClustersContext } from '../../lib/k8s/SelectedClustersContext';
 import { useTypedSelector } from '../../redux/hooks';
-import { ProjectDefinition, ProjectDetailsTab } from '../../redux/projectsSlice';
+import type { ProjectDefinition, ProjectDetailsTab } from '../../redux/projectsSlice';
 import { Activity } from '../activity/Activity';
-import { ButtonStyle, EditButton, EditorDialog, Loader, StatusLabel } from '../common';
+import { type ButtonStyle, EditButton, EditorDialog, Loader, StatusLabel } from '../common';
 import Link from '../common/Link';
 import ResourceTable from '../common/Resource/ResourceTable';
 import SectionBox from '../common/SectionBox';
-import { GraphFilter } from '../resourceMap/graph/graphFiltering';
+import type { GraphFilter } from '../resourceMap/graph/graphFiltering';
 import { GraphView } from '../resourceMap/GraphView';
 import { ResourceQuotaTable } from '../resourceQuota/Details';
 import { ProjectDeleteButton } from './ProjectDeleteButton';

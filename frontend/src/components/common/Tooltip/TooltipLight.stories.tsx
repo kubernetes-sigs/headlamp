@@ -16,9 +16,9 @@
 
 import { Icon } from '@iconify/react';
 import IconButton from '@mui/material/IconButton';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import i18next from 'i18next';
-import TooltipLight, { TooltipLightProps } from './TooltipLight';
+import TooltipLight, { type TooltipLightProps } from './TooltipLight';
 
 export default {
   title: 'Tooltip/TooltipLight',

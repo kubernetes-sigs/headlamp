@@ -17,7 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
 import { ResourceClasses } from '../../lib/k8s';
-import Endpoints, { KubeEndpoint } from '../../lib/k8s/endpoints';
+import Endpoints, { type KubeEndpoint } from '../../lib/k8s/endpoints';
 import Empty from '../common/EmptyContent';
 import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';

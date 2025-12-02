@@ -17,8 +17,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ResourceClasses } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
-import { ApiResource } from '../../../lib/k8s/api/v2/ApiResource';
-import { KubeObject, KubeObjectClass } from '../../../lib/k8s/cluster';
+import type { ApiResource } from '../../../lib/k8s/api/v2/ApiResource';
+import { KubeObject, type KubeObjectClass } from '../../../lib/k8s/cluster';
 import { useNamespaces } from '../../../redux/filterSlice';
 
 /**

@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext, TestContextProps } from '../../test';
+import { TestContext, type TestContextProps } from '../../test';
 import CustomResourceDefinitionDetails from './Details';
 import CustomResourceDefinitionList from './List';
 import { mockCRD, mockCRList } from './storyHelper';

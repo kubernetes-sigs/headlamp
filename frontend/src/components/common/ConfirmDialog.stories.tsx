@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import { ConfirmDialog as ConfirmDialogComponent, ConfirmDialogProps } from './Dialog';
+import { ConfirmDialog as ConfirmDialogComponent, type ConfirmDialogProps } from './Dialog';
 
 export default {
   title: 'ConfirmDialog',

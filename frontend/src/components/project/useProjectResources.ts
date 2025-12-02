@@ -17,7 +17,7 @@
 import { uniqBy } from 'lodash';
 import { useMemo } from 'react';
 import { apiResourceId } from '../../lib/k8s/api/v2/ApiResource';
-import { ProjectDefinition } from '../../redux/projectsSlice';
+import type { ProjectDefinition } from '../../redux/projectsSlice';
 import { useKubeLists } from '../advancedSearch/utils/useKubeLists';
 import { defaultApiResources } from './projectUtils';
 

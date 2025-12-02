@@ -15,13 +15,13 @@
  */
 
 import '../../../i18n/config';
-import _, { List } from 'lodash';
+import _, { type List } from 'lodash';
 import { useTranslation } from 'react-i18next';
-import { KubeMetrics } from '../../../lib/k8s/cluster';
+import type { KubeMetrics } from '../../../lib/k8s/cluster';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import Node from '../../../lib/k8s/node';
 import Pod from '../../../lib/k8s/pod';
-import { PercentageCircleProps } from '../Chart';
+import type { PercentageCircleProps } from '../Chart';
 import TileChart from '../TileChart';
 
 export interface CircularChartProps extends Omit<PercentageCircleProps, 'data'> {

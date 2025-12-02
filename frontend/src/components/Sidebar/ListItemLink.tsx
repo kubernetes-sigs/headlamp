@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Icon, IconProps } from '@iconify/react';
+import { Icon, type IconProps } from '@iconify/react';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
@@ -22,7 +22,7 @@ import { styled } from '@mui/material/styles';
 import Tooltip from '@mui/material/Tooltip';
 import { alpha } from '@mui/system/colorManipulator';
 import React from 'react';
-import { Link as RouterLink, LinkProps as RouterLinkProps } from 'react-router-dom';
+import { Link as RouterLink, type LinkProps as RouterLinkProps } from 'react-router-dom';
 
 const ExpandedIconSize = 20;
 const CollapsedIconSize = 24;

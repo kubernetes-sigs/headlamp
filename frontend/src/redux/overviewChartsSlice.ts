@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { ReactNode } from 'react';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import type { ReactNode } from 'react';
 
 export interface OverviewChart {
   id: string;

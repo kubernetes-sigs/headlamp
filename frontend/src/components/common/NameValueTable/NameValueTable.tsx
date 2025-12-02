@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { GridProps } from '@mui/material/Grid';
+import type { GridProps } from '@mui/material/Grid';
 import Grid from '@mui/material/Grid';
-import React, { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 import { ValueLabel } from '../Label';
 
 // TODO: use ReactNode after migration to react 18

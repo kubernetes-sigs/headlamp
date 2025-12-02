@@ -16,7 +16,7 @@
 
 import { Icon } from '@iconify/react';
 import { alpha, Box, Button, useTheme } from '@mui/material';
-import React, { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 import { Trans } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { setDetailDrawerEnabled } from '../../../redux/drawerModeSlice';

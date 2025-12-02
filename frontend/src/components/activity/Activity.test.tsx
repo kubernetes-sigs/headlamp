@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Activity, activitySlice, ActivityState } from './Activity';
+import { Activity, activitySlice, type ActivityState } from './Activity';
 
 const { reducer, actions } = activitySlice;
 const { launchActivity, close, update } = actions;

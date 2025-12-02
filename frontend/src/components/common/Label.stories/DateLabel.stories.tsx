@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
-import { DateLabel as DateLabelComponent, DateLabelProps } from '../Label';
+import type { Meta, StoryFn } from '@storybook/react';
+import { DateLabel as DateLabelComponent, type DateLabelProps } from '../Label';
 
 export default {
   title: 'Label/DateLabel',

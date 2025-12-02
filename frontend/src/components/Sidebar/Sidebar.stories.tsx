@@ -15,7 +15,7 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
 import { SnackbarProvider } from 'notistack';
@@ -25,7 +25,7 @@ import { initialState as FILTER_INITIAL_STATE } from '../../redux/filterSlice';
 import { uiSlice } from '../../redux/uiSlice';
 import { TestContext } from '../../test';
 import Sidebar, { DefaultSidebars, PureSidebar } from './Sidebar';
-import { initialState as SIDEBAR_INITIAL_STATE, SidebarState } from './sidebarSlice';
+import { initialState as SIDEBAR_INITIAL_STATE, type SidebarState } from './sidebarSlice';
 
 export default {
   title: 'Sidebar/Sidebar',

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { IconProps } from '@iconify/react';
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import type { IconProps } from '@iconify/react';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
 export enum DefaultSidebars {
   HOME = 'HOME',

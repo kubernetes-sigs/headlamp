@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { createStore } from 'redux';
 import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
-import Link, { LinkProps } from './Link';
+import Link, { type LinkProps } from './Link';
 
 const store = createStore(reducers);
 

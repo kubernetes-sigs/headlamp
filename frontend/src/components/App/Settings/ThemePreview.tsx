@@ -16,7 +16,7 @@
 
 import { Box } from '@mui/system';
 import { useMemo } from 'react';
-import { AppTheme } from '../../../lib/AppTheme';
+import type { AppTheme } from '../../../lib/AppTheme';
 import { createMuiTheme } from '../../../lib/themes';
 
 export function ThemePreview({ theme, size = 50 }: { theme: AppTheme; size?: number }) {

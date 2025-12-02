@@ -16,10 +16,10 @@
 
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import NotFoundImage from '../../../assets/headlamp-404.svg';
-import ErrorComponent, { ErrorComponentProps } from '.';
+import ErrorComponent, { type ErrorComponentProps } from '.';
 
 export default {
   title: 'common/GenericError',

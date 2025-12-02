@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { KubeObject } from '../../../lib/k8s/cluster';
 import Deployment from '../../../lib/k8s/deployment';
 import Endpoints from '../../../lib/k8s/endpoints';
-import Event, { KubeEvent } from '../../../lib/k8s/event';
+import Event, { type KubeEvent } from '../../../lib/k8s/event';
 import HPA from '../../../lib/k8s/hpa';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';

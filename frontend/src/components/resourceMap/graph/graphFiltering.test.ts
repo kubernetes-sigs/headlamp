@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { KubeMetadata } from '../../../lib/k8s/KubeMetadata';
+import type { KubeMetadata } from '../../../lib/k8s/KubeMetadata';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-import { filterGraph, GraphFilter } from './graphFiltering';
-import { GraphEdge, GraphNode } from './graphModel';
+import { filterGraph, type GraphFilter } from './graphFiltering';
+import type { GraphEdge, GraphNode } from './graphModel';
 
 describe('filterGraph', () => {
   const nodes: GraphNode[] = [

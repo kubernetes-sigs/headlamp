@@ -20,7 +20,7 @@ import { LimitRange } from '../../lib/k8s/limitRange';
 import { useNamespaces } from '../../redux/filterSlice';
 import { CreateResourceButton } from '../common/CreateResourceButton';
 import ResourceListView from '../common/Resource/ResourceListView';
-import { SimpleTableProps } from '../common/SimpleTable';
+import type { SimpleTableProps } from '../common/SimpleTable';
 
 export interface LimitRangeProps {
   limitRanges: LimitRange[] | null;

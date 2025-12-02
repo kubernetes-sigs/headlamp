@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import type { PluginInfo } from '../../../plugin/pluginsSlice';
 import { TestContext } from '../../../test';
-import { PluginSettingsPure, PluginSettingsPureProps } from './PluginSettings';
+import { PluginSettingsPure, type PluginSettingsPureProps } from './PluginSettings';
 
 export default {
   title: 'Settings/PluginSettings',

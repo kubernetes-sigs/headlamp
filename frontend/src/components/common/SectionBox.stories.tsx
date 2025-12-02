@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
-import SectionBox, { SectionBoxProps } from './SectionBox';
+import type { Meta, StoryFn } from '@storybook/react';
+import SectionBox, { type SectionBoxProps } from './SectionBox';
 
 export default {
   title: 'SectionBox',

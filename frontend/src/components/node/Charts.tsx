@@ -17,7 +17,7 @@
 import Typography from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { KubeMetrics } from '../../lib/k8s/cluster';
+import type { KubeMetrics } from '../../lib/k8s/cluster';
 import Node from '../../lib/k8s/node';
 import { getPercentStr, getResourceMetrics, getResourceStr } from '../../lib/util';
 import { PercentageBar } from '../common/Chart';

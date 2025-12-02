@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { useSelector } from 'react-redux';
-import { AppTheme } from '../../lib/AppTheme';
+import type { AppTheme } from '../../lib/AppTheme';
 import { getThemeName, setTheme as setAppTheme } from '../../lib/themes';
-import { AppLogoType } from './AppLogo';
+import type { AppLogoType } from './AppLogo';
 import defaultAppThemes from './defaultAppThemes';
 export interface ThemeState {
   /**

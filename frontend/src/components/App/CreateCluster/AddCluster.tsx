@@ -26,9 +26,9 @@ import { useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
-import { ClusterProviderInfo } from '../../../redux/clusterProviderSlice';
+import type { ClusterProviderInfo } from '../../../redux/clusterProviderSlice';
 import { useTypedSelector } from '../../../redux/hooks';
-import { DialogProps } from '../../common/Dialog';
+import type { DialogProps } from '../../common/Dialog';
 import { PageGrid } from '../../common/Resource';
 import SectionBox from '../../common/SectionBox';
 

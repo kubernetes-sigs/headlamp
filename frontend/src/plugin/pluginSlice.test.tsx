@@ -16,10 +16,10 @@
 
 import React from 'react';
 import {
-  PluginInfo,
-  PluginSettingsComponentType,
+  type PluginInfo,
+  type PluginSettingsComponentType,
   pluginsSlice,
-  PluginsState,
+  type PluginsState,
 } from './pluginsSlice';
 
 // initial state for the plugins slice

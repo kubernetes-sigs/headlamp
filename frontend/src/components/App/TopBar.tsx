@@ -37,9 +37,9 @@ import { useCluster, useClustersConf } from '../../lib/k8s';
 import { clusterRequest } from '../../lib/k8s/api/v1/clusterRequests';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import {
-  AppBarAction,
-  AppBarActionsProcessor,
-  AppBarActionType,
+  type AppBarAction,
+  type AppBarActionsProcessor,
+  type AppBarActionType,
   DefaultAppBarAction,
 } from '../../redux/actionButtonsSlice';
 import { useTypedSelector } from '../../redux/hooks';

@@ -15,10 +15,10 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { TestContext } from '../../test';
-import { AppLogo, AppLogoProps } from './AppLogo';
+import { AppLogo, type AppLogoProps } from './AppLogo';
 
 const getMockState = (themeName: 'light' | 'dark' = 'light', loaded = true, logo: any = null) => ({
   plugins: { loaded },

@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
+import type { OverviewChart } from './overviewChartsSlice';
 import overviewChartsReducer, {
   addOverviewChartsProcessor,
-  OverviewChartsProcessor,
+  type OverviewChartsProcessor,
 } from './overviewChartsSlice';
-import { OverviewChart } from './overviewChartsSlice';
 
 describe('overviewChartsSlice', () => {
   const initialState = {

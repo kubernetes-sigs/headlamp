@@ -17,15 +17,15 @@
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import { Theme } from '@mui/material/styles';
-import Typography, { TypographyProps } from '@mui/material/Typography';
+import type { Theme } from '@mui/material/styles';
+import Typography, { type TypographyProps } from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ResourceClasses, useSelectedClusters } from '../../../lib/k8s';
-import { KubeOwnerReference } from '../../../lib/k8s/cluster';
+import type { KubeOwnerReference } from '../../../lib/k8s/cluster';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { localeDate } from '../../../lib/util';
-import { NameValueTable, NameValueTableRow } from '../../common/SimpleTable';
+import { NameValueTable, type NameValueTableRow } from '../../common/SimpleTable';
 import Link from '../Link';
 import { LightTooltip } from '../Tooltip';
 

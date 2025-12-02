@@ -16,7 +16,7 @@
 
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
-import { Variant } from '@mui/material/styles/createTypography';
+import type { Variant } from '@mui/material/styles/createTypography';
 import Typography from '@mui/material/Typography';
 import React from 'react';
 

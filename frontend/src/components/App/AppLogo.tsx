@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { Theme } from '@mui/material/styles';
-import { SxProps } from '@mui/system';
-import React, { isValidElement, ReactElement } from 'react';
+import type { Theme } from '@mui/material/styles';
+import type { SxProps } from '@mui/system';
+import React, { isValidElement, type ReactElement } from 'react';
 import { getThemeName, useNavBarMode } from '../../lib/themes';
 import { useTypedSelector } from '../../redux/hooks';
 import LogoDark from '../../resources/icon-dark.svg?react';

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { GraphEdge, GraphNode } from './graphModel';
+import type { GraphEdge, GraphNode } from './graphModel';
 
 /**
  * Constant time lookup of graph elements

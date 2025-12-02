@@ -15,12 +15,12 @@
  */
 
 import { Paper } from '@mui/material';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import store from '../../redux/stores/store';
 import { TestContext } from '../../test';
-import HeadlampButton, { HeadlampButtonProps } from './HeadlampButton';
+import HeadlampButton, { type HeadlampButtonProps } from './HeadlampButton';
 export default {
   title: 'Sidebar/HeadlampButton',
   component: HeadlampButton,

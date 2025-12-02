@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { KubeCronJob } from '../../lib/k8s/cronJob';
+import type { KubeCronJob } from '../../lib/k8s/cronJob';
 
 const creationTimestamp = new Date('2022-01-01').toISOString();
 // const stateDate = new Date(new Date(creationTimestamp).getTime() + 1000 * 60 * 5).toISOString();

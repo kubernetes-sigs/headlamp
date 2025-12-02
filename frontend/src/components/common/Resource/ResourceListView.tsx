@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import React, { PropsWithChildren, ReactElement, ReactNode } from 'react';
-import { KubeObject, KubeObjectClass } from '../../../lib/k8s/KubeObject';
-import { BackLinkProps } from '../BackLink';
+import React, { type PropsWithChildren, type ReactElement, type ReactNode } from 'react';
+import { KubeObject, type KubeObjectClass } from '../../../lib/k8s/KubeObject';
+import type { BackLinkProps } from '../BackLink';
 import { CreateResourceButton } from '../CreateResourceButton';
 import SectionBox from '../SectionBox';
-import SectionFilterHeader, { SectionFilterHeaderProps } from '../SectionFilterHeader';
-import ResourceTable, { ResourceTableProps } from './ResourceTable';
+import SectionFilterHeader, { type SectionFilterHeaderProps } from '../SectionFilterHeader';
+import ResourceTable, { type ResourceTableProps } from './ResourceTable';
 
 export interface ResourceListViewProps<Item extends KubeObject>
   extends PropsWithChildren<Omit<ResourceTableProps<Item>, 'data'>> {

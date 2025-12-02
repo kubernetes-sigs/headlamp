@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { Icon, IconifyIcon, IconProps } from '@iconify/react';
-import IconButton, { IconButtonProps } from '@mui/material/IconButton';
+import { Icon, type IconifyIcon, type IconProps } from '@iconify/react';
+import IconButton, { type IconButtonProps } from '@mui/material/IconButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import MenuItem from '@mui/material/MenuItem';

@@ -28,7 +28,7 @@ import { getCluster } from '../../lib/cluster';
 import Namespace from '../../lib/k8s/namespace';
 import { clusterAction } from '../../redux/clusterActionSlice';
 import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
-import { AppDispatch } from '../../redux/stores/store';
+import type { AppDispatch } from '../../redux/stores/store';
 import ActionButton from '../common/ActionButton';
 import { AuthVisible } from '../common/Resource';
 

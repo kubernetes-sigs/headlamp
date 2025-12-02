@@ -20,12 +20,12 @@ import { useLocation } from 'react-router-dom';
 import { KubeObject } from '../../../../lib/k8s/KubeObject';
 import {
   DefaultHeaderAction,
-  HeaderAction,
-  HeaderActionType,
+  type HeaderAction,
+  type HeaderActionType,
 } from '../../../../redux/actionButtonsSlice';
 import { useTypedSelector } from '../../../../redux/hooks';
 import ErrorBoundary from '../../ErrorBoundary';
-import SectionHeader, { HeaderStyle } from '../../SectionHeader';
+import SectionHeader, { type HeaderStyle } from '../../SectionHeader';
 import CopyButton from '../CopyButton';
 import DeleteButton from '../DeleteButton';
 import EditButton from '../EditButton';

@@ -19,30 +19,30 @@ import Editor from '@monaco-editor/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
-import Grid, { GridProps } from '@mui/material/Grid';
+import Grid, { type GridProps } from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
-import Input, { InputProps } from '@mui/material/Input';
+import Input, { type InputProps } from '@mui/material/Input';
 import InputLabel from '@mui/material/InputLabel';
 import Paper from '@mui/material/Paper';
-import { BaseTextFieldProps } from '@mui/material/TextField';
+import type { BaseTextFieldProps } from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/system';
-import { Location } from 'history';
+import type { Location } from 'history';
 import _, { has } from 'lodash';
-import React, { PropsWithChildren, ReactNode } from 'react';
+import React, { type PropsWithChildren, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { generatePath, NavLinkProps, useLocation } from 'react-router-dom';
+import { generatePath, type NavLinkProps, useLocation } from 'react-router-dom';
 import YAML from 'yaml';
 import { labelSelectorToQuery, ResourceClasses, useCluster } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
-import { KubeCondition, KubeContainer, KubeContainerStatus } from '../../../lib/k8s/cluster';
-import { KubeEvent } from '../../../lib/k8s/event';
+import type { KubeCondition, KubeContainer, KubeContainerStatus } from '../../../lib/k8s/cluster';
+import type { KubeEvent } from '../../../lib/k8s/event';
+import type { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
+import type { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
-import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
-import Pod, { KubePod, KubeVolume } from '../../../lib/k8s/pod';
+import Pod, { type KubePod, type KubeVolume } from '../../../lib/k8s/pod';
 import { METRIC_REFETCH_INTERVAL_MS, PodMetrics } from '../../../lib/k8s/PodMetrics';
-import { RouteURLProps } from '../../../lib/router';
+import type { RouteURLProps } from '../../../lib/router';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { getThemeName } from '../../../lib/themes';
 import { localeDate, useId } from '../../../lib/util';
@@ -53,18 +53,24 @@ import { SectionBox } from '../../common/SectionBox';
 import SimpleTable, { NameValueTable } from '../../common/SimpleTable';
 import {
   DefaultDetailsViewSection,
-  DetailsViewSection,
+  type DetailsViewSection,
 } from '../../DetailsViewSection/detailsViewSectionSlice';
-import { PodListProps, PodListRenderer } from '../../pod/List';
+import { type PodListProps, PodListRenderer } from '../../pod/List';
 import { LightTooltip, Loader, ObjectEventList } from '..';
 import BackLink from '../BackLink';
 import Empty from '../EmptyContent';
 import ErrorBoundary from '../ErrorBoundary';
 import InnerTable from '../InnerTable';
-import { DateLabel, HoverInfoLabel, StatusLabel, StatusLabelProps, ValueLabel } from '../Label';
-import Link, { LinkProps } from '../Link';
+import {
+  DateLabel,
+  HoverInfoLabel,
+  StatusLabel,
+  type StatusLabelProps,
+  ValueLabel,
+} from '../Label';
+import Link, { type LinkProps } from '../Link';
 import { metadataStyles } from '.';
-import { MainInfoSection, MainInfoSectionProps } from './MainInfoSection/MainInfoSection';
+import { MainInfoSection, type MainInfoSectionProps } from './MainInfoSection/MainInfoSection';
 import { MainInfoHeader } from './MainInfoSection/MainInfoSectionHeader';
 import { MetadataDictGrid, MetadataDisplay } from './MetadataDisplay';
 import PortForward from './PortForward';

@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { KubeNamespace } from '../../lib/k8s/namespace';
+import type { KubeNamespace } from '../../lib/k8s/namespace';
 import { TestContext } from '../../test';
 import NamespaceDetails from './Details';
 

@@ -15,7 +15,7 @@
  */
 
 import { Icon } from '@iconify/react';
-import ButtonBase, { ButtonBaseProps } from '@mui/material/ButtonBase';
+import ButtonBase, { type ButtonBaseProps } from '@mui/material/ButtonBase';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import { useTheme } from '@mui/material/styles';

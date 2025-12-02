@@ -20,7 +20,7 @@
  */
 
 import nock from 'nock';
-import { Mock, MockedFunction } from 'vitest';
+import type { Mock, MockedFunction } from 'vitest';
 import WS from 'vitest-websocket-mock';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
 import * as cluster from '../../../cluster';

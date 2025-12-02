@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { KubePersistentVolume } from '../../lib/k8s/persistentVolume';
-import { KubePersistentVolumeClaim } from '../../lib/k8s/persistentVolumeClaim';
-import { KubeStorageClass } from '../../lib/k8s/storageClass';
+import type { KubePersistentVolume } from '../../lib/k8s/persistentVolume';
+import type { KubePersistentVolumeClaim } from '../../lib/k8s/persistentVolumeClaim';
+import type { KubeStorageClass } from '../../lib/k8s/storageClass';
 
 export const BASE_SC: KubeStorageClass = {
   apiVersion: 'v1',

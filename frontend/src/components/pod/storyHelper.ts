@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { KubePod } from '../../lib/k8s/pod';
+import type { KubePod } from '../../lib/k8s/pod';
 
 const creationTimestamp = new Date('2022-01-01').toISOString();
 const stateDate = new Date(new Date(creationTimestamp).getTime() + 1000 * 60 * 5).toISOString();

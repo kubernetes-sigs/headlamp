@@ -27,7 +27,7 @@ import { getRoute } from '../../lib/router';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
 import Tabs from '../common/Tabs';
-import { SidebarItemProps } from '../Sidebar';
+import type { SidebarItemProps } from '../Sidebar';
 import { getFullURLOnRoute } from './SidebarItem';
 import { useSidebarItems } from './useSidebarItems';
 

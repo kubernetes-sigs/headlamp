@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { Theme } from '@mui/material/styles';
+import type { Theme } from '@mui/material/styles';
 import MuiTab from '@mui/material/Tab';
 import MuiTabs from '@mui/material/Tabs';
-import Typography, { TypographyProps } from '@mui/material/Typography';
-import { SxProps } from '@mui/system';
-import React, { ReactNode } from 'react';
+import Typography, { type TypographyProps } from '@mui/material/Typography';
+import type { SxProps } from '@mui/system';
+import React, { type ReactNode } from 'react';
 import { useId } from '../../lib/util';
 
 /**

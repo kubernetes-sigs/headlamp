@@ -21,7 +21,7 @@ import { Provider } from 'react-redux';
 import App from '../../App';
 import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
-import { DefaultSidebars, SidebarEntry } from './sidebarSlice';
+import { DefaultSidebars, type SidebarEntry } from './sidebarSlice';
 import { useSidebarItems } from './useSidebarItems';
 
 // Fix for a circular dependency issue

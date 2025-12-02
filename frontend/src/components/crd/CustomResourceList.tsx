@@ -18,11 +18,11 @@ import { JSONPath } from 'jsonpath-plus';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import CRD, { KubeCRD } from '../../lib/k8s/crd';
+import CRD, { type KubeCRD } from '../../lib/k8s/crd';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { localeDate } from '../../lib/util';
 import { EmptyContent as Empty, Link, Loader, ResourceListView } from '../common';
-import { ResourceTableColumn, ResourceTableProps } from '../common/Resource/ResourceTable';
+import type { ResourceTableColumn, ResourceTableProps } from '../common/Resource/ResourceTable';
 
 export default function CustomResourceList() {
   const { t } = useTranslation(['glossary', 'translation']);

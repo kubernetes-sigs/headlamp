@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { KubeConfigMap } from '../../lib/k8s/configMap';
+import type { KubeConfigMap } from '../../lib/k8s/configMap';
 
 export const BASE_CONFIG_MAP: KubeConfigMap = {
   apiVersion: 'v1',

@@ -17,18 +17,18 @@
 import Box from '@mui/material/Box';
 import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
-import { TableCellProps } from '@mui/material/TableCell';
+import type { TableCellProps } from '@mui/material/TableCell';
 import {
   MRT_FilterFns,
-  MRT_Row,
-  MRT_SortingFn,
-  MRT_SortingState,
-  MRT_TableInstance,
-  MRT_VisibilityState,
+  type MRT_Row,
+  type MRT_SortingFn,
+  type MRT_SortingState,
+  type MRT_TableInstance,
+  type MRT_VisibilityState,
 } from 'material-react-table';
 import {
-  ComponentProps,
-  ReactNode,
+  type ComponentProps,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -38,10 +38,10 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
+import type { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 import { useFilterFunc } from '../../../lib/util';
-import { DefaultHeaderAction, RowAction } from '../../../redux/actionButtonsSlice';
+import { DefaultHeaderAction, type RowAction } from '../../../redux/actionButtonsSlice';
 import { useNamespaces } from '../../../redux/filterSlice';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../../redux/hooks';
@@ -50,7 +50,7 @@ import { ClusterGroupErrorMessage } from '../../cluster/ClusterGroupErrorMessage
 import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import { DateLabel } from '../Label';
 import Link from '../Link';
-import Table, { TableColumn } from '../Table';
+import Table, { type TableColumn } from '../Table';
 import DeleteButton from './DeleteButton';
 import EditButton from './EditButton';
 import ResourceTableMultiActions from './ResourceTableMultiActions';

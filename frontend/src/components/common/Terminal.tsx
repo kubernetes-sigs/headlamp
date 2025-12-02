@@ -16,7 +16,7 @@
 
 import '@xterm/xterm/css/xterm.css';
 import Box from '@mui/material/Box';
-import { DialogProps } from '@mui/material/Dialog';
+import type { DialogProps } from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';

@@ -27,9 +27,9 @@ import {
 } from '../../helpers/clusterSettings';
 import { getCluster } from '../../lib/cluster';
 import { apply } from '../../lib/k8s/api/v1/apply';
-import { stream, StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
+import { stream, type StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
 import Node from '../../lib/k8s/node';
-import { KubePod } from '../../lib/k8s/pod';
+import type { KubePod } from '../../lib/k8s/pod';
 
 const decoder = new TextDecoder('utf-8');
 const encoder = new TextEncoder();

@@ -16,12 +16,12 @@
 
 import Grid from '@mui/material/Grid';
 import List from '@mui/material/List';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import store from '../../redux/stores/store';
-import SidebarItem, { SidebarItemProps } from './SidebarItem';
+import SidebarItem, { type SidebarItemProps } from './SidebarItem';
 
 export default {
   title: 'Sidebar/SidebarItem',

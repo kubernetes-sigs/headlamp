@@ -16,7 +16,7 @@
 
 import { Box, Button, styled, Typography } from '@mui/material';
 import { Trans } from 'react-i18next';
-import { ApiResource } from '../../lib/k8s/api/v2/ApiResource';
+import type { ApiResource } from '../../lib/k8s/api/v2/ApiResource';
 import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
 
 const StyledPre = styled('pre')({

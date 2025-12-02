@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import SimpleTable, { SimpleTableProps } from './SimpleTable';
+import SimpleTable, { type SimpleTableProps } from './SimpleTable';
 
 export default function InnerTable(props: SimpleTableProps) {
   return (

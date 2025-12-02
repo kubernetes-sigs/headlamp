@@ -17,12 +17,12 @@
 import _ from 'lodash';
 import React, { useContext, useMemo } from 'react';
 import { useHistory } from 'react-router-dom';
-import { ConfigState } from '../../redux/configSlice';
+import type { ConfigState } from '../../redux/configSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { getCluster, getSelectedClusters } from '../cluster';
 import { clusterRequest } from './api/v1/clusterRequests';
 import { ApiError } from './api/v2/ApiError';
-import { Cluster, LabelSelector, StringDict } from './cluster';
+import type { Cluster, LabelSelector, StringDict } from './cluster';
 import ClusterRole from './clusterRole';
 import ClusterRoleBinding from './clusterRoleBinding';
 import ConfigMap from './configMap';

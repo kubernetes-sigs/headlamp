@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
-import { Component, ComponentType, isValidElement, ReactElement, ReactNode } from 'react';
+import {
+  Component,
+  type ComponentType,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import { eventAction, HeadlampEventType } from '../../../redux/headlampEventSlice';
 import store from '../../../redux/stores/store';
 

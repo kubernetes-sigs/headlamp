@@ -15,7 +15,7 @@
  */
 
 import { Icon } from '@iconify/react';
-import { Editor, Monaco, useMonaco } from '@monaco-editor/react';
+import { Editor, type Monaco, useMonaco } from '@monaco-editor/react';
 import {
   Alert,
   Box,
@@ -30,7 +30,7 @@ import * as monaco from 'monaco-editor';
 import React from 'react';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { ApiResource } from '../../lib/k8s/api/v2/ApiResource';
+import type { ApiResource } from '../../lib/k8s/api/v2/ApiResource';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { Activity } from '../activity/Activity';
 import { EditorDialog, Link } from '../common';

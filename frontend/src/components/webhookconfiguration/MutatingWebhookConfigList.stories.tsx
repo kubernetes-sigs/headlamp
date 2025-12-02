@@ -15,7 +15,7 @@
  */
 
 import Container from '@mui/material/Container';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import MutatingWebhookConfiguration from '../../lib/k8s/mutatingWebhookConfiguration';
 import { TestContext } from '../../test';

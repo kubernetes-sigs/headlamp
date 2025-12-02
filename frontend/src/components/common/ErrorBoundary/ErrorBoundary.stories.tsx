@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import ErrorBoundary, { ErrorBoundaryProps } from './ErrorBoundary';
+import ErrorBoundary, { type ErrorBoundaryProps } from './ErrorBoundary';
 
 function BrokenComponent() {
   throw 'Error overlay only shown in dev mode. Close to see ErrorBoundary.';

@@ -16,8 +16,8 @@
 
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { WorkloadClass } from '../../lib/k8s/Workload';
-import { Workload } from '../../lib/k8s/Workload';
+import type { WorkloadClass } from '../../lib/k8s/Workload';
+import type { Workload } from '../../lib/k8s/Workload';
 import {
   ConditionsSection,
   ContainersSection,

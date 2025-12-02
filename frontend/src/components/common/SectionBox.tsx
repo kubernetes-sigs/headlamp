@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import Box, { BoxProps } from '@mui/material/Box';
+import Box, { type BoxProps } from '@mui/material/Box';
 import React from 'react';
-import BackLink, { BackLinkProps } from './BackLink';
-import SectionHeader, { SectionHeaderProps } from './SectionHeader';
+import BackLink, { type BackLinkProps } from './BackLink';
+import SectionHeader, { type SectionHeaderProps } from './SectionHeader';
 
 export interface SectionBoxProps extends Omit<BoxProps, 'title'> {
   title?: React.ReactNode;

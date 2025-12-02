@@ -25,12 +25,12 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { clamp, throttle } from 'lodash';
 import React, {
   createContext,
-  ReactNode,
-  RefObject,
+  type ReactNode,
+  type RefObject,
   Suspense,
   useCallback,
   useContext,

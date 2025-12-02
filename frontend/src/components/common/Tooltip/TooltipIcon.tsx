@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Icon, IconProps } from '@iconify/react';
+import { Icon, type IconProps } from '@iconify/react';
 import Container from '@mui/material/Container';
 import React from 'react';
 import TooltipLight from './TooltipLight';

@@ -25,7 +25,7 @@ import { generatePath, useHistory } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
 import { getRecentClusters, setRecentCluster } from '../../../helpers/recentClusters';
 import { formatClusterPathParam, getClusterPrefixedPath } from '../../../lib/cluster';
-import { Cluster } from '../../../lib/k8s/cluster';
+import type { Cluster } from '../../../lib/k8s/cluster';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { MULTI_HOME_ENABLED } from './config';
 import SquareButton from './SquareButton';

@@ -28,7 +28,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import semver from 'semver';
 import { getVersion, useCluster } from '../../lib/k8s';
-import { StringDict } from '../../lib/k8s/cluster';
+import type { StringDict } from '../../lib/k8s/cluster';
 import { useTypedSelector } from '../../redux/hooks';
 import { NameValueTable } from '../common/SimpleTable';
 

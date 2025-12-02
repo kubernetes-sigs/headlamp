@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import React from 'react';
 import { Provider } from 'react-redux';
 import { getTestDate } from '../../helpers/testHelpers';
-import { KubeEvent } from '../../lib/k8s/event';
+import type { KubeEvent } from '../../lib/k8s/event';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import store from '../../redux/stores/store';
 import { TestContext } from '../../test';
-import ObjectEventList, { ObjectEventListProps } from './ObjectEventList';
+import ObjectEventList, { type ObjectEventListProps } from './ObjectEventList';
 
 const mockOwnerObject = new KubeObject({
   kind: 'Pod',

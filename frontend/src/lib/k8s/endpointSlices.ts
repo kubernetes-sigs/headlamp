@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { KubeMetadata } from './KubeMetadata';
-import { KubeObject, KubeObjectInterface } from './KubeObject';
+import type { KubeMetadata } from './KubeMetadata';
+import { KubeObject, type KubeObjectInterface } from './KubeObject';
 
 export interface KubeEndpointSliceEndpointConditions {
   ready: boolean;

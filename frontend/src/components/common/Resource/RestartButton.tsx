@@ -28,8 +28,8 @@ import {
   HeadlampEventType,
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
-import { AppDispatch } from '../../../redux/stores/store';
-import ActionButton, { ButtonStyle } from '../ActionButton';
+import type { AppDispatch } from '../../../redux/stores/store';
+import ActionButton, { type ButtonStyle } from '../ActionButton';
 import ConfirmDialog from '../ConfirmDialog';
 import AuthVisible from './AuthVisible';
 

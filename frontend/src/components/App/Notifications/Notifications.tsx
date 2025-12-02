@@ -30,7 +30,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router';
-import { FixedSizeList, ListChildComponentProps } from 'react-window';
+import { FixedSizeList, type ListChildComponentProps } from 'react-window';
 import { useClustersConf } from '../../../lib/k8s';
 import Event from '../../../lib/k8s/event';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
@@ -41,7 +41,7 @@ import {
   defaultMaxNotificationsStored,
   loadNotifications,
   Notification,
-  NotificationIface,
+  type NotificationIface,
   setNotifications,
   updateNotifications,
 } from './notificationsSlice';

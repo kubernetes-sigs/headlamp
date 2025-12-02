@@ -27,14 +27,14 @@ import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { KubeContainerStatus } from '../../lib/k8s/cluster';
+import type { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
 import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
 import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { Activity } from '../activity/Activity';
 import ActionButton from '../common/ActionButton';
 import Link from '../common/Link';
-import { LogViewer, LogViewerProps } from '../common/LogViewer';
+import { LogViewer, type LogViewerProps } from '../common/LogViewer';
 import {
   ConditionsSection,
   ContainersSection,

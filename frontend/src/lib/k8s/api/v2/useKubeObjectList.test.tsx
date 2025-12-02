@@ -19,7 +19,7 @@ import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import {
   kubeObjectListQuery,
-  ListResponse,
+  type ListResponse,
   makeListRequests,
   useKubeObjectList,
   useWatchKubeObjectLists,

@@ -15,11 +15,11 @@
  */
 
 import { Box, Paper, Typography } from '@mui/material';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { TestContext } from '../../test';
 import InnerTable from './InnerTable';
-import { SimpleTableProps } from './SimpleTable';
+import type { SimpleTableProps } from './SimpleTable';
 
 interface InnerTableStoryProps extends SimpleTableProps {}
 

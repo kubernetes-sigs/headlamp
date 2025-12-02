@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { configureStore, Middleware } from '@reduxjs/toolkit';
+import { configureStore, type Middleware } from '@reduxjs/toolkit';
 import clusterActionSliceReducer, {
-  CallbackAction,
+  type CallbackAction,
   cancelClusterAction,
   CLUSTER_ACTION_GRACE_PERIOD,
   executeClusterAction,

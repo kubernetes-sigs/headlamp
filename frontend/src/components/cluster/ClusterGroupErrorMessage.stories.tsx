@@ -19,7 +19,7 @@ import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { TestContext } from '../../test';
 import {
   ClusterGroupErrorMessage,
-  ClusterGroupErrorMessageProps,
+  type ClusterGroupErrorMessageProps,
 } from './ClusterGroupErrorMessage';
 
 const meta: Meta<typeof ClusterGroupErrorMessage> = {

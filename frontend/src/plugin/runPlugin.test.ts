@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
-import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
+import {
+  getInfoForRunningPlugins,
+  identifyPackages,
+  runPlugin,
+  type runPluginProps,
+} from './runPlugin';
 
 function runPluginInner(info: runPluginProps) {
   const source = info[0];

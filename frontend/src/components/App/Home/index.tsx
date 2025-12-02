@@ -24,7 +24,7 @@ import { setupBackstageMessageReceiver } from '../../../helpers/backstageMessage
 import { isBackstage } from '../../../helpers/isBackstage';
 import { isElectron } from '../../../helpers/isElectron';
 import { useClustersConf, useClustersVersion } from '../../../lib/k8s';
-import { Cluster } from '../../../lib/k8s/cluster';
+import type { Cluster } from '../../../lib/k8s/cluster';
 import Event from '../../../lib/k8s/event';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { PageGrid } from '../../common/Resource';

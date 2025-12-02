@@ -15,16 +15,16 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { get } from 'lodash';
-import { PropsWithChildren } from 'react';
+import type { PropsWithChildren } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
-import { AppBarActionsProcessor } from '../../redux/actionButtonsSlice';
+import type { AppBarActionsProcessor } from '../../redux/actionButtonsSlice';
 import { uiSlice } from '../../redux/uiSlice';
 import { initialState as themeInitialState } from './themeSlice';
-import { processAppBarActions, PureTopBar, PureTopBarProps } from './TopBar';
+import { processAppBarActions, PureTopBar, type PureTopBarProps } from './TopBar';
 
 const store = configureStore({
   reducer: (state = { config: {}, ui: {} }) => state,

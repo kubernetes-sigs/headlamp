@@ -19,7 +19,7 @@ import Breadcrumbs from '@mui/material/Breadcrumbs';
 import Link from '@mui/material/Link';
 import { useTranslation } from 'react-i18next';
 import { getMainNode } from './graph/graphGrouping';
-import { GraphNode } from './graph/graphModel';
+import type { GraphNode } from './graph/graphModel';
 import { KubeIcon } from './kubeIcon/KubeIcon';
 
 /**

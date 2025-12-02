@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
-import ActionButton, { ActionButtonProps } from './ActionButton';
+import type { Meta, StoryFn } from '@storybook/react';
+import ActionButton, { type ActionButtonProps } from './ActionButton';
 
 export default {
   title: 'common/ActionButton',

@@ -25,8 +25,8 @@ import {
 } from '@mui/material';
 import { Box } from '@mui/system';
 import { KubeObject } from '../../lib/k8s/KubeObject';
-import { ResourceCategory } from '../../lib/k8s/ResourceCategory';
-import { KubeObjectStatus } from '../resourceMap/nodes/KubeObjectStatus';
+import type { ResourceCategory } from '../../lib/k8s/ResourceCategory';
+import type { KubeObjectStatus } from '../resourceMap/nodes/KubeObjectStatus';
 import { getHealthIcon } from './projectUtils';
 
 export function ResourceCategoriesList({

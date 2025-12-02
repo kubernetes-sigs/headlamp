@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { KubeRuntimeClass } from '../../lib/k8s/runtime';
+import type { KubeRuntimeClass } from '../../lib/k8s/runtime';
 const creationTimestamp = new Date('2022-01-01').toISOString();
 
 export const BASE_RC: KubeRuntimeClass = {

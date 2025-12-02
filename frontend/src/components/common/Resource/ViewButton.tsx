@@ -19,7 +19,7 @@ import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { KubeObject } from '../../../lib/k8s/cluster';
 import { Activity } from '../../activity/Activity';
-import ActionButton, { ButtonStyle } from '../ActionButton';
+import ActionButton, { type ButtonStyle } from '../ActionButton';
 import EditorDialog from './EditorDialog';
 
 export interface ViewButtonProps {

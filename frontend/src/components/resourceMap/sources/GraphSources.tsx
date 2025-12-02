@@ -18,7 +18,7 @@ import { throttle } from 'lodash';
 import {
   createContext,
   memo,
-  ReactNode,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -26,7 +26,7 @@ import {
   useState,
 } from 'react';
 import { KubeObject } from '../../../lib/k8s/cluster';
-import { GraphEdge, GraphNode, GraphSource, Relation } from '../graph/graphModel';
+import type { GraphEdge, GraphNode, GraphSource, Relation } from '../graph/graphModel';
 
 /**
  * Map of nodes and edges where the key is source id

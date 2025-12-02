@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
-import SquareButton, { SquareButtonProps } from './SquareButton';
+import type { Meta, StoryFn } from '@storybook/react';
+import SquareButton, { type SquareButtonProps } from './SquareButton';
 
 export default {
   title: 'common/SquareButton',

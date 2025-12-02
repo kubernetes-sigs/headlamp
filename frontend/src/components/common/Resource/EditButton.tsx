@@ -19,17 +19,17 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
+import type { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
-import { CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
+import { type CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
 import {
   EventStatus,
   HeadlampEventType,
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
-import { AppDispatch } from '../../../redux/stores/store';
+import type { AppDispatch } from '../../../redux/stores/store';
 import { Activity } from '../../activity/Activity';
-import ActionButton, { ButtonStyle } from '../ActionButton';
+import ActionButton, { type ButtonStyle } from '../ActionButton';
 import AuthVisible from './AuthVisible';
 import EditorDialog from './EditorDialog';
 import ViewButton from './ViewButton';

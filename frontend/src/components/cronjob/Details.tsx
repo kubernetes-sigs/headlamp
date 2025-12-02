@@ -32,7 +32,7 @@ import { apply } from '../../lib/k8s/api/v1/apply';
 import CronJob from '../../lib/k8s/cronJob';
 import Job from '../../lib/k8s/job';
 import { clusterAction } from '../../redux/clusterActionSlice';
-import { AppDispatch } from '../../redux/stores/store';
+import type { AppDispatch } from '../../redux/stores/store';
 import ActionButton from '../common/ActionButton';
 import { DetailsGrid } from '../common/Resource';
 import AuthVisible from '../common/Resource/AuthVisible';

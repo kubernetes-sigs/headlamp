@@ -27,8 +27,8 @@ import {
   zhCN,
   zhTW,
 } from '@mui/material/locale';
-import { createTheme, StyledEngineProvider, Theme, ThemeProvider } from '@mui/material/styles';
-import React, { ReactNode, useEffect, useState } from 'react';
+import { createTheme, StyledEngineProvider, type Theme, ThemeProvider } from '@mui/material/styles';
+import React, { type ReactNode, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 /**

@@ -16,9 +16,9 @@
 
 import DialogContent from '@mui/material/DialogContent';
 import Typography from '@mui/material/Typography';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-import { Dialog as DialogComponent, DialogProps } from './Dialog';
+import { Dialog as DialogComponent, type DialogProps } from './Dialog';
 
 export default {
   title: 'Dialog',

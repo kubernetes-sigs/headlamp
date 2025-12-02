@@ -21,14 +21,14 @@ import Grid from '@mui/material/Grid';
 import InputBase from '@mui/material/InputBase';
 import Paper from '@mui/material/Paper';
 import { FitAddon } from '@xterm/addon-fit';
-import { ISearchOptions, SearchAddon } from '@xterm/addon-search';
+import { type ISearchOptions, SearchAddon } from '@xterm/addon-search';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
-import React, { ReactNode, useEffect } from 'react';
+import React, { type ReactNode, useEffect } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useTranslation } from 'react-i18next';
 import ActionButton from './ActionButton';
-import { Dialog, DialogProps } from './Dialog';
+import { Dialog, type DialogProps } from './Dialog';
 
 export interface LogViewerProps extends DialogProps {
   logs: string[];

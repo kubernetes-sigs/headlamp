@@ -16,8 +16,8 @@
 
 import { createRouteURL } from '../router/createRouteURL';
 import { labelSelectorToQuery, ResourceClasses } from '.';
-import { LabelSelector } from './cluster';
-import { KubeObjectClass } from './KubeObject';
+import type { LabelSelector } from './cluster';
+import type { KubeObjectClass } from './KubeObject';
 import Namespace from './namespace';
 
 // Remove NetworkPolicy since we don't use it.

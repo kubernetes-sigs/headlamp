@@ -15,10 +15,10 @@
  */
 
 import _ from 'lodash';
-import { KubeMetadata } from '../lib/k8s/KubeMetadata';
+import type { KubeMetadata } from '../lib/k8s/KubeMetadata';
+import type { KubeObjectInterface } from '../lib/k8s/KubeObject';
+import type { KubeObjectClass } from '../lib/k8s/KubeObject';
 import { KubeObject } from '../lib/k8s/KubeObject';
-import { KubeObjectInterface } from '../lib/k8s/KubeObject';
-import { KubeObjectClass } from '../lib/k8s/KubeObject';
 
 interface K8sResourceListGeneratorOptions<T extends KubeObjectClass> {
   numResults?: number;

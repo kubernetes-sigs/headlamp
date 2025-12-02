@@ -16,7 +16,7 @@
 
 import Typography from '@mui/material/Typography';
 import { matchExpressionSimplifier, matchLabelsSimplifier } from '../../../lib/k8s';
-import { LabelSelector } from '../../../lib/k8s/cluster';
+import type { LabelSelector } from '../../../lib/k8s/cluster';
 import { metadataStyles } from '.';
 
 export interface MatchExpressionsProps {

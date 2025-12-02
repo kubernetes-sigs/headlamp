@@ -16,7 +16,7 @@
 
 import { Icon } from '@iconify/react';
 import Button from '@mui/material/Button';
-import Dialog, { DialogProps } from '@mui/material/Dialog';
+import Dialog, { type DialogProps } from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
@@ -32,14 +32,14 @@ import { useLocation } from 'react-router-dom';
 import Deployment from '../../../lib/k8s/deployment';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import StatefulSet from '../../../lib/k8s/statefulSet';
-import { CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
+import { type CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
 import {
   EventStatus,
   HeadlampEventType,
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
-import { AppDispatch } from '../../../redux/stores/store';
-import ActionButton, { ButtonStyle } from '../ActionButton';
+import type { AppDispatch } from '../../../redux/stores/store';
+import ActionButton, { type ButtonStyle } from '../ActionButton';
 import { LightTooltip } from '../Tooltip';
 import AuthVisible from './AuthVisible';
 

@@ -15,8 +15,8 @@
  */
 
 import '../../../i18n/config';
-import { Meta, StoryFn } from '@storybook/react';
-import TileChart, { TileChartProps } from './TileChart';
+import type { Meta, StoryFn } from '@storybook/react';
+import TileChart, { type TileChartProps } from './TileChart';
 
 export default {
   title: 'Charts/TileChart',

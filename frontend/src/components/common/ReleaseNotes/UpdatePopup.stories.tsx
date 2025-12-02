@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import UpdatePopup, { UpdatePopupProps } from './UpdatePopup';
+import UpdatePopup, { type UpdatePopupProps } from './UpdatePopup';
 
 export default {
   title: 'common/ReleaseNotes/UpdatePopup',

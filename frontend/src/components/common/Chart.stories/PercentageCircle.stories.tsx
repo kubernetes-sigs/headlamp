@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
-import { PercentageCircle, PercentageCircleProps } from '../Chart';
+import type { Meta, StoryFn } from '@storybook/react';
+import { PercentageCircle, type PercentageCircleProps } from '../Chart';
 
 export default {
   title: 'Charts/PercentageCircle',

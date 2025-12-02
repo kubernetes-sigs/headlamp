@@ -16,7 +16,7 @@
 
 import Collapse from '@mui/material/Collapse';
 import List from '@mui/material/List';
-import ListItem, { ListItemProps } from '@mui/material/ListItem';
+import ListItem, { type ListItemProps } from '@mui/material/ListItem';
 import React, { memo } from 'react';
 import { generatePath } from 'react-router';
 import { formatClusterPathParam, getClusterPrefixedPath } from '../../lib/cluster';
@@ -24,7 +24,7 @@ import { useSelectedClusters } from '../../lib/k8s';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
 import ListItemLink from './ListItemLink';
-import { SidebarEntry } from './sidebarSlice';
+import type { SidebarEntry } from './sidebarSlice';
 
 export function getFullURLOnRoute(
   name: string,

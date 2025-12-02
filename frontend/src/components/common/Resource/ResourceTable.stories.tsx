@@ -15,16 +15,16 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { createStore } from 'redux';
 import { useMockListQuery } from '../../../helpers/testHelpers';
-import Pod, { KubePod } from '../../../lib/k8s/pod';
+import Pod, { type KubePod } from '../../../lib/k8s/pod';
 import reducers from '../../../redux/reducers/reducers';
 import { uiSlice } from '../../../redux/uiSlice';
 import { TestContext } from '../../../test';
-import ResourceTable, { ResourceTableFromResourceClassProps } from './ResourceTable';
+import ResourceTable, { type ResourceTableFromResourceClassProps } from './ResourceTable';
 
 const store = createStore(reducers);
 

@@ -18,8 +18,8 @@ import { configureStore } from '@reduxjs/toolkit';
 import detailsViewSectionReducer, {
   addDetailsViewSectionsProcessor,
   DefaultDetailsViewSection,
-  DetailsViewSection,
-  DetailsViewsSectionProcessor,
+  type DetailsViewSection,
+  type DetailsViewsSectionProcessor,
   setDetailsView,
   setDetailsViewSection,
 } from './detailsViewSectionSlice';

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { KubeObjectInterface } from '../../lib/k8s/KubeObject';
+import type { KubeObjectInterface } from '../../lib/k8s/KubeObject';
 
 export const jobs: KubeObjectInterface[] = [
   {

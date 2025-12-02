@@ -17,10 +17,10 @@
 import FormControlLabel from '@mui/material/FormControlLabel';
 import FormGroup from '@mui/material/FormGroup';
 import Switch from '@mui/material/Switch';
-import { Meta, StoryFn } from '@storybook/react';
+import type { Meta, StoryFn } from '@storybook/react';
 import { Provider } from 'react-redux';
 import store from '../../../redux/stores/store';
-import { EditorDialog, EditorDialogProps } from '..';
+import { EditorDialog, type EditorDialogProps } from '..';
 
 export default {
   title: 'Resource/EditorDialog',

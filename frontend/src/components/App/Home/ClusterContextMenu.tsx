@@ -27,7 +27,7 @@ import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import helpers from '../../../helpers';
 import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
-import { Cluster } from '../../../lib/k8s/cluster';
+import type { Cluster } from '../../../lib/k8s/cluster';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { useId } from '../../../lib/util';
 import { setConfig } from '../../../redux/configSlice';

@@ -15,7 +15,7 @@
  */
 
 import { Box } from '@mui/system';
-import { memo, ReactElement, useEffect } from 'react';
+import { memo, type ReactElement, useEffect } from 'react';
 import Deployment from '../../../lib/k8s/deployment';
 import Job from '../../../lib/k8s/job';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
