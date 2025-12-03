@@ -109,6 +109,9 @@ Error.parameters = {
     handlers: {
       storyBase: null,
       story: [
+        http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
+          HttpResponse.json({})
+        ),
         http.get('http://localhost:4466/api/v1/namespaces/default/pods/terminated', () =>
           HttpResponse.json(podList.find(pod => pod.metadata.name === 'terminated'))
         ),

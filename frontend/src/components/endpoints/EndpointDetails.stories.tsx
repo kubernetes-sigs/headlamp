@@ -27,7 +27,9 @@ export default {
     msw: {
       handlers: {
         storyBase: [
-          http.get('http://localhost:4466/api/v1/endpoints', () => HttpResponse.error()),
+          http.get('http://localhost:4466/api/v1/namespaces/my-namespace/endpoints', () =>
+            HttpResponse.error()
+          ),
           http.get('http://localhost:4466/api/v1/namespaces/my-namespace/events', () =>
             HttpResponse.error()
           ),

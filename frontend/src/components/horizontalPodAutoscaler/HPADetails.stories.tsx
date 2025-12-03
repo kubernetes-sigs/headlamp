@@ -134,8 +134,9 @@ export default {
     msw: {
       handlers: {
         storyBase: [
-          http.get('http://localhost:4466/apis/autoscaling/v2/horizontalpodautoscalers', () =>
-            HttpResponse.error()
+          http.get(
+            'http://localhost:4466/apis/autoscaling/v2/namespaces/my-namespace/horizontalpodautoscalers',
+            () => HttpResponse.error()
           ),
           http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
             HttpResponse.json({
