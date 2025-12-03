@@ -104,6 +104,15 @@ class Service extends KubeObject<KubeService> {
     return this.spec?.ports?.map(port => port.port);
   }
 
+  getFormattedPorts() {
+    return this.spec?.ports?.map(({ port, nodePort, targetPort, protocol }) => {
+      const isSamePort = targetPort && Number(targetPort) === port;
+      const secondary = nodePort ?? (targetPort && isSamePort ? undefined : targetPort);
+      const label = secondary ? `${port}:${secondary}` : `${port}`;
+      return protocol ? `${label}/${protocol}` : label;
+    });
+  }
+
   getSelector() {
     return Object.entries(this.spec?.selector || {}).map(([key, value]) => `${key}=${value}`);
   }
