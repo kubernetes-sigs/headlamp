@@ -23,6 +23,7 @@ There you will see detailed API documentation, examples, and guides on how to de
 | Folder                                                 | Description                                   |
 | ------------------------------------------------------ | --------------------------------------------- |
 | [examples/](examples)                                  | Examples folder.                              |
+| [examples/activity](examples/activity)                 | Create Activities (popup windows).            |
 | [examples/app-menus](examples/app-menus)               | Add app window menus.                         |
 | [examples/change-logo](examples/change-logo)           | Change the logo.                              |
 | [examples/cluster-chooser](examples/cluster-chooser)   | Override default chooser button.              |

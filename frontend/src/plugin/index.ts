@@ -35,6 +35,7 @@ import * as ReactRedux from 'react-redux';
 import * as ReactRouter from 'react-router-dom';
 import * as Recharts from 'recharts';
 import semver from 'semver';
+import { Activity } from '../components/activity/Activity';
 import { runCommand } from '../components/App/runCommand';
 import { themeSlice } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
@@ -100,6 +101,7 @@ window.pluginLib = {
   Plugin,
   useTranslation,
   ...registryToExport,
+  Activity,
 };
 
 // backwards compat.

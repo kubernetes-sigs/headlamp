@@ -15,7 +15,7 @@
  */
 
 import { combineReducers } from 'redux';
-import { activityReducer } from '../../components/activity/Activity';
+import { activityReducer } from '../../components/activity/activitySlice';
 import notificationsReducer from '../../components/App/Notifications/notificationsSlice';
 import themeReducer from '../../components/App/themeSlice';
 import graphViewReducer from '../../components/resourceMap/graphViewSlice';

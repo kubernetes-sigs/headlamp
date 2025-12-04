@@ -1,4 +1,10 @@
 {
+  "Activity": {
+    "close": [Function],
+    "launch": [Function],
+    "reset": [Function],
+    "update": [Function],
+  },
   "ApiProxy": {
     "ApiError": [Function],
     "apiFactory": [Function],
