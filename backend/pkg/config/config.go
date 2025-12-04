@@ -68,6 +68,11 @@ type Config struct {
 	MeGroupsPath              string `koanf:"me-groups-path"`
 	MeUserInfoURL             string `koanf:"me-user-info-url"`
 	OidcUsePKCE               bool   `koanf:"oidc-use-pkce"`
+	// GCP OAuth configs for GKE
+	GCPOAuthEnabled   bool   `koanf:"gcp-oauth-enabled"`
+	GCPClientID       string `koanf:"gcp-client-id"`
+	GCPClientSecret   string `koanf:"gcp-client-secret"`
+	GCPRedirectURL    string `koanf:"gcp-redirect-url"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -111,6 +116,19 @@ func (c *Config) Validate() error {
 
 	if c.BaseURL != "" && !strings.HasPrefix(c.BaseURL, "/") {
 		return errors.New("base-url needs to start with a '/' or be empty")
+	}
+
+	// GCP OAuth validation
+	if c.GCPOAuthEnabled {
+		if c.GCPClientID == "" {
+			return errors.New("gcp-client-id is required when gcp-oauth-enabled is true")
+		}
+		if c.GCPClientSecret == "" {
+			return errors.New("gcp-client-secret is required when gcp-oauth-enabled is true")
+		}
+		if c.GCPRedirectURL == "" {
+			return errors.New("gcp-redirect-url is required when gcp-oauth-enabled is true")
+		}
 	}
 
 	if c.TracingEnabled != nil && *c.TracingEnabled {
