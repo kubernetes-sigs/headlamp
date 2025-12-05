@@ -173,7 +173,6 @@ func CacheRefreshedToken(token *oauth2.Token, tokenType string, oldToken string,
 func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 	tokenType string, token string, tokenURL string, ctx context.Context,
 ) (*oauth2.Token, error) {
-
 	// get refresh token
 	refreshToken, err := cache.Get(ctx, oidcKeyPrefix+token)
 	if err != nil {
