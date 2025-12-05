@@ -397,6 +397,36 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 	}).Methods("GET")
 }
 
+// setupInClusterContext configures the in-cluster Kubernetes context.
+func setupInClusterContext(config *HeadlampConfig) {
+	context, err := kubeconfig.GetInClusterContext(config.oidcIdpIssuerURL,
+		config.oidcClientID, config.oidcClientSecret,
+		strings.Join(config.oidcScopes, ","),
+		config.oidcSkipTLSVerify,
+		config.oidcCACert)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
+		return
+	}
+
+	context.Source = kubeconfig.InCluster
+
+	// When GCP OAuth is enabled, clear the auth info so users must authenticate via GCP OAuth
+	if config.gcpOAuthEnabled {
+		context.AuthInfo = &api.AuthInfo{}
+
+		logger.Log(logger.LevelInfo, nil, nil, "Added in-cluster context without service account auth (GCP OAuth enabled)")
+	}
+
+	if err := context.SetupProxy(); err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
+	}
+
+	if err := config.KubeConfigStore.AddContext(context); err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+	}
+}
+
 //nolint:gocognit,funlen,gocyclo
 func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
@@ -456,35 +486,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 	// In-cluster
 	if config.UseInCluster {
-		context, err := kubeconfig.GetInClusterContext(config.oidcIdpIssuerURL,
-			config.oidcClientID, config.oidcClientSecret,
-			strings.Join(config.oidcScopes, ","),
-			config.oidcSkipTLSVerify,
-			config.oidcCACert)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
-		} else {
-			context.Source = kubeconfig.InCluster
-
-			// When GCP OAuth is enabled, we add the cluster context but clear the auth info
-			// so that users are required to authenticate via GCP OAuth instead of using
-			// the service account token automatically
-			if config.gcpOAuthEnabled {
-				// Clear the auth info so no automatic service account authentication happens
-				context.AuthInfo = &api.AuthInfo{}
-				logger.Log(logger.LevelInfo, nil, nil, "Added in-cluster context without service account auth (GCP OAuth enabled)")
-			}
-
-			err = context.SetupProxy()
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
-			}
-
-			err = config.KubeConfigStore.AddContext(context)
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
-			}
-		}
+		setupInClusterContext(config)
 	}
 
 	if config.StaticDir != "" {
@@ -922,10 +924,10 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		if config.gcpOAuthEnabled {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"enabled": true}`))
+			_, _ = w.Write([]byte(`{"enabled": true}`))
 		} else {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"enabled": false}`))
+			_, _ = w.Write([]byte(`{"enabled": false}`))
 		}
 	}).Methods("GET")
 

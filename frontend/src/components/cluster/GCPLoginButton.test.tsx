@@ -15,7 +15,7 @@
  */
 
 import { fireEvent, render, screen } from '@testing-library/react';
-import { vi } from 'vitest';
+import { type MockInstance, vi } from 'vitest';
 import { Cluster } from '../../lib/k8s/cluster';
 import * as gke from '../../lib/k8s/gke';
 import { GCPLoginButton } from './GCPLoginButton';
@@ -33,8 +33,8 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('GCPLoginButton', () => {
-  let isGKEClusterSpy: ReturnType<typeof vi.spyOn>;
-  let initiateGCPLoginSpy: ReturnType<typeof vi.spyOn>;
+  let isGKEClusterSpy: MockInstance;
+  let initiateGCPLoginSpy: MockInstance;
 
   beforeEach(() => {
     // Create spies for GKE functions
@@ -160,7 +160,7 @@ describe('GCPLoginButton', () => {
       const { container } = render(<GCPLoginButton cluster={cluster} variant="outlined" />);
 
       const button = container.querySelector('button');
-      expect(button?.className).toContain('outlined');
+      expect(button?.className).toContain('MuiButton-outlined');
     });
 
     it('should apply custom color', () => {
@@ -175,7 +175,7 @@ describe('GCPLoginButton', () => {
       const { container } = render(<GCPLoginButton cluster={cluster} color="secondary" />);
 
       const button = container.querySelector('button');
-      expect(button?.className).toContain('secondary');
+      expect(button?.className).toContain('MuiButton-colorSecondary');
     });
 
     it('should apply custom size', () => {
@@ -190,7 +190,7 @@ describe('GCPLoginButton', () => {
       const { container } = render(<GCPLoginButton cluster={cluster} size="small" />);
 
       const button = container.querySelector('button');
-      expect(button?.className).toContain('small');
+      expect(button?.className).toContain('MuiButton-sizeSmall');
     });
 
     it('should apply fullWidth prop', () => {
@@ -205,7 +205,7 @@ describe('GCPLoginButton', () => {
       const { container } = render(<GCPLoginButton cluster={cluster} fullWidth />);
 
       const button = container.querySelector('button');
-      expect(button?.className).toContain('fullWidth');
+      expect(button?.className).toContain('MuiButton-fullWidth');
     });
 
     it('should not apply fullWidth when false', () => {
@@ -220,7 +220,7 @@ describe('GCPLoginButton', () => {
       const { container } = render(<GCPLoginButton cluster={cluster} fullWidth={false} />);
 
       const button = container.querySelector('button');
-      expect(button?.className).not.toContain('fullWidth');
+      expect(button?.className).not.toContain('MuiButton-fullWidth');
     });
   });
 

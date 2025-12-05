@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { vi } from 'vitest';
+import { type MockInstance, vi } from 'vitest';
 import { Cluster } from './cluster';
 import { initiateGCPLogin, isGCPOAuthEnabled, isGKECluster } from './gke';
 
@@ -139,7 +139,7 @@ describe('GKE utilities', () => {
   });
 
   describe('isGCPOAuthEnabled', () => {
-    let fetchSpy: ReturnType<typeof vi.spyOn>;
+    let fetchSpy: MockInstance;
 
     beforeEach(() => {
       fetchSpy = vi.spyOn(global, 'fetch');

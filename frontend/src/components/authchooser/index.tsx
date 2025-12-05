@@ -286,9 +286,7 @@ export function PureAuthChooser({
                   </OauthPopup>
                 </Box>
               ) : null}
-              <Box m={2}>
-                <GCPLoginButton cluster={clusterName} />
-              </Box>
+              <GCPLoginButton cluster={clusterName} />
               <Box m={2}>
                 <ColorButton onClick={handleTokenAuth}>{t('Use A Token')}</ColorButton>
               </Box>

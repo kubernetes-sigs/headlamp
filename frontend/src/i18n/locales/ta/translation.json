@@ -190,6 +190,7 @@
   "Resource not found": "ரிசோர்ஸ் கிடைக்கவில்லை",
   "Hide details": "விவரங்களை மறை",
   "Show details": "விவரங்களைக் காட்டு",
+  "Sign in with Google": "",
   "Duplicate cluster: {{ clusterNames }} in the list. Please edit the context name.": "நகல் க்ளஸ்டர்: பட்டியலில் {{ clusterNames }}. கான்டெக்ஸ்ட் பெயரைத் திருத்தவும்.",
   "Error setting up clusters, please load a valid kubeconfig file": "க்ளஸ்டர்களை அமைப்பதில் பிழை, தயவுசெய்து சரியான கியூப்கான்ஃபிக் கோப்பை ஏற்றவும்",
   "Couldn't read kubeconfig file": "கியூப்கான்ஃபிக் கோப்பைப் படிக்க முடியவில்லை",

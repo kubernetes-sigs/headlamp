@@ -31,12 +31,12 @@ import (
 var validClusterNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
 
 const (
-	// Cookie names for OAuth flow state
+	// Cookie names for OAuth flow state.
 	gcpOAuthStateCookie    = "gcp_oauth_state"
 	gcpOAuthClusterCookie  = "gcp_oauth_cluster"
 	gcpOAuthVerifierCookie = "gcp_oauth_verifier"
 
-	// OAuth flow timeout
+	// OAuth flow timeout.
 	oauthFlowTimeout = 10 * time.Minute
 )
 
@@ -54,6 +54,7 @@ func HandleGCPAuthLogin(gcpAuth *gcp.GCPAuthenticator, baseURL string) http.Hand
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to generate state")
 			http.Error(w, "failed to generate state", http.StatusInternalServerError)
+
 			return
 		}
 
@@ -62,6 +63,7 @@ func HandleGCPAuthLogin(gcpAuth *gcp.GCPAuthenticator, baseURL string) http.Hand
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to generate code verifier")
 			http.Error(w, "failed to generate code verifier", http.StatusInternalServerError)
+
 			return
 		}
 
@@ -85,111 +87,107 @@ func HandleGCPAuthLogin(gcpAuth *gcp.GCPAuthenticator, baseURL string) http.Hand
 	}
 }
 
+// gcpCallbackData holds validated data from the OAuth callback.
+type gcpCallbackData struct {
+	cluster      string
+	codeVerifier string
+	code         string
+}
+
+// validateGCPCallback validates the OAuth callback request and returns extracted data.
+func validateGCPCallback(r *http.Request) (*gcpCallbackData, error) {
+	// Validate state token (CSRF protection)
+	stateCookie, err := r.Cookie(gcpOAuthStateCookie)
+	if err != nil {
+		return nil, fmt.Errorf("state cookie not found: %w", err)
+	}
+
+	stateParam := r.URL.Query().Get("state")
+	if stateCookie.Value != stateParam {
+		return nil, fmt.Errorf("state mismatch: cookie=%s, param=%s", stateCookie.Value, stateParam)
+	}
+
+	// Get cluster from cookie
+	clusterCookie, err := r.Cookie(gcpOAuthClusterCookie)
+	if err != nil {
+		return nil, fmt.Errorf("cluster cookie not found: %w", err)
+	}
+
+	cluster := clusterCookie.Value
+	if !validClusterNamePattern.MatchString(cluster) {
+		return nil, fmt.Errorf("invalid cluster name format: %s", cluster)
+	}
+
+	// Check for OAuth errors
+	if errParam := r.URL.Query().Get("error"); errParam != "" {
+		errDesc := r.URL.Query().Get("error_description")
+		return nil, fmt.Errorf("OAuth error: %s - %s", errParam, errDesc)
+	}
+
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		return nil, fmt.Errorf("no code in request")
+	}
+
+	// Get PKCE code verifier (optional)
+	codeVerifier := ""
+	if verifierCookie, err := r.Cookie(gcpOAuthVerifierCookie); err == nil {
+		codeVerifier = verifierCookie.Value
+	}
+
+	return &gcpCallbackData{
+		cluster:      cluster,
+		codeVerifier: codeVerifier,
+		code:         code,
+	}, nil
+}
+
 // HandleGCPAuthCallback handles the OAuth callback from Google.
 func HandleGCPAuthCallback(gcpAuth *gcp.GCPAuthenticator, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		// Validate state token (CSRF protection)
-		stateCookie, err := r.Cookie(gcpOAuthStateCookie)
+		data, err := validateGCPCallback(r)
 		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "state cookie not found")
-			http.Error(w, "invalid OAuth state", http.StatusBadRequest)
+			logger.Log(logger.LevelError, nil, err, "OAuth callback validation failed")
+			http.Error(w, err.Error(), http.StatusBadRequest)
+
 			return
 		}
 
-		stateParam := r.URL.Query().Get("state")
-		if stateCookie.Value != stateParam {
-			logger.Log(logger.LevelError, nil,
-				fmt.Errorf("state mismatch: cookie=%s, param=%s", stateCookie.Value, stateParam),
-				"state validation failed")
-			http.Error(w, "invalid state parameter", http.StatusBadRequest)
-			return
-		}
-
-		// Get cluster from cookie
-		clusterCookie, err := r.Cookie(gcpOAuthClusterCookie)
+		token, err := gcpAuth.Exchange(ctx, data.code, data.codeVerifier)
 		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "cluster cookie not found")
-			http.Error(w, "cluster not found in session", http.StatusBadRequest)
-			return
-		}
-		cluster := clusterCookie.Value
-
-		// Validate cluster name to prevent URL injection
-		if !validClusterNamePattern.MatchString(cluster) {
-			logger.Log(logger.LevelError, map[string]string{
-				"cluster": cluster,
-			}, nil, "invalid cluster name format")
-			http.Error(w, "invalid cluster name", http.StatusBadRequest)
-			return
-		}
-
-		// Get PKCE code verifier
-		verifierCookie, err := r.Cookie(gcpOAuthVerifierCookie)
-		codeVerifier := ""
-		if err == nil {
-			codeVerifier = verifierCookie.Value
-		}
-
-		// Check for OAuth errors
-		if errParam := r.URL.Query().Get("error"); errParam != "" {
-			errDesc := r.URL.Query().Get("error_description")
-			logger.Log(logger.LevelError, map[string]string{
-				"cluster": cluster,
-				"error":   errParam,
-				"desc":    errDesc,
-			}, nil, "OAuth error from provider")
-			http.Error(w, fmt.Sprintf("OAuth error: %s - %s", errParam, errDesc), http.StatusBadRequest)
-			return
-		}
-
-		// Exchange code for token
-		code := r.URL.Query().Get("code")
-		if code == "" {
-			logger.Log(logger.LevelError, map[string]string{"cluster": cluster}, nil, "no code in request")
-			http.Error(w, "no code in request", http.StatusBadRequest)
-			return
-		}
-
-		token, err := gcpAuth.Exchange(ctx, code, codeVerifier)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"cluster": cluster}, err, "failed to exchange code for token")
+			logger.Log(logger.LevelError, map[string]string{"cluster": data.cluster}, err, "failed to exchange code")
 			http.Error(w, "failed to exchange token", http.StatusInternalServerError)
+
 			return
 		}
 
-		// Get GKE access token
 		gkeToken, err := gcpAuth.GetGKEAccessToken(ctx, token)
 		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"cluster": cluster}, err, "failed to get GKE access token")
+			logger.Log(logger.LevelError, map[string]string{"cluster": data.cluster}, err, "failed to get GKE token")
 			http.Error(w, "failed to get GKE token", http.StatusInternalServerError)
+
 			return
 		}
 
-		// Cache the refresh token for later use
+		// Cache the refresh token (non-fatal if it fails)
 		if token.RefreshToken != "" {
-			if err := gcpAuth.CacheRefreshToken(ctx, cluster, gkeToken, token.RefreshToken); err != nil {
-				logger.Log(logger.LevelError, map[string]string{"cluster": cluster}, err, "failed to cache refresh token")
-				// Non-fatal error, continue
+			if cacheErr := gcpAuth.CacheRefreshToken(ctx, data.cluster, gkeToken, token.RefreshToken); cacheErr != nil {
+				logger.Log(logger.LevelError, map[string]string{"cluster": data.cluster}, cacheErr, "failed to cache refresh token")
 			}
 		}
 
-		// Set token in cookie (using existing Headlamp pattern)
-		SetTokenCookie(w, r, cluster, gkeToken, baseURL)
+		SetTokenCookie(w, r, data.cluster, gkeToken, baseURL)
 
-		// Clear OAuth state cookies
 		secure := IsSecureContext(r)
 		clearOAuthCookie(w, gcpOAuthStateCookie, secure)
 		clearOAuthCookie(w, gcpOAuthClusterCookie, secure)
 		clearOAuthCookie(w, gcpOAuthVerifierCookie, secure)
 
-		logger.Log(logger.LevelInfo, map[string]string{
-			"cluster": cluster,
-		}, nil, "GCP OAuth flow completed successfully")
+		logger.Log(logger.LevelInfo, map[string]string{"cluster": data.cluster}, nil, "GCP OAuth flow completed")
 
-		// Redirect to cluster view
-		redirectURL := fmt.Sprintf("/#/c/%s", cluster)
+		redirectURL := fmt.Sprintf("/#/c/%s", data.cluster)
 		if baseURL != "" {
 			redirectURL = "/" + baseURL + redirectURL
 		}
@@ -216,6 +214,7 @@ func HandleGCPTokenRefresh(gcpAuth *gcp.GCPAuthenticator, baseURL string) http.H
 				"cluster": cluster,
 			}, err, "failed to get cached refresh token")
 			http.Error(w, "no refresh token available", http.StatusUnauthorized)
+
 			return
 		}
 
@@ -226,6 +225,7 @@ func HandleGCPTokenRefresh(gcpAuth *gcp.GCPAuthenticator, baseURL string) http.H
 				"cluster": cluster,
 			}, err, "failed to refresh token")
 			http.Error(w, "failed to refresh token", http.StatusInternalServerError)
+
 			return
 		}
 
@@ -236,16 +236,14 @@ func HandleGCPTokenRefresh(gcpAuth *gcp.GCPAuthenticator, baseURL string) http.H
 				"cluster": cluster,
 			}, err, "failed to get new GKE access token")
 			http.Error(w, "failed to get new GKE token", http.StatusInternalServerError)
+
 			return
 		}
 
-		// Cache the new refresh token if we got one
+		// Cache the new refresh token if we got one (non-fatal if it fails)
 		if newToken.RefreshToken != "" {
-			if err := gcpAuth.CacheRefreshToken(ctx, cluster, newGKEToken, newToken.RefreshToken); err != nil {
-				logger.Log(logger.LevelError, map[string]string{
-					"cluster": cluster,
-				}, err, "failed to cache new refresh token")
-				// Non-fatal, continue
+			if cacheErr := gcpAuth.CacheRefreshToken(ctx, cluster, newGKEToken, newToken.RefreshToken); cacheErr != nil {
+				logger.Log(logger.LevelError, map[string]string{"cluster": cluster}, cacheErr, "failed to cache new refresh token")
 			}
 		}
 
@@ -257,7 +255,7 @@ func HandleGCPTokenRefresh(gcpAuth *gcp.GCPAuthenticator, baseURL string) http.H
 		}, nil, "token refreshed successfully")
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("token refreshed"))
+		_, _ = w.Write([]byte("token refreshed"))
 	}
 }
 

@@ -31,15 +31,15 @@ import (
 )
 
 const (
-	// GCP OAuth scopes required for GKE authentication
-	scopeOpenID       = "openid"
-	scopeEmail        = "email"
-	scopeProfile      = "profile"
+	// GCP OAuth scopes required for GKE authentication.
+	scopeOpenID        = "openid"
+	scopeEmail         = "email"
+	scopeProfile       = "profile"
 	scopeCloudPlatform = "https://www.googleapis.com/auth/cloud-platform"
 	scopeUserInfoEmail = "https://www.googleapis.com/auth/userinfo.email"
 
-	// Cache key prefix for refresh tokens
-	refreshTokenCachePrefix = "gcp-refresh-"
+	// Cache key prefix for refresh tokens.
+	refreshTokenCachePrefix = "gcp-refresh-" //nolint:gosec // G101: This is a cache key prefix, not a credential
 )
 
 // GCPAuthenticator handles GCP-specific OAuth authentication for GKE clusters.
@@ -133,6 +133,7 @@ func (g *GCPAuthenticator) RefreshToken(ctx context.Context, refreshToken string
 	}
 
 	tokenSource := g.oauth2Config.TokenSource(ctx, token)
+
 	newToken, err := tokenSource.Token()
 	if err != nil {
 		return nil, fmt.Errorf("failed to refresh token: %w", err)
@@ -154,6 +155,7 @@ func (g *GCPAuthenticator) CacheRefreshToken(ctx context.Context, cluster, acces
 	}
 
 	logger.Log(logger.LevelInfo, map[string]string{"cluster": cluster}, nil, "cached refresh token")
+
 	return nil
 }
 
@@ -191,6 +193,7 @@ func GenerateRandomState() (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("failed to generate random state: %w", err)
 	}
+
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
@@ -200,6 +203,7 @@ func GenerateCodeVerifier() (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("failed to generate code verifier: %w", err)
 	}
+
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
@@ -217,6 +221,7 @@ func IsGKECluster(clusterURL string) bool {
 	}
 
 	clusterURL = strings.ToLower(clusterURL)
+
 	return strings.Contains(clusterURL, ".googleapis.com") ||
 		strings.Contains(clusterURL, "container.cloud.google.com")
 }

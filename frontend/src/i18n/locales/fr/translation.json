@@ -190,6 +190,7 @@
   "Resource not found": "",
   "Hide details": "",
   "Show details": "",
+  "Sign in with Google": "",
   "Duplicate cluster: {{ clusterNames }} in the list. Please edit the context name.": "",
   "Error setting up clusters, please load a valid kubeconfig file": "Erreur lors de la configuration des clusters, veuillez charger un fichier kubeconfig valide",
   "Couldn't read kubeconfig file": "Impossible de lire le fichier kubeconfig",

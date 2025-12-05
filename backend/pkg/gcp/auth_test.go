@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gcp
+package gcp //nolint:testpackage // Tests access internal functions
 
 import (
 	"context"
@@ -43,6 +43,7 @@ func (m *mockCache) Get(ctx context.Context, key string) (interface{}, error) {
 	if !ok {
 		return nil, assert.AnError
 	}
+
 	return val, nil
 }
 
@@ -63,11 +64,13 @@ func (m *mockCache) Delete(ctx context.Context, key string) error {
 
 func (m *mockCache) GetAll(ctx context.Context, selectFunc cache.Matcher) (map[string]interface{}, error) {
 	result := make(map[string]interface{})
+
 	for k, v := range m.data {
 		if selectFunc == nil || selectFunc(k) {
 			result[k] = v
 		}
 	}
+
 	return result, nil
 }
 
@@ -127,11 +130,11 @@ func TestGetGKEAccessToken(t *testing.T) {
 	auth := NewGCPAuthenticator("test-client-id", "test-secret", "http://localhost/callback", cache)
 
 	tests := []struct {
-		name        string
-		token       *oauth2.Token
-		wantErr     bool
-		wantErrMsg  string
-		wantToken   string
+		name       string
+		token      *oauth2.Token
+		wantErr    bool
+		wantErrMsg string
+		wantToken  string
 	}{
 		{
 			name:       "nil token",

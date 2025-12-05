@@ -140,10 +140,10 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		multiplexer:               multiplexer,
 		telemetryConfig:           buildTelemetryConfig(conf),
 		// GCP OAuth fields
-		gcpOAuthEnabled:           conf.GCPOAuthEnabled,
-		gcpClientID:               conf.GCPClientID,
-		gcpClientSecret:           conf.GCPClientSecret,
-		gcpRedirectURL:            conf.GCPRedirectURL,
+		gcpOAuthEnabled: conf.GCPOAuthEnabled,
+		gcpClientID:     conf.GCPClientID,
+		gcpClientSecret: conf.GCPClientSecret,
+		gcpRedirectURL:  conf.GCPRedirectURL,
 	}
 
 	if conf.OidcCAFile != "" {
