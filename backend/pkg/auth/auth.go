@@ -171,10 +171,8 @@ func CacheRefreshedToken(token *oauth2.Token, tokenType string, oldToken string,
 // token from the cache to obtain a new OAuth2 token
 // from the specified token URL endpoint.
 func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
-	tokenType string, token string, tokenURL string,
+	tokenType string, token string, tokenURL string, ctx context.Context,
 ) (*oauth2.Token, error) {
-	ctx := context.Background()
-
 	// get refresh token
 	refreshToken, err := cache.Get(ctx, oidcKeyPrefix+token)
 	if err != nil {
@@ -267,6 +265,7 @@ func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.Oid
 		tokenType,
 		token,
 		provider.Endpoint().TokenURL,
+		ctx,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("refreshing token: %w", err)

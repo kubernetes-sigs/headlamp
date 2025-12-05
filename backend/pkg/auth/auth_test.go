@@ -618,7 +618,7 @@ func TestGetNewToken_Success(t *testing.T) {
 	// Seed cache with old token -> old refresh mapping
 	fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
 
-	newTok, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL)
+	newTok, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background())
 	if err != nil {
 		t.Fatalf("GetNewToken unexpected error: %v", err)
 	}
@@ -677,7 +677,7 @@ func TestGetNewToken_PreHTTPFailures(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Fails before HTTP; no server needed.
-			_, err := auth.GetNewToken("cid", "secret", tc.cache, "id_token", "OLD", "http://127.0.0.1")
+			_, err := auth.GetNewToken("cid", "secret", tc.cache, "id_token", "OLD", "http://127.0.0.1", context.Background())
 			if err == nil || !strings.Contains(err.Error(), tc.expect) {
 				t.Fatalf("want error containing %q, got %v", tc.expect, err)
 			}
@@ -700,7 +700,7 @@ func TestGetNewToken_EndpointFailures(t *testing.T) {
 			srv := newTokenServerJSON(t, tc.status, tc.body)
 			fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
 
-			if _, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL); err == nil {
+			if _, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background()); err == nil {
 				t.Fatal("expected error, got nil")
 			}
 		})
@@ -724,7 +724,7 @@ func TestGetNewToken_CacheUpdateErrors(t *testing.T) {
 				errOnSetWithTTL: tc.setTTLErr,
 			}
 
-			if _, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL); err == nil {
+			if _, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background()); err == nil {
 				t.Fatal("expected error containing 'caching refreshed token', got nil")
 			}
 		})
