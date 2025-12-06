@@ -32,6 +32,7 @@ import { getRoute } from '../../lib/router/getRoute';
 import { getRoutePath } from '../../lib/router/getRoutePath';
 import { setConfig } from '../../redux/configSlice';
 import { ClusterDialog } from '../cluster/Chooser';
+import GCPLoginButton from '../cluster/GCPLoginButton';
 import { DialogTitle } from '../common/Dialog';
 import Empty from '../common/EmptyContent';
 import Link from '../common/Link';
@@ -158,23 +159,9 @@ function AuthChooser({ children }: AuthChooserProps) {
               // just redirect.
               if (cluster.useToken === false) {
                 history.replace(from);
-              } else if (!clusterAuthType) {
-                // we know that it requires token and also doesn't have oidc configured
-                // so let's redirect to token page
-                history.replace({
-                  pathname: generatePath(getClusterPrefixedPath('token'), {
-                    cluster: clusterName as string,
-                  }),
-                });
               }
             }
           });
-      } else if (cluster.useToken) {
-        history.replace({
-          pathname: generatePath(getClusterPrefixedPath('token'), {
-            cluster: clusterName as string,
-          }),
-        });
       }
     },
     // eslint-disable-next-line
@@ -299,6 +286,7 @@ export function PureAuthChooser({
                   </OauthPopup>
                 </Box>
               ) : null}
+              <GCPLoginButton cluster={clusterName} />
               <Box m={2}>
                 <ColorButton onClick={handleTokenAuth}>{t('Use A Token')}</ColorButton>
               </Box>
