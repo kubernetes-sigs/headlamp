@@ -58,6 +58,7 @@ export function getAllowedNamespaces(cluster: string | null = getCluster()): str
 
 export interface Cluster {
   name: string;
+  server?: string;
   useToken?: boolean;
   /**
    * Either 'oidc' or ''. '' means unknown.

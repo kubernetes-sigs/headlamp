@@ -47,6 +47,7 @@ import (
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/gcp"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 
 	headlampcfg "github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
@@ -453,6 +454,13 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		}
 
 		context.Source = kubeconfig.InCluster
+
+		// When GCP OAuth is enabled, clear the auth info so users must authenticate via GCP OAuth
+		if config.GCPOAuthEnabled {
+			context.AuthInfo = &api.AuthInfo{}
+
+			logger.Log(logger.LevelInfo, nil, nil, "Added in-cluster context without service account auth (GCP OAuth enabled)")
+		}
 
 		err = context.SetupProxy()
 		if err != nil {
@@ -878,6 +886,36 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 	})
+
+	// GCP OAuth routes for GKE authentication
+	if config.GCPOAuthEnabled {
+		gcpAuth := gcp.NewGCPAuthenticator(
+			config.GCPClientID,
+			config.GCPClientSecret,
+			config.GCPRedirectURL,
+			config.Cache,
+		)
+
+		r.HandleFunc("/gcp-auth/login", auth.HandleGCPAuthLogin(gcpAuth, config.BaseURL)).Methods("GET")
+		r.HandleFunc("/gcp-auth/callback", auth.HandleGCPAuthCallback(gcpAuth, config.BaseURL, config.SessionTTL)).Methods("GET")
+		r.HandleFunc("/gcp-auth/refresh", auth.HandleGCPTokenRefresh(gcpAuth, config.BaseURL, config.SessionTTL)).Methods("POST")
+
+		logger.Log(logger.LevelInfo, nil, nil, "GCP OAuth authentication enabled for GKE clusters")
+	}
+
+	// Endpoint to check if GCP OAuth is enabled.
+	// This is intentionally outside the gcpOAuthEnabled conditional block so the frontend
+	// can always query this endpoint to determine whether to show the GCP OAuth login button.
+	r.HandleFunc("/gcp-auth/enabled", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if config.GCPOAuthEnabled {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"enabled": true}`))
+		} else {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"enabled": false}`))
+		}
+	}).Methods("GET")
 
 	// Serve the frontend if needed
 	if spa.UseEmbeddedFiles {
