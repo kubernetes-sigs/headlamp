@@ -56,7 +56,7 @@ import { makeKubeObjectNode } from '../GraphSources';
  * Create a GraphSource from KubeObject class definition
  */
 const makeKubeSource = (cl: KubeObjectClass): GraphSource => ({
-  id: cl.kind,
+  id: makeKubeSourceId(cl),
   label: cl.apiName,
   icon: <KubeIcon kind={cl.kind as any} />,
   useData() {

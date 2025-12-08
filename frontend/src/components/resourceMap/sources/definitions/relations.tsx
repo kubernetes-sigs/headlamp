@@ -45,6 +45,7 @@ import StatefulSet from '../../../../lib/k8s/statefulSet';
 import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
 import { useNamespaces } from '../../../../redux/filterSlice';
 import { Relation } from '../../graph/graphModel';
+import { makeKubeSourceId } from './graphDefinitionUtils';
 
 /**
  * Check if the given item has matching labels
@@ -62,8 +63,8 @@ const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
   to: To,
   selector: (a: InstanceType<From>, b: InstanceType<To>) => unknown
 ): Relation => ({
-  fromSource: from.kind,
-  toSource: to.kind,
+  fromSource: makeKubeSourceId(from),
+  toSource: makeKubeSourceId(to),
   predicate(fromNode, toNode) {
     const fromObject = fromNode.kubeObject as InstanceType<From>;
     const toObject = toNode.kubeObject as InstanceType<To>;
@@ -73,7 +74,7 @@ const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
 });
 
 const makeOwnerRelation = (cl: KubeObjectClass): Relation => ({
-  fromSource: cl.kind,
+  fromSource: makeKubeSourceId(cl),
   predicate(from, to) {
     const obj = from.kubeObject as KubeObject;
 
@@ -85,7 +86,7 @@ const makeOwnerRelation = (cl: KubeObjectClass): Relation => ({
 });
 
 const makeOwnerRelationReversed = (cl: KubeObjectClass): Relation => ({
-  fromSource: cl.kind,
+  fromSource: makeKubeSourceId(cl),
   predicate(from, to) {
     const obj = to.kubeObject as KubeObject;
 
