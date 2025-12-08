@@ -51,6 +51,7 @@ import { useNamespaces } from '../../../../redux/filterSlice';
 import { GraphSource } from '../../graph/graphModel';
 import { getKindGroupColor, KubeIcon } from '../../kubeIcon/KubeIcon';
 import { makeKubeObjectNode } from '../GraphSources';
+import { makeKubeSourceId } from './graphDefinitionUtils';
 
 /**
  * Create a GraphSource from KubeObject class definition
@@ -72,6 +73,8 @@ const generateCRSources = (crds: CRD[]): GraphSource[] => {
   for (const crd of crds) {
     const [group] = crd.getMainAPIGroup();
     const source = makeKubeSource(crd.makeCRClass());
+    // Add crd prefix to avoid id clashes with resources already defined in other places
+    source.id = 'crd-' + source.id;
 
     if (!groupedSources.has(group)) {
       groupedSources.set(group, []);
