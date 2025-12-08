@@ -159,9 +159,23 @@ function AuthChooser({ children }: AuthChooserProps) {
               // just redirect.
               if (cluster.useToken === false) {
                 history.replace(from);
+              } else if (!clusterAuthType) {
+                // we know that it requires token and also doesn't have oidc configured
+                // so let's redirect to token page
+                history.replace({
+                  pathname: generatePath(getClusterPrefixedPath('token'), {
+                    cluster: clusterName as string,
+                  }),
+                });
               }
             }
           });
+      } else if (cluster.useToken) {
+        history.replace({
+          pathname: generatePath(getClusterPrefixedPath('token'), {
+            cluster: clusterName as string,
+          }),
+        });
       }
     },
     // eslint-disable-next-line

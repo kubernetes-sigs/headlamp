@@ -288,6 +288,7 @@ func TestHandleGCPAuthCallback_StateMismatch(t *testing.T) {
 		Name:  "gcp_oauth_cluster",
 		Value: "test-cluster",
 	})
+
 	rr := httptest.NewRecorder()
 
 	handler(rr, req)
@@ -309,6 +310,7 @@ func TestHandleGCPAuthCallback_MissingClusterCookie(t *testing.T) {
 		Name:  "gcp_oauth_state",
 		Value: "test-state",
 	})
+
 	rr := httptest.NewRecorder()
 
 	handler(rr, req)
@@ -334,6 +336,7 @@ func TestHandleGCPAuthCallback_InvalidClusterInCookie(t *testing.T) {
 		Name:  "gcp_oauth_cluster",
 		Value: "-invalid-cluster",
 	})
+
 	rr := httptest.NewRecorder()
 
 	handler(rr, req)
