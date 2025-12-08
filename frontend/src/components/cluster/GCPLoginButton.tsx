@@ -18,7 +18,7 @@ import { Box, Button, ButtonProps } from '@mui/material';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Cluster } from '../../lib/k8s/cluster';
-import { initiateGCPLogin, isGCPOAuthEnabled, isGKECluster } from '../../lib/k8s/gke';
+import { initiateGCPLogin, isGCPOAuthEnabled } from '../../lib/k8s/gke';
 
 export interface GCPLoginButtonProps {
   /** The cluster to authenticate to */
@@ -37,7 +37,8 @@ export interface GCPLoginButtonProps {
 
 /**
  * A button component that initiates Google OAuth login for GKE clusters.
- * Only renders if GCP OAuth is enabled in the backend, or if the cluster is detected as a GKE cluster.
+ * Only renders if GCP OAuth is enabled in the backend via the HEADLAMP_CONFIG_GCP_OAUTH_ENABLED
+ * environment variable.
  */
 export function GCPLoginButton({
   cluster,
@@ -65,8 +66,8 @@ export function GCPLoginButton({
       });
   }, []);
 
-  // Show button if GCP OAuth is enabled OR if it's a GKE cluster
-  const shouldShowButton = gcpOAuthEnabled === true || isGKECluster(cluster);
+  // Only show button if GCP OAuth is enabled via environment variable
+  const shouldShowButton = gcpOAuthEnabled === true;
 
   if (!shouldShowButton) {
     return null;

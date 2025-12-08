@@ -26,6 +26,7 @@ import { getAppUrl } from '../../helpers/getAppUrl';
 import { getCluster, getClusterPrefixedPath } from '../../lib/cluster';
 import { useClustersConf } from '../../lib/k8s';
 import { testAuth } from '../../lib/k8s/api/v1/clusterApi';
+import { isGCPOAuthEnabled } from '../../lib/k8s/gke';
 import { queryClient } from '../../lib/queryClient';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
@@ -160,21 +161,33 @@ function AuthChooser({ children }: AuthChooserProps) {
               if (cluster.useToken === false) {
                 history.replace(from);
               } else if (!clusterAuthType) {
-                // we know that it requires token and also doesn't have oidc configured
-                // so let's redirect to token page
-                history.replace({
-                  pathname: generatePath(getClusterPrefixedPath('token'), {
-                    cluster: clusterName as string,
-                  }),
+                // Check if GCP OAuth is enabled before auto-redirecting to token page.
+                // If GCP OAuth is enabled, we want to show the auth chooser so users can
+                // choose between Google Sign In and token authentication.
+                isGCPOAuthEnabled().then(gcpEnabled => {
+                  if (!gcpEnabled && !cancelledRef.current) {
+                    // GCP OAuth not enabled, so redirect to token page
+                    history.replace({
+                      pathname: generatePath(getClusterPrefixedPath('token'), {
+                        cluster: clusterName as string,
+                      }),
+                    });
+                  }
+                  // If GCP OAuth is enabled, stay on auth chooser to show both options
                 });
               }
             }
           });
       } else if (cluster.useToken) {
-        history.replace({
-          pathname: generatePath(getClusterPrefixedPath('token'), {
-            cluster: clusterName as string,
-          }),
+        // Check if GCP OAuth is enabled before auto-redirecting
+        isGCPOAuthEnabled().then(gcpEnabled => {
+          if (!gcpEnabled && !cancelledRef.current) {
+            history.replace({
+              pathname: generatePath(getClusterPrefixedPath('token'), {
+                cluster: clusterName as string,
+              }),
+            });
+          }
         });
       }
     },
