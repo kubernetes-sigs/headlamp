@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { type MockInstance, vi } from 'vitest';
 import { Cluster } from '../../lib/k8s/cluster';
 import * as gke from '../../lib/k8s/gke';
@@ -33,15 +33,14 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('GCPLoginButton', () => {
-  let isGKEClusterSpy: MockInstance;
   let initiateGCPLoginSpy: MockInstance;
+  let isGCPOAuthEnabledSpy: MockInstance;
 
   beforeEach(() => {
     // Create spies for GKE functions
-    isGKEClusterSpy = vi.spyOn(gke, 'isGKECluster');
     initiateGCPLoginSpy = vi.spyOn(gke, 'initiateGCPLogin').mockImplementation(() => {});
-    // Mock isGCPOAuthEnabled to prevent actual network calls
-    vi.spyOn(gke, 'isGCPOAuthEnabled').mockResolvedValue(false);
+    // Mock isGCPOAuthEnabled - default to true so button renders
+    isGCPOAuthEnabledSpy = vi.spyOn(gke, 'isGCPOAuthEnabled').mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -49,197 +48,200 @@ describe('GCPLoginButton', () => {
   });
 
   describe('Rendering', () => {
-    it('should render button for GKE cluster', () => {
+    it('should render button when GCP OAuth is enabled', async () => {
       const cluster: Cluster = {
         name: 'gke-cluster',
         server: 'https://35.123.45.67.googleapis.com',
         auth_type: '',
       };
 
-      isGKEClusterSpy.mockReturnValue(true);
-
       render(<GCPLoginButton cluster={cluster} />);
 
-      const button = screen.getByText('Sign in with Google');
-      expect(button).toBeDefined();
+      await waitFor(() => {
+        const button = screen.getByText('Sign in with Google');
+        expect(button).toBeDefined();
+      });
     });
 
-    it('should not render button for non-GKE cluster', () => {
+    it('should not render button when GCP OAuth is disabled', async () => {
       const cluster: Cluster = {
         name: 'eks-cluster',
         server: 'https://ABCD1234.gr7.us-west-2.eks.amazonaws.com',
         auth_type: '',
       };
 
-      isGKEClusterSpy.mockReturnValue(false);
+      isGCPOAuthEnabledSpy.mockResolvedValue(false);
 
       const { container } = render(<GCPLoginButton cluster={cluster} />);
 
-      expect(container.firstChild).toBeNull();
+      await waitFor(() => {
+        expect(container.firstChild).toBeNull();
+      });
     });
 
-    it('should not render button when cluster name is empty', () => {
+    it('should not render button when cluster name is empty', async () => {
       const cluster: Cluster = {
         name: '',
         server: 'https://35.123.45.67.googleapis.com',
         auth_type: '',
       };
 
-      isGKEClusterSpy.mockReturnValue(true);
-
       const { container } = render(<GCPLoginButton cluster={cluster} />);
 
-      expect(container.firstChild).toBeNull();
+      await waitFor(() => {
+        expect(container.firstChild).toBeNull();
+      });
     });
 
-    it('should handle string cluster name', () => {
-      isGKEClusterSpy.mockReturnValue(false);
+    it('should render button for string cluster name when GCP OAuth enabled', async () => {
+      render(<GCPLoginButton cluster="my-cluster" />);
 
-      const { container } = render(<GCPLoginButton cluster="my-cluster" />);
-
-      expect(container.firstChild).toBeNull();
+      await waitFor(() => {
+        const button = screen.getByText('Sign in with Google');
+        expect(button).toBeDefined();
+      });
     });
 
-    it('should render custom button text', () => {
+    it('should render custom button text', async () => {
       const cluster: Cluster = {
         name: 'gke-cluster',
         server: 'https://35.123.45.67.googleapis.com',
         auth_type: '',
       };
 
-      isGKEClusterSpy.mockReturnValue(true);
-
       render(<GCPLoginButton cluster={cluster}>Custom Login Text</GCPLoginButton>);
 
-      const button = screen.getByText('Custom Login Text');
-      expect(button).toBeDefined();
+      await waitFor(() => {
+        const button = screen.getByText('Custom Login Text');
+        expect(button).toBeDefined();
+      });
     });
   });
 
   describe('Button interaction', () => {
-    it('should call initiateGCPLogin when clicked', () => {
+    it('should call initiateGCPLogin when clicked', async () => {
       const cluster: Cluster = {
         name: 'gke-cluster',
         server: 'https://35.123.45.67.googleapis.com',
         auth_type: '',
       };
 
-      isGKEClusterSpy.mockReturnValue(true);
-
       render(<GCPLoginButton cluster={cluster} />);
 
-      const button = screen.getByText('Sign in with Google');
-      fireEvent.click(button);
+      await waitFor(() => {
+        const button = screen.getByText('Sign in with Google');
+        fireEvent.click(button);
+      });
 
       expect(initiateGCPLoginSpy).toHaveBeenCalledWith('gke-cluster');
       expect(initiateGCPLoginSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('should call initiateGCPLogin with correct cluster name for string cluster', () => {
-      isGKEClusterSpy.mockReturnValue(true);
-
+    it('should call initiateGCPLogin with correct cluster name for string cluster', async () => {
       render(<GCPLoginButton cluster="my-gke-cluster" />);
 
-      const button = screen.getByText('Sign in with Google');
-      fireEvent.click(button);
+      await waitFor(() => {
+        const button = screen.getByText('Sign in with Google');
+        fireEvent.click(button);
+      });
 
       expect(initiateGCPLoginSpy).toHaveBeenCalledWith('my-gke-cluster');
     });
   });
 
   describe('Button props', () => {
-    it('should apply custom variant', () => {
+    it('should apply custom variant', async () => {
       const cluster: Cluster = {
         name: 'gke-cluster',
         server: 'https://35.123.45.67.googleapis.com',
         auth_type: '',
       };
-
-      isGKEClusterSpy.mockReturnValue(true);
 
       const { container } = render(<GCPLoginButton cluster={cluster} variant="outlined" />);
 
-      const button = container.querySelector('button');
-      expect(button?.className).toContain('MuiButton-outlined');
+      await waitFor(() => {
+        const button = container.querySelector('button');
+        expect(button?.className).toContain('MuiButton-outlined');
+      });
     });
 
-    it('should apply custom color', () => {
+    it('should apply custom color', async () => {
       const cluster: Cluster = {
         name: 'gke-cluster',
         server: 'https://35.123.45.67.googleapis.com',
         auth_type: '',
       };
-
-      isGKEClusterSpy.mockReturnValue(true);
 
       const { container } = render(<GCPLoginButton cluster={cluster} color="secondary" />);
 
-      const button = container.querySelector('button');
-      expect(button?.className).toContain('MuiButton-colorSecondary');
+      await waitFor(() => {
+        const button = container.querySelector('button');
+        expect(button?.className).toContain('MuiButton-colorSecondary');
+      });
     });
 
-    it('should apply custom size', () => {
+    it('should apply custom size', async () => {
       const cluster: Cluster = {
         name: 'gke-cluster',
         server: 'https://35.123.45.67.googleapis.com',
         auth_type: '',
       };
-
-      isGKEClusterSpy.mockReturnValue(true);
 
       const { container } = render(<GCPLoginButton cluster={cluster} size="small" />);
 
-      const button = container.querySelector('button');
-      expect(button?.className).toContain('MuiButton-sizeSmall');
+      await waitFor(() => {
+        const button = container.querySelector('button');
+        expect(button?.className).toContain('MuiButton-sizeSmall');
+      });
     });
 
-    it('should apply fullWidth prop', () => {
+    it('should apply fullWidth prop', async () => {
       const cluster: Cluster = {
         name: 'gke-cluster',
         server: 'https://35.123.45.67.googleapis.com',
         auth_type: '',
       };
-
-      isGKEClusterSpy.mockReturnValue(true);
 
       const { container } = render(<GCPLoginButton cluster={cluster} fullWidth />);
 
-      const button = container.querySelector('button');
-      expect(button?.className).toContain('MuiButton-fullWidth');
+      await waitFor(() => {
+        const button = container.querySelector('button');
+        expect(button?.className).toContain('MuiButton-fullWidth');
+      });
     });
 
-    it('should not apply fullWidth when false', () => {
+    it('should not apply fullWidth when false', async () => {
       const cluster: Cluster = {
         name: 'gke-cluster',
         server: 'https://35.123.45.67.googleapis.com',
         auth_type: '',
       };
 
-      isGKEClusterSpy.mockReturnValue(true);
-
       const { container } = render(<GCPLoginButton cluster={cluster} fullWidth={false} />);
 
-      const button = container.querySelector('button');
-      expect(button?.className).not.toContain('MuiButton-fullWidth');
+      await waitFor(() => {
+        const button = container.querySelector('button');
+        expect(button?.className).not.toContain('MuiButton-fullWidth');
+      });
     });
   });
 
   describe('Google logo', () => {
-    it('should render Google logo SVG', () => {
+    it('should render Google logo SVG', async () => {
       const cluster: Cluster = {
         name: 'gke-cluster',
         server: 'https://35.123.45.67.googleapis.com',
         auth_type: '',
       };
 
-      isGKEClusterSpy.mockReturnValue(true);
-
       const { container } = render(<GCPLoginButton cluster={cluster} />);
 
-      const svg = container.querySelector('svg');
-      expect(svg).toBeDefined();
-      expect(svg?.getAttribute('width')).toBe('18');
-      expect(svg?.getAttribute('height')).toBe('18');
+      await waitFor(() => {
+        const svg = container.querySelector('svg');
+        expect(svg).toBeDefined();
+        expect(svg?.getAttribute('width')).toBe('18');
+        expect(svg?.getAttribute('height')).toBe('18');
+      });
     });
   });
 });
