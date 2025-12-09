@@ -90,13 +90,18 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
           ],
         });
       } else {
-        const entryGroup = entriesGroup.get(group)!;
-        entryGroup.subList?.push({
-          name: item.jsonData.metadata.name,
-          label: item.jsonData.spec.names.kind,
-          isCR: true,
-        });
-        //entryGroup.subList =
+        const entryGroup = entriesGroup.get(group);
+        if (entryGroup?.subList) {
+          const crdName = item.jsonData.metadata.name;
+
+          if (!entryGroup.subList.some(subItem => subItem.name === crdName)) {
+            entryGroup.subList.push({
+              name: crdName,
+              label: item.jsonData.spec.names.kind,
+              isCR: true,
+            });
+          }
+        }
       }
     });
     entriesGroup.forEach(item => {
