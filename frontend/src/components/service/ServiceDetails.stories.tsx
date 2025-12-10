@@ -150,6 +150,9 @@ Default.parameters = {
         http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
         ),
+        http.get('http://localhost:4466/api/v1/namespaces/default/services', () =>
+          HttpResponse.error()
+        ),
         http.get('http://localhost:4466/api/v1/namespaces/default/services/example-service', () =>
           HttpResponse.json(serviceMock)
         ),
@@ -181,6 +184,9 @@ ErrorWithEndpoints.parameters = {
       story: [
         http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
+        ),
+        http.get('http://localhost:4466/api/v1/namespaces/default/services', () =>
+          HttpResponse.error()
         ),
         http.get('http://localhost:4466/api/v1/namespaces/default/services/example-service', () =>
           HttpResponse.json(serviceMock)

@@ -39,7 +39,7 @@ export default {
         story: [],
         storyBase: [
           http.get(
-            'http://localhost:4466/apis/gateway.networking.k8s.io/v1beta1/referencegrants',
+            'http://localhost:4466/apis/gateway.networking.k8s.io/v1beta1/namespaces/default/referencegrants',
             () => HttpResponse.json({})
           ),
           http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
