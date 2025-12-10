@@ -1,6 +1,6 @@
 module github.com/kubernetes-sigs/headlamp/backend
 
-go 1.24.10
+go 1.24.11
 
 require (
 	github.com/fsnotify/fsnotify v1.7.0
