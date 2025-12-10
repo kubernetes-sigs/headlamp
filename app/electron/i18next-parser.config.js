@@ -47,7 +47,7 @@ module.exports = {
   lexers: {
     default: ['JsxLexer'],
   },
-  namespaceSeparator: '|',
+  namespaceSeparator: false,
   keySeparator: false,
   defaultNamespace: 'app',
   contextSeparator: sharedConfig?.contextSeparator || '//context:',
