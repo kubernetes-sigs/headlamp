@@ -1,0 +1,66 @@
+name: Build and upload embedded binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      buildBranch:
+        description: 'Headlamp ref/branch/tag'
+        required: true
+        default: 'main'
+      version:
+        description: 'Version for the binaries (defaults to app/package.json version)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build-embedded:
+    permissions:
+      actions: write # needed to upload artifacts
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      with:
+        ref: ${{ github.event.inputs.buildBranch }}
+    - name: Setup nodejs
+      uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+      with:
+        node-version: 20.x
+        cache: 'npm'
+        cache-dependency-path: |
+          frontend/package-lock.json
+    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+      with:
+        go-version: '1.24.*'
+        cache-dependency-path: |
+          backend/go.sum
+    - name: Get version
+      id: get-version
+      run: |
+        if [ -n "${{ github.event.inputs.version }}" ]; then
+          VERSION="${{ github.event.inputs.version }}"
+        else
+          VERSION=$(node -p "require('./app/package.json').version")
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Building embedded binaries with version: $VERSION"
+    - name: Build frontend
+      run: |
+        make frontend
+    - name: Prepare backend for embedding
+      run: |
+        make backend-embed-prepare
+    - name: Build embedded binaries
+      run: |
+        make backend-embed-all-compressed VERSION=${{ steps.get-version.outputs.version }}
+    - name: Upload embedded binaries
+      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+      with:
+        name: embedded-binaries
+        path: ./backend/dist/*.tar.gz
+        if-no-files-found: error
+        retention-days: 2
+
