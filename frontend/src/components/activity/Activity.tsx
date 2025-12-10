@@ -47,7 +47,13 @@ import { activitySlice } from './activitySlice';
 const areWindowsEnabled = false;
 
 /** Activity position relative to the main container */
-type ActivityLocation = 'full' | 'split-left' | 'split-right' | 'window';
+type ActivityLocation =
+  | 'full'
+  | 'split-left'
+  | 'split-right'
+  | 'split-top'
+  | 'split-bottom'
+  | 'window';
 
 /** Independent screen or a page rendered on top of the app */
 export interface Activity {
@@ -157,6 +163,20 @@ export function SingleActivityRenderer({
       width: '50%',
       height: '100%',
       gridColumn: '2 / 4',
+    },
+    'split-top': {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '50%',
+    },
+    'split-bottom': {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      width: '100%',
+      height: '50%',
     },
     window: {
       position: 'absolute',
@@ -390,6 +410,22 @@ export function SingleActivityRenderer({
                     disabled={location === 'split-right'}
                   >
                     <Icon icon="mdi:dock-right" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    title={t('Snap Top')}
+                    onClick={() => Activity.update(id, { location: 'split-top' })}
+                    disabled={location === 'split-top'}
+                  >
+                    <Icon icon="mdi:dock-top" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    title={t('Snap Bottom')}
+                    onClick={() => Activity.update(id, { location: 'split-bottom' })}
+                    disabled={location === 'split-bottom'}
+                  >
+                    <Icon icon="mdi:dock-bottom" />
                   </IconButton>
                   <IconButton
                     onClick={() => {
@@ -750,6 +786,18 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
   useHotkeys('Ctrl+ArrowRight', () => {
     if (lastElement) {
       Activity.update(lastElement, { location: 'split-right' });
+    }
+  });
+
+  useHotkeys('Ctrl+Shift+ArrowUp', () => {
+    if (lastElement) {
+      Activity.update(lastElement, { location: 'split-top' });
+    }
+  });
+
+  useHotkeys('Ctrl+Shift+ArrowDown', () => {
+    if (lastElement) {
+      Activity.update(lastElement, { location: 'split-bottom' });
     }
   });
 

@@ -11,6 +11,8 @@
   "Error authenticating": "验证错误",
   "Snap Left": "向左贴靠",
   "Snap Right": "向右贴靠",
+  "Snap Top": "向上贴靠",
+  "Snap Bottom": "向下贴靠",
   "Minimize": "最小化",
   "Window": "窗口",
   "Fullscreen": "全屏",

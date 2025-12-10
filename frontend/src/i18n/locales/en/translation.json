@@ -11,6 +11,8 @@
   "Error authenticating": "Error authenticating",
   "Snap Left": "Snap Left",
   "Snap Right": "Snap Right",
+  "Snap Top": "Snap Top",
+  "Snap Bottom": "Snap Bottom",
   "Minimize": "Minimize",
   "Window": "Window",
   "Fullscreen": "Fullscreen",
