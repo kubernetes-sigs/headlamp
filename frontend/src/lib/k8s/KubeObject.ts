@@ -122,6 +122,41 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     return this.kind;
   }
 
+  /**
+   * Get name of the API group of this resource
+   * for example will return batch for CronJob
+   *
+   * For core group, like Pods, it will return undefined
+   *
+   * API group reference https://kubernetes.io/docs/reference/using-api/#api-groups
+   */
+  static get apiGroupName(): string | undefined {
+    // Get any of the versions, group will be the same
+    const apiVersion = typeof this.apiVersion === 'string' ? this.apiVersion : this.apiVersion[0];
+
+    if (!apiVersion.includes('/')) return;
+
+    return apiVersion.split('/')[0];
+  }
+
+  /**
+   * Type guard to check if a KubeObject instance belongs to this class.
+   * Compares API group name and kind to determine if the instance matches.
+   * This works even if class definitions are duplicated and should be used
+   * instead of `instanceof`.
+   *
+   * @param maybeInstance - The KubeObject instance to check.
+   * @returns True if the instance is of this class type, with narrowed type.
+   */
+  static isClassOf<K extends KubeObjectClass>(
+    this: K,
+    maybeInstance: KubeObject
+  ): maybeInstance is InstanceType<K> {
+    return (
+      maybeInstance._class().apiGroupName === this.apiGroupName && maybeInstance.kind === this.kind
+    );
+  }
+
   static get pluralName(): string {
     // This is a naive way to get the plural name of the object by default. It will
     // work in most cases, but for exceptions (like Ingress), we must override this.

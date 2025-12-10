@@ -26,6 +26,7 @@ import HPA from '../../../lib/k8s/hpa';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import Service from '../../../lib/k8s/service';
+import StatefulSet from '../../../lib/k8s/statefulSet';
 import { DateLabel } from '../../common/Label';
 import { DeploymentGlance } from './DeploymentGlance';
 import { EndpointsGlance } from './EndpointsGlance';
@@ -46,32 +47,30 @@ export const KubeObjectGlance = memo(({ resource }: { resource: KubeObject }) =>
     );
   }, []);
 
-  const kind = resource.kind;
-
   const sections = [];
 
-  if (kind === 'Pod') {
-    sections.push(<PodGlance pod={resource as Pod} />);
+  if (Pod.isClassOf(resource)) {
+    sections.push(<PodGlance pod={resource} />);
   }
 
-  if (kind === 'Deployment') {
-    sections.push(<DeploymentGlance deployment={resource as Deployment} />);
+  if (Deployment.isClassOf(resource)) {
+    sections.push(<DeploymentGlance deployment={resource} />);
   }
 
-  if (kind === 'Service') {
-    sections.push(<ServiceGlance service={resource as Service} />);
+  if (Service.isClassOf(resource)) {
+    sections.push(<ServiceGlance service={resource} />);
   }
 
-  if (kind === 'Endpoints') {
-    sections.push(<EndpointsGlance endpoints={resource as Endpoints} />);
+  if (Endpoints.isClassOf(resource)) {
+    sections.push(<EndpointsGlance endpoints={resource} />);
   }
 
-  if (kind === 'ReplicaSet' || kind === 'StatefulSet') {
-    sections.push(<ReplicaSetGlance set={resource as ReplicaSet} />);
+  if (ReplicaSet.isClassOf(resource) || StatefulSet.isClassOf(resource)) {
+    sections.push(<ReplicaSetGlance set={resource} />);
   }
 
-  if (kind === 'HorizontalPodAutoscaler') {
-    sections.push(<HorizontalPodAutoscalerGlance hpa={resource as HPA} />);
+  if (HPA.isClassOf(resource)) {
+    sections.push(<HorizontalPodAutoscalerGlance hpa={resource} />);
   }
 
   if (events.length > 0) {

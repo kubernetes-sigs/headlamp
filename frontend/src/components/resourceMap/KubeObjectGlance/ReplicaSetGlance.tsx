@@ -16,10 +16,11 @@
 
 import { Box } from '@mui/system';
 import { useTranslation } from 'react-i18next';
-import ReplicaSet from '../../../lib/k8s/replicaSet';
+import type ReplicaSet from '../../../lib/k8s/replicaSet';
+import type StatefulSet from '../../../lib/k8s/statefulSet';
 import { StatusLabel } from '../../common/Label';
 
-export function ReplicaSetGlance({ set }: { set: ReplicaSet }) {
+export function ReplicaSetGlance({ set }: { set: ReplicaSet | StatefulSet }) {
   const { t } = useTranslation();
   const ready = set.status?.readyReplicas || 0;
   const desired = set.spec?.replicas || 0;
