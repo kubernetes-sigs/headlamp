@@ -190,6 +190,7 @@
   "Resource not found": "संसाधन नहीं मिला",
   "Hide details": "विवरण छिपाएँ",
   "Show details": "विवरण दिखाएँ",
+  "Sign in with Google": "",
   "Duplicate cluster: {{ clusterNames }} in the list. Please edit the context name.": "डुप्लिकेट क्लस्टर: सूची में {{ clusterNames }}। कृपया संदर्भ नाम संपादित करें।",
   "Error setting up clusters, please load a valid kubeconfig file": "क्लस्टर सेट अप करने में त्रुटि, कृपया वैध kubeconfig फ़ाइल लोड करें",
   "Couldn't read kubeconfig file": "kubeconfig फ़ाइल पढ़ नहीं सका",
