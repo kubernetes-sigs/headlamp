@@ -332,3 +332,9 @@ jobs:
         name: e2e-tests-report
         path: e2e-tests/playwright-report/
         retention-days: 30
+    - name: Upload accessibility artifacts
+      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+      with:
+        name: a11y-artifacts
+        path: ${{ github.workspace }}/a11y-artifacts
+        retention-days: 30
