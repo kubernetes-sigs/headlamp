@@ -16,6 +16,7 @@
 
 import '../../../i18n/config';
 import Editor from '@monaco-editor/react';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import DialogActions from '@mui/material/DialogActions';
@@ -32,7 +33,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { getCluster } from '../../../lib/cluster';
 import { apply } from '../../../lib/k8s/api/v1/apply';
-import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
+import { KubeObject, KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { useId } from '../../../lib/util';
 import { clusterAction } from '../../../redux/clusterActionSlice';
 import {
@@ -53,9 +54,47 @@ import { UploadDialog } from './UploadDialog';
 
 type KubeObjectIsh = Partial<KubeObjectInterface>;
 
+type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+type Path = Array<string | number>;
+type PathOp =
+  | { type: 'set'; path: Path; baseValue: unknown; value: unknown }
+  | { type: 'delete'; path: Path; baseValue: unknown };
+
+type HighlightRequest = {
+  previousCode: string;
+  nextCode: string;
+};
+
+const LINE_CHANGED_STYLE_ELEMENT_ID = 'headlamp-editor-external-change-style';
+
+function ensureLineChangedStyles() {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  if (document.getElementById(LINE_CHANGED_STYLE_ELEMENT_ID)) {
+    return;
+  }
+
+  const styleElement = document.createElement('style');
+  styleElement.id = LINE_CHANGED_STYLE_ELEMENT_ID;
+  styleElement.textContent = `
+@keyframes headlamp-editor-line-changed-fade {
+  0% { background-color: rgba(255, 213, 79, 0.55); }
+  100% { background-color: transparent; }
+}
+.headlamp-editor-external-change {
+  background-color: rgba(255, 213, 79, 0.45);
+  animation: headlamp-editor-line-changed-fade 2.5s ease-out forwards;
+}
+`;
+
+  document.head.appendChild(styleElement);
+}
+
 export interface EditorDialogProps extends DialogProps {
   /** The object(s) to edit, or null to make the dialog be in "loading mode". Pass it an empty object if no contents are to be shown when the dialog is first open. */
-  item: KubeObjectIsh | object | object[] | string | null;
+  item: KubeObject | KubeObjectIsh | object | object[] | string | null;
   /** Called when the dialog is closed. */
   onClose: () => void;
   /** Called by a component for when the user clicks the save button. When set to "default", internal save logic is applied. */
@@ -77,7 +116,32 @@ export interface EditorDialogProps extends DialogProps {
   noDialog?: boolean;
 }
 
-export default function EditorDialog(props: EditorDialogProps) {
+function isKubeObjectInstance(item: unknown): item is KubeObject {
+  return item instanceof KubeObject;
+}
+
+type EditorDialogInnerProps = Omit<EditorDialogProps, 'item'> & {
+  item: KubeObjectIsh | object | object[] | string | null;
+};
+
+function KubeObjectEditorDialog(props: Omit<EditorDialogProps, 'item'> & { item: KubeObject }) {
+  const { item: kubeItem, ...rest } = props;
+  const kubeObjectClass = kubeItem.constructor as (new (...args: any) => KubeObject<any>) &
+    typeof KubeObject<any>;
+
+  const [liveKubeItem] = kubeObjectClass.useGet(kubeItem.getName(), kubeItem.getNamespace(), {
+    cluster: kubeItem.cluster,
+  });
+
+  const editableItem = React.useMemo(
+    () => (liveKubeItem ?? kubeItem).getEditableObject(),
+    [liveKubeItem, kubeItem]
+  );
+
+  return <EditorDialogInner {...(rest as EditorDialogInnerProps)} item={editableItem} />;
+}
+
+function EditorDialogInner(props: EditorDialogInnerProps) {
   const {
     item,
     onClose,
@@ -101,9 +165,11 @@ export default function EditorDialog(props: EditorDialogProps) {
   const [code, setCode] = React.useState(originalCodeRef.current);
   const codeRef = React.useRef(code);
   const lastCodeCheckHandler = React.useRef(0);
-  const previousVersionRef = React.useRef(
+  const baselineVersionRef = React.useRef(
     isKubeObjectIsh(item) ? item?.metadata?.resourceVersion || '' : ''
   );
+  const [latestServerCode, setLatestServerCode] = React.useState<string>(initialCode);
+  const [serverUpdatedWhileEditing, setServerUpdatedWhileEditing] = React.useState(false);
   const [error, setError] = React.useState('');
   const [docSpecs, setDocSpecs] = React.useState<
     KubeObjectInterface | KubeObjectInterface[] | null
@@ -111,6 +177,13 @@ export default function EditorDialog(props: EditorDialogProps) {
   const { t } = useTranslation();
 
   const theme = useCurrentAppTheme();
+  const monacoEditorRef = React.useRef<any>(null);
+  const monacoRef = React.useRef<any>(null);
+  const monacoDecorationsRef = React.useRef<string[]>([]);
+  const simpleEditorRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const highlightRequestRef = React.useRef<HighlightRequest | null>(null);
+  const highlightTimeoutRef = React.useRef<number | null>(null);
+  const hasEverRenderedCodeRef = React.useRef(false);
 
   const [hideManagedFields, setHideManagedFields] = useLocalStorageState<boolean>(
     'hideManagedFields',
@@ -129,13 +202,167 @@ export default function EditorDialog(props: EditorDialogProps) {
     return item && typeof item === 'object' && !Array.isArray(item) && 'metadata' in item;
   }
 
+  function clearExternalHighlight() {
+    highlightRequestRef.current = null;
+    if (highlightTimeoutRef.current) {
+      window.clearTimeout(highlightTimeoutRef.current);
+      highlightTimeoutRef.current = null;
+    }
+
+    const editor = monacoEditorRef.current;
+    if (editor) {
+      monacoDecorationsRef.current = editor.deltaDecorations(monacoDecorationsRef.current, []);
+    }
+
+    if (simpleEditorRef.current) {
+      const el = simpleEditorRef.current;
+      try {
+        const pos = el.selectionEnd ?? 0;
+        el.setSelectionRange(pos, pos);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  function computeChangedLineRange(
+    prev: string,
+    next: string
+  ): { startLine: number; endLine: number } | null {
+    if (prev === next) return null;
+    const prevLines = prev.split('\n');
+    const nextLines = next.split('\n');
+    const minLen = Math.min(prevLines.length, nextLines.length);
+
+    // Find common prefix.
+    let start = 0;
+    while (start < minLen && prevLines[start] === nextLines[start]) start++;
+
+    // Find common suffix (but don't cross prefix).
+    let endPrev = prevLines.length - 1;
+    let endNext = nextLines.length - 1;
+    while (endPrev >= start && endNext >= start && prevLines[endPrev] === nextLines[endNext]) {
+      endPrev--;
+      endNext--;
+    }
+
+    const startLine = Math.max(1, start + 1);
+    const endLine = Math.max(startLine, Math.min(endNext + 1, nextLines.length || 1));
+    return { startLine, endLine };
+  }
+
+  function queueExternalHighlight(previousCode: string, nextCode: string) {
+    if (!hasEverRenderedCodeRef.current) {
+      // Avoid highlighting on the very first render/mount.
+      return;
+    }
+    if (previousCode === nextCode) return;
+    highlightRequestRef.current = { previousCode, nextCode };
+  }
+
+  function setCodeExternally(
+    next: { code: string; format: string },
+    previousCodeOverride?: string
+  ) {
+    const previous = previousCodeOverride ?? codeRef.current.code;
+    queueExternalHighlight(previous, next.code);
+    setCode(next);
+  }
+
+  function setCodeExternallyUpdater(
+    updater: React.SetStateAction<{ code: string; format: string }>
+  ) {
+    setCode(current => {
+      const next = typeof updater === 'function' ? (updater as any)(current) : updater;
+      queueExternalHighlight(current.code, next.code);
+      return next;
+    });
+  }
+
+  function focusAndHighlightExternalChange(prev: string, next: string) {
+    const range = computeChangedLineRange(prev, next);
+    if (!range) return;
+    ensureLineChangedStyles();
+
+    const firstChangedLine = range.startLine;
+
+    // Monaco: decoration + reveal/focus
+    if (monacoEditorRef.current && monacoRef.current) {
+      const editor = monacoEditorRef.current;
+      const monaco = monacoRef.current;
+      const decorations = [];
+      const maxDecorations = 200;
+      const endLine = Math.min(range.endLine, range.startLine + maxDecorations - 1);
+      for (let lineNumber = range.startLine; lineNumber <= endLine; lineNumber += 1) {
+        decorations.push({
+          range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+          options: {
+            isWholeLine: true,
+            className: 'headlamp-editor-external-change',
+          },
+        });
+      }
+
+      monacoDecorationsRef.current = editor.deltaDecorations(
+        monacoDecorationsRef.current,
+        decorations
+      );
+      editor.revealLineInCenter(firstChangedLine);
+      editor.setPosition({ lineNumber: firstChangedLine, column: 1 });
+      editor.focus();
+
+      highlightTimeoutRef.current = window.setTimeout(() => {
+        const currentEditor = monacoEditorRef.current;
+        if (!currentEditor) return;
+        monacoDecorationsRef.current = currentEditor.deltaDecorations(
+          monacoDecorationsRef.current,
+          []
+        );
+      }, 2500);
+      return;
+    }
+
+    // Simple editor: highlight by selecting the changed block (best-effort)
+    if (simpleEditorRef.current) {
+      const el = simpleEditorRef.current;
+      const lines = next.split('\n');
+      const beforeStart = lines.slice(0, range.startLine - 1).join('\n');
+      const startOffset = beforeStart.length + (range.startLine > 1 ? 1 : 0);
+      const selectedLines = lines.slice(range.startLine - 1, range.endLine);
+      const selectedText = selectedLines.join('\n');
+      const endOffset = startOffset + selectedText.length;
+
+      el.focus();
+      try {
+        el.setSelectionRange(startOffset, endOffset);
+        const style = window.getComputedStyle(el);
+        const lineHeight = parseFloat(style.lineHeight || '16') || 16;
+        el.scrollTop = Math.max(0, (firstChangedLine - 1) * lineHeight - el.clientHeight / 3);
+      } catch {
+        // ignore
+      }
+
+      highlightTimeoutRef.current = window.setTimeout(() => {
+        const cur = simpleEditorRef.current;
+        if (!cur) return;
+        try {
+          cur.setSelectionRange(endOffset, endOffset);
+        } catch {
+          // ignore
+        }
+      }, 2500);
+    }
+  }
+
   // Update the code when the item changes, but only if the code hasn't been touched.
   React.useEffect(() => {
     const clonedItem = _.cloneDeep(item);
     if (!item || Object.keys(item || {}).length === 0) {
       const defaultCode = '# Enter your YAML or JSON here';
       originalCodeRef.current = { code: defaultCode, format: 'yaml' };
-      setCode({ code: defaultCode, format: 'yaml' });
+      setCodeExternally({ code: defaultCode, format: 'yaml' });
+      setLatestServerCode(defaultCode);
+      setServerUpdatedWhileEditing(false);
       return;
     }
 
@@ -148,29 +375,32 @@ export default function EditorDialog(props: EditorDialogProps) {
     // Determine the format (YAML or JSON) and serialize to string
     const format = looksLikeJson(originalCodeRef.current.code) ? 'json' : 'yaml';
     const itemCode = format === 'json' ? JSON.stringify(clonedItem) : yaml.dump(clonedItem);
+    setLatestServerCode(itemCode);
 
-    // Update the code if the item representation has changed
-    if (itemCode !== originalCodeRef.current.code) {
-      originalCodeRef.current = { code: itemCode, format };
-      setCode({ code: itemCode, format });
+    const isDirty = codeRef.current.code !== originalCodeRef.current.code;
+    const nextResourceVersion =
+      isKubeObjectIsh(item) && item.metadata ? item.metadata.resourceVersion || '' : '';
+
+    if (!isDirty) {
+      // Not edited: always follow the latest server representation.
+      if (itemCode !== originalCodeRef.current.code) {
+        originalCodeRef.current = { code: itemCode, format };
+        setCodeExternally({ code: itemCode, format });
+      }
+      setServerUpdatedWhileEditing(false);
+      if (nextResourceVersion) {
+        baselineVersionRef.current = nextResourceVersion;
+      }
+      return;
     }
 
     // Additional handling for Kubernetes objects
     if (isKubeObjectIsh(item) && item.metadata) {
-      const resourceVersionsDiffer =
-        (previousVersionRef.current || '') !== (item.metadata!.resourceVersion || '');
-      // Only change if the code hasn't been touched.
-      // We use the codeRef in this effect instead of the code, because we need to access the current
-      // state of the code but we don't want to trigger a re-render when we set the code here.
-      if (resourceVersionsDiffer || codeRef.current.code === originalCodeRef.current.code) {
-        // Prevent updating to the same code, which would lead to an infinite loop.
-        if (codeRef.current.code !== itemCode) {
-          setCode({ code: itemCode, format: originalCodeRef.current.format });
-        }
-
-        if (resourceVersionsDiffer && !!item.metadata!.resourceVersion) {
-          previousVersionRef.current = item.metadata!.resourceVersion;
-        }
+      // Edited: never overwrite. If the server's resourceVersion changes, show a warning banner.
+      const serverVersionChanged =
+        !!nextResourceVersion && (baselineVersionRef.current || '') !== nextResourceVersion;
+      if (serverVersionChanged) {
+        setServerUpdatedWhileEditing(true);
       }
     }
   }, [item, hideManagedFields]);
@@ -178,6 +408,18 @@ export default function EditorDialog(props: EditorDialogProps) {
   React.useEffect(() => {
     codeRef.current = code;
   }, [code]);
+
+  React.useEffect(() => {
+    if (!hasEverRenderedCodeRef.current) {
+      hasEverRenderedCodeRef.current = true;
+      return;
+    }
+    const req = highlightRequestRef.current;
+    if (!req) return;
+    if (req.nextCode !== code.code) return;
+    focusAndHighlightExternalChange(req.previousCode, req.nextCode);
+    highlightRequestRef.current = null;
+  }, [code.code, useSimpleEditor]);
 
   function isReadOnly() {
     return onSave === null;
@@ -192,7 +434,174 @@ export default function EditorDialog(props: EditorDialogProps) {
     return false;
   }
 
+  function pathStartsWith(path: Path, prefix: Path) {
+    if (prefix.length > path.length) return false;
+    for (let i = 0; i < prefix.length; i++) {
+      if (path[i] !== prefix[i]) return false;
+    }
+    return true;
+  }
+
+  const ignoredMergePathPrefixes: Path[] = [
+    ['status'],
+    ['metadata', 'managedFields'],
+    ['metadata', 'resourceVersion'],
+  ];
+
+  function shouldIgnoreMergePath(path: Path) {
+    return ignoredMergePathPrefixes.some(prefix => pathStartsWith(path, prefix));
+  }
+
+  function diffToPathOps(base: any, local: any, path: Path = []): PathOp[] {
+    if (shouldIgnoreMergePath(path)) return [];
+    if (_.isEqual(base, local)) return [];
+
+    // Arrays: treat as atomic to avoid complicated element-wise merges.
+    if (Array.isArray(base) || Array.isArray(local)) {
+      return [{ type: 'set', path, baseValue: base, value: local }];
+    }
+
+    // Objects: recurse by keys.
+    const baseIsObj = base !== null && typeof base === 'object';
+    const localIsObj = local !== null && typeof local === 'object';
+    if (baseIsObj && localIsObj) {
+      const ops: PathOp[] = [];
+      const keys = new Set<string>([
+        ...Object.keys(base as Record<string, any>),
+        ...Object.keys(local as Record<string, any>),
+      ]);
+      for (const key of keys) {
+        const bHas = Object.prototype.hasOwnProperty.call(base, key);
+        const lHas = Object.prototype.hasOwnProperty.call(local, key);
+        const nextPath = [...path, key];
+        if (!lHas && bHas) {
+          if (!shouldIgnoreMergePath(nextPath)) {
+            ops.push({ type: 'delete', path: nextPath, baseValue: (base as any)[key] });
+          }
+          continue;
+        }
+        if (lHas && !bHas) {
+          if (!shouldIgnoreMergePath(nextPath)) {
+            ops.push({
+              type: 'set',
+              path: nextPath,
+              baseValue: undefined,
+              value: (local as any)[key],
+            });
+          }
+          continue;
+        }
+        ops.push(...diffToPathOps((base as any)[key], (local as any)[key], nextPath));
+      }
+      return ops;
+    }
+
+    // Primitive or type-changed value: replace.
+    return [{ type: 'set', path, baseValue: base, value: local }];
+  }
+
+  function getAtPath(root: any, path: Path) {
+    let cur = root;
+    for (const seg of path) {
+      if (cur === null) return undefined;
+      cur = cur[seg as any];
+    }
+    return cur;
+  }
+
+  function setAtPath(root: any, path: Path, value: any) {
+    if (path.length === 0) return value;
+    const clone = _.cloneDeep(root ?? {});
+    let cur: any = clone;
+    for (let i = 0; i < path.length - 1; i++) {
+      const seg = path[i];
+      const nextSeg = path[i + 1];
+      if (cur[seg as any] === null || typeof cur[seg as any] !== 'object') {
+        cur[seg as any] = typeof nextSeg === 'number' ? [] : {};
+      }
+      cur = cur[seg as any];
+    }
+    cur[path[path.length - 1] as any] = value;
+    return clone;
+  }
+
+  function deleteAtPath(root: any, path: Path) {
+    const clone = _.cloneDeep(root ?? {});
+    if (path.length === 0) return clone;
+    let cur: any = clone;
+    for (let i = 0; i < path.length - 1; i++) {
+      const seg = path[i];
+      if (cur === null) return clone;
+      cur = cur[seg as any];
+    }
+    if (cur && typeof cur === 'object') {
+      delete cur[path[path.length - 1] as any];
+    }
+    return clone;
+  }
+
+  function parseSingleDoc(
+    codeStr: string,
+    formatHint: string
+  ): { obj: any | null; format: string } {
+    const { obj, format, error } = getObjectsFromCode({ code: codeStr, format: formatHint });
+    if (error) throw error;
+    if (!obj || obj.length !== 1) {
+      throw new Error(
+        t('translation|Automatic merge is only supported for a single YAML/JSON document.')
+      );
+    }
+    return { obj: obj[0], format };
+  }
+
+  function stringifyDoc(obj: any, format: string) {
+    return format === 'json' ? JSON.stringify(obj, null, 2) : yaml.dump(obj);
+  }
+
+  function mergeLocalIntoServer({
+    baseCode,
+    localCode,
+    serverCode,
+    formatHint,
+  }: {
+    baseCode: string;
+    localCode: string;
+    serverCode: string;
+    formatHint: string;
+  }): { mergedCode: string; conflicts: string[] } {
+    const base = parseSingleDoc(baseCode, formatHint);
+    const local = parseSingleDoc(localCode, base.format);
+    const server = parseSingleDoc(serverCode, base.format);
+
+    const ops = diffToPathOps(base.obj, local.obj);
+    const conflicts: string[] = [];
+    let mergedObj: any = server.obj;
+
+    for (const op of ops) {
+      const serverAtPath = getAtPath(mergedObj, op.path);
+      const baseAtPath = op.baseValue;
+      const localTarget = op.type === 'set' ? op.value : undefined;
+
+      const serverChangedSinceBase = !_.isEqual(serverAtPath, baseAtPath);
+      const localDiffersFromServer = !_.isEqual(localTarget, serverAtPath);
+      if (serverChangedSinceBase && localDiffersFromServer) {
+        conflicts.push(op.path.map(String).join('.'));
+        continue;
+      }
+
+      if (op.type === 'set') {
+        mergedObj = setAtPath(mergedObj, op.path, op.value);
+      } else {
+        mergedObj = deleteAtPath(mergedObj, op.path);
+      }
+    }
+
+    return { mergedCode: stringifyDoc(mergedObj, base.format), conflicts };
+  }
+
   function onChange(value: string | undefined): void {
+    // User typing: clear any external highlight.
+    clearExternalHighlight();
     // Clear any ongoing attempts to check the code.
     window.clearTimeout(lastCodeCheckHandler.current);
 
@@ -277,6 +686,7 @@ export default function EditorDialog(props: EditorDialogProps) {
 
   function onUndo() {
     setCode(originalCodeRef.current);
+    setServerUpdatedWhileEditing(false);
   }
 
   const applyFunc = async (newItems: KubeObjectInterface[], clusterName: string) => {
@@ -362,7 +772,12 @@ export default function EditorDialog(props: EditorDialogProps) {
     return (
       <Box height="100%">
         {useSimpleEditor ? (
-          <SimpleEditor language={language} value={code.code} onChange={onChange} />
+          <SimpleEditor
+            ref={simpleEditorRef}
+            language={language}
+            value={code.code}
+            onChange={onChange}
+          />
         ) : (
           <Editor
             language={language}
@@ -370,6 +785,10 @@ export default function EditorDialog(props: EditorDialogProps) {
             value={code.code}
             options={editorOptions}
             onChange={onChange}
+            onMount={(editor, monaco) => {
+              monacoEditorRef.current = editor;
+              monacoRef.current = monaco;
+            }}
             height="100%"
           />
         )}
@@ -392,7 +811,11 @@ export default function EditorDialog(props: EditorDialogProps) {
     <Loader title={t('Loading editor')} />
   ) : (
     <React.Fragment>
-      {uploadFiles ? <UploadDialog setUploadFiles={setUploadFiles} setCode={setCode} /> : ''}
+      {uploadFiles ? (
+        <UploadDialog setUploadFiles={setUploadFiles} setCode={setCodeExternallyUpdater} />
+      ) : (
+        ''
+      )}
       <DialogContent
         sx={{
           height: '80%',
@@ -450,6 +873,105 @@ export default function EditorDialog(props: EditorDialogProps) {
             </Grid>
           </Grid>
         </Box>
+        {serverUpdatedWhileEditing && (
+          <Box sx={{ mt: 1, mb: 1 }}>
+            <Alert
+              severity="warning"
+              variant="filled"
+              sx={{
+                alignItems: 'center',
+                bgcolor: theme => theme.palette.warning.main,
+                color: theme => theme.palette.warning.contrastText,
+                '& .MuiAlert-icon': {
+                  color: theme => theme.palette.warning.contrastText,
+                },
+                '& .MuiAlert-action': {
+                  color: theme => theme.palette.warning.contrastText,
+                },
+              }}
+              action={
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    color="inherit"
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontWeight: 600, borderColor: 'currentColor' }}
+                    onClick={() => {
+                      const prev = codeRef.current.code;
+                      originalCodeRef.current = {
+                        code: latestServerCode,
+                        format: originalCodeRef.current.format,
+                      };
+                      setCodeExternally(
+                        {
+                          code: latestServerCode,
+                          format: originalCodeRef.current.format,
+                        },
+                        prev
+                      );
+                      if (isKubeObjectIsh(item) && item.metadata?.resourceVersion) {
+                        baselineVersionRef.current = item.metadata.resourceVersion;
+                      }
+                      setServerUpdatedWhileEditing(false);
+                      setError('');
+                    }}
+                  >
+                    {t('translation|Reload from server')}
+                  </Button>
+                  <Button
+                    color="inherit"
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontWeight: 600, borderColor: 'currentColor' }}
+                    onClick={() => {
+                      try {
+                        const formatHint =
+                          codeRef.current.format || originalCodeRef.current.format || 'yaml';
+                        const { mergedCode, conflicts } = mergeLocalIntoServer({
+                          baseCode: originalCodeRef.current.code,
+                          localCode: codeRef.current.code,
+                          serverCode: latestServerCode,
+                          formatHint,
+                        });
+
+                        if (conflicts.length > 0) {
+                          setError(
+                            t(
+                              'translation|Automatic merge failed due to conflicts. Please resolve manually.'
+                            )
+                          );
+                          return;
+                        }
+
+                        // After a successful merge, set the server baseline to current server snapshot
+                        // so subsequent merges/undo behave as expected.
+                        originalCodeRef.current = {
+                          code: latestServerCode,
+                          format: codeRef.current.format,
+                        };
+                        setCodeExternally(
+                          { code: mergedCode, format: codeRef.current.format },
+                          codeRef.current.code
+                        );
+                        if (isKubeObjectIsh(item) && item.metadata?.resourceVersion) {
+                          baselineVersionRef.current = item.metadata.resourceVersion;
+                        }
+                        setServerUpdatedWhileEditing(false);
+                        setError('');
+                      } catch (e) {
+                        setError((e as Error).message);
+                      }
+                    }}
+                  >
+                    {t('translation|Merge my changes')}
+                  </Button>
+                </Box>
+              }
+            >
+              {t('translation|This resource was updated on the server while you were editing.')}
+            </Alert>
+          </Box>
+        )}
         {isReadOnly() ? (
           makeEditor()
         ) : (
@@ -537,6 +1059,14 @@ export default function EditorDialog(props: EditorDialogProps) {
       {content}
     </Dialog>
   );
+}
+
+export default function EditorDialog(props: EditorDialogProps) {
+  if (isKubeObjectInstance(props.item)) {
+    const { item, ...rest } = props;
+    return <KubeObjectEditorDialog {...rest} item={item} />;
+  }
+  return <EditorDialogInner {...(props as EditorDialogInnerProps)} />;
 }
 
 export function ViewDialog(props: Omit<EditorDialogProps, 'onSave'>) {
