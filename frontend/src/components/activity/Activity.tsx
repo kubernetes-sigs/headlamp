@@ -20,6 +20,10 @@ import {
   Box,
   Button,
   IconButton,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
   Tooltip,
   Typography,
   useMediaQuery,
@@ -47,7 +51,13 @@ import { activitySlice } from './activitySlice';
 const areWindowsEnabled = false;
 
 /** Activity position relative to the main container */
-type ActivityLocation = 'full' | 'split-left' | 'split-right' | 'window';
+type ActivityLocation =
+  | 'full'
+  | 'split-left'
+  | 'split-right'
+  | 'split-top'
+  | 'split-bottom'
+  | 'window';
 
 /** Independent screen or a page rendered on top of the app */
 export interface Activity {
@@ -129,6 +139,8 @@ export function SingleActivityRenderer({
   const containerElementRef = useRef(document.getElementById('main'));
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('lg'));
+  const [snapMenuAnchor, setSnapMenuAnchor] = useState<HTMLElement | null>(null);
+  const isSnapMenuOpen = Boolean(snapMenuAnchor);
 
   useEffect(() => {
     containerElementRef.current = document.getElementById('main');
@@ -157,6 +169,20 @@ export function SingleActivityRenderer({
       width: '50%',
       height: '100%',
       gridColumn: '2 / 4',
+    },
+    'split-top': {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '50%',
+    },
+    'split-bottom': {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      width: '100%',
+      height: '50%',
     },
     window: {
       position: 'absolute',
@@ -377,20 +403,94 @@ export function SingleActivityRenderer({
                 <>
                   <IconButton
                     size="small"
-                    title={t('Snap Left')}
-                    onClick={() => Activity.update(id, { location: 'split-left' })}
-                    disabled={location === 'split-left'}
+                    title={t('Window')}
+                    onMouseEnter={event => setSnapMenuAnchor(event.currentTarget)}
+                    onClick={event => setSnapMenuAnchor(event.currentTarget)}
                   >
-                    <Icon icon="mdi:dock-left" />
+                    <Icon icon="mdi:dock-window" />
                   </IconButton>
-                  <IconButton
-                    size="small"
-                    title={t('Snap Right')}
-                    onClick={() => Activity.update(id, { location: 'split-right' })}
-                    disabled={location === 'split-right'}
+                  <Menu
+                    anchorEl={snapMenuAnchor}
+                    open={isSnapMenuOpen}
+                    onClose={() => setSnapMenuAnchor(null)}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+                    transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+                    MenuListProps={{
+                      onMouseLeave: () => setSnapMenuAnchor(null),
+                      'aria-label': t('Window'),
+                    }}
                   >
-                    <Icon icon="mdi:dock-right" />
-                  </IconButton>
+                    <MenuItem
+                      selected={location === 'full'}
+                      aria-label={t('Fullscreen')}
+                      title={t('Fullscreen')}
+                      onClick={() => {
+                        Activity.update(id, { location: 'full' });
+                        setSnapMenuAnchor(null);
+                      }}
+                    >
+                      <ListItemIcon>
+                        <Icon icon="mdi:fullscreen" />
+                      </ListItemIcon>
+                      <ListItemText>{t('Fullscreen')}</ListItemText>
+                    </MenuItem>
+                    <MenuItem
+                      selected={location === 'split-left'}
+                      aria-label={t('Snap Left')}
+                      title={t('Snap Left')}
+                      onClick={() => {
+                        Activity.update(id, { location: 'split-left' });
+                        setSnapMenuAnchor(null);
+                      }}
+                    >
+                      <ListItemIcon>
+                        <Icon icon="mdi:dock-left" />
+                      </ListItemIcon>
+                      <ListItemText>{t('Snap Left')}</ListItemText>
+                    </MenuItem>
+                    <MenuItem
+                      selected={location === 'split-right'}
+                      aria-label={t('Snap Right')}
+                      title={t('Snap Right')}
+                      onClick={() => {
+                        Activity.update(id, { location: 'split-right' });
+                        setSnapMenuAnchor(null);
+                      }}
+                    >
+                      <ListItemIcon>
+                        <Icon icon="mdi:dock-right" />
+                      </ListItemIcon>
+                      <ListItemText>{t('Snap Right')}</ListItemText>
+                    </MenuItem>
+                    <MenuItem
+                      selected={location === 'split-top'}
+                      aria-label={t('Snap Top')}
+                      title={t('Snap Top')}
+                      onClick={() => {
+                        Activity.update(id, { location: 'split-top' });
+                        setSnapMenuAnchor(null);
+                      }}
+                    >
+                      <ListItemIcon>
+                        <Icon icon="mdi:dock-top" />
+                      </ListItemIcon>
+                      <ListItemText>{t('Snap Top')}</ListItemText>
+                    </MenuItem>
+                    <MenuItem
+                      selected={location === 'split-bottom'}
+                      aria-label={t('Snap Bottom')}
+                      title={t('Snap Bottom')}
+                      onClick={() => {
+                        Activity.update(id, { location: 'split-bottom' });
+                        setSnapMenuAnchor(null);
+                      }}
+                    >
+                      <ListItemIcon>
+                        <Icon icon="mdi:dock-bottom" />
+                      </ListItemIcon>
+                      <ListItemText>{t('Snap Bottom')}</ListItemText>
+                    </MenuItem>
+                  </Menu>
                   <IconButton
                     onClick={() => {
                       Activity.update(id, { minimized: true });
@@ -400,30 +500,6 @@ export function SingleActivityRenderer({
                   >
                     <Icon icon="mdi:minimize" />
                   </IconButton>
-
-                  <>
-                    {location === 'full' ? (
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          Activity.update(id, {
-                            location: lastNonFullscreenLocation.current ?? 'split-right',
-                          });
-                        }}
-                        title={t('Window')}
-                      >
-                        <Icon icon="mdi:dock-window" />
-                      </IconButton>
-                    ) : (
-                      <IconButton
-                        size="small"
-                        onClick={() => Activity.update(id, { location: 'full' })}
-                        title={t('Fullscreen')}
-                      >
-                        <Icon icon="mdi:fullscreen" />
-                      </IconButton>
-                    )}
-                  </>
                   <IconButton onClick={() => Activity.close(id)} size="small" title={t('Close')}>
                     <Icon icon="mdi:close" />
                   </IconButton>
@@ -750,6 +826,18 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
   useHotkeys('Ctrl+ArrowRight', () => {
     if (lastElement) {
       Activity.update(lastElement, { location: 'split-right' });
+    }
+  });
+
+  useHotkeys('Ctrl+Shift+ArrowUp', () => {
+    if (lastElement) {
+      Activity.update(lastElement, { location: 'split-top' });
+    }
+  });
+
+  useHotkeys('Ctrl+Shift+ArrowDown', () => {
+    if (lastElement) {
+      Activity.update(lastElement, { location: 'split-bottom' });
     }
   });
 

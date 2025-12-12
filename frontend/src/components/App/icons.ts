@@ -351,6 +351,12 @@ const mdiIcons = {
     'dock-right': {
       body: '\u003Cpath fill="currentColor" d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2m-5 14H4V6h11Z"/\u003E',
     },
+    'dock-top': {
+      body: '\u003Cpath fill="currentColor" d="M4 20h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2m0-9h16v7H4z"/\u003E',
+    },
+    'dock-bottom': {
+      body: '\u003Cpath fill="currentColor" d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2m0 9H4V6h16Z"/\u003E',
+    },
     'dock-window': {
       body: '\u003Cpath fill="currentColor" d="M18 18v2H4a2 2 0 0 1-2-2V8h2v10M22 6v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2m-2 0H8v8h12Z"/\u003E',
     },
