@@ -129,7 +129,10 @@
       "ScaleButton": [Function],
       "SecretField": [Function],
       "SectionGrid": [Function],
-      "SimpleEditor": [Function],
+      "SimpleEditor": {
+        "$$typeof": Symbol(react.forward_ref),
+        "render": [Function],
+      },
       "ViewButton": [Function],
       "ViewDialog": [Function],
       "VolumeMounts": [Function],
@@ -171,7 +174,10 @@
     "SectionGrid": [Function],
     "SectionHeader": [Function],
     "ShowHideLabel": [Function],
-    "SimpleEditor": [Function],
+    "SimpleEditor": {
+      "$$typeof": Symbol(react.forward_ref),
+      "render": [Function],
+    },
     "SimpleTable": [Function],
     "StatusLabel": {
       "$$typeof": Symbol(react.forward_ref),
@@ -455,6 +461,7 @@
     "getResourceMetrics": [Function],
     "getResourceStr": [Function],
     "getTotalReplicas": [Function],
+    "isNullable": [Function],
     "localeDate": [Function],
     "normalizeUnit": [Function],
     "timeAgo": [Function],
