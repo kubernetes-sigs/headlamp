@@ -244,7 +244,7 @@ export function SingleActivityRenderer({
         activity.style.height = oldHeight;
       }
     };
-  }, [isOverview]);
+  }, [isOverview, index]);
 
   // Move focus inside the Activity
   useEffect(() => {
@@ -314,6 +314,10 @@ export function SingleActivityRenderer({
               ? {
                   borderRadius: '20px',
                   cursor: 'pointer',
+                  top: 0,
+                  left: 0,
+                  right: 'auto',
+                  bottom: 'auto',
                   ':hover': {
                     boxShadow:
                       theme.palette.mode === 'light'
