@@ -13,7 +13,7 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
-    "install:all": "npm run frontend:install && npm run backend:build && npm run app:install",
+    "install:all": "npm run frontend:install && npm run backend:build && npm run app:install && npm run tools:install",
     "install:frontend": "npm run frontend:install",
     "install:backend": "npm run backend:build",
     "install:app": "npm run app:install",
@@ -71,6 +71,7 @@
     "start:app": "npm run app:start",
     "start:backend": "npm run backend:build && npm run backend:start",
     "start:frontend": "npm run frontend:start",
+    "tools:install": "cd tools && cd i18n && npm install && cd .. && cd releaser && npm install",
     "plugins:test": "cd plugins/headlamp-plugin && npm install && ./test-headlamp-plugin.js && ./test-plugins-examples.sh && cd ../pluginctl/src && npm install && node ./plugin-management.e2e.js && cd .. && npx jest src/multi-plugin-management.test.js && npx jest src/plugin-management.test.js && npm run test",
     "image:build": "sh -c 'docker buildx build --pull --platform=local -t ghcr.io/headlamp-k8s/headlamp:$(git describe --tags --always --dirty) -f Dockerfile .'",
     "image:verify-image-digests": "node tools/verify-image-digests.js"
