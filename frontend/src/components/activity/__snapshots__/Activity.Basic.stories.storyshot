@@ -30,6 +30,8 @@
               class="MuiBox-root css-1po99kh"
             />
             <button
+              aria-expanded="false"
+              aria-haspopup="menu"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
               title="Window"
@@ -87,6 +89,8 @@
               class="MuiBox-root css-1po99kh"
             />
             <button
+              aria-expanded="false"
+              aria-haspopup="menu"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
               title="Window"

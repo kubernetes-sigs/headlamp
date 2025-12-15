@@ -19,11 +19,14 @@ import {
   alpha,
   Box,
   Button,
+  ClickAwayListener,
   IconButton,
   ListItemIcon,
   ListItemText,
-  Menu,
   MenuItem,
+  MenuList,
+  Paper,
+  Popper,
   Tooltip,
   Typography,
   useMediaQuery,
@@ -140,10 +143,26 @@ export function SingleActivityRenderer({
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('lg'));
   const [snapMenuAnchor, setSnapMenuAnchor] = useState<HTMLElement | null>(null);
+  const [snapMenuOpenReason, setSnapMenuOpenReason] = useState<'hover' | 'click' | null>(null);
+  const openTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const closeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const menuListRef = useRef<HTMLUListElement>(null);
   const isSnapMenuOpen = Boolean(snapMenuAnchor);
 
   useEffect(() => {
     containerElementRef.current = document.getElementById('main');
+  }, []);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (openTimerRef.current) {
+        clearTimeout(openTimerRef.current);
+      }
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+    };
   }, []);
 
   // Styles of different activity locations
@@ -408,93 +427,208 @@ export function SingleActivityRenderer({
                   <IconButton
                     size="small"
                     title={t('Window')}
-                    onMouseEnter={event => setSnapMenuAnchor(event.currentTarget)}
-                    onClick={event => setSnapMenuAnchor(event.currentTarget)}
+                    aria-haspopup="menu"
+                    aria-expanded={isSnapMenuOpen}
+                    aria-controls={isSnapMenuOpen ? 'snap-menu' : undefined}
+                    onMouseEnter={event => {
+                      // Clear any existing close timer
+                      if (closeTimerRef.current) {
+                        clearTimeout(closeTimerRef.current);
+                        closeTimerRef.current = null;
+                      }
+                      // Set 350ms timer to open on hover
+                      if (openTimerRef.current) {
+                        clearTimeout(openTimerRef.current);
+                      }
+                      const target = event.currentTarget;
+                      openTimerRef.current = setTimeout(() => {
+                        setSnapMenuAnchor(target);
+                        setSnapMenuOpenReason('hover');
+                        openTimerRef.current = null;
+                      }, 350);
+                    }}
+                    onMouseLeave={() => {
+                      // Cancel open timer if pointer leaves before 350ms
+                      if (openTimerRef.current) {
+                        clearTimeout(openTimerRef.current);
+                        openTimerRef.current = null;
+                      }
+                      // If menu is open due to hover, start close timer
+                      if (snapMenuOpenReason === 'hover' && isSnapMenuOpen) {
+                        if (closeTimerRef.current) {
+                          clearTimeout(closeTimerRef.current);
+                        }
+                        closeTimerRef.current = setTimeout(() => {
+                          setSnapMenuAnchor(null);
+                          setSnapMenuOpenReason(null);
+                          closeTimerRef.current = null;
+                        }, 150);
+                      }
+                    }}
+                    onClick={event => {
+                      // Clear any timers
+                      if (openTimerRef.current) {
+                        clearTimeout(openTimerRef.current);
+                        openTimerRef.current = null;
+                      }
+                      if (closeTimerRef.current) {
+                        clearTimeout(closeTimerRef.current);
+                        closeTimerRef.current = null;
+                      }
+                      // Toggle menu on click
+                      if (isSnapMenuOpen && snapMenuOpenReason === 'click') {
+                        setSnapMenuAnchor(null);
+                        setSnapMenuOpenReason(null);
+                      } else {
+                        setSnapMenuAnchor(event.currentTarget);
+                        setSnapMenuOpenReason('click');
+                      }
+                    }}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        if (openTimerRef.current) {
+                          clearTimeout(openTimerRef.current);
+                          openTimerRef.current = null;
+                        }
+                        if (!isSnapMenuOpen) {
+                          setSnapMenuAnchor(event.currentTarget as HTMLElement);
+                          setSnapMenuOpenReason('click');
+                        }
+                      }
+                    }}
                   >
                     <Icon icon="mdi:dock-window" />
                   </IconButton>
-                  <Menu
-                    anchorEl={snapMenuAnchor}
+                  <Popper
+                    id="snap-menu"
                     open={isSnapMenuOpen}
-                    onClose={() => setSnapMenuAnchor(null)}
-                    anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-                    transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-                    MenuListProps={{
-                      onMouseLeave: () => setSnapMenuAnchor(null),
-                      'aria-label': t('Window'),
-                    }}
+                    anchorEl={snapMenuAnchor}
+                    placement="bottom-end"
+                    sx={{ zIndex: theme.zIndex.modal }}
                   >
-                    <MenuItem
-                      selected={location === 'full'}
-                      aria-label={t('Fullscreen')}
-                      title={t('Fullscreen')}
-                      onClick={() => {
-                        Activity.update(id, { location: 'full' });
-                        setSnapMenuAnchor(null);
+                    <ClickAwayListener
+                      onClickAway={() => {
+                        if (snapMenuOpenReason === 'click') {
+                          setSnapMenuAnchor(null);
+                          setSnapMenuOpenReason(null);
+                        }
                       }}
                     >
-                      <ListItemIcon>
-                        <Icon icon="mdi:fullscreen" />
-                      </ListItemIcon>
-                      <ListItemText>{t('Fullscreen')}</ListItemText>
-                    </MenuItem>
-                    <MenuItem
-                      selected={location === 'split-left'}
-                      aria-label={t('Snap Left')}
-                      title={t('Snap Left')}
-                      onClick={() => {
-                        Activity.update(id, { location: 'split-left' });
-                        setSnapMenuAnchor(null);
-                      }}
-                    >
-                      <ListItemIcon>
-                        <Icon icon="mdi:dock-left" />
-                      </ListItemIcon>
-                      <ListItemText>{t('Snap Left')}</ListItemText>
-                    </MenuItem>
-                    <MenuItem
-                      selected={location === 'split-right'}
-                      aria-label={t('Snap Right')}
-                      title={t('Snap Right')}
-                      onClick={() => {
-                        Activity.update(id, { location: 'split-right' });
-                        setSnapMenuAnchor(null);
-                      }}
-                    >
-                      <ListItemIcon>
-                        <Icon icon="mdi:dock-right" />
-                      </ListItemIcon>
-                      <ListItemText>{t('Snap Right')}</ListItemText>
-                    </MenuItem>
-                    <MenuItem
-                      selected={location === 'split-top'}
-                      aria-label={t('Snap Top')}
-                      title={t('Snap Top')}
-                      onClick={() => {
-                        Activity.update(id, { location: 'split-top' });
-                        setSnapMenuAnchor(null);
-                      }}
-                    >
-                      <ListItemIcon>
-                        <Icon icon="mdi:dock-top" />
-                      </ListItemIcon>
-                      <ListItemText>{t('Snap Top')}</ListItemText>
-                    </MenuItem>
-                    <MenuItem
-                      selected={location === 'split-bottom'}
-                      aria-label={t('Snap Bottom')}
-                      title={t('Snap Bottom')}
-                      onClick={() => {
-                        Activity.update(id, { location: 'split-bottom' });
-                        setSnapMenuAnchor(null);
-                      }}
-                    >
-                      <ListItemIcon>
-                        <Icon icon="mdi:dock-bottom" />
-                      </ListItemIcon>
-                      <ListItemText>{t('Snap Bottom')}</ListItemText>
-                    </MenuItem>
-                  </Menu>
+                      <Paper
+                        elevation={8}
+                        onMouseEnter={() => {
+                          // Cancel close timer when entering menu (for hover-open case)
+                          if (closeTimerRef.current && snapMenuOpenReason === 'hover') {
+                            clearTimeout(closeTimerRef.current);
+                            closeTimerRef.current = null;
+                          }
+                        }}
+                        onMouseLeave={() => {
+                          // Start close timer when leaving menu (for hover-open case)
+                          if (snapMenuOpenReason === 'hover') {
+                            if (closeTimerRef.current) {
+                              clearTimeout(closeTimerRef.current);
+                            }
+                            closeTimerRef.current = setTimeout(() => {
+                              setSnapMenuAnchor(null);
+                              setSnapMenuOpenReason(null);
+                              closeTimerRef.current = null;
+                            }, 150);
+                          }
+                        }}
+                        onKeyDown={event => {
+                          if (event.key === 'Escape') {
+                            setSnapMenuAnchor(null);
+                            setSnapMenuOpenReason(null);
+                            snapMenuAnchor?.focus();
+                          }
+                        }}
+                      >
+                        <MenuList
+                          ref={menuListRef}
+                          aria-label={t('Window')}
+                          autoFocusItem={isSnapMenuOpen}
+                        >
+                          <MenuItem
+                            selected={location === 'full'}
+                            aria-label={t('Fullscreen')}
+                            title={t('Fullscreen')}
+                            onClick={() => {
+                              Activity.update(id, { location: 'full' });
+                              setSnapMenuAnchor(null);
+                              setSnapMenuOpenReason(null);
+                            }}
+                          >
+                            <ListItemIcon>
+                              <Icon icon="mdi:fullscreen" />
+                            </ListItemIcon>
+                            <ListItemText>{t('Fullscreen')}</ListItemText>
+                          </MenuItem>
+                          <MenuItem
+                            selected={location === 'split-left'}
+                            aria-label={t('Snap Left')}
+                            title={t('Snap Left')}
+                            onClick={() => {
+                              Activity.update(id, { location: 'split-left' });
+                              setSnapMenuAnchor(null);
+                              setSnapMenuOpenReason(null);
+                            }}
+                          >
+                            <ListItemIcon>
+                              <Icon icon="mdi:dock-left" />
+                            </ListItemIcon>
+                            <ListItemText>{t('Snap Left')}</ListItemText>
+                          </MenuItem>
+                          <MenuItem
+                            selected={location === 'split-right'}
+                            aria-label={t('Snap Right')}
+                            title={t('Snap Right')}
+                            onClick={() => {
+                              Activity.update(id, { location: 'split-right' });
+                              setSnapMenuAnchor(null);
+                              setSnapMenuOpenReason(null);
+                            }}
+                          >
+                            <ListItemIcon>
+                              <Icon icon="mdi:dock-right" />
+                            </ListItemIcon>
+                            <ListItemText>{t('Snap Right')}</ListItemText>
+                          </MenuItem>
+                          <MenuItem
+                            selected={location === 'split-top'}
+                            aria-label={t('Snap Top')}
+                            title={t('Snap Top')}
+                            onClick={() => {
+                              Activity.update(id, { location: 'split-top' });
+                              setSnapMenuAnchor(null);
+                              setSnapMenuOpenReason(null);
+                            }}
+                          >
+                            <ListItemIcon>
+                              <Icon icon="mdi:dock-top" />
+                            </ListItemIcon>
+                            <ListItemText>{t('Snap Top')}</ListItemText>
+                          </MenuItem>
+                          <MenuItem
+                            selected={location === 'split-bottom'}
+                            aria-label={t('Snap Bottom')}
+                            title={t('Snap Bottom')}
+                            onClick={() => {
+                              Activity.update(id, { location: 'split-bottom' });
+                              setSnapMenuAnchor(null);
+                              setSnapMenuOpenReason(null);
+                            }}
+                          >
+                            <ListItemIcon>
+                              <Icon icon="mdi:dock-bottom" />
+                            </ListItemIcon>
+                            <ListItemText>{t('Snap Bottom')}</ListItemText>
+                          </MenuItem>
+                        </MenuList>
+                      </Paper>
+                    </ClickAwayListener>
+                  </Popper>
                   <IconButton
                     onClick={() => {
                       Activity.update(id, { minimized: true });
