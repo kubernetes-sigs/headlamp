@@ -388,9 +388,25 @@ func (c *Context) SetupProxy() error {
 }
 
 // AuthType returns the authentication type for the context.
+// Returns "oidc" for OIDC authentication, "exec" for exec credential plugins (like Teleport tsh),
+// or empty string for other auth types (token, basic auth, etc.).
 func (c *Context) AuthType() string {
 	if (c.OidcConf != nil) || (c.AuthInfo != nil && c.AuthInfo.AuthProvider != nil) {
 		return "oidc"
+	}
+
+	// Check for exec credential plugin (e.g., Teleport tsh, aws-iam-authenticator)
+	if c.AuthInfo != nil && c.AuthInfo.Exec != nil {
+		// Check if it's Teleport's tsh command
+		if strings.Contains(c.AuthInfo.Exec.Command, "tsh") {
+			return "tsh"
+		}
+		return "exec"
+	}
+
+	// Check for client certificate authentication
+	if c.AuthInfo != nil && (c.AuthInfo.ClientCertificate != "" || len(c.AuthInfo.ClientCertificateData) > 0) {
+		return "client-cert"
 	}
 
 	return ""
