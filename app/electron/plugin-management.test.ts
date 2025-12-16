@@ -162,6 +162,54 @@ describe('PluginManager', () => {
       fs.rmSync(testDataDir, { recursive: true });
     }
   }, 30000);
+
+  it('should uninstall plugin from the same directory where it was installed', async () => {
+    // Create unique directories for this test
+    const testDataDir = getUniqueTestDir(TEST_DATA_BASE_DIR, 'uninstall-test-data');
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'uninstall-test-plugins');
+
+    // Create test tarball
+    await createMinimalPluginTarball(testDataDir);
+
+    // Mock the API without platform-specific archives
+    mockArtifactHubAPIWithoutPlatformSpecific(testDataDir);
+
+    const pluginURL = 'https://artifacthub.io/packages/headlamp/test-repo/headlamp_minikube';
+    const progress: any[] = [];
+
+    const progressCallback = (update: any) => {
+      progress.push(update);
+    };
+
+    // Install the plugin
+    await PluginManager.install(pluginURL, pluginDestDir, HEADLAMP_VERSION, progressCallback, null);
+
+    // Verify the plugin was installed
+    const pluginDir = path.join(pluginDestDir, 'headlamp_minikube');
+    expect(fs.existsSync(pluginDir)).toBe(true);
+
+    // Reset progress array for uninstall
+    progress.length = 0;
+
+    // Uninstall the plugin from the same directory
+    PluginManager.uninstall('headlamp_minikube', pluginDestDir, progressCallback);
+
+    // Verify the plugin was uninstalled
+    expect(fs.existsSync(pluginDir)).toBe(false);
+
+    // Verify success message
+    const successMessages = progress.filter(p => p.type === 'success');
+    expect(successMessages.length).toBe(1);
+    expect(successMessages[0].message).toBe('Plugin Uninstalled');
+
+    // Clean up this specific test's directories
+    if (fs.existsSync(pluginDestDir)) {
+      fs.rmSync(pluginDestDir, { recursive: true });
+    }
+    if (fs.existsSync(testDataDir)) {
+      fs.rmSync(testDataDir, { recursive: true });
+    }
+  }, 30000);
 });
 
 /**
