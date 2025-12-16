@@ -8,6 +8,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -441,9 +442,37 @@ func (c *Context) SetupProxy() error {
 }
 
 // AuthType returns the authentication type for the context.
+// Returns "oidc" for OIDC authentication, "tsh" for Teleport exec plugin,
+// "exec" for other exec credential plugins, "client-cert" for client certificate auth,
+// or empty string for other auth types (token, basic auth, etc.).
+//
+// Priority order (first match wins):
+//  1. OIDC (AuthProvider configured)
+//  2. Exec plugin (tsh is detected specifically, otherwise generic "exec")
+//  3. Client certificate
+//
+// This priority is intentional: exec plugins are dynamic auth mechanisms that
+// require backend execution, while client certificates are static TLS credentials.
+// When both are present, exec typically represents the primary authentication method.
 func (c *Context) AuthType() string {
 	if (c.OidcConf != nil) || (c.AuthInfo != nil && c.AuthInfo.AuthProvider != nil) {
 		return "oidc"
+	}
+
+	// Check for exec credential plugin (e.g., Teleport tsh, aws-iam-authenticator)
+	if c.AuthInfo != nil && c.AuthInfo.Exec != nil {
+		// Check if it's Teleport's tsh command by checking the basename
+		// Using filepath.Base to avoid false positives like "/usr/bin/mytshell"
+		if filepath.Base(c.AuthInfo.Exec.Command) == "tsh" {
+			return "tsh"
+		}
+
+		return "exec"
+	}
+
+	// Check for client certificate authentication
+	if c.AuthInfo != nil && (c.AuthInfo.ClientCertificate != "" || len(c.AuthInfo.ClientCertificateData) > 0) {
+		return "client-cert"
 	}
 
 	return ""
