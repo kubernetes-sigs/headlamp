@@ -57,11 +57,14 @@ export function CreateResourceButton(props: CreateResourceButtonProps) {
       setTargetCluster(null);
       return;
     }
-    if (!targetCluster || !clusters.includes(targetCluster)) {
+    if (
+      (!targetCluster || !clusters.includes(targetCluster)) &&
+      targetCluster !== (clusters[0] ?? null)
+    ) {
       setTargetCluster(clusters[0] ?? null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clusters.join('+')]);
+  }, [clusters]);
 
   const launchCreateActivity = React.useCallback(
     (clusterName: string) => {
