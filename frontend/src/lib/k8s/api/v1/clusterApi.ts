@@ -42,7 +42,7 @@ export async function testAuth(cluster = '', authType?: string) {
     // which is accessible to any authenticated user without RBAC restrictions
     if (authType === 'tsh' || authType === 'exec' || authType === 'client-cert') {
       return await clusterRequest('/version', {
-        timeout: 15 * 1000, // Longer timeout for exec auth plugins like tsh
+        timeout: 5 * 1000, // Longer timeout for exec auth plugins like tsh
         cluster: clusterName,
       });
     }
@@ -50,7 +50,7 @@ export async function testAuth(cluster = '', authType?: string) {
     // For standard auth types (token, oidc), use selfsubjectrulesreviews
     const spec = { namespace: 'default' };
     return post('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', { spec }, false, {
-      timeout: 10 * 1000,
+      timeout: 5 * 1000,
       cluster: clusterName,
     });
   } catch (err: any) {
