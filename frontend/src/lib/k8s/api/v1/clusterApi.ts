@@ -41,7 +41,7 @@ export async function testAuth(cluster = '', authType?: string) {
     // For tsh/exec auth (e.g., Teleport), use the cluster version endpoint
     // which is accessible to any authenticated user without RBAC restrictions
     if (authType === 'tsh' || authType === 'exec' || authType === 'client-cert') {
-      return await clusterRequest('/version', {
+      return clusterRequest('/version', {
         timeout: 5 * 1000, // Longer timeout for exec auth plugins like tsh
         cluster: clusterName,
       });
