@@ -49,7 +49,7 @@ export async function testAuth(cluster = '', authType?: string) {
 
     // For standard auth types (token, oidc), use selfsubjectrulesreviews
     const spec = { namespace: 'default' };
-    return await post('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', { spec }, false, {
+    return post('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', { spec }, false, {
       timeout: 10 * 1000,
       cluster: clusterName,
     });
