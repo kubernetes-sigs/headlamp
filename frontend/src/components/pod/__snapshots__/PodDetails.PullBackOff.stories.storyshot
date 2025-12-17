@@ -791,7 +791,7 @@
                       >
                         <span
                           aria-describedby="container-state-message-imagepullbackoff"
-                          class="MuiTypography-root MuiTypography-body1 css-1cqtycm-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1dablfr-MuiTypography-root"
                         >
                           Waiting (ImagePullBackOff)
                         </span>
