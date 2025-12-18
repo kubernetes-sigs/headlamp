@@ -127,7 +127,12 @@ func getReleases(req ListReleaseRequest, config *action.Configuration) ([]*relea
 	listClient.Short = true
 	listClient.SetStateMask()
 
-	return listClient.Run()
+	releases, err := listClient.Run()
+	if releases == nil {
+		releases = []*release.Release{}
+	}
+
+	return releases, err
 }
 
 func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
