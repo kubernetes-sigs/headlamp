@@ -40,6 +40,7 @@ import (
 	authv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/yaml"
 )
 
@@ -129,7 +130,7 @@ func getReleases(req ListReleaseRequest, config *action.Configuration) ([]*relea
 	return listClient.Run()
 }
 
-func (h *Handler) ListRelease(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req ListReleaseRequest
 
@@ -144,7 +145,21 @@ func (h *Handler) ListRelease(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	releases, err := getReleases(req, h.Configuration)
+	namespace := ""
+	if req.Namespace != nil && *req.Namespace != "" {
+		namespace = *req.Namespace
+	}
+
+	actionConfig, err := NewActionConfig(clientConfig, namespace)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"request": "list_releases"},
+			err, "creating action config")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	releases, err := getReleases(req, actionConfig)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"request": "list_releases"},
 			err, "fetching releases")
@@ -175,7 +190,12 @@ type GetReleaseRequest struct {
 	Namespace string `json:"namespace" validate:"required"`
 }
 
-func (h *Handler) GetRelease(w http.ResponseWriter, r *http.Request) {
+func (req *GetReleaseRequest) Validate() error {
+	validate := validator.New()
+	return validate.Struct(req)
+}
+
+func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req GetReleaseRequest
 
@@ -190,8 +210,26 @@ func (h *Handler) GetRelease(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = req.Validate()
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"request": "get_release"},
+			err, "validating request")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"request": "get_release"},
+			err, "creating action config")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
 	// check if release exists
-	_, err = h.Configuration.Releases.Deployed(req.Name)
+	_, err = actionConfig.Releases.Deployed(req.Name)
 	if err == driver.ErrReleaseNotFound {
 		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "request": "get_release"},
 			err, "release not found")
@@ -200,7 +238,7 @@ func (h *Handler) GetRelease(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	getClient := action.NewGet(h.Configuration)
+	getClient := action.NewGet(actionConfig)
 
 	result, err := getClient.Run(req.Name)
 	if err != nil {
@@ -234,7 +272,7 @@ type GetReleaseHistoryResponse struct {
 	Releases []*release.Release `json:"releases"`
 }
 
-func (h *Handler) GetReleaseHistory(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req GetReleaseHistoryRequest
 
@@ -249,8 +287,17 @@ func (h *Handler) GetReleaseHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"request": "get_release_history"},
+			err, "creating action config")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
 	// check if release exists
-	_, err = h.Configuration.Releases.Deployed(req.Name)
+	_, err = actionConfig.Releases.Deployed(req.Name)
 	if err == driver.ErrReleaseNotFound {
 		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "request": "get_release_history"},
 			err, "release not found")
@@ -259,7 +306,7 @@ func (h *Handler) GetReleaseHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	getClient := action.NewHistory(h.Configuration)
+	getClient := action.NewHistory(actionConfig)
 
 	result, err := getClient.Run(req.Name)
 	if err != nil {
@@ -289,11 +336,16 @@ func (h *Handler) GetReleaseHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 type UninstallReleaseRequest struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
+	Name      string `json:"name" validate:"required"`
+	Namespace string `json:"namespace" validate:"required"`
 }
 
-func (h *Handler) UninstallRelease(w http.ResponseWriter, r *http.Request) {
+func (req *UninstallReleaseRequest) Validate() error {
+	validate := validator.New()
+	return validate.Struct(req)
+}
+
+func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req UninstallReleaseRequest
 
@@ -308,8 +360,26 @@ func (h *Handler) UninstallRelease(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = req.Validate()
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release"},
+			err, "validating request")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release"},
+			err, "creating action config")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
 	// check if release exists
-	_, err = h.Configuration.Releases.Deployed(req.Name)
+	_, err = actionConfig.Releases.Deployed(req.Name)
 	if err == driver.ErrReleaseNotFound {
 		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "request": "uninstall_release"},
 			err, "release not found")
@@ -328,7 +398,7 @@ func (h *Handler) UninstallRelease(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func(h *Handler) {
-		h.uninstallRelease(req)
+		h.uninstallRelease(req, actionConfig)
 	}(h)
 
 	response := map[string]string{
@@ -349,9 +419,9 @@ func (h *Handler) UninstallRelease(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 }
 
-func (h *Handler) uninstallRelease(req UninstallReleaseRequest) {
+func (h *Handler) uninstallRelease(req UninstallReleaseRequest, actionConfig *action.Configuration) {
 	// Get uninstall client
-	uninstallClient := action.NewUninstall(h.Configuration)
+	uninstallClient := action.NewUninstall(actionConfig)
 
 	status := success
 
@@ -377,7 +447,7 @@ func (req *RollbackReleaseRequest) Validate() error {
 	return validate.Struct(req)
 }
 
-func (h *Handler) RollbackRelease(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
 	// Parse request and validate
 	var req RollbackReleaseRequest
 
@@ -397,8 +467,17 @@ func (h *Handler) RollbackRelease(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"request": "rollback_release"},
+			err, "creating action config")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
 	// check if release exists
-	_, err = h.Configuration.Releases.Deployed(req.Name)
+	_, err = actionConfig.Releases.Deployed(req.Name)
 	if err == driver.ErrReleaseNotFound {
 		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name},
 			err, "release not found")
@@ -416,7 +495,7 @@ func (h *Handler) RollbackRelease(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func(h *Handler) {
-		h.rollbackRelease(req)
+		h.rollbackRelease(req, actionConfig)
 	}(h)
 
 	response := map[string]string{
@@ -436,8 +515,8 @@ func (h *Handler) RollbackRelease(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 }
 
-func (h *Handler) rollbackRelease(req RollbackReleaseRequest) {
-	rollbackClient := action.NewRollback(h.Configuration)
+func (h *Handler) rollbackRelease(req RollbackReleaseRequest, actionConfig *action.Configuration) {
+	rollbackClient := action.NewRollback(actionConfig)
 	rollbackClient.Version = req.Revision
 
 	status := success
@@ -494,7 +573,7 @@ func (h *Handler) returnResponse(w http.ResponseWriter, reqName string, statusCo
 	w.Header().Set("Content-Type", "application/json")
 }
 
-func (h *Handler) InstallRelease(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
 	// parse request
 	var req InstallRequest
 
@@ -514,6 +593,15 @@ func (h *Handler) InstallRelease(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"request": "install_release"},
+			err, "creating action config")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
 	err = h.setReleaseStatus("install", req.Name, processing, nil)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "setting status")
@@ -521,7 +609,7 @@ func (h *Handler) InstallRelease(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func(h *Handler) {
-		h.installRelease(req)
+		h.installRelease(req, actionConfig)
 	}(h)
 
 	h.returnResponse(w, req.Name, http.StatusAccepted, "install request accepted")
@@ -582,8 +670,8 @@ func (h *Handler) getChart(
 
 // Verify the user has minimal privileges by performing a whoami check.
 // This prevents spurious downloads by ensuring basic authentication before proceeding.
-func VerifyUser(h *Handler, req InstallRequest) bool {
-	restConfig, err := h.Configuration.RESTClientGetter.ToRESTConfig()
+func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
+	restConfig, err := actionConfig.RESTClientGetter.ToRESTConfig()
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name}, err, "getting chart")
 		return false
@@ -611,15 +699,15 @@ func VerifyUser(h *Handler, req InstallRequest) bool {
 	return true
 }
 
-func (h *Handler) installRelease(req InstallRequest) {
-	installClient := action.NewInstall(h.Configuration)
+func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Configuration) {
+	installClient := action.NewInstall(actionConfig)
 	installClient.ReleaseName = req.Name
 	installClient.Namespace = req.Namespace
 	installClient.Description = req.Description
 	installClient.CreateNamespace = req.CreateNamespace
 	installClient.ChartPathOptions.Version = req.Version
 
-	if !VerifyUser(h, req) {
+	if !VerifyUser(actionConfig, req) {
 		return
 	}
 
@@ -671,7 +759,7 @@ func (req *UpgradeReleaseRequest) Validate() error {
 	return validate.Struct(req)
 }
 
-func (h *Handler) UpgradeRelease(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
 	// Parse request and validate
 	var req UpgradeReleaseRequest
 
@@ -687,8 +775,17 @@ func (h *Handler) UpgradeRelease(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"request": "upgrade_release"},
+			err, "creating action config")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
 	// check if release exists
-	_, err = h.Configuration.Releases.Deployed(req.Name)
+	_, err = actionConfig.Releases.Deployed(req.Name)
 	if err == driver.ErrReleaseNotFound {
 		handleError(w, req.Name, err, "release not found", http.StatusNotFound)
 		return
@@ -701,7 +798,7 @@ func (h *Handler) UpgradeRelease(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func(h *Handler) {
-		h.upgradeRelease(req)
+		h.upgradeRelease(req, actionConfig)
 	}(h)
 
 	h.returnResponse(w, req.Name, http.StatusAccepted, "upgrade request accepted")
@@ -728,9 +825,9 @@ func (h *Handler) logActionState(zlog *zerolog.Event,
 	h.setReleaseStatusSilent(action, releaseName, status, err)
 }
 
-func (h *Handler) upgradeRelease(req UpgradeReleaseRequest) {
+func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action.Configuration) {
 	// find chart
-	upgradeClient := action.NewUpgrade(h.Configuration)
+	upgradeClient := action.NewUpgrade(actionConfig)
 	upgradeClient.Namespace = req.Namespace
 	upgradeClient.Description = req.Description
 	upgradeClient.ChartPathOptions.Version = req.Version
@@ -790,7 +887,7 @@ func (a *ActionStatusRequest) Validate() error {
 	return nil
 }
 
-func (h *Handler) GetActionStatus(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetActionStatus(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
 	var request ActionStatusRequest
 
 	err := schema.NewDecoder().Decode(&request, r.URL.Query())

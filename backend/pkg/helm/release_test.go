@@ -119,7 +119,10 @@ func TestInstallRelease(t *testing.T) {
 	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
 
 	// uninstall release if it already exists
-	listClient := action.NewList(helmHandler.Configuration)
+	k8sClientConfig := GetClient(t, "minikube")
+	actionConfig, err := helm.NewActionConfig(k8sClientConfig, "default")
+	require.NoError(t, err)
+	listClient := action.NewList(actionConfig)
 	listClient.AllNamespaces = true
 	listClient.Filter = "helm-test-asdf"
 	releases, err := listClient.Run()
@@ -128,7 +131,7 @@ func TestInstallRelease(t *testing.T) {
 	if len(releases) > 0 {
 		t.Log("release helm-test-asdf already exists so cleaning up")
 
-		_, err = action.NewUninstall(helmHandler.Configuration).Run("helm-test-asdf")
+		_, err = action.NewUninstall(actionConfig).Run("helm-test-asdf")
 		require.NoError(t, err)
 	}
 
@@ -151,10 +154,12 @@ func TestInstallRelease(t *testing.T) {
 		bytes.NewBuffer(installReqBytes))
 	require.NoError(t, err)
 
+	k8sClientConfig = GetClient(t, "minikube")
+
 	// response recorder
 	rr := httptest.NewRecorder()
 
-	helmHandler.InstallRelease(rr, installReleaseRequest)
+	helmHandler.InstallRelease(k8sClientConfig, rr, installReleaseRequest)
 
 	require.Equal(t, http.StatusAccepted, rr.Code)
 
@@ -169,10 +174,12 @@ func TestListRelease(t *testing.T) {
 		"GET", "/clusters/minikube/helm/releases", nil)
 	require.NoError(t, err)
 
+	k8sClientConfig := GetClient(t, "minikube")
+
 	// response recorder
 	rr := httptest.NewRecorder()
 
-	helmHandler.ListRelease(rr, listReleaseReq)
+	helmHandler.ListRelease(k8sClientConfig, rr, listReleaseReq)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), "helm-test-asdf")
@@ -201,10 +208,12 @@ func TestUpgradeRelease(t *testing.T) {
 		bytes.NewBuffer(upgradeReqBytes))
 	require.NoError(t, err)
 
+	k8sClientConfig := GetClient(t, "minikube")
+
 	// response recorder
 	rr := httptest.NewRecorder()
 
-	helmHandler.UpgradeRelease(rr, upgradeReleaseRequest)
+	helmHandler.UpgradeRelease(k8sClientConfig, rr, upgradeReleaseRequest)
 
 	require.Equal(t, http.StatusAccepted, rr.Code)
 
@@ -228,10 +237,12 @@ func TestRollbackRelease(t *testing.T) {
 		bytes.NewBuffer(rollbackReqBytes))
 	require.NoError(t, err)
 
+	k8sClientConfig := GetClient(t, "minikube")
+
 	// response recorder
 	rr := httptest.NewRecorder()
 
-	helmHandler.RollbackRelease(rr, rollbackReleaseRequest)
+	helmHandler.RollbackRelease(k8sClientConfig, rr, rollbackReleaseRequest)
 
 	require.Equal(t, http.StatusAccepted, rr.Code)
 
@@ -246,10 +257,12 @@ func TestUninstallRelease(t *testing.T) {
 		nil)
 	require.NoError(t, err)
 
+	k8sClientConfig := GetClient(t, "minikube")
+
 	// response recorder
 	rr := httptest.NewRecorder()
 
-	helmHandler.UninstallRelease(rr, uninstallReleaseRequest)
+	helmHandler.UninstallRelease(k8sClientConfig, rr, uninstallReleaseRequest)
 
 	require.Equal(t, http.StatusAccepted, rr.Code)
 
@@ -277,8 +290,6 @@ func (s *staticRESTGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
 }
 
 func TestVerifyUser(t *testing.T) {
-	helmHandler := newHelmHandler(t)
-
 	tests := []struct {
 		name       string
 		req        helm.InstallRequest
@@ -306,13 +317,23 @@ func TestVerifyUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if !tt.wantResult {
-				helmHandler.Configuration.RESTClientGetter = &staticRESTGetter{
-					cfg: &rest.Config{Host: ""}, // invalid/empty host triggers failure
+			var actionConfig *action.Configuration
+			var err error
+
+			if tt.wantResult {
+				k8sClientConfig := GetClient(t, "minikube")
+				actionConfig, err = helm.NewActionConfig(k8sClientConfig, "default")
+				require.NoError(t, err)
+			} else {
+				// Create action config with invalid REST client getter
+				actionConfig = &action.Configuration{
+					RESTClientGetter: &staticRESTGetter{
+						cfg: &rest.Config{Host: ""}, // invalid/empty host triggers failure
+					},
 				}
 			}
 
-			result := helm.VerifyUser(helmHandler, tt.req)
+			result := helm.VerifyUser(actionConfig, tt.req)
 			assert.Equal(t, result, tt.wantResult)
 		})
 	}

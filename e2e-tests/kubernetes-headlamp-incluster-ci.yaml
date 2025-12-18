@@ -46,6 +46,7 @@ spec:
         imagePullPolicy: Never
         args:
         - "-in-cluster"
+        - "-enable-helm"
         ports:
         - name: http
           containerPort: 4466

@@ -43,7 +43,6 @@ var (
 )
 
 type Handler struct {
-	*action.Configuration
 	*cli.EnvSettings
 	Cache cache.Cache[interface{}]
 }
@@ -67,28 +66,16 @@ func NewActionConfig(clientConfig clientcmd.ClientConfig, namespace string) (*ac
 	return actionConfig, nil
 }
 
-func NewHandler(clientConfig clientcmd.ClientConfig,
-	cache cache.Cache[interface{}], namespace string,
+func NewHandler(cache cache.Cache[interface{}],
 ) (*Handler, error) {
-	return NewHandlerWithSettings(clientConfig, cache, namespace, settings)
+	return NewHandlerWithSettings(cache, settings)
 }
 
-func NewHandlerWithSettings(clientConfig clientcmd.ClientConfig,
-	cache cache.Cache[interface{}],
-	namespace string, settings *cli.EnvSettings,
-) (*Handler, error) {
-	actionConfig, err := NewActionConfig(clientConfig, namespace)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"namespace": namespace},
-			err, "unable to create action config")
-
-		return nil, err
-	}
+func NewHandlerWithSettings(cache cache.Cache[interface{}], settings *cli.EnvSettings) (*Handler, error) {
 
 	return &Handler{
-		Configuration: actionConfig,
-		EnvSettings:   settings,
-		Cache:         cache,
+		EnvSettings: settings,
+		Cache:       cache,
 	}, nil
 }
 

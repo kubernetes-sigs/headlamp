@@ -75,6 +75,58 @@ type Context struct {
 	ClusterID string `json:"clusterID"`
 }
 
+// Copy creates a deep copy of the Context, excluding the proxy field which is created on demand.
+func (c *Context) Copy() *Context {
+	var oidcConf *OidcConfig
+	if c.OidcConf != nil {
+		oidcConf = &OidcConfig{
+			ClientID:     c.OidcConf.ClientID,
+			ClientSecret: c.OidcConf.ClientSecret,
+			IdpIssuerURL: c.OidcConf.IdpIssuerURL,
+			Scopes:       make([]string, len(c.OidcConf.Scopes)),
+		}
+		copy(oidcConf.Scopes, c.OidcConf.Scopes)
+
+		// Deep copy pointer fields
+		if c.OidcConf.SkipTLSVerify != nil {
+			skipTLSVerify := *c.OidcConf.SkipTLSVerify
+			oidcConf.SkipTLSVerify = &skipTLSVerify
+		}
+		if c.OidcConf.CACert != nil {
+			caCert := *c.OidcConf.CACert
+			oidcConf.CACert = &caCert
+		}
+	}
+
+	var kubeContext *api.Context
+	if c.KubeContext != nil {
+		kubeContext = c.KubeContext.DeepCopy()
+	}
+
+	var cluster *api.Cluster
+	if c.Cluster != nil {
+		cluster = c.Cluster.DeepCopy()
+	}
+
+	var authInfo *api.AuthInfo
+	if c.AuthInfo != nil {
+		authInfo = c.AuthInfo.DeepCopy()
+	}
+
+	return &Context{
+		Name:           c.Name,
+		KubeContext:    kubeContext,
+		Cluster:        cluster,
+		AuthInfo:       authInfo,
+		Source:         c.Source,
+		OidcConf:       oidcConf,
+		Internal:       c.Internal,
+		Error:          c.Error,
+		KubeConfigPath: c.KubeConfigPath,
+		ClusterID:      c.ClusterID,
+	}
+}
+
 type OidcConfig struct {
 	// OIDC client ID.
 	ClientID string
