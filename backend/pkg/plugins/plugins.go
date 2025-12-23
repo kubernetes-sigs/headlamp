@@ -25,13 +25,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/utils"
 )
 
 const (
@@ -86,7 +86,7 @@ func periodicallyWatchSubfolders(watcher *fsnotify.Watcher, path string, interva
 	for ; true; <-ticker.C {
 		// Walk the path and add any new directories to the watcher.
 		_ = filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
-			if d != nil && d.IsDir() && !utils.Contains(watcher.WatchList(), path) {
+			if d != nil && d.IsDir() && !slices.Contains(watcher.WatchList(), path) {
 				err := watcher.Add(path)
 				if err != nil {
 					logger.Log(logger.LevelError, map[string]string{"path": path},
@@ -377,7 +377,13 @@ func canSendRefresh(c cache.Cache[interface{}]) bool {
 func HandlePluginEvents(staticPluginDir, userPluginDir, pluginDir string,
 	notify <-chan string, cache cache.Cache[interface{}],
 ) {
-	for range notify {
+	for event := range notify {
+		// Skip CHMOD events to avoid looping on electron when user-plugins folder is watched
+		// these events are not relevant to see if plugins have changed.
+		if strings.HasSuffix(event, "CHMOD") {
+			continue
+		}
+
 		// Set the refresh signal only if we cannot send it. We prevent it here
 		// because we only want to send refresh signals that *happen after* we are
 		// allowed to send them.

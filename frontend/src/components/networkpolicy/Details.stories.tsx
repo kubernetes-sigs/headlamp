@@ -48,12 +48,14 @@ Default.parameters = {
           'http://localhost:4466/apis/networking.k8s.io/v1/namespaces/default/networkpolicies/allow-frontend-traffic',
           () => HttpResponse.json(NETWORK_POLICY_DETAIL)
         ),
-        http.get('http://localhost:4466/apis/networking.k8s.io/v1/networkpolicies', () =>
-          HttpResponse.json({
-            kind: 'NetworkPolicyList',
-            items: NETWORK_POLICY_ITEMS,
-            metadata: {},
-          })
+        http.get(
+          'http://localhost:4466/apis/networking.k8s.io/v1/namespaces/default/networkpolicies',
+          () =>
+            HttpResponse.json({
+              kind: 'NetworkPolicyList',
+              items: NETWORK_POLICY_ITEMS,
+              metadata: {},
+            })
         ),
         http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
           HttpResponse.json({

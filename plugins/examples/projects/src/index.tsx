@@ -19,6 +19,7 @@ import {
   registerCustomCreateProject,
   registerProjectDeleteButton,
   registerProjectDetailsTab,
+  registerProjectHeaderAction,
   registerProjectOverviewSection,
 } from '@kinvolk/headlamp-plugin/lib';
 
@@ -169,4 +170,20 @@ registerProjectDeleteButton({
       Delete {project.id}
     </button>
   ),
+});
+
+// Example of adding a custom action button to the project details header
+registerProjectHeaderAction({
+  id: 'custom-header-action',
+  component: ({ project }) => (
+    <button
+      onClick={() => {
+        console.log('Custom header action for project:', project.id);
+      }}
+    >
+      Custom Action
+    </button>
+  ),
+  // Only show this action if the project has multiple clusters
+  isEnabled: ({ project }) => project.clusters.length > 0,
 });

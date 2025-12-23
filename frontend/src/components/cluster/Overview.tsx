@@ -223,6 +223,14 @@ function EventsSection() {
           gridTemplate: 'auto',
         },
         {
+          id: 'count',
+          label: t('Count'),
+          gridTemplate: 'min-content',
+          cellProps: { align: 'right' },
+          getValue: event => event.count ?? null,
+          render: event => event.count ?? '-',
+        },
+        {
           id: 'last-seen',
           label: t('Last Seen'),
           gridTemplate: 'min-content',

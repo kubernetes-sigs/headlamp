@@ -328,6 +328,12 @@ image:
 	Dockerfile \
 	.
 
+.PHONY: image-verify-digests
+
+image-verify-digests:
+	@echo "Verifying Docker image digests..."
+	@npm run image:verify-image-digests
+
 .PHONY: build-plugins-container
 build-plugins-container:
 	$(DOCKER_CMD) $(DOCKER_BUILDX_CMD) build \

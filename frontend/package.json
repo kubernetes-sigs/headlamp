@@ -62,7 +62,7 @@
     "i18next": "^23.15.1",
     "i18next-browser-languagedetector": "^8.0.0",
     "js-base64": "^3.7.2",
-    "js-yaml": "^4.1.0",
+    "js-yaml": "^4.1.1",
     "jsonpath-plus": "^10.3.0",
     "lodash": "^4.17.21",
     "material-react-table": "^2.13.3",
@@ -95,7 +95,8 @@
     "axe-core": "npm:dry-uninstall",
     "domain-browser": "npm:dry-uninstall",
     "typescript": "5.6.2",
-    "cheerio": "1.0.0-rc.12"
+    "cheerio": "1.0.0-rc.12",
+    "js-yaml": "^4.1.1"
   },
   "optionalDependencies": {
     "@rollup/rollup-darwin-arm64": "*",

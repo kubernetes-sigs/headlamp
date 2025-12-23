@@ -15,9 +15,56 @@ jobs:
   build:
     permissions:
       contents: write
+      issues: write
     name: Create Release
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get previous release tag
+        id: get_prev_tag
+        run: |
+          PREV_TAG=$(git tag -l 'v*' --sort=-version:refname | head -n 1)
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+          echo "Previous tag: $PREV_TAG"
+
+      - name: Generate release issue body
+        id: issue_body
+        run: |
+          ISSUE_BODY=$(node .github/scripts/generate-release-issue-body.js issue "${{ github.event.inputs.releaseName }}" "${{ steps.get_prev_tag.outputs.prev_tag }}" "${{ github.actor }}")
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$ISSUE_BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes template
+        id: release_notes
+        run: |
+          RELEASE_NOTES=$(node .github/scripts/generate-release-issue-body.js release-notes)
+          echo "template<<EOF" >> $GITHUB_OUTPUT
+          echo "$RELEASE_NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release Coordination Issue
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const releaseName = '${{ github.event.inputs.releaseName }}';
+            const issueBody = `${{ steps.issue_body.outputs.body }}`;
+
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Release ${releaseName} - Coordination`,
+              body: issueBody,
+              labels: ['release']
+            });
+
+            console.log(`Created issue #${issue.data.number}`);
+
       - name: Create Release Draft
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
@@ -25,21 +72,7 @@ jobs:
           draft: true
           name: ${{ github.event.inputs.releaseName }}
           body: |
-            ## ✨ Enhancements:
-            * Feature 1
-            * Feature 2
-
-            ## 🐞 Bug fixes
-            * Fix 1
-            * Fix 2
-
-            ## 💻 Development
-            * Development experience related change 1
-            * Development experience related change 2
-
-            ## 📖 Documentation
-            * Docs change 1
-            * Docs change 2
+            ${{ steps.release_notes.outputs.template }}
 
             <!-- end-release-notes -->
             **Container image:** :whale:  [ghcr.io/headlamp-k8s/headlamp:v${{ github.event.inputs.releaseName }}](https://github.com/kubernetes-sigs/headlamp/pkgs/container/headlamp)

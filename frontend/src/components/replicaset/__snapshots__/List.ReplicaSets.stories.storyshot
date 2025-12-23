@@ -930,17 +930,29 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-13vbnfx-MuiTableCell-root"
                 >
-                  <span
-                    aria-label="app.kubernetes.io/instance=headlamp-release
-app.kubernetes.io/name=headlamp
-pod-template-hash=b123456"
-                    class=""
-                    data-mui-internal-clone-element="true"
+                  <div
+                    class="MuiBox-root css-0"
                   >
-                    app.kubernetes.io/instance=headlamp-release
-app.kubernetes.io/name=headlamp
-pod-template-hash=b123456
-                  </span>
+                    <div
+                      class="MuiBox-root css-yi3mkw"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                      >
+                        app.kubernetes.io/instance: headlamp-release
+                      </p>
+                      <p
+                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                      >
+                        app.kubernetes.io/name: headlamp
+                      </p>
+                      <p
+                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                      >
+                        pod-template-hash: b123456
+                      </p>
+                    </div>
+                  </div>
                 </td>
                 <td
                   class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
@@ -1074,15 +1086,24 @@ pod-template-hash=b123456
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-13vbnfx-MuiTableCell-root"
                 >
-                  <span
-                    aria-label="k8s-app=headlamp
-pod-template-hash=a123456"
-                    class=""
-                    data-mui-internal-clone-element="true"
+                  <div
+                    class="MuiBox-root css-0"
                   >
-                    k8s-app=headlamp
-pod-template-hash=a123456
-                  </span>
+                    <div
+                      class="MuiBox-root css-yi3mkw"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                      >
+                        k8s-app: headlamp
+                      </p>
+                      <p
+                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                      >
+                        pod-template-hash: a123456
+                      </p>
+                    </div>
+                  </div>
                 </td>
                 <td
                   class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"

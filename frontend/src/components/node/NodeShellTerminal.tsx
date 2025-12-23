@@ -29,7 +29,7 @@ import { getCluster } from '../../lib/cluster';
 import { apply } from '../../lib/k8s/api/v1/apply';
 import { stream, StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
 import Node from '../../lib/k8s/node';
-import Pod, { KubePod } from '../../lib/k8s/pod';
+import { KubePod } from '../../lib/k8s/pod';
 
 const decoder = new TextDecoder('utf-8');
 const encoder = new TextEncoder();
@@ -51,7 +51,6 @@ interface XTerminalConnected {
   xterm: XTerminal;
   connected: boolean;
   reconnectOnEnter: boolean;
-  onClose?: () => void;
 }
 
 const shellPod = (name: string, namespace: string, nodeName: string, nodeShellImage: string) => {
@@ -65,7 +64,7 @@ const shellPod = (name: string, namespace: string, nodeName: string, nodeShellIm
     spec: {
       nodeName,
       restartPolicy: 'Never',
-      terminationGracePeriodSeconds: 0,
+      terminationGracePeriodSeconds: 30,
       hostPID: true,
       hostIPC: true,
       hostNetwork: true,
@@ -74,16 +73,29 @@ const shellPod = (name: string, namespace: string, nodeName: string, nodeShellIm
           operator: 'Exists',
         },
       ],
-      priorityClassName: 'system-node-critical',
       containers: [
         {
-          name: 'shell',
+          name: 'debugger',
           image: nodeShellImage,
-          securityContext: {
-            privileged: true,
+          terminationMessagePolicy: 'File',
+          tty: true,
+          stdin: true,
+          stdinOnce: true,
+          volumeMounts: [
+            {
+              mountPath: '/host',
+              name: 'host-root',
+            },
+          ],
+        },
+      ],
+      volumes: [
+        {
+          name: 'host-root',
+          hostPath: {
+            path: '/',
+            type: 'Directory',
           },
-          command: ['nsenter'],
-          args: ['-t', '1', '-m', '-u', '-i', '-n', 'sleep', '14000'],
         },
       ],
     },
@@ -91,9 +103,15 @@ const shellPod = (name: string, namespace: string, nodeName: string, nodeShellIm
 };
 
 function uniqueString() {
-  const timestamp = Date.now().toString(36);
-  const randomNum = Math.random().toString(36).substring(2, 5);
-  return `${timestamp}-${randomNum}`;
+  const alphabet = '23456789abcdefghjkmnpqrstuvwxyz';
+  let res = '';
+
+  for (let i = 0; i < 5; i++) {
+    const idx = Math.floor(Math.random() * alphabet.length);
+    res += alphabet[idx];
+  }
+
+  return res;
 }
 
 async function shell(item: Node, onExec: StreamResultsCb) {
@@ -106,25 +124,19 @@ async function shell(item: Node, onExec: StreamResultsCb) {
   const config = clusterSettings.nodeShellTerminal;
   const linuxImage = config?.linuxImage || DEFAULT_NODE_SHELL_LINUX_IMAGE;
   const namespace = config?.namespace || DEFAULT_NODE_SHELL_NAMESPACE;
-  const podName = `node-shell-${item.getName()}-${uniqueString()}`;
-  const kubePod = shellPod(podName, namespace, item.getName(), linuxImage!!);
+  const podName = `node-debugger-${item.getName()}-${uniqueString()}`;
+  const kubePod = shellPod(podName, namespace, item.getName(), linuxImage);
   try {
     await apply(kubePod);
   } catch (e) {
-    console.error('Error:NodeShell: creating pod', e);
+    console.error('Error:DebugNode: creating pod', e);
     return {};
   }
-  const command = [
-    'sh',
-    '-c',
-    '((clear && bash) || (clear && zsh) || (clear && ash) || (clear && sh))',
-  ];
   const tty = true;
   const stdin = true;
   const stdout = true;
   const stderr = true;
-  const commandStr = command.map(item => '&command=' + encodeURIComponent(item)).join('');
-  const url = `/api/v1/namespaces/${namespace}/pods/${podName}/exec?container=shell${commandStr}&stdin=${
+  const url = `/api/v1/namespaces/${namespace}/pods/${podName}/attach?container=debugger&stdin=${
     stdin ? 1 : 0
   }&stderr=${stderr ? 1 : 0}&stdout=${stdout ? 1 : 0}&tty=${tty ? 1 : 0}`;
   const additionalProtocols = [
@@ -133,18 +145,8 @@ async function shell(item: Node, onExec: StreamResultsCb) {
     'v2.channel.k8s.io',
     'channel.k8s.io',
   ];
-  const onClose = async () => {
-    const pod = new Pod(kubePod);
-    try {
-      await pod.delete();
-    } catch (e) {
-      console.error('Error:NodeShell: deleting pod', e);
-      return {};
-    }
-  };
   return {
     stream: stream(url, onExec, { additionalProtocols, isJson: false }),
-    onClose: onClose,
   };
 }
 
@@ -154,14 +156,44 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
   const xtermRef = useRef<XTerminalConnected | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const streamRef = useRef<any | null>(null);
+  const exitSentRef = useRef(false);
+  const pendingExitRef = useRef(false);
 
-  const wrappedOnClose = () => {
-    if (!!onClose) {
-      onClose();
+  const sendExitIfPossible = () => {
+    if (exitSentRef.current) {
+      return true;
     }
 
-    if (!!xtermRef.current?.onClose) {
-      xtermRef.current?.onClose();
+    const socket = streamRef.current?.getSocket();
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+
+    send(0, 'exit\r');
+    exitSentRef.current = true;
+    pendingExitRef.current = false;
+    setTimeout(() => streamRef.current?.cancel(), 1000);
+    return true;
+  };
+
+  const requestShellExit = (reason: string) => {
+    if (exitSentRef.current) {
+      return;
+    }
+
+    const sent = sendExitIfPossible();
+    if (!sent) {
+      console.debug('Queueing exit for shell (not yet connected)', { reason });
+      pendingExitRef.current = true;
+    } else {
+      console.debug('Exit command sent to shell', { reason });
+    }
+  };
+
+  const wrappedOnClose = () => {
+    requestShellExit('dialog-close');
+    if (!!onClose) {
+      onClose();
     }
   };
 
@@ -260,6 +292,9 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
       if (channel !== Channel.ServerError) {
         xtermc.connected = true;
         console.debug('Terminal is now connected');
+        if (pendingExitRef.current && !exitSentRef.current) {
+          sendExitIfPossible();
+        }
       }
     }
 
@@ -348,11 +383,10 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
 
       (async function () {
         xtermRef?.current?.xterm.writeln('Trying to open a shell');
-        const { stream, onClose } = await shell(item, (items: ArrayBuffer) =>
+        const { stream } = await shell(item, (items: ArrayBuffer) =>
           onData(xtermRef.current!, items)
         );
         streamRef.current = stream;
-        xtermRef.current!.onClose = onClose;
 
         setupTerminal(terminalContainerRef, xtermRef.current!.xterm, fitAddonRef.current!);
       })();
@@ -364,6 +398,7 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
       window.addEventListener('resize', handler);
 
       return function cleanup() {
+        requestShellExit('component-unmount');
         xtermRef.current?.xterm.dispose();
         streamRef.current?.cancel();
         window.removeEventListener('resize', handler);
@@ -372,6 +407,18 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [terminalContainerRef]
   );
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      requestShellExit('window-beforeunload');
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
 
   return (
     <DialogContent

@@ -15,8 +15,9 @@
  */
 
 import { useTranslation } from 'react-i18next';
+import { matchExpressionSimplifier, matchLabelsSimplifier } from '../../lib/k8s';
 import NetworkPolicy from '../../lib/k8s/networkpolicy';
-import LabelListItem from '../common/LabelListItem';
+import { MatchExpressions } from '../common/Resource/MatchExpressions';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 export function NetworkPolicyList() {
@@ -52,22 +53,26 @@ export function NetworkPolicyList() {
           gridTemplate: 'auto',
           label: t('Pod Selector'),
           getValue: networkpolicy => {
-            const podSelector = networkpolicy.jsonData.spec.podSelector;
-            return podSelector.matchLabels
-              ? Object.keys(podSelector.matchLabels)
-                  .map(key => `${key}=${podSelector.matchLabels[key]}`)
-                  .join(', ')
-              : null;
+            const podSelector = networkpolicy.jsonData.spec.podSelector || {};
+            const { matchLabels, matchExpressions } = podSelector;
+            const labels = matchLabelsSimplifier(matchLabels, true);
+            const expressions = matchExpressionSimplifier(matchExpressions);
+            const parts = [
+              ...(Array.isArray(labels) ? labels : []),
+              ...(Array.isArray(expressions) ? expressions : []),
+            ];
+            return parts.join(', ');
           },
           render: networkpolicy => {
-            const podSelector = networkpolicy.jsonData.spec.podSelector;
-            return podSelector.matchLabels ? (
-              <LabelListItem
-                labels={Object.keys(podSelector.matchLabels).map(
-                  key => `${key}=${podSelector.matchLabels[key]}`
-                )}
-              />
-            ) : null;
+            const podSelector = networkpolicy.jsonData.spec.podSelector || {};
+            const { matchLabels, matchExpressions } = podSelector;
+            if (!matchLabels && !matchExpressions) {
+              return null;
+            }
+
+            return (
+              <MatchExpressions matchLabels={matchLabels} matchExpressions={matchExpressions} />
+            );
           },
         },
         'age',

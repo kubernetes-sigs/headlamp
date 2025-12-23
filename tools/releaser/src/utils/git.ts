@@ -59,3 +59,32 @@ export function pushTag(version: string): void {
     process.exit(1);
   }
 }
+
+export function branchExists(branchName: string): boolean {
+  try {
+    execSync(`git rev-parse --verify ${branchName}`, { stdio: 'ignore' });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+export function createAndCheckoutBranch(branchName: string): void {
+  try {
+    execSync(`git checkout -b ${branchName}`);
+  } catch (error) {
+    console.error(`Error: Failed to create and checkout branch ${branchName}`);
+    console.error(error);
+    process.exit(1);
+  }
+}
+
+export function getCurrentBranch(): string {
+  try {
+    return execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8' }).trim();
+  } catch (error) {
+    console.error('Error: Failed to get current branch');
+    console.error(error);
+    process.exit(1);
+  }
+}

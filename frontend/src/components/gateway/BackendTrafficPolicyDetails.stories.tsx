@@ -36,6 +36,10 @@ export default {
         story: [],
         storyBase: [
           http.get(
+            'http://localhost:4466/apis/gateway.networking.x-k8s.io/v1alpha1/namespaces/default/xbackendtrafficpolicies',
+            () => HttpResponse.error()
+          ),
+          http.get(
             'http://localhost:4466/apis/gateway.networking.x-k8s.io/v1alpha1/namespaces/default/xbackendtrafficpolicies/example-traffic-policy',
             () => HttpResponse.json(DEFAULT_BACKEND_TRAFFIC_POLICY)
           ),

@@ -90,7 +90,7 @@ Change the Cluster Chooser button in the top middle of the app bar with
 
 ![screenshot of the cluster chooser button](../images/cluster-chooser.png)
 
-- Example plugin: [How To Register Cluster Chooser button](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/clusterchooser)
+- Example plugin: [How To Register Cluster Chooser button](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/cluster-chooser)
 - API reference: [registerClusterChooser](../../api/plugin/registry/functions/registerclusterchooser)
 
 ### Details View Header Action
@@ -221,3 +221,14 @@ Add custom sections to the project overview page with
 These sections appear in the project's main overview area.
 
 Example plugin: [How to customize projects](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/projects)
+
+### Activities
+
+Activity is a Headlamp feature that allows you to create resizable popup windows.
+For example when you click on a resource (like a Pod or ReplicaSet), the details will open in Activity.
+
+![screenshot of an activity example](./images/activity-example.png)
+
+You can create and update Actitivities from plugins using [Activity API](../../api/components/activity/Activity/variables/Activity.md)
+
+Check the [example plugin](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/activity) for the full code.

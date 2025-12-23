@@ -33,6 +33,50 @@ jobs:
     - uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7 # v3.8.2
       with:
         node-version: 20.x
+    - name: Check if sha256 lines changed in this PR for verifying image digest changes
+      id: check-sha
+      if: github.event_name == 'pull_request'
+      run: |
+        set -euo pipefail
+
+        echo "Checking only Dockerfile and Dockerfile.plugins for sha256 changes"
+
+        # Prefer the base SHA from the PR event, which works for both forks and same-repo branches.
+        BASE_SHA="${{ github.event.pull_request.base.sha }}"
+        echo "Initial diff target from PR base SHA: $BASE_SHA"
+
+        # If the base SHA is not present in the local clone (e.g., shallow fetch), try fetching the base ref.
+        if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+          echo "Base SHA not found locally, trying to fetch base ref"
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          git fetch origin "$BASE_REF" --depth=5000 || git fetch origin "$BASE_REF" || true
+          if git show-ref --verify --quiet "refs/remotes/origin/${BASE_REF}"; then
+            BASE_SHA="origin/${BASE_REF}"
+            echo "Using origin/${BASE_REF} as diff target"
+          else
+            echo "Warning: could not fetch base ref; falling back to PR base SHA (may fail if missing)"
+          fi
+        fi
+
+        # Try three-dot first; if there is no merge base (e.g., unrelated histories),
+        # fall back to a simple two-dot diff which doesn't require a merge base.
+        if git merge-base "$BASE_SHA" HEAD >/dev/null 2>&1; then
+          DIFF_RANGE="${BASE_SHA}...HEAD"
+        else
+          echo "No merge-base between $BASE_SHA and HEAD; using two-dot diff"
+          DIFF_RANGE="${BASE_SHA}..HEAD"
+        fi
+
+        if git diff -U0 "$DIFF_RANGE" -- Dockerfile Dockerfile.plugins | grep -E '^[+-].*sha256:' >/dev/null; then
+          echo "sha_changed=true"
+          echo "sha_changed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "sha_changed=false"
+          echo "sha_changed=false" >> "$GITHUB_OUTPUT"
+        fi
+    - name: Verify container image digests
+      if: github.event_name == 'pull_request' && steps.check-sha.outputs.sha_changed == 'true'
+      run: npm run image:verify-image-digests
     - name: Start Cluster 1
       uses: helm/kind-action@0025e74a8c7512023d06dc019c617aa3cf561fde # v1.0.0
       with:
@@ -78,10 +122,13 @@ jobs:
         cd ../../
         ls -laR .plugins
     - name: Remove unnecessary files
-      if: steps.cache-image-restore2.outputs.cache-hit != 'true'
       run: |
         sudo rm -rf /usr/share/dotnet
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /usr/share/swift
+        sudo apt-get clean
     - name: Build image
       if: steps.cache-image-restore2.outputs.cache-hit != 'true'
       run: |
@@ -93,8 +140,12 @@ jobs:
     - name: Import images to kind
       run: |
         export SHELL=/bin/bash
+        # Load images into Cluster 1 (test)
         kind load docker-image ghcr.io/headlamp-k8s/headlamp-plugins-test:latest --name test
         kind load docker-image ghcr.io/headlamp-k8s/headlamp:latest --name test
+
+        # Load Headlamp image into Cluster 2 (test2) so it can run in-cluster tests there
+        kind load docker-image ghcr.io/headlamp-k8s/headlamp:latest --name test2
     - name: Test .plugins folder
       if: steps.cache-image-restore2.outputs.cache-hit != 'true'
       run: |
@@ -186,6 +237,70 @@ jobs:
           exit 1
         else
           echo "Playwright tests passed successfully"
+        fi
+    - name: Deploy Headlamp in in-cluster mode and run TS API tests
+      run: |
+        # Reuse Cluster 2 context for in-cluster tests
+        kubectl config use-context test2
+
+        # Setup service account and RBAC for Headlamp
+        kubectl create serviceaccount headlamp --namespace kube-system || true
+        kubectl create clusterrolebinding headlamp --serviceaccount=kube-system:headlamp --clusterrole=cluster-admin || true
+        kubectl get serviceaccount headlamp -n kube-system
+
+        # Deploy Headlamp with in-cluster mode
+        kubectl apply -f e2e-tests/kubernetes-headlamp-incluster-ci.yaml
+
+        echo "Waiting for headlamp deployment to be available (in-cluster)..."
+        kubectl wait deployment -n kube-system headlamp --for condition=Available=True --timeout=120s
+        kubectl get pods -n kube-system -l app.kubernetes.io/name=headlamp
+
+        echo "Checking headlamp pod status (in-cluster)..."
+        kubectl logs -n kube-system -l app.kubernetes.io/name=headlamp --tail=50 || true
+
+        # Start port-forward in background
+        echo "Starting port-forward to headlamp service (in-cluster)..."
+        kubectl port-forward -n kube-system service/headlamp 8080:80 &
+        PORT_FORWARD_PID=$!
+
+        # Wait for port-forward to be ready
+        sleep 5
+
+        # Verify port-forward is working
+        if ! kill -0 $PORT_FORWARD_PID 2>/dev/null; then
+          echo "❌ Port-forward failed to start for in-cluster test"
+          exit 1
+        fi
+
+        export HEADLAMP_TEST_URL="http://localhost:8080"
+        echo "In-cluster Headlamp URL: $HEADLAMP_TEST_URL"
+
+        # Get service account token for API checks
+        echo "Getting service account token for in-cluster test..."
+        export HEADLAMP_SA_TOKEN=$(kubectl create token headlamp --duration=1h -n kube-system)
+
+        if [ -z "$HEADLAMP_SA_TOKEN" ]; then
+          echo "❌ Failed to get service account token for in-cluster test"
+          kill $PORT_FORWARD_PID 2>/dev/null || true
+          exit 1
+        fi
+
+        echo "✅ Service account token obtained"
+        echo "Running in-cluster API Playwright tests..."
+
+        # Run the TypeScript in-cluster API tests
+        cd e2e-tests
+        npm ci
+        npx playwright install --with-deps
+        npx playwright test tests/incluster-api.spec.ts
+        EXIT_CODE=$?
+
+        # Cleanup port-forward
+        kill $PORT_FORWARD_PID 2>/dev/null || true
+
+        if [ $EXIT_CODE -ne 0 ]; then
+          echo "❌ In-cluster API tests failed with exit code $EXIT_CODE"
+          exit $EXIT_CODE
         fi
     # Clear disk space by removing unnecessary files, apt files and uninstall some playwright dependencies
     - name: Clear Disk Space

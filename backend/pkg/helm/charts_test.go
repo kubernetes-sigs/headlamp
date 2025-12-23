@@ -32,12 +32,11 @@ import (
 var settings = cli.New()
 
 func TestListChart(t *testing.T) {
-	k8sclient := GetClient(t, "minikube")
 
 	cache := cache.New[interface{}]()
 	require.NotNil(t, cache)
 
-	helmHandler, err := helm.NewHandlerWithSettings(k8sclient, cache, "default", settings)
+	helmHandler, err := helm.NewHandlerWithSettings(cache, settings)
 	require.NoError(t, err)
 
 	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")

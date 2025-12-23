@@ -40,8 +40,9 @@ export default {
             'http://localhost:4466/apis/my.phonyresources.io/v1/namespaces/mynamespace/mycustomresources/mycustomresource',
             () => HttpResponse.json(mockCRList[0])
           ),
-          http.get('http://localhost:4466/apis/my.phonyresources.io/v1/mycustomresources', () =>
-            HttpResponse.json({})
+          http.get(
+            'http://localhost:4466/apis/my.phonyresources.io/v1/namespaces/mynamespace/mycustomresources',
+            () => HttpResponse.json({})
           ),
           http.get(
             'http://localhost:4466/apis/my.phonyresources.io/v1/mycustomresources/nonexistentcustomresource',

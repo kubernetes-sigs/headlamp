@@ -27,7 +27,8 @@ import type { KubeListUpdateEvent } from './KubeList';
 import { KubeList } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
-import { BASE_WS_URL, useWebSockets, WebSocketManager } from './webSocket';
+import { WebSocketManager } from './multiplexer';
+import { BASE_WS_URL, useWebSockets } from './webSocket';
 
 /**
  * @returns true if the websocket multiplexer is enabled.

@@ -192,7 +192,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
    * Now handles plugins by both name and type to support multiple versions of the same plugin.
    * When enabling a plugin, it automatically disables other versions of the same plugin.
    */
-  function switchChangeHanlder(plug: { name: any; type?: string; isEnabled?: boolean }) {
+  function switchChangeHandler(plug: { name: any; type?: string; isEnabled?: boolean }) {
     const plugName = plug.name;
     const plugType = plug.type;
     const newEnabledState = !plug.isEnabled;
@@ -375,7 +375,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                   <EnableSwitch
                     aria-label={`Toggle ${plugin.name}`}
                     checked={isChecked}
-                    onChange={() => switchChangeHanlder(plugin)}
+                    onChange={() => switchChangeHandler(plugin)}
                     color="primary"
                     name={plugin.name}
                   />

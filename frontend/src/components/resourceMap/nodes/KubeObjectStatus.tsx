@@ -47,7 +47,7 @@ function getPodStatus(pod: Pod): KubeObjectStatus {
  * Not all kinds of resources have a status and/or supported
  */
 export function getStatus(w: KubeObject): KubeObjectStatus {
-  if (w.kind === 'Pod') return getPodStatus(w as Pod);
+  if (Pod.isClassOf(w)) return getPodStatus(w);
 
   if (['DaemonSet', 'ReplicaSet', 'StatefulSet', 'Deployment'].includes(w.kind)) {
     const workload = w as Workload;

@@ -72,7 +72,7 @@ spec:
       labels:
         {{- include "headlamp.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
-        {{- toYaml . | nindent 8 }}
+        {{- tpl (toYaml .) $ | nindent 8 }}
         {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}

@@ -15,6 +15,7 @@
  */
 
 import { describe, expect, it } from '@jest/globals';
+import path from 'path';
 import { checkPermissionSecret, validateCommandData } from './runCmd';
 
 describe('checkPermissionSecret', () => {
@@ -218,5 +219,70 @@ describe('validateCommandData', () => {
         permissionSecrets: { 'runCmd-scriptjs-myscript.js': 42 },
       })[0]
     ).toBe(true);
+  });
+});
+
+describe('runScript', () => {
+  const originalArgv = process.argv;
+  const originalExit = process.exit;
+  const originalConsoleError = console.error;
+  const originalResourcesPath = process.resourcesPath;
+
+  let exitMock: jest.Mock;
+  let consoleErrorMock: jest.Mock;
+  beforeEach(() => {
+    jest.resetModules();
+    // @ts-ignore this is fine for tests
+    process.resourcesPath = '/resources';
+    jest.mock('./plugin-management', () => ({
+      defaultPluginsDir: jest.fn(() => '/plugins/default'),
+      defaultUserPluginsDir: jest.fn(() => '/plugins/user'),
+    }));
+
+    exitMock = jest.fn() as any;
+    // @ts-expect-error overriding for test
+    process.exit = exitMock;
+    consoleErrorMock = jest.fn();
+    console.error = consoleErrorMock;
+  });
+
+  afterEach(() => {
+    process.argv = originalArgv;
+    process.exit = originalExit;
+    console.error = originalConsoleError;
+    // @ts-ignore
+    process.resourcesPath = originalResourcesPath;
+    jest.unmock('./plugin-management');
+    jest.restoreAllMocks();
+  });
+
+  const testScriptImport = async (scriptPath: string) => {
+    const resolvedPath = path.resolve(scriptPath);
+    process.argv = ['node', resolvedPath];
+    jest.doMock(resolvedPath, () => ({}), { virtual: true });
+    const runCmdModule = await import('./runCmd');
+    runCmdModule.runScript();
+    expect(exitMock).not.toHaveBeenCalled();
+  };
+
+  it('imports the script when path is inside defaultPluginsDir', () =>
+    testScriptImport('/plugins/default/my-script.js'));
+
+  it('imports the script when path is inside defaultUserPluginsDir', () =>
+    testScriptImport('/plugins/user/my-script.js'));
+
+  it('imports the script when path is inside static .plugins dir', () =>
+    testScriptImport('/resources/.plugins/my-script.js'));
+
+  it('exits with error when script is outside allowed directories', async () => {
+    const scriptPath = path.resolve('/not-allowed/my-script.js');
+    process.argv = ['node', scriptPath];
+    jest.doMock(scriptPath, () => ({}), { virtual: true });
+
+    const runCmdModule = await import('./runCmd');
+    runCmdModule.runScript();
+
+    expect(consoleErrorMock).toHaveBeenCalledTimes(1);
+    expect(exitMock).toHaveBeenCalledWith(1);
   });
 });
