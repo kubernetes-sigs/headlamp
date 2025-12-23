@@ -168,7 +168,6 @@ func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.Respon
 		return
 	}
 
-	// Ensure releases is never nil (nil serializes to JSON null, not [])
 	if releases == nil {
 		releases = []*release.Release{}
 	}
@@ -200,55 +199,69 @@ func (req *GetReleaseRequest) Validate() error {
 	return validate.Struct(req)
 }
 
-func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
-	// Parse request
+func decodeGetReleaseRequest(r *http.Request) (GetReleaseRequest, error) {
 	var req GetReleaseRequest
 
 	decoder := schema.NewDecoder()
-
-	err := decoder.Decode(&req, r.URL.Query())
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release"}, err, "parsing request")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	if err := decoder.Decode(&req, r.URL.Query()); err != nil {
+		return req, err
 	}
 
-	err = req.Validate()
+	return req, req.Validate()
+}
+
+func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+	// Parse request
+	req, err := decodeGetReleaseRequest(r)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release"}, err, "validating request")
+		logger.Log(logger.LevelError, map[string]string{"request": "get_release"},
+			err, "validating request")
 		http.Error(w, err.Error(), http.StatusBadRequest)
+
 		return
 	}
 
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release"}, err, "creating action config")
+		logger.Log(logger.LevelError, map[string]string{"request": "get_release"},
+			err, "creating action config")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
 		return
 	}
 
 	// check if release exists
 	_, err = actionConfig.Releases.Deployed(req.Name)
 	if err == driver.ErrReleaseNotFound {
-		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "request": "get_release"}, err, "release not found")
+		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "request": "get_release"},
+			err, "release not found")
 		http.Error(w, err.Error(), http.StatusNotFound)
+
 		return
 	}
 
 	getClient := action.NewGet(actionConfig)
+
 	result, err := getClient.Run(req.Name)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release", "releaseName": req.Name}, err, "getting release")
+		logger.Log(logger.LevelError, map[string]string{"request": "get_release", "releaseName": req.Name},
+			err, "getting release")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	if err = json.NewEncoder(w).Encode(result); err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release", "releaseName": req.Name}, err, "encoding response")
+
+	err = json.NewEncoder(w).Encode(result)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"request": "get_release", "releaseName": req.Name},
+			err, "encoding response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 }
 
@@ -334,51 +347,75 @@ func (req *UninstallReleaseRequest) Validate() error {
 	return validate.Struct(req)
 }
 
-func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+func decodeUninstallReleaseRequest(r *http.Request) (UninstallReleaseRequest, error) {
 	var req UninstallReleaseRequest
+
 	decoder := schema.NewDecoder()
-	err := decoder.Decode(&req, r.URL.Query())
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release"}, err, "decoding request")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	if err := decoder.Decode(&req, r.URL.Query()); err != nil {
+		return req, err
 	}
 
-	if err = req.Validate(); err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release"}, err, "validating request")
+	return req, req.Validate()
+}
+
+func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+	// Parse request
+	req, err := decodeUninstallReleaseRequest(r)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release"},
+			err, "validating request")
 		http.Error(w, err.Error(), http.StatusBadRequest)
+
 		return
 	}
 
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release"}, err, "creating action config")
+		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release"},
+			err, "creating action config")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
 		return
 	}
 
 	// check if release exists
-	if _, err = actionConfig.Releases.Deployed(req.Name); err == driver.ErrReleaseNotFound {
-		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "request": "uninstall_release"}, err, "release not found")
+	_, err = actionConfig.Releases.Deployed(req.Name)
+	if err == driver.ErrReleaseNotFound {
+		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "request": "uninstall_release"},
+			err, "release not found")
 		http.Error(w, err.Error(), http.StatusNotFound)
+
 		return
 	}
 
-	if err = h.setReleaseStatus("uninstall", req.Name, processing, nil); err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release", "releaseName": req.Name}, err, "setting status")
+	err = h.setReleaseStatus("uninstall", req.Name, processing, nil)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release", "releaseName": req.Name},
+			err, "setting status")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
 		return
 	}
 
-	go func(h *Handler) { h.uninstallRelease(req, actionConfig) }(h)
+	go func(h *Handler) {
+		h.uninstallRelease(req, actionConfig)
+	}(h)
 
-	response := map[string]string{"message": "uninstall request accepted"}
+	response := map[string]string{
+		"message": "uninstall request accepted",
+	}
+
 	w.WriteHeader(http.StatusAccepted)
-	if err = json.NewEncoder(w).Encode(response); err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release", "releaseName": req.Name}, err, "encoding response")
+
+	err = json.NewEncoder(w).Encode(response)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release", "releaseName": req.Name},
+			err, "encoding response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 }
 
@@ -410,49 +447,71 @@ func (req *RollbackReleaseRequest) Validate() error {
 	return validate.Struct(req)
 }
 
-func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+func decodeRollbackReleaseRequest(r *http.Request) (RollbackReleaseRequest, error) {
 	var req RollbackReleaseRequest
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Log(logger.LevelError, nil, err, "parsing request for rollback")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		return req, err
 	}
 
-	if err := req.Validate(); err != nil {
+	return req, req.Validate()
+}
+
+func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+	// Parse request and validate
+	req, err := decodeRollbackReleaseRequest(r)
+	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "validating request for rollback")
 		http.Error(w, err.Error(), http.StatusBadRequest)
+
 		return
 	}
 
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "rollback_release"}, err, "creating action config")
+		logger.Log(logger.LevelError, map[string]string{"request": "rollback_release"},
+			err, "creating action config")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
 		return
 	}
 
 	// check if release exists
-	if _, err = actionConfig.Releases.Deployed(req.Name); err == driver.ErrReleaseNotFound {
-		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name}, err, "release not found")
+	_, err = actionConfig.Releases.Deployed(req.Name)
+	if err == driver.ErrReleaseNotFound {
+		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name},
+			err, "release not found")
 		http.Error(w, err.Error(), http.StatusNotFound)
+
 		return
 	}
 
-	if err = h.setReleaseStatus("rollback", req.Name, processing, nil); err != nil {
+	err = h.setReleaseStatus("rollback", req.Name, processing, nil)
+	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "setting status")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
 		return
 	}
 
-	go func(h *Handler) { h.rollbackRelease(req, actionConfig) }(h)
+	go func(h *Handler) {
+		h.rollbackRelease(req, actionConfig)
+	}(h)
 
-	response := map[string]string{"message": "rollback request accepted"}
+	response := map[string]string{
+		"message": "rollback request accepted",
+	}
+
 	w.WriteHeader(http.StatusAccepted)
-	if err = json.NewEncoder(w).Encode(response); err != nil {
+
+	err = json.NewEncoder(w).Encode(response)
+	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "encoding response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 }
 
