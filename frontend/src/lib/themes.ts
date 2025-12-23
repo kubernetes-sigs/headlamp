@@ -444,9 +444,15 @@ export function usePrefersColorScheme() {
 
 /**
  * Hook gets theme based on user preference, and also OS/Browser preference.
+ * Priority order:
+ * 1. User's explicit preference (localStorage)
+ * 2. Enterprise default theme (REACT_APP_DEFAULT_THEME env var)
+ * 3. OS/Browser preference (prefers-color-scheme)
+ * 4. Fallback to 'light'
  */
 export function getThemeName(): string {
   const themePreference = localStorage.headlampThemePreference;
+  const enterpriseDefaultTheme = import.meta.env.REACT_APP_DEFAULT_THEME;
 
   if (typeof window.matchMedia !== 'function') {
     return 'light';
@@ -458,6 +464,9 @@ export function getThemeName(): string {
   if (themePreference) {
     // A selected theme preference takes precedence.
     themeName = themePreference;
+  } else if (enterpriseDefaultTheme) {
+    // Use enterprise default theme if set (can be any valid theme name)
+    themeName = enterpriseDefaultTheme;
   } else {
     if (prefersLight) {
       themeName = 'light';
