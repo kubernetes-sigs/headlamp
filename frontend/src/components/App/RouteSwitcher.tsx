@@ -207,6 +207,7 @@ function AuthRoute(props: AuthRouteProps) {
         return (
           <ErrorComponent
             error={{
+              name: 'AuthenticationError',
               message: errorMessage,
               stack: query.error instanceof Error ? query.error.message : String(query.error),
             }}
