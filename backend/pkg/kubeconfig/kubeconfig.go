@@ -92,6 +92,7 @@ func (c *Context) Copy() *Context {
 			skipTLSVerify := *c.OidcConf.SkipTLSVerify
 			oidcConf.SkipTLSVerify = &skipTLSVerify
 		}
+
 		if c.OidcConf.CACert != nil {
 			caCert := *c.OidcConf.CACert
 			oidcConf.CACert = &caCert
@@ -453,6 +454,7 @@ func (c *Context) AuthType() string {
 		if strings.Contains(c.AuthInfo.Exec.Command, "tsh") {
 			return "tsh"
 		}
+
 		return "exec"
 	}
 

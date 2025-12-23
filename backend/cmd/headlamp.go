@@ -966,7 +966,7 @@ func (c *HeadlampConfig) refreshAndSetToken(oidcAuthConfig *kubeconfig.OidcConfi
 	}
 }
 
-// setTokenFromCookie attempts to get a token from the cookie and set it as Authorization header
+// setTokenFromCookie attempts to get a token from the cookie and set it as Authorization header.
 func setTokenFromCookie(r *http.Request, clusterName string) {
 	tokenFromCookie, err := auth.GetTokenFromCookie(r, clusterName)
 	// Set bearer token from cookie if it exists
@@ -1249,7 +1249,7 @@ func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 		Methods("GET")
 }
 
-//nolint:funlen
+//nolint:funlen,gocognit // Routing function with multiple cases - complexity is inherent to the design
 func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 	router.PathPrefix("/clusters/{clusterName}/helm/{.*}").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -1277,7 +1277,10 @@ func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 			return
 		}
 
-		routeReleaseHandler := func(route, operation string, handler func(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request)) {
+		routeReleaseHandler := func(
+			route, operation string,
+			handler func(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request),
+		) {
 			c.telemetryHandler.RecordEvent(span, "Executing route",
 				attribute.String("route", route),
 				attribute.String("operation", operation))
@@ -1329,11 +1332,13 @@ func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 
 			// if no token present in in-cluster mode, return error
 			if c.UseInCluster && bearerToken == "" {
-				c.handleError(w, ctx, span, errors.New("no authentication token provided"), "failed to get token", http.StatusUnauthorized)
+				c.handleError(w, ctx, span, errors.New("no authentication token provided"),
+				"failed to get token", http.StatusUnauthorized)
 				return
 			}
 
-			logger.Log(logger.LevelInfo, map[string]string{"route": route}, nil, "Dispatching helm repository operation: "+operation)
+			logger.Log(logger.LevelInfo, map[string]string{"route": route}, nil,
+				"Dispatching helm repository operation: "+operation)
 
 			handler(w, r)
 		}
