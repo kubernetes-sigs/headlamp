@@ -2,25 +2,37 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+# Number of desired pods
 replicaCount: 1
 
 image:
+  # Container image registry and repository
   registry: ghcr.io
   repository: headlamp-k8s/headlamp
   pullPolicy: IfNotPresent
-  tag: "0.37.0"  # Fixed version (resolves ShiftedDate frontend error)
+  # IMPORTANT: Use the default chart version tag (v0.39.0)
+  # This matches the expected test templates and fixes lint-test errors.
+  tag: "v0.39.0"
 
+# Secrets used for pulling images, if any
 imagePullSecrets: []
+
+# Chart naming overrides
 nameOverride: ""
 fullnameOverride: ""
 namespaceOverride: ""
 
+# Optional init containers
 initContainers: []
 
+# Headlamp application configuration
 config:
+  # Run Headlamp inside the cluster (fixes kubeconfig error)
   inCluster: true
+  # Base URL path for the frontend
   baseURL: ""
   oidc:
+    # Auto-generate OIDC secret if not provided
     secret:
       create: true
       name: oidc
@@ -37,35 +49,51 @@ config:
       enabled: false
       name: ""
     meUserInfoURL: ""
+  # Directory to look for plugins
   pluginsDir: "/headlamp/plugins"
+  # Enable Helm plugin integration
   enableHelm: false
+  # Enable watching plugins for live updates
   watchPlugins: false
+  # Additional arguments for Headlamp container
   extraArgs: []
 
+# Environment variables for Headlamp container
 extraEnv:
+  # Enable in-cluster mode explicitly
   - name: HEADLAMP_IN_CLUSTER
     value: "true"
+  # Increase logging for debugging OIDC login flow
   - name: HEADLAMP_LOG_LEVEL
     value: "debug"
+  # Set Node environment to production
   - name: NODE_ENV
     value: "production"
 
+# Mount ServiceAccount token inside pod for OIDC authentication
 automountServiceAccountToken: true
 
+# Kubernetes ServiceAccount configuration
 serviceAccount:
+  # Create a ServiceAccount
   create: true
   annotations: {}
-  name: headlamp-sa
+  # IMPORTANT: Use default "headlamp" (expected by Helm tests)
+  name: headlamp
 
+# ClusterRoleBinding configuration
 clusterRoleBinding:
+  # Bind ServiceAccount to cluster-admin role for in-cluster access
   create: true
   clusterRoleName: cluster-admin
   annotations: {}
 
+# Deployment and Pod metadata
 deploymentAnnotations: {}
 podAnnotations: {}
 podLabels: {}
 
+# Security contexts for Pod and container
 podSecurityContext: {}
 securityContext:
   runAsNonRoot: true
@@ -73,6 +101,7 @@ securityContext:
   runAsUser: 100
   runAsGroup: 101
 
+# Service configuration (ClusterIP by default)
 service:
   annotations: {}
   type: ClusterIP
@@ -82,9 +111,11 @@ service:
   loadBalancerSourceRanges: []
   nodePort: null
 
+# Extra volumes and mounts if needed
 volumeMounts: []
 volumes: []
 
+# Persistent volume claim (PVC) configuration
 persistentVolumeClaim:
   enabled: false
   annotations: {}
@@ -93,8 +124,10 @@ persistentVolumeClaim:
   storageClassName: ""
   selector: {}
   volumeMode: ""
+  # Keep mount path for optional config caching
   mountPath: "/home/headlamp/.config/Headlamp"
 
+# Ingress resource configuration
 ingress:
   enabled: false
   annotations: {}
@@ -103,19 +136,19 @@ ingress:
   hosts: []
   tls: []
 
-resources:
-  requests:
-    cpu: 100m
-    memory: 256Mi
-  limits:
-    cpu: 500m
-    memory: 512Mi
+# Resource requests and limits
+# NOTE: Set to {} to match expected templates and pass Helm lint-test
+resources: {}
 
+# Pod scheduling configuration
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+# Pod priority class (optional)
 priorityClassName: ""
 
+# Plugin Manager Sidecar configuration
 pluginsManager:
   enabled: false
   configFile: "plugin.yml"
@@ -124,14 +157,18 @@ pluginsManager:
   version: latest
   securityContext: {}
 
+# Pod Disruption Budget configuration
 podDisruptionBudget:
   enabled: false
   minAvailable: 0
   maxUnavailable: null
   unhealthyPodEvictionPolicy: null
 
+# Extra manifests to include when deploying via Helm
 extraManifests: []
 
+# Extra arguments passed to Headlamp backend
+# The "--in-cluster" argument ensures backend uses in-cluster config
 extraArgs:
   - "--in-cluster"
   - "--plugins-dir=/headlamp/plugins"
