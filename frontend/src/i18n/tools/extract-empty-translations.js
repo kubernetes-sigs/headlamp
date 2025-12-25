@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+// ⚠️ DEPRECATED: This script is deprecated. Use the new i18n tool instead:
+//   npm run i18n:extract -- <translationsFile> [outputFile]
+//
 // This script copies the empty translations from a translations file to a new file. So they can
 // be easily spotted and translated.
 //

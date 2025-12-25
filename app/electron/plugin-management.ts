@@ -306,13 +306,13 @@ export class PluginManager {
   /**
    * Uninstalls a plugin from the specified folder.
    * @param {string} name - The name of the plugin to uninstall.
-   * @param {string} [folder=defaultPluginsDir()] - The folder where the plugin is installed.
+   * @param {string} [folder=defaultUserPluginsDir()] - The folder where the plugin is installed.
    * @param {function} [progressCallback=null] - Optional callback for progress updates.
    * @returns {void}
    */
   static uninstall(
     name: string,
-    folder = defaultPluginsDir(),
+    folder = defaultUserPluginsDir(),
     progressCallback: null | ProgressCallback = null
   ) {
     try {
@@ -1076,10 +1076,15 @@ export function getPluginBinDirectories(pluginsDir: string): string[] {
             for (const file of files) {
               const filePath = path.join(binDir, file);
               // Skip directories
-              if (fs.statSync(filePath).isDirectory()) {
+              const stat = fs.statSync(filePath);
+              if (stat.isDirectory()) {
                 continue;
               }
-              fs.chmodSync(filePath, 0o755); // rwx r-x r-x
+              const currentMode = stat.mode & 0o777;
+              if (currentMode !== 0o755) {
+                console.log(`Setting executable permissions for ${filePath}`);
+                fs.chmodSync(filePath, 0o755); // rwx r-x r-x
+              }
             }
           } catch (err) {
             console.error(`Error setting executable permissions in ${binDir}:`, err);

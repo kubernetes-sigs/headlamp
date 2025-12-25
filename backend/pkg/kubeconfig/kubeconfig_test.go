@@ -16,9 +16,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 var kubeConfigFilePath = filepath.Join(getTestDataPath(), "kubeconfig1")
+
+// Helper functions for creating pointers to primitive types.
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+func stringPtr(s string) *string {
+	return &s
+}
 
 // getTestDataPath returns the absolute path to the test data directory.
 func getTestDataPath() string {
@@ -557,6 +567,92 @@ func TestErrorTypes(t *testing.T) {
 			"Error in cluster 'test-cluster': invalid base64"
 		assert.Equal(t, expected, err.Error())
 	})
+}
+
+func newTestContext() *kubeconfig.Context {
+	return &kubeconfig.Context{
+		Name:        "test-context",
+		KubeContext: &api.Context{Cluster: "test-cluster", AuthInfo: "test-user", Namespace: "test-ns"},
+		Cluster:     &api.Cluster{Server: "https://test.example.com", CertificateAuthorityData: []byte("test-ca")},
+		AuthInfo:    &api.AuthInfo{Token: "test-token"},
+		Source:      kubeconfig.KubeConfig,
+		OidcConf: &kubeconfig.OidcConfig{
+			ClientID:      "test-client-id",
+			ClientSecret:  "test-client-secret",
+			IdpIssuerURL:  "https://oidc.example.com",
+			Scopes:        []string{"profile", "email"},
+			SkipTLSVerify: boolPtr(true),
+			CACert:        stringPtr("test-ca-cert"),
+		},
+		Internal:       true,
+		Error:          "test-error",
+		KubeConfigPath: "/path/to/kubeconfig",
+		ClusterID:      "test-cluster-id",
+	}
+}
+
+func TestContextCopyReturnsDeepCopy(t *testing.T) {
+	original := newTestContext()
+	copied := original.Copy()
+
+	assert.Equal(t, original, copied)
+	assert.NotSame(t, original, copied)
+}
+
+func TestContextCopyExcludesProxy(t *testing.T) {
+	copied := newTestContext().Copy()
+
+	assert.NotNil(t, copied)
+}
+
+func TestContextCopyKeepsNestedStructuresIndependent(t *testing.T) {
+	original := newTestContext()
+	copied := original.Copy()
+
+	original.KubeContext.Namespace = "modified-ns"
+	original.Cluster.Server = "https://modified.example.com"
+	original.AuthInfo.Token = "modified-token"
+	original.OidcConf.ClientID = "modified-client-id"
+	original.OidcConf.Scopes[0] = "modified-scope"
+	original.OidcConf.Scopes = append(original.OidcConf.Scopes, "new-scope")
+	*original.OidcConf.SkipTLSVerify = false
+	*original.OidcConf.CACert = "modified-ca-cert"
+
+	assert.Equal(t, "test-ns", copied.KubeContext.Namespace)
+	assert.Equal(t, "https://test.example.com", copied.Cluster.Server)
+	assert.Equal(t, "test-token", copied.AuthInfo.Token)
+	assert.Equal(t, "test-client-id", copied.OidcConf.ClientID)
+	assert.Equal(t, []string{"profile", "email"}, copied.OidcConf.Scopes)
+	assert.True(t, *copied.OidcConf.SkipTLSVerify)
+	assert.Equal(t, "test-ca-cert", *copied.OidcConf.CACert)
+}
+
+func TestContextCopyWithNilOidcConf(t *testing.T) {
+	original := &kubeconfig.Context{
+		Name: "test-context-nil-oidc",
+	}
+
+	copied := original.Copy()
+
+	assert.Equal(t, original, copied)
+	assert.NotSame(t, original, copied)
+	assert.Nil(t, copied.OidcConf)
+}
+
+func TestContextCopyWithNilNestedStructures(t *testing.T) {
+	original := &kubeconfig.Context{
+		Name:     "test-context-nil",
+		OidcConf: nil,
+	}
+
+	copied := original.Copy()
+
+	assert.Equal(t, original, copied)
+	assert.NotSame(t, original, copied)
+	assert.Nil(t, copied.KubeContext)
+	assert.Nil(t, copied.Cluster)
+	assert.Nil(t, copied.AuthInfo)
+	assert.Nil(t, copied.OidcConf)
 }
 
 func TestCustomObjectDeepCopy(t *testing.T) {

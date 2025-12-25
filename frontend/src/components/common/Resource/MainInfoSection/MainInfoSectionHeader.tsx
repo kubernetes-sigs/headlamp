@@ -83,7 +83,7 @@ export function MainInfoHeader<T extends KubeObject>(props: MainInfoHeaderProps<
       return <ErrorBoundary>{Action}</ErrorBoundary>;
     } else if (Action === null) {
       return null;
-    } else if (typeof Action === 'function') {
+    } else if (typeof Action === 'function' && resource) {
       return (
         <ErrorBoundary>
           <Action item={resource} />

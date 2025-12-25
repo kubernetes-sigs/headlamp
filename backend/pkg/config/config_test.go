@@ -159,6 +159,16 @@ func TestParseErrors(t *testing.T) {
 			args:          []string{"go run ./cmd", "--base-url=testingthis"},
 			errorContains: "base-url",
 		},
+		{
+			name:          "no_browser_without_embed",
+			args:          []string{"go run ./cmd", "--no-browser"},
+			errorContains: "no-browser cannot be used when running without embedded frontend",
+		},
+		{
+			name:          "no_browser_in_cluster",
+			args:          []string{"go run ./cmd", "--no-browser", "--in-cluster"},
+			errorContains: "no-browser cannot be used in in-cluster mode",
+		},
 	}
 
 	for _, tt := range tests {
