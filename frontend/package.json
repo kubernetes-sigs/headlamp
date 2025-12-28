@@ -135,11 +135,6 @@
       "last 1 safari version"
     ]
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
-  },
   "lint-staged": {
     "src/**/*.{js,jsx,ts,tsx}": [
       "eslint -c package.json --fix"
@@ -217,7 +212,6 @@
     "@testing-library/user-event": "^14.5.2",
     "@vitest/coverage-istanbul": "^3.0.5",
     "eslint-plugin-license-header": "^0.8.0",
-    "husky": "^4.3.8",
     "i18next-parser": "^9.1.0",
     "jsdom": "^24.0.0",
     "lint-staged": "^10.5.4",

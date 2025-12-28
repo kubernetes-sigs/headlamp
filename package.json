@@ -13,6 +13,7 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
+    "prepare": "husky install",
     "install:all": "npm run frontend:install && npm run backend:build && npm run app:install && npm run tools:install",
     "install:frontend": "npm run frontend:install",
     "install:backend": "npm run backend:build",
@@ -21,7 +22,8 @@
     "dev": "npm run start",
     "start": "concurrently \"npm run backend:start\" \"npm run frontend:start\" --names \"backend,frontend\" --prefix-colors \"blue,green\"",
     "test": "npm run backend:test && npm run frontend:test",
-    "lint": "npm run backend:lint && npm run frontend:lint",
+    "lint": "npm run backend:lint && npm run frontend:lint && npm run lint:commit",
+    "lint:commit": "commitlint --from=origin/main",
     "lint:fix": "npm run backend:lint:fix && npm run frontend:lint:fix",
     "clean": "rm -rf frontend/build frontend/node_modules app/node_modules app/dist backend/headlamp-server backend/headlamp-server.exe node_modules",
     "backend:build": "cd backend && go build -o ./headlamp-server ./cmd",
@@ -77,7 +79,9 @@
     "image:verify-image-digests": "node tools/verify-image-digests.js"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "husky": "^4.3.8",
+    "@commitlint/cli": "^19.5.0"
   },
   "keywords": [
     "kubernetes",
