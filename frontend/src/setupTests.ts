@@ -17,8 +17,10 @@
 /// <reference types="@testing-library/jest-dom" />
 import '@testing-library/jest-dom/vitest';
 import indexeddb from 'fake-indexeddb';
+import WS from 'vitest-websocket-mock';
 
 globalThis.indexedDB = indexeddb;
+(globalThis as any).WebSocket = WS;
 
 if (typeof TextDecoder === 'undefined' && typeof require !== 'undefined') {
   (global as any).TextDecoder = require('util').TextDecoder;

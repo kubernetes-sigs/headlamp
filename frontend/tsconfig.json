@@ -21,6 +21,11 @@
   "typedocOptions": {
     "out": "../docs/development/api",
     "plugin": ["typedoc-plugin-markdown", "typedoc-plugin-rename-defaults"],
+    "exclude": [
+      "**/*.test.tsx",
+      "**/*.test.ts",
+      "src/setupTests.ts"
+    ],
     "entryPoints": [
       "src/lib/k8s/",
       "src/redux/reducers/reducers.tsx",
