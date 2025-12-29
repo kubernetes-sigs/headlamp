@@ -308,6 +308,19 @@ tolerations: []
 # -- Affinity settings for pod assignment
 affinity: {}
 
+# -- Topology Spread Constraints for pod assignment
+topologySpreadConstraints: []
+#  - maxSkew: 1
+#    topologyKey: topology.kubernetes.io/zone
+#    whenUnsatisfiable: ScheduleAnyway
+#    matchLabelKeys:
+#      - pod-template-hash
+#  - maxSkew: 1
+#    topologyKey: kubernetes.io/hostname
+#    whenUnsatisfiable: DoNotSchedule
+#    matchLabelKeys:
+#      - pod-template-hash
+
 # -- Pod priority class
 priorityClassName: ""
 

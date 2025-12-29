@@ -254,6 +254,7 @@ httpRoute:
 | nodeSelector | object | `{}` | Node labels for pod assignment |
 | tolerations | list | `[]` | Pod tolerations |
 | affinity | object | `{}` | Pod affinity settings |
+| topologySpreadConstraints | list | `[]` | Topology spread constraints for pod assignment |
 | podAnnotations | object | `{}` | Pod annotations |
 | podLabels | object | `{}` | Pod labels |
 | env | list | `[]` | Additional environment variables |
@@ -276,6 +277,34 @@ env:
     value: "localhost"
   - name: KUBERNETES_SERVICE_PORT
     value: "6443"
+```
+
+Example topology spread constraints:
+```yaml
+# Spread pods across availability zones with best-effort scheduling
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway  # Prefer spreading but allow scheduling even if it violates the constraint
+    matchLabelKeys:
+      - pod-template-hash
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule  # Hard requirement - don't schedule if it violates the constraint
+    matchLabelKeys:
+      - pod-template-hash
+```
+
+The `labelSelector` is automatically populated with the pod's selector labels if not specified. You can also provide a custom `labelSelector`:
+```yaml
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: headlamp
+        custom-label: value
 ```
 
 ### Pod Disruption Budget (PDB)
