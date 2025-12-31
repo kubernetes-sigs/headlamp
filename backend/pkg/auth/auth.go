@@ -283,15 +283,18 @@ type MeHandlerOptions struct {
 	GroupsPaths string
 	// UserInfoURL is the URL to fetch additional user info for the /me endpoint.
 	UserInfoURL string
+	// NamespacesURL is the URL to fetch the list of namespaces in the format {"namespaces":["ns1","ns2",...]}
+	NamespacesURL string
 }
 
 // HandleMe returns a handler that reads the per-cluster auth cookie and responds with user info.
 func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
-	usernamePaths, emailPaths, groupsPaths, userInfoURL := cfg.ApplyMeDefaults(
+	usernamePaths, emailPaths, groupsPaths, userInfoURL, namespacesURL := cfg.ApplyMeDefaults(
 		opts.UsernamePaths,
 		opts.EmailPaths,
 		opts.GroupsPaths,
 		opts.UserInfoURL,
+		opts.NamespacesURL,
 	)
 	compiledUsernamePaths := compileJMESPaths(usernamePaths)
 	compiledEmailPaths := compileJMESPaths(emailPaths)
@@ -335,7 +338,7 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 		email := stringValueFromJMESPaths(claims, compiledEmailPaths)
 		groups := stringSliceFromJMESPaths(claims, compiledGroupsPaths)
 
-		writeMeResponse(w, username, email, groups, userInfoURL)
+		writeMeResponse(w, username, email, groups, userInfoURL, namespacesURL)
 	}
 }
 
@@ -355,12 +358,15 @@ func parseClaimsFromToken(token string) (map[string]interface{}, int, string) {
 }
 
 // writeMeResponse serializes the identity payload with the standard cache-busting headers.
-func writeMeResponse(w http.ResponseWriter, username, email string, groups []string, userInfoURL string) {
+func writeMeResponse(w http.ResponseWriter, username, email string, groups []string, userInfoURL string,
+	namespacesURL string,
+) {
 	writeMeJSON(w, http.StatusOK, map[string]interface{}{
-		"username":    username,
-		"email":       email,
-		"groups":      groups,
-		"userInfoURL": userInfoURL,
+		"username":      username,
+		"email":         email,
+		"groups":        groups,
+		"userInfoURL":   userInfoURL,
+		"namespacesURL": namespacesURL,
 	})
 }
 
