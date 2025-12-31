@@ -120,6 +120,9 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	kubeConfigStore := kubeconfig.NewContextStore()
 	multiplexer := NewMultiplexer(kubeConfigStore)
 
+	/*
+	 add namespaces url
+	*/
 	headlampConfig := &HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
 		oidcClientID:              conf.OidcClientID,
@@ -136,6 +139,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		meEmailPaths:              conf.MeEmailPath,
 		meGroupsPaths:             conf.MeGroupsPath,
 		meUserInfoURL:             conf.MeUserInfoURL,
+		meNamespacesURL:           conf.MeNamespacesURL,
 		cache:                     cache,
 		multiplexer:               multiplexer,
 		telemetryConfig:           buildTelemetryConfig(conf),

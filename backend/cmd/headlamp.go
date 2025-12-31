@@ -95,6 +95,8 @@ type HeadlampConfig struct {
 	meGroupsPaths string
 	// meUserInfoURL is the URL to fetch additional user info for the /me endpoint. /oauth2/userinfo
 	meUserInfoURL string
+	// meNamespacesURL is the URL to fetch a list of allowed namespaces from. format {"namespaces":["ns1","ns2",...]}
+	meNamespacesURL string
 }
 
 const DrainNodeCacheTTL = 20 // seconds
@@ -412,6 +414,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	logger.Log(logger.LevelInfo, nil, nil, "me Email Paths: "+config.meEmailPaths)
 	logger.Log(logger.LevelInfo, nil, nil, "me Groups Paths: "+config.meGroupsPaths)
 	logger.Log(logger.LevelInfo, nil, nil, "me User Info URL: "+config.meUserInfoURL)
+	logger.Log(logger.LevelInfo, nil, nil, "me Namespaces URL: "+config.meNamespacesURL)
 	logger.Log(logger.LevelInfo, nil, nil, "Base URL: "+config.BaseURL)
 	logger.Log(logger.LevelInfo, nil, nil, "Use In Cluster: "+fmt.Sprint(config.UseInCluster))
 	logger.Log(logger.LevelInfo, nil, nil, "Watch Plugins Changes: "+fmt.Sprint(config.WatchPluginsChanges))
@@ -539,6 +542,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			EmailPaths:    config.meEmailPaths,
 			GroupsPaths:   config.meGroupsPaths,
 			UserInfoURL:   config.meUserInfoURL,
+			NamespacesURL: config.meNamespacesURL,
 		}),
 	).Methods("GET")
 
