@@ -445,6 +445,60 @@
         }
       }
     },
+    "httpRoute": {
+      "type": "object",
+      "description": "HTTPRoute configuration for Gateway API",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable HTTPRoute resource for Gateway API"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations for HTTPRoute resource"
+        },
+        "labels": {
+          "type": "object",
+          "description": "Additional labels for HTTPRoute resource"
+        },
+        "parentRefs": {
+          "type": "array",
+          "description": "Parent references (REQUIRED when enabled - HTTPRoute will not work without this)",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name of the parent gateway"
+              },
+              "namespace": {
+                "type": "string",
+                "description": "Namespace of the parent gateway"
+              },
+              "sectionName": {
+                "type": "string",
+                "description": "Section name of the parent gateway listener"
+              }
+            },
+            "required": ["name"]
+          }
+        },
+        "hostnames": {
+          "type": "array",
+          "description": "Hostnames for the HTTPRoute",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rules": {
+          "type": "array",
+          "description": "Custom routing rules (optional, defaults to path prefix /)",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
     "podDisruptionBudget": {
       "type": "object",
       "properties": {
