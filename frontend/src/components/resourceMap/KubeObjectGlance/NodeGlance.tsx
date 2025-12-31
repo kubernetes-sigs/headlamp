@@ -15,7 +15,7 @@
  */
 
 import { useSelector } from 'react-redux';
-import { KubeObject } from '../../../lib/k8s/KubeObject';
+import { KUBE_OBJECT_BRAND } from '../../../lib/k8s/KubeObject';
 import { RootState } from '../../../redux/stores/store';
 import { GraphNode } from '../graph/graphModel';
 import { KubeObjectGlance } from './KubeObjectGlance';
@@ -35,7 +35,7 @@ export const NodeGlance = ({ node }: { node: GraphNode }) => {
   const validGlanceResults = glanceResults.filter(result => result !== null);
   const results = [...validGlanceResults];
 
-  if (node.kubeObject instanceof KubeObject) {
+  if (node.kubeObject && (node.kubeObject as any)[KUBE_OBJECT_BRAND] === true) {
     results.push(<KubeObjectGlance key="kube-object-glance" resource={node.kubeObject} />);
   }
 
