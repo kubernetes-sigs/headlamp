@@ -31,6 +31,7 @@ import React, { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
+import { loadClusterSettings, storeClusterSettings } from '../../helpers/clusterSettings';
 import { getProductName, getVersion } from '../../helpers/getProductInfo';
 import { logout } from '../../lib/auth';
 import { useCluster, useClustersConf } from '../../lib/k8s';
@@ -105,6 +106,40 @@ export default function TopBar({}: TopBarProps) {
 
         if (!res) {
           return null;
+        }
+
+        // if the namespacesURL configuration is present, load up the namespaces
+        if (typeof res.namespacesURL === 'string' && res.namespacesURL.length > 0) {
+          // need to get the allowed namespaces
+          fetch(res.namespacesURL)
+            .then(response => {
+              if (!response.ok) {
+                throw new Error(`Could not fetch user info from ${res.userInfoURL}`);
+              } else {
+                return response.json();
+              }
+            })
+            .then(json => {
+              // simplest is to store directly to configuration, that way this feature is backwards compatible
+              // and doesn't require rewiring the existing allowedNamespaces updates
+              const currentClusterSettings = loadClusterSettings(clusterName);
+
+              if (json.namespaces && Array.isArray(json.namespaces)) {
+                currentClusterSettings.allowedNamespaces = json.namespaces;
+                if (
+                  currentClusterSettings.allowedNamespaces &&
+                  currentClusterSettings.allowedNamespaces.length > 0
+                ) {
+                  currentClusterSettings.defaultNamespace =
+                    currentClusterSettings.allowedNamespaces[0];
+                }
+                storeClusterSettings(clusterName, currentClusterSettings);
+              } else {
+                throw new Error(
+                  `Response from namespaces URL should be in the form {namespaces:["ns1","ns2",...]}`
+                );
+              }
+            });
         }
 
         if (!(typeof res.userInfoURL === 'string' && res.userInfoURL.length > 0)) {
