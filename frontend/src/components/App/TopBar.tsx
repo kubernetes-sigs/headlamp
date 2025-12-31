@@ -31,6 +31,7 @@ import React, { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
+import { loadClusterSettings, storeClusterSettings } from '../../helpers/clusterSettings';
 import { getProductName, getVersion } from '../../helpers/getProductInfo';
 import { logout } from '../../lib/auth';
 import { useCluster, useClustersConf } from '../../lib/k8s';
@@ -105,6 +106,54 @@ export default function TopBar({}: TopBarProps) {
 
         if (!res) {
           return null;
+        }
+
+        // if the namespacesURL configuration is present, load up the namespaces
+        if (typeof res.namespacesURL === 'string' && res.namespacesURL.length > 0) {
+          // need to get the allowed namespaces
+          try {
+            const response = await fetch(res.namespacesURL, {
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+            if (!response.ok) {
+              throw new Error(`Could not fetch namespaces from ${res.userInfoURL}`);
+            }
+            const json = await response.json();
+
+            // simplest is to store directly to configuration, that way this feature is backwards compatible
+            // and doesn't require rewiring the existing allowedNamespaces updates
+            const currentClusterSettings = loadClusterSettings(clusterName);
+
+            if (json.namespaces && Array.isArray(json.namespaces)) {
+              var namespaces = json.namespaces;
+
+              // clear out empty namespaces and dedupe values
+              currentClusterSettings.allowedNamespaces = Array.from(
+                new Set(namespaces.map((s: string) => s.trim()).filter((s: string) => s.length > 0))
+              );
+
+              if (
+                currentClusterSettings.allowedNamespaces &&
+                currentClusterSettings.allowedNamespaces.length > 0
+              ) {
+                currentClusterSettings.defaultNamespace =
+                  currentClusterSettings.allowedNamespaces[0];
+              }
+              storeClusterSettings(clusterName, currentClusterSettings);
+            } else {
+              throw new Error(
+                `Response from namespaces URL should be in the form {namespaces:["ns1","ns2",...]}`
+              );
+            }
+          } catch (e) {
+            // Keep namespaces fetch failures from breaking user info resolution
+            // while still surfacing the error for debugging.
+            // eslint-disable-next-line no-console
+            console.error(e);
+          }
         }
 
         if (!(typeof res.userInfoURL === 'string' && res.userInfoURL.length > 0)) {
