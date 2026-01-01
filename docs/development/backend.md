@@ -76,7 +76,7 @@ To run fuzz tests:
 npm run backend:fuzz
 ```
 
-This will run all fuzz tests in the backend pkg folder for 30 seconds. The fuzz corpus (interesting test cases discovered during fuzzing) is stored in `testdata/fuzz/` directories and committed to the repository for regression testing.
+This will run fuzz tests in the `backend/pkg/auth` package for 30 seconds. The fuzz corpus (interesting test cases discovered during fuzzing) is stored in `testdata/fuzz/` directories and committed to the repository for regression testing.
 
 For more information about Go fuzzing, see the [official Go fuzzing documentation](https://go.dev/security/fuzz/).
 

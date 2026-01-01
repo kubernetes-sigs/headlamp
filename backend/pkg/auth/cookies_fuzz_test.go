@@ -73,7 +73,7 @@ func FuzzSanitizeClusterName(f *testing.F) {
 			t.Errorf("SanitizeClusterName is not idempotent: first=%q, second=%q", result, result2)
 		}
 
-		// Invariant 6: Result length should never exceed input length (except when empty)
+		// Invariant 6: Result length should never exceed input length (sanitization only removes characters)
 		if len(input) > 0 && len(result) > len(input) {
 			t.Errorf("SanitizeClusterName(%q) returned result longer than input: input_len=%d, result_len=%d",
 				input, len(input), len(result))
