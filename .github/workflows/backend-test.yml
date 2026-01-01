@@ -77,18 +77,7 @@ jobs:
         shell: bash
 
       - name: Run fuzz tests
-        run: |
-          set -x
-          cd backend
-          # Run fuzz tests for a short duration (10s) in CI to verify they work
-          # The corpus is committed to the repository for regression testing
-          # Find all packages with fuzz tests and run them one at a time
-          for pkg in $(go list ./pkg/... ./cmd/... | xargs -I {} sh -c 'go test -list=Fuzz {} 2>/dev/null | grep -q "^Fuzz" && echo {}' || true); do
-            if [ -n "$pkg" ]; then
-              echo "Fuzzing package: $pkg"
-              go test -fuzz=. -fuzztime=10s "$pkg"
-            fi
-          done
+        run: npm run backend:fuzz
         shell: bash
 
       - name: Upload coverage report as artifact
