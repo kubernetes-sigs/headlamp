@@ -76,6 +76,15 @@ jobs:
           rm ~/.config/Headlamp/kubeconfigs/config
         shell: bash
 
+      - name: Run fuzz tests
+        run: |
+          set -x
+          cd backend
+          # Run fuzz tests for a short duration (10s) in CI to verify they work
+          # The corpus is committed to the repository for regression testing
+          go test -fuzz=. -fuzztime=10s ./pkg/auth/
+        shell: bash
+
       - name: Upload coverage report as artifact
         id: upload-artifact
         uses: actions/upload-artifact@84480863f228bb9747b473957fcc9e309aa96097 # v4.4.2

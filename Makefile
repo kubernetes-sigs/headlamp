@@ -194,6 +194,10 @@ backend-embed-linux-386:
 backend-test:
 	cd backend && go test -v -p 1 ./...
 
+.PHONY: backend-fuzz
+backend-fuzz:
+	cd backend && go test -fuzz=. -fuzztime=30s ./pkg/auth/
+
 .PHONY: backend-coverage
 backend-coverage:
 	cd backend && go test -v -p 1 -coverprofile=coverage.out ./...

@@ -29,6 +29,7 @@
     "backend:lint:fix": "npm run backend:install:linter && cd backend && ./tools/golangci-lint run --fix",
     "backend:install:linter": "GOBIN=`pwd`/backend/tools go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64",
     "backend:test": "cd backend && go test -v -p 1 ./...",
+    "backend:fuzz": "cd backend && go test -fuzz=. -fuzztime=30s ./pkg/auth/",
     "backend:coverage": "cd backend && go test -v -p 1 -coverprofile=coverage.out ./... && go tool cover -func=coverage.out",
     "backend:coverage:html": "cd backend && go test -v -p 1 -coverprofile=coverage.out ./... && go tool cover -html=coverage.out",
     "backend:format": "cd backend && go fmt ./cmd/ ./pkg/**",

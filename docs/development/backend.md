@@ -70,12 +70,13 @@ npm run backend:coverage
 
 Some backend functions include fuzz tests using Go's native fuzzing support. For example, the `SanitizeClusterName` function in `backend/pkg/auth` has a fuzz test.
 
-To run fuzz tests for a specific duration:
+To run fuzz tests:
 
 ```bash
-cd backend
-go test -fuzz=FuzzSanitizeClusterName -fuzztime=30s ./pkg/auth/
+npm run backend:fuzz
 ```
+
+This will run all fuzz tests in the auth package for 30 seconds. The fuzz corpus (interesting test cases discovered during fuzzing) is stored in `testdata/fuzz/` directories and committed to the repository for regression testing.
 
 For more information about Go fuzzing, see the [official Go fuzzing documentation](https://go.dev/security/fuzz/).
 
