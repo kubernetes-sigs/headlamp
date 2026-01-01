@@ -143,15 +143,11 @@ describe('parseCpu - property-based tests', () => {
 describe('parseRam - property-based tests', () => {
   it('should always return non-negative values', () => {
     fc.assert(
-      fc.property(
-        fc.nat(),
-        fc.constantFrom('', 'K', 'M', 'G', 'Ki', 'Mi', 'Gi'),
-        (num, unit) => {
-          const input = `${num}${unit}`;
-          const result = parseRam(input);
-          expect(result).toBeGreaterThanOrEqual(0);
-        }
-      )
+      fc.property(fc.nat(), fc.constantFrom('', 'K', 'M', 'G', 'Ki', 'Mi', 'Gi'), (num, unit) => {
+        const input = `${num}${unit}`;
+        const result = parseRam(input);
+        expect(result).toBeGreaterThanOrEqual(0);
+      })
     );
   });
 
