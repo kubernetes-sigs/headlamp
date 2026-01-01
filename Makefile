@@ -196,7 +196,13 @@ backend-test:
 
 .PHONY: backend-fuzz
 backend-fuzz:
-	cd backend && go test -fuzz=. -fuzztime=30s ./pkg/auth/
+	@echo "Finding and fuzzing all packages with fuzz tests..."
+	@cd backend && for pkg in $$(go list ./pkg/... ./cmd/...); do \
+		if go test -list=Fuzz $$pkg 2>/dev/null | grep -q "^Fuzz"; then \
+			echo "Fuzzing package: $$pkg"; \
+			go test -fuzz=. -fuzztime=30s $$pkg; \
+		fi; \
+	done
 
 .PHONY: backend-coverage
 backend-coverage:
