@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import * as fc from 'fast-check';
 import { parseCpu, parseRam, unparseCpu, unparseRam } from './units';
 
 describe('parseRam', () => {
@@ -37,6 +38,46 @@ describe('parseRam', () => {
   it('should parse exponential notation', () => {
     expect(parseRam('1e3')).toBe(1000);
     expect(parseRam('1e6')).toBe(1000000);
+  });
+
+  it('should scale binary units by powers of 1024', () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 1, max: 100 }), num => {
+        const valKibibytes = parseRam(`${num}Ki`);
+        const valMebibytes = parseRam(`${num}Mi`);
+        const valGibibytes = parseRam(`${num}Gi`);
+
+        // Verify binary scaling (powers of 1024)
+        expect(valKibibytes).toBe(num * 1024);
+        expect(valMebibytes).toBe(num * 1024 * 1024);
+        expect(valGibibytes).toBe(num * 1024 * 1024 * 1024);
+      })
+    );
+  });
+
+  it('should scale decimal units by powers of 1000', () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 1, max: 100 }), num => {
+        const valKilobytes = parseRam(`${num}K`);
+        const valMegabytes = parseRam(`${num}M`);
+        const valGigabytes = parseRam(`${num}G`);
+
+        // Verify decimal scaling (powers of 1000)
+        expect(valKilobytes).toBe(num * 1000);
+        expect(valMegabytes).toBe(num * 1000000);
+        expect(valGigabytes).toBe(num * 1000000000);
+      })
+    );
+  });
+
+  it('should always return non-negative values', () => {
+    fc.assert(
+      fc.property(fc.nat(), fc.constantFrom('', 'K', 'M', 'G', 'Ki', 'Mi', 'Gi'), (num, unit) => {
+        const input = `${num}${unit}`;
+        const result = parseRam(input);
+        expect(result).toBeGreaterThanOrEqual(0);
+      })
+    );
   });
 });
 
@@ -88,6 +129,32 @@ describe('parseCpu', () => {
 
   it('should parse numeric values without units', () => {
     expect(parseCpu('1000')).toBe(1000000000000);
+  });
+
+  it('should scale correctly between units', () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 1, max: 1000 }), num => {
+        const valNanocores = parseCpu(`${num}n`);
+        const valMicrocores = parseCpu(`${num}u`);
+        const valMillicores = parseCpu(`${num}m`);
+        const valCores = parseCpu(`${num}`);
+
+        // Verify scaling relationships
+        expect(valMicrocores).toBe(valNanocores * 1000);
+        expect(valMillicores).toBe(valMicrocores * 1000);
+        expect(valCores).toBe(valMillicores * 1000);
+      })
+    );
+  });
+
+  it('should always return non-negative values', () => {
+    fc.assert(
+      fc.property(fc.nat(), fc.constantFrom('n', 'u', 'm', ''), (num, unit) => {
+        const input = `${num}${unit}`;
+        const result = parseCpu(input);
+        expect(result).toBeGreaterThanOrEqual(0);
+      })
+    );
   });
 });
 
