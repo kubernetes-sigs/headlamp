@@ -101,7 +101,7 @@ default_agent: "@dev-agent"
 - **Backend coverage HTML:** `npm run backend:coverage:html` (from `/package.json` line 33, documented in `/docs/development/backend.md` line 60)
 - **Frontend tests:** `npm run frontend:test` (from `/package.json` line 46)
 - **App unit tests:** `npm run app:test:unit` (from `/package.json` line 65)
-- **App e2e tests:** `npm run app:test:e2e` (from `/package.json` line 66)
+- **App e2e tests (end-to-end):** `npm run app:test:e2e` (from `/package.json` line 66, documented in `/app/e2e-tests/README.md`)
 
 #### Lint commands (from `/package.json` and `/docs/development/backend.md`):
 - **Lint all:** `npm run lint` (from `/package.json` line 24)
@@ -112,9 +112,14 @@ default_agent: "@dev-agent"
 
 #### Format commands (from `/package.json` and `/docs/development/backend.md`):
 - **Format backend:** `npm run backend:format` (from `/package.json` line 34, documented in `/docs/development/backend.md` line 48)
+- **Format frontend:** `npm run frontend:lint:fix` (from `/package.json` line 44, includes formatting)
 
 #### Documentation generation (from `/package.json` and `/docs/development/frontend.md`):
 - **Generate API docs:** `npm run docs` (from `/package.json` line 49, documented in `/docs/development/frontend.md` line 38)
+
+#### Storybook (from `/package.json` and `/docs/development/frontend.md`):
+- **Run Storybook:** `npm run frontend:storybook` (from `/package.json` line 48, documented in `/docs/development/frontend.md` line 52)
+- **Build Storybook:** `npm run frontend:build:storybook` (from `/package.json` line 42)
 
 #### Make targets (from `/Makefile`):
 - **Build backend:** `make backend` (from `/Makefile` line 74)
@@ -157,7 +162,10 @@ default_agent: "@dev-agent"
   - Run `npm test` (from `/package.json` line 23)
   - Run `npm run backend:test` for backend changes (from `/package.json` line 31)
   - Run `npm run frontend:test` for frontend changes (from `/package.json` line 46)
+  - Run `npm run backend:format` for backend code formatting (from `/package.json` line 34)
+  - Run `npm run frontend:lint:fix` for frontend code formatting (from `/package.json` line 44)
   - Run TypeScript compiler: `npm run frontend:tsc` (from `/package.json` line 45) or `npm run app:tsc` (from `/package.json` line 67)
+  - Run e2e tests for UI changes: `npm run app:test:e2e` (from `/package.json` line 66)
 - **Dependency updates:** 
   - Open PR with changelog entry
   - Run full test suite: `npm test`
@@ -187,6 +195,11 @@ default_agent: "@dev-agent"
   - **Performance:** Add benchmarks, measure before and after, document improvements
   - **Security:** Follow secure coding practices, validate inputs, avoid common vulnerabilities
   - **Documentation:** Keep it concise, accurate, and consistent with code examples
+- **Frontend-specific guidelines:**
+  - **Screenshots:** Always include screenshots for UI changes in PRs to show visual impact
+  - **React components:** Add Storybook stories with error and loading states for new components (use `npm run frontend:storybook`)
+  - **Formatting:** Run `npm run frontend:lint:fix` to format code before committing
+  - **End-to-end tests:** For significant UI changes, consider adding or updating e2e tests (`npm run app:test:e2e`)
 
 ---
 
@@ -197,9 +210,14 @@ default_agent: "@dev-agent"
 - **Rationale:** Fix null-check to avoid runtime error
 - **Commands to validate:**
   1. `npm run frontend:install` (from `/package.json` line 39)
-  2. `npm run frontend:lint` (from `/package.json` line 43)
-  3. `npm run frontend:test` (from `/package.json` line 46)
-  4. `npm run frontend:tsc` (from `/package.json` line 45)
+  2. `npm run frontend:lint:fix` (from `/package.json` line 44) - format code
+  3. `npm run frontend:lint` (from `/package.json` line 43)
+  4. `npm run frontend:test` (from `/package.json` line 46)
+  5. `npm run frontend:tsc` (from `/package.json` line 45)
+  6. `npm run app:test:e2e` (from `/package.json` line 66) - if UI changes
+- **Additional requirements:**
+  - Include screenshots of any UI changes in the PR
+  - If adding/modifying React components, add Storybook stories with error and loading states
 
 #### Example 2: Backend code fix
 - **Files to change:** `backend/pkg/example/handler.go` (example path)
