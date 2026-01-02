@@ -101,7 +101,7 @@ default_agent: "@dev-agent"
 - **Backend coverage HTML:** `npm run backend:coverage:html` (from `/package.json` line 33, documented in `/docs/development/backend.md` line 60)
 - **Frontend tests:** `npm run frontend:test` (from `/package.json` line 46)
 - **App unit tests:** `npm run app:test:unit` (from `/package.json` line 65)
-- **App e2e tests (end-to-end):** `npm run app:test:e2e` (from `/package.json` line 66)
+- **App e2e tests:** `npm run app:test:e2e` (from `/package.json` line 66)
 
 #### Lint commands (from `/package.json` and `/docs/development/backend.md`):
 - **Lint all:** `npm run lint` (from `/package.json` line 24)
@@ -112,7 +112,7 @@ default_agent: "@dev-agent"
 
 #### Format commands (from `/package.json` and `/docs/development/backend.md`):
 - **Format backend:** `npm run backend:format` (from `/package.json` line 34, documented in `/docs/development/backend.md` line 48)
-- **Format frontend:** `npm run frontend:lint:fix` (from `/package.json` line 44, runs both lint fixes and formatting)
+- **Format and lint frontend:** `npm run frontend:lint:fix` (from `/package.json` line 44)
 
 #### Documentation generation (from `/package.json` and `/docs/development/frontend.md`):
 - **Generate API docs:** `npm run docs` (from `/package.json` line 49, documented in `/docs/development/frontend.md` line 38)
