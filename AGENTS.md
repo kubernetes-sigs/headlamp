@@ -169,6 +169,27 @@ default_agent: "@dev-agent"
 
 ---
 
+### Best practices and coding guidelines
+- **Reduce solution size:** 
+  - Make minimal, surgical changes - modify as few lines as possible to achieve the goal
+  - Prefer focused, single-purpose changes over large refactors
+  - Break down complex changes into smaller, reviewable increments
+  - Remove unnecessary code, dependencies, or complexity when fixing issues
+- **Testing best practices:**
+  - Avoid using mocks in tests if possible - prefer testing with real implementations
+  - Use integration tests over unit tests when it improves test reliability
+  - Only mock external dependencies (APIs, databases, file systems) when necessary
+  - Write tests that validate actual behavior, not implementation details
+- **Consider best practices for the type of change:**
+  - **Bug fixes:** Add regression tests, verify the fix doesn't break existing functionality
+  - **New features:** Follow existing patterns, add comprehensive tests, update documentation
+  - **Refactoring:** Ensure behavior remains unchanged, validate with existing tests
+  - **Performance:** Add benchmarks, measure before and after, document improvements
+  - **Security:** Follow secure coding practices, validate inputs, avoid common vulnerabilities
+  - **Documentation:** Keep it concise, accurate, and consistent with code examples
+
+---
+
 ### Examples and templates
 
 #### Example 1: Small frontend code fix
