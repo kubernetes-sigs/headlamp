@@ -120,7 +120,7 @@ default_agent: "@dev-agent"
 - **Build backend:** `make backend` (from `/Makefile` line 74)
 - **Lint backend:** `make backend-lint` (from `/Makefile` line 44)
 - **Lint backend (fix):** `make backend-lint-fix` (from `/Makefile` line 47)
-- **Build frontend:** `make frontend` (from `/Makefile` line 50)
+- **Build frontend:** `make frontend` (from `/Makefile` line 217)
 - **Build container image:** `npm run image:build` (from `/package.json` line 76, documented in `/docs/development/index.md` line 154)
 
 ---
