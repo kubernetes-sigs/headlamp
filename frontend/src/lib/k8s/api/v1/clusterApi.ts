@@ -29,16 +29,38 @@ import { JSON_HEADERS } from './constants';
 
 /**
  * Test authentication for the given cluster.
- * Will throw an error if the user is not authenticated.
+ * Will throw an error if the user is not authenticated (401).
+ * Returns success for 403 since that means auth succeeded but user lacks permissions.
+ * @param cluster - The cluster to test auth for
+ * @param authType - Optional auth type ('exec', 'client-cert', 'oidc', etc.)
  */
-export async function testAuth(cluster = '', namespace = 'default') {
-  const spec = { namespace };
+export async function testAuth(cluster = '', authType?: string) {
   const clusterName = cluster || getCluster();
 
-  return post('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', { spec }, false, {
-    timeout: 5 * 1000,
-    cluster: clusterName,
-  });
+  try {
+    // For tsh/exec auth (e.g., Teleport), use the cluster version endpoint
+    // which is accessible to any authenticated user without RBAC restrictions
+    if (authType === 'tsh' || authType === 'exec' || authType === 'client-cert') {
+      return clusterRequest('/version', {
+        timeout: 5 * 1000, // Longer timeout for exec auth plugins like tsh
+        cluster: clusterName,
+      });
+    }
+
+    // For standard auth types (token, oidc), use selfsubjectrulesreviews
+    const spec = { namespace: 'default' };
+    return post('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', { spec }, false, {
+      timeout: 5 * 1000,
+      cluster: clusterName,
+    });
+  } catch (err: any) {
+    // 403 (Forbidden) means authentication worked, but user lacks permissions.
+    if (err.status === 403) {
+      return { authenticated: true, status: err.status };
+    }
+    // Re-throw 401 and other errors - those are real auth failures
+    throw err;
+  }
 }
 
 /**
