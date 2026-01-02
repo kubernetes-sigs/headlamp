@@ -101,7 +101,7 @@ default_agent: "@dev-agent"
 - **Backend coverage HTML:** `npm run backend:coverage:html` (from `/package.json` line 33, documented in `/docs/development/backend.md` line 60)
 - **Frontend tests:** `npm run frontend:test` (from `/package.json` line 46)
 - **App unit tests:** `npm run app:test:unit` (from `/package.json` line 65)
-- **App e2e tests (end-to-end):** `npm run app:test:e2e` (from `/package.json` line 66, documented in `/app/e2e-tests/README.md`)
+- **App e2e tests (end-to-end):** `npm run app:test:e2e` (from `/package.json` line 66)
 
 #### Lint commands (from `/package.json` and `/docs/development/backend.md`):
 - **Lint all:** `npm run lint` (from `/package.json` line 24)
@@ -125,7 +125,7 @@ default_agent: "@dev-agent"
 - **Build backend:** `make backend` (from `/Makefile` line 74)
 - **Lint backend:** `make backend-lint` (from `/Makefile` line 44)
 - **Lint backend (fix):** `make backend-lint-fix` (from `/Makefile` line 47)
-- **Build frontend:** `make frontend` (from `/Makefile` line 217)
+- **Build frontend:** `make frontend` (from `/Makefile` line 218)
 - **Build container image:** `npm run image:build` (from `/package.json` line 76, documented in `/docs/development/index.md` line 154)
 
 ---
