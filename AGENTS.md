@@ -112,7 +112,7 @@ default_agent: "@dev-agent"
 
 #### Format commands (from `/package.json` and `/docs/development/backend.md`):
 - **Format backend:** `npm run backend:format` (from `/package.json` line 34, documented in `/docs/development/backend.md` line 48)
-- **Format frontend:** `npm run frontend:lint:fix` (from `/package.json` line 44, includes formatting)
+- **Format frontend:** `npm run frontend:lint:fix` (from `/package.json` line 44, runs both lint fixes and formatting)
 
 #### Documentation generation (from `/package.json` and `/docs/development/frontend.md`):
 - **Generate API docs:** `npm run docs` (from `/package.json` line 49, documented in `/docs/development/frontend.md` line 38)
