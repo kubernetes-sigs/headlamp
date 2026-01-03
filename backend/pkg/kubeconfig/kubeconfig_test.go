@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -315,17 +314,44 @@ func createTempKubeconfig(t *testing.T, content string) string {
 }
 
 func TestContext(t *testing.T) {
-	kubeConfigFile := config.GetDefaultKubeConfigPath()
+	// Create a mock Kubernetes API server (following newFakeK8sServer pattern)
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/version" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"major":"1","minor":"28","gitVersion":"v1.28.0"}`))
 
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer mockServer.Close()
+
+	// Setup test context (following TestHandleClusterAPI_XForwardedHost pattern)
 	configStore := kubeconfig.NewContextStore()
 
-	err := kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
+	err := configStore.AddContext(&kubeconfig.Context{
+		Name: "test-context",
+		KubeContext: &api.Context{
+			Cluster:   "test-cluster",
+			AuthInfo:  "test-user",
+			Namespace: "default",
+		},
+		Cluster: &api.Cluster{
+			Server:                mockServer.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{
+			Token: "test-token",
+		},
+	})
 	require.NoError(t, err)
 
-	testContext, err := configStore.GetContext("minikube")
+	testContext, err := configStore.GetContext("test-context")
 	require.NoError(t, err)
 
-	require.Equal(t, "minikube", testContext.Name)
+	require.Equal(t, "test-context", testContext.Name)
 	require.NotNil(t, testContext.ClientConfig())
 	require.Equal(t, "default", testContext.KubeContext.Namespace)
 
@@ -334,7 +360,6 @@ func TestContext(t *testing.T) {
 	require.NotNil(t, restConf)
 
 	// Test proxy request handler
-
 	request, err := http.NewRequestWithContext(context.Background(), "GET", "/version", nil)
 	require.NoError(t, err)
 
