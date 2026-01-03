@@ -81,7 +81,7 @@ export default function StorageClassDetails(props: { name?: string; cluster?: st
                 {item.allowedTopologies.map((topology, topologyIndex) => (
                   <div key={`topology-${topologyIndex}`}>
                     {topology.matchLabelExpressions?.map((expr, exprIndex) => (
-                      <div key={`expr-${exprIndex}`} style={{ marginLeft: '8px' }}>
+                      <div key={`expr-${exprIndex}`}>
                         {expr.key}: {expr.values.join(', ')}
                       </div>
                     ))}
