@@ -39,12 +39,7 @@ export async function backendFetch(url: string | URL, init: RequestInit = {}) {
   // Always include credentials
   init.credentials = 'include';
   init.headers = addBackstageAuthHeaders(init.headers);
-  let response: Response;
-  try {
-    response = await fetch(makeUrl([getAppUrl(), url]), init);
-  } catch (e) {
-    throw new ApiError('Unreachable', { status: 0 });
-  }
+  const response = await fetch(makeUrl([getAppUrl(), url]), init);
 
   // The backend signals through this header that it wants a reload.
   // See plugins.go
@@ -60,23 +55,6 @@ export async function backendFetch(url: string | URL, init: RequestInit = {}) {
       const body = await response.json();
       maybeErrorMessage = typeof body === 'string' ? body : body.message;
     } catch (e) {}
-
-    if (!maybeErrorMessage) {
-      try {
-        const text = await response.text();
-        const sanitized = text
-          .replace(/<[^>]*>/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        if (sanitized) {
-          maybeErrorMessage = sanitized.slice(0, 200);
-        }
-      } catch (e) {}
-    }
-
-    if (!maybeErrorMessage) {
-      maybeErrorMessage = response.statusText || 'Unreachable';
-    }
 
     throw new ApiError(maybeErrorMessage ?? 'Unreachable', { status: response.status });
   }

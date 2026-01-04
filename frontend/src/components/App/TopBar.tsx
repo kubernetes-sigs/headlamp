@@ -140,10 +140,8 @@ export default function TopBar({}: TopBarProps) {
     },
     enabled: Boolean(clusterName),
     retry: false,
-    staleTime: 60_000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const logoutCallback = useCallback(async () => {
