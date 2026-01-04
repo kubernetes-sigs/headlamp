@@ -139,8 +139,11 @@ export default function TopBar({}: TopBarProps) {
       }
     },
     enabled: Boolean(clusterName),
-    staleTime: 0,
-    refetchOnMount: 'always',
+    retry: false,
+    staleTime: 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const logoutCallback = useCallback(async () => {

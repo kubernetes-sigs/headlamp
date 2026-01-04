@@ -21,10 +21,12 @@ import IconButton from '@mui/material/IconButton';
 import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { useQueryClient } from '@tanstack/react-query';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
+import { getClusterAppearanceFromMeta } from '../../../helpers/clusterAppearance';
 import {
   ClusterSettings,
   loadClusterSettings,
@@ -32,7 +34,7 @@ import {
 } from '../../../helpers/clusterSettings';
 import { isElectron } from '../../../helpers/isElectron';
 import { useCluster, useClustersConf } from '../../../lib/k8s';
-import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
+import { deleteCluster, updateClusterAppearance } from '../../../lib/k8s/api/v1/clusterApi';
 import { setConfig } from '../../../redux/configSlice';
 import ConfirmButton from '../../common/ConfirmButton';
 import Empty from '../../common/EmptyContent';
@@ -56,7 +58,15 @@ export default function SettingsCluster() {
   const [cluster, setCluster] = React.useState(useCluster() || '');
   const clusterFromURLRef = React.useRef('');
 
+  const [appearanceAccentColor, setAppearanceAccentColor] = React.useState<string>('');
+  const [appearanceWarningBannerText, setAppearanceWarningBannerText] = React.useState<string>('');
+  const [appearanceIcon, setAppearanceIcon] = React.useState<string>('');
+  const [appearanceSaving, setAppearanceSaving] = React.useState(false);
+  const [appearanceError, setAppearanceError] = React.useState<string>('');
+
   const theme = useTheme();
+
+  const queryClient = useQueryClient();
 
   const history = useHistory();
   const dispatch = useDispatch();
@@ -88,6 +98,16 @@ export default function SettingsCluster() {
   React.useEffect(() => {
     setClusterSettings(!!cluster ? loadClusterSettings(cluster || '') : null);
   }, [cluster]);
+
+  React.useEffect(() => {
+    const clusterInfo = (clusterConf && clusterConf[cluster || '']) || null;
+    const appearance = getClusterAppearanceFromMeta(clusterInfo?.meta_data);
+
+    setAppearanceAccentColor(appearance.accentColor || '');
+    setAppearanceWarningBannerText(appearance.warningBannerText || '');
+    setAppearanceIcon(appearance.icon || '');
+    setAppearanceError('');
+  }, [cluster, clusterConf]);
 
   React.useEffect(() => {
     const clusterInfo = (clusterConf && clusterConf[cluster || '']) || null;
@@ -219,6 +239,7 @@ export default function SettingsCluster() {
 
   const defaultNamespaceLabelID = 'default-namespace-label';
   const allowedNamespaceLabelID = 'allowed-namespace-label';
+  const appearanceLabelID = 'cluster-appearance-label';
 
   return (
     <>
@@ -241,6 +262,139 @@ export default function SettingsCluster() {
             setClusterSettings={setClusterSettings}
           />
         )}
+        <NameValueTable
+          rows={[
+            {
+              name: (
+                <Box>
+                  <Typography id={appearanceLabelID}>{t('translation|Appearance')}</Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    {t(
+                      'translation|Stored in kubeconfig and shared for all users of this Headlamp instance.'
+                    )}
+                  </Typography>
+                </Box>
+              ),
+              value: (
+                <Box display="flex" flexDirection="column" gap={2} sx={{ minWidth: 280 }}>
+                  <TextField
+                    label={t('translation|Accent color')}
+                    placeholder="#ff0000"
+                    value={appearanceAccentColor}
+                    onChange={e => {
+                      const value = e.target.value;
+                      setAppearanceAccentColor(value);
+                      // Validate on change
+                      const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+                      const rgbColorRegex = /^rgb\((\s*\d+\s*,){2}\s*\d+\s*\)$/;
+                      const rgbaColorRegex = /^rgba\((\s*\d+\s*,){3}\s*(0|1|0?\.\d+)\s*\)$/;
+                      const cssColorNameRegex = /^[a-zA-Z]+$/;
+                      if (
+                        value &&
+                        !hexColorRegex.test(value) &&
+                        !rgbColorRegex.test(value) &&
+                        !rgbaColorRegex.test(value) &&
+                        !cssColorNameRegex.test(value)
+                      ) {
+                        setAppearanceError(
+                          'Accent color format is invalid. Use hex (#ff0000), rgb(), rgba(), or a CSS color name.'
+                        );
+                      } else {
+                        setAppearanceError('');
+                      }
+                    }}
+                    error={!!appearanceAccentColor && !!appearanceError}
+                    helperText={appearanceError || t('translation|Optional. Example: #ff0000')}
+                    InputLabelProps={{ shrink: true }}
+                    sx={{ maxWidth: 180 }}
+                  />
+                  <TextField
+                    label={t('translation|Warning banner message')}
+                    placeholder={t('translation|e.g. THIS IS A PROD ENVIRONMENT, ACT ACCORDINGLY')}
+                    value={appearanceWarningBannerText}
+                    onChange={e => setAppearanceWarningBannerText(e.target.value)}
+                    multiline
+                    minRows={2}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                  <TextField
+                    label={t('translation|Cluster icon (Iconify)')}
+                    placeholder="mdi:shield-alert"
+                    value={appearanceIcon}
+                    onChange={e => setAppearanceIcon(e.target.value)}
+                    helperText={t('translation|Example: mdi:kubernetes, mdi:shield-alert')}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                  {!!appearanceError && (
+                    <Typography
+                      color={theme.palette.mode === 'dark' ? 'error.light' : 'error.main'}
+                    >
+                      {appearanceError}
+                    </Typography>
+                  )}
+                  <Box textAlign="right">
+                    <ConfirmButton
+                      disabled={appearanceSaving || (!!appearanceAccentColor && !!appearanceError)}
+                      onConfirm={() => {
+                        const clusterInfo = (clusterConf && clusterConf[cluster || '']) || null;
+                        const source = clusterInfo?.meta_data?.source || 'kubeconfig';
+
+                        // Validate accent color format
+                        const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+                        const rgbColorRegex = /^rgb\((\s*\d+\s*,){2}\s*\d+\s*\)$/;
+                        const rgbaColorRegex = /^rgba\((\s*\d+\s*,){3}\s*(0|1|0?\.\d+)\s*\)$/;
+                        const cssColorNameRegex = /^[a-zA-Z]+$/;
+
+                        if (
+                          appearanceAccentColor &&
+                          !hexColorRegex.test(appearanceAccentColor) &&
+                          !rgbColorRegex.test(appearanceAccentColor) &&
+                          !rgbaColorRegex.test(appearanceAccentColor) &&
+                          !cssColorNameRegex.test(appearanceAccentColor)
+                        ) {
+                          setAppearanceError(
+                            'Accent color format is invalid. Use hex (#ff0000), rgb(), rgba(), or a CSS color name.'
+                          );
+                          return;
+                        }
+
+                        setAppearanceSaving(true);
+                        setAppearanceError('');
+
+                        updateClusterAppearance(
+                          cluster,
+                          source,
+                          {
+                            accentColor: appearanceAccentColor,
+                            warningBannerText: appearanceWarningBannerText,
+                            icon: appearanceIcon,
+                          },
+                          clusterInfo?.meta_data?.clusterID
+                        )
+                          .then(() =>
+                            queryClient.invalidateQueries({ queryKey: ['cluster-fetch'] })
+                          )
+                          .catch((err: Error) => {
+                            setAppearanceError(err.message);
+                          })
+                          .finally(() => {
+                            setAppearanceSaving(false);
+                          });
+                      }}
+                      confirmTitle={t('translation|Apply appearance')}
+                      confirmDescription={t(
+                        'translation|Apply appearance changes for "{{ clusterName }}"? This will be visible to all users of this Headlamp instance.',
+                        { clusterName: cluster }
+                      )}
+                    >
+                      {appearanceSaving ? t('translation|Applying...') : t('translation|Apply')}
+                    </ConfirmButton>
+                  </Box>
+                </Box>
+              ),
+            },
+          ]}
+        />
         <NameValueTable
           rows={[
             {

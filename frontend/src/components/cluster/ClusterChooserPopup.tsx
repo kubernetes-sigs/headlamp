@@ -31,6 +31,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath } from 'react-router';
 import { useHistory } from 'react-router-dom';
+import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
 import { isElectron } from '../../helpers/isElectron';
 import { getRecentClusters, setRecentCluster } from '../../helpers/recentClusters';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
@@ -42,6 +43,9 @@ function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selecte
   const { cluster, selected, onClick } = props;
   const { t } = useTranslation();
   const theme = useTheme();
+  const appearance = getClusterAppearanceFromMeta(cluster?.meta_data);
+  const icon = appearance.icon || 'mdi:kubernetes';
+  const iconColor = appearance.accentColor || theme.palette.text.primary;
 
   return (
     <MenuItem
@@ -54,7 +58,7 @@ function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selecte
       })}
     >
       <ListItemIcon>
-        <Icon icon="mdi:kubernetes" width={26} color={theme.palette.text.primary} />
+        <Icon icon={icon} width={26} color={iconColor} />
       </ListItemIcon>
       <ListItemText
         primary={cluster.name}

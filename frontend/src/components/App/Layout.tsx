@@ -15,6 +15,7 @@
  */
 
 import { Typography } from '@mui/material';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Container from '@mui/material/Container';
@@ -26,9 +27,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
+import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
-import { useClustersConf } from '../../lib/k8s';
+import { useCluster, useClustersConf } from '../../lib/k8s';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
 import { setConfig } from '../../redux/configSlice';
@@ -188,6 +190,9 @@ export default function Layout({}: LayoutProps) {
   const isFullWidth = useTypedSelector(state => state.ui.isFullWidth);
   const { t } = useTranslation();
   const allClusters = useClustersConf();
+  const currentClusterName = useCluster() || '';
+  const currentCluster = currentClusterName ? allClusters?.[currentClusterName] : undefined;
+  const currentAppearance = getClusterAppearanceFromMeta(currentCluster?.meta_data);
 
   /** This fetches the cluster config from the backend and updates the redux store on an interval.
    * When stateless clusters are enabled, it also fetches the stateless cluster config from the
@@ -318,6 +323,29 @@ export default function Layout({}: LayoutProps) {
                 gridRow: '1 / 2',
               }}
             >
+              {!!currentAppearance.warningBannerText && (
+                <Box
+                  px={isFullWidth ? 4 : 2} // Add more horizontal padding
+                  pt={2}
+                >
+                  <Alert
+                    severity="warning"
+                    sx={theme => ({
+                      ...(currentAppearance.accentColor
+                        ? { borderLeft: `6px solid ${currentAppearance.accentColor}` }
+                        : {}),
+                      mx: 1,
+                      color: theme.palette.text.primary,
+                      display: 'flex',
+                      alignItems: 'center',
+                      textAlign: 'center',
+                      minHeight: 48,
+                    })}
+                  >
+                    {currentAppearance.warningBannerText}
+                  </Alert>
+                </Box>
+              )}
               {clustersNotInURL.slice(0, MAXIMUM_NUM_ALERTS).map(clusterName => (
                 <ClusterNotFoundPopup key={clusterName} cluster={clusterName} />
               ))}

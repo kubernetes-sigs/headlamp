@@ -23,6 +23,8 @@ import { Trans, useTranslation } from 'react-i18next';
 export interface ClusterChooserProps {
   clickHandler: (event?: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
   cluster?: string;
+  icon?: string;
+  accentColor?: string;
 }
 export type ClusterChooserType =
   | React.ComponentType<ClusterChooserProps>
@@ -37,23 +39,25 @@ const SpanClusterName = styled('span')({
 });
 
 const ClusterChooser = React.forwardRef(function ClusterChooser(
-  { clickHandler, cluster }: ClusterChooserProps,
+  { clickHandler, cluster, icon, accentColor }: ClusterChooserProps,
   ref: React.Ref<HTMLButtonElement>
 ) {
   const { t } = useTranslation();
+  const startIcon = icon || 'mdi:hexagon-multiple-outline';
 
   return (
     <Button
       size="large"
       color="secondary"
       onClick={clickHandler}
-      startIcon={<Icon icon="mdi:hexagon-multiple-outline" />}
+      startIcon={<Icon icon={startIcon} color={accentColor} />}
       sx={theme => ({
         background: theme.palette.navbar.background,
         color: theme.palette.navbar.color,
         ':hover': {
           background: alpha(theme.palette.navbar.color, 0.07),
         },
+        ...(accentColor ? { borderBottom: `2px solid ${accentColor}` } : {}),
         maxWidth: '20em',
         textTransform: 'none',
         padding: '6px 22px',

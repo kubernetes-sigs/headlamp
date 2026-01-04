@@ -62,15 +62,32 @@ export async function setCluster(clusterReq: ClusterRequest) {
   const headers = addBackstageAuthHeaders(JSON_HEADERS);
 
   if (kubeconfig) {
-    await storeStatelessClusterKubeconfig(kubeconfig);
-    // We just send parsed kubeconfig from the backend to the frontend.
+    // If requested, persist on the backend (shared). Otherwise, use stateless browser storage.
+    if (!clusterReq.storeInBackend) {
+      await storeStatelessClusterKubeconfig(kubeconfig);
+      // We just send parsed kubeconfig from the backend to the frontend.
+      return request(
+        '/parseKubeConfig',
+        {
+          method: 'POST',
+          body: JSON.stringify(clusterReq),
+          headers: {
+            ...headers,
+          },
+        },
+        false,
+        false
+      );
+    }
+
     return request(
-      '/parseKubeConfig',
+      '/cluster',
       {
         method: 'POST',
         body: JSON.stringify(clusterReq),
         headers: {
           ...headers,
+          ...getHeadlampAPIHeaders(),
         },
       },
       false,
@@ -87,6 +104,50 @@ export async function setCluster(clusterReq: ClusterRequest) {
         ...headers,
         ...getHeadlampAPIHeaders(),
       },
+    },
+    false,
+    false
+  );
+}
+
+export type ClusterAppearance = {
+  accentColor?: string;
+  warningBannerText?: string;
+  icon?: string;
+};
+
+export async function updateClusterAppearance(
+  cluster: string,
+  source: string,
+  appearance: ClusterAppearance,
+  clusterID?: string
+) {
+  let stateless = false;
+  let kubeconfig;
+  const updateURL = `/cluster/${cluster}`;
+
+  console.log('Updating appearance for cluster:', cluster, 'with appearance:', appearance);
+
+  if (cluster) {
+    kubeconfig = await findKubeconfigByClusterName(cluster, clusterID);
+    if (kubeconfig !== null) {
+      stateless = true;
+    }
+  }
+
+  if (stateless) {
+    throw new Error(
+      'Shared cluster appearance is not supported for stateless (browser-only) clusters. Add the cluster to the backend to share it with the team.'
+    );
+  }
+
+  const headers = addBackstageAuthHeaders(JSON_HEADERS);
+  return request(
+    updateURL,
+    {
+      method: 'PUT',
+      headers: { ...headers, ...getHeadlampAPIHeaders() },
+      body: JSON.stringify({ newClusterName: '', source, stateless, appearance }),
     },
     false,
     false

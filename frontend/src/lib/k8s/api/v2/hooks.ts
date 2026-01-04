@@ -249,9 +249,11 @@ export const useEndpoints = (
   cluster: string,
   namespace?: string
 ) => {
+  const endpointsKey = endpoints.map(e => `${e.group ?? ''}/${e.version}/${e.resource}`).join('|');
+
   const { data: endpoint, error } = useQuery<KubeObjectEndpoint, ApiError>({
-    enabled: endpoints.length > 1,
-    queryKey: ['endpoints', endpoints],
+    enabled: endpoints.length > 1 && !!cluster,
+    queryKey: ['endpoints', cluster, namespace ?? '', endpointsKey],
     queryFn: () => getWorkingEndpoint(endpoints, cluster!, namespace),
   });
   if (endpoints.length === 1) return { endpoint: endpoints[0], error: null };

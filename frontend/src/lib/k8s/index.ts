@@ -112,20 +112,21 @@ export const ResourceClasses = {
  * */
 export function useClustersConf(): ConfigState['allClusters'] {
   const state = useTypedSelector(state => state.config);
-  const clusters = _.cloneDeep(state.clusters || {});
-  const allClusters = _.cloneDeep(state.allClusters || {});
-  Object.assign(allClusters, clusters);
 
-  if (state.statelessClusters) {
-    // Combine statelessClusters with clusters
-    const statelessClusters = _.cloneDeep(state.statelessClusters || {});
-    Object.assign(allClusters, statelessClusters);
-  }
+  return useMemo(() => {
+    if (state.clusters === null) {
+      return null;
+    }
 
-  return useMemo(
-    () => (state.clusters === null ? null : allClusters),
-    [state.clusters === null, Object.keys(allClusters).join(',')]
-  );
+    const merged: Record<string, any> = {};
+
+    // Start from allClusters (if used elsewhere) then override with clusters and statelessClusters.
+    Object.assign(merged, _.cloneDeep(state.allClusters || {}));
+    Object.assign(merged, _.cloneDeep(state.clusters || {}));
+    Object.assign(merged, _.cloneDeep(state.statelessClusters || {}));
+
+    return merged;
+  }, [state.allClusters, state.clusters, state.statelessClusters]);
 }
 
 /**

@@ -32,7 +32,7 @@ import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { useClustersConf } from '../../lib/k8s';
 import { setCluster } from '../../lib/k8s/api/v1/clusterApi';
-import { setStatelessConfig } from '../../redux/configSlice';
+import { setConfig, setStatelessConfig } from '../../redux/configSlice';
 import { DialogTitle } from '../common/Dialog';
 import { DropZoneBox } from '../common/DropZoneBox';
 import Loader from '../common/Loader';
@@ -117,6 +117,7 @@ function KubeConfigLoader() {
   const history = useHistory();
   const [state, setState] = useState(Step.LoadKubeConfig);
   const [error, setError] = React.useState('');
+  const [storeInBackend, setStoreInBackend] = React.useState(false);
   const [fileContent, setFileContent] = useState<kubeconfig>({
     clusters: [],
     users: [],
@@ -157,10 +158,10 @@ function KubeConfigLoader() {
     if (state === Step.ConfigureClusters) {
       function loadClusters() {
         const selectedClusterConfig = configWithSelectedClusters(fileContent, selectedClusters);
-        setCluster({ kubeconfig: btoa(yaml.dump(selectedClusterConfig)) })
+        setCluster({ kubeconfig: btoa(yaml.dump(selectedClusterConfig)), storeInBackend })
           .then(res => {
             if (res?.clusters?.length > 0) {
-              dispatch(setStatelessConfig(res));
+              dispatch(storeInBackend ? setConfig(res) : setStatelessConfig(res));
             }
             setState(Step.Success);
           })
@@ -267,6 +268,22 @@ function KubeConfigLoader() {
             <Typography>{t('translation|Select clusters')}</Typography>
             {fileContent.clusters ? (
               <>
+                <Box pb={2}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={storeInBackend}
+                        onChange={e => setStoreInBackend(e.target.checked)}
+                      />
+                    }
+                    label={t('translation|Store clusters on backend (shared)')}
+                  />
+                  <Typography variant="body2" color="textSecondary">
+                    {t(
+                      'translation|When enabled, the cluster(s) are added to the Headlamp server and visible to all users of this instance.'
+                    )}
+                  </Typography>
+                </Box>
                 <Box
                   sx={{
                     display: 'flex',

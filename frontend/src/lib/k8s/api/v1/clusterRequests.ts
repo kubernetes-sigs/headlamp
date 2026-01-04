@@ -56,6 +56,9 @@ export interface ClusterRequest {
   certificateAuthorityData?: string;
   /** KubeConfig (base64 encoded)*/
   kubeconfig?: string;
+
+  /** If true, store this cluster on the backend (shared) instead of stateless browser storage. */
+  storeInBackend?: boolean;
 }
 
 /**
@@ -197,17 +200,17 @@ export async function clusterRequest(
     let message = statusText;
     try {
       if (isJSON) {
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.toLowerCase().includes('application/json')) {
+          throw new Error('non-json error response');
+        }
         const json = await response.json();
         message += ` - ${json.message}`;
       }
     } catch (err) {
-      console.error(
-        'Unable to parse error json at url:',
-        url,
-        { err },
-        'with request data:',
-        requestData
-      );
+      if (isDebugVerbose('k8s/apiProxy@request')) {
+        console.debug('Unable to parse error json at url:', url, { err }, 'request:', requestData);
+      }
     }
 
     const error = new Error(message) as ApiError;

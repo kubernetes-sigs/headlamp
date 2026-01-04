@@ -16,7 +16,7 @@
 
 import Fade from '@mui/material/Fade';
 import Tooltip, { TooltipProps } from '@mui/material/Tooltip';
-import { ReactElement, ReactNode } from 'react';
+import React, { ReactNode } from 'react';
 
 export interface TooltipLightProps extends Omit<TooltipProps, 'children'> {
   /**
@@ -31,6 +31,10 @@ export interface TooltipLightProps extends Omit<TooltipProps, 'children'> {
 export default function TooltipLight(props: TooltipLightProps) {
   const { children, interactive = true, ...rest } = props;
   const disableInteractive = !interactive;
+
+  // MUI Tooltip needs to attach a ref + event handlers to its child.
+  // Wrapping guarantees the child can always hold a ref and props.
+  const tooltipChild = <span style={{ display: 'inline-flex' }}>{children}</span>;
 
   if (typeof children === 'string') {
     return (
@@ -47,20 +51,19 @@ export default function TooltipLight(props: TooltipLightProps) {
         })}
         {...rest}
       >
-        <span>{children}</span>
+        {tooltipChild}
       </Tooltip>
     );
   }
 
   return (
     <Tooltip
+      disableInteractive={disableInteractive}
       {...rest}
       TransitionComponent={Fade}
       TransitionProps={{ timeout: 0 }}
-      // children prop in the mui Tooltip is defined as ReactElement which is not totally correct
-      // string should be a valid child and is used a lot in this project
-      // but it's not included in the ReactElement type
-      children={props.children as unknown as ReactElement}
-    />
+    >
+      {tooltipChild}
+    </Tooltip>
   );
 }

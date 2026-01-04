@@ -36,6 +36,7 @@ export async function metrics(
   onError?: (err: ApiError) => void,
   cluster?: string
 ) {
+  let isStopped = false;
   const handle = setInterval(getMetrics, 10000);
 
   const clusterName = cluster || getCluster();
@@ -51,6 +52,14 @@ export async function metrics(
 
       if (onError) {
         onError(err as ApiError);
+      }
+
+      const status = (err as ApiError | undefined)?.status;
+      // If metrics-server (metrics.k8s.io) isn't installed, Kubernetes commonly returns 404.
+      // Stop polling to avoid spamming the network/console.
+      if (!isStopped && status === 404) {
+        isStopped = true;
+        clearInterval(handle);
       }
     }
   }
