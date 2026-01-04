@@ -2066,16 +2066,16 @@ func (c *HeadlampConfig) getKubeConfigPath(source string) (string, error) {
 	return defaultHeadlampKubeConfigFile()
 }
 
-// Handler for renaming a stateless cluster.
-func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *http.Request, clusterName string) {
+// Handler for updating a stateless cluster.
+func (c *HeadlampConfig) handleStatelessClusterUpdate(w http.ResponseWriter, r *http.Request, clusterName string) {
 	ctx := r.Context()
 	start := time.Now()
 
 	c.telemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
-	_, span := telemetry.CreateSpan(ctx, r, "cluster-rename", "handleStatelessClusterRename",
+	_, span := telemetry.CreateSpan(ctx, r, "cluster-update", "handleStatelessClusterUpdate",
 		attribute.String("cluster", clusterName),
 	)
-	c.telemetryHandler.RecordEvent(span, "Stateless cluster rename request started")
+	c.telemetryHandler.RecordEvent(span, "Stateless cluster update request started")
 
 	defer span.End()
 
@@ -2093,11 +2093,11 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 	c.getConfig(w, r)
 
 	duration := time.Since(start).Milliseconds()
-	c.telemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "handleStatelessClusterRename"))
+	c.telemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "handleStatelessClusterUpdate"))
 	logger.Log(logger.LevelInfo, map[string]string{
 		"duration_ms": fmt.Sprintf("%d", duration),
-		"api.route":   "handleStatelessClusterRename",
-	}, nil, "Completed stateless cluster rename")
+		"api.route":   "handleStatelessClusterUpdate",
+	}, nil, "Completed stateless cluster update")
 }
 
 func updateHeadlampInfoExtensions(
@@ -2220,23 +2220,23 @@ func tryLoadFromStoredContext(c *HeadlampConfig, clusterName string) (string, *a
 	return storedCtx.KubeConfigPath, cfg, true
 }
 
-// Handler for renaming a cluster.
-func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
+// Handler for updating a cluster (name or appearance).
+func (c *HeadlampConfig) updateCluster(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := time.Now()
 	clusterName := mux.Vars(r)["name"]
 
 	// Setup telemetry
-	_, span := telemetry.CreateSpan(ctx, r, "cluster-rename", "renameCluster",
+	_, span := telemetry.CreateSpan(ctx, r, "cluster-update", "updateCluster",
 		attribute.String("cluster", clusterName),
 	)
 	defer span.End()
 
-	c.telemetryHandler.RecordEvent(span, "Rename cluster request started")
+	c.telemetryHandler.RecordEvent(span, "Update cluster request started")
 	c.telemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
 
 	// Parse request and validate
-	var reqBody RenameClusterRequest
+	var reqBody ClusterUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		c.handleError(w, ctx, span, err, "failed to decode request body", http.StatusBadRequest)
 		return
@@ -2244,37 +2244,27 @@ func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
 
 	// Handle stateless clusters separately
 	if reqBody.Stateless {
-		c.telemetryHandler.RecordEvent(span, "Delegating to handleStatelessClusterRename")
-		c.handleStatelessClusterRename(w, r, clusterName)
+		c.telemetryHandler.RecordEvent(span, "Delegating to handleStatelessClusterUpdate")
+		c.handleStatelessClusterUpdate(w, r, clusterName)
 
 		return
 	}
 
-	if err := c.handleClusterRename(w, r, clusterName, reqBody, ctx, span); err != nil {
-		return // Error already handled inside handleClusterRename
+	if err := c.handleClusterUpdate(w, r, clusterName, reqBody, ctx, span); err != nil {
+		return // Error already handled inside handleClusterUpdate
 	}
 
 	// Record success metrics and logging
-	c.telemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "renameCluster"))
+	c.telemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "updateCluster"))
 	logger.Log(logger.LevelInfo, map[string]string{
 		"duration_ms": fmt.Sprintf("%d", time.Since(start).Milliseconds()),
-		"api.route":   "renameCluster",
-	}, nil, "Completed renameCluster request")
+		"api.route":   "updateCluster",
+	}, nil, "Completed updateCluster request")
 }
 
-func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Request,
-	clusterName string, reqBody RenameClusterRequest, ctx context.Context, span trace.Span,
+func (c *HeadlampConfig) handleClusterUpdate(w http.ResponseWriter, r *http.Request,
+	clusterName string, reqBody ClusterUpdateRequest, ctx context.Context, span trace.Span,
 ) error {
-	logger.Log(
-		logger.LevelInfo,
-		map[string]string{"cluster": clusterName},
-		nil,
-		fmt.Sprintf(
-			"handleClusterRename called with appearance update | source: %s | newClusterName: %s | appearance: %+v",
-			reqBody.Source, reqBody.NewClusterName, reqBody.Appearance,
-		),
-	)
-
 	// Load kubeconfig
 	path, config, err := c.getPathAndLoadKubeconfig(reqBody.Source, clusterName)
 	if err != nil {
@@ -2282,19 +2272,16 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 		return err
 	}
 
-	contextName := findMatchingContextName(config, clusterName)
+	isUnique := CheckUniqueName(config.Contexts, clusterName, reqBody.NewClusterName)
+	if !isUnique {
+		http.Error(w, "custom name already in use", http.StatusBadRequest)
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
+			err, "cluster name already exists in the kubeconfig")
 
-	// Only check uniqueness and update the custom name if a new name was provided.
-	if reqBody.NewClusterName != "" {
-		isUnique := CheckUniqueName(config.Contexts, clusterName, reqBody.NewClusterName)
-		if !isUnique {
-			http.Error(w, "custom name already in use", http.StatusBadRequest)
-			logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
-				err, "cluster name already exists in the kubeconfig")
-
-			return err
-		}
+		return err
 	}
+
+	contextName := findMatchingContextName(config, clusterName)
 
 	if err := updateHeadlampInfoExtensions(config, contextName, path, func(customObj *kubeconfig.CustomObject) {
 		if reqBody.NewClusterName != "" {
@@ -2407,8 +2394,8 @@ func (c *HeadlampConfig) addClusterSetupRoute(r *mux.Router) {
 	// Delete a cluster
 	r.HandleFunc("/cluster/{name}", c.deleteCluster).Methods("DELETE")
 
-	// Rename a cluster
-	r.HandleFunc("/cluster/{name}", c.renameCluster).Methods("PUT")
+	// Update a cluster (name or appearance)
+	r.HandleFunc("/cluster/{name}", c.updateCluster).Methods("PUT")
 }
 
 /*

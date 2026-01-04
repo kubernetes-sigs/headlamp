@@ -52,8 +52,8 @@ type ClusterAppearance struct {
 	Icon              *string `json:"icon,omitempty"`
 }
 
-// RenameClusterRequest is the request body structure for renaming a cluster.
-type RenameClusterRequest struct {
+// ClusterUpdateRequest is the request body structure for updating a cluster's name or appearance.
+type ClusterUpdateRequest struct {
 	NewClusterName string             `json:"newClusterName"`
 	Source         string             `json:"source"`
 	Stateless      bool               `json:"stateless"`

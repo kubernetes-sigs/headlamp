@@ -624,13 +624,13 @@ func TestHandleClusterAPI_XForwardedHost(t *testing.T) {
 	assert.Equal(t, "OK", rr.Body.String())
 }
 
-// handleClusterRenameRequest handles a cluster rename request.
-func handleClusterRenameRequest(
+// handleClusterUpdateRequest handles a cluster update request.
+func handleClusterUpdateRequest(
 	t *testing.T,
 	handler http.Handler,
 	tc struct {
 		name          string
-		clusterReq    RenameClusterRequest
+		clusterReq    ClusterUpdateRequest
 		expectedState int
 	},
 ) {
@@ -678,13 +678,13 @@ func TestCheckUniqueName(t *testing.T) {
 	}
 }
 
-// runClusterRenameTests used to run the cluster rename tests.
-func runClusterRenameTests(
+// runClusterUpdateTests used to run the cluster update tests.
+func runClusterUpdateTests(
 	t *testing.T,
 	handler http.Handler,
 	tests []struct {
 		name          string
-		clusterReq    RenameClusterRequest
+		clusterReq    ClusterUpdateRequest
 		expectedState int
 	},
 ) {
@@ -692,7 +692,7 @@ func runClusterRenameTests(
 	require.NoError(t, err)
 
 	for _, tc := range tests {
-		handleClusterRenameRequest(t, handler, tc)
+		handleClusterUpdateRequest(t, handler, tc)
 	}
 
 	// This test modifies the test file, so we have to restore the test file at the end of the test.
@@ -712,6 +712,10 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 	}
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
+
+	// Load the kubeconfig_rename file into the store as well, since the test uses contexts from it
+	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, "./headlamp_testdata/kubeconfig_rename", kubeconfig.KubeConfig, nil)
+	require.NoError(t, err)
 
 	c := HeadlampConfig{
 		HeadlampCFG: &headlampconfig.HeadlampCFG{
@@ -735,12 +739,12 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 
 	tests := []struct {
 		name          string
-		clusterReq    RenameClusterRequest
+		clusterReq    ClusterUpdateRequest
 		expectedState int
 	}{
 		{
 			name: "stateless",
-			clusterReq: RenameClusterRequest{
+			clusterReq: ClusterUpdateRequest{
 				NewClusterName: "minikubetestworksnew",
 				Stateless:      true,
 			},
@@ -748,7 +752,7 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 		},
 		{
 			name: "passStatefull",
-			clusterReq: RenameClusterRequest{
+			clusterReq: ClusterUpdateRequest{
 				NewClusterName: "minikubetestworkskubeconfig",
 				Stateless:      false,
 				Source:         "kubeconfig",
@@ -757,7 +761,7 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 		},
 	}
 
-	runClusterRenameTests(t, handler, tests)
+	runClusterUpdateTests(t, handler, tests)
 
 	remErr := c.KubeConfigStore.RemoveContext("minikubetest")
 	require.NoError(t, remErr, "Failed to remove context: minikubetest")
@@ -801,7 +805,7 @@ func TestClusterAppearanceUpdateUsesStoredKubeconfigPath(t *testing.T) {
 	warningBannerText := "hello from test"
 	icon := "mdi:kubernetes"
 
-	req := RenameClusterRequest{
+	req := ClusterUpdateRequest{
 		Source:    "kubeconfig",
 		Stateless: false,
 		Appearance: &ClusterAppearance{
