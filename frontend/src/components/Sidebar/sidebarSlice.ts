@@ -16,6 +16,7 @@
 
 import { IconProps } from '@iconify/react';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import React from 'react';
 
 export enum DefaultSidebars {
   HOME = 'HOME',
@@ -33,7 +34,7 @@ export interface SidebarEntry {
   /**
    * Text to display under the name.
    */
-  subtitle?: string;
+  subtitle?: React.ReactNode;
   /**
    * Label to display.
    */
