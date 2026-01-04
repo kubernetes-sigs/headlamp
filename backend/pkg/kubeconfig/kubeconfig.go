@@ -147,10 +147,10 @@ type OidcConfig struct {
 type CustomObject struct {
 	metav1.TypeMeta
 	metav1.ObjectMeta
-	CustomName string `json:"customName"`
-	AccentColor string `json:"accentColor,omitempty"`
+	CustomName        string `json:"customName"`
+	AccentColor       string `json:"accentColor,omitempty"`
 	WarningBannerText string `json:"warningBannerText,omitempty"`
-	Icon string `json:"icon,omitempty"`
+	Icon              string `json:"icon,omitempty"`
 }
 
 // DeepCopyObject returns a copy of the CustomObject.

@@ -805,9 +805,9 @@ func TestClusterAppearanceUpdateUsesStoredKubeconfigPath(t *testing.T) {
 		Source:    "kubeconfig",
 		Stateless: false,
 		Appearance: &ClusterAppearance{
-			AccentColor:        &accentColor,
-			WarningBannerText:  &warningBannerText,
-			Icon:               &icon,
+			AccentColor:       &accentColor,
+			WarningBannerText: &warningBannerText,
+			Icon:              &icon,
 		},
 	}
 

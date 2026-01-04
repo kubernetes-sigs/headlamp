@@ -2100,13 +2100,19 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 	}, nil, "Completed stateless cluster rename")
 }
 
-func updateHeadlampInfoExtensions(config *api.Config, contextName, path string, updateFn func(*kubeconfig.CustomObject)) error {
+func updateHeadlampInfoExtensions(
+	config *api.Config,
+	contextName,
+	path string,
+	updateFn func(*kubeconfig.CustomObject),
+) error {
 	// Get the context with the given cluster name
 	contextConfig, ok := config.Contexts[contextName]
 	if !ok {
 		err := fmt.Errorf("context %q not found in kubeconfig", contextName)
 		logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
 			err, "getting context from kubeconfig")
+
 		return err
 	}
 
@@ -2115,6 +2121,7 @@ func updateHeadlampInfoExtensions(config *api.Config, contextName, path string, 
 		TypeMeta:   v1.TypeMeta{},
 		ObjectMeta: v1.ObjectMeta{},
 	}
+
 	if info := contextConfig.Extensions["headlamp_info"]; info != nil {
 		existing, marshalErr := MarshalCustomObject(info, contextName)
 		if marshalErr == nil {
@@ -2169,41 +2176,48 @@ func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterN
 
 // getPathAndLoadKubeconfig gets the path of the kubeconfig file and loads it.
 func (c *HeadlampConfig) getPathAndLoadKubeconfig(source, clusterName string) (string, *api.Config, error) {
-	// Prefer the kubeconfig path recorded on the stored context.
-	// This avoids writing to the wrong file when multiple kubeconfigs are in play.
-	if c.KubeConfigStore != nil && clusterName != "" {
-		if storedCtx, err := c.KubeConfigStore.GetContext(clusterName); err == nil && storedCtx != nil {
-			if storedCtx.KubeConfigPath != "" {
-				cfg, loadErr := clientcmd.LoadFromFile(storedCtx.KubeConfigPath)
-				if loadErr == nil {
-					return storedCtx.KubeConfigPath, cfg, nil
-				}
-
-				logger.Log(logger.LevelWarn, map[string]string{"cluster": clusterName},
-					loadErr, "loading kubeconfig file from stored context path")
-			}
-		}
+	// Try to load from the stored context path if available.
+	if path, cfg, ok := tryLoadFromStoredContext(c, clusterName); ok {
+		return path, cfg, nil
 	}
 
-	// Get path of kubeconfig from source
+	// Get path of kubeconfig from source.
 	path, err := c.getKubeConfigPath(source)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
 			err, "getting kubeconfig file")
-
 		return "", nil, err
 	}
 
-	// Load kubeconfig file
+	// Load kubeconfig file.
 	config, err := clientcmd.LoadFromFile(path)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
 			err, "loading kubeconfig file")
-
 		return "", nil, err
 	}
 
 	return path, config, nil
+}
+
+func tryLoadFromStoredContext(c *HeadlampConfig, clusterName string) (string, *api.Config, bool) {
+	if c.KubeConfigStore == nil || clusterName == "" {
+		return "", nil, false
+	}
+
+	storedCtx, err := c.KubeConfigStore.GetContext(clusterName)
+	if err != nil || storedCtx == nil || storedCtx.KubeConfigPath == "" {
+		return "", nil, false
+	}
+
+	cfg, loadErr := clientcmd.LoadFromFile(storedCtx.KubeConfigPath)
+	if loadErr != nil {
+		logger.Log(logger.LevelWarn, map[string]string{"cluster": clusterName},
+			loadErr, "loading kubeconfig file from stored context path")
+		return "", nil, false
+	}
+
+	return storedCtx.KubeConfigPath, cfg, true
 }
 
 // Handler for renaming a cluster.
@@ -2277,6 +2291,7 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 			http.Error(w, "custom name already in use", http.StatusBadRequest)
 			logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
 				err, "cluster name already exists in the kubeconfig")
+
 			return err
 		}
 	}
