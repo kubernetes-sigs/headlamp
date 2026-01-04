@@ -2100,25 +2100,29 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 	}, nil, "Completed stateless cluster rename")
 }
 
-// customNameToExtenstions writes the custom name to the Extensions map in the kubeconfig.
-func customNameToExtenstions(config *api.Config, contextName, newClusterName, path string) error {
-	var err error
-
+func updateHeadlampInfoExtensions(config *api.Config, contextName, path string, updateFn func(*kubeconfig.CustomObject)) error {
 	// Get the context with the given cluster name
 	contextConfig, ok := config.Contexts[contextName]
 	if !ok {
+		err := fmt.Errorf("context %q not found in kubeconfig", contextName)
 		logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
 			err, "getting context from kubeconfig")
-
 		return err
 	}
 
-	// Create a CustomObject with CustomName field
+	// Start from the existing custom object if present, so we don't overwrite unrelated fields.
 	customObj := &kubeconfig.CustomObject{
 		TypeMeta:   v1.TypeMeta{},
 		ObjectMeta: v1.ObjectMeta{},
-		CustomName: newClusterName,
 	}
+	if info := contextConfig.Extensions["headlamp_info"]; info != nil {
+		existing, marshalErr := MarshalCustomObject(info, contextName)
+		if marshalErr == nil {
+			customObj = existing.DeepCopy()
+		}
+	}
+
+	updateFn(customObj)
 
 	// Assign the CustomObject to the Extensions map
 	contextConfig.Extensions["headlamp_info"] = customObj
@@ -2126,7 +2130,6 @@ func customNameToExtenstions(config *api.Config, contextName, newClusterName, pa
 	if err := clientcmd.WriteToFile(*config, path); err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
 			err, "writing kubeconfig file")
-
 		return err
 	}
 
@@ -2166,6 +2169,22 @@ func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterN
 
 // getPathAndLoadKubeconfig gets the path of the kubeconfig file and loads it.
 func (c *HeadlampConfig) getPathAndLoadKubeconfig(source, clusterName string) (string, *api.Config, error) {
+	// Prefer the kubeconfig path recorded on the stored context.
+	// This avoids writing to the wrong file when multiple kubeconfigs are in play.
+	if c.KubeConfigStore != nil && clusterName != "" {
+		if storedCtx, err := c.KubeConfigStore.GetContext(clusterName); err == nil && storedCtx != nil {
+			if storedCtx.KubeConfigPath != "" {
+				cfg, loadErr := clientcmd.LoadFromFile(storedCtx.KubeConfigPath)
+				if loadErr == nil {
+					return storedCtx.KubeConfigPath, cfg, nil
+				}
+
+				logger.Log(logger.LevelWarn, map[string]string{"cluster": clusterName},
+					loadErr, "loading kubeconfig file from stored context path")
+			}
+		}
+	}
+
 	// Get path of kubeconfig from source
 	path, err := c.getKubeConfigPath(source)
 	if err != nil {
@@ -2232,6 +2251,16 @@ func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
 func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Request,
 	clusterName string, reqBody RenameClusterRequest, ctx context.Context, span trace.Span,
 ) error {
+	logger.Log(
+		logger.LevelInfo,
+		map[string]string{"cluster": clusterName},
+		nil,
+		fmt.Sprintf(
+			"handleClusterRename called with appearance update | source: %s | newClusterName: %s | appearance: %+v",
+			reqBody.Source, reqBody.NewClusterName, reqBody.Appearance,
+		),
+	)
+
 	// Load kubeconfig
 	path, config, err := c.getPathAndLoadKubeconfig(reqBody.Source, clusterName)
 	if err != nil {
@@ -2239,19 +2268,36 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 		return err
 	}
 
-	isUnique := CheckUniqueName(config.Contexts, clusterName, reqBody.NewClusterName)
-	if !isUnique {
-		http.Error(w, "custom name already in use", http.StatusBadRequest)
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
-			err, "cluster name already exists in the kubeconfig")
-
-		return err
-	}
-
 	contextName := findMatchingContextName(config, clusterName)
 
-	if err := customNameToExtenstions(config, contextName, reqBody.NewClusterName, path); err != nil {
-		c.handleError(w, ctx, span, err, "failed to write custom extension", http.StatusInternalServerError)
+	// Only check uniqueness and update the custom name if a new name was provided.
+	if reqBody.NewClusterName != "" {
+		isUnique := CheckUniqueName(config.Contexts, clusterName, reqBody.NewClusterName)
+		if !isUnique {
+			http.Error(w, "custom name already in use", http.StatusBadRequest)
+			logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
+				err, "cluster name already exists in the kubeconfig")
+			return err
+		}
+	}
+
+	if err := updateHeadlampInfoExtensions(config, contextName, path, func(customObj *kubeconfig.CustomObject) {
+		if reqBody.NewClusterName != "" {
+			customObj.CustomName = reqBody.NewClusterName
+		}
+		if reqBody.Appearance != nil {
+			if reqBody.Appearance.AccentColor != nil {
+				customObj.AccentColor = *reqBody.Appearance.AccentColor
+			}
+			if reqBody.Appearance.WarningBannerText != nil {
+				customObj.WarningBannerText = *reqBody.Appearance.WarningBannerText
+			}
+			if reqBody.Appearance.Icon != nil {
+				customObj.Icon = *reqBody.Appearance.Icon
+			}
+		}
+	}); err != nil {
+		c.handleError(w, ctx, span, err, "failed to write headlamp_info extension", http.StatusInternalServerError)
 		return err
 	}
 

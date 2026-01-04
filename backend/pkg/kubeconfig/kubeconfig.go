@@ -148,6 +148,9 @@ type CustomObject struct {
 	metav1.TypeMeta
 	metav1.ObjectMeta
 	CustomName string `json:"customName"`
+	AccentColor string `json:"accentColor,omitempty"`
+	WarningBannerText string `json:"warningBannerText,omitempty"`
+	Icon string `json:"icon,omitempty"`
 }
 
 // DeepCopyObject returns a copy of the CustomObject.
@@ -165,6 +168,9 @@ func (o *CustomObject) DeepCopy() *CustomObject {
 	o.ObjectMeta.DeepCopyInto(&copied.ObjectMeta)
 	copied.TypeMeta = o.TypeMeta
 	copied.CustomName = o.CustomName
+	copied.AccentColor = o.AccentColor
+	copied.WarningBannerText = o.WarningBannerText
+	copied.Icon = o.Icon
 
 	return copied
 }

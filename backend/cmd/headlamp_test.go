@@ -769,6 +769,68 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 	assert.Equal(t, 2, len(clusters))
 }
 
+func TestClusterAppearanceUpdateUsesStoredKubeconfigPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpKubeconfigPath := filepath.Join(tmpDir, "kubeconfig_rename")
+
+	srcBytes, err := os.ReadFile("./headlamp_testdata/kubeconfig_rename")
+	require.NoError(t, err)
+
+	err = os.WriteFile(tmpKubeconfigPath, srcBytes, 0o600)
+	require.NoError(t, err)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, tmpKubeconfigPath, kubeconfig.KubeConfig, nil)
+	require.NoError(t, err)
+
+	c := HeadlampConfig{
+		HeadlampCFG: &headlampconfig.HeadlampCFG{
+			UseInCluster:          false,
+			KubeConfigPath:        "./headlamp_testdata/kubeconfig", // intentionally different from tmpKubeconfigPath
+			EnableDynamicClusters: true,
+			KubeConfigStore:       kubeConfigStore,
+		},
+		cache:            cache.New[interface{}](),
+		telemetryConfig:  GetDefaultTestTelemetryConfig(),
+		telemetryHandler: &telemetry.RequestHandler{},
+	}
+
+	handler := createHeadlampHandler(&c)
+
+	accentColor := "#ff00ff"
+	warningBannerText := "hello from test"
+	icon := "mdi:kubernetes"
+
+	req := RenameClusterRequest{
+		Source:    "kubeconfig",
+		Stateless: false,
+		Appearance: &ClusterAppearance{
+			AccentColor:        &accentColor,
+			WarningBannerText:  &warningBannerText,
+			Icon:               &icon,
+		},
+	}
+
+	r, err := getResponseFromRestrictedEndpoint(handler, "PUT", "/cluster/minikubetestnondynamic", req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusCreated, r.Code)
+
+	updatedCfg, err := clientcmd.LoadFromFile(tmpKubeconfigPath)
+	require.NoError(t, err)
+
+	ctxCfg, ok := updatedCfg.Contexts["minikubetestnondynamic"]
+	require.True(t, ok)
+
+	info := ctxCfg.Extensions["headlamp_info"]
+	require.NotNil(t, info)
+
+	customObj, err := MarshalCustomObject(info, "minikubetestnondynamic")
+	require.NoError(t, err)
+	assert.Equal(t, accentColor, customObj.AccentColor)
+	assert.Equal(t, warningBannerText, customObj.WarningBannerText)
+	assert.Equal(t, icon, customObj.Icon)
+}
+
 func TestFileExists(t *testing.T) {
 	// Test for existing file
 	assert.True(t, fileExists("./headlamp_testdata/kubeconfig"),
