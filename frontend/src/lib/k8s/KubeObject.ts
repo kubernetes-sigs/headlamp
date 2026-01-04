@@ -382,12 +382,9 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
     // Create requests for each cluster and namespace
     const requests = useMemo(() => {
-      const clusterList = cluster ? [cluster] : clusters || fallbackClusters;
-
-      // If no cluster is selected, don't issue any requests.
-      if (clusterList.length === 0) {
-        return [];
-      }
+      const clusterList = cluster
+        ? [cluster]
+        : clusters || (fallbackClusters.length === 0 ? [''] : fallbackClusters);
 
       const namespacesFromParams =
         typeof namespace === 'string'

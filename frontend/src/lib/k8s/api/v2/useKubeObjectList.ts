@@ -83,7 +83,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
     ],
     queryFn: async () => {
       // If no valid endpoint is passed, don't make the request
-      if (!endpoint) return null;
+      if (!endpoint) return;
 
       try {
         const list: KubeList<any> = await clusterFetch(

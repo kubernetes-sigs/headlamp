@@ -78,50 +78,42 @@ export default function VersionButton() {
     ];
   }
 
-  const { data: clusterVersion } = useQuery<StringDict | null>({
-    placeholderData: null,
+  const { data: clusterVersion } = useQuery({
+    placeholderData: null as any,
     queryKey: ['version', cluster ?? ''],
-    enabled: !!cluster,
-    queryFn: async () => {
-      if (!cluster) {
-        return null;
-      }
+    queryFn: () => {
+      return getVersion()
+        .then((results: StringDict) => {
+          let versionChange = 0;
+          if (clusterVersion && results && results.gitVersion) {
+            versionChange = semver.compare(results.gitVersion, clusterVersion.gitVersion);
 
-      try {
-        const results = await getVersion(cluster);
+            let msg = '';
+            if (versionChange > 0) {
+              msg = t('translation|Cluster version upgraded to {{ gitVersion }}', {
+                gitVersion: results.gitVersion,
+              });
+            } else if (versionChange < 0) {
+              msg = t('translation|Cluster version downgraded to {{ gitVersion }}', {
+                gitVersion: results.gitVersion,
+              });
+            }
 
-        let versionChange = 0;
-        if (clusterVersion && results && results.gitVersion) {
-          versionChange = semver.compare(results.gitVersion, clusterVersion.gitVersion);
-
-          let msg = '';
-          if (versionChange > 0) {
-            msg = t('translation|Cluster version upgraded to {{ gitVersion }}', {
-              gitVersion: results.gitVersion,
-            });
-          } else if (versionChange < 0) {
-            msg = t('translation|Cluster version downgraded to {{ gitVersion }}', {
-              gitVersion: results.gitVersion,
-            });
+            if (msg) {
+              enqueueSnackbar(msg, {
+                key: 'version',
+                preventDuplicate: true,
+                autoHideDuration: versionSnackbarHideTimeout,
+                variant: 'info',
+              });
+            }
           }
 
-          if (msg) {
-            enqueueSnackbar(msg, {
-              key: 'version',
-              preventDuplicate: true,
-              autoHideDuration: versionSnackbarHideTimeout,
-              variant: 'info',
-            });
-          }
-        }
-
-        return results;
-      } catch (error) {
-        console.error('Getting the cluster version:', error);
-        return null;
-      }
+          return results;
+        })
+        .catch((error: Error) => console.error('Getting the cluster version:', error));
     },
-    refetchInterval: cluster ? versionFetchInterval : false,
+    refetchInterval: versionFetchInterval,
   });
 
   function handleClose() {

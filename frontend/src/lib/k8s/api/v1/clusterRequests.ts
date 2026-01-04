@@ -200,17 +200,17 @@ export async function clusterRequest(
     let message = statusText;
     try {
       if (isJSON) {
-        const contentType = response.headers.get('content-type') || '';
-        if (!contentType.toLowerCase().includes('application/json')) {
-          throw new Error('non-json error response');
-        }
         const json = await response.json();
         message += ` - ${json.message}`;
       }
     } catch (err) {
-      if (isDebugVerbose('k8s/apiProxy@request')) {
-        console.debug('Unable to parse error json at url:', url, { err }, 'request:', requestData);
-      }
+      console.error(
+        'Unable to parse error json at url:',
+        url,
+        { err },
+        'with request data:',
+        requestData
+      );
     }
 
     const error = new Error(message) as ApiError;
