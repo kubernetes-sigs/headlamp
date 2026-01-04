@@ -714,7 +714,12 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 	kubeConfigStore := kubeconfig.NewContextStore()
 
 	// Load the kubeconfig_rename file into the store as well, since the test uses contexts from it
-	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, "./headlamp_testdata/kubeconfig_rename", kubeconfig.KubeConfig, nil)
+	err = kubeconfig.LoadAndStoreKubeConfigs(
+		kubeConfigStore,
+		"./headlamp_testdata/kubeconfig_rename",
+		kubeconfig.KubeConfig,
+		nil,
+	)
 	require.NoError(t, err)
 
 	c := HeadlampConfig{
