@@ -157,7 +157,6 @@ default_agent: "@dev-agent"
   - Run TypeScript compiler: `npm run frontend:tsc` (from `/package.json`) or `npm run app:tsc` (from `/package.json`)
   - Run e2e tests for UI changes: `npm run app:test:e2e` (from `/package.json`)
 - **Dependency updates:** 
-  - Open PR with changelog entry
   - Run full test suite: `npm test`
   - Tag maintainers from `/OWNERS` (headlamp-maintainers, headlamp-reviewers)
   - Do not bump major versions without approval
@@ -245,7 +244,7 @@ Reference: `/docs/contributing.md` and `/.github/pull_request_template.md`
   - `backend: config: Add enable-dynamic-clusters flag`
 - **Guidelines:**
   - Use atomic commits - keep each commit focused on a single change
-  - Title and body should not exceed 72 characters in length
+  - Keep commit titles under 72 characters (soft requirement)
   - Commit messages should explain the intention and _why_ something is done
   - Commit titles should be meaningful and describe _what_ the commit does
   - Use `git rebase` to squash and order commits for easy review
@@ -329,12 +328,6 @@ Reference: `/docs/contributing.md` and `/.github/pull_request_template.md`
 13. `/docs/contributing.md` - Contribution guidelines
 14. `/docs/faq.md` - FAQ
 15. `/docs/platforms.md` - Tested platforms
-
-#### Changelog entry format:
-- Format: `### YYYY-MM-DD - <short title>`
-- Content: `- <one-line summary>`
-- Include: PR number and author
-- Location: Follow existing changelog patterns in repository
 
 #### Versioning guidance:
 - Follow semantic versioning (documented in `/docs/development/release-guide.md`)
