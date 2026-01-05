@@ -45,7 +45,6 @@ default_agent: "@dev-agent"
 >
 > **Build/Config files:**
 > - `/package.json` - Root package with all npm scripts and Node.js version (>=20.11.1)
-> - `/Makefile` - Make targets for building
 > - `/backend/go.mod` - Go version (1.24.11)
 > - `/CONTRIBUTING.md` - Contributing guidelines
 > - `/OWNERS` - Code reviewers and approvers
@@ -65,8 +64,7 @@ default_agent: "@dev-agent"
   - Node.js >=20.11.1 (specified in `/package.json` engines field)
   - npm >=10.0.0 (specified in `/package.json` engines field)
   - Go 1.24.11 (specified in `/backend/go.mod`)
-  - Make (for Makefile targets)
-- **Reproduce locally:** Use commands from `/package.json` scripts section, `/Makefile`, and documentation files listed above.
+- **Reproduce locally:** Use commands from `/package.json` scripts section and documentation files listed above.
 
 ---
 
@@ -121,19 +119,11 @@ default_agent: "@dev-agent"
 - **Run Storybook:** `npm run frontend:storybook` (from `/package.json`, documented in `/docs/development/frontend.md`)
 - **Build Storybook:** `npm run frontend:build:storybook` (from `/package.json`)
 
-#### Make targets (from `/Makefile`):
-- **Build backend:** `make backend` (from `/Makefile`)
-- **Lint backend:** `make backend-lint` (from `/Makefile`)
-- **Lint backend (fix):** `make backend-lint-fix` (from `/Makefile`)
-- **Build frontend:** `make frontend` (from `/Makefile`)
-- **Build container image:** `npm run image:build` (from `/package.json`, documented in `/docs/development/index.md`)
-
 ---
 
 ### Allowed commands and CI interactions
 - **Permitted to suggest/run locally:** 
-  - All npm scripts from `/package.json` (lines 16-77)
-  - Make targets from `/Makefile` (backend, backend-lint, backend-lint-fix, frontend)
+  - All npm scripts from `/package.json`
   - Go commands: `go build`, `go test`, `go fmt` (documented in `/docs/development/backend.md`)
   - Node/npm commands: `npm install`, `npm run build`, `npm run test`, `npm start`
 - **Require human approval:** 
@@ -284,7 +274,7 @@ Reference: `/docs/contributing.md` and `/.github/pull_request_template.md`
 - **Diff/patch:** minimal unified diff showing only necessary changes
 - **Tests:** 
   - List tests added/updated
-  - Exact commands to run them (from `/package.json` or `/Makefile`)
+  - Exact commands to run them (from `/package.json`)
   - Test results showing pass status
 - **Local validation:** 
   - Exact commands to reproduce build/test results
@@ -348,8 +338,8 @@ Reference: `/docs/contributing.md` and `/.github/pull_request_template.md`
 
 #### Versioning guidance:
 - Follow semantic versioning (documented in `/docs/development/release-guide.md`)
-- App version defined in `/app/package.json` (referenced in `/Makefile`)
-- Docker image version from git tags (see `/Makefile`)
+- App version defined in `/app/package.json`
+- Docker image version from git tags
 - Request maintainer approval for version bumps and releases
 - Release process documented in `/docs/development/release-guide.md`
 
@@ -357,7 +347,7 @@ Reference: `/docs/contributing.md` and `/.github/pull_request_template.md`
 
 ## Final instructions for the agent (implementation complete)
 1. ✅ **Searched the repository** for all `README.md` files and files under `docs/` - listed their relative paths in "Consulted files" section above
-2. ✅ **Extracted exact commands and versions** from package.json, Makefile, go.mod, and documentation - replaced all placeholders with exact text and file path citations
+2. ✅ **Extracted exact commands and versions** from package.json, go.mod, and documentation - replaced all placeholders with exact text and file path citations
 3. ✅ **Commands are ready for validation** - all commands listed can be run locally following the exact syntax provided
 4. ✅ **File is ready for commit** - consulted-files list is complete and all placeholders have been replaced with exact commands and paths from the repository
 
@@ -368,7 +358,6 @@ Reference: `/docs/contributing.md` and `/.github/pull_request_template.md`
 
 **Key Command Sources:**
 - Build/test commands: `/package.json`
-- Make targets: `/Makefile`
 - Development workflow: `/docs/development/index.md`
 - Backend specifics: `/docs/development/backend.md`
 - Frontend specifics: `/docs/development/frontend.md`
