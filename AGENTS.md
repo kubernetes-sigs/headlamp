@@ -353,7 +353,7 @@ default_agent: "@dev-agent"
 
 **Key Command Sources:**
 - Build/test commands: `/package.json`
-- Make targets: `/Makefile` lines 39-310
+- Make targets: `/Makefile`
 - Development workflow: `/docs/development/index.md`
 - Backend specifics: `/docs/development/backend.md`
 - Frontend specifics: `/docs/development/frontend.md`
