@@ -245,20 +245,35 @@ default_agent: "@dev-agent"
 ---
 
 ### PR description & commit message format
-- **PR title template:** 
-  - `fix(frontend): short description` for frontend fixes
-  - `fix(backend): short description` for backend fixes
-  - `docs(dev): update startup steps` for documentation changes
-  - `feat(plugins): add new feature` for plugin additions
-- **Commit message style:** 
-  - Format: `type(scope): short summary`
-  - Body: one-paragraph explanation of changes
-  - Footer: `Closes #<issue>` if applicable
-  - Reference: Follow Kubernetes conventional commits style (see `/CONTRIBUTING.md`)
-- **Files to change:** 
-  - List minimal files needed
-  - Include tests updates if adding/changing functionality
-  - Include docs updates if changing user-facing behavior
+
+Reference: `/docs/contributing.md` and `/.github/pull_request_template.md`
+
+#### Commit message format (from `/docs/contributing.md`):
+- **Format:** `<area>: <description of changes>`
+- **Examples:**
+  - `frontend: HomeButton: Fix so it navigates to home`
+  - `backend: config: Add enable-dynamic-clusters flag`
+- **Guidelines:**
+  - Use atomic commits - keep each commit focused on a single change
+  - Title and body should not exceed 72 characters in length
+  - Commit messages should explain the intention and _why_ something is done
+  - Commit titles should be meaningful and describe _what_ the commit does
+  - Use `git rebase` to squash and order commits for easy review
+
+#### PR description template (from `/.github/pull_request_template.md`):
+- **Summary:** Brief description of what the change does
+- **Related Issue:** Link via `Fixes #ISSUE_NUMBER` if applicable
+- **Changes:** List of added/updated/fixed components
+- **Steps to Test:** Numbered steps to verify the changes
+- **Screenshots:** Include for UI changes
+- **Notes for the Reviewer:** Any relevant context or areas to focus on
+
+#### PR guidelines (from `/docs/contributing.md`):
+- Run tests: `npm run frontend:test`, `npm run backend:test`
+- Run linters: `npm run frontend:lint`, `npm run backend:lint`
+- Summarize changes and explain _why_ they are needed
+- Provide steps to test the changes
+- Link to related issue via `fixes #ISSUE_NUMBER`
 
 ---
 
