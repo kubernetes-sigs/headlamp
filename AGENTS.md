@@ -83,50 +83,50 @@ default_agent: "@dev-agent"
 ### Primary entrypoints (exact commands from repository)
 
 #### Build commands (from `/package.json` and `/docs/development/index.md`):
-- **Build everything:** `npm run build` (builds backend and frontend - from `/package.json` line 20)
-- **Build frontend only:** `npm run frontend:build` (from `/package.json` line 41, documented in `/docs/development/frontend.md` line 18)
-- **Build backend only:** `npm run backend:build` (from `/package.json` line 27, documented in `/docs/development/backend.md` line 21)
-- **Build desktop app:** `npm run app:build` (from `/package.json` line 57)
+- **Build everything:** `npm run build` (builds backend and frontend - from `/package.json`)
+- **Build frontend only:** `npm run frontend:build` (from `/package.json`, documented in `/docs/development/frontend.md`)
+- **Build backend only:** `npm run backend:build` (from `/package.json`, documented in `/docs/development/backend.md`)
+- **Build desktop app:** `npm run app:build` (from `/package.json`)
 
 #### Run commands (from `/package.json` and `/docs/development/index.md`):
-- **Run both backend and frontend:** `npm start` (from `/package.json` line 22, documented in `/docs/development/index.md` line 48)
-- **Run backend only:** `npm run backend:start` (from `/package.json` line 35, documented in `/docs/development/backend.md` line 27)
-- **Run frontend only:** `npm run frontend:start` (from `/package.json` line 47, documented in `/docs/development/frontend.md` line 24)
-- **Run desktop app:** `npm run app:start` (from `/package.json` line 68)
+- **Run both backend and frontend:** `npm start` (from `/package.json`, documented in `/docs/development/index.md`)
+- **Run backend only:** `npm run backend:start` (from `/package.json`, documented in `/docs/development/backend.md`)
+- **Run frontend only:** `npm run frontend:start` (from `/package.json`, documented in `/docs/development/frontend.md`)
+- **Run desktop app:** `npm run app:start` (from `/package.json`)
 
 #### Test commands (from `/package.json` and `/docs/development/backend.md`):
-- **Run all tests:** `npm test` (from `/package.json` line 23)
-- **Backend tests:** `npm run backend:test` (from `/package.json` line 31, documented in `/docs/development/backend.md` line 55)
-- **Backend coverage:** `npm run backend:coverage` (from `/package.json` line 32, documented in `/docs/development/backend.md` line 65)
-- **Backend coverage HTML:** `npm run backend:coverage:html` (from `/package.json` line 33, documented in `/docs/development/backend.md` line 60)
-- **Frontend tests:** `npm run frontend:test` (from `/package.json` line 46)
-- **App unit tests:** `npm run app:test:unit` (from `/package.json` line 65)
-- **App e2e tests:** `npm run app:test:e2e` (from `/package.json` line 66)
+- **Run all tests:** `npm test` (from `/package.json`)
+- **Backend tests:** `npm run backend:test` (from `/package.json`, documented in `/docs/development/backend.md`)
+- **Backend coverage:** `npm run backend:coverage` (from `/package.json`, documented in `/docs/development/backend.md`)
+- **Backend coverage HTML:** `npm run backend:coverage:html` (from `/package.json`, documented in `/docs/development/backend.md`)
+- **Frontend tests:** `npm run frontend:test` (from `/package.json`)
+- **App unit tests:** `npm run app:test:unit` (from `/package.json`)
+- **App e2e tests:** `npm run app:test:e2e` (from `/package.json`)
 
 #### Lint commands (from `/package.json` and `/docs/development/backend.md`):
-- **Lint all:** `npm run lint` (from `/package.json` line 24)
-- **Lint backend:** `npm run backend:lint` (from `/package.json` line 28, documented in `/docs/development/backend.md` line 35)
-- **Lint backend (fix):** `npm run backend:lint:fix` (from `/package.json` line 29, documented in `/docs/development/backend.md` line 41)
-- **Lint frontend:** `npm run frontend:lint` (from `/package.json` line 43)
-- **Lint frontend (fix):** `npm run frontend:lint:fix` (from `/package.json` line 44)
+- **Lint all:** `npm run lint` (from `/package.json`)
+- **Lint backend:** `npm run backend:lint` (from `/package.json`, documented in `/docs/development/backend.md`)
+- **Lint backend (fix):** `npm run backend:lint:fix` (from `/package.json`, documented in `/docs/development/backend.md`)
+- **Lint frontend:** `npm run frontend:lint` (from `/package.json`)
+- **Lint frontend (fix):** `npm run frontend:lint:fix` (from `/package.json`)
 
 #### Format commands (from `/package.json` and `/docs/development/backend.md`):
-- **Format backend:** `npm run backend:format` (from `/package.json` line 34, documented in `/docs/development/backend.md` line 48)
-- **Format and lint frontend:** `npm run frontend:lint:fix` (from `/package.json` line 44)
+- **Format backend:** `npm run backend:format` (from `/package.json`, documented in `/docs/development/backend.md`)
+- **Format and lint frontend:** `npm run frontend:lint:fix` (from `/package.json`)
 
 #### Documentation generation (from `/package.json` and `/docs/development/frontend.md`):
-- **Generate API docs:** `npm run docs` (from `/package.json` line 49, documented in `/docs/development/frontend.md` line 38)
+- **Generate API docs:** `npm run docs` (from `/package.json`, documented in `/docs/development/frontend.md`)
 
 #### Storybook (from `/package.json` and `/docs/development/frontend.md`):
-- **Run Storybook:** `npm run frontend:storybook` (from `/package.json` line 48, documented in `/docs/development/frontend.md` line 52)
-- **Build Storybook:** `npm run frontend:build:storybook` (from `/package.json` line 42)
+- **Run Storybook:** `npm run frontend:storybook` (from `/package.json`, documented in `/docs/development/frontend.md`)
+- **Build Storybook:** `npm run frontend:build:storybook` (from `/package.json`)
 
 #### Make targets (from `/Makefile`):
-- **Build backend:** `make backend` (from `/Makefile` line 74)
-- **Lint backend:** `make backend-lint` (from `/Makefile` line 44)
-- **Lint backend (fix):** `make backend-lint-fix` (from `/Makefile` line 47)
-- **Build frontend:** `make frontend` (from `/Makefile` line 218)
-- **Build container image:** `npm run image:build` (from `/package.json` line 76, documented in `/docs/development/index.md` line 154)
+- **Build backend:** `make backend` (from `/Makefile`)
+- **Lint backend:** `make backend-lint` (from `/Makefile`)
+- **Lint backend (fix):** `make backend-lint-fix` (from `/Makefile`)
+- **Build frontend:** `make frontend` (from `/Makefile`)
+- **Build container image:** `npm run image:build` (from `/package.json`, documented in `/docs/development/index.md`)
 
 ---
 
@@ -137,7 +137,7 @@ default_agent: "@dev-agent"
   - Go commands: `go build`, `go test`, `go fmt` (documented in `/docs/development/backend.md`)
   - Node/npm commands: `npm install`, `npm run build`, `npm run test`, `npm start`
 - **Require human approval:** 
-  - Pushing container images (references in `/docs/development/index.md` line 154)
+  - Pushing container images (references in `/docs/development/index.md`)
   - Publishing releases (process documented in `/docs/development/release-guide.md`)
   - Modifying `.github/workflows/*`
   - Changing `Dockerfile` or `/Dockerfile.plugins`
@@ -158,14 +158,14 @@ default_agent: "@dev-agent"
   - `LICENSE`, `NOTICE` - license files
   - `code-of-conduct.md` - code of conduct
 - **Pre-change checks:** 
-  - Run `npm run lint` (from `/package.json` line 24)
-  - Run `npm test` (from `/package.json` line 23)
-  - Run `npm run backend:test` for backend changes (from `/package.json` line 31)
-  - Run `npm run frontend:test` for frontend changes (from `/package.json` line 46)
-  - Run `npm run backend:format` for backend code formatting (from `/package.json` line 34)
-  - Run `npm run frontend:lint:fix` for frontend code formatting (from `/package.json` line 44)
-  - Run TypeScript compiler: `npm run frontend:tsc` (from `/package.json` line 45) or `npm run app:tsc` (from `/package.json` line 67)
-  - Run e2e tests for UI changes: `npm run app:test:e2e` (from `/package.json` line 66)
+  - Run `npm run lint` (from `/package.json`)
+  - Run `npm test` (from `/package.json`)
+  - Run `npm run backend:test` for backend changes (from `/package.json`)
+  - Run `npm run frontend:test` for frontend changes (from `/package.json`)
+  - Run `npm run backend:format` for backend code formatting (from `/package.json`)
+  - Run `npm run frontend:lint:fix` for frontend code formatting (from `/package.json`)
+  - Run TypeScript compiler: `npm run frontend:tsc` (from `/package.json`) or `npm run app:tsc` (from `/package.json`)
+  - Run e2e tests for UI changes: `npm run app:test:e2e` (from `/package.json`)
 - **Dependency updates:** 
   - Open PR with changelog entry
   - Run full test suite: `npm test`
@@ -209,12 +209,12 @@ default_agent: "@dev-agent"
 - **Files to change:** `frontend/src/components/Example.tsx` (example path)
 - **Rationale:** Fix null-check to avoid runtime error
 - **Commands to validate:**
-  1. `npm run frontend:install` (from `/package.json` line 39)
-  2. `npm run frontend:lint:fix` (from `/package.json` line 44) - format code
-  3. `npm run frontend:lint` (from `/package.json` line 43)
-  4. `npm run frontend:test` (from `/package.json` line 46)
-  5. `npm run frontend:tsc` (from `/package.json` line 45)
-  6. `npm run app:test:e2e` (from `/package.json` line 66) - if UI changes
+  1. `npm run frontend:install` (from `/package.json`)
+  2. `npm run frontend:lint:fix` (from `/package.json`) - format code
+  3. `npm run frontend:lint` (from `/package.json`)
+  4. `npm run frontend:test` (from `/package.json`)
+  5. `npm run frontend:tsc` (from `/package.json`)
+  6. `npm run app:test:e2e` (from `/package.json`) - if UI changes
 - **Additional requirements:**
   - Include screenshots of any UI changes in the PR
   - If adding/modifying React components, add Storybook stories with error and loading states
@@ -223,10 +223,10 @@ default_agent: "@dev-agent"
 - **Files to change:** `backend/pkg/example/handler.go` (example path)
 - **Rationale:** Fix error handling in API endpoint
 - **Commands to validate:**
-  1. `npm run backend:build` (from `/package.json` line 27, documented in `/docs/development/backend.md` line 21)
-  2. `npm run backend:lint` (from `/package.json` line 28, documented in `/docs/development/backend.md` line 35)
-  3. `npm run backend:test` (from `/package.json` line 31, documented in `/docs/development/backend.md` line 55)
-  4. `npm run backend:format` (from `/package.json` line 34, documented in `/docs/development/backend.md` line 48)
+  1. `npm run backend:build` (from `/package.json`, documented in `/docs/development/backend.md`)
+  2. `npm run backend:lint` (from `/package.json`, documented in `/docs/development/backend.md`)
+  3. `npm run backend:test` (from `/package.json`, documented in `/docs/development/backend.md`)
+  4. `npm run backend:format` (from `/package.json`, documented in `/docs/development/backend.md`)
 
 #### Example 3: Documentation update
 - **Files to change:** `docs/development/index.md` (from consulted files list)
@@ -239,7 +239,7 @@ default_agent: "@dev-agent"
 - **Files to change:** Plugin code in `/plugins/examples/` directory
 - **Rationale:** Add new plugin example
 - **Commands to validate:**
-  1. `cd plugins/headlamp-plugin && npm install` (from `/package.json` line 75)
+  1. `cd plugins/headlamp-plugin && npm install` (from `/package.json`)
   2. Follow plugin testing commands in `/docs/development/plugins/building.md`
 
 ---
@@ -274,8 +274,8 @@ default_agent: "@dev-agent"
 - **Local validation:** 
   - Exact commands to reproduce build/test results
   - Output showing successful execution
-  - For frontend: verify in browser at `localhost:3000` (from `/docs/development/frontend.md` line 28)
-  - For backend: verify server starts successfully (from `/docs/development/backend.md` line 27)
+  - For frontend: verify in browser at `localhost:3000` (from `/docs/development/frontend.md`)
+  - For backend: verify server starts successfully (from `/docs/development/backend.md`)
 - **CI expectations:** 
   - Which workflows in `.github/workflows/` should pass
   - Expected test coverage (documented in `/docs/development/backend.md` lines 60-67)
@@ -333,8 +333,8 @@ default_agent: "@dev-agent"
 
 #### Versioning guidance:
 - Follow semantic versioning (documented in `/docs/development/release-guide.md`)
-- App version defined in `/app/package.json` (referenced in `/Makefile` line 16)
-- Docker image version from git tags (see `/Makefile` line 11)
+- App version defined in `/app/package.json` (referenced in `/Makefile`)
+- Docker image version from git tags (see `/Makefile`)
 - Request maintainer approval for version bumps and releases
 - Release process documented in `/docs/development/release-guide.md`
 
@@ -342,17 +342,17 @@ default_agent: "@dev-agent"
 
 ## Final instructions for the agent (implementation complete)
 1. ✅ **Searched the repository** for all `README.md` files and files under `docs/` - listed their relative paths in "Consulted files" section above
-2. ✅ **Extracted exact commands and versions** from package.json, Makefile, go.mod, and documentation - replaced all placeholders with exact text and file path citations (with line numbers where applicable)
+2. ✅ **Extracted exact commands and versions** from package.json, Makefile, go.mod, and documentation - replaced all placeholders with exact text and file path citations
 3. ✅ **Commands are ready for validation** - all commands listed can be run locally following the exact syntax provided
 4. ✅ **File is ready for commit** - consulted-files list is complete and all placeholders have been replaced with exact commands and paths from the repository
 
 **Version Information:**
-- Node.js: >=20.11.1 (from `/package.json` line 12)
-- npm: >=10.0.0 (from `/package.json` line 13)
-- Go: 1.24.11 (from `/backend/go.mod` line 3)
+- Node.js: >=20.11.1 (from `/package.json`)
+- npm: >=10.0.0 (from `/package.json`)
+- Go: 1.24.11 (from `/backend/go.mod`)
 
 **Key Command Sources:**
-- Build/test commands: `/package.json` lines 20-77
+- Build/test commands: `/package.json`
 - Make targets: `/Makefile` lines 39-310
 - Development workflow: `/docs/development/index.md`
 - Backend specifics: `/docs/development/backend.md`
