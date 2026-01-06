@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
 import { Typography } from '@mui/material';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -324,11 +325,14 @@ export default function Layout({}: LayoutProps) {
               }}
             >
               {!!currentAppearance.warningBannerText && (
-                <Box
-                  px={isFullWidth ? 4 : 2} // Add more horizontal padding
-                  pt={2}
-                >
+                <Box px={isFullWidth ? 4 : 2} pt={2}>
                   <Alert
+                    icon={
+                      <Icon
+                        icon={currentAppearance.icon || 'mdi:warning-circle'}
+                        color={currentAppearance.accentColor || 'warning'}
+                      />
+                    }
                     severity="warning"
                     sx={theme => ({
                       ...(currentAppearance.accentColor
