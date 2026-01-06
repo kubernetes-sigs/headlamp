@@ -305,6 +305,7 @@ export function LogDisplay({
 
         setAutoScroll(false);
       }}
+      data-test-id="logs-display"
     >
       <Box
         sx={theme => ({
@@ -354,6 +355,7 @@ export function LogDisplay({
                 size="small"
                 label={<Trans>Search</Trans>}
                 value={searchQuery}
+                data-test-id="logs-display-search"
                 InputProps={{
                   autoFocus: true,
                   endAdornment: (
