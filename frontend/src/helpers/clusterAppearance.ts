@@ -14,30 +14,33 @@
  * limitations under the License.
  */
 
+interface ClusterMetadata {
+  extensions?: {
+    headlamp_info?: {
+      accentColor?: unknown;
+      warningBannerText?: unknown;
+      icon?: unknown;
+    };
+  };
+}
+
 export interface ClusterAppearance {
   accentColor?: string;
   warningBannerText?: string;
   icon?: string;
 }
 
-type MaybeHeadlampInfo = {
-  customName?: string;
-  accentColor?: unknown;
-  warningBannerText?: unknown;
-  icon?: unknown;
-};
-
-export function getClusterAppearanceFromMeta(metaData: any): ClusterAppearance {
-  const headlampInfo: MaybeHeadlampInfo | undefined = metaData?.extensions?.headlamp_info;
-
-  const accentColor = typeof headlampInfo?.accentColor === 'string' ? headlampInfo.accentColor : '';
-  const warningBannerText =
-    typeof headlampInfo?.warningBannerText === 'string' ? headlampInfo.warningBannerText : '';
-  const icon = typeof headlampInfo?.icon === 'string' ? headlampInfo.icon : '';
-
+export function getClusterAppearanceFromMeta(
+  metaData: ClusterMetadata | undefined
+): ClusterAppearance {
+  const headlampInfo = metaData?.extensions?.headlamp_info;
   return {
-    accentColor: accentColor || undefined,
-    warningBannerText: warningBannerText || undefined,
-    icon: icon || undefined,
+    accentColor:
+      typeof headlampInfo?.accentColor === 'string' ? headlampInfo.accentColor : undefined,
+    warningBannerText:
+      typeof headlampInfo?.warningBannerText === 'string'
+        ? headlampInfo.warningBannerText
+        : undefined,
+    icon: typeof headlampInfo?.icon === 'string' ? headlampInfo.icon : undefined,
   };
 }
