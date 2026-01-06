@@ -371,9 +371,11 @@ export default function SettingsCluster() {
                           },
                           clusterInfo?.meta_data?.clusterID
                         )
-                          .then(() =>
-                            queryClient.invalidateQueries({ queryKey: ['cluster-fetch'] })
-                          )
+                          .then(() => {
+                            // Invalidate and immediately refetch to update components using ClusterAppearance
+                            queryClient.invalidateQueries({ queryKey: ['cluster-fetch'] });
+                            return queryClient.refetchQueries({ queryKey: ['cluster-fetch'] });
+                          })
                           .catch((err: Error) => {
                             setAppearanceError(err.message);
                           })
