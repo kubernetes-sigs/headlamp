@@ -56,9 +56,6 @@ export interface ClusterRequest {
   certificateAuthorityData?: string;
   /** KubeConfig (base64 encoded)*/
   kubeconfig?: string;
-
-  /** If true, store this cluster on the backend (shared) instead of stateless browser storage. */
-  storeInBackend?: boolean;
 }
 
 /**
