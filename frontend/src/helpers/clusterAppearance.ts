@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+/**
+ * Minimal shape of cluster metadata carrying headlamp_info appearance fields.
+ */
 interface ClusterMetadata {
   extensions?: {
     headlamp_info?: {
@@ -24,12 +27,21 @@ interface ClusterMetadata {
   };
 }
 
+/**
+ * Sanitized per-cluster UI settings extracted from metadata.
+ */
 export interface ClusterAppearance {
   accentColor?: string;
   warningBannerText?: string;
   icon?: string;
 }
 
+/**
+ * Returns whether a color string matches hex, rgb(), or rgba() formats.
+ *
+ * @param color - CSS color string to validate.
+ * @returns {boolean} True if the color is valid; otherwise false.
+ */
 export function isValidCssColor(color: string): boolean {
   if (!color) return false;
   const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
@@ -38,6 +50,12 @@ export function isValidCssColor(color: string): boolean {
   return hexColorRegex.test(color) || rgbColorRegex.test(color) || rgbaColorRegex.test(color);
 }
 
+/**
+ * Coerces to a valid CSS color or returns undefined if invalid.
+ *
+ * @param color - Candidate color value (string or other).
+ * @returns {string | undefined} The valid color or undefined if invalid.
+ */
 export function sanitizeCssColor(color: unknown): string | undefined {
   if (typeof color !== 'string' || !color) {
     return undefined;
@@ -45,6 +63,12 @@ export function sanitizeCssColor(color: unknown): string | undefined {
   return isValidCssColor(color) ? color : undefined;
 }
 
+/**
+ * Extracts and sanitizes appearance fields from cluster metadata.
+ *
+ * @param metaData - Cluster metadata that may include headlamp_info fields.
+ * @returns {ClusterAppearance} Sanitized per-cluster appearance settings.
+ */
 export function getClusterAppearanceFromMeta(
   metaData: ClusterMetadata | undefined
 ): ClusterAppearance {

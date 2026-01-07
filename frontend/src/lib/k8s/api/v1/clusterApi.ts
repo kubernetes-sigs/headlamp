@@ -110,12 +110,30 @@ export async function setCluster(clusterReq: ClusterRequest) {
   );
 }
 
+/**
+ * Appearance values to apply to a cluster via the backend.
+ *
+ * - accentColor: Optional color string for a cluster.
+ * - warningBannerText: Optional banner message to display in the UI.
+ * - icon: Optional iconify name to use as icon for cluster (mdi:kubernetes,...).
+ */
 export type ClusterAppearance = {
   accentColor?: string;
   warningBannerText?: string;
   icon?: string;
 };
 
+/**
+ * Updates the appearance settings for a cluster on the backend.
+ *
+ * Throws if the cluster is stateless (browser-only), as shared appearance is unsupported.
+ *
+ * @param cluster - The name of the cluster to update.
+ * @param source - The cluster source (e.g. 'kubeconfig' or 'dynamic_cluster').
+ * @param appearance - The appearance values to apply (accentColor, warningBannerText, icon).
+ * @param clusterID - Optional cluster identifier used to detect stateless clusters.
+ * @returns A promise that resolves with the backend response when the update completes.
+ */
 export async function updateClusterAppearance(
   cluster: string,
   source: string,
