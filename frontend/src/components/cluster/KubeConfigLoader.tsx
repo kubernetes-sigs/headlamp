@@ -139,6 +139,7 @@ function KubeConfigLoader() {
       const alreadyConfiguredClusters = selectedClusters.filter(
         clusterName => configuredClusters && configuredClusters[clusterName]
       );
+
       if (alreadyConfiguredClusters.length > 0) {
         setError(
           t(
