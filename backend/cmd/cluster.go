@@ -46,6 +46,8 @@ type KubeconfigRequest struct {
 	Kubeconfigs []string `json:"kubeconfigs"`
 }
 
+// ClusterAppearance defines optional per-cluster UI settings:
+// accent color, warning banner text, and icon.
 type ClusterAppearance struct {
 	AccentColor       *string `json:"accentColor,omitempty"`
 	WarningBannerText *string `json:"warningBannerText,omitempty"`

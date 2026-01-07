@@ -2100,6 +2100,8 @@ func (c *HeadlampConfig) handleStatelessClusterUpdate(w http.ResponseWriter, r *
 	}, nil, "Completed stateless cluster update")
 }
 
+// updateHeadlampInfoExtensions updates the headlamp_info extension
+// for a context and writes the kubeconfig to file.
 func updateHeadlampInfoExtensions(
 	config *api.Config,
 	contextName,
@@ -2200,6 +2202,8 @@ func (c *HeadlampConfig) getPathAndLoadKubeconfig(source, clusterName string) (s
 	return path, config, nil
 }
 
+// tryLoadFromStoredContext loads the kubeconfig using the stored context path if present,
+// returning ok=false when unavailable.
 func tryLoadFromStoredContext(c *HeadlampConfig, clusterName string) (string, *api.Config, bool) {
 	if c.KubeConfigStore == nil || clusterName == "" {
 		return "", nil, false
@@ -2262,6 +2266,7 @@ func (c *HeadlampConfig) updateCluster(w http.ResponseWriter, r *http.Request) {
 	}, nil, "Completed updateCluster request")
 }
 
+// handleClusterUpdate updates a cluster's custom name and/or appearance in the kubeconfig and refreshes the cache.
 func (c *HeadlampConfig) handleClusterUpdate(w http.ResponseWriter, r *http.Request,
 	clusterName string, reqBody ClusterUpdateRequest, ctx context.Context, span trace.Span,
 ) error {
