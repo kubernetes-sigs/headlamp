@@ -30,13 +30,27 @@ export interface ClusterAppearance {
   icon?: string;
 }
 
+export function isValidCssColor(color: string): boolean {
+  if (!color) return false;
+  const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+  const rgbColorRegex = /^rgb\((\s*\d+\s*,){2}\s*\d+\s*\)$/;
+  const rgbaColorRegex = /^rgba\((\s*\d+\s*,){3}\s*(0|1|0?\.\d+)\s*\)$/;
+  return hexColorRegex.test(color) || rgbColorRegex.test(color) || rgbaColorRegex.test(color);
+}
+
+export function sanitizeCssColor(color: unknown): string | undefined {
+  if (typeof color !== 'string' || !color) {
+    return undefined;
+  }
+  return isValidCssColor(color) ? color : undefined;
+}
+
 export function getClusterAppearanceFromMeta(
   metaData: ClusterMetadata | undefined
 ): ClusterAppearance {
   const headlampInfo = metaData?.extensions?.headlamp_info;
   return {
-    accentColor:
-      typeof headlampInfo?.accentColor === 'string' ? headlampInfo.accentColor : undefined,
+    accentColor: sanitizeCssColor(headlampInfo?.accentColor),
     warningBannerText:
       typeof headlampInfo?.warningBannerText === 'string'
         ? headlampInfo.warningBannerText

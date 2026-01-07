@@ -2272,13 +2272,15 @@ func (c *HeadlampConfig) handleClusterUpdate(w http.ResponseWriter, r *http.Requ
 		return err
 	}
 
-	isUnique := CheckUniqueName(config.Contexts, clusterName, reqBody.NewClusterName)
-	if !isUnique {
-		http.Error(w, "custom name already in use", http.StatusBadRequest)
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
-			err, "cluster name already exists in the kubeconfig")
+	if reqBody.NewClusterName != "" {
+		isUnique := CheckUniqueName(config.Contexts, clusterName, reqBody.NewClusterName)
+		if !isUnique {
+			http.Error(w, "custom name already in use", http.StatusBadRequest)
+			logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
+				err, "cluster name already exists in the kubeconfig")
 
-		return err
+			return err
+		}
 	}
 
 	contextName := findMatchingContextName(config, clusterName)

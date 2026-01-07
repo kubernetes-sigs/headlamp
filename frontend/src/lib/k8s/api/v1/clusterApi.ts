@@ -126,8 +126,6 @@ export async function updateClusterAppearance(
   let kubeconfig;
   const updateURL = `/cluster/${cluster}`;
 
-  console.log('Updating appearance for cluster:', cluster, 'with appearance:', appearance);
-
   if (cluster) {
     kubeconfig = await findKubeconfigByClusterName(cluster, clusterID);
     if (kubeconfig !== null) {

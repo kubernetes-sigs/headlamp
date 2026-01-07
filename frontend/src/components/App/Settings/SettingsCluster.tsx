@@ -26,7 +26,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
-import { getClusterAppearanceFromMeta } from '../../../helpers/clusterAppearance';
+import { getClusterAppearanceFromMeta, isValidCssColor } from '../../../helpers/clusterAppearance';
 import {
   ClusterSettings,
   loadClusterSettings,
@@ -209,6 +209,9 @@ export default function SettingsCluster() {
     "translation|Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character."
   );
 
+  // Wrapper to allow empty string (optional field)
+  const isValidAccentColor = (color: string): boolean => !color || isValidCssColor(color);
+
   // If we don't have yet a cluster name from the URL, we are still loading.
   if (!clusterFromURLRef.current) {
     return <Loader title="Loading" />;
@@ -295,20 +298,11 @@ export default function SettingsCluster() {
                       onChange={e => {
                         const value = e.target.value;
                         setAppearanceAccentColor(value);
-                        // Validate on change
-                        const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
-                        const rgbColorRegex = /^rgb\((\s*\d+\s*,){2}\s*\d+\s*\)$/;
-                        const rgbaColorRegex = /^rgba\((\s*\d+\s*,){3}\s*(0|1|0?\.\d+)\s*\)$/;
-                        const cssColorNameRegex = /^[a-zA-Z]+$/;
-                        if (
-                          value &&
-                          !hexColorRegex.test(value) &&
-                          !rgbColorRegex.test(value) &&
-                          !rgbaColorRegex.test(value) &&
-                          !cssColorNameRegex.test(value)
-                        ) {
+                        if (!isValidAccentColor(value)) {
                           setAppearanceError(
-                            'Accent color format is invalid. Use hex (#ff0000), rgb(), rgba(), or a CSS color name.'
+                            t(
+                              'translation|Accent color format is invalid. Use hex (#ff0000), rgb(), rgba(), or a CSS color name.'
+                            )
                           );
                         } else {
                           setAppearanceError('');
@@ -354,21 +348,11 @@ export default function SettingsCluster() {
                           const clusterInfo = (clusterConf && clusterConf[cluster || '']) || null;
                           const source = clusterInfo?.meta_data?.source || 'kubeconfig';
 
-                          // Validate accent color format
-                          const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
-                          const rgbColorRegex = /^rgb\((\s*\d+\s*,){2}\s*\d+\s*\)$/;
-                          const rgbaColorRegex = /^rgba\((\s*\d+\s*,){3}\s*(0|1|0?\.\d+)\s*\)$/;
-                          const cssColorNameRegex = /^[a-zA-Z]+$/;
-
-                          if (
-                            appearanceAccentColor &&
-                            !hexColorRegex.test(appearanceAccentColor) &&
-                            !rgbColorRegex.test(appearanceAccentColor) &&
-                            !rgbaColorRegex.test(appearanceAccentColor) &&
-                            !cssColorNameRegex.test(appearanceAccentColor)
-                          ) {
+                          if (!isValidAccentColor(appearanceAccentColor)) {
                             setAppearanceError(
-                              'Accent color format is invalid. Use hex (#ff0000), rgb(), rgba(), or a CSS color name.'
+                              t(
+                                'translation|Accent color format is invalid. Use hex (#ff0000), rgb(), rgba(), or a CSS color name.'
+                              )
                             );
                             return;
                           }
