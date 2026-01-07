@@ -465,6 +465,9 @@ const mdiIcons = {
     warning: {
       parent: 'alert',
     },
+    'warning-circle': {
+      parent: 'alert-circle',
+    },
     settings: {
       parent: 'cog',
     },
