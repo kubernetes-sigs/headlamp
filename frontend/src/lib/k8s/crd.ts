@@ -97,6 +97,8 @@ class CustomResourceDefinition extends KubeObject<KubeCRD> {
     let version = this.spec.version;
     const name = this.spec.names.plural as string;
 
+    // Assign the 1st storage version if no version is specified,
+    // or the 1st served version if no storage version is specified.
     if (!version && this.spec.versions.length > 0) {
       for (const versionItem of this.spec.versions) {
         if (!!versionItem.storage) {
@@ -147,6 +149,7 @@ export interface CRClassArgs {
   customResourceDefinition: CustomResourceDefinition;
 }
 
+/** @deprecated Use the version of the function that receives an object as its argument. */
 export function makeCustomResourceClass(
   args: [group: string, version: string, pluralName: string][],
   isNamespaced: boolean
@@ -164,6 +167,7 @@ export function makeCustomResourceClass(
     apiInfoArgs = args.apiInfo.map(info => [info.group, info.version, args.pluralName]);
   }
 
+  // Used for tests
   if (import.meta.env.UNDER_TEST || import.meta.env.STORYBOOK) {
     const knownClass = (ResourceClasses as Record<string, KubeObjectClass>)[apiInfoArgs[0][2]];
     if (!!knownClass) {
