@@ -104,9 +104,12 @@ export const StatusLabel = forwardRef<HTMLSpanElement, StatusLabelProps>((props,
       borderColor: theme.palette.divider,
     };
   } else if (isLight) {
+    const bg = baseColor;
+    const fg = status === 'warning' ? '#000000ff' : theme.palette.getContrastText(bg);
+
     params = {
-      backgroundColor: baseColor,
-      color: theme.palette.getContrastText(baseColor),
+      backgroundColor: bg,
+      color: fg,
       borderColor: 'transparent',
     };
   } else {

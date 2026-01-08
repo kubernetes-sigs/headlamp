@@ -194,6 +194,10 @@ backend-embed-linux-386:
 backend-test:
 	cd backend && go test -v -p 1 ./...
 
+.PHONY: backend-fuzz
+backend-fuzz:
+	npm run backend:fuzz
+
 .PHONY: backend-coverage
 backend-coverage:
 	cd backend && go test -v -p 1 -coverprofile=coverage.out ./...

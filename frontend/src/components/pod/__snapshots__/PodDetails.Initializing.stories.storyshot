@@ -796,7 +796,7 @@
                         class="MuiBox-root css-0"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-1cqtycm-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1dablfr-MuiTypography-root"
                         >
                           Waiting (PodInitializing)
                         </span>
@@ -1046,7 +1046,7 @@
                         class="MuiBox-root css-0"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-1cqtycm-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1dablfr-MuiTypography-root"
                         >
                           Waiting (PodInitializing)
                         </span>
