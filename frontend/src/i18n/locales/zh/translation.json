@@ -190,6 +190,7 @@
   "Resource not found": "资源未找到",
   "Hide details": "隐藏详情",
   "Show details": "显示详情",
+  "Sign in with Google": "",
   "Duplicate cluster: {{ clusterNames }} in the list. Please edit the context name.": "列表中有重复的集群：{{ clusterNames }}。请编辑上下文名称。",
   "Error setting up clusters, please load a valid kubeconfig file": "设置集群时出错，请读取有效的 kubeconfig 文件",
   "Couldn't read kubeconfig file": "无法读取 kubeconfig 文件",
