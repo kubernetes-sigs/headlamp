@@ -102,9 +102,11 @@ export default function SecretDetails(props: {
 
               const mainRows: NameValueTableRow[] = Object.entries(data).map((item: unknown[]) => ({
                 name: item[0] as string,
+                nameID: item[0] as string,
                 value: (
                   <SecretField
                     value={item[1]}
+                    nameID={item[0] as string}
                     onChange={e => handleFieldChange(item[0] as string, e.target.value)}
                   />
                 ),
