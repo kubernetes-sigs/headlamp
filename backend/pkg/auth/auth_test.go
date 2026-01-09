@@ -895,6 +895,7 @@ func TestHandleMe_Success(t *testing.T) {
 		UsernamePaths: "preferred_username",
 		EmailPaths:    "email",
 		GroupsPaths:   "groups",
+		NamespacesURL: "/api/namespaces",
 	})
 
 	handler(rr, req)
@@ -902,9 +903,10 @@ func TestHandleMe_Success(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	var got struct {
-		Username string   `json:"username"`
-		Email    string   `json:"email"`
-		Groups   []string `json:"groups"`
+		Username      string   `json:"username"`
+		Email         string   `json:"email"`
+		Groups        []string `json:"groups"`
+		NamespacesURL string   `json:"namespacesURL"`
 	}
 
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
@@ -915,6 +917,7 @@ func TestHandleMe_Success(t *testing.T) {
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
 	assert.Equal(t, "no-store, no-cache, must-revalidate, private", rr.Header().Get("Cache-Control"))
 	assert.Equal(t, "Cookie", rr.Header().Get("Vary"))
+	assert.Equal(t, "/api/namespaces", got.NamespacesURL)
 }
 
 func TestHandleMe_HeaderToken(t *testing.T) {
@@ -940,6 +943,7 @@ func TestHandleMe_HeaderToken(t *testing.T) {
 		UsernamePaths: "preferred_username",
 		EmailPaths:    "email",
 		GroupsPaths:   "groups",
+		NamespacesURL: "/api/namespaces",
 	})
 
 	handler(rr, req)
@@ -947,15 +951,17 @@ func TestHandleMe_HeaderToken(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	var got struct {
-		Username string   `json:"username"`
-		Email    string   `json:"email"`
-		Groups   []string `json:"groups"`
+		Username      string   `json:"username"`
+		Email         string   `json:"email"`
+		Groups        []string `json:"groups"`
+		NamespacesURL string   `json:"namespacesURL"`
 	}
 
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
 	assert.Equal(t, "alice", got.Username)
 	assert.Equal(t, "alice@example.com", got.Email)
 	assert.Equal(t, []string{"dev", "ops"}, got.Groups)
+	assert.Equal(t, "/api/namespaces", got.NamespacesURL)
 }
 
 func TestHandleMe_ExpiredToken(t *testing.T) {
@@ -984,6 +990,7 @@ func TestHandleMe_ExpiredToken(t *testing.T) {
 		UsernamePaths: "preferred_username",
 		EmailPaths:    "email",
 		GroupsPaths:   "groups",
+		NamespacesURL: "/api/namespaces",
 	})
 
 	handler(rr, req)
