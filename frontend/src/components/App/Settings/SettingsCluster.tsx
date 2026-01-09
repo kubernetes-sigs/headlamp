@@ -16,6 +16,7 @@
 
 import { Icon, InlineIcon } from '@iconify/react';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
 import { useTheme } from '@mui/material/styles';
@@ -44,6 +45,8 @@ import NameValueTable from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
 import { ClusterNameEditor } from './ClusterNameEditor';
 import ClusterSelector from './ClusterSelector';
+import ColorPicker from './ColorPicker';
+import IconPicker from './IconPicker';
 import NodeShellSettings from './NodeShellSettings';
 import { isValidNamespaceFormat } from './util';
 
@@ -63,6 +66,10 @@ export default function SettingsCluster() {
   const [appearanceIcon, setAppearanceIcon] = React.useState<string>('');
   const [appearanceSaving, setAppearanceSaving] = React.useState(false);
   const [appearanceError, setAppearanceError] = React.useState<string>('');
+
+  // Dialog states for pickers
+  const [colorPickerOpen, setColorPickerOpen] = React.useState(false);
+  const [iconPickerOpen, setIconPickerOpen] = React.useState(false);
 
   const theme = useTheme();
 
@@ -291,28 +298,66 @@ export default function SettingsCluster() {
                 ),
                 value: (
                   <Box display="flex" flexDirection="column" gap={2} sx={{ minWidth: 280 }}>
-                    <TextField
-                      label={t('translation|Accent color')}
-                      placeholder="#ff0000"
-                      value={appearanceAccentColor}
-                      onChange={e => {
-                        const value = e.target.value;
-                        setAppearanceAccentColor(value);
-                        if (!isValidAccentColor(value)) {
-                          setAppearanceError(
-                            t(
-                              'translation|Accent color format is invalid. Use hex (#ff0000), rgb(), rgba(), or a CSS color name.'
-                            )
-                          );
-                        } else {
-                          setAppearanceError('');
-                        }
-                      }}
-                      error={!!appearanceAccentColor && !!appearanceError}
-                      helperText={appearanceError || t('translation|Optional. Example: #ff0000')}
-                      InputLabelProps={{ shrink: true }}
-                      sx={{ maxWidth: 180 }}
-                    />
+                    {/* Color Picker */}
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                        {t('translation|Accent color')}
+                      </Typography>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        {appearanceAccentColor && (
+                          <Box
+                            sx={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 1,
+                              backgroundColor: appearanceAccentColor,
+                              border: `1px solid ${theme.palette.divider}`,
+                            }}
+                          />
+                        )}
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => setColorPickerOpen(true)}
+                          startIcon={<Icon icon="mdi:palette" />}
+                        >
+                          {appearanceAccentColor
+                            ? t('translation|Change Color')
+                            : t('translation|Choose Color')}
+                        </Button>
+                        {appearanceAccentColor && (
+                          <IconButton size="small" onClick={() => setAppearanceAccentColor('')}>
+                            <Icon icon="mdi:close" />
+                          </IconButton>
+                        )}
+                      </Box>
+                    </Box>
+
+                    {/* Icon Picker */}
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                        {t('translation|Cluster icon')}
+                      </Typography>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        {appearanceIcon && <Icon icon={appearanceIcon} width={24} />}
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => setIconPickerOpen(true)}
+                          startIcon={<Icon icon="mdi:emoticon-outline" />}
+                        >
+                          {appearanceIcon
+                            ? t('translation|Change Icon')
+                            : t('translation|Choose Icon')}
+                        </Button>
+                        {appearanceIcon && (
+                          <IconButton size="small" onClick={() => setAppearanceIcon('')}>
+                            <Icon icon="mdi:close" />
+                          </IconButton>
+                        )}
+                      </Box>
+                    </Box>
+
                     <TextField
                       label={t('translation|Warning banner message')}
                       placeholder={t(
@@ -322,14 +367,6 @@ export default function SettingsCluster() {
                       onChange={e => setAppearanceWarningBannerText(e.target.value)}
                       multiline
                       minRows={2}
-                      InputLabelProps={{ shrink: true }}
-                    />
-                    <TextField
-                      label={t('translation|Cluster icon (Iconify)')}
-                      placeholder="mdi:shield-alert"
-                      value={appearanceIcon}
-                      onChange={e => setAppearanceIcon(e.target.value)}
-                      helperText={t('translation|Example: mdi:kubernetes, mdi:shield-alert')}
                       InputLabelProps={{ shrink: true }}
                     />
                     {!!appearanceError && (
@@ -541,6 +578,21 @@ export default function SettingsCluster() {
           </ConfirmButton>
         </Box>
       )}
+
+      <ColorPicker
+        open={colorPickerOpen}
+        currentColor={appearanceAccentColor}
+        onClose={() => setColorPickerOpen(false)}
+        onSelectColor={setAppearanceAccentColor}
+        onError={setAppearanceError}
+      />
+
+      <IconPicker
+        open={iconPickerOpen}
+        currentIcon={appearanceIcon}
+        onClose={() => setIconPickerOpen(false)}
+        onSelectIcon={setAppearanceIcon}
+      />
     </>
   );
 }
