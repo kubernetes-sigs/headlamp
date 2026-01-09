@@ -80,10 +80,9 @@ jobs:
 
       - name: Push Charts to GHCR
         run: |
-          for pkg in .cr-release-packages/*; do
+          for pkg in .cr-release-packages/*.tgz; do
             if [ -z "${pkg:-}" ]; then
               break
             fi
-
             helm push "${pkg}" oci://ghcr.io/${{ github.repository }}/charts
           done
