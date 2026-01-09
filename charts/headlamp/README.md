@@ -205,6 +205,43 @@ ingress:
         - headlamp.example.com
 ```
 
+### HTTPRoute Configuration (Gateway API)
+
+For users who prefer Gateway API over classic Ingress resources, Headlamp supports HTTPRoute configuration.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| httpRoute.enabled | bool | `false` | Enable HTTPRoute resource for Gateway API |
+| httpRoute.annotations | object | `{}` | Annotations for HTTPRoute resource |
+| httpRoute.labels | object | `{}` | Additional labels for HTTPRoute resource |
+| httpRoute.parentRefs | list | `[]` | Parent gateway references (REQUIRED when enabled) |
+| httpRoute.hostnames | list | `[]` | Hostnames for the HTTPRoute |
+| httpRoute.rules | list | `[]` | Custom routing rules (optional, defaults to path prefix /) |
+
+Example HTTPRoute configuration:
+```yaml
+httpRoute:
+  enabled: true
+  annotations:
+    gateway.example.com/custom-annotation: "value"
+  labels:
+    app.kubernetes.io/component: ingress
+  parentRefs:
+    - name: my-gateway
+      namespace: gateway-namespace
+  hostnames:
+    - headlamp.example.com
+  # Optional custom rules (defaults to path prefix / if not specified)
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /headlamp
+      backendRefs:
+        - name: my-headlamp
+          port: 80
+```
+
 ### Resource Management
 
 | Key | Type | Default | Description |
