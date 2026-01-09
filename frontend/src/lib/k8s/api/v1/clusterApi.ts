@@ -62,39 +62,21 @@ export async function setCluster(clusterReq: ClusterRequest) {
   const headers = addBackstageAuthHeaders(JSON_HEADERS);
 
   if (kubeconfig) {
-    // If requested, persist on the backend (shared). Otherwise, use stateless browser storage.
-    if (!clusterReq.storeInBackend) {
-      await storeStatelessClusterKubeconfig(kubeconfig);
-      // We just send parsed kubeconfig from the backend to the frontend.
-      return request(
-        '/parseKubeConfig',
-        {
-          method: 'POST',
-          body: JSON.stringify(clusterReq),
-          headers: {
-            ...headers,
-          },
-        },
-        false,
-        false
-      );
-    }
-
+    await storeStatelessClusterKubeconfig(kubeconfig);
+    // We just send parsed kubeconfig from the backend to the frontend.
     return request(
-      '/cluster',
+      '/parseKubeConfig',
       {
         method: 'POST',
         body: JSON.stringify(clusterReq),
         headers: {
           ...headers,
-          ...getHeadlampAPIHeaders(),
         },
       },
       false,
       false
     );
   }
-
   return request(
     '/cluster',
     {
