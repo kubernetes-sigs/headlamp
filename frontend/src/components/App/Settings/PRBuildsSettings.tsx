@@ -340,9 +340,7 @@ export default function PRBuildsSettings() {
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmDialogOpen(false)}>
-            {t('translation|Cancel')}
-          </Button>
+          <Button onClick={() => setConfirmDialogOpen(false)}>{t('translation|Cancel')}</Button>
           <Button
             onClick={() => selectedPR && handleActivatePR(selectedPR)}
             color="primary"

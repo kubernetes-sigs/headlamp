@@ -1514,20 +1514,19 @@ function startElectron() {
     if (enableAppDevBuilds) {
       const configPath = path.join(app.getPath('userData'), 'headlamp-config.json');
       const isActive = await isPRBuildActive(configPath);
-      
+
       if (isActive) {
         const prInfo = await getActivePRBuildInfo(configPath);
-        
+
         if (prInfo && mainWindow) {
           const dialogOptions: MessageBoxOptions = {
             type: 'warning',
             buttons: [i18n.t('Continue with PR build'), i18n.t('Use default build')],
             defaultId: 0,
             title: i18n.t('Development Build Active'),
-            message: i18n.t(
-              'You are currently using a development build from PR #{{prNumber}}',
-              { prNumber: prInfo.number }
-            ),
+            message: i18n.t('You are currently using a development build from PR #{{prNumber}}', {
+              prNumber: prInfo.number,
+            }),
             detail: i18n.t(
               'PR: {{prTitle}}\nAuthor: {{author}}\nCommit: {{commitSha}}\n\nThis is a development build and may be unstable. Do you want to continue using it or switch back to the default build?',
               {
@@ -1539,13 +1538,13 @@ function startElectron() {
           };
 
           const answer = await dialog.showMessageBox(mainWindow, dialogOptions);
-          
+
           if (answer.response === 1) {
             // User chose to use default build
             const prBuildDir = getPRBuildStoragePath(app.getPath('temp'));
             await clearActivePRBuild(configPath);
             await cleanupPRBuild(prBuildDir);
-            
+
             // Reload the window to use default build
             mainWindow.reload();
           }

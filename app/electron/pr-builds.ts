@@ -254,12 +254,12 @@ export async function downloadPRBuildArtifact(
     // Use nightly.link to download artifacts without authentication
     // Format: https://nightly.link/{owner}/{repo}/actions/runs/{run_id}/{artifact_name}.zip
     const downloadUrl = `https://nightly.link/${REPO_OWNER}/${REPO_NAME}/actions/runs/${prInfo.workflowRunId}/${artifactName}.zip`;
-    
+
     const zipPath = path.join(destDir, `${artifactName}.zip`);
-    
+
     console.log(`Downloading artifact from: ${downloadUrl}`);
     await downloadFile(downloadUrl, zipPath);
-    
+
     return zipPath;
   } catch (error) {
     console.error('Error downloading PR build artifact:', error);
@@ -277,7 +277,7 @@ export async function extractAppBundle(zipPath: string, destDir: string): Promis
   // Implementation depends on the artifact structure
   // This is a placeholder for now
   const platform = osPlatform();
-  
+
   try {
     if (platform === 'darwin') {
       // Extract .dmg file
