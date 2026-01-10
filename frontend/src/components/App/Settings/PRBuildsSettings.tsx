@@ -42,43 +42,13 @@ interface PRInfo {
   headRef: string;
   commitDate: string;
   commitMessage: string;
+  workflowRunId: number;
   availableArtifacts: {
     name: string;
     id: number;
     size: number;
     expired: boolean;
   }[];
-}
-
-interface PRBuildStatusResponse {
-  success: boolean;
-  data?: {
-    isActive: boolean;
-    prInfo: PRInfo | null;
-  };
-  error?: string;
-}
-
-interface PRBuildsListResponse {
-  success: boolean;
-  data?: PRInfo[];
-  error?: string;
-}
-
-interface DesktopApi {
-  prBuilds?: {
-    listPRBuilds: () => Promise<PRBuildsListResponse>;
-    getPRBuildStatus: () => Promise<PRBuildStatusResponse>;
-    activatePRBuild: (prInfo: PRInfo) => Promise<{ success: boolean; error?: string }>;
-    clearPRBuild: () => Promise<{ success: boolean; error?: string }>;
-    getEnabled: () => Promise<{ success: boolean; data?: boolean }>;
-  };
-}
-
-declare global {
-  interface Window {
-    desktopApi?: DesktopApi;
-  }
 }
 
 export default function PRBuildsSettings() {
