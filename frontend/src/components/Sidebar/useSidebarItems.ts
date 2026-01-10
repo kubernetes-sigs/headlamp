@@ -273,6 +273,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'NetworkPolicies',
             label: t('glossary|Network Policies'),
           },
+          {
+            name: 'AdminNetworkPolicies',
+            label: t('glossary|Admin Network Policies (alpha)'),
+          },
         ],
       },
       {
