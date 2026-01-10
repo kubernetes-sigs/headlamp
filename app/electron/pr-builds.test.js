@@ -197,10 +197,10 @@ const TEST_CONFIG_PATH = _path.default.join(TEST_TEMP_DIR, 'test-config.json');
   });
   (0, _globals.describe)('getPRBuildStoragePath', () => {
     (0, _globals.it)('should return a path within the temp directory', () => {
-      const tempDir = '/tmp/test';
+      const tempDir = _path.default.join(_os.default.tmpdir(), 'test');
       const storagePath = (0, _prBuilds.getPRBuildStoragePath)(tempDir);
-      (0, _globals.expect)(storagePath).toContain(tempDir);
       (0, _globals.expect)(storagePath).toContain('headlamp-pr-builds');
+      (0, _globals.expect)(storagePath.startsWith(tempDir)).toBe(true);
     });
   });
   (0, _globals.describe)('isPRBuildActive', () => {

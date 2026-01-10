@@ -257,11 +257,11 @@ describe('pr-builds', () => {
 
   describe('getPRBuildStoragePath', () => {
     it('should return a path within the temp directory', () => {
-      const tempDir = '/tmp/test';
+      const tempDir = path.join(os.tmpdir(), 'test');
       const storagePath = getPRBuildStoragePath(tempDir);
 
-      expect(storagePath).toContain(tempDir);
       expect(storagePath).toContain('headlamp-pr-builds');
+      expect(storagePath.startsWith(tempDir)).toBe(true);
     });
   });
 
