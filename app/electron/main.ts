@@ -50,6 +50,16 @@ import {
   getPluginBinDirectories,
   PluginManager,
 } from './plugin-management';
+import {
+  clearActivePRBuild,
+  cleanupPRBuild,
+  fetchPRsWithArtifacts,
+  getActivePRBuildInfo,
+  getPRBuildStoragePath,
+  isPRBuildActive,
+  PRInfo,
+  setActivePRBuild,
+} from './pr-builds';
 import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
 import windowSize from './windowSize';
 
@@ -137,6 +147,7 @@ const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
 const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false';
+const enableAppDevBuilds = process.env.HEADLAMP_ENABLE_APP_DEV_BUILDS === 'true';
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
@@ -1499,6 +1510,49 @@ function startElectron() {
 
     setMenu(mainWindow, currentMenu);
 
+    // Check for active PR build on startup
+    if (enableAppDevBuilds) {
+      const configPath = path.join(app.getPath('userData'), 'headlamp-config.json');
+      const isActive = await isPRBuildActive(configPath);
+      
+      if (isActive) {
+        const prInfo = await getActivePRBuildInfo(configPath);
+        
+        if (prInfo && mainWindow) {
+          const dialogOptions: MessageBoxOptions = {
+            type: 'warning',
+            buttons: [i18n.t('Continue with PR build'), i18n.t('Use default build')],
+            defaultId: 0,
+            title: i18n.t('Development Build Active'),
+            message: i18n.t(
+              'You are currently using a development build from PR #{{prNumber}}',
+              { prNumber: prInfo.number }
+            ),
+            detail: i18n.t(
+              'PR: {{prTitle}}\nAuthor: {{author}}\nCommit: {{commitSha}}\n\nThis is a development build and may be unstable. Do you want to continue using it or switch back to the default build?',
+              {
+                prTitle: prInfo.title,
+                author: prInfo.author,
+                commitSha: prInfo.headSha.substring(0, 7),
+              }
+            ),
+          };
+
+          const answer = await dialog.showMessageBox(mainWindow, dialogOptions);
+          
+          if (answer.response === 1) {
+            // User chose to use default build
+            const prBuildDir = getPRBuildStoragePath(app.getPath('temp'));
+            await clearActivePRBuild(configPath);
+            await cleanupPRBuild(prBuildDir);
+            
+            // Reload the window to use default build
+            mainWindow.reload();
+          }
+        }
+      }
+    }
+
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
       // allow all urls starting with app startUrl to open in electron
       if (url.startsWith(startUrl)) {
@@ -1694,6 +1748,96 @@ function startElectron() {
         }
       }
     );
+
+    // PR Builds IPC handlers - only enabled if feature flag is set
+    if (enableAppDevBuilds) {
+      const configPath = path.join(app.getPath('userData'), 'headlamp-config.json');
+
+      // Handle listing available PR builds
+      ipcMain.handle('list-pr-builds', async () => {
+        try {
+          const prs = await fetchPRsWithArtifacts();
+          return { success: true, data: prs };
+        } catch (error) {
+          console.error('Error fetching PR builds:', error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      });
+
+      // Handle getting PR build status
+      ipcMain.handle('get-pr-build-status', async () => {
+        try {
+          const isActive = await isPRBuildActive(configPath);
+          const prInfo = isActive ? await getActivePRBuildInfo(configPath) : null;
+          return { success: true, data: { isActive, prInfo } };
+        } catch (error) {
+          console.error('Error getting PR build status:', error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      });
+
+      // Handle activating a PR build
+      ipcMain.handle('activate-pr-build', async (event, prInfo: PRInfo) => {
+        try {
+          await setActivePRBuild(configPath, prInfo);
+          return { success: true };
+        } catch (error) {
+          console.error('Error activating PR build:', error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      });
+
+      // Handle clearing PR build
+      ipcMain.handle('clear-pr-build', async () => {
+        try {
+          const prBuildDir = getPRBuildStoragePath(app.getPath('temp'));
+          await clearActivePRBuild(configPath);
+          await cleanupPRBuild(prBuildDir);
+          return { success: true };
+        } catch (error) {
+          console.error('Error clearing PR build:', error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      });
+
+      // Handle getting feature flag status
+      ipcMain.handle('get-pr-builds-enabled', async () => {
+        return { success: true, data: enableAppDevBuilds };
+      });
+    } else {
+      // If feature is disabled, return appropriate responses
+      ipcMain.handle('list-pr-builds', async () => {
+        return { success: false, error: 'PR builds feature is not enabled' };
+      });
+
+      ipcMain.handle('get-pr-build-status', async () => {
+        return { success: false, error: 'PR builds feature is not enabled' };
+      });
+
+      ipcMain.handle('activate-pr-build', async () => {
+        return { success: false, error: 'PR builds feature is not enabled' };
+      });
+
+      ipcMain.handle('clear-pr-build', async () => {
+        return { success: false, error: 'PR builds feature is not enabled' };
+      });
+
+      ipcMain.handle('get-pr-builds-enabled', async () => {
+        return { success: true, data: false };
+      });
+    }
 
     // Also add bundled plugin bin directories to PATH
     const bundledPlugins = path.join(process.resourcesPath, '.plugins');
