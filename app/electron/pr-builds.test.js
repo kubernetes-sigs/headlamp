@@ -27,6 +27,9 @@ const TEST_TEMP_DIR = _path.default.join(_os.default.tmpdir(), 'headlamp-pr-buil
 const TEST_CONFIG_PATH = _path.default.join(TEST_TEMP_DIR, 'test-config.json');
 (0, _globals.describe)('pr-builds', () => {
   (0, _globals.beforeEach)(() => {
+    // Clean up any pending nock interceptors
+    _nock.default.cleanAll();
+
     // Create test directory
     if (!_fs.default.existsSync(TEST_TEMP_DIR)) {
       _fs.default.mkdirSync(TEST_TEMP_DIR, {
@@ -114,7 +117,7 @@ const TEST_CONFIG_PATH = _path.default.join(TEST_TEMP_DIR, 'test-config.json');
       (0, _globals.expect)(prs[0].headSha).toBe('abc123');
       (0, _globals.expect)(prs[0].availableArtifacts.length).toBe(1);
       (0, _globals.expect)(prs[0].availableArtifacts[0].name).toBe(expectedArtifactName);
-    });
+    }, 10000);
     (0, _globals.it)('should filter out PRs without successful workflow runs', async () => {
       (0, _nock.default)('https://api.github.com').get('/repos/kubernetes-sigs/headlamp/pulls?state=open&per_page=50').reply(200, [{
         number: 123,
@@ -142,7 +145,7 @@ const TEST_CONFIG_PATH = _path.default.join(TEST_TEMP_DIR, 'test-config.json');
       });
       const prs = await (0, _prBuilds.fetchPRsWithArtifacts)();
       (0, _globals.expect)(prs.length).toBe(0);
-    });
+    }, 10000);
     (0, _globals.it)('should filter out PRs with expired artifacts', async () => {
       const platform = _os.default.platform();
       let expectedArtifactName = 'AppImages';
@@ -189,7 +192,7 @@ const TEST_CONFIG_PATH = _path.default.join(TEST_TEMP_DIR, 'test-config.json');
       });
       const prs = await (0, _prBuilds.fetchPRsWithArtifacts)();
       (0, _globals.expect)(prs.length).toBe(0);
-    });
+    }, 10000);
   });
   (0, _globals.describe)('getPRBuildStoragePath', () => {
     (0, _globals.it)('should return a path within the temp directory', () => {

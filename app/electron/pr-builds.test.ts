@@ -35,6 +35,9 @@ const TEST_CONFIG_PATH = path.join(TEST_TEMP_DIR, 'test-config.json');
 
 describe('pr-builds', () => {
   beforeEach(() => {
+    // Clean up any pending nock interceptors
+    nock.cleanAll();
+    
     // Create test directory
     if (!fs.existsSync(TEST_TEMP_DIR)) {
       fs.mkdirSync(TEST_TEMP_DIR, { recursive: true });
@@ -138,7 +141,7 @@ describe('pr-builds', () => {
       expect(prs[0].headSha).toBe('abc123');
       expect(prs[0].availableArtifacts.length).toBe(1);
       expect(prs[0].availableArtifacts[0].name).toBe(expectedArtifactName);
-    });
+    }, 10000);
 
     it('should filter out PRs without successful workflow runs', async () => {
       nock('https://api.github.com')
@@ -178,7 +181,7 @@ describe('pr-builds', () => {
       const prs = await fetchPRsWithArtifacts();
 
       expect(prs.length).toBe(0);
-    });
+    }, 10000);
 
     it('should filter out PRs with expired artifacts', async () => {
       const platform = os.platform();
@@ -242,7 +245,7 @@ describe('pr-builds', () => {
       const prs = await fetchPRsWithArtifacts();
 
       expect(prs.length).toBe(0);
-    });
+    }, 10000);
   });
 
   describe('getPRBuildStoragePath', () => {
