@@ -115,6 +115,7 @@ const TEST_CONFIG_PATH = _path.default.join(TEST_TEMP_DIR, 'test-config.json');
       (0, _globals.expect)(prs[0].title).toBe('Test PR');
       (0, _globals.expect)(prs[0].author).toBe('testuser');
       (0, _globals.expect)(prs[0].headSha).toBe('abc123');
+      (0, _globals.expect)(prs[0].workflowRunId).toBe(456);
       (0, _globals.expect)(prs[0].availableArtifacts.length).toBe(1);
       (0, _globals.expect)(prs[0].availableArtifacts[0].name).toBe(expectedArtifactName);
     }, 10000);
@@ -224,6 +225,7 @@ const TEST_CONFIG_PATH = _path.default.join(TEST_TEMP_DIR, 'test-config.json');
         headRef: 'test-branch',
         commitDate: '2025-01-10T00:00:00Z',
         commitMessage: 'Test commit',
+        workflowRunId: 456,
         availableArtifacts: []
       };
       _fs.default.writeFileSync(TEST_CONFIG_PATH, JSON.stringify({
@@ -255,6 +257,7 @@ const TEST_CONFIG_PATH = _path.default.join(TEST_TEMP_DIR, 'test-config.json');
         headRef: 'test-branch',
         commitDate: '2025-01-10T00:00:00Z',
         commitMessage: 'Test commit',
+        workflowRunId: 456,
         availableArtifacts: []
       };
       _fs.default.writeFileSync(TEST_CONFIG_PATH, JSON.stringify({
@@ -277,6 +280,7 @@ const TEST_CONFIG_PATH = _path.default.join(TEST_TEMP_DIR, 'test-config.json');
         headRef: 'test-branch',
         commitDate: '2025-01-10T00:00:00Z',
         commitMessage: 'Test commit',
+        workflowRunId: 456,
         availableArtifacts: []
       };
       await (0, _prBuilds.setActivePRBuild)(TEST_CONFIG_PATH, prInfo);
@@ -299,6 +303,7 @@ const TEST_CONFIG_PATH = _path.default.join(TEST_TEMP_DIR, 'test-config.json');
         headRef: 'test-branch',
         commitDate: '2025-01-10T00:00:00Z',
         commitMessage: 'Test commit',
+        workflowRunId: 456,
         availableArtifacts: []
       };
       await (0, _prBuilds.setActivePRBuild)(TEST_CONFIG_PATH, prInfo);
@@ -319,6 +324,7 @@ const TEST_CONFIG_PATH = _path.default.join(TEST_TEMP_DIR, 'test-config.json');
         headRef: 'test-branch',
         commitDate: '2025-01-10T00:00:00Z',
         commitMessage: 'Test commit',
+        workflowRunId: 456,
         availableArtifacts: []
       };
       _fs.default.writeFileSync(TEST_CONFIG_PATH, JSON.stringify({

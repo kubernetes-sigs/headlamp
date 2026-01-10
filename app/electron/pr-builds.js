@@ -170,6 +170,7 @@ async function fetchPRsWithArtifacts() {
           headRef: pr.head.ref,
           commitDate: commitResponse.commit.committer.date,
           commitMessage: commitResponse.commit.message,
+          workflowRunId: latestRun.id,
           availableArtifacts: relevantArtifacts.map(artifact => ({
             name: artifact.name,
             id: artifact.id,
@@ -187,23 +188,25 @@ async function fetchPRsWithArtifacts() {
 }
 
 /**
- * Downloads and extracts a PR build artifact
- * @param artifactId The GitHub artifact ID
+ * Downloads and extracts a PR build artifact using nightly.link
+ * @param prInfo The PR information containing workflow run ID
+ * @param artifactName The name of the artifact to download
  * @param destDir The destination directory for extracted files
  */
-async function downloadPRBuildArtifact(artifactId, destDir) {
+async function downloadPRBuildArtifact(prInfo, artifactName, destDir) {
   try {
     // Ensure destination directory exists
     await fsPromises.mkdir(destDir, {
       recursive: true
     });
 
-    // Get artifact download URL
-    const artifactResponse = await githubApiRequest(`/repos/${REPO_OWNER}/${REPO_NAME}/actions/artifacts/${artifactId}/zip`);
-
-    // Note: The actual download requires authentication
-    // For now, we'll document that this needs a GitHub token
-    throw new Error('Artifact download requires authentication. This feature needs GITHUB_TOKEN to be configured.');
+    // Use nightly.link to download artifacts without authentication
+    // Format: https://nightly.link/{owner}/{repo}/actions/runs/{run_id}/{artifact_name}.zip
+    const downloadUrl = `https://nightly.link/${REPO_OWNER}/${REPO_NAME}/actions/runs/${prInfo.workflowRunId}/${artifactName}.zip`;
+    const zipPath = _path.default.join(destDir, `${artifactName}.zip`);
+    console.log(`Downloading artifact from: ${downloadUrl}`);
+    await downloadFile(downloadUrl, zipPath);
+    return zipPath;
   } catch (error) {
     console.error('Error downloading PR build artifact:', error);
     throw error;

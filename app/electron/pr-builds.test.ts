@@ -139,6 +139,7 @@ describe('pr-builds', () => {
       expect(prs[0].title).toBe('Test PR');
       expect(prs[0].author).toBe('testuser');
       expect(prs[0].headSha).toBe('abc123');
+      expect(prs[0].workflowRunId).toBe(456);
       expect(prs[0].availableArtifacts.length).toBe(1);
       expect(prs[0].availableArtifacts[0].name).toBe(expectedArtifactName);
     }, 10000);
@@ -283,6 +284,7 @@ describe('pr-builds', () => {
         headRef: 'test-branch',
         commitDate: '2025-01-10T00:00:00Z',
         commitMessage: 'Test commit',
+        workflowRunId: 456,
         availableArtifacts: [],
       };
       
@@ -319,6 +321,7 @@ describe('pr-builds', () => {
         headRef: 'test-branch',
         commitDate: '2025-01-10T00:00:00Z',
         commitMessage: 'Test commit',
+        workflowRunId: 456,
         availableArtifacts: [],
       };
       
@@ -343,6 +346,7 @@ describe('pr-builds', () => {
         headRef: 'test-branch',
         commitDate: '2025-01-10T00:00:00Z',
         commitMessage: 'Test commit',
+        workflowRunId: 456,
         availableArtifacts: [],
       };
       
@@ -369,6 +373,7 @@ describe('pr-builds', () => {
         headRef: 'test-branch',
         commitDate: '2025-01-10T00:00:00Z',
         commitMessage: 'Test commit',
+        workflowRunId: 456,
         availableArtifacts: [],
       };
       
@@ -393,6 +398,7 @@ describe('pr-builds', () => {
         headRef: 'test-branch',
         commitDate: '2025-01-10T00:00:00Z',
         commitMessage: 'Test commit',
+        workflowRunId: 456,
         availableArtifacts: [],
       };
       

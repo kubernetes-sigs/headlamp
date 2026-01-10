@@ -41,6 +41,7 @@ export interface PRInfo {
   headRef: string;
   commitDate: string;
   commitMessage: string;
+  workflowRunId: number;
   availableArtifacts: {
     name: string;
     id: number;
@@ -219,6 +220,7 @@ export async function fetchPRsWithArtifacts(): Promise<PRInfo[]> {
           headRef: pr.head.ref,
           commitDate: commitResponse.commit.committer.date,
           commitMessage: commitResponse.commit.message,
+          workflowRunId: latestRun.id,
           availableArtifacts: relevantArtifacts.map(artifact => ({
             name: artifact.name,
             id: artifact.id,
@@ -237,28 +239,30 @@ export async function fetchPRsWithArtifacts(): Promise<PRInfo[]> {
 }
 
 /**
- * Downloads and extracts a PR build artifact
- * @param artifactId The GitHub artifact ID
+ * Downloads and extracts a PR build artifact using nightly.link
+ * @param prInfo The PR information containing workflow run ID
+ * @param artifactName The name of the artifact to download
  * @param destDir The destination directory for extracted files
  */
 export async function downloadPRBuildArtifact(
-  artifactId: number,
+  prInfo: PRInfo,
+  artifactName: string,
   destDir: string
-): Promise<void> {
+): Promise<string> {
   try {
     // Ensure destination directory exists
     await fsPromises.mkdir(destDir, { recursive: true });
 
-    // Get artifact download URL
-    const artifactResponse = await githubApiRequest<any>(
-      `/repos/${REPO_OWNER}/${REPO_NAME}/actions/artifacts/${artifactId}/zip`
-    );
-
-    // Note: The actual download requires authentication
-    // For now, we'll document that this needs a GitHub token
-    throw new Error(
-      'Artifact download requires authentication. This feature needs GITHUB_TOKEN to be configured.'
-    );
+    // Use nightly.link to download artifacts without authentication
+    // Format: https://nightly.link/{owner}/{repo}/actions/runs/{run_id}/{artifact_name}.zip
+    const downloadUrl = `https://nightly.link/${REPO_OWNER}/${REPO_NAME}/actions/runs/${prInfo.workflowRunId}/${artifactName}.zip`;
+    
+    const zipPath = path.join(destDir, `${artifactName}.zip`);
+    
+    console.log(`Downloading artifact from: ${downloadUrl}`);
+    await downloadFile(downloadUrl, zipPath);
+    
+    return zipPath;
   } catch (error) {
     console.error('Error downloading PR build artifact:', error);
     throw error;

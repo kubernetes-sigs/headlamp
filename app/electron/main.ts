@@ -147,7 +147,7 @@ const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
 const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false';
-const enableAppDevBuilds = process.env.HEADLAMP_ENABLE_APP_DEV_BUILDS === 'true';
+const enableAppDevBuilds = process.env.HEADLAMP_ENABLE_APP_DEV_BUILDS !== 'false';
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;

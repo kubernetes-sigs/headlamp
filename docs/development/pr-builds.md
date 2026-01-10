@@ -28,21 +28,23 @@ When enabled, this feature allows you to:
 
 ## Enabling the Feature
 
-The PR builds feature is controlled by the `HEADLAMP_ENABLE_APP_DEV_BUILDS` environment variable.
+The PR builds feature is **enabled by default**. You can disable it by setting the `HEADLAMP_ENABLE_APP_DEV_BUILDS` environment variable to `false`.
 
-### On macOS and Linux
+### To Disable (if needed)
+
+#### On macOS and Linux
 
 ```bash
-export HEADLAMP_ENABLE_APP_DEV_BUILDS=true
+export HEADLAMP_ENABLE_APP_DEV_BUILDS=false
 /Applications/Headlamp.app/Contents/MacOS/Headlamp  # macOS
 # or
 ./headlamp  # Linux
 ```
 
-### On Windows
+#### On Windows
 
 ```powershell
-$env:HEADLAMP_ENABLE_APP_DEV_BUILDS="true"
+$env:HEADLAMP_ENABLE_APP_DEV_BUILDS="false"
 & "C:\Program Files\Headlamp\Headlamp.exe"
 ```
 
@@ -92,8 +94,8 @@ When you start Headlamp with an active PR build, you'll see a confirmation dialo
 
 ### Current Implementation
 
-- **Authentication Required**: Downloading actual artifacts requires a GitHub authentication token (not yet implemented)
-- **Manual Process**: The current version provides the UI and infrastructure but requires manual artifact handling
+- **nightly.link Integration**: Artifacts are downloaded using nightly.link, which provides direct download links without requiring GitHub authentication
+- **Automatic Download**: The app can now automatically download PR build artifacts
 - **No Automatic Updates**: PR builds are not automatically updated when new commits are pushed
 
 ### Platform Support
@@ -106,9 +108,9 @@ When you start Headlamp with an active PR build, you'll see a confirmation dialo
 
 ### Feature Not Visible
 
-- Ensure `HEADLAMP_ENABLE_APP_DEV_BUILDS=true` is set before launching the app
+- The feature is enabled by default. Set `HEADLAMP_ENABLE_APP_DEV_BUILDS=false` to disable it
 - Check that you're using the desktop application (not the web version)
-- Restart the app after setting the environment variable
+- Restart the app after changing the environment variable
 
 ### No PRs Listed
 
