@@ -14,9 +14,23 @@
  * limitations under the License.
  */
 
-import Box from '@mui/material/Box';
-import Switch from '@mui/material/Switch';
-import Typography from '@mui/material/Typography';
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Link,
+  List,
+  ListItem,
+  ListItemText,
+  Switch,
+  Typography,
+} from '@mui/material';
 import { capitalize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -35,6 +49,7 @@ import { setTheme, useAppThemes } from '../themeSlice';
 import DrawerModeSettings from './DrawerModeSettings';
 import { useSettings } from './hook';
 import NumRowsInput from './NumRowsInput';
+import PRBuildsSettings from './PRBuildsSettings';
 import { ThemePreview } from './ThemePreview';
 
 export default function Settings() {
@@ -243,6 +258,7 @@ export default function Settings() {
           </Box>
         </Box>
       </Box>
+      <PRBuildsSettings />
     </SectionBox>
   );
 }
