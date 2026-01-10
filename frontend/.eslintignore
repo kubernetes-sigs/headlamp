@@ -2,3 +2,12 @@
 ../app/electron/main.js
 ../app/electron/preload.js
 ../app/electron/windowSize.js
+../app/electron/pr-builds.js
+../app/electron/pr-builds.test.js
+../app/electron/plugin-management.js
+../app/electron/runCmd.js
+../app/electron/runCmd.test.js
+../app/electron/windowSize.test.js
+../app/electron/plugin-management.test.js
+../app/electron/env-paths.js
+../app/electron/i18n-helper.js

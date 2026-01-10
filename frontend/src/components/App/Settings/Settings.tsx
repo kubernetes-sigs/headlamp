@@ -14,30 +14,13 @@
  * limitations under the License.
  */
 
-import {
-  Alert,
-  Box,
-  Button,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  Link,
-  List,
-  ListItem,
-  ListItemText,
-  Switch,
-  Typography,
-} from '@mui/material';
+import { Box, Switch, Typography } from '@mui/material';
 import { capitalize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import LocaleSelect from '../../../i18n/LocaleSelect/LocaleSelect';
-import { setAppSettings } from '../../../redux/configSlice';
-import { defaultTableRowsPerPageOptions } from '../../../redux/configSlice';
+import { defaultTableRowsPerPageOptions, setAppSettings } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { uiSlice } from '../../../redux/uiSlice';
 import ActionButton from '../../common/ActionButton';

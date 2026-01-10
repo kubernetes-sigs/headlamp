@@ -21,11 +21,9 @@ import { platform as osPlatform } from 'os';
 import path from 'path';
 import { pipeline } from 'stream';
 import { promisify } from 'util';
-import * as tar from 'tar';
 
 const pipelineAsync = promisify(pipeline);
 
-const GITHUB_API_BASE = 'https://api.github.com';
 const REPO_OWNER = 'kubernetes-sigs';
 const REPO_NAME = 'headlamp';
 
@@ -271,7 +269,10 @@ export async function downloadPRBuildArtifact(
 
 /**
  * Extracts the app bundle from a downloaded artifact
+ * @param zipPath - Path to the downloaded zip file
+ * @param destDir - Destination directory for extraction
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
 export async function extractAppBundle(zipPath: string, destDir: string): Promise<void> {
   // Implementation depends on the artifact structure
   // This is a placeholder for now

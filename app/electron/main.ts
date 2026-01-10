@@ -51,8 +51,8 @@ import {
   PluginManager,
 } from './plugin-management';
 import {
-  clearActivePRBuild,
   cleanupPRBuild,
+  clearActivePRBuild,
   fetchPRsWithArtifacts,
   getActivePRBuildInfo,
   getPRBuildStoragePath,

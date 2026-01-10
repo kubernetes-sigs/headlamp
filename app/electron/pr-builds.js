@@ -39,7 +39,6 @@ function _interopRequireWildcard(e, r) { if (!r && e && e.__esModule) return e; 
  */
 
 const pipelineAsync = (0, _util.promisify)(_stream.pipeline);
-const GITHUB_API_BASE = 'https://api.github.com';
 const REPO_OWNER = 'kubernetes-sigs';
 const REPO_NAME = 'headlamp';
 
@@ -215,7 +214,10 @@ async function downloadPRBuildArtifact(prInfo, artifactName, destDir) {
 
 /**
  * Extracts the app bundle from a downloaded artifact
+ * @param zipPath - Path to the downloaded zip file
+ * @param destDir - Destination directory for extraction
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
 async function extractAppBundle(zipPath, destDir) {
   // Implementation depends on the artifact structure
   // This is a placeholder for now

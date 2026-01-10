@@ -14,20 +14,20 @@
  * limitations under the License.
  */
 
-import { describe, expect, it, beforeEach, afterEach } from '@jest/globals';
+import { afterEach,beforeEach, describe, expect, it } from '@jest/globals';
 import fs from 'fs';
 import nock from 'nock';
 import os from 'os';
 import path from 'path';
 import {
+  cleanupPRBuild,
+  clearActivePRBuild,
   fetchPRsWithArtifacts,
-  PRInfo,
+  getActivePRBuildInfo,
   getPRBuildStoragePath,
   isPRBuildActive,
-  getActivePRBuildInfo,
+  PRInfo,
   setActivePRBuild,
-  clearActivePRBuild,
-  cleanupPRBuild,
 } from './pr-builds';
 
 const TEST_TEMP_DIR = path.join(os.tmpdir(), 'headlamp-pr-builds-test');
