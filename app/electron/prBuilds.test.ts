@@ -22,12 +22,14 @@ import path from 'path';
 import {
   cleanupPRBuild,
   clearActivePRBuild,
+  downloadSignatureFile,
   fetchPRsWithArtifacts,
   getActivePRBuildInfo,
   getPRBuildStoragePath,
   isPRBuildActive,
   PRInfo,
   setActivePRBuild,
+  verifyPRBuildSignature,
 } from './prBuilds';
 
 const TEST_TEMP_DIR = path.join(os.tmpdir(), 'headlamp-pr-builds-test');
@@ -442,6 +444,61 @@ describe('prBuilds', () => {
       const buildDir = path.join(TEST_TEMP_DIR, 'nonexistent');
 
       await expect(cleanupPRBuild(buildDir)).resolves.not.toThrow();
+    });
+  });
+
+  describe('Signature Verification', () => {
+    it('should return signatureExists: false when signature file is missing', async () => {
+      const artifactPath = path.join(TEST_TEMP_DIR, 'test-artifact.zip');
+      const signaturePath = path.join(TEST_TEMP_DIR, 'test-artifact.cosign.bundle');
+
+      // Create artifact but not signature
+      fs.writeFileSync(artifactPath, 'test artifact content');
+
+      const result = await verifyPRBuildSignature(artifactPath, signaturePath);
+
+      expect(result.verified).toBe(false);
+      expect(result.signatureExists).toBe(false);
+      expect(result.error).toContain('Signature file not found');
+    });
+
+    it('should return invalid format error for malformed signature bundle', async () => {
+      const artifactPath = path.join(TEST_TEMP_DIR, 'test-artifact.zip');
+      const signaturePath = path.join(TEST_TEMP_DIR, 'test-artifact.cosign.bundle');
+
+      // Create artifact and invalid signature
+      fs.writeFileSync(artifactPath, 'test artifact content');
+      fs.writeFileSync(signaturePath, 'not valid JSON');
+
+      const result = await verifyPRBuildSignature(artifactPath, signaturePath);
+
+      expect(result.verified).toBe(false);
+      expect(result.signatureExists).toBe(true);
+      expect(result.error).toContain('Invalid signature bundle format');
+    });
+
+    it('should handle downloadSignatureFile when signature is not available', async () => {
+      const prInfo: PRInfo = {
+        number: 123,
+        title: 'Test PR',
+        author: 'testuser',
+        authorAvatarUrl: 'https://github.com/testuser.png',
+        headSha: 'abc123',
+        headRef: 'test-branch',
+        commitDate: '2025-01-10T00:00:00Z',
+        commitMessage: 'Test commit',
+        workflowRunId: 456,
+        availableArtifacts: [],
+      };
+
+      // Mock 404 response for signature file
+      nock('https://nightly.link')
+        .get('/kubernetes-sigs/headlamp/actions/runs/456/dmgs.cosign.bundle')
+        .reply(404);
+
+      const result = await downloadSignatureFile(prInfo, 'dmgs', TEST_TEMP_DIR);
+
+      expect(result).toBeNull();
     });
   });
 });

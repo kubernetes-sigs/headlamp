@@ -21,6 +21,7 @@ import { platform as osPlatform } from 'os';
 import path from 'path';
 import { pipeline } from 'stream';
 import { promisify } from 'util';
+import { verify } from '@sigstore/verify';
 
 const pipelineAsync = promisify(pipeline);
 
@@ -46,6 +47,20 @@ export interface PRInfo {
     size: number;
     expired: boolean;
   }[];
+}
+
+/**
+ * Result of signature verification
+ */
+export interface SignatureVerificationResult {
+  verified: boolean;
+  signatureExists: boolean;
+  error?: string;
+  details?: {
+    issuer?: string;
+    workflowName?: string;
+    workflowRef?: string;
+  };
 }
 
 /**
@@ -148,6 +163,112 @@ async function downloadFile(url: string, destPath: string): Promise<void> {
 }
 
 /**
+ * Verifies a Sigstore signature for a PR build artifact
+ * @param artifactPath Path to the artifact file
+ * @param signaturePath Path to the .cosign.bundle signature file
+ * @returns Verification result
+ */
+export async function verifyPRBuildSignature(
+  artifactPath: string,
+  signaturePath: string
+): Promise<SignatureVerificationResult> {
+  try {
+    // Check if signature file exists
+    try {
+      await fsPromises.access(signaturePath);
+    } catch {
+      return {
+        verified: false,
+        signatureExists: false,
+        error: 'Signature file not found',
+      };
+    }
+
+    // Read artifact and signature
+    const artifactBuffer = await fsPromises.readFile(artifactPath);
+    const signatureBundle = await fsPromises.readFile(signaturePath, 'utf-8');
+
+    // Parse the bundle (Sigstore bundles are JSON)
+    let bundle;
+    try {
+      bundle = JSON.parse(signatureBundle);
+    } catch (err) {
+      return {
+        verified: false,
+        signatureExists: true,
+        error: 'Invalid signature bundle format',
+      };
+    }
+
+    // Verify the signature using @sigstore/verify
+    try {
+      const result = await verify(bundle, artifactBuffer, {
+        // Trust GitHub Actions OIDC issuer
+        identities: [
+          {
+            issuer: 'https://token.actions.githubusercontent.com',
+            // Accept any subject from the kubernetes-sigs/headlamp repo
+            subjectAlternativeName: `^https://github\\.com/kubernetes-sigs/headlamp/\\.github/workflows/.+@refs/(heads|pull)/.+$`,
+          },
+        ],
+      });
+
+      // Extract details from the verification result
+      const details = {
+        issuer: result.certificate?.issuer,
+        workflowName: result.certificate?.extensions?.githubWorkflowName,
+        workflowRef: result.certificate?.extensions?.githubWorkflowRef,
+      };
+
+      return {
+        verified: true,
+        signatureExists: true,
+        details,
+      };
+    } catch (verifyError) {
+      return {
+        verified: false,
+        signatureExists: true,
+        error: verifyError instanceof Error ? verifyError.message : 'Signature verification failed',
+      };
+    }
+  } catch (error) {
+    return {
+      verified: false,
+      signatureExists: true,
+      error: error instanceof Error ? error.message : 'Unknown verification error',
+    };
+  }
+}
+
+/**
+ * Downloads signature file for a PR build artifact
+ * @param prInfo The PR information
+ * @param artifactName Name of the artifact
+ * @param destDir Destination directory
+ * @returns Path to downloaded signature file, or null if not found
+ */
+export async function downloadSignatureFile(
+  prInfo: PRInfo,
+  artifactName: string,
+  destDir: string
+): Promise<string | null> {
+  try {
+    // Signature files are uploaded alongside artifacts with .cosign.bundle extension
+    const signatureUrl = `https://nightly.link/${REPO_OWNER}/${REPO_NAME}/actions/runs/${prInfo.workflowRunId}/${artifactName}.cosign.bundle`;
+    const signaturePath = path.join(destDir, `${artifactName}.cosign.bundle`);
+
+    console.log(`Downloading signature from: ${signatureUrl}`);
+    await downloadFile(signatureUrl, signaturePath);
+
+    return signaturePath;
+  } catch (error) {
+    console.log('Signature file not found or download failed:', error);
+    return null;
+  }
+}
+
+/**
  * Gets the current platform's artifact name pattern
  */
 function getPlatformArtifactPattern(): string {
@@ -237,16 +358,19 @@ export async function fetchPRsWithArtifacts(): Promise<PRInfo[]> {
 }
 
 /**
- * Downloads and extracts a PR build artifact using nightly.link
+ * Downloads and extracts a PR build artifact using nightly.link with signature verification
  * @param prInfo The PR information containing workflow run ID
  * @param artifactName The name of the artifact to download
  * @param destDir The destination directory for extracted files
+ * @param showDialog Function to show confirmation dialogs
+ * @returns Object containing download result and signature verification status
  */
 export async function downloadPRBuildArtifact(
   prInfo: PRInfo,
   artifactName: string,
-  destDir: string
-): Promise<string> {
+  destDir: string,
+  showDialog?: (options: any) => Promise<any>
+): Promise<{ zipPath: string; signatureResult: SignatureVerificationResult }> {
   try {
     // Ensure destination directory exists
     await fsPromises.mkdir(destDir, { recursive: true });
@@ -260,7 +384,55 @@ export async function downloadPRBuildArtifact(
     console.log(`Downloading artifact from: ${downloadUrl}`);
     await downloadFile(downloadUrl, zipPath);
 
-    return zipPath;
+    // Attempt to download and verify signature
+    let signatureResult: SignatureVerificationResult = {
+      verified: false,
+      signatureExists: false,
+    };
+
+    const signaturePath = await downloadSignatureFile(prInfo, artifactName, destDir);
+
+    if (signaturePath) {
+      signatureResult = await verifyPRBuildSignature(zipPath, signaturePath);
+    } else {
+      signatureResult = {
+        verified: false,
+        signatureExists: false,
+        error: 'Signature file not available',
+      };
+    }
+
+    // If dialog function is provided and signature verification failed/missing, show warning
+    if (showDialog && (!signatureResult.verified || !signatureResult.signatureExists)) {
+      const message = signatureResult.signatureExists
+        ? 'Signature verification failed'
+        : 'No signature found for this artifact';
+
+      const detail = signatureResult.signatureExists
+        ? `The signature verification failed: ${signatureResult.error}\n\nThis artifact may have been tampered with or signed with an untrusted identity. Do you want to continue anyway?`
+        : 'This artifact does not have a Sigstore signature. It may be from an older build before signing was implemented, or the signature file is unavailable.\n\nDo you want to continue without signature verification?';
+
+      const result = await showDialog({
+        type: 'warning',
+        title: message,
+        message,
+        detail,
+        buttons: ['Cancel', 'Continue Anyway'],
+        defaultId: 0,
+        cancelId: 0,
+      });
+
+      if (result.response !== 1) {
+        // User cancelled
+        await fsPromises.unlink(zipPath).catch(() => {});
+        if (signaturePath) {
+          await fsPromises.unlink(signaturePath).catch(() => {});
+        }
+        throw new Error('User cancelled download due to signature verification failure');
+      }
+    }
+
+    return { zipPath, signatureResult };
   } catch (error) {
     console.error('Error downloading PR build artifact:', error);
     throw error;
@@ -508,8 +680,28 @@ export function registerPRBuildsIPCHandlers(
           return { success: false, error: 'User cancelled activation' };
         }
 
+        // Download artifact with signature verification
+        const artifactName = prInfo.availableArtifacts[0]?.name || getPlatformArtifactPattern();
+        const prBuildDir = getPRBuildStoragePath(tempDir);
+
+        const { zipPath, signatureResult } = await downloadPRBuildArtifact(
+          prInfo,
+          artifactName,
+          prBuildDir,
+          showDialog
+        );
+
+        // Set active PR build config
         await setActivePRBuild(configPath, prInfo);
-        return { success: true };
+
+        return {
+          success: true,
+          data: {
+            zipPath,
+            signatureVerified: signatureResult.verified,
+            signatureExists: signatureResult.signatureExists,
+          },
+        };
       } catch (error) {
         console.error('Error activating PR build:', error);
         return {
