@@ -87,6 +87,10 @@ test.describe('PR Builds functionality', () => {
 
     // Check that PR Builds section is visible
     await expect(page.getByText('Development Builds from PRs')).toBeVisible();
+
+    // Check accessibility
+    const accessibilityScanResults = await page.accessibility.snapshot();
+    expect(accessibilityScanResults).toBeTruthy();
   });
 
   test('should be able to refresh PR list', async ({ page: browserPage }) => {
