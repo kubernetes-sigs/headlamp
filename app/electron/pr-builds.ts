@@ -384,3 +384,160 @@ export async function clearActivePRBuild(configPath: string): Promise<void> {
     throw error;
   }
 }
+
+/**
+ * Handles the PR build startup dialog and returns the user's choice
+ * @param configPath Path to the config file
+ * @param tempDir Temp directory for PR builds
+ * @param dialogFunc Function to show the dialog
+ * @param i18n Internationalization function
+ * @returns Object with shouldReload flag
+ */
+export async function handlePRBuildStartup(
+  configPath: string,
+  tempDir: string,
+  dialogFunc: (options: any) => Promise<{ response: number }>,
+  i18n: { t: (key: string, options?: any) => string }
+): Promise<{ shouldReload: boolean }> {
+  const isActive = await isPRBuildActive(configPath);
+
+  if (!isActive) {
+    return { shouldReload: false };
+  }
+
+  const prInfo = await getActivePRBuildInfo(configPath);
+  if (!prInfo) {
+    return { shouldReload: false };
+  }
+
+  const dialogOptions = {
+    type: 'warning',
+    buttons: [i18n.t('Continue with PR build'), i18n.t('Use default build')],
+    defaultId: 0,
+    title: i18n.t('Development Build Active'),
+    message: i18n.t('You are currently using a development build from PR #{{prNumber}}', {
+      prNumber: prInfo.number,
+    }),
+    detail: i18n.t(
+      'PR: {{prTitle}}\nAuthor: {{author}}\nCommit: {{commitSha}}\n\nThis is a development build and may be unstable. Do you want to continue using it or switch back to the default build?',
+      {
+        prTitle: prInfo.title,
+        author: prInfo.author,
+        commitSha: prInfo.headSha.substring(0, 7),
+      }
+    ),
+  };
+
+  const answer = await dialogFunc(dialogOptions);
+
+  if (answer.response === 1) {
+    // User chose to use default build
+    const prBuildDir = getPRBuildStoragePath(tempDir);
+    await clearActivePRBuild(configPath);
+    await cleanupPRBuild(prBuildDir);
+    return { shouldReload: true };
+  }
+
+  return { shouldReload: false };
+}
+
+/**
+ * Registers IPC handlers for PR builds feature
+ * @param ipcMain The IPC main object
+ * @param configPath Path to the config file
+ * @param tempDir Temp directory for PR builds
+ * @param enabled Whether the feature is enabled
+ */
+export function registerPRBuildsIPCHandlers(
+  ipcMain: any,
+  configPath: string,
+  tempDir: string,
+  enabled: boolean
+): void {
+  if (enabled) {
+    // Handle listing available PR builds
+    ipcMain.handle('list-pr-builds', async () => {
+      try {
+        const prs = await fetchPRsWithArtifacts();
+        return { success: true, data: prs };
+      } catch (error) {
+        console.error('Error fetching PR builds:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+
+    // Handle getting PR build status
+    ipcMain.handle('get-pr-build-status', async () => {
+      try {
+        const isActive = await isPRBuildActive(configPath);
+        const prInfo = isActive ? await getActivePRBuildInfo(configPath) : null;
+        return { success: true, data: { isActive, prInfo } };
+      } catch (error) {
+        console.error('Error getting PR build status:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+
+    // Handle activating a PR build
+    ipcMain.handle('activate-pr-build', async (event: any, prInfo: PRInfo) => {
+      try {
+        await setActivePRBuild(configPath, prInfo);
+        return { success: true };
+      } catch (error) {
+        console.error('Error activating PR build:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+
+    // Handle clearing PR build
+    ipcMain.handle('clear-pr-build', async () => {
+      try {
+        const prBuildDir = getPRBuildStoragePath(tempDir);
+        await clearActivePRBuild(configPath);
+        await cleanupPRBuild(prBuildDir);
+        return { success: true };
+      } catch (error) {
+        console.error('Error clearing PR build:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+
+    // Handle getting feature flag status
+    ipcMain.handle('get-pr-builds-enabled', async () => {
+      return { success: true, data: enabled };
+    });
+  } else {
+    // If feature is disabled, return appropriate responses
+    ipcMain.handle('list-pr-builds', async () => {
+      return { success: false, error: 'PR builds feature is not enabled' };
+    });
+
+    ipcMain.handle('get-pr-build-status', async () => {
+      return { success: false, error: 'PR builds feature is not enabled' };
+    });
+
+    ipcMain.handle('activate-pr-build', async () => {
+      return { success: false, error: 'PR builds feature is not enabled' };
+    });
+
+    ipcMain.handle('clear-pr-build', async () => {
+      return { success: false, error: 'PR builds feature is not enabled' };
+    });
+
+    ipcMain.handle('get-pr-builds-enabled', async () => {
+      return { success: true, data: false };
+    });
+  }
+}
