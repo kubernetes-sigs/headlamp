@@ -79,3 +79,8 @@ REACT_APP_SKIP_A11Y=false npm run frontend:start
 ```
 
 This shows an alert when an a11y issue is detected.
+
+## Property testing (fuzzing)
+
+We are using [fast-check](https://fast-check.dev/) for property testing.
+This is especially useful for parsers, validators, race conditions and such.
