@@ -14,24 +14,27 @@
  * limitations under the License.
  */
 
+import RefreshIcon from '@mui/icons-material/Refresh';
 import {
   Alert,
+  Avatar,
   Box,
   Button,
+  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
   DialogTitle,
+  LinearProgress,
   Link,
   List,
   ListItem,
-  ListItemText,
   Snackbar,
   Typography,
 } from '@mui/material';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 interface PRInfo {
@@ -44,6 +47,8 @@ interface PRInfo {
   commitDate: string;
   commitMessage: string;
   workflowRunId: number;
+  buildStartTime?: string;
+  contributors?: string[];
   availableArtifacts: {
     name: string;
     id: number;
@@ -52,10 +57,14 @@ interface PRInfo {
   }[];
 }
 
+const AUTO_REFRESH_INTERVAL = 60000; // 1 minute in milliseconds
+const ESTIMATED_BUILD_TIME = 15 * 60 * 1000; // 15 minutes in milliseconds
+
 export default function PRBuildsSettings() {
   const { t } = useTranslation(['translation']);
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [prBuilds, setPRBuilds] = useState<PRInfo[]>([]);
   const [activePR, setActivePR] = useState<PRInfo | null>(null);
   const [selectedPR, setSelectedPR] = useState<PRInfo | null>(null);
@@ -63,16 +72,33 @@ export default function PRBuildsSettings() {
   const [error, setError] = useState<string | null>(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [nextRefreshIn, setNextRefreshIn] = useState<number>(AUTO_REFRESH_INTERVAL / 1000);
+  const autoRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     checkEnabled();
+    return () => {
+      // Cleanup timers on unmount
+      if (autoRefreshTimerRef.current) {
+        clearInterval(autoRefreshTimerRef.current);
+      }
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
     if (enabled) {
       loadPRBuilds();
       loadStatus();
+      startAutoRefresh();
     }
+    return () => {
+      stopAutoRefresh();
+    };
   }, [enabled]);
 
   async function checkEnabled() {
@@ -90,20 +116,62 @@ export default function PRBuildsSettings() {
     setLoading(false);
   }
 
+  function startAutoRefresh() {
+    // Clear any existing timers
+    stopAutoRefresh();
+
+    // Set up auto-refresh timer
+    autoRefreshTimerRef.current = setInterval(() => {
+      loadPRBuilds();
+    }, AUTO_REFRESH_INTERVAL);
+
+    // Set up countdown timer (updates every second)
+    setNextRefreshIn(AUTO_REFRESH_INTERVAL / 1000);
+    countdownTimerRef.current = setInterval(() => {
+      setNextRefreshIn(prev => {
+        if (prev <= 1) {
+          return AUTO_REFRESH_INTERVAL / 1000;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+
+  function stopAutoRefresh() {
+    if (autoRefreshTimerRef.current) {
+      clearInterval(autoRefreshTimerRef.current);
+      autoRefreshTimerRef.current = null;
+    }
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+  }
+
   async function loadPRBuilds() {
     if (!window.desktopApi?.prBuilds) return;
 
     try {
+      setRefreshing(true);
       setError(null);
       const response = await window.desktopApi.prBuilds.listPRBuilds();
       if (response.success && response.data) {
-        setPRBuilds(response.data);
+        // Enrich PR data with build start times (approximate from commitDate)
+        const enrichedData = response.data.map((pr: PRInfo) => ({
+          ...pr,
+          buildStartTime: pr.commitDate, // Use commit date as approximation
+        }));
+        setPRBuilds(enrichedData);
+        setLastRefresh(new Date());
+        setNextRefreshIn(AUTO_REFRESH_INTERVAL / 1000); // Reset countdown
       } else {
         setError(response.error || 'Failed to load PR builds');
       }
     } catch (err) {
       console.error('Failed to load PR builds:', err);
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRefreshing(false);
     }
   }
 
@@ -172,6 +240,43 @@ export default function PRBuildsSettings() {
     }
   }
 
+  function getBuildProgress(buildStartTime?: string): number | null {
+    if (!buildStartTime) return null;
+    const startTime = new Date(buildStartTime).getTime();
+    const now = Date.now();
+    const elapsed = now - startTime;
+    const progress = Math.min((elapsed / ESTIMATED_BUILD_TIME) * 100, 100);
+    return progress;
+  }
+
+  function formatTimeSince(date: Date): string {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ago`;
+  }
+
+  function formatBuildTime(buildStartTime?: string): string {
+    if (!buildStartTime) return 'Unknown';
+    const startTime = new Date(buildStartTime);
+    const now = new Date();
+    const elapsed = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const remainingMinutes = Math.max(15 - minutes, 0);
+
+    if (remainingMinutes > 0) {
+      return `~${remainingMinutes}min remaining`;
+    }
+    return 'Completed';
+  }
+
+  function handleManualRefresh() {
+    loadPRBuilds();
+    setNextRefreshIn(AUTO_REFRESH_INTERVAL / 1000); // Reset countdown
+  }
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
@@ -184,6 +289,16 @@ export default function PRBuildsSettings() {
   if (!enabled || !window.desktopApi?.prBuilds) {
     return null;
   }
+
+  const getRepoOwner = () => {
+    // Try to extract from first PR or default to kubernetes-sigs
+    return 'kubernetes-sigs';
+  };
+
+  const getRepoName = () => {
+    // Try to extract from first PR or default to headlamp
+    return 'headlamp';
+  };
 
   return (
     <Box sx={{ mt: 4 }}>
@@ -217,11 +332,24 @@ export default function PRBuildsSettings() {
         </Alert>
       )}
 
-      <Box sx={{ mb: 2 }}>
-        <Button variant="contained" onClick={loadPRBuilds}>
+      <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Button
+          variant="contained"
+          onClick={handleManualRefresh}
+          disabled={refreshing}
+          startIcon={refreshing ? <CircularProgress size={20} /> : <RefreshIcon />}
+        >
           {t('translation|Refresh PR List')}
         </Button>
+        {lastRefresh && (
+          <Typography variant="body2" color="text.secondary">
+            {t('translation|Last updated')}: {formatTimeSince(lastRefresh)} •{' '}
+            {t('translation|Next update in')}: {nextRefreshIn}s
+          </Typography>
+        )}
       </Box>
+
+      {refreshing && <LinearProgress sx={{ mb: 2 }} />}
 
       {prBuilds.length === 0 ? (
         <Typography variant="body2" color="text.secondary">
@@ -229,48 +357,88 @@ export default function PRBuildsSettings() {
         </Typography>
       ) : (
         <List>
-          {prBuilds.map(pr => (
-            <ListItem
-              key={pr.number}
-              sx={{
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: 1,
-                mb: 1,
-              }}
-            >
-              <ListItemText
-                primary={
-                  <Box>
-                    <Typography variant="subtitle1">
+          {prBuilds.map(pr => {
+            const buildProgress = getBuildProgress(pr.buildStartTime);
+            const repoOwner = getRepoOwner();
+            const repoName = getRepoName();
+
+            return (
+              <ListItem
+                key={pr.number}
+                sx={{
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  mb: 1,
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                }}
+              >
+                <Box sx={{ width: '100%', display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                  <Avatar
+                    src={pr.authorAvatarUrl}
+                    alt={pr.author}
+                    sx={{ width: 48, height: 48, mt: 1 }}
+                  />
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="subtitle1" gutterBottom>
                       #{pr.number}: {pr.title}
                     </Typography>
-                  </Box>
-                }
-                secondary={
-                  <Box>
-                    <Typography variant="body2" color="text.secondary">
-                      {t('translation|Author')}: {pr.author}
+
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1 }}>
+                      <Chip label={pr.author} size="small" variant="outlined" />
+                      <Chip
+                        label={`${pr.availableArtifacts.length} artifacts`}
+                        size="small"
+                        color="primary"
+                      />
+                    </Box>
+
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      {t('translation|Commit')}: {pr.headSha.substring(0, 7)} •{' '}
+                      {new Date(pr.commitDate).toLocaleString()}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {t('translation|Commit')}: {pr.headSha.substring(0, 7)} (
-                      {new Date(pr.commitDate).toLocaleDateString()})
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {t('translation|Artifacts')}: {pr.availableArtifacts.length}
-                    </Typography>
-                    <Box sx={{ mt: 1 }}>
-                      <Link
-                        href={`https://github.com/kubernetes-sigs/headlamp/pull/${pr.number}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        sx={{ mr: 2 }}
-                      >
-                        {t('translation|View PR')}
-                      </Link>
+
+                    {buildProgress !== null && buildProgress < 100 && (
+                      <Box sx={{ mt: 1, mb: 1 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            {t('translation|Estimated build progress')}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {formatBuildTime(pr.buildStartTime)}
+                          </Typography>
+                        </Box>
+                        <LinearProgress
+                          variant="determinate"
+                          value={buildProgress}
+                          sx={{ height: 6, borderRadius: 3 }}
+                        />
+                      </Box>
+                    )}
+
+                    <Box sx={{ mt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                       <Button
                         size="small"
-                        variant="outlined"
+                        component={Link}
+                        href={`https://github.com/${repoOwner}/${repoName}/pull/${pr.number}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {t('translation|View PR')}
+                      </Button>
+                      <Button
+                        size="small"
+                        component={Link}
+                        href={`https://github.com/${repoOwner}/${repoName}/actions/runs/${pr.workflowRunId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {t('translation|View Action')}
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="contained"
                         disabled={activePR?.number === pr.number}
                         onClick={() => {
                           setSelectedPR(pr);
@@ -283,10 +451,10 @@ export default function PRBuildsSettings() {
                       </Button>
                     </Box>
                   </Box>
-                }
-              />
-            </ListItem>
-          ))}
+                </Box>
+              </ListItem>
+            );
+          })}
         </List>
       )}
 

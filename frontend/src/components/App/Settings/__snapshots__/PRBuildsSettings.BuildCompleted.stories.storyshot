@@ -34,45 +34,6 @@
         </div>
       </div>
       <div
-        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorInfo MuiAlert-standardInfo MuiAlert-standard css-5grnv8-MuiPaper-root-MuiAlert-root"
-        role="alert"
-      >
-        <div
-          class="MuiAlert-icon css-1ytlwq5-MuiAlert-icon"
-        >
-          <svg
-            aria-hidden="true"
-            class="MuiSvgIcon-root MuiSvgIcon-fontSizeInherit css-1vooibu-MuiSvgIcon-root"
-            data-testid="InfoOutlinedIcon"
-            focusable="false"
-            viewBox="0 0 24 24"
-          >
-            <path
-              d="M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20, 12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10, 10 0 0,0 12,2M11,17H13V11H11V17Z"
-            />
-          </svg>
-        </div>
-        <div
-          class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
-        >
-          Currently using PR #123: Add new feature for Kubernetes management
-          <div
-            class="MuiBox-root css-164r41r"
-          >
-            <button
-              class="MuiButtonBase-root MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-irzb5y-MuiButtonBase-root-MuiButton-root"
-              tabindex="0"
-              type="button"
-            >
-              Clear PR Build
-              <span
-                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-              />
-            </button>
-          </div>
-        </div>
-      </div>
-      <div
         class="MuiBox-root css-1r1kccx"
       >
         <button
@@ -201,7 +162,7 @@
                 >
                   <span
                     class="MuiLinearProgress-bar MuiLinearProgress-barColorPrimary MuiLinearProgress-bar1Determinate css-1ciq95v-MuiLinearProgress-bar1"
-                    style="transform: translateX(-65.85211111111111%);"
+                    style="transform: translateX(-65.83544444444445%);"
                   />
                 </span>
               </div>
@@ -233,12 +194,14 @@
                   />
                 </a>
                 <button
-                  class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeSmall MuiButton-containedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeSmall MuiButton-containedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1fnoj2x-MuiButtonBase-root-MuiButton-root"
-                  disabled=""
-                  tabindex="-1"
+                  class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeSmall MuiButton-containedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeSmall MuiButton-containedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1fnoj2x-MuiButtonBase-root-MuiButton-root"
+                  tabindex="0"
                   type="button"
                 >
-                  Active
+                  Use This Build
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
                 </button>
               </div>
             </div>
@@ -254,9 +217,9 @@
               class="MuiAvatar-root MuiAvatar-circular css-9fu0aw-MuiAvatar-root"
             >
               <img
-                alt="maintainer"
+                alt="docs-team"
                 class="MuiAvatar-img css-1pqm26d-MuiAvatar-img"
-                src="https://avatars.githubusercontent.com/u/2?v=4"
+                src="https://avatars.githubusercontent.com/u/3?v=4"
               />
             </div>
             <div
@@ -266,9 +229,9 @@
                 class="MuiTypography-root MuiTypography-subtitle1 MuiTypography-gutterBottom css-ifdfw9-MuiTypography-root"
               >
                 #
-                456
+                789
                 : 
-                Fix critical bug in pod management
+                Update documentation for new API
               </h6>
               <div
                 class="MuiBox-root css-xfg1is"
@@ -279,7 +242,7 @@
                   <span
                     class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
                   >
-                    maintainer
+                    docs-team
                   </span>
                 </div>
                 <div
@@ -297,17 +260,17 @@
               >
                 Commit
                 : 
-                def456a
+                ghi789j
                  •
                  
-                1/11/2026, 5:59:32 PM
+                1/11/2026, 4:14:32 PM
               </p>
               <div
                 class="MuiBox-root css-4l5h3x"
               >
                 <a
                   class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-35ublb-MuiTypography-root-MuiLink-root-MuiButtonBase-root-MuiButton-root"
-                  href="https://github.com/kubernetes-sigs/headlamp/pull/456"
+                  href="https://github.com/kubernetes-sigs/headlamp/pull/789"
                   rel="noopener noreferrer"
                   tabindex="0"
                   target="_blank"
@@ -319,7 +282,7 @@
                 </a>
                 <a
                   class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-35ublb-MuiTypography-root-MuiLink-root-MuiButtonBase-root-MuiButton-root"
-                  href="https://github.com/kubernetes-sigs/headlamp/actions/runs/456790"
+                  href="https://github.com/kubernetes-sigs/headlamp/actions/runs/456791"
                   rel="noopener noreferrer"
                   tabindex="0"
                   target="_blank"

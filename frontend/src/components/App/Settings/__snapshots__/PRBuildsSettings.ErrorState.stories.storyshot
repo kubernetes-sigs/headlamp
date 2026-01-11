@@ -55,7 +55,7 @@
         <div
           class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
         >
-          window.desktopApi.prBuilds.listPRBuilds is not a function
+          Failed to fetch PR list from GitHub API
         </div>
         <div
           class="MuiAlert-action css-ki1hdl-MuiAlert-action"
@@ -85,13 +85,28 @@
         </div>
       </div>
       <div
-        class="MuiBox-root css-1qm1lh"
+        class="MuiBox-root css-1r1kccx"
       >
         <button
           class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
           tabindex="0"
           type="button"
         >
+          <span
+            class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeMedium css-1d6wzja-MuiButton-startIcon"
+          >
+            <svg
+              aria-hidden="true"
+              class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+              data-testid="RefreshIcon"
+              focusable="false"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z"
+              />
+            </svg>
+          </span>
           Refresh PR List
           <span
             class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
