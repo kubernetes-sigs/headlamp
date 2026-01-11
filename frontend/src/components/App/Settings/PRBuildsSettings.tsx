@@ -48,6 +48,7 @@ interface PRInfo {
   commitMessage: string;
   workflowRunId: number;
   buildStartTime?: string;
+  buildStatus?: 'success' | 'failure' | 'in_progress' | 'cancelled';
   contributors?: string[];
   availableArtifacts: {
     name: string;
@@ -392,6 +393,27 @@ export default function PRBuildsSettings() {
                         size="small"
                         color="primary"
                       />
+                      {pr.buildStatus === 'failure' && (
+                        <Chip
+                          label={t('translation|Build Failed')}
+                          size="small"
+                          color="error"
+                        />
+                      )}
+                      {pr.buildStatus === 'in_progress' && (
+                        <Chip
+                          label={t('translation|Build In Progress')}
+                          size="small"
+                          color="warning"
+                        />
+                      )}
+                      {pr.buildStatus === 'cancelled' && (
+                        <Chip
+                          label={t('translation|Build Cancelled')}
+                          size="small"
+                          color="default"
+                        />
+                      )}
                     </Box>
 
                     <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -439,7 +461,13 @@ export default function PRBuildsSettings() {
                       <Button
                         size="small"
                         variant="contained"
-                        disabled={activePR?.number === pr.number}
+                        disabled={
+                          activePR?.number === pr.number ||
+                          pr.buildStatus === 'failure' ||
+                          pr.buildStatus === 'in_progress' ||
+                          pr.buildStatus === 'cancelled' ||
+                          pr.availableArtifacts.length === 0
+                        }
                         onClick={() => {
                           setSelectedPR(pr);
                           setConfirmDialogOpen(true);
@@ -447,8 +475,21 @@ export default function PRBuildsSettings() {
                       >
                         {activePR?.number === pr.number
                           ? t('translation|Active')
+                          : pr.buildStatus === 'failure'
+                          ? t('translation|Build Failed')
+                          : pr.buildStatus === 'in_progress'
+                          ? t('translation|Build In Progress')
+                          : pr.buildStatus === 'cancelled'
+                          ? t('translation|Cancelled')
+                          : pr.availableArtifacts.length === 0
+                          ? t('translation|No Artifacts')
                           : t('translation|Use This Build')}
                       </Button>
+                      {pr.buildStatus === 'failure' && (
+                        <Typography variant="caption" color="error" sx={{ alignSelf: 'center' }}>
+                          {t('translation|Cannot use builds with failed CI checks')}
+                        </Typography>
+                      )}
                     </Box>
                   </Box>
                 </Box>

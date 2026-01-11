@@ -15,7 +15,14 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
+import React from 'react';
 import PRBuildsSettings from './PRBuildsSettings';
+
+// Mock fixed date for consistent snapshots (January 1, 2025, 12:00:00 UTC)
+const MOCK_NOW = new Date('2025-01-01T12:00:00.000Z');
+const MOCK_5_MIN_AGO = new Date('2025-01-01T11:55:00.000Z');
+const MOCK_15_MIN_AGO = new Date('2025-01-01T11:45:00.000Z');
+const MOCK_2_HOURS_AGO = new Date('2025-01-01T10:00:00.000Z');
 
 const mockPRInfo = {
   number: 123,
@@ -24,10 +31,11 @@ const mockPRInfo = {
   authorAvatarUrl: 'https://avatars.githubusercontent.com/u/1?v=4',
   headSha: 'abc123def456',
   headRef: 'feature-branch',
-  commitDate: new Date(Date.now() - 5 * 60 * 1000).toISOString(), // 5 minutes ago
+  commitDate: MOCK_5_MIN_AGO.toISOString(),
   commitMessage: 'Add new feature for improved Kubernetes management',
   workflowRunId: 456789,
-  buildStartTime: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+  buildStartTime: MOCK_5_MIN_AGO.toISOString(),
+  buildStatus: 'success' as const,
   contributors: ['contributor', 'reviewer1'],
   availableArtifacts: [
     {
@@ -52,8 +60,9 @@ const mockRecentPR = {
   author: 'maintainer',
   authorAvatarUrl: 'https://avatars.githubusercontent.com/u/2?v=4',
   headSha: 'def456abc789',
-  commitDate: new Date(Date.now() - 15 * 60 * 1000).toISOString(), // 15 minutes ago
-  buildStartTime: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+  commitDate: MOCK_15_MIN_AGO.toISOString(),
+  buildStartTime: MOCK_15_MIN_AGO.toISOString(),
+  buildStatus: 'in_progress' as const,
   workflowRunId: 456790,
   contributors: ['maintainer'],
 };
@@ -65,10 +74,25 @@ const mockOldPR = {
   author: 'docs-team',
   authorAvatarUrl: 'https://avatars.githubusercontent.com/u/3?v=4',
   headSha: 'ghi789jkl012',
-  commitDate: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-  buildStartTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+  commitDate: MOCK_2_HOURS_AGO.toISOString(),
+  buildStartTime: MOCK_2_HOURS_AGO.toISOString(),
+  buildStatus: 'success' as const,
   workflowRunId: 456791,
   contributors: ['docs-team', 'reviewer2', 'reviewer3'],
+};
+
+const mockFailedPR = {
+  ...mockPRInfo,
+  number: 999,
+  title: 'Experimental refactor (CI failing)',
+  author: 'experimenter',
+  authorAvatarUrl: 'https://avatars.githubusercontent.com/u/4?v=4',
+  headSha: 'xyz999abc123',
+  commitDate: MOCK_15_MIN_AGO.toISOString(),
+  buildStartTime: MOCK_15_MIN_AGO.toISOString(),
+  buildStatus: 'failure' as const,
+  workflowRunId: 456792,
+  contributors: ['experimenter'],
 };
 
 const meta: Meta<typeof PRBuildsSettings> = {
@@ -82,12 +106,16 @@ const meta: Meta<typeof PRBuildsSettings> = {
 export default meta;
 
 const Template: StoryFn<typeof PRBuildsSettings> = () => {
+  // Mock Date.now() for consistent snapshots
+  const originalDateNow = Date.now;
+  Date.now = () => MOCK_NOW.getTime();
+  
   // Mock the window.desktopApi for Storybook
   (window as any).desktopApi = {
     prBuilds: {
       listPRBuilds: async () => ({
         success: true,
-        data: [mockPRInfo, mockRecentPR, mockOldPR],
+        data: [mockPRInfo, mockRecentPR, mockOldPR, mockFailedPR],
       }),
       activatePRBuild: async () => ({
         success: true,
@@ -105,6 +133,13 @@ const Template: StoryFn<typeof PRBuildsSettings> = () => {
       }),
     },
   };
+  
+  // Clean up on unmount
+  React.useEffect(() => {
+    return () => {
+      Date.now = originalDateNow;
+    };
+  }, []);
 
   return <PRBuildsSettings />;
 };
@@ -160,9 +195,14 @@ export const WithActivePRBuild: StoryFn<typeof PRBuildsSettings> = () => {
 };
 
 export const BuildInProgress: StoryFn<typeof PRBuildsSettings> = () => {
+  // Mock Date.now() for consistent snapshots
+  const originalDateNow = Date.now;
+  Date.now = () => MOCK_NOW.getTime();
+  
   const recentBuildPR = {
     ...mockPRInfo,
-    buildStartTime: new Date(Date.now() - 3 * 60 * 1000).toISOString(), // 3 minutes ago
+    buildStartTime: new Date('2025-01-01T11:57:00.000Z').toISOString(), // 3 minutes before MOCK_NOW
+    buildStatus: 'in_progress' as const,
   };
 
   (window as any).desktopApi = {
@@ -181,14 +221,26 @@ export const BuildInProgress: StoryFn<typeof PRBuildsSettings> = () => {
       }),
     },
   };
+  
+  // Clean up on unmount
+  React.useEffect(() => {
+    return () => {
+      Date.now = originalDateNow;
+    };
+  }, []);
 
   return <PRBuildsSettings />;
 };
 
 export const BuildCompleted: StoryFn<typeof PRBuildsSettings> = () => {
+  // Mock Date.now() for consistent snapshots
+  const originalDateNow = Date.now;
+  Date.now = () => MOCK_NOW.getTime();
+  
   const completedBuildPR = {
     ...mockPRInfo,
-    buildStartTime: new Date(Date.now() - 20 * 60 * 1000).toISOString(), // 20 minutes ago
+    buildStartTime: new Date('2025-01-01T11:40:00.000Z').toISOString(), // 20 minutes before MOCK_NOW
+    buildStatus: 'success' as const,
   };
 
   (window as any).desktopApi = {
@@ -207,6 +259,13 @@ export const BuildCompleted: StoryFn<typeof PRBuildsSettings> = () => {
       }),
     },
   };
+  
+  // Clean up on unmount
+  React.useEffect(() => {
+    return () => {
+      Date.now = originalDateNow;
+    };
+  }, []);
 
   return <PRBuildsSettings />;
 };
@@ -262,6 +321,38 @@ export const Disabled: StoryFn<typeof PRBuildsSettings> = () => {
       }),
     },
   };
+
+  return <PRBuildsSettings />;
+};
+
+export const WithFailedBuild: StoryFn<typeof PRBuildsSettings> = () => {
+  // Mock Date.now() for consistent snapshots
+  const originalDateNow = Date.now;
+  Date.now = () => MOCK_NOW.getTime();
+  
+  (window as any).desktopApi = {
+    prBuilds: {
+      listPRBuilds: async () => ({
+        success: true,
+        data: [mockPRInfo, mockFailedPR, mockRecentPR],
+      }),
+      getPRBuildStatus: async () => ({
+        success: true,
+        data: { isActive: false, prInfo: null },
+      }),
+      getEnabled: async () => ({
+        success: true,
+        data: true,
+      }),
+    },
+  };
+  
+  // Clean up on unmount
+  React.useEffect(() => {
+    return () => {
+      Date.now = originalDateNow;
+    };
+  }, []);
 
   return <PRBuildsSettings />;
 };

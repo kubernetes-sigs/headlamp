@@ -60,6 +60,8 @@ export interface PRInfo {
   commitMessage: string;
   /** GitHub Actions workflow run ID */
   workflowRunId: number;
+  /** Build status from workflow run (success, failure, in_progress, cancelled) */
+  buildStatus?: 'success' | 'failure' | 'in_progress' | 'cancelled';
   /** List of available artifacts for this PR */
   availableArtifacts: {
     /** Artifact name (e.g., "dmgs", "AppImages", "Win exes") */
@@ -368,6 +370,7 @@ function getPlatformArtifactPattern(): string {
 
 /**
  * Fetches list of open PRs with available app artifacts for the current platform
+ * Includes PRs with successful builds, in-progress builds, and failed builds
  * @returns Promise resolving to an array of PR information objects
  * @throws Error if GitHub API requests fail
  */
@@ -387,17 +390,33 @@ export async function fetchPRsWithArtifacts(): Promise<PRInfo[]> {
         `/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs?event=pull_request&head_sha=${pr.head.sha}&per_page=10`
       );
 
-      // Find successful workflow runs
-      const successfulRuns = runsResponse.workflow_runs.filter(
-        run => run.conclusion === 'success' && run.status === 'completed'
+      // Find workflow runs (prioritize successful, but include in_progress and failed)
+      const relevantRuns = runsResponse.workflow_runs.filter(
+        run => run.status === 'completed' || run.status === 'in_progress'
       );
 
-      if (successfulRuns.length === 0) {
+      if (relevantRuns.length === 0) {
         continue;
       }
 
-      // Get artifacts for the most recent successful run
-      const latestRun = successfulRuns[0];
+      // Get the most recent run
+      const latestRun = relevantRuns[0];
+      
+      // Determine build status
+      let buildStatus: 'success' | 'failure' | 'in_progress' | 'cancelled' | undefined;
+      if (latestRun.status === 'completed') {
+        if (latestRun.conclusion === 'success') {
+          buildStatus = 'success';
+        } else if (latestRun.conclusion === 'failure') {
+          buildStatus = 'failure';
+        } else if (latestRun.conclusion === 'cancelled') {
+          buildStatus = 'cancelled';
+        }
+      } else if (latestRun.status === 'in_progress') {
+        buildStatus = 'in_progress';
+      }
+
+      // Get artifacts for the run
       const artifactsResponse = await githubApiRequest<{ artifacts: Artifact[] }>(
         `/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs/${latestRun.id}/artifacts`
       );
@@ -407,7 +426,9 @@ export async function fetchPRsWithArtifacts(): Promise<PRInfo[]> {
         artifact => artifact.name === platformPattern && !artifact.expired
       );
 
-      if (relevantArtifacts.length > 0) {
+      // Only include if there are artifacts available (successful builds)
+      // or if the build is in progress or failed (so user knows)
+      if (relevantArtifacts.length > 0 || buildStatus === 'in_progress' || buildStatus === 'failure') {
         // Get commit details
         const commitResponse = await githubApiRequest<any>(
           `/repos/${REPO_OWNER}/${REPO_NAME}/commits/${pr.head.sha}`
@@ -423,6 +444,7 @@ export async function fetchPRsWithArtifacts(): Promise<PRInfo[]> {
           commitDate: commitResponse.commit.committer.date,
           commitMessage: commitResponse.commit.message,
           workflowRunId: latestRun.id,
+          buildStatus,
           availableArtifacts: relevantArtifacts.map(artifact => ({
             name: artifact.name,
             id: artifact.id,
