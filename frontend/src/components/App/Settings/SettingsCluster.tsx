@@ -16,15 +16,18 @@
 
 import { Icon, InlineIcon } from '@iconify/react';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
 import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { useQueryClient } from '@tanstack/react-query';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
+import { getClusterAppearanceFromMeta, isValidCssColor } from '../../../helpers/clusterAppearance';
 import {
   ClusterSettings,
   loadClusterSettings,
@@ -32,7 +35,7 @@ import {
 } from '../../../helpers/clusterSettings';
 import { isElectron } from '../../../helpers/isElectron';
 import { useCluster, useClustersConf } from '../../../lib/k8s';
-import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
+import { deleteCluster, updateClusterAppearance } from '../../../lib/k8s/api/v1/clusterApi';
 import { setConfig } from '../../../redux/configSlice';
 import ConfirmButton from '../../common/ConfirmButton';
 import Empty from '../../common/EmptyContent';
@@ -42,6 +45,8 @@ import NameValueTable from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
 import { ClusterNameEditor } from './ClusterNameEditor';
 import ClusterSelector from './ClusterSelector';
+import ColorPicker from './ColorPicker';
+import IconPicker from './IconPicker';
 import NodeShellSettings from './NodeShellSettings';
 import { isValidNamespaceFormat } from './util';
 
@@ -56,7 +61,19 @@ export default function SettingsCluster() {
   const [cluster, setCluster] = React.useState(useCluster() || '');
   const clusterFromURLRef = React.useRef('');
 
+  const [appearanceAccentColor, setAppearanceAccentColor] = React.useState<string>('');
+  const [appearanceWarningBannerText, setAppearanceWarningBannerText] = React.useState<string>('');
+  const [appearanceIcon, setAppearanceIcon] = React.useState<string>('');
+  const [appearanceSaving, setAppearanceSaving] = React.useState(false);
+  const [appearanceError, setAppearanceError] = React.useState<string>('');
+
+  // Dialog states for pickers
+  const [colorPickerOpen, setColorPickerOpen] = React.useState(false);
+  const [iconPickerOpen, setIconPickerOpen] = React.useState(false);
+
   const theme = useTheme();
+
+  const queryClient = useQueryClient();
 
   const history = useHistory();
   const dispatch = useDispatch();
@@ -85,9 +102,29 @@ export default function SettingsCluster() {
     return clusterInfo?.meta_data?.source === 'dynamic_cluster';
   }, [cluster, clusterConf]);
 
+  // check if cluster is stateless (appearance settings not available)
+  const isStatelessCluster = React.useMemo(() => {
+    if (!cluster) {
+      return false;
+    }
+
+    const clusterInfo = (clusterConf && clusterConf[cluster]) || null;
+    return clusterInfo?.meta_data?.source === 'dynamic_cluster';
+  }, [cluster, clusterConf]);
+
   React.useEffect(() => {
     setClusterSettings(!!cluster ? loadClusterSettings(cluster || '') : null);
   }, [cluster]);
+
+  React.useEffect(() => {
+    const clusterInfo = (clusterConf && clusterConf[cluster || '']) || null;
+    const appearance = getClusterAppearanceFromMeta(clusterInfo?.meta_data);
+
+    setAppearanceAccentColor(appearance.accentColor || '');
+    setAppearanceWarningBannerText(appearance.warningBannerText || '');
+    setAppearanceIcon(appearance.icon || '');
+    setAppearanceError('');
+  }, [cluster, clusterConf]);
 
   React.useEffect(() => {
     const clusterInfo = (clusterConf && clusterConf[cluster || '']) || null;
@@ -179,6 +216,9 @@ export default function SettingsCluster() {
     "translation|Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character."
   );
 
+  // Wrapper to allow empty string (optional field)
+  const isValidAccentColor = (color: string): boolean => !color || isValidCssColor(color);
+
   // If we don't have yet a cluster name from the URL, we are still loading.
   if (!clusterFromURLRef.current) {
     return <Loader title="Loading" />;
@@ -219,6 +259,7 @@ export default function SettingsCluster() {
 
   const defaultNamespaceLabelID = 'default-namespace-label';
   const allowedNamespaceLabelID = 'allowed-namespace-label';
+  const appearanceLabelID = 'cluster-appearance-label';
 
   return (
     <>
@@ -239,6 +280,158 @@ export default function SettingsCluster() {
             clusterConf={clusterConf}
             clusterSettings={clusterSettings}
             setClusterSettings={setClusterSettings}
+          />
+        )}
+        {!isStatelessCluster && (
+          <NameValueTable
+            rows={[
+              {
+                name: (
+                  <Box>
+                    <Typography id={appearanceLabelID}>{t('translation|Appearance')}</Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      {t(
+                        'translation|Stored in kubeconfig and shared for all users of this Headlamp instance.'
+                      )}
+                    </Typography>
+                  </Box>
+                ),
+                value: (
+                  <Box display="flex" flexDirection="column" gap={2} sx={{ minWidth: 280 }}>
+                    {/* Color Picker */}
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                        {t('translation|Accent color')}
+                      </Typography>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        {appearanceAccentColor && (
+                          <Box
+                            sx={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 1,
+                              backgroundColor: appearanceAccentColor,
+                              border: `1px solid ${theme.palette.divider}`,
+                            }}
+                          />
+                        )}
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => setColorPickerOpen(true)}
+                          startIcon={<Icon icon="mdi:palette" />}
+                        >
+                          {appearanceAccentColor
+                            ? t('translation|Change Color')
+                            : t('translation|Choose Color')}
+                        </Button>
+                        {appearanceAccentColor && (
+                          <IconButton size="small" onClick={() => setAppearanceAccentColor('')}>
+                            <Icon icon="mdi:close" />
+                          </IconButton>
+                        )}
+                      </Box>
+                    </Box>
+
+                    {/* Icon Picker */}
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                        {t('translation|Cluster icon')}
+                      </Typography>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        {appearanceIcon && <Icon icon={appearanceIcon} width={24} />}
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => setIconPickerOpen(true)}
+                          startIcon={<Icon icon="mdi:emoticon-outline" />}
+                        >
+                          {appearanceIcon
+                            ? t('translation|Change Icon')
+                            : t('translation|Choose Icon')}
+                        </Button>
+                        {appearanceIcon && (
+                          <IconButton size="small" onClick={() => setAppearanceIcon('')}>
+                            <Icon icon="mdi:close" />
+                          </IconButton>
+                        )}
+                      </Box>
+                    </Box>
+
+                    <TextField
+                      label={t('translation|Warning banner message')}
+                      placeholder={t(
+                        'translation|e.g. THIS IS A PROD ENVIRONMENT, ACT ACCORDINGLY'
+                      )}
+                      value={appearanceWarningBannerText}
+                      onChange={e => setAppearanceWarningBannerText(e.target.value)}
+                      multiline
+                      minRows={2}
+                      InputLabelProps={{ shrink: true }}
+                    />
+                    {!!appearanceError && (
+                      <Typography
+                        color={theme.palette.mode === 'dark' ? 'error.light' : 'error.main'}
+                      >
+                        {appearanceError}
+                      </Typography>
+                    )}
+                    <Box textAlign="right">
+                      <ConfirmButton
+                        disabled={
+                          appearanceSaving || (!!appearanceAccentColor && !!appearanceError)
+                        }
+                        onConfirm={() => {
+                          const clusterInfo = (clusterConf && clusterConf[cluster || '']) || null;
+                          const source = clusterInfo?.meta_data?.source || 'kubeconfig';
+
+                          if (!isValidAccentColor(appearanceAccentColor)) {
+                            setAppearanceError(
+                              t(
+                                'translation|Accent color format is invalid. Use hex (#ff0000), rgb(), rgba(), or a CSS color name.'
+                              )
+                            );
+                            return;
+                          }
+
+                          setAppearanceSaving(true);
+                          setAppearanceError('');
+
+                          updateClusterAppearance(
+                            cluster,
+                            source,
+                            {
+                              accentColor: appearanceAccentColor,
+                              warningBannerText: appearanceWarningBannerText,
+                              icon: appearanceIcon,
+                            },
+                            clusterInfo?.meta_data?.clusterID
+                          )
+                            .then(() => {
+                              // Invalidate and immediately refetch to update components using ClusterAppearance
+                              queryClient.invalidateQueries({ queryKey: ['cluster-fetch'] });
+                              return queryClient.refetchQueries({ queryKey: ['cluster-fetch'] });
+                            })
+                            .catch((err: Error) => {
+                              setAppearanceError(err.message);
+                            })
+                            .finally(() => {
+                              setAppearanceSaving(false);
+                            });
+                        }}
+                        confirmTitle={t('translation|Apply appearance')}
+                        confirmDescription={t(
+                          'translation|Apply appearance changes for "{{ clusterName }}"? This will be visible to all users of this Headlamp instance.',
+                          { clusterName: cluster }
+                        )}
+                      >
+                        {appearanceSaving ? t('translation|Applying...') : t('translation|Apply')}
+                      </ConfirmButton>
+                    </Box>
+                  </Box>
+                ),
+              },
+            ]}
           />
         )}
         <NameValueTable
@@ -385,6 +578,21 @@ export default function SettingsCluster() {
           </ConfirmButton>
         </Box>
       )}
+
+      <ColorPicker
+        open={colorPickerOpen}
+        currentColor={appearanceAccentColor}
+        onClose={() => setColorPickerOpen(false)}
+        onSelectColor={setAppearanceAccentColor}
+        onError={setAppearanceError}
+      />
+
+      <IconPicker
+        open={iconPickerOpen}
+        currentIcon={appearanceIcon}
+        onClose={() => setIconPickerOpen(false)}
+        onSelectIcon={setAppearanceIcon}
+      />
     </>
   );
 }

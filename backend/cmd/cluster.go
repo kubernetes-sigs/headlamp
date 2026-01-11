@@ -46,9 +46,18 @@ type KubeconfigRequest struct {
 	Kubeconfigs []string `json:"kubeconfigs"`
 }
 
-// RenameClusterRequest is the request body structure for renaming a cluster.
-type RenameClusterRequest struct {
-	NewClusterName string `json:"newClusterName"`
-	Source         string `json:"source"`
-	Stateless      bool   `json:"stateless"`
+// ClusterAppearance defines optional per-cluster UI settings:
+// accent color, warning banner text, and icon.
+type ClusterAppearance struct {
+	AccentColor       *string `json:"accentColor,omitempty"`
+	WarningBannerText *string `json:"warningBannerText,omitempty"`
+	Icon              *string `json:"icon,omitempty"`
+}
+
+// ClusterUpdateRequest is the request body structure for updating a cluster's name or appearance.
+type ClusterUpdateRequest struct {
+	NewClusterName string             `json:"newClusterName"`
+	Source         string             `json:"source"`
+	Stateless      bool               `json:"stateless"`
+	Appearance     *ClusterAppearance `json:"appearance,omitempty"`
 }

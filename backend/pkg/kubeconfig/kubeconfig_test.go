@@ -664,7 +664,10 @@ func TestCustomObjectDeepCopy(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-object",
 		},
-		CustomName: "test-custom-name",
+		CustomName:        "test-custom-name",
+		AccentColor:       "#ff0000",
+		WarningBannerText: "THIS IS PROD",
+		Icon:              "mdi:shield-alert",
 	}
 
 	t.Run("DeepCopyObject", func(t *testing.T) {
@@ -678,6 +681,9 @@ func TestCustomObjectDeepCopy(t *testing.T) {
 		assert.Equal(t, original, copied)
 		assert.NotSame(t, original, copied)
 		assert.Equal(t, original.CustomName, copied.CustomName)
+		assert.Equal(t, original.AccentColor, copied.AccentColor)
+		assert.Equal(t, original.WarningBannerText, copied.WarningBannerText)
+		assert.Equal(t, original.Icon, copied.Icon)
 	})
 
 	t.Run("DeepCopy with nil", func(t *testing.T) {

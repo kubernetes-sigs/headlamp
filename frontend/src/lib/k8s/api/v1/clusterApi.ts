@@ -77,7 +77,6 @@ export async function setCluster(clusterReq: ClusterRequest) {
       false
     );
   }
-
   return request(
     '/cluster',
     {
@@ -87,6 +86,66 @@ export async function setCluster(clusterReq: ClusterRequest) {
         ...headers,
         ...getHeadlampAPIHeaders(),
       },
+    },
+    false,
+    false
+  );
+}
+
+/**
+ * Appearance values to apply to a cluster via the backend.
+ *
+ * - accentColor: Optional color string for a cluster.
+ * - warningBannerText: Optional banner message to display in the UI.
+ * - icon: Optional iconify name to use as icon for cluster (mdi:kubernetes,...).
+ */
+export type ClusterAppearance = {
+  accentColor?: string;
+  warningBannerText?: string;
+  icon?: string;
+};
+
+/**
+ * Updates the appearance settings for a cluster on the backend.
+ *
+ * Throws if the cluster is stateless (browser-only), as shared appearance is unsupported.
+ *
+ * @param cluster - The name of the cluster to update.
+ * @param source - The cluster source (e.g. 'kubeconfig' or 'dynamic_cluster').
+ * @param appearance - The appearance values to apply (accentColor, warningBannerText, icon).
+ * @param clusterID - Optional cluster identifier used to detect stateless clusters.
+ * @returns A promise that resolves with the backend response when the update completes.
+ */
+export async function updateClusterAppearance(
+  cluster: string,
+  source: string,
+  appearance: ClusterAppearance,
+  clusterID?: string
+) {
+  let stateless = false;
+  let kubeconfig;
+  const updateURL = `/cluster/${cluster}`;
+
+  if (cluster) {
+    kubeconfig = await findKubeconfigByClusterName(cluster, clusterID);
+    if (kubeconfig !== null) {
+      stateless = true;
+    }
+  }
+
+  if (stateless) {
+    throw new Error(
+      'Shared cluster appearance is not supported for stateless (browser-only) clusters. Add the cluster to the backend to share it with the team.'
+    );
+  }
+
+  const headers = addBackstageAuthHeaders(JSON_HEADERS);
+  return request(
+    updateURL,
+    {
+      method: 'PUT',
+      headers: { ...headers, ...getHeadlampAPIHeaders() },
+      body: JSON.stringify({ newClusterName: '', source, stateless, appearance }),
     },
     false,
     false

@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
 import { Typography } from '@mui/material';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Container from '@mui/material/Container';
@@ -26,9 +28,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
+import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
-import { useClustersConf } from '../../lib/k8s';
+import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
 import { setConfig } from '../../redux/configSlice';
@@ -189,6 +192,20 @@ export default function Layout({}: LayoutProps) {
   const { t } = useTranslation();
   const allClusters = useClustersConf();
 
+  // Get all selected clusters and their appearances
+  const selectedClusterNames = useSelectedClusters();
+  const selectedClustersWithAppearance = selectedClusterNames
+    .map(name => {
+      const cluster = allClusters?.[name];
+      if (!cluster) return null;
+      const appearance = getClusterAppearanceFromMeta(cluster.meta_data);
+      return { name, appearance, cluster };
+    })
+    .filter(
+      (item): item is NonNullable<typeof item> =>
+        item !== null && !!item.appearance.warningBannerText
+    );
+
   /** This fetches the cluster config from the backend and updates the redux store on an interval.
    * When stateless clusters are enabled, it also fetches the stateless cluster config from the
    * indexDB and then sends the backend to parse it and then updates the parsed value into redux
@@ -318,6 +335,59 @@ export default function Layout({}: LayoutProps) {
                 gridRow: '1 / 2',
               }}
             >
+              {selectedClustersWithAppearance.length > 0 && (
+                <Box px={isFullWidth ? 4 : 2} pt={2}>
+                  {selectedClustersWithAppearance.map(({ name, appearance }) => (
+                    <Alert
+                      key={name}
+                      icon={
+                        <Icon
+                          icon={appearance.icon || 'mdi:warning-circle'}
+                          color={appearance.accentColor || 'warning'}
+                          width={24}
+                          height={24}
+                        />
+                      }
+                      severity="warning"
+                      sx={theme => ({
+                        ...(appearance.accentColor
+                          ? { borderLeft: `6px solid ${appearance.accentColor}` }
+                          : {}),
+                        mx: 1,
+                        mb: 1,
+                        color: theme.palette.text.primary,
+                        alignItems: 'center',
+                        minHeight: 48,
+                        '& .MuiAlert-icon': {
+                          marginRight: 2,
+                          padding: 0,
+                          alignSelf: 'center',
+                        },
+                        '& .MuiAlert-message': {
+                          padding: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                        },
+                      })}
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontWeight: 600,
+                          fontSize: '0.7rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                          mb: 0.25,
+                        }}
+                      >
+                        {name}
+                      </Typography>
+                      <Typography variant="body2">{appearance.warningBannerText}</Typography>
+                    </Alert>
+                  ))}
+                </Box>
+              )}
               {clustersNotInURL.slice(0, MAXIMUM_NUM_ALERTS).map(clusterName => (
                 <ClusterNotFoundPopup key={clusterName} cluster={clusterName} />
               ))}

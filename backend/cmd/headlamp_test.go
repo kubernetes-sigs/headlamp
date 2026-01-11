@@ -624,13 +624,13 @@ func TestHandleClusterAPI_XForwardedHost(t *testing.T) {
 	assert.Equal(t, "OK", rr.Body.String())
 }
 
-// handleClusterRenameRequest handles a cluster rename request.
-func handleClusterRenameRequest(
+// handleClusterUpdateRequest handles a cluster update request.
+func handleClusterUpdateRequest(
 	t *testing.T,
 	handler http.Handler,
 	tc struct {
 		name          string
-		clusterReq    RenameClusterRequest
+		clusterReq    ClusterUpdateRequest
 		expectedState int
 	},
 ) {
@@ -678,13 +678,13 @@ func TestCheckUniqueName(t *testing.T) {
 	}
 }
 
-// runClusterRenameTests used to run the cluster rename tests.
-func runClusterRenameTests(
+// runClusterUpdateTests used to run the cluster update tests.
+func runClusterUpdateTests(
 	t *testing.T,
 	handler http.Handler,
 	tests []struct {
 		name          string
-		clusterReq    RenameClusterRequest
+		clusterReq    ClusterUpdateRequest
 		expectedState int
 	},
 ) {
@@ -692,7 +692,7 @@ func runClusterRenameTests(
 	require.NoError(t, err)
 
 	for _, tc := range tests {
-		handleClusterRenameRequest(t, handler, tc)
+		handleClusterUpdateRequest(t, handler, tc)
 	}
 
 	// This test modifies the test file, so we have to restore the test file at the end of the test.
@@ -712,6 +712,15 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 	}
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
+
+	// Load the kubeconfig_rename file into the store as well, since the test uses contexts from it
+	err = kubeconfig.LoadAndStoreKubeConfigs(
+		kubeConfigStore,
+		"./headlamp_testdata/kubeconfig_rename",
+		kubeconfig.KubeConfig,
+		nil,
+	)
+	require.NoError(t, err)
 
 	c := HeadlampConfig{
 		HeadlampCFG: &headlampconfig.HeadlampCFG{
@@ -735,12 +744,12 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 
 	tests := []struct {
 		name          string
-		clusterReq    RenameClusterRequest
+		clusterReq    ClusterUpdateRequest
 		expectedState int
 	}{
 		{
 			name: "stateless",
-			clusterReq: RenameClusterRequest{
+			clusterReq: ClusterUpdateRequest{
 				NewClusterName: "minikubetestworksnew",
 				Stateless:      true,
 			},
@@ -748,7 +757,7 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 		},
 		{
 			name: "passStatefull",
-			clusterReq: RenameClusterRequest{
+			clusterReq: ClusterUpdateRequest{
 				NewClusterName: "minikubetestworkskubeconfig",
 				Stateless:      false,
 				Source:         "kubeconfig",
@@ -757,7 +766,7 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 		},
 	}
 
-	runClusterRenameTests(t, handler, tests)
+	runClusterUpdateTests(t, handler, tests)
 
 	remErr := c.KubeConfigStore.RemoveContext("minikubetest")
 	require.NoError(t, remErr, "Failed to remove context: minikubetest")
@@ -767,6 +776,68 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 
 	clusters := c.getClusters()
 	assert.Equal(t, 2, len(clusters))
+}
+
+func TestClusterAppearanceUpdateUsesStoredKubeconfigPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpKubeconfigPath := filepath.Join(tmpDir, "kubeconfig_rename")
+
+	srcBytes, err := os.ReadFile("./headlamp_testdata/kubeconfig_rename")
+	require.NoError(t, err)
+
+	err = os.WriteFile(tmpKubeconfigPath, srcBytes, 0o600)
+	require.NoError(t, err)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, tmpKubeconfigPath, kubeconfig.KubeConfig, nil)
+	require.NoError(t, err)
+
+	c := HeadlampConfig{
+		HeadlampCFG: &headlampconfig.HeadlampCFG{
+			UseInCluster:          false,
+			KubeConfigPath:        "./headlamp_testdata/kubeconfig", // intentionally different from tmpKubeconfigPath
+			EnableDynamicClusters: true,
+			KubeConfigStore:       kubeConfigStore,
+		},
+		cache:            cache.New[interface{}](),
+		telemetryConfig:  GetDefaultTestTelemetryConfig(),
+		telemetryHandler: &telemetry.RequestHandler{},
+	}
+
+	handler := createHeadlampHandler(&c)
+
+	accentColor := "#ff00ff"
+	warningBannerText := "hello from test"
+	icon := "mdi:kubernetes"
+
+	req := ClusterUpdateRequest{
+		Source:    "kubeconfig",
+		Stateless: false,
+		Appearance: &ClusterAppearance{
+			AccentColor:       &accentColor,
+			WarningBannerText: &warningBannerText,
+			Icon:              &icon,
+		},
+	}
+
+	r, err := getResponseFromRestrictedEndpoint(handler, "PUT", "/cluster/minikubetestnondynamic", req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusCreated, r.Code)
+
+	updatedCfg, err := clientcmd.LoadFromFile(tmpKubeconfigPath)
+	require.NoError(t, err)
+
+	ctxCfg, ok := updatedCfg.Contexts["minikubetestnondynamic"]
+	require.True(t, ok)
+
+	info := ctxCfg.Extensions["headlamp_info"]
+	require.NotNil(t, info)
+
+	customObj, err := MarshalCustomObject(info, "minikubetestnondynamic")
+	require.NoError(t, err)
+	assert.Equal(t, accentColor, customObj.AccentColor)
+	assert.Equal(t, warningBannerText, customObj.WarningBannerText)
+	assert.Equal(t, icon, customObj.Icon)
 }
 
 func TestFileExists(t *testing.T) {
