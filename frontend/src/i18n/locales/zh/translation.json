@@ -205,7 +205,6 @@
   "Please make sure you have at least one cluster configured.": "请确保您至少设置了一个集群。",
   "Or try running Headlamp with a different kube config.": "或者尝试使用不同的 kubeconfig 运行 Headlamp。",
   "Load from a file": "从文件读取",
-  "Cluster: {{cluster}}": "集群：{{cluster}}",
   "Current//context:cluster": "当前",
   "Choose cluster": "选择集群",
   "Failed to load resources": "无法读取资源",

@@ -205,7 +205,6 @@
   "Please make sure you have at least one cluster configured.": "குறைந்தது ஒரு க்ளஸ்டர் கட்டமைக்கப்பட்டுள்ளதை உறுதிப்படுத்தவும்.",
   "Or try running Headlamp with a different kube config.": "அல்லது வேறு கியூப்கான்ஃபிக்குடன் ஹெட்லேம்ப்பை இயக்க முயற்சிக்கவும்.",
   "Load from a file": "கோப்பிலிருந்து ஏற்றுக",
-  "Cluster: {{cluster}}": "க்ளஸ்டர்: {{cluster}}",
   "Current//context:cluster": "தற்போதைய",
   "Choose cluster": "க்ளஸ்டர் தேர்ந்தெடுக்கவும்",
   "Failed to load resources": "ரிசோர்ஸ்களை ஏற்றுவதில் தோல்வி",

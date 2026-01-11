@@ -205,7 +205,6 @@
   "Please make sure you have at least one cluster configured.": "少なくとも 1 つのクラスターが設定されていることを確認してください。",
   "Or try running Headlamp with a different kube config.": "あるいは異なる kubeconfig で Headlamp を実行してみてください。",
   "Load from a file": "ファイルから読み込む",
-  "Cluster: {{cluster}}": "クラスター: {{cluster}}",
   "Current//context:cluster": "現在",
   "Choose cluster": "クラスターを選択",
   "Failed to load resources": "リソースの読み込みに失敗しました",

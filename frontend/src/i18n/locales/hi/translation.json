@@ -205,7 +205,6 @@
   "Please make sure you have at least one cluster configured.": "कृपया सुनिश्चित करें कि आपके पास कम से कम एक क्लस्टर कॉन्फ़िगर किया गया है।",
   "Or try running Headlamp with a different kube config.": "या Headlamp को एक अलग kube कॉन्फिग के साथ चलाने का प्रयास करें।",
   "Load from a file": "फ़ाइल से लोड करें",
-  "Cluster: {{cluster}}": "क्लस्टर: {{cluster}}",
   "Current//context:cluster": "वर्तमान",
   "Choose cluster": "क्लस्टर चुनें",
   "Failed to load resources": "संसाधन लोड करने में विफल",

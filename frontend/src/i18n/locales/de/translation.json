@@ -205,7 +205,6 @@
   "Please make sure you have at least one cluster configured.": "Bitte stellen Sie sicher, dass Sie mindestens einen Cluster konfiguriert haben.",
   "Or try running Headlamp with a different kube config.": "Oder versuchen Sie, Headlamp mit einer anderen Kube-Konfiguration auszuführen.",
   "Load from a file": "Laden aus einer Datei",
-  "Cluster: {{cluster}}": "Cluster: {{cluster}}",
   "Current//context:cluster": "Aktuell",
   "Choose cluster": "Cluster auswählen",
   "Failed to load resources": "",

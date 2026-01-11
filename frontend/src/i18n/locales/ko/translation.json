@@ -205,7 +205,6 @@
   "Please make sure you have at least one cluster configured.": "최소한 하나의 클러스터가 설정되어 있는지 확인하세요.",
   "Or try running Headlamp with a different kube config.": "또는 다른 kubeconfig 파일로 Headlamp를 실행해보세요.",
   "Load from a file": "파일에서 불러오기",
-  "Cluster: {{cluster}}": "클러스터: {{cluster}}",
   "Current//context:cluster": "Current",
   "Choose cluster": "클러스터 선택",
   "Failed to load resources": "리소스를 불러오는 데 실패했습니다",
