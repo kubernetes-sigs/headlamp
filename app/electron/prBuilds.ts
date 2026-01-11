@@ -22,6 +22,9 @@ import path from 'path';
 import { pipeline } from 'stream';
 import { promisify } from 'util';
 
+import { getTrustedRoot } from '@sigstore/tuf';
+import { toSignedEntity, toTrustMaterial, Verifier } from '@sigstore/verify';
+
 const pipelineAsync = promisify(pipeline);
 
 const REPO_OWNER = 'kubernetes-sigs';
@@ -186,7 +189,7 @@ export async function verifyPRBuildSignature(
     }
 
     // Read artifact and signature
-    // const artifactBuffer = await fsPromises.readFile(artifactPath); // TODO: Use for full verification
+    const artifactBuffer = await fsPromises.readFile(artifactPath);
     const signatureBundle = await fsPromises.readFile(signaturePath, 'utf-8');
 
     // Parse the bundle (Sigstore bundles are JSON)
@@ -201,11 +204,6 @@ export async function verifyPRBuildSignature(
       };
     }
 
-    // TODO: Implement full signature verification using @sigstore/verify
-    // For now, we verify that the signature bundle exists and is well-formed
-    // Full verification requires setting up trust material and using the Verifier class
-    // from @sigstore/verify, which needs additional dependencies (@sigstore/tuf)
-    
     // Basic validation: check that bundle has required structure
     if (!bundle.mediaType || !bundle.verificationMaterial) {
       return {
@@ -215,21 +213,56 @@ export async function verifyPRBuildSignature(
       };
     }
 
-    // For now, return success if bundle is well-formed
-    // This provides basic protection while full verification is implemented
+    // Perform full cryptographic signature verification using Sigstore
+    // This validates:
+    // - Signature matches the artifact content
+    // - Certificate chain is valid
+    // - Certificate was issued by Sigstore CA for GitHub Actions
+    // - Transparency log entries are valid
+    
+    // Get trust material from the public Sigstore TUF repository
+    const trustedRoot = await getTrustedRoot({
+      mirrorURL: 'https://tuf-repo-cdn.sigstore.dev', // Public Sigstore TUF repository
+    });
+    
+    const trustMaterial = toTrustMaterial(trustedRoot);
+
+    // Create verifier with trust material
+    const verifier = new Verifier(trustMaterial, {
+      ctlogThreshold: 1, // Require at least 1 certificate transparency log
+      tlogThreshold: 1, // Require at least 1 transparency log entry
+    });
+
+    // Convert bundle to signed entity format
+    const signedEntity = toSignedEntity(bundle, artifactBuffer);
+
+    // Verify the signature with GitHub Actions OIDC identity policy
+    const policy: any = {
+      subjectAlternativeName: `https://github.com/${REPO_OWNER}/${REPO_NAME}/`,
+      extensions: {
+        issuer: 'https://token.actions.githubusercontent.com',
+      },
+    };
+    
+    const signer = verifier.verify(signedEntity, policy);
+
+    // If we reach here, verification succeeded
     return {
       verified: true,
       signatureExists: true,
       details: {
         bundleMediaType: bundle.mediaType,
-        note: 'Signature bundle exists and is well-formed. Full cryptographic verification pending.',
+        issuer: signer.identity?.extensions?.issuer || 'GitHub Actions OIDC',
+        note: 'Signature cryptographically verified using Sigstore',
       },
     };
   } catch (error) {
+    // Verification failed or error occurred
+    const errorMessage = error instanceof Error ? error.message : 'Unknown verification error';
     return {
       verified: false,
       signatureExists: true,
-      error: error instanceof Error ? error.message : 'Unknown verification error',
+      error: `Signature verification failed: ${errorMessage}`,
     };
   }
 }
