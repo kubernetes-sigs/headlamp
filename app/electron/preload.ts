@@ -61,4 +61,13 @@ contextBridge.exposeInMainWorld('desktopApi', {
   removeListener: (channel: string, func: (...args: unknown[]) => void) => {
     ipcRenderer.removeListener(channel, func);
   },
+
+  // PR Builds API
+  prBuilds: {
+    listPRBuilds: () => ipcRenderer.invoke('list-pr-builds'),
+    getPRBuildStatus: () => ipcRenderer.invoke('get-pr-build-status'),
+    activatePRBuild: (prInfo: any) => ipcRenderer.invoke('activate-pr-build', prInfo),
+    clearPRBuild: () => ipcRenderer.invoke('clear-pr-build'),
+    getEnabled: () => ipcRenderer.invoke('get-pr-builds-enabled'),
+  },
 });

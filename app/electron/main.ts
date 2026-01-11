@@ -50,6 +50,7 @@ import {
   getPluginBinDirectories,
   PluginManager,
 } from './plugin-management';
+import { handlePRBuildStartup, registerPRBuildsIPCHandlers } from './prBuilds';
 import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
 import windowSize from './windowSize';
 
@@ -137,6 +138,7 @@ const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
 const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false';
+const enableAppDevBuilds = process.env.HEADLAMP_ENABLE_APP_DEV_BUILDS !== 'false';
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
@@ -1499,6 +1501,21 @@ function startElectron() {
 
     setMenu(mainWindow, currentMenu);
 
+    // Check for active PR build on startup
+    if (enableAppDevBuilds && mainWindow) {
+      const configPath = path.join(app.getPath('userData'), 'headlamp-config.json');
+      const result = await handlePRBuildStartup(
+        configPath,
+        app.getPath('temp'),
+        options => dialog.showMessageBox(mainWindow!, options),
+        i18n
+      );
+
+      if (result.shouldReload) {
+        mainWindow.reload();
+      }
+    }
+
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
       // allow all urls starting with app startUrl to open in electron
       if (url.startsWith(startUrl)) {
@@ -1693,6 +1710,16 @@ function startElectron() {
           });
         }
       }
+    );
+
+    // PR Builds IPC handlers - only enabled if feature flag is set
+    const configPath = path.join(app.getPath('userData'), 'headlamp-config.json');
+    registerPRBuildsIPCHandlers(
+      ipcMain,
+      configPath,
+      app.getPath('temp'),
+      enableAppDevBuilds,
+      options => dialog.showMessageBox(mainWindow!, options)
     );
 
     // Also add bundled plugin bin directories to PATH

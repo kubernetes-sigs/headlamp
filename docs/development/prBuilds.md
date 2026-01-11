@@ -1,0 +1,414 @@
+---
+title: Development Builds from PRs
+sidebar_label: PR Development Builds
+sidebar_position: 10
+---
+
+# Development Builds from Pull Requests
+
+The Headlamp desktop application includes an experimental feature that allows users to test development builds directly from pull requests. This is particularly useful for developers and testers who want to quickly validate changes without waiting for official releases.
+
+## Overview
+
+When enabled, this feature allows you to:
+
+- Browse open pull requests that have successful app builds
+- View detailed information about each PR (author, commit, etc.)
+- Activate a PR build to test it locally
+- Switch back to the default build at any time
+
+## Security Notice
+
+⚠️ **This is an advanced feature that should be used with caution:**
+
+- Development builds are not officially released or thoroughly tested
+- They may contain bugs or unstable code
+- Only use PR builds from trusted sources
+- The feature is disabled by default for security reasons
+
+## Enabling the Feature
+
+The PR builds feature is **enabled by default**. You can disable it by setting the `HEADLAMP_ENABLE_APP_DEV_BUILDS` environment variable to `false`.
+
+### To Disable (if needed)
+
+#### On macOS and Linux
+
+```bash
+export HEADLAMP_ENABLE_APP_DEV_BUILDS=false
+/Applications/Headlamp.app/Contents/MacOS/Headlamp  # macOS
+# or
+./headlamp  # Linux
+```
+
+#### On Windows
+
+```powershell
+$env:HEADLAMP_ENABLE_APP_DEV_BUILDS="false"
+& "C:\Program Files\Headlamp\Headlamp.exe"
+```
+
+## Using PR Builds
+
+Once enabled, you can access the PR builds feature from the Settings page:
+
+1. Open Headlamp and navigate to **Settings**
+2. Scroll down to the **Development Builds from PRs** section
+3. Click **Refresh PR List** to see available PRs
+4. Review the list of PRs with available builds:
+   - PR number and title
+   - Author information
+   - Commit SHA and date
+   - Number of artifacts available
+
+5. Click **Use This Build** next to the PR you want to test
+6. Review the confirmation dialog with PR details
+7. Click **Activate** to activate the PR build
+8. **Restart the application** to use the PR build
+
+## Switching Back to Default Build
+
+### From Settings
+
+1. Open **Settings**
+2. In the **Development Builds from PRs** section
+3. Click **Clear PR Build**
+4. Restart the application
+
+### On Application Startup
+
+When you start Headlamp with an active PR build, you'll see a confirmation dialog:
+
+- **Continue with PR build**: Keep using the development build
+- **Use default build**: Automatically clear the PR build and switch to the default
+
+## How It Works
+
+1. **Fetching PRs**: The app queries the GitHub API for open PRs with successful workflow runs
+2. **Artifact Filtering**: Only PRs with platform-specific artifacts (DMG for macOS, AppImage for Linux, EXE for Windows) are shown
+3. **Signature Verification**: All artifacts are signed with Sigstore and verified before activation
+4. **Activation**: When you activate a PR build, the app stores the PR information in your local config
+5. **Startup Check**: On each startup, if a PR build is active, you're prompted to confirm continued use
+6. **Resource Loading**: The app loads resources from the PR build instead of the default installation
+
+## Signature Verification
+
+All PR build artifacts are signed using [Sigstore](https://www.sigstore.dev/) keyless signing with GitHub Actions OIDC identity. This provides cryptographic verification that artifacts were built by official GitHub Actions workflows.
+
+### Security Features
+
+- **Keyless Signing**: Uses GitHub Actions OIDC identity (no secrets in code)
+- **Automatic Verification**: Signatures are verified before activating PR builds
+- **User Confirmation**: Dialogs prompt user if signature is missing or invalid
+- **No External Binary**: Uses `@sigstore/verify` Node.js module for verification
+
+### Verification Process
+
+When you activate a PR build:
+
+1. The app downloads the artifact and its `.cosign.bundle` signature file
+2. The signature is verified against the artifact using Sigstore
+3. The verification checks:
+   - Signature is valid and cryptographically correct
+   - Artifact was signed by GitHub Actions OIDC identity
+   - Workflow was from the `kubernetes-sigs/headlamp` repository
+4. If verification succeeds, the artifact is activated
+5. If verification fails or signature is missing, a dialog appears:
+   - **Missing signature**: "No signature found. This build may be older. Continue anyway?"
+   - **Invalid signature**: "Signature verification failed. This artifact may be compromised. Continue anyway?"
+
+### Verifying Signatures Manually
+
+You can manually verify PR artifact signatures using the Cosign CLI:
+
+#### Installing Cosign
+
+```bash
+# macOS
+brew install sigstore/tap/cosign
+
+# Linux
+wget "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64"
+sudo mv cosign-linux-amd64 /usr/local/bin/cosign
+sudo chmod +x /usr/local/bin/cosign
+
+# Windows (using winget)
+winget install sigstore.cosign
+```
+
+#### Verifying PR Artifacts
+
+```bash
+# Download artifact and signature from nightly.link
+# Example for Linux AppImage from PR #1234, workflow run 567890
+wget "https://nightly.link/kubernetes-sigs/headlamp/actions/runs/567890/Headlamp-1.0.0.AppImage.zip"
+wget "https://nightly.link/kubernetes-sigs/headlamp/actions/runs/567890/Headlamp-1.0.0.AppImage.cosign.bundle"
+
+# Extract the artifact
+unzip Headlamp-1.0.0.AppImage.zip
+
+# Verify the signature
+cosign verify-blob \
+  --bundle Headlamp-1.0.0.AppImage.cosign.bundle \
+  --certificate-identity-regexp "^https://github.com/kubernetes-sigs/headlamp/.*$" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  Headlamp-1.0.0.AppImage
+```
+
+#### Verifying Release Artifacts
+
+Release artifacts are also signed and available from GitHub Releases:
+
+```bash
+# Download from GitHub Releases
+wget "https://github.com/kubernetes-sigs/headlamp/releases/download/v1.0.0/Headlamp-1.0.0.AppImage"
+wget "https://github.com/kubernetes-sigs/headlamp/releases/download/v1.0.0/Headlamp-1.0.0.AppImage.cosign.bundle"
+
+# Verify with stricter policy (release workflow identity)
+cosign verify-blob \
+  --bundle Headlamp-1.0.0.AppImage.cosign.bundle \
+  --certificate-identity "https://github.com/kubernetes-sigs/headlamp/.github/workflows/push-release-assets.yml@refs/tags/v1.0.0" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  Headlamp-1.0.0.AppImage
+```
+
+### Trust Model
+
+- **PR Signatures**: Signed by GitHub Actions workflows from pull requests
+  - Available for reproducibility and verification
+  - User must confirm if signature is missing or invalid
+  
+- **Release Signatures**: Signed by the official release workflow
+  - Enforces strict trust policy
+  - Only artifacts signed by `push-release-assets.yml` workflow are released
+
+## Security Features and Threat Model
+
+### Security Architecture
+
+The PR builds feature implements multiple layers of security to protect users:
+
+#### 1. **Code Execution Boundaries**
+
+- **Electron Main Process**: All PR build operations execute in the main process, not the renderer
+- **IPC Security**: All IPC handlers require explicit user confirmation dialogs
+- **No Renderer Bypass**: Arbitrary JavaScript in the renderer cannot activate PR builds without user approval
+
+#### 2. **User Confirmation Dialogs**
+
+- **Activation Dialog**: Shows full PR details (number, title, author, commit SHA, date) before activation
+- **Startup Dialog**: On each app restart, confirms whether to continue with PR build or use default
+- **Clear Dialog**: Requires confirmation before clearing an active PR build
+- **Signature Dialogs**: Warns users about missing or invalid signatures
+
+#### 3. **Cryptographic Verification**
+
+- **Sigstore Integration**: Uses Sigstore's transparency logs and certificate authorities
+- **OIDC Identity**: Verifies artifacts were built by GitHub Actions from the official repository
+- **Certificate Validation**: Checks issuer (GitHub Actions), subject (repository workflow)
+- **Transparency Logs**: Validates entries in Rekor and Certificate Transparency logs
+
+#### 4. **Network Security**
+
+- **nightly.link Service**: Downloads artifacts via nightly.link (no GitHub token required)
+- **HTTPS Only**: All downloads use encrypted HTTPS connections
+- **No Credential Storage**: No API tokens or credentials stored locally
+
+### Threat Model
+
+#### Threats Mitigated
+
+1. **Malicious PR Builds**
+   - **Threat**: Attacker submits PR with malicious code
+   - **Mitigation**: 
+     - Signature verification ensures artifact was built by official GitHub Actions
+     - User confirmation dialogs display PR author and details
+     - Users should only activate PRs from trusted contributors
+
+2. **Supply Chain Attacks**
+   - **Threat**: Attacker compromises build system or tampers with artifacts
+   - **Mitigation**:
+     - Sigstore keyless signing provides cryptographic proof of origin
+     - Transparency logs provide public audit trail
+     - Certificate validation ensures GitHub Actions OIDC identity
+
+3. **Renderer Compromise**
+   - **Threat**: Malicious JavaScript in renderer process attempts to activate PR build
+   - **Mitigation**:
+     - All operations require Electron main process dialogs
+     - IPC handlers show native dialogs that renderer cannot bypass
+     - User must explicitly click "Activate" button
+
+4. **Man-in-the-Middle Attacks**
+   - **Threat**: Attacker intercepts and modifies downloaded artifacts
+   - **Mitigation**:
+     - HTTPS enforced for all downloads
+     - Signature verification detects modified artifacts
+     - Downloads fail if signature doesn't match
+
+#### Residual Risks
+
+1. **Social Engineering**
+   - **Risk**: User may be tricked into activating malicious PR
+   - **Recommendation**: Only activate PRs from trusted contributors and review PR changes on GitHub first
+
+2. **Compromised GitHub Account**
+   - **Risk**: Attacker compromises maintainer/contributor GitHub account
+   - **Recommendation**: Contributors should enable 2FA and monitor account activity
+
+3. **Unsigned Older Builds**
+   - **Risk**: PR builds created before signing implementation have no signature
+   - **Recommendation**: Avoid activating unsigned builds unless absolutely necessary and trusted
+
+4. **Feature Disabled Mode**
+   - **Risk**: If `HEADLAMP_ENABLE_APP_DEV_BUILDS=false`, feature is disabled but code still exists
+   - **Recommendation**: Feature defaults to enabled but can be disabled for production environments
+
+### Security Best Practices
+
+**For Users:**
+1. **Verify PR Source**: Always check the PR on GitHub before activating
+2. **Trust Contributors**: Only activate builds from known, trusted contributors
+3. **Review Changes**: Read the PR description and code changes on GitHub
+4. **Watch for Warnings**: Pay attention to signature verification warnings
+5. **Use Temporarily**: PR builds are for testing only, not long-term use
+
+**For Contributors:**
+1. **Enable 2FA**: Protect your GitHub account with two-factor authentication
+2. **Review Workflow Changes**: Be cautious of PRs that modify `.github/workflows/`
+3. **Monitor Signatures**: Ensure your PR builds have valid signatures
+4. **Report Issues**: Contact maintainers if you notice suspicious activity
+
+**For Organizations:**
+1. **Disable by Default**: Set `HEADLAMP_ENABLE_APP_DEV_BUILDS=false` in production
+2. **Internal Testing**: Use PR builds only in controlled testing environments
+3. **Audit Trail**: Monitor which PR builds are activated in your environment
+4. **Security Policy**: Define clear guidelines for PR build activation
+
+### Configuration
+
+The feature can be controlled via the `HEADLAMP_ENABLE_APP_DEV_BUILDS` environment variable:
+
+- **Default**: Enabled (`true`)
+- **To Disable**: Set `HEADLAMP_ENABLE_APP_DEV_BUILDS=false`
+
+Additionally, repository owner and name can be overridden for forks or alternate repositories:
+
+- `HEADLAMP_PR_BUILDS_REPO_OWNER`: Repository owner (default: `kubernetes-sigs`)
+- `HEADLAMP_PR_BUILDS_REPO_NAME`: Repository name (default: `headlamp`)
+
+Example for testing Azure AKS Desktop:
+```bash
+export HEADLAMP_PR_BUILDS_REPO_OWNER=Azure
+export HEADLAMP_PR_BUILDS_REPO_NAME=aks-desktop
+```
+
+### Troubleshooting Signature Issues
+
+**Signature verification failed**
+- The artifact may have been tampered with or corrupted
+- Network issues during download may have corrupted the file
+- Try downloading again or use a different PR build
+
+**No signature found**
+- The artifact was built before signature implementation
+- Older PR builds may not have signatures
+- You can still use them, but verification is not possible
+
+**Bundle format errors**
+- The signature file may be corrupted
+- Re-download the signature file
+- Contact maintainers if issue persists
+
+## Limitations
+
+### Current Implementation
+
+- **nightly.link Integration**: Artifacts are downloaded using nightly.link, which provides direct download links without requiring GitHub authentication
+- **Automatic Download**: The app can now automatically download PR build artifacts
+- **No Automatic Updates**: PR builds are not automatically updated when new commits are pushed
+
+### Platform Support
+
+- macOS: DMG files
+- Linux: AppImage files  
+- Windows: EXE installers
+
+## Troubleshooting
+
+### Feature Not Visible
+
+- The feature is enabled by default. Set `HEADLAMP_ENABLE_APP_DEV_BUILDS=false` to disable it
+- Check that you're using the desktop application (not the web version)
+- Restart the app after changing the environment variable
+
+### No PRs Listed
+
+- PRs must have successful workflow runs with app artifacts
+- Artifacts expire after a certain period (typically 90 days)
+- Only platform-specific artifacts are shown (DMG on macOS, etc.)
+- Network issues may prevent fetching PR list
+
+### Cannot Activate PR Build
+
+- Ensure you have write permissions to the app's config directory
+- Check available disk space for downloading artifacts
+- Review the console for error messages
+
+## For Developers
+
+### Testing Your Own PRs
+
+1. Open a pull request with your changes
+2. Wait for the GitHub Actions workflow to complete successfully
+3. Enable the PR builds feature in your local Headlamp installation
+4. Your PR should appear in the list if artifacts were built
+5. Activate your PR build to test it
+
+### API Reference
+
+The PR builds feature exposes the following APIs to the renderer process:
+
+```typescript
+window.desktopApi.prBuilds = {
+  // List all available PR builds
+  listPRBuilds(): Promise<PRBuildsListResponse>;
+  
+  // Get current PR build status
+  getPRBuildStatus(): Promise<PRBuildStatusResponse>;
+  
+  // Activate a specific PR build
+  activatePRBuild(prInfo: PRInfo): Promise<Response>;
+  
+  // Clear the active PR build
+  clearPRBuild(): Promise<Response>;
+  
+  // Check if feature is enabled
+  getEnabled(): Promise<EnabledResponse>;
+};
+```
+
+### File Locations
+
+- **Config file**: `~/Library/Application Support/Headlamp/headlamp-config.json` (macOS)
+- **PR builds cache**: `/tmp/headlamp-pr-builds/`
+- **Main code**: `app/electron/prBuilds.ts`
+- **UI component**: `frontend/src/components/App/Settings/PRBuildsSettings.tsx`
+
+## Future Enhancements
+
+Planned improvements for this feature:
+
+- ✅ ~~Automatic artifact download with GitHub authentication~~ (Implemented via nightly.link)
+- ✅ ~~Signature verification for security~~ (Implemented with Sigstore)
+- Resource path override for loading PR builds
+- Cached PR builds for offline use
+- Automatic update notifications for active PR builds
+- Rollback mechanism in case of issues
+- Signature status indicators in UI
+
+## Related Documentation
+
+- [Development Guide](../development/index.md)
+- [App Development](../development/app.md)
+- [Contributing Guidelines](../contributing.md)

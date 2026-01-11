@@ -14,16 +14,13 @@
  * limitations under the License.
  */
 
-import Box from '@mui/material/Box';
-import Switch from '@mui/material/Switch';
-import Typography from '@mui/material/Typography';
+import { Box, Switch, Typography } from '@mui/material';
 import { capitalize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import LocaleSelect from '../../../i18n/LocaleSelect/LocaleSelect';
-import { setAppSettings } from '../../../redux/configSlice';
-import { defaultTableRowsPerPageOptions } from '../../../redux/configSlice';
+import { defaultTableRowsPerPageOptions, setAppSettings } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { uiSlice } from '../../../redux/uiSlice';
 import ActionButton from '../../common/ActionButton';
@@ -35,6 +32,7 @@ import { setTheme, useAppThemes } from '../themeSlice';
 import DrawerModeSettings from './DrawerModeSettings';
 import { useSettings } from './hook';
 import NumRowsInput from './NumRowsInput';
+import PRBuildsSettings from './PRBuildsSettings';
 import { ThemePreview } from './ThemePreview';
 
 export default function Settings() {
@@ -243,6 +241,7 @@ export default function Settings() {
           </Box>
         </Box>
       </Box>
+      <PRBuildsSettings />
     </SectionBox>
   );
 }

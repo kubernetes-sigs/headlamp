@@ -38,3 +38,29 @@ Note, it runs the development servers for the backend and the frontend as well. 
 - `npm start`: Starts the app in dev mode along with the backend server, and the frontend development server.
 - `npm run test`: Runs the tests. See the \*.test.js files in the electron/ folder.
 - `npm run tsc`: Runs the type checker.
+
+## Environment Variables
+
+The Headlamp desktop app supports several environment variables to control its behavior:
+
+- `HEADLAMP_ENABLE_APP_DEV_BUILDS`: Set to `false` to disable the PR builds feature. This feature allows testing development builds from pull requests. **Default:** enabled (set to `false` to disable)
+- `HEADLAMP_CHECK_FOR_UPDATES`: Set to `false` to disable automatic update checks. **Default:** `true`
+- `HEADLAMP_MAX_PORT_ATTEMPTS`: Maximum number of ports to try when starting the backend server. **Default:** `100`
+- `ELECTRON_DEV`: Set to `1` for development mode. Used internally by `npm run dev`.
+- `ELECTRON_START_URL`: Override the frontend URL. Used for development.
+- `EXTERNAL_SERVER`: Set to `true` to use an external backend server instead of starting one.
+
+Example usage:
+
+```bash
+# Disable PR builds feature (macOS/Linux)
+export HEADLAMP_ENABLE_APP_DEV_BUILDS=false
+./Headlamp
+
+# Windows PowerShell
+$env:HEADLAMP_ENABLE_APP_DEV_BUILDS="false"
+.\Headlamp.exe
+```
+
+For more information about the PR builds feature, see the [PR Builds documentation](../docs/development/prBuilds.md).
+

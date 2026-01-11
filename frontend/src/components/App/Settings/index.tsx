@@ -21,3 +21,4 @@ import SettingsClusters from './SettingsClusters';
 export * from './Settings';
 export default Settings;
 export { SettingsButton, SettingsClusters, SettingsCluster };
+export { default as PRBuildsSettings } from './PRBuildsSettings';

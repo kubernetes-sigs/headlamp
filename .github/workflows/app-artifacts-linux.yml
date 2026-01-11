@@ -17,6 +17,7 @@ jobs:
     permissions:
       actions: write # needed to upload artifacts
       contents: write
+      id-token: write # needed for Sigstore keyless signing
     steps:
     - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       with:
@@ -34,24 +35,41 @@ jobs:
     - name: Rename AppImage 64bit version
       run: |
         FILE_PATH=$(echo app/dist/Headlamp*x86_64*.AppImage); mv ${FILE_PATH} $(echo ${FILE_PATH}|sed s/x86_64/x64/)
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
+    - name: Sign Linux artifacts with Cosign
+      run: |
+        cd app/dist
+        for file in Headlamp*.tar.* Headlamp*.AppImage headlamp*.deb; do
+          if [ -f "$file" ]; then
+            echo "Signing $file"
+            cosign sign-blob --yes --bundle "${file}.cosign.bundle" "$file"
+          fi
+        done
     - name: Upload Tarball artifacts
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: Tarballs
-        path: ./app/dist/Headlamp*.tar.*
+        path: |
+          ./app/dist/Headlamp*.tar.*
+          ./app/dist/Headlamp*.tar.*.cosign.bundle
         if-no-files-found: error
         retention-days: 1
     - name: Upload AppImage artifacts
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: AppImages
-        path: ./app/dist/Headlamp*.AppImage
+        path: |
+          ./app/dist/Headlamp*.AppImage
+          ./app/dist/Headlamp*.AppImage.cosign.bundle
         if-no-files-found: error
         retention-days: 1
     - name: Upload Debian artifacts
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: Debian
-        path: ./app/dist/headlamp*.deb
+        path: |
+          ./app/dist/headlamp*.deb
+          ./app/dist/headlamp*.deb.cosign.bundle
         if-no-files-found: error
         retention-days: 1
