@@ -182,6 +182,127 @@ cosign verify-blob \
   - Enforces strict trust policy
   - Only artifacts signed by `push-release-assets.yml` workflow are released
 
+## Security Features and Threat Model
+
+### Security Architecture
+
+The PR builds feature implements multiple layers of security to protect users:
+
+#### 1. **Code Execution Boundaries**
+
+- **Electron Main Process**: All PR build operations execute in the main process, not the renderer
+- **IPC Security**: All IPC handlers require explicit user confirmation dialogs
+- **No Renderer Bypass**: Arbitrary JavaScript in the renderer cannot activate PR builds without user approval
+
+#### 2. **User Confirmation Dialogs**
+
+- **Activation Dialog**: Shows full PR details (number, title, author, commit SHA, date) before activation
+- **Startup Dialog**: On each app restart, confirms whether to continue with PR build or use default
+- **Clear Dialog**: Requires confirmation before clearing an active PR build
+- **Signature Dialogs**: Warns users about missing or invalid signatures
+
+#### 3. **Cryptographic Verification**
+
+- **Sigstore Integration**: Uses Sigstore's transparency logs and certificate authorities
+- **OIDC Identity**: Verifies artifacts were built by GitHub Actions from the official repository
+- **Certificate Validation**: Checks issuer (GitHub Actions), subject (repository workflow)
+- **Transparency Logs**: Validates entries in Rekor and Certificate Transparency logs
+
+#### 4. **Network Security**
+
+- **nightly.link Service**: Downloads artifacts via nightly.link (no GitHub token required)
+- **HTTPS Only**: All downloads use encrypted HTTPS connections
+- **No Credential Storage**: No API tokens or credentials stored locally
+
+### Threat Model
+
+#### Threats Mitigated
+
+1. **Malicious PR Builds**
+   - **Threat**: Attacker submits PR with malicious code
+   - **Mitigation**: 
+     - Signature verification ensures artifact was built by official GitHub Actions
+     - User confirmation dialogs display PR author and details
+     - Users should only activate PRs from trusted contributors
+
+2. **Supply Chain Attacks**
+   - **Threat**: Attacker compromises build system or tampers with artifacts
+   - **Mitigation**:
+     - Sigstore keyless signing provides cryptographic proof of origin
+     - Transparency logs provide public audit trail
+     - Certificate validation ensures GitHub Actions OIDC identity
+
+3. **Renderer Compromise**
+   - **Threat**: Malicious JavaScript in renderer process attempts to activate PR build
+   - **Mitigation**:
+     - All operations require Electron main process dialogs
+     - IPC handlers show native dialogs that renderer cannot bypass
+     - User must explicitly click "Activate" button
+
+4. **Man-in-the-Middle Attacks**
+   - **Threat**: Attacker intercepts and modifies downloaded artifacts
+   - **Mitigation**:
+     - HTTPS enforced for all downloads
+     - Signature verification detects modified artifacts
+     - Downloads fail if signature doesn't match
+
+#### Residual Risks
+
+1. **Social Engineering**
+   - **Risk**: User may be tricked into activating malicious PR
+   - **Recommendation**: Only activate PRs from trusted contributors and review PR changes on GitHub first
+
+2. **Compromised GitHub Account**
+   - **Risk**: Attacker compromises maintainer/contributor GitHub account
+   - **Recommendation**: Contributors should enable 2FA and monitor account activity
+
+3. **Unsigned Older Builds**
+   - **Risk**: PR builds created before signing implementation have no signature
+   - **Recommendation**: Avoid activating unsigned builds unless absolutely necessary and trusted
+
+4. **Feature Disabled Mode**
+   - **Risk**: If `HEADLAMP_ENABLE_APP_DEV_BUILDS=false`, feature is disabled but code still exists
+   - **Recommendation**: Feature defaults to enabled but can be disabled for production environments
+
+### Security Best Practices
+
+**For Users:**
+1. **Verify PR Source**: Always check the PR on GitHub before activating
+2. **Trust Contributors**: Only activate builds from known, trusted contributors
+3. **Review Changes**: Read the PR description and code changes on GitHub
+4. **Watch for Warnings**: Pay attention to signature verification warnings
+5. **Use Temporarily**: PR builds are for testing only, not long-term use
+
+**For Contributors:**
+1. **Enable 2FA**: Protect your GitHub account with two-factor authentication
+2. **Review Workflow Changes**: Be cautious of PRs that modify `.github/workflows/`
+3. **Monitor Signatures**: Ensure your PR builds have valid signatures
+4. **Report Issues**: Contact maintainers if you notice suspicious activity
+
+**For Organizations:**
+1. **Disable by Default**: Set `HEADLAMP_ENABLE_APP_DEV_BUILDS=false` in production
+2. **Internal Testing**: Use PR builds only in controlled testing environments
+3. **Audit Trail**: Monitor which PR builds are activated in your environment
+4. **Security Policy**: Define clear guidelines for PR build activation
+
+### Configuration
+
+The feature can be controlled via the `HEADLAMP_ENABLE_APP_DEV_BUILDS` environment variable:
+
+- **Default**: Enabled (`true`)
+- **To Disable**: Set `HEADLAMP_ENABLE_APP_DEV_BUILDS=false`
+
+Additionally, repository owner and name can be overridden for forks or alternate repositories:
+
+- `HEADLAMP_PR_BUILDS_REPO_OWNER`: Repository owner (default: `kubernetes-sigs`)
+- `HEADLAMP_PR_BUILDS_REPO_NAME`: Repository name (default: `headlamp`)
+
+Example for testing Azure AKS Desktop:
+```bash
+export HEADLAMP_PR_BUILDS_REPO_OWNER=Azure
+export HEADLAMP_PR_BUILDS_REPO_NAME=aks-desktop
+```
+
 ### Troubleshooting Signature Issues
 
 **Signature verification failed**

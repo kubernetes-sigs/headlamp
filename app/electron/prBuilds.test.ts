@@ -63,6 +63,10 @@ describe('prBuilds', () => {
 
   describe('fetchPRsWithArtifacts', () => {
     it('should fetch PRs with available artifacts for current platform', async () => {
+      // Use environment variables for repository configuration or defaults
+      const repoOwner = process.env.HEADLAMP_PR_BUILDS_REPO_OWNER || 'kubernetes-sigs';
+      const repoName = process.env.HEADLAMP_PR_BUILDS_REPO_NAME || 'headlamp';
+      
       const platform = os.platform();
       let expectedArtifactName = 'AppImages';
       if (platform === 'darwin') {
@@ -73,7 +77,7 @@ describe('prBuilds', () => {
 
       // Mock GitHub API responses
       nock('https://api.github.com')
-        .get('/repos/kubernetes-sigs/headlamp/pulls?state=open&per_page=50')
+        .get(`/repos/${repoOwner}/${repoName}/pulls?state=open&per_page=50`)
         .reply(200, [
           {
             number: 123,
@@ -91,7 +95,7 @@ describe('prBuilds', () => {
 
       nock('https://api.github.com')
         .get(
-          '/repos/kubernetes-sigs/headlamp/actions/runs?event=pull_request&head_sha=abc123&per_page=10'
+          `/repos/${repoOwner}/${repoName}/actions/runs?event=pull_request&head_sha=abc123&per_page=10`
         )
         .reply(200, {
           workflow_runs: [
@@ -109,7 +113,7 @@ describe('prBuilds', () => {
         });
 
       nock('https://api.github.com')
-        .get('/repos/kubernetes-sigs/headlamp/actions/runs/456/artifacts')
+        .get(`/repos/${repoOwner}/${repoName}/actions/runs/456/artifacts`)
         .reply(200, {
           artifacts: [
             {
@@ -125,7 +129,7 @@ describe('prBuilds', () => {
         });
 
       nock('https://api.github.com')
-        .get('/repos/kubernetes-sigs/headlamp/commits/abc123')
+        .get(`/repos/${repoOwner}/${repoName}/commits/abc123`)
         .reply(200, {
           sha: 'abc123',
           commit: {

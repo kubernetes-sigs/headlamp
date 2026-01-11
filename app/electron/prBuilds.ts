@@ -26,26 +26,49 @@ import { promisify } from 'util';
 
 const pipelineAsync = promisify(pipeline);
 
-const REPO_OWNER = 'kubernetes-sigs';
-const REPO_NAME = 'headlamp';
+/**
+ * Repository owner - can be overridden via HEADLAMP_PR_BUILDS_REPO_OWNER environment variable
+ * @example "kubernetes-sigs" or "Azure"
+ */
+const REPO_OWNER = process.env.HEADLAMP_PR_BUILDS_REPO_OWNER || 'kubernetes-sigs';
+
+/**
+ * Repository name - can be overridden via HEADLAMP_PR_BUILDS_REPO_NAME environment variable
+ * @example "headlamp" or "aks-desktop"
+ */
+const REPO_NAME = process.env.HEADLAMP_PR_BUILDS_REPO_NAME || 'headlamp';
 
 /**
  * Represents information about a Pull Request with available artifacts
  */
 export interface PRInfo {
+  /** PR number (e.g., 123) */
   number: number;
+  /** PR title */
   title: string;
+  /** GitHub username of the PR author */
   author: string;
+  /** URL to the author's avatar image */
   authorAvatarUrl: string;
+  /** Git commit SHA of the PR head */
   headSha: string;
+  /** Git branch name of the PR head */
   headRef: string;
+  /** ISO 8601 timestamp of the commit */
   commitDate: string;
+  /** Commit message text */
   commitMessage: string;
+  /** GitHub Actions workflow run ID */
   workflowRunId: number;
+  /** List of available artifacts for this PR */
   availableArtifacts: {
+    /** Artifact name (e.g., "dmgs", "AppImages", "Win exes") */
     name: string;
+    /** GitHub artifact ID */
     id: number;
+    /** Size in bytes */
     size: number;
+    /** Whether the artifact has expired */
     expired: boolean;
   }[];
 }
@@ -54,29 +77,46 @@ export interface PRInfo {
  * Result of signature verification
  */
 export interface SignatureVerificationResult {
+  /** Whether the signature was successfully verified */
   verified: boolean;
+  /** Whether a signature file exists for the artifact */
   signatureExists: boolean;
+  /** Error message if verification failed */
   error?: string;
+  /** Additional details about the verification */
   details?: {
+    /** OIDC issuer (e.g., "https://token.actions.githubusercontent.com") */
     issuer?: string;
+    /** GitHub Actions workflow name */
     workflowName?: string;
+    /** GitHub Actions workflow ref */
     workflowRef?: string;
+    /** Sigstore bundle media type */
     bundleMediaType?: string;
+    /** Additional note about verification */
     note?: string;
   };
 }
 
 /**
- * Represents information about a workflow run
+ * Represents information about a workflow run from GitHub Actions
  */
 interface WorkflowRun {
+  /** Workflow run ID */
   id: number;
+  /** Git commit SHA that triggered this run */
   head_sha: string;
+  /** Git branch name that triggered this run */
   head_branch: string;
+  /** Event that triggered the workflow (e.g., "pull_request") */
   event: string;
+  /** Current status of the run (e.g., "completed") */
   status: string;
+  /** Conclusion of the run (e.g., "success", "failure") or null if not completed */
   conclusion: string | null;
+  /** ISO 8601 timestamp when the run was created */
   created_at: string;
+  /** ISO 8601 timestamp when the run was last updated */
   updated_at: string;
 }
 
@@ -84,17 +124,27 @@ interface WorkflowRun {
  * Represents an artifact from GitHub Actions
  */
 interface Artifact {
+  /** Artifact ID */
   id: number;
+  /** Artifact name (e.g., "dmgs", "AppImages") */
   name: string;
+  /** Size in bytes */
   size_in_bytes: number;
+  /** Whether the artifact has expired */
   expired: boolean;
+  /** ISO 8601 timestamp when artifact was created */
   created_at: string;
+  /** ISO 8601 timestamp when artifact was last updated */
   updated_at: string;
+  /** ISO 8601 timestamp when artifact will expire */
   expires_at: string;
 }
 
 /**
  * Makes an HTTPS GET request to the GitHub API
+ * @param endpoint - GitHub API endpoint path (e.g., "/repos/owner/name/pulls")
+ * @returns Promise resolving to the parsed JSON response
+ * @throws Error if the request fails or response cannot be parsed
  */
 async function githubApiRequest<T>(endpoint: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -135,6 +185,10 @@ async function githubApiRequest<T>(endpoint: string): Promise<T> {
 
 /**
  * Downloads a file from a URL to a destination path
+ * @param url - URL to download from
+ * @param destPath - Local file path to save the downloaded file
+ * @returns Promise that resolves when download is complete
+ * @throws Error if download fails
  */
 async function downloadFile(url: string, destPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -295,6 +349,8 @@ export async function downloadSignatureFile(
 
 /**
  * Gets the current platform's artifact name pattern
+ * @returns Artifact name matching the current platform ("dmgs", "Win exes", or "AppImages")
+ * @throws Error if the platform is not supported
  */
 function getPlatformArtifactPattern(): string {
   const platform = osPlatform();
@@ -311,7 +367,9 @@ function getPlatformArtifactPattern(): string {
 }
 
 /**
- * Fetches list of open PRs with available app artifacts
+ * Fetches list of open PRs with available app artifacts for the current platform
+ * @returns Promise resolving to an array of PR information objects
+ * @throws Error if GitHub API requests fail
  */
 export async function fetchPRsWithArtifacts(): Promise<PRInfo[]> {
   try {
@@ -494,7 +552,10 @@ export async function extractAppBundle(zipPath: string, destDir: string): Promis
 }
 
 /**
- * Cleans up downloaded PR build artifacts
+ * Cleans up downloaded PR build artifacts from the build directory
+ * @param buildDir - Directory path containing PR build artifacts to delete
+ * @returns Promise that resolves when cleanup is complete
+ * @throws Error if cleanup fails
  */
 export async function cleanupPRBuild(buildDir: string): Promise<void> {
   try {
@@ -507,6 +568,8 @@ export async function cleanupPRBuild(buildDir: string): Promise<void> {
 
 /**
  * Gets the path where PR builds should be stored
+ * @param tempDir - Base temporary directory path
+ * @returns Full path to PR builds storage directory
  */
 export function getPRBuildStoragePath(tempDir: string): string {
   return path.join(tempDir, 'headlamp-pr-builds');
@@ -514,6 +577,8 @@ export function getPRBuildStoragePath(tempDir: string): string {
 
 /**
  * Checks if a PR build is currently active
+ * @param configPath - Path to the configuration file
+ * @returns Promise resolving to true if a PR build is active, false otherwise
  */
 export async function isPRBuildActive(configPath: string): Promise<boolean> {
   try {
@@ -528,6 +593,8 @@ export async function isPRBuildActive(configPath: string): Promise<boolean> {
 
 /**
  * Gets information about the currently active PR build
+ * @param configPath - Path to the configuration file
+ * @returns Promise resolving to PR info if active, null otherwise
  */
 export async function getActivePRBuildInfo(configPath: string): Promise<PRInfo | null> {
   try {
@@ -540,7 +607,11 @@ export async function getActivePRBuildInfo(configPath: string): Promise<PRInfo |
 }
 
 /**
- * Sets the active PR build information
+ * Sets the active PR build information in the configuration file
+ * @param configPath - Path to the configuration file
+ * @param prInfo - PR information to store as active
+ * @returns Promise that resolves when the configuration is saved
+ * @throws Error if unable to write configuration file
  */
 export async function setActivePRBuild(configPath: string, prInfo: PRInfo): Promise<void> {
   try {
@@ -561,7 +632,10 @@ export async function setActivePRBuild(configPath: string, prInfo: PRInfo): Prom
 }
 
 /**
- * Clears the active PR build information
+ * Clears the active PR build information from the configuration file
+ * @param configPath - Path to the configuration file
+ * @returns Promise that resolves when the active PR build is cleared
+ * @throws Error if unable to write configuration file
  */
 export async function clearActivePRBuild(configPath: string): Promise<void> {
   try {

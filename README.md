@@ -91,15 +91,15 @@ You can verify the authenticity of Headlamp releases using the Cosign CLI:
 # Linux/Windows: See https://docs.sigstore.dev/cosign/installation/
 
 # Download artifact and signature bundle
-wget https://github.com/kubernetes-sigs/headlamp/releases/download/v1.0.0/Headlamp-1.0.0.AppImage
-wget https://github.com/kubernetes-sigs/headlamp/releases/download/v1.0.0/Headlamp-1.0.0.AppImage.cosign.bundle
+wget https://github.com/kubernetes-sigs/headlamp/releases/download/v0.40.0/Headlamp-0.40.0.AppImage
+wget https://github.com/kubernetes-sigs/headlamp/releases/download/v0.40.0/Headlamp-0.40.0.AppImage.cosign.bundle
 
 # Verify signature
 cosign verify-blob \
-  --bundle Headlamp-1.0.0.AppImage.cosign.bundle \
-  --certificate-identity "https://github.com/kubernetes-sigs/headlamp/.github/workflows/push-release-assets.yml@refs/tags/v1.0.0" \
+  --bundle Headlamp-0.40.0.AppImage.cosign.bundle \
+  --certificate-identity "https://github.com/kubernetes-sigs/headlamp/.github/workflows/push-release-assets.yml@refs/tags/v0.40.0" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-  Headlamp-1.0.0.AppImage
+  Headlamp-0.40.0.AppImage
 ```
 
 Successful verification confirms the artifact was built by the official release workflow.

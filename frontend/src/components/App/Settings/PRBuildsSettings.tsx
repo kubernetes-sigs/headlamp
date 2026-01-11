@@ -28,6 +28,7 @@ import {
   List,
   ListItem,
   ListItemText,
+  Snackbar,
   Typography,
 } from '@mui/material';
 import { useEffect, useState } from 'react';
@@ -60,6 +61,8 @@ export default function PRBuildsSettings() {
   const [selectedPR, setSelectedPR] = useState<PRInfo | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   useEffect(() => {
     checkEnabled();
@@ -125,11 +128,12 @@ export default function PRBuildsSettings() {
       const response = await window.desktopApi.prBuilds.activatePRBuild(prInfo);
       if (response.success) {
         setActivePR(prInfo);
-        alert(
+        setSnackbarMessage(
           t(
             'translation|PR build activated. Please restart the application to use the development build.'
           )
         );
+        setSnackbarOpen(true);
       } else {
         // Don't show error if user cancelled
         if (response.error && !response.error.includes('cancelled')) {
@@ -152,7 +156,8 @@ export default function PRBuildsSettings() {
       const response = await window.desktopApi.prBuilds.clearPRBuild();
       if (response.success) {
         setActivePR(null);
-        alert(t('translation|PR build cleared. Application will use the default build.'));
+        setSnackbarMessage(t('translation|PR build cleared. Application will use the default build.'));
+        setSnackbarOpen(true);
       } else {
         // Don't show error if user cancelled
         if (response.error && !response.error.includes('cancelled')) {
@@ -326,6 +331,13 @@ export default function PRBuildsSettings() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={6000}
+        onClose={() => setSnackbarOpen(false)}
+        message={snackbarMessage}
+      />
     </Box>
   );
 }
