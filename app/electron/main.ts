@@ -1714,7 +1714,13 @@ function startElectron() {
 
     // PR Builds IPC handlers - only enabled if feature flag is set
     const configPath = path.join(app.getPath('userData'), 'headlamp-config.json');
-    registerPRBuildsIPCHandlers(ipcMain, configPath, app.getPath('temp'), enableAppDevBuilds);
+    registerPRBuildsIPCHandlers(
+      ipcMain,
+      configPath,
+      app.getPath('temp'),
+      enableAppDevBuilds,
+      options => dialog.showMessageBox(mainWindow!, options)
+    );
 
     // Also add bundled plugin bin directories to PATH
     const bundledPlugins = path.join(process.resourcesPath, '.plugins');

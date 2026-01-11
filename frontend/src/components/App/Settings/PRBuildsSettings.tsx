@@ -131,7 +131,10 @@ export default function PRBuildsSettings() {
           )
         );
       } else {
-        setError(response.error || 'Failed to activate PR build');
+        // Don't show error if user cancelled
+        if (response.error && !response.error.includes('cancelled')) {
+          setError(response.error);
+        }
       }
     } catch (err) {
       console.error('Failed to activate PR build:', err);
@@ -151,7 +154,10 @@ export default function PRBuildsSettings() {
         setActivePR(null);
         alert(t('translation|PR build cleared. Application will use the default build.'));
       } else {
-        setError(response.error || 'Failed to clear PR build');
+        // Don't show error if user cancelled
+        if (response.error && !response.error.includes('cancelled')) {
+          setError(response.error);
+        }
       }
     } catch (err) {
       console.error('Failed to clear PR build:', err);

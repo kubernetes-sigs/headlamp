@@ -452,7 +452,8 @@ export function registerPRBuildsIPCHandlers(
   ipcMain: any,
   configPath: string,
   tempDir: string,
-  enabled: boolean
+  enabled: boolean,
+  showDialog: (options: any) => Promise<any>
 ): void {
   if (enabled) {
     // Handle listing available PR builds
@@ -487,6 +488,22 @@ export function registerPRBuildsIPCHandlers(
     // Handle activating a PR build
     ipcMain.handle('activate-pr-build', async (event: any, prInfo: PRInfo) => {
       try {
+        // Show confirmation dialog from Electron (not from renderer)
+        const result = await showDialog({
+          type: 'warning',
+          title: 'Activate PR Build',
+          message: `Activate development build from PR #${prInfo.number}?`,
+          detail: `Title: ${prInfo.title}\nAuthor: ${prInfo.author}\nCommit: ${prInfo.headSha.substring(0, 7)}\nDate: ${prInfo.commitDate}\n\nThis will replace your current build. The application will need to be restarted to apply changes.`,
+          buttons: ['Cancel', 'Activate'],
+          defaultId: 0,
+          cancelId: 0,
+        });
+
+        // If user cancelled (clicked Cancel or closed dialog)
+        if (result.response !== 1) {
+          return { success: false, error: 'User cancelled activation' };
+        }
+
         await setActivePRBuild(configPath, prInfo);
         return { success: true };
       } catch (error) {
@@ -501,6 +518,22 @@ export function registerPRBuildsIPCHandlers(
     // Handle clearing PR build
     ipcMain.handle('clear-pr-build', async () => {
       try {
+        // Show confirmation dialog from Electron (not from renderer)
+        const result = await showDialog({
+          type: 'warning',
+          title: 'Clear PR Build',
+          message: 'Clear the active development build and return to default?',
+          detail: 'This will remove the PR build configuration. The application will use the default build after restart.',
+          buttons: ['Cancel', 'Clear'],
+          defaultId: 0,
+          cancelId: 0,
+        });
+
+        // If user cancelled (clicked Cancel or closed dialog)
+        if (result.response !== 1) {
+          return { success: false, error: 'User cancelled clear operation' };
+        }
+
         const prBuildDir = getPRBuildStoragePath(tempDir);
         await clearActivePRBuild(configPath);
         await cleanupPRBuild(prBuildDir);
