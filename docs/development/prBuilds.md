@@ -162,7 +162,7 @@ window.desktopApi.prBuilds = {
 
 - **Config file**: `~/Library/Application Support/Headlamp/headlamp-config.json` (macOS)
 - **PR builds cache**: `/tmp/headlamp-pr-builds/`
-- **Main code**: `app/electron/pr-builds.ts`
+- **Main code**: `app/electron/prBuilds.ts`
 - **UI component**: `frontend/src/components/App/Settings/PRBuildsSettings.tsx`
 
 ## Future Enhancements

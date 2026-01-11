@@ -50,7 +50,7 @@ import {
   getPluginBinDirectories,
   PluginManager,
 } from './plugin-management';
-import { handlePRBuildStartup, registerPRBuildsIPCHandlers } from './pr-builds';
+import { handlePRBuildStartup, registerPRBuildsIPCHandlers } from './prBuilds';
 import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
 import windowSize from './windowSize';
 

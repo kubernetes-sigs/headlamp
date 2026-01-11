@@ -28,12 +28,12 @@ import {
   isPRBuildActive,
   PRInfo,
   setActivePRBuild,
-} from './pr-builds';
+} from './prBuilds';
 
 const TEST_TEMP_DIR = path.join(os.tmpdir(), 'headlamp-pr-builds-test');
 const TEST_CONFIG_PATH = path.join(TEST_TEMP_DIR, 'test-config.json');
 
-describe('pr-builds', () => {
+describe('prBuilds', () => {
   beforeEach(() => {
     // Clean up any pending nock interceptors
     nock.cleanAll();

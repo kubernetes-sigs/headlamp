@@ -13,5 +13,5 @@
 electron/windowSize.test.js
 electron/env-paths.js
 electron/runCmd.test.js
-/electron/pr-builds.js
-/electron/pr-builds.test.js
+/electron/prBuilds.js
+/electron/prBuilds.test.js

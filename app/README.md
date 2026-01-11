@@ -62,5 +62,5 @@ $env:HEADLAMP_ENABLE_APP_DEV_BUILDS="false"
 .\Headlamp.exe
 ```
 
-For more information about the PR builds feature, see the [PR Builds documentation](../docs/development/pr-builds.md).
+For more information about the PR builds feature, see the [PR Builds documentation](../docs/development/prBuilds.md).
 

@@ -2,8 +2,8 @@
 ../app/electron/main.js
 ../app/electron/preload.js
 ../app/electron/windowSize.js
-../app/electron/pr-builds.js
-../app/electron/pr-builds.test.js
+../app/electron/prBuilds.js
+../app/electron/prBuilds.test.js
 ../app/electron/plugin-management.js
 ../app/electron/runCmd.js
 ../app/electron/runCmd.test.js
