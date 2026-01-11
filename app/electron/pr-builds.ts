@@ -493,7 +493,11 @@ export function registerPRBuildsIPCHandlers(
           type: 'warning',
           title: 'Activate PR Build',
           message: `Activate development build from PR #${prInfo.number}?`,
-          detail: `Title: ${prInfo.title}\nAuthor: ${prInfo.author}\nCommit: ${prInfo.headSha.substring(0, 7)}\nDate: ${prInfo.commitDate}\n\nThis will replace your current build. The application will need to be restarted to apply changes.`,
+          detail: `Title: ${prInfo.title}\nAuthor: ${
+            prInfo.author
+          }\nCommit: ${prInfo.headSha.substring(0, 7)}\nDate: ${
+            prInfo.commitDate
+          }\n\nThis will replace your current build. The application will need to be restarted to apply changes.`,
           buttons: ['Cancel', 'Activate'],
           defaultId: 0,
           cancelId: 0,
@@ -523,7 +527,8 @@ export function registerPRBuildsIPCHandlers(
           type: 'warning',
           title: 'Clear PR Build',
           message: 'Clear the active development build and return to default?',
-          detail: 'This will remove the PR build configuration. The application will use the default build after restart.',
+          detail:
+            'This will remove the PR build configuration. The application will use the default build after restart.',
           buttons: ['Cancel', 'Clear'],
           defaultId: 0,
           cancelId: 0,
