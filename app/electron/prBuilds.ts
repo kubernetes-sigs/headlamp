@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { getTrustedRoot } from '@sigstore/tuf';
+import { toSignedEntity, toTrustMaterial, Verifier } from '@sigstore/verify';
 import { createWriteStream } from 'fs';
 import * as fsPromises from 'fs/promises';
 import https from 'https';
@@ -21,9 +23,6 @@ import { platform as osPlatform } from 'os';
 import path from 'path';
 import { pipeline } from 'stream';
 import { promisify } from 'util';
-
-import { getTrustedRoot } from '@sigstore/tuf';
-import { toSignedEntity, toTrustMaterial, Verifier } from '@sigstore/verify';
 
 const pipelineAsync = promisify(pipeline);
 
@@ -219,12 +218,12 @@ export async function verifyPRBuildSignature(
     // - Certificate chain is valid
     // - Certificate was issued by Sigstore CA for GitHub Actions
     // - Transparency log entries are valid
-    
+
     // Get trust material from the public Sigstore TUF repository
     const trustedRoot = await getTrustedRoot({
       mirrorURL: 'https://tuf-repo-cdn.sigstore.dev', // Public Sigstore TUF repository
     });
-    
+
     const trustMaterial = toTrustMaterial(trustedRoot);
 
     // Create verifier with trust material
@@ -243,7 +242,7 @@ export async function verifyPRBuildSignature(
         issuer: 'https://token.actions.githubusercontent.com',
       },
     };
-    
+
     const signer = verifier.verify(signedEntity, policy);
 
     // If we reach here, verification succeeded
