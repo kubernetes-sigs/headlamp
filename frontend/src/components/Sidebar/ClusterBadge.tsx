@@ -16,49 +16,62 @@
 
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
-import { alpha } from '@mui/material/styles';
+import { useTheme } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 import React from 'react';
 
 export interface ClusterBadgeProps {
   /** Cluster display name */
   name: string;
-  /** Accent color for the badge border/background */
+  /** Accent color for the circular icon background */
   accentColor?: string;
   /** Icon to display in the badge */
   icon?: string;
 }
 
 /**
- * ClusterBadge displays a small colored box with cluster name and icon
+ * ClusterBadge displays an icon with a colored circle and cluster name
  * Used in the sidebar to show selected clusters
  */
 export default function ClusterBadge({ name, accentColor, icon }: ClusterBadgeProps) {
+  const theme = useTheme();
   const defaultIcon = 'mdi:hexagon-multiple-outline';
+
+  const iconColor = theme.palette.text.primary;
+  const backgroundColor = theme.palette.getContrastText(theme.palette.text.primary);
 
   return (
     <Box
-      sx={theme => ({
+      sx={{
         display: 'flex',
         alignItems: 'center',
-        gap: 1,
-        padding: '6px 12px',
-        borderRadius: 1,
-        backgroundColor: alpha(theme.palette.secondary.main, 0.9),
-      })}
+        gap: 1.5,
+        paddingY: 0.5,
+      }}
     >
-      <Icon
-        icon={icon || defaultIcon}
-        width={16}
-        height={16}
-        style={{ color: accentColor || 'currentColor' }}
-      />
+      {/* Colored circle with icon */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 28,
+          height: 28,
+          borderRadius: '50%',
+          backgroundColor,
+          border: `2px solid ${accentColor}`,
+          flexShrink: 0,
+        }}
+      >
+        <Icon icon={icon || defaultIcon} color={iconColor} width={20} height={20} />
+      </Box>
+
+      {/* Cluster name */}
       <Typography
         variant="caption"
         sx={{
-          fontSize: '0.75rem',
+          fontSize: '0.875rem',
           fontWeight: 500,
-          color: 'text.primary',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',

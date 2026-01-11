@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { useTheme } from '@mui/material/styles';
 import _ from 'lodash';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -60,6 +61,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   const selectedClusters = useSelectedClusters();
   const allClustersConf = useClustersConf();
   const { t } = useTranslation();
+  const theme = useTheme();
 
   const [crds, error] = CRD.useList();
   if (error !== null) {
@@ -125,7 +127,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
               <ClusterBadge
                 key={clusterName}
                 name={clusterName}
-                accentColor={appearance.accentColor}
+                accentColor={
+                  appearance.accentColor ||
+                  theme.palette.getContrastText(theme.palette.text.primary)
+                }
                 icon={appearance.icon}
               />
             );
