@@ -86,9 +86,118 @@ When you start Headlamp with an active PR build, you'll see a confirmation dialo
 
 1. **Fetching PRs**: The app queries the GitHub API for open PRs with successful workflow runs
 2. **Artifact Filtering**: Only PRs with platform-specific artifacts (DMG for macOS, AppImage for Linux, EXE for Windows) are shown
-3. **Activation**: When you activate a PR build, the app stores the PR information in your local config
-4. **Startup Check**: On each startup, if a PR build is active, you're prompted to confirm continued use
-5. **Resource Loading**: The app loads resources from the PR build instead of the default installation
+3. **Signature Verification**: All artifacts are signed with Sigstore and verified before activation
+4. **Activation**: When you activate a PR build, the app stores the PR information in your local config
+5. **Startup Check**: On each startup, if a PR build is active, you're prompted to confirm continued use
+6. **Resource Loading**: The app loads resources from the PR build instead of the default installation
+
+## Signature Verification
+
+All PR build artifacts are signed using [Sigstore](https://www.sigstore.dev/) keyless signing with GitHub Actions OIDC identity. This provides cryptographic verification that artifacts were built by official GitHub Actions workflows.
+
+### Security Features
+
+- **Keyless Signing**: Uses GitHub Actions OIDC identity (no secrets in code)
+- **Automatic Verification**: Signatures are verified before activating PR builds
+- **User Confirmation**: Dialogs prompt user if signature is missing or invalid
+- **No External Binary**: Uses `@sigstore/verify` Node.js module for verification
+
+### Verification Process
+
+When you activate a PR build:
+
+1. The app downloads the artifact and its `.cosign.bundle` signature file
+2. The signature is verified against the artifact using Sigstore
+3. The verification checks:
+   - Signature is valid and cryptographically correct
+   - Artifact was signed by GitHub Actions OIDC identity
+   - Workflow was from the `kubernetes-sigs/headlamp` repository
+4. If verification succeeds, the artifact is activated
+5. If verification fails or signature is missing, a dialog appears:
+   - **Missing signature**: "No signature found. This build may be older. Continue anyway?"
+   - **Invalid signature**: "Signature verification failed. This artifact may be compromised. Continue anyway?"
+
+### Verifying Signatures Manually
+
+You can manually verify PR artifact signatures using the Cosign CLI:
+
+#### Installing Cosign
+
+```bash
+# macOS
+brew install sigstore/tap/cosign
+
+# Linux
+wget "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64"
+sudo mv cosign-linux-amd64 /usr/local/bin/cosign
+sudo chmod +x /usr/local/bin/cosign
+
+# Windows (using winget)
+winget install sigstore.cosign
+```
+
+#### Verifying PR Artifacts
+
+```bash
+# Download artifact and signature from nightly.link
+# Example for Linux AppImage from PR #1234, workflow run 567890
+wget "https://nightly.link/kubernetes-sigs/headlamp/actions/runs/567890/Headlamp-1.0.0.AppImage.zip"
+wget "https://nightly.link/kubernetes-sigs/headlamp/actions/runs/567890/Headlamp-1.0.0.AppImage.cosign.bundle"
+
+# Extract the artifact
+unzip Headlamp-1.0.0.AppImage.zip
+
+# Verify the signature
+cosign verify-blob \
+  --bundle Headlamp-1.0.0.AppImage.cosign.bundle \
+  --certificate-identity-regexp "^https://github.com/kubernetes-sigs/headlamp/.*$" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  Headlamp-1.0.0.AppImage
+```
+
+#### Verifying Release Artifacts
+
+Release artifacts are also signed and available from GitHub Releases:
+
+```bash
+# Download from GitHub Releases
+wget "https://github.com/kubernetes-sigs/headlamp/releases/download/v1.0.0/Headlamp-1.0.0.AppImage"
+wget "https://github.com/kubernetes-sigs/headlamp/releases/download/v1.0.0/Headlamp-1.0.0.AppImage.cosign.bundle"
+
+# Verify with stricter policy (release workflow identity)
+cosign verify-blob \
+  --bundle Headlamp-1.0.0.AppImage.cosign.bundle \
+  --certificate-identity "https://github.com/kubernetes-sigs/headlamp/.github/workflows/push-release-assets.yml@refs/tags/v1.0.0" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  Headlamp-1.0.0.AppImage
+```
+
+### Trust Model
+
+- **PR Signatures**: Signed by GitHub Actions workflows from pull requests
+  - Available for reproducibility and verification
+  - User must confirm if signature is missing or invalid
+  
+- **Release Signatures**: Signed by the official release workflow
+  - Enforces strict trust policy
+  - Only artifacts signed by `push-release-assets.yml` workflow are released
+
+### Troubleshooting Signature Issues
+
+**Signature verification failed**
+- The artifact may have been tampered with or corrupted
+- Network issues during download may have corrupted the file
+- Try downloading again or use a different PR build
+
+**No signature found**
+- The artifact was built before signature implementation
+- Older PR builds may not have signatures
+- You can still use them, but verification is not possible
+
+**Bundle format errors**
+- The signature file may be corrupted
+- Re-download the signature file
+- Contact maintainers if issue persists
 
 ## Limitations
 
@@ -169,11 +278,13 @@ window.desktopApi.prBuilds = {
 
 Planned improvements for this feature:
 
-- Automatic artifact download with GitHub authentication
+- ✅ ~~Automatic artifact download with GitHub authentication~~ (Implemented via nightly.link)
+- ✅ ~~Signature verification for security~~ (Implemented with Sigstore)
 - Resource path override for loading PR builds
 - Cached PR builds for offline use
 - Automatic update notifications for active PR builds
 - Rollback mechanism in case of issues
+- Signature status indicators in UI
 
 ## Related Documentation
 

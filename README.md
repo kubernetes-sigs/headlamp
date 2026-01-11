@@ -75,6 +75,37 @@ We maintain a list of the [Kubernetes platforms](./docs/platforms.md) we have
 tested Headlamp with. We invite you to add any missing platforms you have
 tested, or comment if there are any regressions in the existing ones.
 
+## Security & Verification
+
+### Signature Verification
+
+All Headlamp desktop application artifacts (releases and PR builds) are signed using [Sigstore](https://www.sigstore.dev/) keyless signing with GitHub Actions OIDC identity. This provides cryptographic verification that binaries were built by official GitHub Actions workflows.
+
+#### Verifying Release Artifacts
+
+You can verify the authenticity of Headlamp releases using the Cosign CLI:
+
+```bash
+# Install Cosign (https://docs.sigstore.dev/cosign/installation/)
+# macOS: brew install sigstore/tap/cosign
+# Linux/Windows: See https://docs.sigstore.dev/cosign/installation/
+
+# Download artifact and signature bundle
+wget https://github.com/kubernetes-sigs/headlamp/releases/download/v1.0.0/Headlamp-1.0.0.AppImage
+wget https://github.com/kubernetes-sigs/headlamp/releases/download/v1.0.0/Headlamp-1.0.0.AppImage.cosign.bundle
+
+# Verify signature
+cosign verify-blob \
+  --bundle Headlamp-1.0.0.AppImage.cosign.bundle \
+  --certificate-identity "https://github.com/kubernetes-sigs/headlamp/.github/workflows/push-release-assets.yml@refs/tags/v1.0.0" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  Headlamp-1.0.0.AppImage
+```
+
+Successful verification confirms the artifact was built by the official release workflow.
+
+For more information about signature verification, including how to verify PR artifacts, see the [PR Development Builds documentation](./docs/development/prBuilds.md#signature-verification).
+
 ## Extensions / Plugins
 
 Please see [headlamp plugins on Artifact Hub](https://artifacthub.io/packages/search?kind=21&sort=relevance&page=1) for a list of plugins published.
