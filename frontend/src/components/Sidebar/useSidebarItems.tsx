@@ -127,10 +127,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
               <ClusterBadge
                 key={clusterName}
                 name={clusterName}
-                accentColor={
-                  appearance.accentColor ||
-                  theme.palette.getContrastText(theme.palette.text.primary)
-                }
+                accentColor={appearance.accentColor || theme.palette.text.secondary}
                 icon={appearance.icon}
               />
             );
