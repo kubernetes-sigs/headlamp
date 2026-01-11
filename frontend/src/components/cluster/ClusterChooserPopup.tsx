@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
-import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import ListSubheader from '@mui/material/ListSubheader';
 import MenuItem from '@mui/material/MenuItem';
@@ -38,14 +36,12 @@ import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { Cluster } from '../../lib/k8s/cluster';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getCluster, getClusterPrefixedPath } from '../../lib/util';
+import ClusterBadge from '../Sidebar/ClusterBadge';
 
 function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selected?: boolean }) {
   const { cluster, selected, onClick } = props;
   const { t } = useTranslation();
-  const theme = useTheme();
   const appearance = getClusterAppearanceFromMeta(cluster?.meta_data);
-  const icon = appearance.icon || 'mdi:kubernetes';
-  const iconColor = appearance.accentColor || theme.palette.text.primary;
 
   return (
     <MenuItem
@@ -57,13 +53,17 @@ function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selecte
         borderRadius: theme.shape.borderRadius + 'px',
       })}
     >
-      <ListItemIcon>
-        <Icon icon={icon} width={26} color={iconColor} />
-      </ListItemIcon>
-      <ListItemText
-        primary={cluster.name}
-        secondary={!!cluster.isCurrent ? t('Current', { context: 'cluster' }) : ''}
+      <ClusterBadge
+        name={cluster.name}
+        icon={appearance.icon}
+        accentColor={appearance.accentColor}
       />
+      {!!cluster.isCurrent && (
+        <ListItemText
+          secondary={t('Current', { context: 'cluster' })}
+          sx={{ marginLeft: 'auto', paddingLeft: 2 }}
+        />
+      )}
     </MenuItem>
   );
 }

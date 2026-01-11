@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { Icon } from '@iconify/react';
 import Button from '@mui/material/Button';
-import { alpha, styled } from '@mui/system';
+import { alpha } from '@mui/system';
 import React, { ReactElement } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
+import ClusterBadge from '../Sidebar/ClusterBadge';
 
 export interface ClusterChooserProps {
   clickHandler: (event?: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
@@ -31,42 +31,29 @@ export type ClusterChooserType =
   | ReactElement<ClusterChooserProps>
   | null;
 
-const SpanClusterName = styled('span')({
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  display: 'block',
-});
-
 const ClusterChooser = React.forwardRef(function ClusterChooser(
   { clickHandler, cluster, icon, accentColor }: ClusterChooserProps,
   ref: React.Ref<HTMLButtonElement>
 ) {
   const { t } = useTranslation();
-  const startIcon = icon || 'mdi:hexagon-multiple-outline';
 
   return (
     <Button
       size="large"
       color="secondary"
       onClick={clickHandler}
-      startIcon={<Icon icon={startIcon} color={accentColor} />}
       sx={theme => ({
         background: theme.palette.navbar.background,
         color: theme.palette.navbar.color,
         ':hover': {
           background: alpha(theme.palette.navbar.color, 0.07),
         },
-        ...(accentColor ? { borderBottom: `2px solid ${accentColor}` } : {}),
-        maxWidth: '20em',
         textTransform: 'none',
         padding: '6px 22px',
       })}
       ref={ref}
     >
-      <SpanClusterName title={cluster}>
-        <Trans t={t}>Cluster: {{ cluster }}</Trans>
-      </SpanClusterName>
+      <ClusterBadge name={cluster || t('Cluster')} icon={icon} accentColor={accentColor} />
     </Button>
   );
 });
