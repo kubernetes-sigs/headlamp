@@ -18,7 +18,7 @@
           Head back 
           <a
             class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-            href="/"
+            href="#"
           >
             home
           </a>

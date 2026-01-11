@@ -15,7 +15,7 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
-import { PRBuildsSettings } from './PRBuildsSettings';
+import PRBuildsSettings from './PRBuildsSettings';
 
 const mockPRInfo = {
   number: 123,

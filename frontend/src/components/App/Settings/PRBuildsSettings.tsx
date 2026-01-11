@@ -156,7 +156,9 @@ export default function PRBuildsSettings() {
       const response = await window.desktopApi.prBuilds.clearPRBuild();
       if (response.success) {
         setActivePR(null);
-        setSnackbarMessage(t('translation|PR build cleared. Application will use the default build.'));
+        setSnackbarMessage(
+          t('translation|PR build cleared. Application will use the default build.')
+        );
         setSnackbarOpen(true);
       } else {
         // Don't show error if user cancelled

@@ -66,7 +66,7 @@ describe('prBuilds', () => {
       // Use environment variables for repository configuration or defaults
       const repoOwner = process.env.HEADLAMP_PR_BUILDS_REPO_OWNER || 'kubernetes-sigs';
       const repoName = process.env.HEADLAMP_PR_BUILDS_REPO_NAME || 'headlamp';
-      
+
       const platform = os.platform();
       let expectedArtifactName = 'AppImages';
       if (platform === 'darwin') {
