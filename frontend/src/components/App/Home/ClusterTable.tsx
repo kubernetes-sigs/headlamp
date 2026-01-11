@@ -193,7 +193,8 @@ export default function ClusterTable({
           header: t('Name'),
           accessorKey: 'name',
           Cell: ({ row: { original } }) => {
-            const appearance = getClusterAppearanceFromMeta(original?.meta_data);
+            const clusterData = (clusters || {})[original.name];
+            const appearance = getClusterAppearanceFromMeta(clusterData?.meta_data);
             return (
               <Link routeName="cluster" params={{ cluster: original.name }}>
                 <ClusterBadge
