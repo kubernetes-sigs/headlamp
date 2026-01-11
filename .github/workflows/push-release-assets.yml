@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # need to write to releases and download artifacts
+      id-token: write # needed for Sigstore keyless signing
     steps:
       - name: Checkout code
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -82,6 +83,26 @@ jobs:
             echo "No artifacts found to upload!"
             exit 0
           fi
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
+
+      - name: Sign artifacts with Cosign for release
+        run: |
+          cd ./flattened-artifacts
+          # Sign only the actual binary artifacts (not existing .cosign.bundle files)
+          for file in Headlamp*.*; do
+            # Skip if file is already a cosign bundle
+            if [[ "$file" != *.cosign.bundle ]]; then
+              # Skip if cosign bundle already exists (from PR builds)
+              if [ ! -f "${file}.cosign.bundle" ]; then
+                echo "Signing $file for release"
+                cosign sign-blob --yes --bundle "${file}.cosign.bundle" "$file"
+              else
+                echo "Signature already exists for $file"
+              fi
+            fi
+          done
 
       - name: Prepare GPG key
         run: |

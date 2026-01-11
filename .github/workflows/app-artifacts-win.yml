@@ -18,7 +18,7 @@ permissions:
 jobs:
   build-windows:
     permissions:
-      id-token: write # For fetching an OpenID Connect (OIDC) token
+      id-token: write # For fetching an OpenID Connect (OIDC) token and Sigstore keyless signing
       contents: read
       actions: write # needed to upload artifacts
     runs-on: windows-2022
@@ -88,10 +88,26 @@ jobs:
         }
         make app-win
 
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
+
+    - name: Sign Windows artifacts with Cosign
+      shell: pwsh
+      working-directory: headlamp
+      run: |
+        cd app/dist
+        Get-ChildItem -Filter "Headlamp*.*" | ForEach-Object {
+          $file = $_.Name
+          Write-Host "Signing $file"
+          cosign sign-blob --yes --bundle "$file.cosign.bundle" $file
+        }
+
     - name: Upload artifact
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: Win exes
-        path: ./headlamp/app/dist/Headlamp*.*
+        path: |
+          ./headlamp/app/dist/Headlamp*.*
+          ./headlamp/app/dist/Headlamp*.*.cosign.bundle
         if-no-files-found: error
         retention-days: 2
