@@ -37,8 +37,8 @@ export default function ClusterBadge({ name, accentColor, icon }: ClusterBadgePr
   const theme = useTheme();
   const defaultIcon = 'mdi:hexagon-multiple-outline';
 
-  const iconColor = theme.palette.primary.contrastText;
-  const backgroundColor = theme.palette.primary.main;
+  const iconColor = theme.palette.primary.main;
+  const backgroundColor = theme.palette.secondary.main;
 
   return (
     <Box
