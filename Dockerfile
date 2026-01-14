@@ -4,7 +4,7 @@ ARG IMAGE_BASE=alpine:3.22.2@sha256:4b7ce07002c69e8f3d704a9c5d6fd3053be500b7f1c6
 FROM ${IMAGE_BASE} AS image-base
 
 
-FROM --platform=${BUILDPLATFORM} golang:1.24.10@sha256:58364c0a7d53e26b6e5b83cf186b4e9d5fa078c4f5e728f9d9a7b972f689a84a AS backend-build
+FROM --platform=${BUILDPLATFORM} golang:1.24.11@sha256:cf1272dbf972a94f39a81dcb9dc243a8d2f981e5dd3b5a5c965f6d9ab9268b26 AS backend-build
 
 WORKDIR /headlamp
 

@@ -286,6 +286,7 @@ Ensure your replicaCount and maintenance procedures respect the configured PDB t
 | version       | string  | `latest`          | Headlamp plugin package version to install                                                |
 | env           | list    | `[]`              | Plugin manager env variable configuration                                                 |
 | resources     | object  | `{}`              | Plugin manager resource requests/limits                                                   |
+| volumeMounts  | list    | `[]`              | Plugin manager volume mounts                                                              |
 
 Example resource configuration:
 

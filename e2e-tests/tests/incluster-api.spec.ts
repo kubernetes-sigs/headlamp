@@ -67,4 +67,39 @@ test.describe('Headlamp in-cluster API', () => {
     expect(body).toHaveProperty('items');
     expect(Array.isArray(body.items)).toBe(true);
   });
+
+  test('can list Helm releases with service account token', async ({ request }) => {
+    const response = await request.get('/clusters/main/helm/releases/list', {
+      headers: {
+        Authorization: `Bearer ${saToken}`,
+      },
+      baseURL,
+    });
+
+    expect(response.status(), 'expected 200 from Helm releases API with token').toBe(200);
+
+    const body = await response.json();
+    // Response structure may vary depending on installed charts; just assert we get a list back.
+    expect(body).toHaveProperty('releases');
+    expect(Array.isArray(body.releases)).toBe(true);
+
+    // do a follow up request to /clusters/main/helm/releases/list?all=true without a token
+    // and expect a non-200 status
+    const response2 = await request.get('/clusters/main/helm/releases/list?all=true', {
+      baseURL,
+    });
+    expect(
+      response2.status(),
+      'expected a non-200 status from Helm releases API without token'
+    ).not.toBe(200);
+  });
+
+  test('cannot list Helm releases without service account token', async ({ request }) => {
+    const response = await request.get('/clusters/main/helm/releases/list', {
+      baseURL,
+    });
+
+    // Without token, the request should fail with an error status
+    expect(response.status(), 'expected error from Helm releases API without token').not.toBe(200);
+  });
 });

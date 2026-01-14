@@ -3,15 +3,115 @@ title: Contributing to Internationalization
 sidebar_label: Contributing
 ---
 
-This section introduces some concepts for contributing translations and is
-especially important when submitting a new language.
+Welcome! This guide will help you contribute translations to Headlamp.
 
-**Important:** If you add a new language, keep in mind that while all
+## Quick Start
+
+### Where to Edit Translations
+
+**⚠️ IMPORTANT:** All translations should be edited in:
+```
+frontend/src/i18n/locales/
+```
+
+This is the **single source of truth** for all translations. Do not edit translation files in other locations (like `plugins/headlamp-plugin/src/i18n/locales/`) as they are auto-generated during the build process.
+
+### Translation File Structure
+
+Each language has its own directory with three JSON files:
+
+```
+locales/
+├── en/                    # English (reference language)
+│   ├── translation.json   # Main translations
+│   ├── glossary.json      # Kubernetes technical terms
+│   └── app.json          # Desktop app specific strings
+├── de/                    # German
+│   ├── translation.json
+│   ├── glossary.json
+│   └── app.json
+├── fr/                    # French
+...
+```
+
+**Important:** When adding a new language, keep in mind that while all
 the specific Kubernetes components' names are translatable, not all of them
 will have a corresponding name in your language. Please refer to the
 [Kubernetes localized docs](https://kubernetes.io/docs/home/) in your
 language (if they exist) to understand which components should
 be translated and which should be left in their original form.
+
+## Helper Commands
+
+We provide several commands to make translation easier:
+
+### Check Translation Status
+
+See which languages need translation work:
+
+```bash
+npm run i18n:status
+```
+
+This shows a colorful table with:
+- Translation completion percentage for each language
+- Number of translated vs. missing strings
+- Visual progress bars
+
+### List Translation Files
+
+See all translation files with their completion status:
+
+```bash
+# List all languages
+npm run i18n:list
+
+# List specific language (note the -- before language code)
+npm run i18n:list -- de
+```
+
+This shows:
+- All translation files for each language
+- Completion percentage for each file
+- Missing files (if any)
+- File paths
+
+### Extract Empty Translations
+
+Extract untranslated strings to a separate file for easier translation:
+
+```bash
+npm run i18n:extract -- frontend/src/i18n/locales/de/translation.json
+```
+
+This creates a file (e.g., `translation_empty.json`) containing only the empty translations. You can:
+1. Translate the strings in this smaller file
+2. Use the copy command (below) to merge them back
+
+Optional: Specify output filename:
+```bash
+npm run i18n:extract -- frontend/src/i18n/locales/de/translation.json my_translations.json
+```
+
+### Copy Translations Between Files
+
+Copy translations from one file to another:
+
+```bash
+# Basic usage - only copy missing translations
+npm run i18n:copy -- source.json dest.json
+
+# Force overwrite all translations (including non-empty ones)
+npm run i18n:copy -- source.json dest.json --force
+
+# Copy all keys from source, even if they don't exist in destination
+npm run i18n:copy -- source.json dest.json --all
+```
+
+This is useful for:
+- Merging completed translations back from an extracted file
+- Copying translations between language files
+- Updating translations selectively
 
 ## Namespaces
 
@@ -86,39 +186,72 @@ Here's an example of using date formatting:
     });
 ```
 
-## Adding a new language
+## Translation Workflow
 
-Create a folder using the locale code in:
-`frontend/src/i18n/locales/`
+### For Updating Existing Languages
 
-Then run `npm run i18n`. This command parses the translatable strings in
-the project and creates the corresponding catalog files.
+1. **Check translation status:**
+   ```bash
+   npm run i18n:status
+   ```
+
+2. **Open the JSON files directly** in `frontend/src/i18n/locales/<lang>/`
+   - `translation.json` - UI strings
+   - `glossary.json` - Kubernetes technical terms
+   - `app.json` - App-specific strings
+
+3. **Find empty strings** (these need translation):
+   ```json
+   {
+     "Some key": "",  ← Needs translation
+     "Another key": "Translated text"  ← Already done
+   }
+   ```
+
+4. **Add translations** for empty strings:
+   ```json
+   {
+     "Some key": "Your translation here",
+     "Another key": "Translated text"
+   }
+   ```
+
+5. **Verify your work:**
+   ```bash
+   npm run i18n:status
+   ```
+
+6. **Submit a pull request** with your changes
+
+### For Adding a New Language
+
+1. **Create the language directory:**
+   ```bash
+   mkdir frontend/src/i18n/locales/<lang-code>
+   ```
+
+   Language codes should follow the [ISO 639-1 standard](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes).
+
+2. **Generate translation files:**
+   ```bash
+   # From the project root
+   npm run i18n
+   ```
+
+   This will create empty translation files for your new language.
+
+3. **Follow the update workflow above** to translate the strings
 
 Integrated components may need to be adjusted (MaterialUI/Monaco etc).
 
-## Translating missing strings
+## Deprecated Tools
 
-Technical development happens more frequently than translations. Thus, chances
-are that developers introduce new strings that need to be translated and will
-be stored as empty strings (defaulting to English) in the translation files.
+**⚠️ DEPRECATED:** The old CLI tools in `frontend/src/i18n/tools/` are deprecated and should no longer be used:
 
-In order to more easily spot and translate the missing strings, we have two CLI
-tools:
+- `extract-empty-translations.js` → Use `npm run i18n:extract` instead
+- `copy-translations.js` → Use `npm run i18n:copy` instead
 
-- _extract-empty-translations.js_: This script (in ./frontend/src/i18n/tools/)
-  will extract the strings without a corresponding translation from the translation
-  files, and copy them into a new file.
-  E.g. `$ node copy-empty-translations.js ../locales/de/translation.json` will
-  by default create a `../locales/de/translation_empty.json`. This file can be
-  used to translate the strings in a more isolated way.
-- _copy-translations.js_: This script (in ./frontend/src/i18n/tools/)
-  by default copies any existing translations from one source translation file to
-  a target one, if the same key is not translated in the destination file.
-  E.g. `$ node copy-translations.js ../locales/de/translation_no_longer_empty.json ../locales/de/translation.json` will
-  copy any new translations from the file given as the first argument to the one
-  given as the second argument, if the same key is not translated in the second.
-  There are some options to this script, which can be seen by running it with the
-  `--help` flag.
+The new i18n tool (see Helper Commands above) provides the same functionality with better error handling and a more consistent interface.
 
 ## Material UI
 

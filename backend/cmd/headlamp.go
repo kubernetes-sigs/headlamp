@@ -1013,6 +1013,15 @@ func (c *HeadlampConfig) refreshAndSetToken(oidcAuthConfig *kubeconfig.OidcConfi
 	}
 }
 
+// setTokenFromCookie attempts to get a token from the cookie and set it as Authorization header.
+func setTokenFromCookie(r *http.Request, clusterName string) {
+	tokenFromCookie, err := auth.GetTokenFromCookie(r, clusterName)
+	// Set bearer token from cookie if it exists
+	if err == nil && tokenFromCookie != "" {
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokenFromCookie))
+	}
+}
+
 func (c *HeadlampConfig) incrementRequestCounter(ctx context.Context) {
 	if c.Metrics != nil {
 		c.Metrics.RequestCounter.Add(ctx, 1,
@@ -1240,41 +1249,9 @@ func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (
 	clusterName := mux.Vars(r)["clusterName"]
 	telemetry.AddSpanAttributes(ctx, attribute.String("clusterName", clusterName))
 
-	context, err := c.KubeConfigStore.GetContext(clusterName)
+	helmHandler, err := helm.NewHandler(c.cache)
 	if err != nil {
-		logger.Log(
-			logger.LevelError, map[string]string{"clusterName": clusterName},
-			err, "failed to get context")
-		c.telemetryHandler.RecordError(span, err, "failed to get context")
-		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error", "failed to get context"))
-		c.telemetryHandler.RecordDuration(ctx, start, attribute.String("status", "not found"))
-		http.NotFound(w, r)
-
-		return nil, errors.New("not found")
-	}
-
-	tokenFromCookie, err := auth.GetTokenFromCookie(r, clusterName)
-
-	bearerToken := r.Header.Get("Authorization")
-	if err == nil && tokenFromCookie != "" && bearerToken == "" {
-		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokenFromCookie))
-	}
-
-	// If the request contains a bearer token in the Authorization header, set it in AuthInfo.
-	// This token will be used  authentication to the Kubernetes cluster.
-	bearerToken = r.Header.Get("Authorization")
-	if bearerToken != "" {
-		reqToken := strings.TrimPrefix(bearerToken, "Bearer ")
-		if reqToken != "" {
-			context.AuthInfo.Token = reqToken
-		}
-	}
-
-	namespace := r.URL.Query().Get("namespace")
-
-	helmHandler, err := helm.NewHandler(context.ClientConfig(), c.cache, namespace)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"namespace": namespace},
+		logger.Log(logger.LevelError, map[string]string{"clusterName": clusterName},
 			err, "failed to create helm handler")
 		c.telemetryHandler.RecordError(span, err, "failed to create helm handler")
 		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error", "helm handler creation failure"))
@@ -1319,7 +1296,6 @@ func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 		Methods("GET")
 }
 
-//nolint:funlen
 func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 	router.PathPrefix("/clusters/{clusterName}/helm/{.*}").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -1336,79 +1312,163 @@ func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 
 		if err := c.checkHeadlampBackendToken(w, r); err != nil {
 			c.handleError(w, ctx, span, err, "failed to check headlamp backend token", http.StatusForbidden)
-
 			return
 		}
 
 		helmHandler, err := getHelmHandler(c, w, r)
 		if err != nil {
 			c.handleError(w, ctx, span, err, "failed to get helm handler", http.StatusForbidden)
-
 			return
 		}
 
-		routeHandler := func(route, operation string, handler func(http.ResponseWriter, *http.Request)) {
-			c.telemetryHandler.RecordEvent(span, "Executing route",
-				attribute.String("route", route),
-				attribute.String("operation", operation))
-			c.telemetryHandler.RecordRequestCount(ctx, r)
-
-			logger.Log(logger.LevelInfo, map[string]string{"route": route}, nil, "Dispatching helm operation: "+operation)
-			handler(w, r)
-		}
-
-		switch {
-		case strings.HasSuffix(path, "/releases/list") && r.Method == http.MethodGet:
-			routeHandler("/releases/list", "ListRelease", helmHandler.ListRelease)
-			return
-		case strings.HasSuffix(path, "/release/install") && r.Method == http.MethodPost:
-			routeHandler("/release/install", "InstallRelease", helmHandler.InstallRelease)
-			return
-		case strings.HasSuffix(path, "/release/history") && r.Method == http.MethodGet:
-			routeHandler("/release/history", "GetReleaseHistory", helmHandler.GetReleaseHistory)
-			return
-		case strings.HasSuffix(path, "/releases/uninstall") && r.Method == http.MethodDelete:
-			routeHandler("/releases/uninstall", "UninstallRelease", helmHandler.UninstallRelease)
-			return
-		case strings.HasSuffix(path, "/releases/rollback") && r.Method == http.MethodPut:
-			routeHandler("/releases/rollback", "RollbackRelease", helmHandler.RollbackRelease)
-			return
-		case strings.HasSuffix(path, "/releases/upgrade") && r.Method == http.MethodPut:
-			routeHandler("/releases/upgrade", "UpgradeRelease", helmHandler.UpgradeRelease)
-			return
-		case strings.HasSuffix(path, "/releases") && r.Method == http.MethodGet:
-			routeHandler("/releases", "GetRelease", helmHandler.GetRelease)
-			return
-		case strings.HasSuffix(path, "/repositories") && r.Method == http.MethodGet:
-			routeHandler("/repositories", "ListRepo", helmHandler.ListRepo)
-			return
-		case strings.HasSuffix(path, "/repositories") && r.Method == http.MethodPost:
-			routeHandler("/repositories", "AddRepo", helmHandler.AddRepo)
-			return
-		case strings.HasSuffix(path, "/repositories/remove") && r.Method == http.MethodDelete:
-			routeHandler("/repositories/remove", "RemoveRepo", helmHandler.RemoveRepo)
-			return
-		case strings.HasSuffix(path, "/repositories/update") && r.Method == http.MethodPut:
-			routeHandler("/repositories/update", "UpdateRepository", helmHandler.UpdateRepository)
-			return
-		case strings.HasSuffix(path, "/charts") && r.Method == http.MethodGet:
-			routeHandler("/charts", "ListCharts", helmHandler.ListCharts)
-			return
-		case strings.HasSuffix(path, "/action/status") && r.Method == http.MethodGet:
-			routeHandler("/action/status", "GetActionStatus", helmHandler.GetActionStatus)
-			return
-		default:
-			logger.Log(logger.LevelError, map[string]string{"path": path}, nil, "Unknown helm API route")
-
-			c.telemetryHandler.RecordEvent(span, "Unknown API route", attribute.String("path", path))
-			span.SetStatus(codes.Error, "Unknown API route")
-			c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error", "unknown_route"))
-
-			http.NotFound(w, r)
-
-			return
-		}
+		c.dispatchHelmRoute(ctx, span, w, r, path, clusterName, helmHandler)
 	})
+}
+
+func (c *HeadlampConfig) helmRouteReleaseHandler(
+	ctx context.Context,
+	span trace.Span,
+	r *http.Request,
+	w http.ResponseWriter,
+	clusterName, route, operation string,
+	handler func(clientcmd.ClientConfig, http.ResponseWriter, *http.Request),
+) {
+	c.telemetryHandler.RecordEvent(span, "Executing route",
+		attribute.String("route", route),
+		attribute.String("operation", operation))
+	c.telemetryHandler.RecordRequestCount(ctx, r)
+
+	logger.Log(logger.LevelInfo, map[string]string{"route": route}, nil, "Dispatching helm operation: "+operation)
+
+	context, err := c.KubeConfigStore.GetContext(clusterName)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to get context", http.StatusNotFound)
+		return
+	}
+
+	// Create a copy of the context to avoid modifying the cached context
+	context = context.Copy()
+
+	// If headlamp is running in cluster, use the token from the cookie for oidc auth
+	if c.UseInCluster && context.OidcConf != nil {
+		setTokenFromCookie(r, clusterName)
+	}
+
+	bearerToken := r.Header.Get("Authorization")
+
+	if bearerToken != "" {
+		// Remove "Bearer " prefix if present
+		bearerToken = strings.TrimPrefix(bearerToken, "Bearer ")
+
+		if context.AuthInfo == nil {
+			context.AuthInfo = &api.AuthInfo{}
+		}
+
+		context.AuthInfo.Token = bearerToken
+	}
+
+	handler(context.ClientConfig(), w, r)
+}
+
+func (c *HeadlampConfig) helmRouteRepositoryHandler(
+	ctx context.Context,
+	span trace.Span,
+	r *http.Request,
+	w http.ResponseWriter,
+	clusterName, route, operation string,
+	handler func(http.ResponseWriter, *http.Request),
+) {
+	c.telemetryHandler.RecordEvent(span, "Executing route",
+		attribute.String("route", route),
+		attribute.String("operation", operation))
+	c.telemetryHandler.RecordRequestCount(ctx, r)
+
+	// fetch token from cookie
+	setTokenFromCookie(r, clusterName)
+
+	// fetch token from header
+	bearerToken := r.Header.Get("Authorization")
+
+	// if no token present in in-cluster mode, return error
+	if c.UseInCluster && bearerToken == "" {
+		c.handleError(
+			w, ctx, span,
+			errors.New("no authentication token provided"),
+			"failed to get token",
+			http.StatusUnauthorized,
+		)
+
+		return
+	}
+
+	logger.Log(
+		logger.LevelInfo,
+		map[string]string{"route": route},
+		nil,
+		"Dispatching helm repository operation: "+operation,
+	)
+
+	handler(w, r)
+}
+
+func (c *HeadlampConfig) dispatchHelmRoute(
+	ctx context.Context,
+	span trace.Span,
+	w http.ResponseWriter,
+	r *http.Request,
+	path, clusterName string,
+	helmHandler *helm.Handler,
+) {
+	routeReleaseHandler := func(
+		route, operation string,
+		handler func(clientcmd.ClientConfig, http.ResponseWriter, *http.Request),
+	) {
+		c.helmRouteReleaseHandler(ctx, span, r, w, clusterName, route, operation, handler)
+	}
+
+	routeRepositoryHandler := func(
+		route, operation string,
+		handler func(http.ResponseWriter, *http.Request),
+	) {
+		c.helmRouteRepositoryHandler(ctx, span, r, w, clusterName, route, operation, handler)
+	}
+
+	switch {
+	case strings.HasSuffix(path, "/releases/list") && r.Method == http.MethodGet:
+		routeReleaseHandler("/releases/list", "ListRelease", helmHandler.ListRelease)
+	case strings.HasSuffix(path, "/release/install") && r.Method == http.MethodPost:
+		routeReleaseHandler("/release/install", "InstallRelease", helmHandler.InstallRelease)
+	case strings.HasSuffix(path, "/release/history") && r.Method == http.MethodGet:
+		routeReleaseHandler("/release/history", "GetReleaseHistory", helmHandler.GetReleaseHistory)
+	case strings.HasSuffix(path, "/releases/uninstall") && r.Method == http.MethodDelete:
+		routeReleaseHandler("/releases/uninstall", "UninstallRelease", helmHandler.UninstallRelease)
+	case strings.HasSuffix(path, "/releases/rollback") && r.Method == http.MethodPut:
+		routeReleaseHandler("/releases/rollback", "RollbackRelease", helmHandler.RollbackRelease)
+	case strings.HasSuffix(path, "/releases/upgrade") && r.Method == http.MethodPut:
+		routeReleaseHandler("/releases/upgrade", "UpgradeRelease", helmHandler.UpgradeRelease)
+	case strings.HasSuffix(path, "/releases") && r.Method == http.MethodGet:
+		routeReleaseHandler("/releases", "GetRelease", helmHandler.GetRelease)
+	case strings.HasSuffix(path, "/repositories") && r.Method == http.MethodGet:
+		routeRepositoryHandler("/repositories", "ListRepo", helmHandler.ListRepo)
+	case strings.HasSuffix(path, "/repositories") && r.Method == http.MethodPost:
+		routeRepositoryHandler("/repositories", "AddRepo", helmHandler.AddRepo)
+	case strings.HasSuffix(path, "/repositories/remove") && r.Method == http.MethodDelete:
+		routeRepositoryHandler("/repositories/remove", "RemoveRepo", helmHandler.RemoveRepo)
+	case strings.HasSuffix(path, "/repositories/update") && r.Method == http.MethodPut:
+		routeRepositoryHandler("/repositories/update", "UpdateRepository", helmHandler.UpdateRepository)
+	case strings.HasSuffix(path, "/charts") && r.Method == http.MethodGet:
+		routeRepositoryHandler("/charts", "ListCharts", helmHandler.ListCharts)
+	case strings.HasSuffix(path, "/action/status") && r.Method == http.MethodGet:
+		routeReleaseHandler("/action/status", "GetActionStatus", helmHandler.GetActionStatus)
+	default:
+		logger.Log(logger.LevelError, map[string]string{"path": path}, nil, "Unknown helm API route")
+
+		c.telemetryHandler.RecordEvent(span, "Unknown API route", attribute.String("path", path))
+		span.SetStatus(codes.Error, "Unknown API route")
+		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error", "unknown_route"))
+
+		http.NotFound(w, r)
+	}
 }
 
 func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,

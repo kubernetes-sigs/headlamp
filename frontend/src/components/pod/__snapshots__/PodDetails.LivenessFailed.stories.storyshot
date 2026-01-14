@@ -239,7 +239,7 @@
                         data-mui-internal-clone-element="true"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-1cqtycm-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1dablfr-MuiTypography-root"
                         >
                           CrashLoopBackOff
                         </span>
@@ -791,7 +791,7 @@
                       >
                         <span
                           aria-describedby="container-state-message-liveness"
-                          class="MuiTypography-root MuiTypography-body1 css-1cqtycm-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1dablfr-MuiTypography-root"
                         >
                           Waiting (CrashLoopBackOff)
                         </span>
