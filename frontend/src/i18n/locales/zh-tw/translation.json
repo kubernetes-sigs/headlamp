@@ -190,6 +190,7 @@
   "Resource not found": "資源未找到",
   "Hide details": "隱藏詳情",
   "Show details": "顯示詳情",
+  "Sign in with Google": "",
   "Duplicate cluster: {{ clusterNames }} in the list. Please edit the context name.": "列表中有重複的叢集：{{ clusterNames }}。請編輯上下文名稱。",
   "Error setting up clusters, please load a valid kubeconfig file": "設定叢集時出錯，請讀取有效的 kubeconfig 檔案",
   "Couldn't read kubeconfig file": "無法讀取 kubeconfig 檔案",

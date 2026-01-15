@@ -190,6 +190,7 @@
   "Resource not found": "リソースが見つかりません",
   "Hide details": "詳細を隠す",
   "Show details": "詳細を表示",
+  "Sign in with Google": "",
   "Duplicate cluster: {{ clusterNames }} in the list. Please edit the context name.": "クラスターの重複: {{ clusterNames }} はリストにあります。コンテキスト名を編集してください。",
   "Error setting up clusters, please load a valid kubeconfig file": "クラスターの設定中にエラーが発生しました。有効な kubeconfig ファイルを読み込んでください",
   "Couldn't read kubeconfig file": "kubeconfig ファイルを読み取れませんでした",

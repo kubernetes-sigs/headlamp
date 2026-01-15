@@ -190,6 +190,7 @@
   "Resource not found": "리소스를 찾을 수 없습니다",
   "Hide details": "세부정보 숨기기",
   "Show details": "세부정보 보기",
+  "Sign in with Google": "",
   "Duplicate cluster: {{ clusterNames }} in the list. Please edit the context name.": "중복된 클러스터: {{ clusterNames }}. 컨텍스트 이름을 수정하세요.",
   "Error setting up clusters, please load a valid kubeconfig file": "클러스터 설정 중 오류 발생, 유효한 kubeconfig 파일을 불러오세요",
   "Couldn't read kubeconfig file": "kubeconfig 파일을 읽을 수 없습니다",
