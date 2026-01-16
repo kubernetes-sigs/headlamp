@@ -109,6 +109,7 @@ spec:
     spec:
       serviceAccountName: headlamp
       automountServiceAccountToken: true
+      hostUsers: true
       securityContext:
         fsGroup: 2000
         runAsGroup: 3000
