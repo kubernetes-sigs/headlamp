@@ -100,12 +100,18 @@ export default function SecretDetails(props: {
                 lastDataRef.current = _.cloneDeep(data);
               };
 
-              const mainRows: NameValueTableRow[] = Object.entries(data).map((item: unknown[]) => ({
-                name: item[0] as string,
+              const mainRows: NameValueTableRow[] = (
+                Object.entries(data) as [string, unknown][]
+              ).map(([key, val]) => ({
+                name: key,
+                nameID: key,
                 value: (
                   <SecretField
-                    value={item[1]}
-                    onChange={e => handleFieldChange(item[0] as string, e.target.value)}
+                    value={val}
+                    nameID={key}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+                      handleFieldChange(key, e.target.value)
+                    }
                   />
                 ),
               }));

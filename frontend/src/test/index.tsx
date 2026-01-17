@@ -58,12 +58,3 @@ export function TestContext(props: TestContextProps) {
     </Provider>
   );
 }
-
-export function overrideKubeObject<U>(kubeObject: U, propsToOverride: Partial<U>) {
-  for (const [key, value] of Object.entries(propsToOverride)) {
-    if (value !== undefined) {
-      // @ts-ignore
-      kubeObject[key] = value;
-    }
-  }
-}
