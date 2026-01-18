@@ -80,4 +80,143 @@ describe('themes.ts', () => {
       expect(mockLocalStorage.headlampThemePreference).toBe('dark');
     });
   });
+
+  describe('getThemeName with backend configuration', () => {
+    it('should use force theme when provided', () => {
+      vi.stubGlobal('localStorage', {
+        headlampThemePreference: 'light',
+        clear: vi.fn(),
+      });
+
+      const backendConfig = {
+        forceTheme: 'corporate-branded',
+      };
+
+      expect(getThemeName(backendConfig)).toBe('corporate-branded');
+    });
+
+    it('should prefer localStorage over backend defaults', () => {
+      vi.stubGlobal('localStorage', {
+        headlampThemePreference: 'dark',
+        clear: vi.fn(),
+      });
+      vi.stubGlobal('window', {
+        matchMedia: vi.fn(query => ({
+          matches: query === '(prefers-color-scheme: light)',
+        })),
+      });
+
+      const backendConfig = {
+        defaultLightTheme: 'corporate-light',
+      };
+
+      expect(getThemeName(backendConfig)).toBe('dark');
+    });
+
+    it('should use backend default light theme when OS prefers light', () => {
+      vi.stubGlobal('localStorage', {
+        headlampThemePreference: null,
+        clear: vi.fn(),
+      });
+      vi.stubGlobal('window', {
+        matchMedia: vi.fn(query => ({
+          matches: query === '(prefers-color-scheme: light)',
+        })),
+      });
+
+      const backendConfig = {
+        defaultLightTheme: 'corporate-light',
+      };
+
+      expect(getThemeName(backendConfig)).toBe('corporate-light');
+    });
+
+    it('should use backend default dark theme when OS prefers dark', () => {
+      vi.stubGlobal('localStorage', {
+        headlampThemePreference: null,
+        clear: vi.fn(),
+      });
+      vi.stubGlobal('window', {
+        matchMedia: vi.fn(query => ({
+          matches: query === '(prefers-color-scheme: dark)',
+        })),
+      });
+
+      const backendConfig = {
+        defaultDarkTheme: 'corporate-dark',
+      };
+
+      expect(getThemeName(backendConfig)).toBe('corporate-dark');
+    });
+
+    it('should fall back to OS preference when no backend default matches', () => {
+      vi.stubGlobal('localStorage', {
+        headlampThemePreference: null,
+        clear: vi.fn(),
+      });
+      vi.stubGlobal('window', {
+        matchMedia: vi.fn(query => ({
+          matches: query === '(prefers-color-scheme: dark)',
+        })),
+      });
+
+      const backendConfig = {
+        defaultLightTheme: 'corporate-light',
+      };
+
+      expect(getThemeName(backendConfig)).toBe('dark');
+    });
+
+    it('should handle both default themes with OS preference selection', () => {
+      vi.stubGlobal('localStorage', {
+        headlampThemePreference: null,
+        clear: vi.fn(),
+      });
+      vi.stubGlobal('window', {
+        matchMedia: vi.fn(query => ({
+          matches: query === '(prefers-color-scheme: light)',
+        })),
+      });
+
+      const backendConfig = {
+        defaultLightTheme: 'corporate-light',
+        defaultDarkTheme: 'corporate-dark',
+      };
+
+      expect(getThemeName(backendConfig)).toBe('corporate-light');
+    });
+
+    it('should use force theme even with other defaults set', () => {
+      vi.stubGlobal('localStorage', {
+        headlampThemePreference: null,
+        clear: vi.fn(),
+      });
+
+      const backendConfig = {
+        defaultLightTheme: 'corporate-light',
+        defaultDarkTheme: 'corporate-dark',
+        forceTheme: 'forced-corporate',
+      };
+
+      expect(getThemeName(backendConfig)).toBe('forced-corporate');
+    });
+
+    it('should work with plugin-provided theme names', () => {
+      vi.stubGlobal('localStorage', {
+        headlampThemePreference: null,
+        clear: vi.fn(),
+      });
+      vi.stubGlobal('window', {
+        matchMedia: vi.fn(query => ({
+          matches: query === '(prefers-color-scheme: light)',
+        })),
+      });
+
+      const backendConfig = {
+        defaultLightTheme: 'my-custom-plugin-theme',
+      };
+
+      expect(getThemeName(backendConfig)).toBe('my-custom-plugin-theme');
+    });
+  });
 });

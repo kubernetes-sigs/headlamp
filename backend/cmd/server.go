@@ -97,6 +97,9 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		ProxyURLs:             strings.Split(conf.ProxyURLs, ","),
 		TLSCertPath:           conf.TLSCertPath,
 		TLSKeyPath:            conf.TLSKeyPath,
+		DefaultLightTheme:     conf.DefaultLightTheme,
+		DefaultDarkTheme:      conf.DefaultDarkTheme,
+		ForceTheme:            conf.ForceTheme,
 	}
 }
 

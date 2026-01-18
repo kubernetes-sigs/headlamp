@@ -44,6 +44,7 @@ import AlertNotification from '../common/AlertNotification';
 import DetailsDrawer from '../common/Resource/DetailsDrawer';
 import Sidebar, { NavigationTabs } from '../Sidebar';
 import RouteSwitcher from './RouteSwitcher';
+import themeSlice from './themeSlice';
 import TopBar from './TopBar';
 import VersionDialog from './VersionDialog';
 
@@ -165,6 +166,17 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
           })
         );
       }
+    }
+
+    // Apply backend theme configuration if provided
+    if (config?.defaultLightTheme || config?.defaultDarkTheme || config?.forceTheme) {
+      dispatch(
+        themeSlice.actions.applyBackendThemeConfig({
+          defaultLightTheme: config.defaultLightTheme,
+          defaultDarkTheme: config.defaultDarkTheme,
+          forceTheme: config.forceTheme,
+        })
+      );
     }
 
     /**

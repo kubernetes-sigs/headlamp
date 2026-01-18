@@ -72,6 +72,30 @@ const themeSlice = createSlice({
         setAppTheme(defaultThemeName);
       }
     },
+    /**
+     * Applies backend theme configuration if set.
+     * Should be called after config is loaded from backend.
+     */
+    applyBackendThemeConfig(
+      state,
+      action: PayloadAction<{
+        defaultLightTheme?: string;
+        defaultDarkTheme?: string;
+        forceTheme?: string;
+      }>
+    ) {
+      const backendConfig = action.payload;
+      const newThemeName = getThemeName(backendConfig);
+
+      // Only update if theme has changed
+      if (newThemeName !== state.name) {
+        state.name = newThemeName;
+        // Only persist to localStorage if not forced
+        if (!backendConfig.forceTheme) {
+          setAppTheme(newThemeName);
+        }
+      }
+    },
   },
 });
 

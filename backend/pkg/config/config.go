@@ -81,6 +81,10 @@ type Config struct {
 	// TLS config
 	TLSCertPath string `koanf:"tls-cert-path"`
 	TLSKeyPath  string `koanf:"tls-key-path"`
+	// Theme config
+	DefaultLightTheme string `koanf:"default-light-theme"`
+	DefaultDarkTheme  string `koanf:"default-dark-theme"`
+	ForceTheme        string `koanf:"force-theme"`
 }
 
 func (c *Config) Validate() error {
@@ -430,6 +434,9 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
 	f.Bool("enable-helm", false, "Enable Helm operations")
+	f.String("default-light-theme", "", "Default theme to use when user prefers light mode")
+	f.String("default-dark-theme", "", "Default theme to use when user prefers dark mode")
+	f.String("force-theme", "", "Force a specific theme, overriding user preferences")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {

@@ -705,6 +705,22 @@ async function afterPluginsRun(
 
   // Refresh theme name if the theme that was used from a plugin was deleted
   store.dispatch(themeSlice.actions.ensureValidThemeName());
+
+  // Reapply backend theme configuration now that plugins (which may provide themes) are loaded
+  const backendThemeConfig = store.getState().config;
+  if (
+    backendThemeConfig?.defaultLightTheme ||
+    backendThemeConfig?.defaultDarkTheme ||
+    backendThemeConfig?.forceTheme
+  ) {
+    store.dispatch(
+      themeSlice.actions.applyBackendThemeConfig({
+        defaultLightTheme: backendThemeConfig.defaultLightTheme,
+        defaultDarkTheme: backendThemeConfig.defaultDarkTheme,
+        forceTheme: backendThemeConfig.forceTheme,
+      })
+    );
+  }
 }
 
 /**
