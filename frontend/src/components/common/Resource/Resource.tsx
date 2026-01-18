@@ -66,7 +66,7 @@ import Link, { LinkProps } from '../Link';
 import { metadataStyles } from '.';
 import { MainInfoSection, MainInfoSectionProps } from './MainInfoSection/MainInfoSection';
 import { MainInfoHeader } from './MainInfoSection/MainInfoSectionHeader';
-import { MetadataDictGrid, MetadataDisplay } from './MetadataDisplay';
+import { EnvVarGrid, MetadataDictGrid, MetadataDisplay } from './MetadataDisplay';
 import PortForward from './PortForward';
 
 export { MainInfoSection };
@@ -981,8 +981,13 @@ export function ContainerInfo(props: ContainerInfoProps) {
       },
       {
         name: t('Environment'),
-        value: <MetadataDictGrid dict={env} />,
-        hide: _.isEmpty(env),
+        value: (
+          <EnvVarGrid
+            envVars={container.env || []}
+            namespace={resource?.metadata.namespace || ''}
+          />
+        ),
+        hide: _.isEmpty(env) || !container.env || container.env?.length === 0,
       },
       {
         name: t('Liveness Probes'),
