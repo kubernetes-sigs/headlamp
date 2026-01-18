@@ -212,11 +212,11 @@ spec:
             {{- end }}
             {{- if $oidc.useAccessToken }}
             - name: OIDC_USE_ACCESS_TOKEN
-              value: {{ $oidc.useAccessToken }}
+              value: {{ $oidc.useAccessToken | quote }}
             {{- end }}
             {{- if $oidc.usePKCE }}
             - name: OIDC_USE_PKCE
-              value: {{ $oidc.usePKCE }}
+              value: {{ $oidc.usePKCE | quote }}
             {{- end }}
             {{- if $oidc.meUserInfoURL }}
             - name: ME_USER_INFO_URL
