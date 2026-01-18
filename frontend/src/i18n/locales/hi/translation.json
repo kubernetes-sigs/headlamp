@@ -141,6 +141,7 @@
   "Sort sidebar items alphabetically": "साइडबार आइटमों को वर्णानुक्रम में सॉर्ट करें",
   "Use evict for pod deletion": "Pod हटाने के लिए निष्कासन का उपयोग करें",
   "Theme": "थीम",
+  "Theme has been forced by your administrator": "",
   "Cluster Settings": "क्लस्टर सेटिंग्स",
   "There seem to be no clusters configured…": "ऐसा लगता है कि कोई क्लस्टर कॉन्फ़िगर नहीं किया गया है…",
   "Cluster {{ clusterName }} does not exist. Please select a valid cluster:": "क्लस्टर {{ clusterName }} मौजूद नहीं है। कृपया वैध क्लस्टर चुनें:",

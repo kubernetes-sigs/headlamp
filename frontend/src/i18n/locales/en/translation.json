@@ -141,6 +141,7 @@
   "Sort sidebar items alphabetically": "Sort sidebar items alphabetically",
   "Use evict for pod deletion": "Use evict for pod deletion",
   "Theme": "Theme",
+  "Theme has been forced by your administrator": "Theme has been forced by your administrator",
   "Cluster Settings": "Cluster Settings",
   "There seem to be no clusters configured…": "There seem to be no clusters configured…",
   "Cluster {{ clusterName }} does not exist. Please select a valid cluster:": "Cluster {{ clusterName }} does not exist. Please select a valid cluster:",

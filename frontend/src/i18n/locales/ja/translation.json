@@ -141,6 +141,7 @@
   "Sort sidebar items alphabetically": "",
   "Use evict for pod deletion": "",
   "Theme": "テーマ",
+  "Theme has been forced by your administrator": "",
   "Cluster Settings": "クラスター設定",
   "There seem to be no clusters configured…": "設定されたクラスターがないようです...",
   "Cluster {{ clusterName }} does not exist. Please select a valid cluster:": "クラスター {{ clusterName }} は存在しません。有効なクラスターを選択してください:",

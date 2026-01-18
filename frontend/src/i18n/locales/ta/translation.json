@@ -141,6 +141,7 @@
   "Sort sidebar items alphabetically": "பக்கப்பட்டி உருப்படிகளை அகரவரிசையில் வரிசைப்படுத்து",
   "Use evict for pod deletion": "பாட் நீக்குவதற்கு evict பயன்படுத்து",
   "Theme": "தீம்",
+  "Theme has been forced by your administrator": "",
   "Cluster Settings": "க்ளஸ்டர் அமைப்புகள்",
   "There seem to be no clusters configured…": "எந்த க்ளஸ்டர்களும் கட்டமைக்கப்படவில்லை போல் தோன்றுகிறது…",
   "Cluster {{ clusterName }} does not exist. Please select a valid cluster:": "{{ clusterName }} க்ளஸ்டர் இல்லை. தயவுசெய்து சரியான க்ளஸ்டரைத் தேர்ந்தெடுக்கவும்:",

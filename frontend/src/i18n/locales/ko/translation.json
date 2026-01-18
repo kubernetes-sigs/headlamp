@@ -141,6 +141,7 @@
   "Sort sidebar items alphabetically": "사이드바 항목을 가나다순으로 정렬",
   "Use evict for pod deletion": "",
   "Theme": "테마",
+  "Theme has been forced by your administrator": "",
   "Cluster Settings": "클러스터 설정",
   "There seem to be no clusters configured…": "설정된 클러스터가 없는 것 같습니다…",
   "Cluster {{ clusterName }} does not exist. Please select a valid cluster:": "클러스터 {{ clusterName }} 가 존재하지 않습니다. 유효한 클러스터를 선택하세요:",

@@ -141,6 +141,7 @@
   "Sort sidebar items alphabetically": "侧边栏按字母排序",
   "Use evict for pod deletion": "使用驱逐方式删除 Pod",
   "Theme": "主题",
+  "Theme has been forced by your administrator": "",
   "Cluster Settings": "集群设置",
   "There seem to be no clusters configured…": "似乎没有设置任何集群…",
   "Cluster {{ clusterName }} does not exist. Please select a valid cluster:": "集群 {{ clusterName }} 不存在。请选择一个有效的集群：",

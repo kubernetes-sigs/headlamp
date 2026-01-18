@@ -141,6 +141,7 @@
   "Sort sidebar items alphabetically": "",
   "Use evict for pod deletion": "",
   "Theme": "Tema",
+  "Theme has been forced by your administrator": "",
   "Cluster Settings": "Definições do Cluster",
   "There seem to be no clusters configured…": "Parece não haver clusters configurados…",
   "Cluster {{ clusterName }} does not exist. Please select a valid cluster:": "O cluster {{ clusterName }} não existe. Por favor, selecione um cluster válido:",
