@@ -132,6 +132,11 @@ export const useCurrentAppTheme = () => {
   return currentTheme ?? defaultAppThemes[0];
 };
 
-export const { setBrandingAppLogoComponent, setTheme } = themeSlice.actions;
+export const {
+  setBrandingAppLogoComponent,
+  setTheme,
+  applyBackendThemeConfig,
+  ensureValidThemeName,
+} = themeSlice.actions;
 export { themeSlice };
 export default themeSlice.reducer;
