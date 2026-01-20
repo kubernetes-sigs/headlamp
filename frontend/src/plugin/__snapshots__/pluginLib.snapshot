@@ -1,4 +1,10 @@
 {
+  "Activity": {
+    "close": [Function],
+    "launch": [Function],
+    "reset": [Function],
+    "update": [Function],
+  },
   "ApiProxy": {
     "ApiError": [Function],
     "apiFactory": [Function],
@@ -492,6 +498,7 @@
   "registerPluginSettings": [Function],
   "registerProjectDeleteButton": [Function],
   "registerProjectDetailsTab": [Function],
+  "registerProjectHeaderAction": [Function],
   "registerProjectOverviewSection": [Function],
   "registerResourceTableColumnsProcessor": [Function],
   "registerRoute": [Function],

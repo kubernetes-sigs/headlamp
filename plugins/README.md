@@ -23,6 +23,7 @@ There you will see detailed API documentation, examples, and guides on how to de
 | Folder                                                 | Description                                   |
 | ------------------------------------------------------ | --------------------------------------------- |
 | [examples/](examples)                                  | Examples folder.                              |
+| [examples/activity](examples/activity)                 | Create Activities (popup windows).            |
 | [examples/app-menus](examples/app-menus)               | Add app window menus.                         |
 | [examples/change-logo](examples/change-logo)           | Change the logo.                              |
 | [examples/cluster-chooser](examples/cluster-chooser)   | Override default chooser button.              |
@@ -34,5 +35,5 @@ There you will see detailed API documentation, examples, and guides on how to de
 | [examples/sidebar](examples/sidebar)                   | Change the side bar menu.                     |
 | [examples/tables](examples/tables)                     | Override the tables in list views.            |
 | [examples/ui-panels](examples/ui-panels)               | Add custom side panels.                       |
-| headlamp-plugin                                        | headlamp-plugin script which plugins use.     |
-| headlamp-plugin/template                               | Template for new Headlamp plugins.            |
+| [headlamp-plugin](headlamp-plugin)                     | headlamp-plugin script which plugins use.     |
+| [headlamp-plugin/template](headlamp-plugin/template)   | Template for new Headlamp plugins.            |

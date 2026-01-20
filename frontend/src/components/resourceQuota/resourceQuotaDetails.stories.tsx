@@ -69,7 +69,9 @@ export default {
     msw: {
       handlers: {
         storyBase: [
-          http.get('http://localhost:4466/api/v1/resourcequotas', () => HttpResponse.error()),
+          http.get('http://localhost:4466/api/v1/namespaces/my-namespace/resourcequotas', () =>
+            HttpResponse.error()
+          ),
           http.get('http://localhost:4466/api/v1/namespaces/test/events', () =>
             HttpResponse.error()
           ),

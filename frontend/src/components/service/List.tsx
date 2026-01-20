@@ -54,8 +54,8 @@ export default function ServiceList() {
           id: 'ports',
           label: t('Ports'),
           gridTemplate: 'auto',
-          getValue: service => service.getPorts()?.join(', '),
-          render: service => <LabelListItem labels={service.getPorts() ?? []} />,
+          getValue: service => service.getFormattedPorts()?.join(', '),
+          render: service => <LabelListItem labels={service.getFormattedPorts() ?? []} />,
         },
         {
           id: 'selector',

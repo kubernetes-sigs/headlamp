@@ -76,6 +76,7 @@ jobs:
         with:
           config: .github/cr.yaml
           mark_as_latest: false # only headlamp is set to latest
+          skip_existing: true # skip package upload if release already exists
 
       - name: Push Charts to GHCR
         run: |

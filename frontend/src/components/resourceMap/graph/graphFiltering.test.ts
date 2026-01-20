@@ -14,32 +14,41 @@
  * limitations under the License.
  */
 
+import App from '../../../App';
 import { KubeMetadata } from '../../../lib/k8s/KubeMetadata';
-import { KubeObject } from '../../../lib/k8s/KubeObject';
+import Pod from '../../../lib/k8s/pod';
 import { filterGraph, GraphFilter } from './graphFiltering';
 import { GraphEdge, GraphNode } from './graphModel';
+
+// circular dependency fix
+// eslint-disable-next-line no-unused-vars
+const _dont_delete_me = App;
 
 describe('filterGraph', () => {
   const nodes: GraphNode[] = [
     {
       id: '1',
-      kubeObject: { metadata: { namespace: 'ns1', name: 'node1' } as KubeMetadata } as KubeObject,
+      kubeObject: new Pod({
+        kind: 'Pod',
+        metadata: { namespace: 'ns1', name: 'node1' },
+        status: {},
+      } as any),
     },
     {
       id: '2',
-      kubeObject: {
+      kubeObject: new Pod({
         kind: 'Pod',
         metadata: { namespace: 'ns2' } as KubeMetadata,
         status: { phase: 'Failed' },
-      } as any,
+      } as any),
     },
     {
       id: '3',
-      kubeObject: { metadata: { namespace: 'ns3' } as KubeMetadata } as KubeObject,
+      kubeObject: new Pod({ kind: 'Pod', metadata: { namespace: 'ns3' }, status: {} } as any),
     },
     {
       id: '4',
-      kubeObject: { metadata: { namespace: 'ns3' } as KubeMetadata } as KubeObject,
+      kubeObject: new Pod({ kind: 'Pod', metadata: { namespace: 'ns3' }, status: {} } as any),
     },
   ];
 

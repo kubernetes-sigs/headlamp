@@ -22,6 +22,7 @@ import Checkbox from '@mui/material/Checkbox';
 import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { uniq } from 'lodash';
 import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -266,10 +267,9 @@ function NamespacesFromClusterAutocomplete(
   const [namespacesList, error] = Namespace.useList();
   const namespaceNames = useMemo(
     () =>
-      namespacesList
-        ?.map(namespace => namespace.metadata.name)
+      uniq(namespacesList?.map(namespace => namespace.metadata.name) ?? [])
         .slice()
-        .sort((a, b) => a.localeCompare(b)) ?? [],
+        .sort((a, b) => a.localeCompare(b)),
     [namespacesList]
   );
 

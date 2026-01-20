@@ -103,6 +103,7 @@ class CustomResourceDefinition extends KubeObject<KubeCRD> {
       for (const versionItem of this.spec.versions) {
         if (!!versionItem.storage) {
           version = versionItem.name;
+          break;
         } else if (!version) {
           version = versionItem.name;
         }
@@ -190,6 +191,22 @@ export function makeCustomResourceClass(
     static isNamespaced = objArgs.isNamespaced;
     static apiEndpoint = apiFunc(...apiInfoArgs);
     static customResourceDefinition = crClassArgs.customResourceDefinition;
+
+    static getBaseObject(): Omit<KubeObjectInterface, 'metadata'> & {
+      metadata: Partial<import('./KubeMetadata').KubeMetadata>;
+    } {
+      // For custom resources, use the storage version from the CRD
+      const [group, version] = crClassArgs.customResourceDefinition.getMainAPIGroup();
+      const apiVersion = group ? `${group}/${version}` : version;
+
+      return {
+        apiVersion,
+        kind: this.kind,
+        metadata: {
+          name: '',
+        },
+      };
+    }
   };
 }
 

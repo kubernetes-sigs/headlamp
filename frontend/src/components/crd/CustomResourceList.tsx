@@ -18,11 +18,16 @@ import { JSONPath } from 'jsonpath-plus';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import { useSelectedClusters } from '../../lib/k8s';
 import CRD, { KubeCRD } from '../../lib/k8s/crd';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { localeDate } from '../../lib/util';
 import { EmptyContent as Empty, Link, Loader, ResourceListView } from '../common';
-import { ResourceTableColumn, ResourceTableProps } from '../common/Resource/ResourceTable';
+import {
+  ColumnType,
+  ResourceTableColumn,
+  ResourceTableProps,
+} from '../common/Resource/ResourceTable';
 
 export default function CustomResourceList() {
   const { t } = useTranslation(['glossary', 'translation']);
@@ -106,6 +111,9 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
     return crd.makeCRClass();
   }, [crd]);
 
+  const clusters = useSelectedClusters();
+  const isMultiCluster = clusters.length > 1;
+
   if (!CRClass) {
     return <Empty>{t('translation|No custom resources found')}</Empty>;
   }
@@ -142,22 +150,23 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
   }, [crd, apiGroup]);
 
   const cols = React.useMemo(() => {
-    const colsToDisplay = [
+    const colsToDisplay: ResourceTableProps<KubeObject<KubeCRD>>['columns'] = [
       {
         label: t('translation|Name'),
         getValue: resource => resource.metadata.name,
         render: resource => <CustomResourceLink resource={resource} crd={crd} />,
       },
+      ...(isMultiCluster ? (['cluster'] as ColumnType[]) : ([] as ColumnType[])),
       ...additionalPrinterCols,
       'age',
-    ] as ResourceTableProps<KubeObject<KubeCRD>>['columns'];
+    ];
 
     if (crd.isNamespacedScope) {
       colsToDisplay.splice(1, 0, 'namespace');
     }
 
     return colsToDisplay;
-  }, [crd, additionalPrinterCols]);
+  }, [crd, additionalPrinterCols, isMultiCluster]);
 
   return (
     <ResourceListView
