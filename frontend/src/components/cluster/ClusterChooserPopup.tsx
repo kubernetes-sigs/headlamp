@@ -18,11 +18,11 @@ import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
+import List from '@mui/material/List';
+import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import ListSubheader from '@mui/material/ListSubheader';
-import MenuItem from '@mui/material/MenuItem';
-import MenuList from '@mui/material/MenuList';
 import Popover from '@mui/material/Popover';
 import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
@@ -44,7 +44,7 @@ function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selecte
   const theme = useTheme();
 
   return (
-    <MenuItem
+    <ListItemButton
       selected={selected}
       key={`recent_cluster_${cluster.name}`}
       onClick={onClick}
@@ -60,7 +60,7 @@ function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selecte
         primary={cluster.name}
         secondary={!!cluster.isCurrent ? t('Current', { context: 'cluster' }) : ''}
       />
-    </MenuItem>
+    </ListItemButton>
   );
 }
 
@@ -251,8 +251,9 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
           }}
           {...activeDescendantProp}
         />
-        <MenuList
+        <List
           id="cluster-chooser-list"
+          tabIndex={0}
           sx={{
             width: '280px',
             minWidth: '280px',
@@ -305,7 +306,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
               selected={cluster.name === getActiveDescendantCluster()?.name}
             />
           ))}
-        </MenuList>
+        </List>
       </Box>
       {isElectron() && (
         <>
