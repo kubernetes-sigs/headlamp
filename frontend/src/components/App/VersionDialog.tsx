@@ -37,6 +37,7 @@ export default function VersionDialog(props: {
   return (
     <Dialog
       maxWidth="sm"
+      aria-label={getProductName()}
       open={open}
       onClose={() => dispatch(uiSlice.actions.setVersionDialogOpen(false))}
       title={getProductName()}
