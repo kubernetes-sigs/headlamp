@@ -155,7 +155,7 @@ function AuthRoute(props: AuthRouteProps) {
     computedMatch = {},
     ...other
   } = props;
-  const redirectRoute = getCluster() ? 'login' : 'chooser';
+  const redirectRoute = getCluster() ? 'token' : 'chooser';
   useSidebarItem(sidebar, computedMatch);
   const cluster = useCluster();
   const query = useQuery({
@@ -182,6 +182,9 @@ function AuthRoute(props: AuthRouteProps) {
     }
 
     if (query.isError) {
+      console.log('AuthRoute: Auth failed for:', location?.pathname);
+      console.log('AuthRoute: Redirecting to:', createRouteURL(redirectRoute));
+      console.log('AuthRoute: Attaching state:', { from: location });
       return (
         <Redirect
           to={{
