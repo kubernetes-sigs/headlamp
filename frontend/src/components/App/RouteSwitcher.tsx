@@ -182,9 +182,6 @@ function AuthRoute(props: AuthRouteProps) {
     }
 
     if (query.isError) {
-      console.log('AuthRoute: Auth failed for:', location?.pathname);
-      console.log('AuthRoute: Redirecting to:', createRouteURL(redirectRoute));
-      console.log('AuthRoute: Attaching state:', { from: location });
       return (
         <Redirect
           to={{

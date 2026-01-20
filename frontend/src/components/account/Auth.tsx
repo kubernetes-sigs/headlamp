@@ -48,14 +48,9 @@ export default function AuthToken() {
     loginWithToken(token).then(code => {
       // If successful, redirect.
       if (code === 200) {
-        console.log('AuthToken: Login Success!');
-        console.log(location);
-        console.log(location.state);
         if (location.state && location.state.from) {
-          console.log("AuthToken: Found 'from' state! Redirecting to:", location.state.from);
           history.replace(location.state.from);
         } else {
-          console.log('No state found. Defaulting to custer home.');
           history.replace(
             generatePath(getClusterPrefixedPath(), {
               cluster: getCluster() as string,
