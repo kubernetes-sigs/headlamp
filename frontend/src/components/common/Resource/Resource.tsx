@@ -64,9 +64,10 @@ import InnerTable from '../InnerTable';
 import { DateLabel, HoverInfoLabel, StatusLabel, StatusLabelProps, ValueLabel } from '../Label';
 import Link, { LinkProps } from '../Link';
 import { metadataStyles } from '.';
+import { EnvVarGrid } from './EnvVarDisplay';
 import { MainInfoSection, MainInfoSectionProps } from './MainInfoSection/MainInfoSection';
 import { MainInfoHeader } from './MainInfoSection/MainInfoSectionHeader';
-import { EnvVarGrid, MetadataDictGrid, MetadataDisplay } from './MetadataDisplay';
+import { MetadataDictGrid, MetadataDisplay } from './MetadataDisplay';
 import PortForward from './PortForward';
 
 export { MainInfoSection };
@@ -985,9 +986,10 @@ export function ContainerInfo(props: ContainerInfoProps) {
           <EnvVarGrid
             envVars={container.env || []}
             namespace={resource?.metadata.namespace || ''}
+            cluster={resource?.cluster || ''}
           />
         ),
-        hide: _.isEmpty(env) || !container.env || container.env?.length === 0,
+        hide: !container.env || container.env?.length === 0,
       },
       {
         name: t('Liveness Probes'),
