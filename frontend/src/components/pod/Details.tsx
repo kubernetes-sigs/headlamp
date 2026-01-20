@@ -26,7 +26,7 @@ import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
 import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
@@ -490,6 +490,30 @@ export default function PodDetails(props: PodDetailsProps) {
   const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation('glossary');
   const dispatchHeadlampEvent = useEventCallback();
+  //Get query parameters:
+  const location = useLocation();
+  const query = new URLSearchParams(location.search);
+  const autoLaunchView = query.get('view');
+  //Only Launch Once:
+  const hasAutoLaunched = React.useRef(false);
+
+  //Helper to launch logs (used by both button and deep link):
+  const launchLogs = (item: Pod) => {
+    Activity.launch({
+      id: 'logs-' + item.metadata.uid,
+      title: t('Logs') + ': ' + item.metadata.name,
+      cluster: item.cluster,
+      icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
+      location: 'full',
+      content: <PodLogViewer noDialog open item={item} onClose={() => {}} />,
+    });
+    dispatchHeadlampEvent({
+      type: HeadlampEventType.LOGS,
+      data: {
+        status: EventStatus.OPENED,
+      },
+    });
+  };
 
   function prepareExtraInfo(item: Pod | null) {
     let extraInfo: {
@@ -589,8 +613,16 @@ export default function PodDetails(props: PodDetailsProps) {
       namespace={namespace}
       cluster={cluster}
       withEvents
-      actions={item =>
-        item && [
+      actions={item => {
+        if (item && autoLaunchView === 'logs' && !hasAutoLaunched.current) {
+          hasAutoLaunched.current = true;
+          //Set Timeout to prevent Rendering Issues:
+          setTimeout(() => launchLogs(item), 0);
+        }
+
+        if (!item) return null;
+
+        return [
           {
             id: DefaultHeaderAction.POD_LOGS,
             action: (
@@ -598,24 +630,7 @@ export default function PodDetails(props: PodDetailsProps) {
                 <ActionButton
                   description={t('Show Logs')}
                   icon="mdi:file-document-box-outline"
-                  onClick={() => {
-                    Activity.launch({
-                      id: 'logs-' + item.metadata.uid,
-                      title: t('Logs') + ': ' + item.metadata.name,
-                      cluster: item.cluster,
-                      icon: (
-                        <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />
-                      ),
-                      location: 'full',
-                      content: <PodLogViewer noDialog open item={item} onClose={() => {}} />,
-                    });
-                    dispatchHeadlampEvent({
-                      type: HeadlampEventType.LOGS,
-                      data: {
-                        status: EventStatus.OPENED,
-                      },
-                    });
-                  }}
+                  onClick={() => launchLogs(item)}
                 />
               </AuthVisible>
             ),
@@ -678,8 +693,8 @@ export default function PodDetails(props: PodDetailsProps) {
               </AuthVisible>
             ),
           },
-        ]
-      }
+        ];
+      }}
       extraInfo={item => prepareExtraInfo(item)}
       extraSections={item =>
         item && [
