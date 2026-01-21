@@ -63,6 +63,7 @@ type Config struct {
 	OidcUseAccessToken        bool   `koanf:"oidc-use-access-token"`
 	OidcSkipTLSVerify         bool   `koanf:"oidc-skip-tls-verify"`
 	OidcCAFile                string `koanf:"oidc-ca-file"`
+	OidcDebug                 bool   `koanf:"oidc-debug"`
 	MeUsernamePath            string `koanf:"me-username-path"`
 	MeEmailPath               string `koanf:"me-email-path"`
 	MeGroupsPath              string `koanf:"me-groups-path"`
@@ -444,6 +445,7 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.String("oidc-ca-file", "", "CA file for OIDC")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
+	f.Bool("oidc-debug", false, "Enable verbose debug logging for OIDC authentication flow")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")
 	f.String("me-email-path", DefaultMeEmailPath,
