@@ -16,6 +16,7 @@
 
 export * from './CircularChart';
 export * from './MetadataDisplay';
+export * from './EnvVarGrid';
 export * from './Resource';
 export * as ResourceTable from './ResourceTable';
 export * from './ResourceListView';

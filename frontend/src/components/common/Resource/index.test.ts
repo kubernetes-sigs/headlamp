@@ -38,6 +38,7 @@ const checkExports = [
   'DocsViewer',
   'EditButton',
   'EditorDialog',
+  'EnvVarGrid',
   'MainInfoSection',
   'MatchExpressions',
   'MetadataDisplay',
