@@ -23,6 +23,7 @@ import { kubeObjectQueryKey, useEndpoints } from '../../lib/k8s/api/v2/hooks';
 import type { KubeObject } from '../../lib/k8s/KubeObject';
 import type { RouteURLProps } from '../../lib/router/createRouteURL';
 import { createRouteURL } from '../../lib/router/createRouteURL';
+import { ResourceClasses } from '../../lib/k8s';
 import { useTypedSelector } from '../../redux/hooks';
 import { Activity } from '../activity/Activity';
 import { canRenderDetails, KubeObjectDetails } from '../resourceMap/details/KubeNodeDetails';
@@ -152,57 +153,73 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
       ? props.kubeObject?.cluster
       : props.activeCluster ?? getCluster() ?? '';
 
+  let matchesStandard = true;
+
+  if ('kubeObject' in props && props.kubeObject) {
+    const obj = props.kubeObject;
+    
+    const standardClass = Object.values(ResourceClasses).find((c: any) => c.kind === obj.kind) as any;
+    if (standardClass) {
+      const stdGroup = standardClass.apiGroupName || '';
+      const objGroup = obj._class().apiGroupName || '';
+  
+      if (stdGroup !== objGroup) {
+        matchesStandard = false;
+      }
+    }
+  }
+
   const openDrawer =
-    drawerEnabled && canRenderDetails(kind)
+    drawerEnabled && canRenderDetails(kind) && matchesStandard
       ? () => {
-          // Object information can be provided throught kubeObject or route parameters
-          const name = 'kubeObject' in props ? props.kubeObject?.getName() : props.params?.name;
-          const namespace =
-            'kubeObject' in props ? props.kubeObject?.getNamespace() : props.params?.namespace;
+        // Object information can be provided throught kubeObject or route parameters
+        const name = 'kubeObject' in props ? props.kubeObject?.getName() : props.params?.name;
+        const namespace =
+          'kubeObject' in props ? props.kubeObject?.getNamespace() : props.params?.namespace;
 
-          const selectedResource =
-            kind === 'customresource'
-              ? {
-                  // Custom resource links don't follow the same convention
-                  // so we need to create a different object
-                  kind,
-                  metadata: {
-                    name: props.params?.crName,
-                    namespace,
-                  },
-                  cluster,
-                  customResourceDefinition: props.params?.crd,
-                }
-              : { kind, metadata: { name, namespace }, cluster };
+        const selectedResource =
+          kind === 'customresource'
+            ? {
+              // Custom resource links don't follow the same convention
+              // so we need to create a different object
+              kind,
+              metadata: {
+                name: props.params?.crName,
+                namespace,
+              },
+              cluster,
+              customResourceDefinition: props.params?.crd,
+            }
+            : { kind, metadata: { name, namespace }, cluster };
 
-          Activity.launch({
-            id:
-              'details' +
-              selectedResource.kind +
-              ' ' +
-              selectedResource.metadata.name +
-              selectedResource.cluster,
-            title: selectedResource.kind + ' ' + selectedResource.metadata.name,
-            hideTitleInHeader: true,
-            location: 'split-right',
-            cluster: selectedResource.cluster,
-            temporary: true,
-            content: (
-              <KubeObjectDetails
-                resource={{
-                  kind: selectedResource.kind,
-                  metadata: {
-                    name: selectedResource.metadata.name,
-                    namespace: selectedResource.metadata.namespace,
-                  },
-                  cluster: selectedResource.cluster,
-                }}
-                customResourceDefinition={selectedResource.customResourceDefinition}
-              />
-            ),
-            icon: <KubeIcon kind={selectedResource.kind} width="100%" height="100%" />,
-          });
-        }
+        Activity.launch({
+          id:
+            'details' +
+            selectedResource.kind +
+            ' ' +
+            selectedResource.metadata.name +
+            selectedResource.cluster,
+          title: selectedResource.kind + ' ' + selectedResource.metadata.name,
+          hideTitleInHeader: true,
+          location: 'split-right',
+          cluster: selectedResource.cluster,
+          temporary: true,
+          content: (
+            <KubeObjectDetails
+              resource={{
+                kind: selectedResource.kind,
+                metadata: {
+                  name: selectedResource.metadata.name,
+                  namespace: selectedResource.metadata.namespace,
+                },
+                cluster: selectedResource.cluster,
+              }}
+              customResourceDefinition={selectedResource.customResourceDefinition}
+            />
+          ),
+          icon: <KubeIcon kind={selectedResource.kind} width="100%" height="100%" />,
+        });
+      }
       : undefined;
 
   const link = <PureLink {...propsRest} onClick={openDrawer} />;
