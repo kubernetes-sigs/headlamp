@@ -20,7 +20,7 @@ import React from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../../lib/cluster';
 import { kubeObjectQueryKey, useEndpoints } from '../../lib/k8s/api/v2/hooks';
-import type { KubeObject } from '../../lib/k8s/KubeObject';
+import type { KubeObject, KubeObjectClass } from '../../lib/k8s/KubeObject';
 import type { RouteURLProps } from '../../lib/router/createRouteURL';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
@@ -64,7 +64,10 @@ function KubeObjectLink(props: {
 
   const client = useQueryClient();
   const { namespace, name } = kubeObject.metadata;
-  const { endpoint } = useEndpoints(kubeObject._class().apiEndpoint.apiInfo, kubeObject.cluster);
+  const { endpoint } = useEndpoints(
+    (kubeObject.constructor as KubeObjectClass).apiEndpoint.apiInfo,
+    kubeObject.cluster
+  );
 
   return (
     <MuiLink
@@ -141,68 +144,102 @@ function PureLink(
   );
 }
 
+function getApiGroup(apiVersion: string) {
+  if (!apiVersion) return '';
+  if (!apiVersion.includes('/')) return '';
+  return apiVersion.split('/')[0];
+}
+
 export default function Link(props: React.PropsWithChildren<LinkProps | LinkObjectProps>) {
   const drawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
 
   const { tooltip, ...propsRest } = props as LinkObjectProps;
 
-  const kind = 'kubeObject' in props ? props.kubeObject?._class().kind : props?.routeName;
+  const kind = 'kubeObject' in props ? props.kubeObject?.kind : props?.routeName;
   const cluster =
     'kubeObject' in props && props.kubeObject?.cluster
       ? props.kubeObject?.cluster
       : props.activeCluster ?? getCluster() ?? '';
 
+  let matchesStandard = true;
+
+  if ('kubeObject' in props && props.kubeObject) {
+    const obj = props.kubeObject;
+    const objClass = obj.constructor as KubeObjectClass;
+
+
+    // 1. The Class explicitly claims the same 'kind' as the object instance.
+    // 2. The Class explicitly claims the same 'apiGroup' (via apiVersion) as the object instance.
+    const kindMatches = objClass.kind === obj.kind;
+    let groupMatches = false;
+
+    if (obj.jsonData && obj.jsonData.apiVersion && objClass.apiVersion) {
+      const instanceGroup = getApiGroup(obj.jsonData.apiVersion);
+      const classVersions = Array.isArray(objClass.apiVersion)
+        ? objClass.apiVersion
+        : [objClass.apiVersion];
+      const classGroups = classVersions.map(v => getApiGroup(v));
+
+      if (classGroups.includes(instanceGroup)) {
+        groupMatches = true;
+      }
+    }
+
+    if (!kindMatches || !groupMatches) {
+      matchesStandard = false;
+    }
+  }
+
   const openDrawer =
-    drawerEnabled && canRenderDetails(kind)
+    drawerEnabled && canRenderDetails(kind) && matchesStandard
       ? () => {
-          // Object information can be provided throught kubeObject or route parameters
-          const name = 'kubeObject' in props ? props.kubeObject?.getName() : props.params?.name;
-          const namespace =
-            'kubeObject' in props ? props.kubeObject?.getNamespace() : props.params?.namespace;
 
-          const selectedResource =
-            kind === 'customresource'
-              ? {
-                  // Custom resource links don't follow the same convention
-                  // so we need to create a different object
-                  kind,
-                  metadata: {
-                    name: props.params?.crName,
-                    namespace,
-                  },
-                  cluster,
-                  customResourceDefinition: props.params?.crd,
-                }
-              : { kind, metadata: { name, namespace }, cluster };
+        const name = 'kubeObject' in props ? props.kubeObject?.getName() : props.params?.name;
+        const namespace =
+          'kubeObject' in props ? props.kubeObject?.getNamespace() : props.params?.namespace;
 
-          Activity.launch({
-            id:
-              'details' +
-              selectedResource.kind +
-              ' ' +
-              selectedResource.metadata.name +
-              selectedResource.cluster,
-            title: selectedResource.kind + ' ' + selectedResource.metadata.name,
-            hideTitleInHeader: true,
-            location: 'split-right',
-            cluster: selectedResource.cluster,
-            temporary: true,
-            content: (
-              <KubeObjectDetails
-                resource={{
-                  kind: selectedResource.kind,
-                  metadata: {
-                    name: selectedResource.metadata.name,
-                    namespace: selectedResource.metadata.namespace,
-                  },
-                  cluster: selectedResource.cluster,
-                }}
-                customResourceDefinition={selectedResource.customResourceDefinition}
-              />
-            ),
-            icon: <KubeIcon kind={selectedResource.kind} width="100%" height="100%" />,
-          });
-        }
+        const selectedResource =
+          kind === 'customresource'
+            ? {
+            
+              kind,
+              metadata: {
+                name: props.params?.crName,
+                namespace,
+              },
+              cluster,
+              customResourceDefinition: props.params?.crd,
+            }
+            : { kind, metadata: { name, namespace }, cluster };
+
+        Activity.launch({
+          id:
+            'details' +
+            selectedResource.kind +
+            ' ' +
+            selectedResource.metadata.name +
+            selectedResource.cluster,
+          title: selectedResource.kind + ' ' + selectedResource.metadata.name,
+          hideTitleInHeader: true,
+          location: 'split-right',
+          cluster: selectedResource.cluster,
+          temporary: true,
+          content: (
+            <KubeObjectDetails
+              resource={{
+                kind: selectedResource.kind,
+                metadata: {
+                  name: selectedResource.metadata.name,
+                  namespace: selectedResource.metadata.namespace,
+                },
+                cluster: selectedResource.cluster,
+              }}
+              customResourceDefinition={selectedResource.customResourceDefinition}
+            />
+          ),
+          icon: <KubeIcon kind={selectedResource.kind} width="100%" height="100%" />,
+        });
+      }
       : undefined;
 
   const link = <PureLink {...propsRest} onClick={openDrawer} />;
@@ -228,3 +265,4 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
 
   return link;
 }
+
