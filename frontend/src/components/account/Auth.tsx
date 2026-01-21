@@ -46,7 +46,7 @@ export default function AuthToken() {
 
   function onAuthClicked() {
     loginWithToken(token).then(code => {
-      // If successful, redirect.
+      // If successful, redirect
       if (code === 200) {
         if (location.state && location.state.from) {
           history.replace(location.state.from);

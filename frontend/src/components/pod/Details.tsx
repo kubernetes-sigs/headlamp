@@ -490,14 +490,14 @@ export default function PodDetails(props: PodDetailsProps) {
   const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation('glossary');
   const dispatchHeadlampEvent = useEventCallback();
-  //Get query parameters:
+  // Get query parameters:
   const location = useLocation();
   const query = new URLSearchParams(location.search);
   const autoLaunchView = query.get('view');
-  //Only Launch Once:
+  // Only Launch Once:
   const hasAutoLaunched = React.useRef(false);
 
-  //Helper to launch logs (used by both button and deep link):
+  // Helper to launch logs (button and deep link):
   const launchLogs = (item: Pod) => {
     Activity.launch({
       id: 'logs-' + item.metadata.uid,

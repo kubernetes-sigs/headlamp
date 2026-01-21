@@ -49,7 +49,7 @@ export function EnvVarGrid(props: EnvVarGridProps) {
   });
 
   const renderEnvVar = (envVar: any) => {
-    //Secret Key:
+    // Secret Key:
     if (envVar.valueFrom?.secretKeyRef) {
       const { name: secretName, key: secretKey } = envVar.valueFrom.secretKeyRef;
       const secretUrl = `/c/${cluster}/secrets/${namespace}/${secretName}`;
@@ -64,7 +64,7 @@ export function EnvVarGrid(props: EnvVarGridProps) {
       );
     }
 
-    //Config Map:
+    // Config Map:
     if (envVar.valueFrom?.configMapKeyRef) {
       const { name: cmName, key: cmKey } = envVar.valueFrom.configMapKeyRef;
       const secretUrl = `/c/${cluster}/secrets/${namespace}/${cmName}`;
@@ -78,7 +78,7 @@ export function EnvVarGrid(props: EnvVarGridProps) {
       );
     }
 
-    //FieldRef:
+    // FieldRef:
     if (envVar.valueFrom?.fieldRef) {
       const { fieldPath } = envVar.valueFrom.fieldRef;
       return (
@@ -88,7 +88,7 @@ export function EnvVarGrid(props: EnvVarGridProps) {
       );
     }
 
-    //ResourceFieldRef:
+    // ResourceFieldRef:
     if (envVar.valueFrom?.resourceFieldRef) {
       const { resource } = envVar.valueFrom.resourceFieldRef;
       return (
@@ -98,7 +98,7 @@ export function EnvVarGrid(props: EnvVarGridProps) {
       );
     }
 
-    //Plaintext
+    // Plaintext
     return (
       <Typography component="span" sx={envEntryStyle} key={envVar.name}>
         {envVar.name}: {envVar.value}
