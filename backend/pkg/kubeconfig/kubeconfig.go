@@ -1,7 +1,9 @@
 package kubeconfig
 
 import (
+	"crypto/md5"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -475,8 +477,10 @@ func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []Conte
 	// add the KubeConfigPath to each context
 	for i := range contexts {
 		contexts[i].KubeConfigPath = kubeConfigPath
-		// create the clusterID from the path and context name
-		contexts[i].ClusterID = fmt.Sprintf("%s+%s", kubeConfigPath, contexts[i].Name)
+		// create the clusterID from the hash of the path and context name
+		hash := md5.Sum([]byte(kubeConfigPath + contexts[i].Name))
+		contexts[i].ClusterID = hex.EncodeToString(hash[:])
+		fmt.Printf("DEBUG: Loaded context '%s' from '%s'. Generated ClusterID: %s\n", contexts[i].Name, kubeConfigPath, contexts[i].ClusterID)
 	}
 
 	return contexts, contextErrors, nil
@@ -505,6 +509,10 @@ func LoadContextsFromMultipleFiles(kubeConfigs string, source int) ([]Context, [
 
 	kubeConfigPaths := splitKubeConfigPath(kubeConfigs)
 	for _, kubeConfigPath := range kubeConfigPaths {
+		if kubeConfigPath == "" {
+			continue
+		}
+
 		kubeConfigContexts, errs, err := LoadContextsFromFile(kubeConfigPath, source)
 		if err != nil {
 			return nil, nil, err
