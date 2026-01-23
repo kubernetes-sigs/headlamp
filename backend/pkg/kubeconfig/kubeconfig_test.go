@@ -2,7 +2,9 @@ package kubeconfig_test
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -67,11 +69,22 @@ func TestLoadAndStoreKubeConfigs(t *testing.T) {
 		require.Equal(t, "minikube", ctx.Name)
 	})
 
+	t.Run("empty_file_string", func(t *testing.T) {
+		kubeConfigs := ""
+		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigs, kubeconfig.KubeConfig, nil)
+		require.NoError(t, err, "Expected no error for empty kubeconfig string")
+	})
+
 	t.Run("invalid_file", func(t *testing.T) {
 		kubeConfigFile := "invalid_kubeconfig"
 
 		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
 		require.Error(t, err)
+	})
+	t.Run("empty_file_string", func(t *testing.T) {
+		kubeConfigFile := ""
+		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
+		require.NoError(t, err)
 	})
 }
 
@@ -129,9 +142,13 @@ func TestLoadContextFromFile(t *testing.T) {
 	require.Equal(t, 2, len(contexts), "Expected 3 contexts from valid file")
 
 	expectedNames := []string{"random-cluster-x", "random-cluster-y", ""}
+
+	hash1 := md5.Sum([]byte(kubeConfigFile + "random-cluster-x"))
+	hash2 := md5.Sum([]byte(kubeConfigFile + "random-cluster-y"))
+
 	expectedClusterIDs := []string{
-		fmt.Sprintf("%s+%s", kubeConfigFile, "random-cluster-x"),
-		fmt.Sprintf("%s+%s", kubeConfigFile, "random-cluster-y"),
+		hex.EncodeToString(hash1[:]),
+		hex.EncodeToString(hash2[:]),
 	}
 
 	for _, ctx := range contexts {
@@ -139,7 +156,8 @@ func TestLoadContextFromFile(t *testing.T) {
 		assert.Contains(t, expectedNames, ctx.Name, "Unexpected context name")
 		assert.Contains(t, expectedClusterIDs, ctx.ClusterID, "Unexpected ClusterID")
 		assert.Equal(t, kubeConfigFile, ctx.KubeConfigPath, "Unexpected kubeconfig path")
-		assert.Equal(t, fmt.Sprintf("%s+%s", kubeConfigFile, ctx.Name), ctx.ClusterID, "Unexpected ClusterID")
+		hash := md5.Sum([]byte(kubeConfigFile + ctx.Name))
+		assert.Equal(t, hex.EncodeToString(hash[:]), ctx.ClusterID, "Unexpected ClusterID")
 	}
 }
 
