@@ -459,16 +459,18 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
 		}
 
-		context.Source = kubeconfig.InCluster
+		if context != nil {
+			context.Source = kubeconfig.InCluster
 
-		err = context.SetupProxy()
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
-		}
+			err = context.SetupProxy()
+			if err != nil {
+				logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
+			}
 
-		err = config.KubeConfigStore.AddContext(context)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+			err = config.KubeConfigStore.AddContext(context)
+			if err != nil {
+				logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+			}
 		}
 	}
 
@@ -508,10 +510,12 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		logger.Log(logger.LevelError, nil, err, "getting default kubeconfig persistence file")
 	}
 
-	err = kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, kubeConfigPersistenceFile,
-		kubeconfig.DynamicCluster, skipFunc)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "loading dynamic kubeconfig")
+	if fileExists(kubeConfigPersistenceFile) {
+		err = kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, kubeConfigPersistenceFile,
+			kubeconfig.DynamicCluster, skipFunc)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "loading dynamic kubeconfig")
+		}
 	}
 
 	addPluginRoutes(config, r)
