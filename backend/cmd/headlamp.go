@@ -132,7 +132,7 @@ type OauthConfig struct {
 // returns True if a file exists.
 func fileExists(filename string) bool {
 	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
+	if err != nil {
 		return false
 	}
 
@@ -459,16 +459,18 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
 		}
 
-		context.Source = kubeconfig.InCluster
+		if context != nil {
+			context.Source = kubeconfig.InCluster
 
-		err = context.SetupProxy()
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
-		}
+			err = context.SetupProxy()
+			if err != nil {
+				logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
+			}
 
-		err = config.KubeConfigStore.AddContext(context)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+			err = config.KubeConfigStore.AddContext(context)
+			if err != nil {
+				logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+			}
 		}
 	}
 
