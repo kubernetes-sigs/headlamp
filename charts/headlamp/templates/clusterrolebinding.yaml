@@ -2,7 +2,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "headlamp.fullname" . }}-admin
+  name: {{ include "headlamp.fullname" . }}
   labels:
     {{- include "headlamp.labels" . | nindent 4 }}
   {{- with .Values.clusterRoleBinding.annotations }}
