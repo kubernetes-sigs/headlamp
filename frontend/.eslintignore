@@ -1,4 +1,1 @@
-../app/electron/i18next.config.js
-../app/electron/main.js
-../app/electron/preload.js
-../app/electron/windowSize.js
+../app/electron/*.js

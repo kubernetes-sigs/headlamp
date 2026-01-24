@@ -370,6 +370,9 @@ spec:
               mountPath: {{ .Values.config.pluginsDir }}
             - name: plugin-config
               mountPath: /config
+            {{- with .Values.pluginsManager.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           resources:
             {{- toYaml .Values.pluginsManager.resources | nindent 12 }}
           securityContext:

@@ -76,6 +76,10 @@ jobs:
           rm ~/.config/Headlamp/kubeconfigs/config
         shell: bash
 
+      - name: Run fuzz tests
+        run: npm run backend:fuzz
+        shell: bash
+
       - name: Upload coverage report as artifact
         id: upload-artifact
         uses: actions/upload-artifact@84480863f228bb9747b473957fcc9e309aa96097 # v4.4.2

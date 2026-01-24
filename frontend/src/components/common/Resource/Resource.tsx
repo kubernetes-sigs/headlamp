@@ -499,8 +499,12 @@ export function DataField(props: DataFieldProps) {
   );
 }
 
-export function SecretField(props: InputProps) {
-  const { value, ...other } = props;
+export interface SecretFieldProps extends InputProps {
+  nameID?: string;
+}
+
+export function SecretField(props: SecretFieldProps) {
+  const { value, nameID, ...other } = props;
   const [showPassword, setShowPassword] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
   const { t } = useTranslation();
@@ -555,6 +559,7 @@ export function SecretField(props: InputProps) {
       </Grid>
       <Grid item xs>
         <Input
+          aria-labelledby={nameID}
           readOnly={!showPassword}
           type="password"
           fullWidth
