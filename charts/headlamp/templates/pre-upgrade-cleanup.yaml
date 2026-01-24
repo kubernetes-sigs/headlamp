@@ -1,0 +1,124 @@
+{{- if .Values.clusterRoleBinding.create -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "headlamp.fullname" . }}-pre-upgrade
+  namespace: {{ include "headlamp.namespace" . }}
+  labels:
+    {{- include "headlamp.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "headlamp.fullname" . }}-pre-upgrade
+  labels:
+    {{- include "headlamp.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterrolebindings"]
+  verbs: ["get", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "headlamp.fullname" . }}-pre-upgrade
+  labels:
+    {{- include "headlamp.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-4"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "headlamp.fullname" . }}-pre-upgrade
+subjects:
+- kind: ServiceAccount
+  name: {{ include "headlamp.fullname" . }}-pre-upgrade
+  namespace: {{ include "headlamp.namespace" . }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "headlamp.fullname" . }}-pre-upgrade
+  namespace: {{ include "headlamp.namespace" . }}
+  labels:
+    {{- include "headlamp.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      name: {{ include "headlamp.fullname" . }}-pre-upgrade
+      labels:
+        {{- include "headlamp.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "headlamp.fullname" . }}-pre-upgrade
+      restartPolicy: Never
+      containers:
+      - name: pre-upgrade-cleanup
+        image: alpine/kubectl:1.35.0@sha256:e7e078c7bb25012141e5957d500834b2a5b266d6de20ecfa862b30d8a892fc7e
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          CRB_NAME="{{ include "headlamp.fullname" . }}-admin"
+          RELEASE_NAME="{{ .Release.Name }}"
+
+          echo "Checking for old ClusterRoleBinding ${CRB_NAME}..."
+
+          if ! kubectl get clusterrolebinding "${CRB_NAME}" 2>/dev/null; then
+            echo "ClusterRoleBinding ${CRB_NAME} not found, nothing to clean up"
+            exit 0
+          fi
+
+          echo "Found ClusterRoleBinding ${CRB_NAME}, verifying it was created by Helm..."
+
+          # Check if the ClusterRoleBinding has Helm labels indicating it was created by this chart
+          MANAGED_BY=$(kubectl get clusterrolebinding "${CRB_NAME}" -o jsonpath='{.metadata.labels.app\.kubernetes\.io/managed-by}' 2>/dev/null || echo "")
+          INSTANCE=$(kubectl get clusterrolebinding "${CRB_NAME}" -o jsonpath='{.metadata.labels.app\.kubernetes\.io/instance}' 2>/dev/null || echo "")
+          APP_NAME=$(kubectl get clusterrolebinding "${CRB_NAME}" -o jsonpath='{.metadata.labels.app\.kubernetes\.io/name}' 2>/dev/null || echo "")
+
+          if [ "${MANAGED_BY}" = "Helm" ] && [ "${INSTANCE}" = "${RELEASE_NAME}" ] && [ "${APP_NAME}" = "headlamp" ]; then
+            echo "Confirmed: ${CRB_NAME} was created by this Helm release (${RELEASE_NAME})"
+            echo "Deleting old ClusterRoleBinding..."
+            kubectl delete clusterrolebinding "${CRB_NAME}"
+            echo "Successfully deleted old ClusterRoleBinding"
+          else
+            echo "WARNING: ${CRB_NAME} exists but was NOT created by this Helm release"
+            echo "  managed-by: ${MANAGED_BY} (expected: Helm)"
+            echo "  instance: ${INSTANCE} (expected: ${RELEASE_NAME})"
+            echo "  app: ${APP_NAME} (expected: headlamp)"
+            echo "Skipping deletion to preserve user-created resource"
+          fi
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+{{- end }}

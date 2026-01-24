@@ -131,7 +131,7 @@ serviceAccount:
 clusterRoleBinding:
   # -- Specified whether a cluster role binding should be created
   create: true
-  # -- Set name of the Cluster Role with limited permissions from you cluster
+  # -- Set name of the Cluster Role with limited permissions from your cluster
   clusterRoleName: view
   # -- Annotations to add to the cluster role binding
   annotations: {}
