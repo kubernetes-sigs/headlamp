@@ -25,7 +25,7 @@ data:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: headlamp-admin
+  name: headlamp
   labels:
     helm.sh/chart: headlamp-0.39.0
     app.kubernetes.io/name: headlamp
@@ -35,7 +35,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: cluster-admin
+  name: view
 subjects:
 - kind: ServiceAccount
   name: headlamp

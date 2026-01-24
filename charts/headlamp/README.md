@@ -148,7 +148,7 @@ config:
 | serviceAccount.name | string | `""` | Service account name |
 | serviceAccount.annotations | object | `{}` | Service account annotations |
 | clusterRoleBinding.create | bool | `true` | Create cluster role binding |
-| clusterRoleBinding.clusterRoleName | string | `"cluster-admin"` | Kubernetes ClusterRole name |
+| clusterRoleBinding.clusterRoleName | string | `"view"` | Kubernetes ClusterRole name |
 | clusterRoleBinding.annotations | object | `{}` | Cluster role binding annotations |
 | podSecurityContext | object | `{}` | Pod security context (e.g., fsGroup: 2000) |
 | securityContext.runAsNonRoot | bool | `true` | Run container as non-root |
