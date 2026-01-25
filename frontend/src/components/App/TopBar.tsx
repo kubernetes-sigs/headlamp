@@ -99,23 +99,19 @@ export default function TopBar({}: TopBarProps) {
         await logout(clusterToLogout);
         queryClient.removeQueries({ queryKey: ['clusterMe', clusterToLogout], exact: true });
 
-        if (selectedClusters.length > 1) {
-          const currentPath = history.location.pathname;
-          const clusterSegmentMatch = currentPath.match(/\/c\/([^/]+)(\/|$)/);
-          if (clusterSegmentMatch) {
-            const currentClusterParam = clusterSegmentMatch[1];
-            const clustersInPath = currentClusterParam.split('+');
-            const remainingClustersInPath = clustersInPath.filter(c => c !== clusterToLogout);
-            if (remainingClustersInPath.length > 0) {
-              const newClusterParam = remainingClustersInPath.join('+');
-              const newPath = currentPath.replace(
-                `/c/${currentClusterParam}`,
-                `/c/${newClusterParam}`
-              );
-              history.push(newPath);
-            } else {
-              history.push('/');
-            }
+        const currentPath = history.location.pathname;
+        const clusterSegmentMatch = currentPath.match(/\/c\/([^/]+)(\/|$)/);
+        if (clusterSegmentMatch) {
+          const currentClusterParam = clusterSegmentMatch[1];
+          const clustersInPath = currentClusterParam.split('+');
+          const remainingClustersInPath = clustersInPath.filter(c => c !== clusterToLogout);
+          if (remainingClustersInPath.length > 0) {
+            const newClusterParam = remainingClustersInPath.join('+');
+            const newPath = currentPath.replace(
+              `/c/${currentClusterParam}`,
+              `/c/${newClusterParam}`
+            );
+            history.push(newPath);
           } else {
             history.push('/');
           }

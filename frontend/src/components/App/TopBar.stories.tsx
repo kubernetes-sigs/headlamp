@@ -145,21 +145,19 @@ WithUserInfo.args = {
 };
 WithUserInfo.parameters = {
   msw: {
-    handlers: {
-      story: [
-        http.post(
-          'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
-          () =>
-            HttpResponse.json({
-              status: {
-                userInfo: {
-                  username: 'Ada Lovelace',
-                },
+    handlers: [
+      http.post(
+        'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
+        () =>
+          HttpResponse.json({
+            status: {
+              userInfo: {
+                username: 'Ada Lovelace',
               },
-            })
-        ),
-      ],
-    },
+            },
+          })
+      ),
+    ],
   },
 };
 
@@ -172,21 +170,19 @@ WithEmailOnly.args = {
 };
 WithEmailOnly.parameters = {
   msw: {
-    handlers: {
-      story: [
-        http.post(
-          'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
-          () =>
-            HttpResponse.json({
-              status: {
-                userInfo: {
-                  username: 'grace@example.com',
-                },
+    handlers: [
+      http.post(
+        'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
+        () =>
+          HttpResponse.json({
+            status: {
+              userInfo: {
+                username: 'grace@example.com',
               },
-            })
-        ),
-      ],
-    },
+            },
+          })
+      ),
+    ],
   },
 };
 
@@ -199,15 +195,13 @@ UndefinedData.args = {
 };
 UndefinedData.parameters = {
   msw: {
-    handlers: {
-      story: [
-        // Return 404 to simulate missing API or data
-        http.post(
-          'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
-          () => new HttpResponse(null, { status: 404 })
-        ),
-      ],
-    },
+    handlers: [
+      // Return 404 to simulate missing API or data
+      http.post(
+        'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
+        () => new HttpResponse(null, { status: 404 })
+      ),
+    ],
   },
 };
 
@@ -220,14 +214,12 @@ EmptyUserInfo.args = {
 };
 EmptyUserInfo.parameters = {
   msw: {
-    handlers: {
-      story: [
-        http.post(
-          'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
-          () => HttpResponse.json({})
-        ),
-      ],
-    },
+    handlers: [
+      http.post(
+        'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
+        () => HttpResponse.json({})
+      ),
+    ],
   },
 };
 
@@ -245,33 +237,31 @@ MultiCluster.args = {
 };
 MultiCluster.parameters = {
   msw: {
-    handlers: {
-      story: [
-        http.post(
-          'http://localhost:4466/clusters/admin-cluster/apis/authentication.k8s.io/v1/selfsubjectreviews',
-          () =>
-            HttpResponse.json({
-              status: {
-                userInfo: {
-                  username: 'admin-user',
-                  groups: ['system:masters'],
-                },
+    handlers: [
+      http.post(
+        'http://localhost:4466/clusters/admin-cluster/apis/authentication.k8s.io/v1/selfsubjectreviews',
+        () =>
+          HttpResponse.json({
+            status: {
+              userInfo: {
+                username: 'admin-user',
+                groups: ['system:masters'],
               },
-            })
-        ),
-        http.post(
-          'http://localhost:4466/clusters/view-cluster/apis/authentication.k8s.io/v1/selfsubjectreviews',
-          () =>
-            HttpResponse.json({
-              status: {
-                userInfo: {
-                  username: 'view-user',
-                  groups: ['view-group'],
-                },
+            },
+          })
+      ),
+      http.post(
+        'http://localhost:4466/clusters/view-cluster/apis/authentication.k8s.io/v1/selfsubjectreviews',
+        () =>
+          HttpResponse.json({
+            status: {
+              userInfo: {
+                username: 'view-user',
+                groups: ['view-group'],
               },
-            })
-        ),
-      ],
-    },
+            },
+          })
+      ),
+    ],
   },
 };
