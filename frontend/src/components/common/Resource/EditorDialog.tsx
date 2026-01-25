@@ -32,7 +32,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { getCluster } from '../../../lib/cluster';
 import { apply } from '../../../lib/k8s/api/v1/apply';
-import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
+import { KUBE_OBJECT_BRAND, KubeObject, KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { useId } from '../../../lib/util';
 import { clusterAction } from '../../../redux/clusterActionSlice';
 import {
@@ -45,6 +45,7 @@ import { useCurrentAppTheme } from '../../App/themeSlice';
 import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import ConfirmButton from '../ConfirmButton';
 import { Dialog, DialogProps } from '../Dialog';
+import Empty from '../EmptyContent';
 import Loader from '../Loader';
 import Tabs from '../Tabs';
 import DocsViewer from './DocsViewer';
@@ -52,6 +53,48 @@ import SimpleEditor from './SimpleEditor';
 import { UploadDialog } from './UploadDialog';
 
 type KubeObjectIsh = Partial<KubeObjectInterface>;
+
+function isKubeObjectInstance(item: unknown): item is KubeObject {
+  // Avoid relying on `instanceof` (can fail across bundles/plugins).
+  if (!item || typeof item !== 'object') return false;
+  return (item as any)[KUBE_OBJECT_BRAND] === true;
+}
+
+function KubeObjectLiveEditorDialog(props: Omit<EditorDialogProps, 'item'> & { item: KubeObject }) {
+  const { item: kubeItem, ...rest } = props;
+  const kubeObjectClass = kubeItem.constructor as typeof KubeObject;
+  const { t } = useTranslation();
+
+  const [liveKubeItem, error] = kubeObjectClass.useGet(
+    kubeItem.getName(),
+    kubeItem.getNamespace(),
+    {
+      cluster: kubeItem.cluster,
+    }
+  );
+
+  const editableItem = React.useMemo(
+    () => (liveKubeItem ?? kubeItem).getEditableObject(),
+    [liveKubeItem, kubeItem]
+  );
+
+  if (!liveKubeItem && !error) {
+    return <Loader title={t('translation|Loading resource')} />;
+  }
+
+  if (error) {
+    return (
+      <Empty color="error">
+        {t('translation|Error getting resource {{ resourceName }}: {{ errorMessage }}', {
+          resourceName: kubeItem.getName(),
+          errorMessage: error,
+        })}
+      </Empty>
+    );
+  }
+
+  return <EditorDialogInner {...rest} item={editableItem} />;
+}
 
 export interface EditorDialogProps extends DialogProps {
   /** The object(s) to edit, or null to make the dialog be in "loading mode". Pass it an empty object if no contents are to be shown when the dialog is first open. */
@@ -77,7 +120,7 @@ export interface EditorDialogProps extends DialogProps {
   noDialog?: boolean;
 }
 
-export default function EditorDialog(props: EditorDialogProps) {
+function EditorDialogInner(props: EditorDialogProps) {
   const {
     item,
     onClose,
@@ -537,6 +580,14 @@ export default function EditorDialog(props: EditorDialogProps) {
       {content}
     </Dialog>
   );
+}
+
+export default function EditorDialog(props: EditorDialogProps) {
+  if (isKubeObjectInstance(props.item)) {
+    const { item, ...rest } = props;
+    return <KubeObjectLiveEditorDialog {...rest} item={item} />;
+  }
+  return <EditorDialogInner {...props} />;
 }
 
 export function ViewDialog(props: Omit<EditorDialogProps, 'onSave'>) {
