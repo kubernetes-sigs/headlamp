@@ -34,8 +34,6 @@ import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList'
 import type { KubeEvent } from './event';
 import type { KubeMetadata, KubeMetadataCreate } from './KubeMetadata';
 
-export const KUBE_OBJECT_BRAND = Symbol.for('headlamp.k8s.KubeObject');
-
 function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
   if (!cluster) {
     return [];
@@ -46,9 +44,6 @@ function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
 }
 
 export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
-  /** Marker used for cross-bundle KubeObject detection. */
-  readonly [KUBE_OBJECT_BRAND] = true;
-
   jsonData: T;
   /** Readonly field defined as JSONPath paths */
   static readOnlyFields: string[] = [];

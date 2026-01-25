@@ -136,7 +136,7 @@ export default function EditButton(props: EditButtonProps) {
             content: (
               <EditorDialog
                 noDialog
-                item={item}
+                item={item.getEditableObject()}
                 open
                 onClose={() => Activity.close(activityId)}
                 onSave={handleSave}

@@ -15,7 +15,6 @@
  */
 
 import { styled } from '@mui/system';
-import React from 'react';
 
 const SizedTextarea = styled('textarea')({
   width: '100%',
@@ -32,10 +31,7 @@ export interface SimpleEditorProps {
 }
 
 /** A very basic code editor. */
-const SimpleEditor = React.forwardRef<HTMLTextAreaElement, SimpleEditorProps>(function SimpleEditor(
-  { language, value, onChange },
-  ref
-) {
+function SimpleEditor({ language, value, onChange }: SimpleEditorProps) {
   // TextareaAutosize doesn't react well within a dialog/tab
   return (
     <SizedTextarea
@@ -43,9 +39,8 @@ const SimpleEditor = React.forwardRef<HTMLTextAreaElement, SimpleEditorProps>(fu
       onChange={event => onChange(event.target.value, event)}
       value={value}
       spellCheck="false"
-      ref={ref}
     />
   );
-});
+}
 
 export default SimpleEditor;

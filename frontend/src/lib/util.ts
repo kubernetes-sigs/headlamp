@@ -462,8 +462,3 @@ export function useId(prefix = '') {
 // Make units available from here
 export * as auth from './auth';
 export * as units from './units';
-
-/** Returns true when the value is null or undefined. */
-export function isNullable(value: unknown): value is null | undefined {
-  return value === null || value === undefined;
-}
