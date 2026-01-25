@@ -16,6 +16,7 @@
 
 import '../../../i18n/config';
 import Editor from '@monaco-editor/react';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import DialogActions from '@mui/material/DialogActions';
@@ -49,6 +50,7 @@ import Empty from '../EmptyContent';
 import Loader from '../Loader';
 import Tabs from '../Tabs';
 import DocsViewer from './DocsViewer';
+import { mergeLocalIntoServer } from './editorMerge';
 import SimpleEditor from './SimpleEditor';
 import { UploadDialog } from './UploadDialog';
 
@@ -144,9 +146,15 @@ function EditorDialogInner(props: EditorDialogProps) {
   const [code, setCode] = React.useState(originalCodeRef.current);
   const codeRef = React.useRef(code);
   const lastCodeCheckHandler = React.useRef(0);
-  const previousVersionRef = React.useRef(
+  const baselineVersionRef = React.useRef(
     isKubeObjectIsh(item) ? item?.metadata?.resourceVersion || '' : ''
   );
+  const [latestServerCode, setLatestServerCode] = React.useState<string>(initialCode);
+  const [serverUpdatedWhileEditing, setServerUpdatedWhileEditing] = React.useState(false);
+
+  React.useEffect(() => {
+    codeRef.current = code;
+  }, [code]);
   const [error, setError] = React.useState('');
   const [docSpecs, setDocSpecs] = React.useState<
     KubeObjectInterface | KubeObjectInterface[] | null
@@ -179,6 +187,8 @@ function EditorDialogInner(props: EditorDialogProps) {
       const defaultCode = '# Enter your YAML or JSON here';
       originalCodeRef.current = { code: defaultCode, format: 'yaml' };
       setCode({ code: defaultCode, format: 'yaml' });
+      setLatestServerCode(defaultCode);
+      setServerUpdatedWhileEditing(false);
       return;
     }
 
@@ -191,32 +201,35 @@ function EditorDialogInner(props: EditorDialogProps) {
     // Determine the format (YAML or JSON) and serialize to string
     const format = looksLikeJson(originalCodeRef.current.code) ? 'json' : 'yaml';
     const itemCode = format === 'json' ? JSON.stringify(clonedItem) : yaml.dump(clonedItem);
+    setLatestServerCode(itemCode);
 
-    // Update the code if the item representation has changed
-    if (itemCode !== originalCodeRef.current.code) {
-      originalCodeRef.current = { code: itemCode, format };
-      setCode({ code: itemCode, format });
+    const isDirty = codeRef.current.code !== originalCodeRef.current.code;
+    const nextResourceVersion =
+      isKubeObjectIsh(item) && item.metadata ? item.metadata.resourceVersion || '' : '';
+
+    if (!isDirty) {
+      // Not edited: always follow the latest server representation.
+      if (itemCode !== originalCodeRef.current.code) {
+        originalCodeRef.current = { code: itemCode, format };
+        setCode({ code: itemCode, format });
+      }
+      setServerUpdatedWhileEditing(false);
+      if (nextResourceVersion) {
+        baselineVersionRef.current = nextResourceVersion;
+      }
+      return;
     }
 
     // Additional handling for Kubernetes objects
     if (isKubeObjectIsh(item) && item.metadata) {
-      const resourceVersionsDiffer =
-        (previousVersionRef.current || '') !== (item.metadata!.resourceVersion || '');
-      // Only change if the code hasn't been touched.
-      // We use the codeRef in this effect instead of the code, because we need to access the current
-      // state of the code but we don't want to trigger a re-render when we set the code here.
-      if (resourceVersionsDiffer || codeRef.current.code === originalCodeRef.current.code) {
-        // Prevent updating to the same code, which would lead to an infinite loop.
-        if (codeRef.current.code !== itemCode) {
-          setCode({ code: itemCode, format: originalCodeRef.current.format });
-        }
-
-        if (resourceVersionsDiffer && !!item.metadata!.resourceVersion) {
-          previousVersionRef.current = item.metadata!.resourceVersion;
-        }
+      // Edited: never overwrite. If the server's resourceVersion changes, show a warning banner.
+      const serverVersionChanged =
+        !!nextResourceVersion && (baselineVersionRef.current || '') !== nextResourceVersion;
+      if (serverVersionChanged) {
+        setServerUpdatedWhileEditing(true);
       }
     }
-  }, [item, hideManagedFields]);
+  }, [item, hideManagedFields, allowToHideManagedFields]);
 
   React.useEffect(() => {
     codeRef.current = code;
@@ -444,6 +457,98 @@ function EditorDialogInner(props: EditorDialogProps) {
           flexDirection: 'column',
         }}
       >
+        {serverUpdatedWhileEditing && (
+          <Box sx={{ mt: 1, mb: 1 }}>
+            <Alert
+              severity="warning"
+              variant="filled"
+              sx={{
+                alignItems: 'center',
+                bgcolor: theme => theme.palette.warning.main,
+                color: theme => theme.palette.warning.contrastText,
+                '& .MuiAlert-icon': {
+                  color: theme => theme.palette.warning.contrastText,
+                },
+                '& .MuiAlert-action': {
+                  color: theme => theme.palette.warning.contrastText,
+                },
+              }}
+              action={
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    color="inherit"
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontWeight: 600, borderColor: 'currentColor' }}
+                    onClick={() => {
+                      originalCodeRef.current = {
+                        code: latestServerCode,
+                        format: originalCodeRef.current.format,
+                      };
+                      setCode({
+                        code: latestServerCode,
+                        format: originalCodeRef.current.format,
+                      });
+                      if (isKubeObjectIsh(item) && item.metadata?.resourceVersion) {
+                        baselineVersionRef.current = item.metadata.resourceVersion;
+                      }
+                      setServerUpdatedWhileEditing(false);
+                      setError('');
+                    }}
+                  >
+                    {t('translation|Reload from server')}
+                  </Button>
+                  <Button
+                    color="inherit"
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontWeight: 600, borderColor: 'currentColor' }}
+                    onClick={() => {
+                      try {
+                        const formatHint =
+                          codeRef.current.format || originalCodeRef.current.format || 'yaml';
+                        const { mergedCode, conflicts } = mergeLocalIntoServer({
+                          baseCode: originalCodeRef.current.code,
+                          localCode: codeRef.current.code,
+                          serverCode: latestServerCode,
+                          formatHint,
+                          errorMessage: (key: string) => t(`translation|${key}`),
+                        });
+
+                        if (conflicts.length > 0) {
+                          setError(
+                            t(
+                              'translation|Automatic merge failed due to conflicts. Please resolve manually.'
+                            )
+                          );
+                          return;
+                        }
+
+                        // After a successful merge, set the server baseline to current server snapshot
+                        originalCodeRef.current = {
+                          code: latestServerCode,
+                          format: codeRef.current.format,
+                        };
+                        setCode({ code: mergedCode, format: codeRef.current.format });
+                        if (isKubeObjectIsh(item) && item.metadata?.resourceVersion) {
+                          baselineVersionRef.current = item.metadata.resourceVersion;
+                        }
+                        setServerUpdatedWhileEditing(false);
+                        setError('');
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : String(e));
+                      }
+                    }}
+                  >
+                    {t('translation|Merge my changes')}
+                  </Button>
+                </Box>
+              }
+            >
+              {t('translation|This resource was updated on the server while you were editing.')}
+            </Alert>
+          </Box>
+        )}
         <Box py={1}>
           <Grid container spacing={2} justifyContent="space-between">
             {
