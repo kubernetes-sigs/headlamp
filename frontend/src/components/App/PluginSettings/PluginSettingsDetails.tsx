@@ -223,11 +223,7 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
       component = plugin.settingsComponent;
     } else if (typeof plugin.settingsComponent === 'function') {
       const Comp = plugin.settingsComponent;
-      if (plugin.displaySettingsComponentWithSaveButton) {
-        component = <Comp onDataChange={onDataChange} data={data} />;
-      } else {
-        component = <Comp />;
-      }
+      component = <Comp onDataChange={onDataChange} data={data} />;
     } else {
       component = null;
     }
