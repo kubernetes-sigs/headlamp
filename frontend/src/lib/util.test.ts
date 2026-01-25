@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { combineClusterListErrors, flattenClusterListItems } from './util';
+import { combineClusterListErrors, flattenClusterListItems, isNullable } from './util';
 
 describe('flattenClusterListItems', () => {
   it('should return a flattened list of items', () => {
@@ -82,5 +82,37 @@ describe('combineClusterListErrors', () => {
 
     const result = combineClusterListErrors(clusterErrors1, clusterErrors2);
     expect(result).toBeNull();
+  });
+});
+
+describe('isNullable', () => {
+  it('should return true for null', () => {
+    expect(isNullable(null)).toBe(true);
+  });
+
+  it('should return true for undefined', () => {
+    expect(isNullable(undefined)).toBe(true);
+  });
+
+  it('should return false for zero', () => {
+    expect(isNullable(0)).toBe(false);
+  });
+
+  it('should return false for empty string', () => {
+    expect(isNullable('')).toBe(false);
+  });
+
+  it('should return false for false', () => {
+    expect(isNullable(false)).toBe(false);
+  });
+
+  it('should return false for objects', () => {
+    expect(isNullable({})).toBe(false);
+    expect(isNullable([])).toBe(false);
+  });
+
+  it('should return false for numbers', () => {
+    expect(isNullable(42)).toBe(false);
+    expect(isNullable(-1)).toBe(false);
   });
 });
