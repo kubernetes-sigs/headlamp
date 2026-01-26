@@ -248,7 +248,7 @@ export function SingleActivityRenderer({
     <ActivityContext.Provider value={activity}>
       <Box
         role="complementary"
-        aria-label={typeof title === 'string' ? title : `Activity ${index + 1}`}
+        aria-label={typeof title === 'string' ? title : undefined}
         sx={{
           display: minimized && !isOverview ? 'none' : undefined,
           gridColumn: '2 / 3',
