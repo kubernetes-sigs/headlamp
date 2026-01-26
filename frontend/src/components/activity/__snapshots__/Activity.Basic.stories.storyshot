@@ -30,19 +30,11 @@
               class="MuiBox-root css-1po99kh"
             />
             <button
+              aria-expanded="false"
+              aria-haspopup="menu"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
-              title="Snap Left"
-              type="button"
-            >
-              <span
-                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-              />
-            </button>
-            <button
-              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
-              tabindex="0"
-              title="Snap Right"
+              title="Window"
               type="button"
             >
               <span
@@ -53,16 +45,6 @@
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
               title="Minimize"
-              type="button"
-            >
-              <span
-                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-              />
-            </button>
-            <button
-              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
-              tabindex="0"
-              title="Window"
               type="button"
             >
               <span
@@ -107,19 +89,11 @@
               class="MuiBox-root css-1po99kh"
             />
             <button
+              aria-expanded="false"
+              aria-haspopup="menu"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
-              title="Snap Left"
-              type="button"
-            >
-              <span
-                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-              />
-            </button>
-            <button
-              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
-              tabindex="0"
-              title="Snap Right"
+              title="Window"
               type="button"
             >
               <span
@@ -130,16 +104,6 @@
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
               title="Minimize"
-              type="button"
-            >
-              <span
-                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-              />
-            </button>
-            <button
-              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
-              tabindex="0"
-              title="Window"
               type="button"
             >
               <span
