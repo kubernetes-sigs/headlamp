@@ -44,6 +44,8 @@ import (
 var k8sResponseCache = cache.New[string]()
 
 func main() {
+	logger.Init()
+
 	if len(os.Args) == 2 && os.Args[1] == "list-plugins" {
 		runListPlugins()
 		return
