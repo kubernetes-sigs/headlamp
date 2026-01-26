@@ -122,6 +122,7 @@ func TestInstallRelease(t *testing.T) {
 	k8sClientConfig := GetClient(t, "minikube")
 	actionConfig, err := helm.NewActionConfig(k8sClientConfig, "default")
 	require.NoError(t, err)
+
 	listClient := action.NewList(actionConfig)
 	listClient.AllNamespaces = true
 	listClient.Filter = "helm-test-asdf"
@@ -318,6 +319,7 @@ func TestVerifyUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var actionConfig *action.Configuration
+
 			var err error
 
 			if tt.wantResult {

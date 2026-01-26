@@ -21,7 +21,7 @@ import (
 
 var kubeConfigFilePath = filepath.Join(getTestDataPath(), "kubeconfig1")
 
-// Helper functions for creating pointers to primitive types
+// Helper functions for creating pointers to primitive types.
 func boolPtr(b bool) *bool {
 	return &b
 }
@@ -569,9 +569,8 @@ func TestErrorTypes(t *testing.T) {
 	})
 }
 
-func TestContextCopy(t *testing.T) {
-	// Create a fully populated original Context
-	original := &kubeconfig.Context{
+func newTestContext() *kubeconfig.Context {
+	return &kubeconfig.Context{
 		Name:        "test-context",
 		KubeContext: &api.Context{Cluster: "test-cluster", AuthInfo: "test-user", Namespace: "test-ns"},
 		Cluster:     &api.Cluster{Server: "https://test.example.com", CertificateAuthorityData: []byte("test-ca")},
@@ -590,77 +589,70 @@ func TestContextCopy(t *testing.T) {
 		KubeConfigPath: "/path/to/kubeconfig",
 		ClusterID:      "test-cluster-id",
 	}
+}
 
-	t.Run("Copy returns deep copy", func(t *testing.T) {
-		copied := original.Copy()
+func TestContextCopyReturnsDeepCopy(t *testing.T) {
+	original := newTestContext()
+	copied := original.Copy()
 
-		// Verify they are equal but not the same object
-		assert.Equal(t, original, copied)
-		assert.NotSame(t, original, copied)
-	})
+	assert.Equal(t, original, copied)
+	assert.NotSame(t, original, copied)
+}
 
-	t.Run("Copy excludes proxy field", func(t *testing.T) {
-		// Since proxy is an unexported field, we can't directly test it.
-		// But we can verify that the Copy method comment says it excludes the proxy field.
-		// This is tested implicitly by the fact that SetupProxy creates the proxy on demand.
-		copied := original.Copy()
+func TestContextCopyExcludesProxy(t *testing.T) {
+	copied := newTestContext().Copy()
 
-		// The proxy field should not be copied (it's excluded by design)
-		// We can't assert this directly since the field is unexported, but the method
-		// documentation states this behavior
-		assert.NotNil(t, copied) // Just ensure copy was successful
-	})
+	assert.NotNil(t, copied)
+}
 
-	t.Run("Copy creates independent copies of nested structures", func(t *testing.T) {
-		copied := original.Copy()
+func TestContextCopyKeepsNestedStructuresIndependent(t *testing.T) {
+	original := newTestContext()
+	copied := original.Copy()
 
-		// Modify original nested structures
-		original.KubeContext.Namespace = "modified-ns"
-		original.Cluster.Server = "https://modified.example.com"
-		original.AuthInfo.Token = "modified-token"
-		original.OidcConf.ClientID = "modified-client-id"
-		original.OidcConf.Scopes[0] = "modified-scope"
-		original.OidcConf.Scopes = append(original.OidcConf.Scopes, "new-scope")
-		*original.OidcConf.SkipTLSVerify = false
-		*original.OidcConf.CACert = "modified-ca-cert"
+	original.KubeContext.Namespace = "modified-ns"
+	original.Cluster.Server = "https://modified.example.com"
+	original.AuthInfo.Token = "modified-token"
+	original.OidcConf.ClientID = "modified-client-id"
+	original.OidcConf.Scopes[0] = "modified-scope"
+	original.OidcConf.Scopes = append(original.OidcConf.Scopes, "new-scope")
+	*original.OidcConf.SkipTLSVerify = false
+	*original.OidcConf.CACert = "modified-ca-cert"
 
-		// Verify copy is unaffected
-		assert.Equal(t, "test-ns", copied.KubeContext.Namespace)
-		assert.Equal(t, "https://test.example.com", copied.Cluster.Server)
-		assert.Equal(t, "test-token", copied.AuthInfo.Token)
-		assert.Equal(t, "test-client-id", copied.OidcConf.ClientID)
-		assert.Equal(t, []string{"profile", "email"}, copied.OidcConf.Scopes)
-		assert.True(t, *copied.OidcConf.SkipTLSVerify)
-		assert.Equal(t, "test-ca-cert", *copied.OidcConf.CACert)
-	})
+	assert.Equal(t, "test-ns", copied.KubeContext.Namespace)
+	assert.Equal(t, "https://test.example.com", copied.Cluster.Server)
+	assert.Equal(t, "test-token", copied.AuthInfo.Token)
+	assert.Equal(t, "test-client-id", copied.OidcConf.ClientID)
+	assert.Equal(t, []string{"profile", "email"}, copied.OidcConf.Scopes)
+	assert.True(t, *copied.OidcConf.SkipTLSVerify)
+	assert.Equal(t, "test-ca-cert", *copied.OidcConf.CACert)
+}
 
-	t.Run("Copy with nil OidcConf", func(t *testing.T) {
-		originalNilOidc := &kubeconfig.Context{
-			Name: "test-context-nil-oidc",
-		}
+func TestContextCopyWithNilOidcConf(t *testing.T) {
+	original := &kubeconfig.Context{
+		Name: "test-context-nil-oidc",
+	}
 
-		copied := originalNilOidc.Copy()
+	copied := original.Copy()
 
-		assert.Equal(t, originalNilOidc, copied)
-		assert.NotSame(t, originalNilOidc, copied)
-		assert.Nil(t, copied.OidcConf)
-	})
+	assert.Equal(t, original, copied)
+	assert.NotSame(t, original, copied)
+	assert.Nil(t, copied.OidcConf)
+}
 
-	t.Run("Copy with nil nested structures", func(t *testing.T) {
-		originalNil := &kubeconfig.Context{
-			Name:     "test-context-nil",
-			OidcConf: nil,
-		}
+func TestContextCopyWithNilNestedStructures(t *testing.T) {
+	original := &kubeconfig.Context{
+		Name:     "test-context-nil",
+		OidcConf: nil,
+	}
 
-		copied := originalNil.Copy()
+	copied := original.Copy()
 
-		assert.Equal(t, originalNil, copied)
-		assert.NotSame(t, originalNil, copied)
-		assert.Nil(t, copied.KubeContext)
-		assert.Nil(t, copied.Cluster)
-		assert.Nil(t, copied.AuthInfo)
-		assert.Nil(t, copied.OidcConf)
-	})
+	assert.Equal(t, original, copied)
+	assert.NotSame(t, original, copied)
+	assert.Nil(t, copied.KubeContext)
+	assert.Nil(t, copied.Cluster)
+	assert.Nil(t, copied.AuthInfo)
+	assert.Nil(t, copied.OidcConf)
 }
 
 func TestCustomObjectDeepCopy(t *testing.T) {

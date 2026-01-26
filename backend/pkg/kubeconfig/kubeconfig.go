@@ -92,6 +92,7 @@ func (c *Context) Copy() *Context {
 			skipTLSVerify := *c.OidcConf.SkipTLSVerify
 			oidcConf.SkipTLSVerify = &skipTLSVerify
 		}
+
 		if c.OidcConf.CACert != nil {
 			caCert := *c.OidcConf.CACert
 			oidcConf.CACert = &caCert

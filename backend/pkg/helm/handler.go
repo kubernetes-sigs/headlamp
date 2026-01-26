@@ -72,7 +72,6 @@ func NewHandler(cache cache.Cache[interface{}],
 }
 
 func NewHandlerWithSettings(cache cache.Cache[interface{}], settings *cli.EnvSettings) (*Handler, error) {
-
 	return &Handler{
 		EnvSettings: settings,
 		Cache:       cache,

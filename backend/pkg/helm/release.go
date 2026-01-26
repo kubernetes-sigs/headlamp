@@ -168,6 +168,10 @@ func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.Respon
 		return
 	}
 
+	if releases == nil {
+		releases = []*release.Release{}
+	}
+
 	// Return response
 	res := ListReleaseResponse{
 		Releases: releases,
@@ -195,22 +199,20 @@ func (req *GetReleaseRequest) Validate() error {
 	return validate.Struct(req)
 }
 
-func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
-	// Parse request
+func decodeGetReleaseRequest(r *http.Request) (GetReleaseRequest, error) {
 	var req GetReleaseRequest
 
 	decoder := schema.NewDecoder()
-
-	err := decoder.Decode(&req, r.URL.Query())
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release"},
-			err, "parsing request")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
-		return
+	if err := decoder.Decode(&req, r.URL.Query()); err != nil {
+		return req, err
 	}
 
-	err = req.Validate()
+	return req, req.Validate()
+}
+
+func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+	// Parse request
+	req, err := decodeGetReleaseRequest(r)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"request": "get_release"},
 			err, "validating request")
@@ -345,22 +347,20 @@ func (req *UninstallReleaseRequest) Validate() error {
 	return validate.Struct(req)
 }
 
-func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
-	// Parse request
+func decodeUninstallReleaseRequest(r *http.Request) (UninstallReleaseRequest, error) {
 	var req UninstallReleaseRequest
 
 	decoder := schema.NewDecoder()
-
-	err := decoder.Decode(&req, r.URL.Query())
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release"},
-			err, "decoding request")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
-		return
+	if err := decoder.Decode(&req, r.URL.Query()); err != nil {
+		return req, err
 	}
 
-	err = req.Validate()
+	return req, req.Validate()
+}
+
+func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+	// Parse request
+	req, err := decodeUninstallReleaseRequest(r)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release"},
 			err, "validating request")
@@ -447,19 +447,19 @@ func (req *RollbackReleaseRequest) Validate() error {
 	return validate.Struct(req)
 }
 
-func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
-	// Parse request and validate
+func decodeRollbackReleaseRequest(r *http.Request) (RollbackReleaseRequest, error) {
 	var req RollbackReleaseRequest
 
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "parsing request for rollback")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
-		return
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, err
 	}
 
-	err = req.Validate()
+	return req, req.Validate()
+}
+
+func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+	// Parse request and validate
+	req, err := decodeRollbackReleaseRequest(r)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "validating request for rollback")
 		http.Error(w, err.Error(), http.StatusBadRequest)

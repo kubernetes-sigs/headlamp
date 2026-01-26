@@ -32,7 +32,6 @@ import (
 var settings = cli.New()
 
 func TestListChart(t *testing.T) {
-
 	cache := cache.New[interface{}]()
 	require.NotNil(t, cache)
 
