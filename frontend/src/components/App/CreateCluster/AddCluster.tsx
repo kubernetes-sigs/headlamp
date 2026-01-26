@@ -31,6 +31,7 @@ import { useTypedSelector } from '../../../redux/hooks';
 import { DialogProps } from '../../common/Dialog';
 import { PageGrid } from '../../common/Resource';
 import SectionBox from '../../common/SectionBox';
+import { TutorialToolTip } from '../../common/Tutorial/TutorialToolTip';
 
 function AddClusterProvider({ title, icon, description, url }: ClusterProviderInfo) {
   const history = useHistory();
@@ -66,6 +67,35 @@ export default function AddCluster(props: DialogProps & { onChoice: () => void }
     entry => entry.url === '/plugin-catalog'
   );
 
+  // Hackathon WIP for tutorial mode
+  // console.log('current tutorial mode', localStorage.getItem('tutorialMode'));
+  // const isTutorialMode = localStorage.getItem('tutorialMode') === 'true';
+
+  // const [loadFromKubeConfigDescription, setloadFromKubeConfigDescription] = React.useState<
+  //   string | React.ReactNode
+  // >('loading..');
+
+  // React.useEffect(() => {
+  //   if (isTutorialMode) {
+  //     setloadFromKubeConfigDescription(
+  //       <TutorialToolTip
+  //         context="LoadFromKubeConfig"
+  //         labelText={t('translation|Load from KubeConfig')}
+  //       />
+  //     );
+  //   } else {
+  //     setloadFromKubeConfigDescription(t('translation|Load from KubeConfig'));
+  //   }
+  // }, [isTutorialMode, loadFromKubeConfigDescription, t]);
+  // need to clean later
+
+  const buttonText = (
+    <TutorialToolTip
+      context="LoadFromKubeConfig"
+      labelText={t('translation|Load from KubeConfig')}
+    />
+  );
+
   return (
     <PageGrid>
       <SectionBox backLink title={t('translation|Add Cluster')} py={2} mt={[4, 0, 0]}>
@@ -82,7 +112,7 @@ export default function AddCluster(props: DialogProps & { onChoice: () => void }
                   onClick={() => history.push(createRouteURL('loadKubeConfig'))}
                   startIcon={<InlineIcon icon="mdi:plus-box-outline" />}
                 >
-                  {t('translation|Load from KubeConfig')}
+                  {buttonText}
                 </Button>
               </CardContent>
             </Card>
