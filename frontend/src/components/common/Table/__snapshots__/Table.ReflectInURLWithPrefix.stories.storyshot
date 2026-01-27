@@ -435,7 +435,7 @@
                   Rows per page
                 </label>
                 <div
-                  class="MuiInputBase-root MuiInput-root MuiInputBase-colorPrimary  css-dnm9fb-MuiInputBase-root-MuiInput-root-MuiSelect-root"
+                  class="MuiInputBase-root MuiInput-root MuiInputBase-colorPrimary css-dnm9fb-MuiInputBase-root-MuiInput-root-MuiSelect-root"
                 >
                   <div
                     aria-controls="test-id"

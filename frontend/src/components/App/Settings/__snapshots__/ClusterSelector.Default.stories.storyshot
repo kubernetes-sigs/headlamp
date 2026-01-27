@@ -12,7 +12,7 @@
       </label>
       <div
         aria-label="Cluster selector"
-        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall  css-1yk1gt9-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
+        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall css-1yk1gt9-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
       >
         <div
           aria-controls=":mock-test-id:"
@@ -45,10 +45,10 @@
         </svg>
         <fieldset
           aria-hidden="true"
-          class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+          class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
         >
           <legend
-            class="css-14lo706"
+            class="css-sl37lx-MuiNotchedOutlined-root"
           >
             <span>
               Cluster
