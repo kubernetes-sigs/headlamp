@@ -400,6 +400,7 @@
   "Failed to run \"{{ command }}\"": "Failed to run \"{{ command }}\"",
   "Trying to attach to the container {{ container }}…": "Trying to attach to the container {{ container }}…",
   "Trying to run \"{{command}}\"…": "Trying to run \"{{command}}\"…",
+  "Paste": "Paste",
   "Attach: {{ itemName }}": "Attach: {{ itemName }}",
   "Terminal: {{ itemName }}": "Terminal: {{ itemName }}",
   "Timezone": "Timezone",
