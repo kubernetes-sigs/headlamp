@@ -840,12 +840,50 @@
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-gh78e9-MuiTableCell-root"
               >
-                10.96.0.100
+                <div
+                  class="MuiBox-root css-55gkwq"
+                >
+                  <div
+                    class="MuiBox-root css-1fjtzvx"
+                  >
+                    10.96.0.100
+                  </div>
+                  <button
+                    aria-label="Copy to clipboard"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall copy-button css-d7r42q-MuiButtonBase-root-MuiIconButton-root"
+                    data-mui-internal-clone-element="true"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
               </td>
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1ofzoa7-MuiTableCell-root"
               >
-                34.123.45.67
+                <div
+                  class="MuiBox-root css-55gkwq"
+                >
+                  <div
+                    class="MuiBox-root css-1fjtzvx"
+                  >
+                    34.123.45.67
+                  </div>
+                  <button
+                    aria-label="Copy to clipboard"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall copy-button css-d7r42q-MuiButtonBase-root-MuiIconButton-root"
+                    data-mui-internal-clone-element="true"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
               </td>
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-ccolv7-MuiTableCell-root"

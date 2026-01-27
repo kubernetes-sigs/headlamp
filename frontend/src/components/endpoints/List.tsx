@@ -43,6 +43,7 @@ export default function EndpointList() {
           getValue: endpoint => endpoint.getAddresses().join(', '),
           render: endpoint => <LabelListItem labels={endpoint.getAddresses()} />,
           gridTemplate: 1.5,
+          copyable: true,
         },
         'age',
       ]}

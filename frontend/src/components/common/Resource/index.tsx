@@ -26,6 +26,8 @@ export * from './CreateButton';
 export { default as CreateButton } from './CreateButton';
 export * from './CopyButton';
 export { default as CopyButton } from './CopyButton';
+export * from './CopyableCell';
+export { default as CopyableCell } from './CopyableCell';
 export * from './DeleteButton';
 export { default as DeleteButton } from './DeleteButton';
 export * from './DocsViewer';

@@ -717,13 +717,32 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1g81de4-MuiTableCell-root"
               >
                 <div
-                  class="MuiBox-root css-1baulvz"
+                  class="MuiBox-root css-55gkwq"
                 >
-                  <span
-                    class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                  <div
+                    class="MuiBox-root css-1fjtzvx"
                   >
-                    127.0.0.1
-                  </span>
+                    <div
+                      class="MuiBox-root css-1baulvz"
+                    >
+                      <span
+                        class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                      >
+                        127.0.0.1
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    aria-label="Copy to clipboard"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall copy-button css-d7r42q-MuiButtonBase-root-MuiIconButton-root"
+                    data-mui-internal-clone-element="true"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
                 </div>
               </td>
               <td

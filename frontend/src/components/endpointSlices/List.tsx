@@ -63,6 +63,7 @@ export default function EndpointSliceList() {
               gap: '4px',
             },
           },
+          copyable: true,
         },
         {
           id: 'ports',
