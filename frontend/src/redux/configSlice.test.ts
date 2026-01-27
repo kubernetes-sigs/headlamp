@@ -38,6 +38,18 @@ describe('configSlice', () => {
     expect(nextState.clusters).toEqual(clusters);
   });
 
+  it('should handle setConfig with isDynamicClusterEnabled', () => {
+    const clusters: ConfigState['clusters'] = {
+      'cluster-1': { name: 'cluster-1' } as Cluster,
+    };
+    const nextState = configReducer(
+      initialState,
+      setConfig({ clusters, isDynamicClusterEnabled: true })
+    );
+    expect(nextState.clusters).toEqual(clusters);
+    expect(nextState.isDynamicClusterEnabled).toBe(true);
+  });
+
   it('should handle setStatelessConfig', () => {
     const statelessClusters: ConfigState['statelessClusters'] = {
       'stateless-1': { name: 'stateless-1' } as Cluster,
