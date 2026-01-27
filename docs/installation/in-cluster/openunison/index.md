@@ -5,7 +5,7 @@ sidebar_label: "Tutorial: Authentication with OpenUnison"
 
 ![OpenUnison Portal with Headlamp Badge](./openunison-portal.png)
 
-Starting with 1.0.44, OpenUnison provides support for Headlamp in both clusters that support OpenID Connection, generaly on premesis clusters, and in cloud managed clusters using impersonation where OIDC is not available, such as EKS, AKS, and GKE.  When integrated with OpenUnison you can securely deploy Headlamp in-cluster to any kind of Kubernetes distribution, regardless of if it supports OpenID Connect or not.
+Starting with version 1.0.44, OpenUnison adds support for Headlamp in two scenarios: clusters that support OpenID Connect (OIDC), typically on-premises environments, and cloud-managed clusters that rely on impersonation when OIDC is not available.  This opens secure support for Headlamp both on-premises and in cloud hosted environments.
 
 By default, OpenUnison's charts now ship with Headlamp.  This means that deploying OpenUnison into a cluster will automatically deploy Headlamp with some additional features:
 
@@ -21,9 +21,9 @@ OpenUnison supports multiple identity providers, including [EntraID](https://ope
 
 ## Integration with an Existing Headlamp
 
-If you don't want to use OpenUnison's Headlamp because you have an existing deployment, you can do that too.  
+If you have an existing Headlamp deployment, you can integrate it with OpenUnison instead of using the OpenUnison-managed Headlamp instance.
 
-***NOTE:*** *It's important to use TLS when connecting to Headlamp, since there are tokens being transmitted. If your cluster has a service mesh, this is a great usecase.  If you don't have a service mesh or haven't deployed cert-manager or something similar for your headlamp instance, you can use OpenUnison's integrated certificate manager.  If you want to use OpenUnison's certificate manager, create a `RoleBinding` that allowes the `openunison-operator` `ServiceAccount` to create an update `Secrets`:*
+***NOTE:*** *It's important to use TLS when connecting to Headlamp, since there are tokens being transmitted. If your cluster has a service mesh, you can use that instead of explicitly configuring TLS for Headlamp.  If you don't have a service mesh or haven't deployed cert-manager or something similar for your Headlamp instance, you can use OpenUnison's integrated certificate manager.  If you want to use OpenUnison's certificate manager, create a `RoleBinding` that allowes the `openunison-operator` `ServiceAccount` to create and update `Secrets` and `Pods` so that OpenUnison's certificate manager can create TLS keypairs for Headlamp and restart Headlamp `Pods` when those keypairs need to be renewed:*
 
 ```yaml
 ---
