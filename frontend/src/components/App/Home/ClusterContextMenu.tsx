@@ -52,6 +52,7 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
   const [openConfirmDialog, setOpenConfirmDialog] = React.useState<string | null>(null);
   const dialogs = useTypedSelector(state => state.clusterProvider.dialogs);
   const menuItems = useTypedSelector(state => state.clusterProvider.menuItems);
+  const isDynamicClusterEnabled = useTypedSelector(state => state.config.isDynamicClusterEnabled);
 
   const kubeconfigOrigin = cluster.meta_data?.origin?.kubeconfig;
   const deleteFromKubeconfig = cluster.meta_data?.source === 'kubeconfig';
@@ -154,7 +155,7 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
           <ListItemText>{t('translation|Settings')}</ListItemText>
         </MenuItem>
         {(!menuItems || menuItems.length === 0) &&
-          helpers.isElectron() &&
+          (helpers.isElectron() || isDynamicClusterEnabled) &&
           (cluster.meta_data?.source === 'dynamic_cluster' ||
             cluster.meta_data?.source === 'kubeconfig') && (
             <MenuItem

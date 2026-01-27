@@ -21,8 +21,12 @@
  *
  * The app also sets HEADLAMP_BACKEND_TOKEN in the headlamp-server environment,
  * which the server checks to validate requests containing this same token.
+ *
+ * For development, when running the frontend separately from the backend,
+ * the token can be initialized from the REACT_APP_HEADLAMP_BACKEND_TOKEN
+ * environment variable to authenticate API requests.
  */
-let backendToken: string | null = null;
+let backendToken: string | null = import.meta.env.REACT_APP_HEADLAMP_BACKEND_TOKEN || null;
 
 /**
  * Sets the backend token to use when making API calls from Headlamp when running as an app.
