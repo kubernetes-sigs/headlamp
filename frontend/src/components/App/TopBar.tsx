@@ -532,7 +532,7 @@ export const PureTopBar = memo(
                     color="inherit"
                     size="medium"
                   >
-                    <Icon icon="mdi:more-vert" />
+                    <Icon icon="mdi:more-vert" style={{ display: 'none' }} />
                   </IconButton>
                 )}
               </>
