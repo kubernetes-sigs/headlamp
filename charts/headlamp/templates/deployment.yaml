@@ -231,6 +231,9 @@ spec:
           args:
             {{- if .Values.config.inCluster }}
             - "-in-cluster"
+            {{- if .Values.config.inClusterContextName }}
+            - "-in-cluster-context-name={{ .Values.config.inClusterContextName }}"
+            {{- end }}
             {{- end }}
             {{- with .Values.config.enableHelm }}
             - "-enable-helm"

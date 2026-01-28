@@ -49,8 +49,8 @@ func buildUserAgent() string {
 	return fmt.Sprintf("%s %s (%s/%s)", AppName, Version, runtime.GOOS, runtime.GOARCH)
 }
 
-// TODO: Use a different way to avoid name clashes with other clusters.
-const InClusterContextName = "main"
+// DefaultInClusterContextName is the default name used for the in-cluster context.
+const DefaultInClusterContextName = "main"
 
 const (
 	KubeConfig = 1 << iota
@@ -1002,7 +1002,9 @@ func splitKubeConfigPath(path string) []string {
 }
 
 // GetInClusterContext returns the in-cluster context.
-func GetInClusterContext(oidcIssuerURL string,
+func GetInClusterContext(
+	contextName string,
+	oidcIssuerURL string,
 	oidcClientID string, oidcClientSecret string,
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
@@ -1019,10 +1021,15 @@ func GetInClusterContext(oidcIssuerURL string,
 		CertificateAuthorityData: clusterConfig.CAData,
 	}
 
-	inClusterContext := &api.Context{
-		Cluster:  InClusterContextName,
-		AuthInfo: InClusterContextName,
+	if strings.TrimSpace(contextName) == "" {
+		contextName = DefaultInClusterContextName
 	}
+
+	inClusterContext := &api.Context{
+		Cluster:  contextName,
+		AuthInfo: contextName,
+	}
+	contextName = makeDNSFriendly(contextName)
 
 	inClusterAuthInfo := &api.AuthInfo{}
 
@@ -1041,7 +1048,7 @@ func GetInClusterContext(oidcIssuerURL string,
 	}
 
 	return &Context{
-		Name:        InClusterContextName,
+		Name:        contextName,
 		KubeContext: inClusterContext,
 		Cluster:     cluster,
 		AuthInfo:    inClusterAuthInfo,

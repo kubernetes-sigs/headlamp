@@ -450,7 +450,9 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 	// In-cluster
 	if config.UseInCluster {
-		context, err := kubeconfig.GetInClusterContext(config.oidcIdpIssuerURL,
+		context, err := kubeconfig.GetInClusterContext(
+			config.InClusterContextName,
+			config.oidcIdpIssuerURL,
 			config.oidcClientID, config.oidcClientSecret,
 			strings.Join(config.oidcScopes, ","),
 			config.oidcSkipTLSVerify,

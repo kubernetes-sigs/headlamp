@@ -7,6 +7,7 @@ import (
 
 type HeadlampCFG struct {
 	UseInCluster          bool
+	InClusterContextName  string
 	ListenAddr            string
 	CacheEnabled          bool
 	DevMode               bool

@@ -120,6 +120,16 @@ var ParseWithEnvTests = []struct {
 			assert.Equal(t, "~/.kube/test_config.yaml", conf.KubeConfigPath)
 		},
 	},
+	{
+		name: "in_cluster_context_name_env",
+		args: []string{"go run ./cmd"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_IN_CLUSTER_CONTEXT_NAME": "mycluster",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, "mycluster", conf.InClusterContextName)
+		},
+	},
 }
 
 func TestParseWithEnv(t *testing.T) {
@@ -213,6 +223,13 @@ func TestParseFlags(t *testing.T) {
 			args: []string{"go run ./cmd", "--enable-helm"},
 			verify: func(t *testing.T, conf *config.Config) {
 				assert.Equal(t, true, conf.EnableHelm)
+			},
+		},
+		{
+			name: "in_cluster_context_name_flag",
+			args: []string{"go run ./cmd", "--in-cluster-context-name=mycluster"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, "mycluster", conf.InClusterContextName)
 			},
 		},
 	}

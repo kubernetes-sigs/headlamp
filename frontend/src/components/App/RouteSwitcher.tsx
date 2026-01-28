@@ -130,9 +130,16 @@ function PageTitle({
   title: string | null | undefined;
   children: React.ReactNode;
 }) {
+  const cluster = useCluster();
+
   React.useEffect(() => {
-    document.title = title || '';
-  }, [title]);
+    if (cluster && title) {
+      document.title = `${cluster} - ${title}`;
+      return;
+    }
+
+    document.title = cluster || title || '';
+  }, [cluster, title]);
 
   return <>{children}</>;
 }
