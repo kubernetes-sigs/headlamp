@@ -58,10 +58,9 @@ export default function ShowHideLabel(props: ShowHideLabelProps) {
 
   return (
     <Box display={expanded ? 'block' : 'flex'}>
-      <label
+      <span
         id={labelIdOrRandom}
         style={{ wordBreak: 'break-all', whiteSpace: 'normal' }}
-        aria-expanded={!needsButton ? undefined : expanded}
       >
         {actualText}
         {needsButton && (
@@ -69,6 +68,7 @@ export default function ShowHideLabel(props: ShowHideLabelProps) {
             {!expanded && '…'}
             <IconButton
               aria-controls={labelIdOrRandom}
+              aria-expanded={expanded}
               sx={{ display: 'inline' }}
               onClick={() => setExpanded(expandedVal => !expandedVal)}
               size="small"
@@ -78,7 +78,7 @@ export default function ShowHideLabel(props: ShowHideLabelProps) {
             </IconButton>
           </>
         )}
-      </label>
+      </span>
     </Box>
   );
 }
