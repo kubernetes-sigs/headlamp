@@ -400,6 +400,7 @@
   "Failed to run \"{{ command }}\"": "\"{{ command }}\"-ஐ இயக்குவதில் தோல்வி",
   "Trying to attach to the container {{ container }}…": "{{ container }} கண்டெய்னருடன் இணைக்க முயற்சிக்கிறது...",
   "Trying to run \"{{command}}\"…": "\"{{command}}\"-ஐ இயக்க முயற்சிக்கிறது...",
+  "Paste": "ஒட்டு",
   "Attach: {{ itemName }}": "அட்டாச்: {{ itemName }}",
   "Terminal: {{ itemName }}": "டெர்மினல்: {{ itemName }}",
   "Timezone": "டைம்ஸோன்",

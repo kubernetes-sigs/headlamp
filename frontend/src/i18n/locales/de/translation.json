@@ -400,6 +400,7 @@
   "Failed to run \"{{ command }}\"": "Ausführung von \"{{ command }}\" fehlgeschlagen",
   "Trying to attach to the container {{ container }}…": "Versuche, an den Container {{ container }} anzuhängen…",
   "Trying to run \"{{command}}\"…": "Versuche, \"{{command}}\" auszuführen…",
+  "Paste": "Einfügen",
   "Attach: {{ itemName }}": "",
   "Terminal: {{ itemName }}": "",
   "Timezone": "Zeitzone",
