@@ -67,6 +67,12 @@ func TestLoadAndStoreKubeConfigs(t *testing.T) {
 		require.Equal(t, "minikube", ctx.Name)
 	})
 
+	t.Run("empty_file_string", func(t *testing.T) {
+		kubeConfigFile := ""
+		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
+		require.NoError(t, err)
+	})
+
 	t.Run("invalid_file", func(t *testing.T) {
 		kubeConfigFile := "invalid_kubeconfig"
 
@@ -126,9 +132,9 @@ func TestLoadContextFromFile(t *testing.T) {
 
 	require.NoError(t, err, "Expected no error for valid file")
 	require.Empty(t, contextErrors, "Expected no context errors for valid file")
-	require.Equal(t, 2, len(contexts), "Expected 3 contexts from valid file")
+	require.Equal(t, 2, len(contexts), "Expected 2 contexts from valid file")
 
-	expectedNames := []string{"random-cluster-x", "random-cluster-y", ""}
+	expectedNames := []string{"random-cluster-x", "random-cluster-y"}
 	expectedClusterIDs := []string{
 		fmt.Sprintf("%s+%s", kubeConfigFile, "random-cluster-x"),
 		fmt.Sprintf("%s+%s", kubeConfigFile, "random-cluster-y"),
