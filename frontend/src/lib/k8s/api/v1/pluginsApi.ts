@@ -44,20 +44,17 @@ export async function deletePlugin(name: string, type?: 'development' | 'user') 
   const url = type ? `/plugins/${name}?type=${type}` : `/plugins/${name}`;
   const res = (await request(
     url,
-    { method: 'DELETE', headers: { ...getHeadlampAPIHeaders() } },
+    { method: 'DELETE', headers: { ...getHeadlampAPIHeaders() }, isJSON: false },
     false,
     false
-  )) as any;
+  )) as Response;
 
-  // Handle real fetch Response
-  if (res && typeof res.ok === 'boolean' && typeof res.text === 'function') {
+  // clusterRequest returns a Response object when isJSON is false and response.ok is true.
+  // Error responses are already rejected by clusterRequest with proper error messages.
+  if (res && typeof res.text === 'function') {
     const text = await res.text().catch(() => '');
-    if (!res.ok) {
-      throw new Error(text.trim() || `HTTP ${res.status}`);
-    }
     return text ? JSON.parse(text) : undefined;
   }
 
-  // Otherwise request() already returned the parsed payload
   return res;
 }
