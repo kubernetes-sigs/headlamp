@@ -14,17 +14,44 @@
  * limitations under the License.
  */
 
+import { FormControlLabel, Switch } from '@mui/material';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Secret from '../../lib/k8s/secret';
+import { CreateResourceButton } from '../common';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 export default function SecretList() {
   const { t } = useTranslation(['glossary', 'translation']);
+  const [hideHelm, setHideHelm] = useState(true);
+  const [secrets, error] = Secret.useList();
+
+  const filteredSecrets =
+    hideHelm && secrets ? secrets.filter(secret => secret.type !== 'helm.sh/release.v1') : secrets;
 
   return (
     <ResourceListView
       title={t('Secrets')}
-      resourceClass={Secret}
+      data={filteredSecrets}
+      errorMessage={Secret.getErrorMessage(error)}
+      headerProps={{
+        titleSideActions: [
+          <CreateResourceButton key="create-button" resourceClass={Secret} />,
+          <FormControlLabel
+            key="helm-switch"
+            control={
+              <Switch
+                checked={hideHelm}
+                onChange={e => setHideHelm(e.target.checked)}
+                color="primary"
+                size="small"
+              />
+            }
+            label={t(['translation', 'Hide Helm Secrets'].join('|'))}
+            sx={{ marginLeft: '0.5rem' }}
+          />,
+        ],
+      }}
       columns={[
         'name',
         'namespace',
