@@ -81,6 +81,7 @@ spec:
       {{- end }}
       serviceAccountName: {{ include "headlamp.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      hostUsers: {{ .Values.hostUsers }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- with .Values.initContainers }}

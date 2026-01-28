@@ -94,7 +94,7 @@ spec:
     spec:
       serviceAccountName: headlamp
       automountServiceAccountToken: true
-      hostUsers: true
+      hostUsers: false
       securityContext:
         {}
       containers:
@@ -108,26 +108,10 @@ spec:
           imagePullPolicy: IfNotPresent
           
           env:
-            - name: OIDC_CLIENT_ID
-              value: testClientId
-            - name: OIDC_CLIENT_SECRET
-              value: testClientSecret
-            - name: OIDC_ISSUER_URL
-              value: testIssuerURL
-            - name: OIDC_SCOPES
-              value: testScope
           args:
             - "-in-cluster"
             - "-plugins-dir=/headlamp/plugins"
             # Check if externalSecret is disabled
-            # Check if clientID is non empty either from env or oidc.config
-            - "-oidc-client-id=$(OIDC_CLIENT_ID)"
-            # Check if clientSecret is non empty either from env or oidc.config
-            - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
-            # Check if issuerURL is non empty either from env or oidc.config
-            - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
-            # Check if scopes are non empty either from env or oidc.config
-            - "-oidc-scopes=$(OIDC_SCOPES)"
           ports:
             - name: http
               containerPort: 4466
