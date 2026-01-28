@@ -28,6 +28,13 @@ annotations:
     url: https://keys.openpgp.org/vks/v1/by-fingerprint/2956B7F7167769370C93730C7264DA7B85D08A37
   artifacthub.io/category: monitoring-logging
   artifacthub.io/license: Apache-2.0
+  artifacthub.io/changes: |
+    - kind: changed
+      description: ClusterRoleBinding default permissions reduced from cluster-admin to view for improved security
+    - kind: changed
+      description: ClusterRoleBinding name changed from headlamp-admin to headlamp to avoid conflicts
+    - kind: added
+      description: Pre-upgrade hook automatically removes old ClusterRoleBinding during upgrades
   artifacthub.io/screenshots: |
     - title: Cluster Overview
       url: https://raw.githubusercontent.com/kubernetes-sigs/headlamp/screenshots/screenshots/cluster_overview.png

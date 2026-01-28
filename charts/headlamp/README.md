@@ -53,6 +53,31 @@ $ helm install my-headlamp headlamp/headlamp \
   --set ingress.hosts[0].paths[0].path=/
 ```
 
+## Upgrading
+
+### Security Improvements
+
+Starting from version 0.39.0, the chart implements enhanced security by default:
+
+- **Reduced Permissions**: The default ClusterRole has been changed from `cluster-admin` to `view`, following the principle of least privilege.
+- **ClusterRoleBinding Rename**: The ClusterRoleBinding name has been changed from `headlamp-admin` to `headlamp` to avoid conflicts with official documentation.
+
+**Automatic Migration**: A pre-upgrade hook automatically removes the old `headlamp-admin` ClusterRoleBinding during upgrades, ensuring a clean migration to the new security configuration.
+
+**Note**: If you require elevated permissions beyond the `view` role, you can customize the `clusterRoleBinding.clusterRoleName` value:
+
+```console
+$ helm upgrade my-headlamp headlamp/headlamp \
+  --set clusterRoleBinding.clusterRoleName=edit
+```
+
+Or for full admin access (not recommended for production):
+
+```console
+$ helm upgrade my-headlamp headlamp/headlamp \
+  --set clusterRoleBinding.clusterRoleName=cluster-admin
+```
+
 ## Configuration
 
 ### Core Parameters
@@ -148,7 +173,7 @@ config:
 | serviceAccount.name | string | `""` | Service account name |
 | serviceAccount.annotations | object | `{}` | Service account annotations |
 | clusterRoleBinding.create | bool | `true` | Create cluster role binding |
-| clusterRoleBinding.clusterRoleName | string | `"cluster-admin"` | Kubernetes ClusterRole name |
+| clusterRoleBinding.clusterRoleName | string | `"view"` | Kubernetes ClusterRole name |
 | clusterRoleBinding.annotations | object | `{}` | Cluster role binding annotations |
 | podSecurityContext | object | `{}` | Pod security context (e.g., fsGroup: 2000) |
 | securityContext.runAsNonRoot | bool | `true` | Run container as non-root |
