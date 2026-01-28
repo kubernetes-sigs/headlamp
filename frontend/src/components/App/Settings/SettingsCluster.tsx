@@ -43,6 +43,7 @@ import SectionBox from '../../common/SectionBox';
 import { ClusterNameEditor } from './ClusterNameEditor';
 import ClusterSelector from './ClusterSelector';
 import NodeShellSettings from './NodeShellSettings';
+import PodDebugSettings from './PodDebugSettings';
 import { isValidNamespaceFormat } from './util';
 
 export default function SettingsCluster() {
@@ -370,6 +371,7 @@ export default function SettingsCluster() {
         />
       </SectionBox>
       <NodeShellSettings cluster={cluster} />
+      <PodDebugSettings cluster={cluster} />
       {removableCluster && isElectron() && (
         <Box pt={2} textAlign="right">
           <ConfirmButton

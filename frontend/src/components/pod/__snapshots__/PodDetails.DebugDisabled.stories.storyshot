@@ -47,7 +47,7 @@
                 <h1
                   class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
                 >
-                  Pod: terminated
+                  Pod: running
                 </h1>
                 <div
                   class="MuiBox-root css-ldp2l3"
@@ -104,19 +104,7 @@
                 </div>
                 <div
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                >
-                  <button
-                    aria-label="Debug Pod"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                </div>
+                />
                 <div
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                 >
@@ -205,7 +193,7 @@
                     <span
                       class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                     >
-                      terminated
+                      running
                     </span>
                   </dd>
                   <dt
@@ -254,9 +242,9 @@
                         data-mui-internal-clone-element="true"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1aajmzw-MuiTypography-root"
                         >
-                          Error
+                          Running
                         </span>
                       </div>
                     </div>
@@ -626,7 +614,7 @@
                       <td
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
-                        False
+                        True
                       </td>
                       <td
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
@@ -647,13 +635,7 @@
                       <td
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
-                        <p
-                          aria-label=""
-                          class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
-                          data-mui-internal-clone-element="true"
-                        >
-                          PodFailed
-                        </p>
+                        -
                       </td>
                     </tr>
                     <tr
@@ -671,7 +653,7 @@
                       <td
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
-                        False
+                        True
                       </td>
                       <td
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
@@ -692,13 +674,7 @@
                       <td
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
-                        <p
-                          aria-label=""
-                          class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
-                          data-mui-internal-clone-element="true"
-                        >
-                          PodFailed
-                        </p>
+                        -
                       </td>
                     </tr>
                     <tr
@@ -788,7 +764,7 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 css-pxyi5o-MuiGrid-root"
                   >
-                    terminated
+                    nginx
                   </dt>
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
@@ -805,9 +781,9 @@
                         class="MuiBox-root css-0"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1aajmzw-MuiTypography-root"
                         >
-                          Error (Error)
+                          Running
                         </span>
                       </div>
                     </div>
@@ -815,31 +791,7 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
                   >
-                    Exit Code
-                  </dt>
-                  <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
-                  >
-                    1
-                  </dd>
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
-                  >
                     Started
-                  </dt>
-                  <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
-                  >
-                    <span
-                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
-                    >
-                      2022-01-01T00:05:00.000Z
-                    </span>
-                  </dd>
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-1iczkge-MuiGrid-root"
-                  >
-                    Finished
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-deb4a-MuiGrid-root"
@@ -871,7 +823,7 @@
                     <span
                       class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                     >
-                      containerd://007cdc266ae70e22e73a077c1c31b71b6c407b3f3817c84da10608dd3b7a82bd
+                      containerd://f8eb12a25a065d170b68cee522d431f4920fe083bf9cf53a4a576d60b8641584
                     </span>
                   </dd>
                   <dt
@@ -899,7 +851,7 @@
                     <p
                       class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
                     >
-                      alpine:3.4
+                      nginx:1.14.2
                     </p>
                     <p
                       class="MuiTypography-root MuiTypography-body1 css-x1ts2p-MuiTypography-root"
@@ -911,22 +863,43 @@
                         ID:
                       </span>
                        
-                      docker.io/library/alpine@sha256:b733d4a32c4da6a00a84df2ca32791bb03df95400243648d8c539e7b4cce329c
+                      docker.io/library/nginx@sha256:f7988fb6c02e0ce69257d9bd9cf37ae20a60f1df7563c3a2a6abe24160306b8d
                     </p>
                   </dd>
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
                   >
-                    Command
+                    Ports
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
                   >
-                    <span
-                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    <div
+                      class="MuiGrid-root MuiGrid-container css-11lq3yg-MuiGrid-root"
                     >
-                      /bin/sh -c exit 1
-                    </span>
+                      <div
+                        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+                      >
+                        <div
+                          class="MuiBox-root css-70qvj9"
+                        >
+                          <div
+                            class="MuiBox-root css-1hckbtd"
+                          >
+                            <span
+                              class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                            >
+                              TCP:
+                            </span>
+                            <span
+                              class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                            >
+                              80
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </dd>
                 </dl>
               </div>
@@ -1036,17 +1009,17 @@
                       <td
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
-                        Warning
+                        Normal
                       </td>
                       <td
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
-                        FailedGetResourceMetric
+                        Created
                       </td>
                       <td
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
-                        horizontal-pod-autoscaler
+                        kubelet
                       </td>
                       <td
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
@@ -1055,17 +1028,23 @@
                           class="MuiBox-root css-k008qs"
                         >
                           <label
-                            id="abc123456"
+                            id=""
                             style="word-break: break-all; white-space: normal;"
                           >
-                            failed to get cpu utilization: missing request for cpu
+                            Created
                           </label>
                         </div>
                       </td>
                       <td
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
-                        3 months (10 times over 3 months)
+                        <p
+                          aria-label="2021-03-01T00:00:00.000Z"
+                          class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          3mo
+                        </p>
                       </td>
                     </tr>
                   </tbody>

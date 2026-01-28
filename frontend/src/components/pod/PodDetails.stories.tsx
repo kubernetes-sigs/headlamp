@@ -16,9 +16,22 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
+import { useEffect } from 'react';
 import { TestContext } from '../../test';
 import PodDetails from './Details';
 import { podList } from './storyHelper';
+
+const CLUSTER_NAME = 'default';
+const NAMESPACE = 'default';
+const MOCK_PATH = `/c/${CLUSTER_NAME}/namespace/${NAMESPACE}/name/pod`;
+const API_BASE = `http://localhost:4466/clusters/${CLUSTER_NAME}/api/v1/namespaces/${NAMESPACE}`;
+const PODS_URL = `${API_BASE}/pods`;
+const PODS_URL_NO_CLUSTER = `http://localhost:4466/api/v1/namespaces/${NAMESPACE}/pods`;
+const EVENTS_URL = `${API_BASE}/events`;
+const AUTH_URL = `http://localhost:4466/clusters/${CLUSTER_NAME}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`;
+
+// Store the initial path at module scope, so we can always restore to it
+const INITIAL_PATH = window.location.pathname;
 
 export default {
   title: 'Pod/PodDetailsView',
@@ -26,14 +39,41 @@ export default {
   argTypes: {},
   decorators: [
     Story => {
-      return <Story />;
+      // Initialize cluster settings for 'default' cluster with debug enabled by default
+      localStorage.setItem(
+        `cluster_settings.${CLUSTER_NAME}`,
+        JSON.stringify({
+          podDebugTerminal: {
+            isEnabled: true,
+          },
+        })
+      );
+
+      // Always reset to initial path before story
+      window.history.replaceState({}, '', INITIAL_PATH);
+      // Set URL for this story
+      window.history.replaceState({}, '', MOCK_PATH);
+
+      // Wrapper component to handle cleanup
+      const ClusterMockWrapper = () => {
+        useEffect(() => {
+          // Cleanup: restore to initial path when component unmounts
+          return () => {
+            window.history.replaceState({}, '', INITIAL_PATH);
+          };
+        }, []);
+
+        return <Story />;
+      };
+
+      return <ClusterMockWrapper />;
     },
   ],
   parameters: {
     msw: {
       handlers: {
         storyBase: [
-          http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+          http.get(EVENTS_URL, () =>
             HttpResponse.json({
               items: [
                 {
@@ -50,7 +90,12 @@ export default {
               ],
             })
           ),
-          http.get('http://localhost:4466/api/v1/pods', () => HttpResponse.json({})),
+          http.get(`http://localhost:4466/clusters/${CLUSTER_NAME}/api/v1/pods`, () =>
+            HttpResponse.json({})
+          ),
+          http.post(AUTH_URL, () =>
+            HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+          ),
         ],
       },
     },
@@ -65,7 +110,10 @@ const Template: StoryFn<MockerStory> = args => {
   const { podName } = args;
 
   return (
-    <TestContext routerMap={{ namespace: 'default', name: podName }}>
+    <TestContext
+      routerMap={{ cluster: CLUSTER_NAME, namespace: NAMESPACE, name: podName }}
+      urlPrefix="/c"
+    >
       <PodDetails />
     </TestContext>
   );
@@ -79,7 +127,10 @@ PullBackOff.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/pods/imagepullbackoff', () =>
+        http.get(`${PODS_URL}/imagepullbackoff`, () =>
+          HttpResponse.json(podList.find(pod => pod.metadata.name === 'imagepullbackoff'))
+        ),
+        http.get(`${PODS_URL_NO_CLUSTER}/imagepullbackoff`, () =>
           HttpResponse.json(podList.find(pod => pod.metadata.name === 'imagepullbackoff'))
         ),
       ],
@@ -95,7 +146,61 @@ Running.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/pods/running', () =>
+        http.get(`${PODS_URL}/running`, () =>
+          HttpResponse.json(podList.find(pod => pod.metadata.name === 'running'))
+        ),
+        http.get(`${PODS_URL_NO_CLUSTER}/running`, () =>
+          HttpResponse.json(podList.find(pod => pod.metadata.name === 'running'))
+        ),
+      ],
+    },
+  },
+};
+
+export const DebugDisabled = Template.bind({});
+DebugDisabled.args = {
+  podName: 'running',
+};
+DebugDisabled.decorators = [
+  Story => {
+    // Force override the global decorator's setting
+    localStorage.setItem(
+      `cluster_settings.${CLUSTER_NAME}`,
+      JSON.stringify({
+        podDebugTerminal: {
+          isEnabled: false,
+        },
+      })
+    );
+
+    // Always reset to initial path before story
+    window.history.replaceState({}, '', INITIAL_PATH);
+    // Set URL for this story
+    window.history.replaceState({}, '', MOCK_PATH);
+
+    // Wrapper component to handle cleanup
+    const ClusterMockWrapper = () => {
+      useEffect(() => {
+        // Cleanup: restore to initial path when component unmounts
+        return () => {
+          window.history.replaceState({}, '', INITIAL_PATH);
+        };
+      }, []);
+
+      return <Story />;
+    };
+
+    return <ClusterMockWrapper />;
+  },
+];
+DebugDisabled.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${PODS_URL}/running`, () =>
+          HttpResponse.json(podList.find(pod => pod.metadata.name === 'running'))
+        ),
+        http.get(`${PODS_URL_NO_CLUSTER}/running`, () =>
           HttpResponse.json(podList.find(pod => pod.metadata.name === 'running'))
         ),
       ],
@@ -109,13 +214,15 @@ Error.parameters = {
     handlers: {
       storyBase: null,
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
-          HttpResponse.json({})
-        ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/pods/terminated', () =>
+        http.get(PODS_URL, () => HttpResponse.json({})),
+        http.get(PODS_URL_NO_CLUSTER, () => HttpResponse.json({})),
+        http.get(`${PODS_URL}/terminated`, () =>
           HttpResponse.json(podList.find(pod => pod.metadata.name === 'terminated'))
         ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+        http.get(`${PODS_URL_NO_CLUSTER}/terminated`, () =>
+          HttpResponse.json(podList.find(pod => pod.metadata.name === 'terminated'))
+        ),
+        http.get(EVENTS_URL, () =>
           HttpResponse.json({
             items: [
               {
@@ -152,6 +259,9 @@ Error.parameters = {
             ],
           })
         ),
+        http.post(AUTH_URL, () =>
+          HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+        ),
       ],
     },
   },
@@ -168,7 +278,10 @@ LivenessFailed.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/pods/liveness-http', () =>
+        http.get(`${PODS_URL}/liveness-http`, () =>
+          HttpResponse.json(podList.find(pod => pod.metadata.name === 'liveness-http'))
+        ),
+        http.get(`${PODS_URL_NO_CLUSTER}/liveness-http`, () =>
           HttpResponse.json(podList.find(pod => pod.metadata.name === 'liveness-http'))
         ),
       ],
@@ -184,7 +297,10 @@ Initializing.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/pods/initializing', () =>
+        http.get(`${PODS_URL}/initializing`, () =>
+          HttpResponse.json(podList.find(pod => pod.metadata.name === 'initializing'))
+        ),
+        http.get(`${PODS_URL_NO_CLUSTER}/initializing`, () =>
           HttpResponse.json(podList.find(pod => pod.metadata.name === 'initializing'))
         ),
       ],
@@ -200,7 +316,10 @@ Successful.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/pods/successful', () =>
+        http.get(`${PODS_URL}/successful`, () =>
+          HttpResponse.json(podList.find(pod => pod.metadata.name === 'successful'))
+        ),
+        http.get(`${PODS_URL_NO_CLUSTER}/successful`, () =>
           HttpResponse.json(podList.find(pod => pod.metadata.name === 'successful'))
         ),
       ],

@@ -106,6 +106,21 @@
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                 >
                   <button
+                    aria-label="Debug Pod"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                    data-mui-internal-clone-element="true"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                >
+                  <button
                     aria-label="Attach"
                     class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
                     data-mui-internal-clone-element="true"
@@ -203,7 +218,7 @@
                   >
                     <a
                       class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                      href="/"
+                      href="/c/default/namespaces/default"
                     >
                       default
                     </a>
@@ -256,7 +271,7 @@
                   >
                     <a
                       class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                      href="/"
+                      href="/c/default/nodes/my-node"
                     >
                       my-node
                     </a>
@@ -271,7 +286,7 @@
                   >
                     <a
                       class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                      href="/"
+                      href="/c/default/serviceaccounts/default/default"
                     >
                       default
                     </a>
