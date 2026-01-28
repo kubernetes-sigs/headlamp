@@ -146,7 +146,7 @@ export interface CRClassArgs {
   pluralName: string;
   singularName: string;
   isNamespaced: boolean;
-  customResourceDefinition: CustomResourceDefinition;
+  customResourceDefinition?: CustomResourceDefinition;
 }
 
 /** @deprecated Use the version of the function that receives an object as its argument. */
@@ -195,8 +195,20 @@ export function makeCustomResourceClass(
     static getBaseObject(): Omit<KubeObjectInterface, 'metadata'> & {
       metadata: Partial<import('./KubeMetadata').KubeMetadata>;
     } {
-      // For custom resources, use the storage version from the CRD
-      const [group, version] = crClassArgs.customResourceDefinition.getMainAPIGroup();
+      // For custom resources - use the storage version from the CRD if available,
+      // otherwise fall back to the first apiInfo entry
+      let group: string;
+      let version: string;
+      if (crClassArgs.customResourceDefinition) {
+        [group, version] = crClassArgs.customResourceDefinition.getMainAPIGroup();
+      } else {
+        if (!apiInfoArgs.length) {
+          throw new Error(
+            'makeCustomResourceClass requires at least one apiInfo entry when customResourceDefinition is not provided'
+          );
+        }
+        [group, version] = apiInfoArgs[0];
+      }
       const apiVersion = group ? `${group}/${version}` : version;
 
       return {
