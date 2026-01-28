@@ -48,7 +48,7 @@ openunison:
     badgeUrl: https://headlamp.mydomain.com/
     # Tells OpenUnison to inject the user's identity
     injectToken: true
-    # the URL where Headlamp os running
+    # the URL where Headlamp is running
     proxyTo: http://headlamp.headlamp.svc${fullURI}
     # authorized groups from your identity provider
     az_groups: []
