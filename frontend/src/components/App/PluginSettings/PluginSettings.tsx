@@ -283,7 +283,21 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                   },
                 };
                 const typeInfo = typeLabels[plugin.type || 'shipped'];
-                return <Chip label={typeInfo.label} size="small" color={typeInfo.color} />;
+                return (
+                  <Chip
+                    label={typeInfo.label}
+                    size="small"
+                    color={typeInfo.color}
+                    sx={
+                      typeInfo.color === 'info'
+                        ? {
+                            bgcolor: 'info.dark',
+                            color: theme => theme.palette.getContrastText(theme.palette.info.dark),
+                          }
+                        : undefined
+                    }
+                  />
+                );
               },
             },
             {
