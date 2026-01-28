@@ -828,19 +828,33 @@ export function registerMapSource(source: GraphSource) {
 /**
  * Register Icon for a resource kind
  *
+ * By default, icons are matched only by `kind`.
+ * Optionally, `apiGroup` can be provided to differentiate resources that share the same kind across different API groups.
+ *
+ * When `apiGroup` is provided, Headlamp will:
+ * 1. First try to match `${apiGroup}/${kind}`.
+ * 2. Fall back to `kind` if no match is found.
+ *
  * @param kind - Resource kind
  * @param {IconDefinition} definition - icon definition
  * @param definition.icon - React Element of the icon
  * @param definition.color - Color for the icon, optional
+ * @param apiGroup - Kubernetes API group, optional
  *
  * @example
  *
+ * Kind only Matching
  * ```tsx
  * registerKindIcon("MyCustomResource", { icon: <MyIcon />, color: "#FF0000" })
  * ```
+ *
+ * Match only networking service
+ * ```tsx
+ * registerKindIcon("Service", { icon: <NetworkingServiceIcon /> }, "networking.k8s.io");
+ * ```
  */
-export function registerKindIcon(kind: string, definition: IconDefinition) {
-  store.dispatch(graphViewSlice.actions.addKindIcon({ kind, definition }));
+export function registerKindIcon(kind: string, definition: IconDefinition, apiGroup?: string) {
+  store.dispatch(graphViewSlice.actions.addKindIcon({ kind, definition, apiGroup }));
 }
 
 /**
