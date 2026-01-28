@@ -47,16 +47,24 @@ const ClusterChooser = React.forwardRef(function ClusterChooser(
       size="large"
       color="secondary"
       onClick={clickHandler}
-      startIcon={<Icon icon="mdi:hexagon-multiple-outline" />}
+      startIcon={<Icon icon="mdi:magnify" />}
+      endIcon={<Icon icon="mdi:chevron-down" width={18} />}
       sx={theme => ({
-        background: theme.palette.navbar.background,
+        background: alpha(theme.palette.primary.main, 0.1),
         color: theme.palette.navbar.color,
+        border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
         ':hover': {
-          background: alpha(theme.palette.navbar.color, 0.07),
+          background: alpha(theme.palette.primary.main, 0.15),
+          border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+          transform: 'translateY(-1px)',
+          boxShadow: theme.shadows[2],
         },
+        transition: 'all 0.2s ease-in-out',
         maxWidth: '20em',
         textTransform: 'none',
-        padding: '6px 22px',
+        padding: '6px 16px',
+        fontWeight: 500,
+        gap: 1,
       })}
       ref={ref}
     >
