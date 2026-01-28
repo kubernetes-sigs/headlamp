@@ -31,6 +31,7 @@ import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
 import { getRoutePath } from '../../lib/router/getRoutePath';
 import { setConfig } from '../../redux/configSlice';
+import store from '../../redux/stores/store';
 import { ClusterDialog } from '../cluster/Chooser';
 import { DialogTitle } from '../common/Dialog';
 import Empty from '../common/EmptyContent';
@@ -148,7 +149,11 @@ function AuthChooser({ children }: AuthChooserProps) {
               }
 
               cluster.useToken = useToken;
-              dispatch(setConfig({ clusters: { ...clusters } }));
+
+              const currentAutoLogin = store.getState().config.oidcAutoLogin;
+              dispatch(
+                setConfig({ clusters: { ...clusters }, oidcAutoLogin: currentAutoLogin || false })
+              );
               // If we don't require a token, then we just move to the attempted URL or root.
               if (!useToken) {
                 history.replace(from);

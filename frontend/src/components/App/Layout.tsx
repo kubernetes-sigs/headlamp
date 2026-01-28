@@ -24,8 +24,11 @@ import { styled } from '@mui/material/styles';
 import { Dispatch, UnknownAction } from '@reduxjs/toolkit';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
+import { useLocation } from 'react-router';
+import { getAppUrl } from '../../helpers/getAppUrl';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
 import { useClustersConf } from '../../lib/k8s';
@@ -143,7 +146,11 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
       clustersToConfig[cluster.name] = cluster;
     });
 
-    const configToStore = { ...config, clusters: clustersToConfig };
+    const configToStore = {
+      ...config,
+      clusters: clustersToConfig,
+      oidcAutoLogin: config.oidcAutoLogin,
+    };
 
     if (clusters === null) {
       dispatch(setConfig(configToStore));
@@ -188,6 +195,7 @@ export default function Layout({}: LayoutProps) {
   const isFullWidth = useTypedSelector(state => state.ui.isFullWidth);
   const { t } = useTranslation();
   const allClusters = useClustersConf();
+  const location = useLocation();
 
   /** This fetches the cluster config from the backend and updates the redux store on an interval.
    * When stateless clusters are enabled, it also fetches the stateless cluster config from the
@@ -223,6 +231,29 @@ export default function Layout({}: LayoutProps) {
   const MAXIMUM_NUM_ALERTS = 2;
 
   const panels = useUIPanelsGroupedBySide();
+
+  const oauthUrl = `${getAppUrl()}oidc?dt=${Date()}&cluster=${getCluster()}`;
+  const oidcAutoLogin = useTypedSelector(state => state.config.oidcAutoLogin);
+
+  React.useEffect(() => {
+    if (oidcAutoLogin === undefined || !clusters) {
+      return;
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const isLoggingOut = urlParams.get('logout') === 'true';
+
+    const currentClusterName = getCluster();
+    const currentCluster = currentClusterName ? clusters[currentClusterName] : null;
+    const isOIDC = currentCluster?.auth_type === 'oidc';
+
+    if (oidcAutoLogin && isOIDC && !isLoggingOut && !error) {
+      const hasToken = !!currentCluster?.useToken;
+      if (!hasToken) {
+        window.location.href = oauthUrl;
+      }
+    }
+  }, [oidcAutoLogin, clusters, error, oauthUrl, location]);
 
   if (!disableBackendLoader) {
     if (error && !config) {
