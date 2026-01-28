@@ -44,10 +44,10 @@ export async function deletePlugin(name: string, type?: 'development' | 'user') 
   const url = type ? `/plugins/${name}?type=${type}` : `/plugins/${name}`;
   const res = (await request(
     url,
-    { method: 'DELETE', headers: { ...getHeadlampAPIHeaders() } },
+    { method: 'DELETE', headers: { ...getHeadlampAPIHeaders() }, isJSON: false },
     false,
     false
-  )) as any;
+  )) as Response;
 
   // Handle real fetch Response
   if (res && typeof res.ok === 'boolean' && typeof res.text === 'function') {
