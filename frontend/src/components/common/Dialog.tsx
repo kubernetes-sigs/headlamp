@@ -46,6 +46,11 @@ export interface OurDialogTitleProps extends DialogTitleProps {
 export function DialogTitle(props: OurDialogTitleProps) {
   const { children, focusTitle, buttons, disableTypography = false, ...other } = props;
 
+  // Don't render heading if there's no content to avoid empty heading violations
+  if (!children && (!buttons || buttons.length === 0)) {
+    return null;
+  }
+
   const focusedRef = React.useCallback((node: HTMLElement) => {
     if (node !== null) {
       if (focusTitle) {
@@ -58,23 +63,25 @@ export function DialogTitle(props: OurDialogTitleProps) {
   return (
     <MuiDialogTitle style={{ display: 'flex' }} {...other}>
       <Grid container justifyContent="space-between" alignItems="center">
-        <Grid item>
-          {disableTypography ? (
-            children
-          ) : (
-            <Typography
-              ref={focusedRef}
-              variant="h1"
-              style={{
-                fontSize: '1.25rem',
-                fontWeight: 500,
-                lineHeight: 1.6,
-              }}
-            >
-              {children}
-            </Typography>
-          )}
-        </Grid>
+        {children && (
+          <Grid item>
+            {disableTypography ? (
+              children
+            ) : (
+              <Typography
+                ref={focusedRef}
+                variant="h1"
+                style={{
+                  fontSize: '1.25rem',
+                  fontWeight: 500,
+                  lineHeight: 1.6,
+                }}
+              >
+                {children}
+              </Typography>
+            )}
+          </Grid>
+        )}
         {buttons && buttons.length > 0 && (
           <Grid item>
             <Box>
