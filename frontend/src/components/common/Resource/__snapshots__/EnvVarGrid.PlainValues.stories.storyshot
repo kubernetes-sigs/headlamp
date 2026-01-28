@@ -1,0 +1,26 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-0"
+    >
+      <div
+        class="MuiBox-root css-yi3mkw"
+      >
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-19rcg82-MuiTypography-root"
+        >
+          NODE_ENV
+          : 
+          production
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-19rcg82-MuiTypography-root"
+        >
+          DEBUG
+          : 
+          true
+        </span>
+      </div>
+    </div>
+  </div>
+</body>
