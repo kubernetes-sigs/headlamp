@@ -103,12 +103,24 @@ function replaceUseId(node: any) {
       }
     }
 
+    // Replace dynamic xterm owner classes in both className property and class attribute
     if (node.className && typeof node.className === 'string') {
-      // Replace dynamic xterm owner classes with a fixed value
       node.className = node.className.replace(
         /xterm-dom-renderer-owner-\d+/g,
         'xterm-dom-renderer-owner'
       );
+    }
+
+    // Also handle the class attribute directly
+    const classAttr = node.getAttribute('class');
+    if (classAttr) {
+      const normalizedClass = classAttr.replace(
+        /xterm-dom-renderer-owner-\d+/g,
+        'xterm-dom-renderer-owner'
+      );
+      if (normalizedClass !== classAttr) {
+        node.setAttribute('class', normalizedClass);
+      }
     }
   }
 
