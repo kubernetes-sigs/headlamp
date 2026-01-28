@@ -43,6 +43,12 @@ export interface ConfigState {
     [clusterName: string]: Cluster;
   } | null;
   /**
+   * Theme configuration from the backend server.
+   */
+  defaultLightTheme?: string;
+  defaultDarkTheme?: string;
+  forceTheme?: string;
+  /**
    * Settings is a map of settings names to settings values.
    */
   settings: {
@@ -89,8 +95,19 @@ const configSlice = createSlice({
      * @param state - The current state.
      * @param action - The payload action containing the config.
      */
-    setConfig(state, action: PayloadAction<{ clusters: ConfigState['clusters'] }>) {
+    setConfig(
+      state,
+      action: PayloadAction<{
+        clusters: ConfigState['clusters'];
+        defaultLightTheme?: string;
+        defaultDarkTheme?: string;
+        forceTheme?: string;
+      }>
+    ) {
       state.clusters = action.payload.clusters;
+      state.defaultLightTheme = action.payload.defaultLightTheme;
+      state.defaultDarkTheme = action.payload.defaultDarkTheme;
+      state.forceTheme = action.payload.forceTheme;
     },
     /**
      * Save the config. To both the store, and localStorage.

@@ -28,4 +28,7 @@ type HeadlampCFG struct {
 	ProxyURLs             []string
 	TLSCertPath           string
 	TLSKeyPath            string
+	DefaultLightTheme     string
+	DefaultDarkTheme      string
+	ForceTheme            string
 }
