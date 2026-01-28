@@ -68,7 +68,12 @@ export const GroupNodeComponent = memo(({ id }: { id: string }) => {
       {(node?.label || node?.subtitle) && (
         <Label title={node?.label}>
           {node?.kubeObject ? (
-            <KubeIcon kind={node.kubeObject.kind} width="24px" height="24px" />
+            <KubeIcon
+              kind={node.kubeObject.kind}
+              apiVersion={node.kubeObject.jsonData?.apiVersion}
+              width="24px"
+              height="24px"
+            />
           ) : (
             node?.icon ?? null
           )}
