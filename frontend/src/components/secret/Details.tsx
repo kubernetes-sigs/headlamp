@@ -60,12 +60,13 @@ export default function SecretDetails(props: {
           {
             id: 'headlamp.secrets-data',
             section: () => {
-              const initialData = _.mapValues(item.data, (v: string) => Base64.decode(v));
+              // Keep data in base64 format - SecretField handles decoding for display
+              const initialData = item.data || {};
               const [data, setData] = React.useState(initialData);
               const lastDataRef = React.useRef(initialData);
 
               React.useEffect(() => {
-                const newData = _.mapValues(item.data, (v: string) => Base64.decode(v));
+                const newData = item.data || {};
                 if (!_.isEqual(newData, lastDataRef.current)) {
                   if (_.isEqual(data, lastDataRef.current)) {
                     setData(newData);
@@ -75,12 +76,13 @@ export default function SecretDetails(props: {
               }, [item.data]);
 
               const handleFieldChange = (key: string, newValue: string) => {
-                setData(prev => ({ ...prev, [key]: newValue }));
+                // User edits in plaintext, encode back to base64 for storage
+                setData(prev => ({ ...prev, [key]: Base64.encode(newValue) }));
               };
 
               const handleSave = () => {
-                const encodedData = _.mapValues(data, (v: string) => Base64.encode(v));
-                const updatedSecret = { ...item.jsonData, data: encodedData };
+                // Data is already base64 encoded
+                const updatedSecret = { ...item.jsonData, data };
                 dispatch(
                   clusterAction(() => item.update(updatedSecret), {
                     startMessage: t('translation|Applying changes to {{ itemName }}…', {

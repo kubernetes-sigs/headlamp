@@ -15,7 +15,7 @@
  */
 
 import * as fc from 'fast-check';
-import { parseCpu, parseRam, unparseCpu, unparseRam } from './units';
+import { divideK8sResources, parseCpu, parseRam, unparseCpu, unparseRam } from './units';
 
 describe('parseRam', () => {
   it('should parse simple numbers', () => {
@@ -167,5 +167,54 @@ describe('unparseCpu', () => {
 
   it('should round to 2 decimal places', () => {
     expect(unparseCpu('1333333')).toEqual({ value: 1.33, unit: 'm' });
+  });
+});
+
+describe('divideK8sResources', () => {
+  it('should divide two resource quantities with binary units', () => {
+    expect(divideK8sResources('1Gi', '1Mi')).toBe(1024);
+    expect(divideK8sResources('2Gi', '1Gi')).toBe(2);
+    expect(divideK8sResources('1Mi', '1Ki')).toBe(1024);
+  });
+
+  it('should handle plain numbers', () => {
+    expect(divideK8sResources('1000', '100')).toBe(10);
+    expect(divideK8sResources('1', '1')).toBe(1);
+  });
+
+  it('should handle decimal units', () => {
+    expect(divideK8sResources('1M', '1K')).toBe(1000);
+    expect(divideK8sResources('1G', '1M')).toBe(1000);
+  });
+
+  it('should handle mixed units', () => {
+    // 1Gi = 1073741824 bytes, 1G = 1000000000 bytes
+    expect(divideK8sResources('1Gi', '1G')).toBeCloseTo(1.073741824, 5);
+  });
+
+  it('should handle CPU units when resourceType is cpu', () => {
+    // 500m (millicores) / 1 (core) = 0.5
+    expect(divideK8sResources('500m', '1', 'cpu')).toBe(0.5);
+    // 1 core / 1m (millicore) = 1000
+    expect(divideK8sResources('1', '1m', 'cpu')).toBe(1000);
+    // 2 cores / 1 core = 2
+    expect(divideK8sResources('2', '1', 'cpu')).toBe(2);
+    // 100m / 100m = 1
+    expect(divideK8sResources('100m', '100m', 'cpu')).toBe(1);
+  });
+
+  it('should handle CPU with nano and micro units', () => {
+    // 1000n / 1n = 1000
+    expect(divideK8sResources('1000n', '1n', 'cpu')).toBe(1000);
+    // 1u / 1n = 1000
+    expect(divideK8sResources('1u', '1n', 'cpu')).toBe(1000);
+    // 1m / 1u = 1000
+    expect(divideK8sResources('1m', '1u', 'cpu')).toBe(1000);
+  });
+
+  it('should default to memory parsing when resourceType is not specified', () => {
+    // These should still work as before (memory)
+    expect(divideK8sResources('1Gi', '1Mi')).toBe(1024);
+    expect(divideK8sResources('1M', '1K')).toBe(1000);
   });
 });

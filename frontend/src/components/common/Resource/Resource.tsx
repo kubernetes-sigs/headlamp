@@ -28,7 +28,10 @@ import { BaseTextFieldProps } from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/system';
 import { Location } from 'history';
-import _, { has } from 'lodash';
+import { Base64 } from 'js-base64';
+import { JSONPath } from 'jsonpath-plus';
+import _, { ceil, has } from 'lodash';
+import { useSnackbar } from 'notistack';
 import React, { PropsWithChildren, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath, NavLinkProps, useLocation } from 'react-router-dom';
@@ -36,15 +39,18 @@ import YAML from 'yaml';
 import { labelSelectorToQuery, ResourceClasses, useCluster } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { KubeCondition, KubeContainer, KubeContainerStatus } from '../../../lib/k8s/cluster';
+import ConfigMap from '../../../lib/k8s/configMap';
 import { KubeEvent } from '../../../lib/k8s/event';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 import Pod, { KubePod, KubeVolume } from '../../../lib/k8s/pod';
 import { METRIC_REFETCH_INTERVAL_MS, PodMetrics } from '../../../lib/k8s/PodMetrics';
+import Secret from '../../../lib/k8s/secret';
 import { RouteURLProps } from '../../../lib/router';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { getThemeName } from '../../../lib/themes';
+import { divideK8sResources } from '../../../lib/units';
 import { localeDate, useId } from '../../../lib/util';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../../redux/hooks';
@@ -521,7 +527,8 @@ export function SecretField(props: SecretFieldProps) {
     }
 
     try {
-      await navigator.clipboard.writeText(secret);
+      // Copy the decoded value
+      await navigator.clipboard.writeText(Base64.decode(secret));
       setCopied(true);
       setTimeout(() => setCopied(false), 1200);
     } catch (err) {
@@ -544,12 +551,12 @@ export function SecretField(props: SecretFieldProps) {
   );
 
   return (
-    <Grid container alignItems="stretch" spacing={2}>
+    <Grid container alignItems={!!other?.disableUnderline ? 'center' : 'stretch'} spacing={2}>
       <Grid item>
         {!!secret ? <LightTooltip title={tooltipTitle}>{copyButton}</LightTooltip> : copyButton}
         <IconButton
           edge="end"
-          aria-label={t('toggle field visibility')}
+          aria-label={t('glossary|toggle field visibility')}
           onClick={handleClickShowPassword}
           onMouseDown={event => event.preventDefault()}
           size="medium"
@@ -565,7 +572,7 @@ export function SecretField(props: SecretFieldProps) {
           fullWidth
           multiline={showPassword}
           maxRows="20"
-          value={showPassword ? (value as string) : '******'}
+          value={showPassword ? Base64.decode(value as string) : '••••••••'}
           {...other}
         />
       </Grid>
@@ -635,6 +642,614 @@ export function ConditionsTable(props: ConditionsTableProps) {
       data={(resource && resource.status && resource.status.conditions) || []}
       columns={getColumns()}
     />
+  );
+}
+
+// Types for environment variables feature
+export interface EnvironmentVariablesProps {
+  pod?: KubePod;
+  container?: KubeContainer;
+}
+
+interface EnvVarReference {
+  name: string;
+  type: 'secret' | 'configMap' | 'secretRef' | 'configMapRef' | 'field' | 'resourceField' | 'value';
+  resourceName?: string;
+  key?: string;
+  optional?: boolean;
+  prefix?: string;
+  fieldPath?: string;
+  resource?: string;
+  containerName?: string;
+  divisor?: string;
+  value?: string;
+}
+
+interface EnvironmentVariable {
+  key: string;
+  from?: KubeObject | string | null;
+  value: string;
+  isError: boolean;
+  isSecret: boolean;
+  isOutOfSync: boolean;
+}
+
+interface FetchedResource {
+  resource: KubeObject | null;
+  error: ApiError | null;
+}
+
+/**
+ * Extracts all environment variable references from a container spec.
+ * This is a pure function with no hooks.
+ */
+function extractEnvVarReferences(container: KubeContainer): EnvVarReference[] {
+  const refs: EnvVarReference[] = [];
+
+  // Process env variables
+  container?.env?.forEach(item => {
+    if (item.value) {
+      refs.push({ name: item.name, type: 'value', value: item.value });
+    } else if (item.valueFrom) {
+      const vf = item.valueFrom;
+      if (vf.secretKeyRef) {
+        refs.push({
+          name: item.name,
+          type: 'secret',
+          resourceName: vf.secretKeyRef.name,
+          key: vf.secretKeyRef.key,
+          optional: vf.secretKeyRef.optional,
+        });
+      } else if (vf.configMapKeyRef) {
+        refs.push({
+          name: item.name,
+          type: 'configMap',
+          resourceName: vf.configMapKeyRef.name,
+          key: vf.configMapKeyRef.key,
+          optional: vf.configMapKeyRef.optional,
+        });
+      } else if (vf.fieldRef) {
+        refs.push({
+          name: item.name,
+          type: 'field',
+          fieldPath: vf.fieldRef.fieldPath,
+        });
+      } else if (vf.resourceFieldRef) {
+        refs.push({
+          name: item.name,
+          type: 'resourceField',
+          resource: vf.resourceFieldRef.resource,
+          containerName: vf.resourceFieldRef.containerName,
+          divisor: vf.resourceFieldRef.divisor,
+        });
+      }
+    }
+  });
+
+  // Process envFrom
+  container?.envFrom?.forEach(item => {
+    if (item.secretRef) {
+      refs.push({
+        name: item.secretRef.name,
+        type: 'secretRef',
+        resourceName: item.secretRef.name,
+        optional: item.secretRef.optional,
+        prefix: item.prefix,
+      });
+    } else if (item.configMapRef) {
+      refs.push({
+        name: item.configMapRef.name,
+        type: 'configMapRef',
+        resourceName: item.configMapRef.name,
+        optional: item.configMapRef.optional,
+        prefix: item.prefix,
+      });
+    }
+  });
+
+  return refs;
+}
+
+/**
+ * Component that fetches a Secret and reports the result.
+ * This properly calls hooks at the top level.
+ */
+function SecretFetcher(props: {
+  name: string;
+  namespace: string;
+  onResult: (name: string, resource: KubeObject | null, error: ApiError | null) => void;
+}) {
+  const { name, namespace, onResult } = props;
+  const [secret, error] = Secret.useGet(name, namespace);
+
+  React.useEffect(() => {
+    // Only call onResult when we have a definitive result (either data or error)
+    if (secret || error) {
+      onResult(name, secret, error);
+    }
+  }, [secret, error, name, onResult]);
+
+  return null;
+}
+
+/**
+ * Component that fetches a ConfigMap and reports the result.
+ * This properly calls hooks at the top level.
+ */
+function ConfigMapFetcher(props: {
+  name: string;
+  namespace: string;
+  onResult: (name: string, resource: KubeObject | null, error: ApiError | null) => void;
+}) {
+  const { name, namespace, onResult } = props;
+  const [configMap, error] = ConfigMap.useGet(name, namespace);
+
+  React.useEffect(() => {
+    if (configMap || error) {
+      onResult(name, configMap, error);
+    }
+  }, [configMap, error, name, onResult]);
+
+  return null;
+}
+
+/**
+ * Builds environment variables from references and fetched resources.
+ * This is a pure function with no hooks.
+ */
+function buildEnvironmentVariables(
+  references: EnvVarReference[],
+  fetchedSecrets: Map<string, FetchedResource>,
+  fetchedConfigMaps: Map<string, FetchedResource>,
+  pod: KubePod,
+  container: KubeContainer,
+  containerStartTimestamp: string | undefined
+): EnvironmentVariable[] {
+  const variables = new Map<string, Omit<EnvironmentVariable, 'key'>>();
+
+  // Helper to compare timestamps
+  const isOutOfSync = (resourceTimestamp: string | undefined): boolean => {
+    if (!resourceTimestamp || !containerStartTimestamp) return false;
+    return new Date(resourceTimestamp).getTime() > new Date(containerStartTimestamp).getTime();
+  };
+
+  references.forEach(ref => {
+    switch (ref.type) {
+      case 'value':
+        variables.set(ref.name, {
+          value: ref.value!,
+          from: 'manifest',
+          isSecret: false,
+          isError: false,
+          isOutOfSync: false,
+        });
+        break;
+
+      case 'secret': {
+        const fetched = fetchedSecrets.get(ref.resourceName!);
+        if (!fetched) break; // Still loading
+
+        const { resource: secret, error } = fetched;
+        if (error) {
+          if (error.status === 404 && ref.optional) break;
+          variables.set(ref.name, {
+            value: error.message,
+            from: secret,
+            isError: true,
+            isSecret: false,
+            isOutOfSync: false,
+          });
+        } else if (secret) {
+          const secretData = (secret as any).data || {};
+          const value = secretData[ref.key!] ? atob(secretData[ref.key!]) : '';
+          variables.set(ref.name, {
+            value,
+            from: secret,
+            isError: false,
+            isSecret: true,
+            isOutOfSync: isOutOfSync(secret.metadata?.creationTimestamp),
+          });
+        }
+        break;
+      }
+
+      case 'configMap': {
+        const fetched = fetchedConfigMaps.get(ref.resourceName!);
+        if (!fetched) break;
+
+        const { resource: configMap, error } = fetched;
+        if (error) {
+          if (error.status === 404 && ref.optional) break;
+          variables.set(ref.name, {
+            value: error.message,
+            from: configMap,
+            isError: true,
+            isSecret: false,
+            isOutOfSync: false,
+          });
+        } else if (configMap) {
+          const configMapData = (configMap as any).data || {};
+          variables.set(ref.name, {
+            value: configMapData[ref.key!] || '',
+            from: configMap,
+            isError: false,
+            isSecret: false,
+            isOutOfSync: isOutOfSync(configMap.metadata?.creationTimestamp),
+          });
+        }
+        break;
+      }
+
+      case 'secretRef': {
+        const fetched = fetchedSecrets.get(ref.resourceName!);
+        if (!fetched) break;
+
+        const { resource: secret, error } = fetched;
+        const prefix = ref.prefix || '';
+        if (error) {
+          if (error.status === 404 && ref.optional) break;
+          variables.set(`${prefix}${ref.resourceName}`, {
+            value: error.message,
+            from: secret,
+            isError: true,
+            isSecret: false,
+            isOutOfSync: false,
+          });
+        } else if (secret) {
+          const secretData = (secret as any).data || {};
+          const outOfSync = isOutOfSync(secret.metadata?.creationTimestamp);
+          Object.entries(secretData).forEach(([key, value]) => {
+            variables.set(`${prefix}${key}`, {
+              value: atob(value as string),
+              from: secret,
+              isError: false,
+              isSecret: true,
+              isOutOfSync: outOfSync,
+            });
+          });
+        }
+        break;
+      }
+
+      case 'configMapRef': {
+        const fetched = fetchedConfigMaps.get(ref.resourceName!);
+        if (!fetched) break;
+
+        const { resource: configMap, error } = fetched;
+        const prefix = ref.prefix || '';
+        if (error) {
+          if (error.status === 404 && ref.optional) break;
+          variables.set(`${prefix}${ref.resourceName}`, {
+            value: error.message,
+            from: configMap,
+            isError: true,
+            isSecret: false,
+            isOutOfSync: false,
+          });
+        } else if (configMap) {
+          const configMapData = (configMap as any).data || {};
+          const outOfSync = isOutOfSync(configMap.metadata?.creationTimestamp);
+          Object.entries(configMapData).forEach(([key, value]) => {
+            variables.set(`${prefix}${key}`, {
+              value: value as string,
+              from: configMap,
+              isError: false,
+              isSecret: false,
+              isOutOfSync: outOfSync,
+            });
+          });
+        }
+        break;
+      }
+
+      case 'field': {
+        let value: string;
+        let isError = false;
+        try {
+          const result = JSONPath({ path: '$.' + ref.fieldPath, json: pod });
+          value = Array.isArray(result) ? result[0] : result;
+          if (value === undefined) {
+            value = '';
+          } else if (typeof value !== 'string') {
+            value = JSON.stringify(value);
+          }
+        } catch (err) {
+          isError = true;
+          value = err instanceof Error ? `Error: ${err.message}` : 'Unknown error';
+        }
+        variables.set(ref.name, {
+          value,
+          from: `fieldRef: ${ref.fieldPath}`,
+          isSecret: false,
+          isError,
+          isOutOfSync: false,
+        });
+        break;
+      }
+
+      case 'resourceField': {
+        let value = '';
+        let isError = false;
+        const containerName = ref.containerName || container.name;
+        const resourceType = ref.resource!;
+        let divisor = ref.divisor || '1';
+        if (divisor === '0') {
+          divisor = '1';
+        }
+
+        try {
+          const targetContainer = pod.spec?.containers?.find(c => c.name === containerName);
+          if (!targetContainer) {
+            throw new Error(`Container ${containerName} not found`);
+          }
+
+          const [category, type] = resourceType.split('.');
+          const resourceValue =
+            targetContainer.resources?.[category as 'requests' | 'limits']?.[
+              type as 'cpu' | 'memory'
+            ];
+          if (!resourceValue) {
+            throw new Error(`Resource ${resourceType} not found for container ${containerName}`);
+          }
+
+          value = `${ceil(divideK8sResources(resourceValue, divisor, type as 'cpu' | 'memory'))}`;
+        } catch (err) {
+          isError = true;
+          if (err instanceof Error) {
+            value = err.message;
+          } else {
+            value = 'Unknown error occurred.';
+          }
+        }
+
+        variables.set(ref.name, {
+          value,
+          from: `resourceFieldRef: ${containerName}.${resourceType} / ${divisor}`,
+          isSecret: false,
+          isError,
+          isOutOfSync: false,
+        });
+        break;
+      }
+    }
+  });
+
+  return Array.from(variables.entries())
+    .map(([key, value]) => ({ key, ...value }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/**
+ * Displays environment variables for a container, fetching values from
+ * Secrets and ConfigMaps as needed.
+ */
+export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) {
+  const { pod, container } = props;
+  const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
+
+  // State to store fetched resources
+  const [fetchedSecrets, setFetchedSecrets] = React.useState<Map<string, FetchedResource>>(
+    new Map()
+  );
+  const [fetchedConfigMaps, setFetchedConfigMaps] = React.useState<Map<string, FetchedResource>>(
+    new Map()
+  );
+
+  // Early return if no env vars
+  if (
+    (!container?.env && !container?.envFrom) ||
+    !pod?.status?.containerStatuses ||
+    !pod?.metadata?.namespace
+  ) {
+    return null;
+  }
+
+  const namespace = pod.metadata.namespace;
+  const containerStartTimestamp = (() => {
+    let timestamp = pod.metadata?.creationTimestamp;
+    const containerStatus = pod.status?.containerStatuses?.find(c => c.name === container?.name);
+    if (containerStatus?.started && containerStatus.state?.running?.startedAt) {
+      timestamp = containerStatus.state.running.startedAt;
+    }
+    return timestamp;
+  })();
+
+  // Extract all references upfront (pure function, no hooks)
+  const references = extractEnvVarReferences(container);
+
+  // Get unique resource names to fetch
+  const secretsToFetch = React.useMemo(() => {
+    const secrets = new Set<string>();
+    references.forEach(ref => {
+      if ((ref.type === 'secret' || ref.type === 'secretRef') && ref.resourceName) {
+        secrets.add(ref.resourceName);
+      }
+    });
+    return Array.from(secrets);
+  }, [references]);
+
+  const configMapsToFetch = React.useMemo(() => {
+    const configMaps = new Set<string>();
+    references.forEach(ref => {
+      if ((ref.type === 'configMap' || ref.type === 'configMapRef') && ref.resourceName) {
+        configMaps.add(ref.resourceName);
+      }
+    });
+    return Array.from(configMaps);
+  }, [references]);
+
+  // Callbacks to handle fetched resources
+  const handleSecretFetched = React.useCallback(
+    (name: string, resource: KubeObject | null, error: ApiError | null) => {
+      setFetchedSecrets(prev => {
+        const next = new Map(prev);
+        next.set(name, { resource, error });
+        return next;
+      });
+    },
+    []
+  );
+
+  const handleConfigMapFetched = React.useCallback(
+    (name: string, resource: KubeObject | null, error: ApiError | null) => {
+      setFetchedConfigMaps(prev => {
+        const next = new Map(prev);
+        next.set(name, { resource, error });
+        return next;
+      });
+    },
+    []
+  );
+
+  // Copy handler using notistack
+  const handleCopy = React.useCallback(
+    (text: string) => {
+      navigator.clipboard.writeText(text).then(
+        () => enqueueSnackbar(t('translation|Copied'), { variant: 'success' }),
+        err => console.error('Failed to copy: ', err)
+      );
+    },
+    [enqueueSnackbar, t]
+  );
+
+  // Build variables from fetched resources
+  const variables = buildEnvironmentVariables(
+    references,
+    fetchedSecrets,
+    fetchedConfigMaps,
+    pod,
+    container,
+    containerStartTimestamp
+  );
+
+  // Define columns for the table
+  const columns = [
+    {
+      label: t('translation|Name'),
+      getter: (data: EnvironmentVariable) => {
+        return (
+          <Box display="flex" alignItems="center">
+            <StatusLabel status="" sx={{ fontFamily: 'monospace' }}>
+              {data.key}
+            </StatusLabel>
+            {data.isOutOfSync && (
+              <Box aria-label="hidden" display="flex" alignItems="center" px={1}>
+                <HoverInfoLabel
+                  label=""
+                  aria-label="error"
+                  icon="mdi:alert-outline"
+                  hoverInfo={t(
+                    'translation|This value may differ in the container, since the pod is older than {{from}}',
+                    {
+                      from: (() => {
+                        if (typeof data.from === 'object' && data.from !== null) {
+                          const o = data.from as KubeObject;
+                          return `${o.kind} ${o.metadata.name}`;
+                        }
+                        return 'the referenced object';
+                      })(),
+                    }
+                  )}
+                />
+              </Box>
+            )}
+          </Box>
+        );
+      },
+    },
+    {
+      label: t('translation|Value'),
+      getter: (data: EnvironmentVariable) => {
+        if (data.isError) {
+          return (
+            <Box display="flex" alignItems="center" px={1}>
+              <Icon icon="mdi:alert-outline" aria-label="error" />
+              <Typography color="error" sx={{ marginLeft: 1 }}>
+                {data.value}
+              </Typography>
+            </Box>
+          );
+        }
+
+        return (
+          <Box display="flex" alignItems="center">
+            {data.isSecret ? (
+              <SecretField
+                disableUnderline
+                value={btoa(data.value)}
+                sx={{ fontFamily: 'monospace' }}
+              />
+            ) : (
+              <>
+                <IconButton
+                  edge="end"
+                  aria-label={t('translation|Copy')}
+                  onClick={() => handleCopy(data.value)}
+                  onMouseDown={event => event.preventDefault()}
+                  size="medium"
+                >
+                  <Icon icon="mdi:content-copy" />
+                </IconButton>
+                <Typography sx={{ fontFamily: 'monospace', ml: 1 }}>{data.value}</Typography>
+              </>
+            )}
+          </Box>
+        );
+      },
+    },
+    {
+      label: t('translation|From'),
+      getter: (data: EnvironmentVariable) => {
+        if (typeof data.from === 'object' && data.from !== null) {
+          let routeName;
+          try {
+            routeName =
+              ResourceClasses[data.from?.kind as keyof typeof ResourceClasses].detailsRoute;
+          } catch (e) {
+            console.error(`Error getting routeName for ${data.from?.kind}`, e);
+            return null;
+          }
+          return (
+            <Link
+              routeName={routeName}
+              params={{
+                name: data.from?.metadata?.name,
+                namespace: data.from?.metadata?.namespace,
+              }}
+            >
+              {`${data.from?.kind}: ${data.from?.metadata?.name}`}
+            </Link>
+          );
+        } else if (typeof data.from === 'string') {
+          return data.from;
+        }
+        return null;
+      },
+    },
+  ];
+
+  return (
+    <>
+      {/* Render fetcher components - these call hooks properly at top level */}
+      {secretsToFetch.map(name => (
+        <SecretFetcher
+          key={`secret-${name}`}
+          name={name}
+          namespace={namespace}
+          onResult={handleSecretFetched}
+        />
+      ))}
+      {configMapsToFetch.map(name => (
+        <ConfigMapFetcher
+          key={`configmap-${name}`}
+          name={name}
+          namespace={namespace}
+          onResult={handleConfigMapFetched}
+        />
+      ))}
+      <InnerTable columns={columns} data={variables} />
+    </>
   );
 }
 
@@ -858,23 +1473,6 @@ export function ContainerInfo(props: ContainerInfoProps) {
   }
 
   function containerRows() {
-    const env: { [name: string]: string } = {};
-    (container.env || []).forEach(envVar => {
-      let value = '';
-
-      if (envVar.value) {
-        value = envVar.value;
-      } else if (envVar.valueFrom) {
-        if (envVar.valueFrom.fieldRef) {
-          value = envVar.valueFrom.fieldRef.fieldPath;
-        } else if (envVar.valueFrom.secretKeyRef) {
-          value = envVar.valueFrom.secretKeyRef.key;
-        }
-      }
-
-      env[envVar.name] = value;
-    });
-
     return [
       {
         name: container.name,
@@ -980,9 +1578,9 @@ export function ContainerInfo(props: ContainerInfoProps) {
         hide: !container.command,
       },
       {
-        name: t('Environment'),
-        value: <MetadataDictGrid dict={env} />,
-        hide: _.isEmpty(env),
+        name: t('glossary|Environment'),
+        value: <ContainerEnvironmentVariables pod={resource as KubePod} container={container} />,
+        hide: _.isEmpty(container?.env) && _.isEmpty(container?.envFrom),
       },
       {
         name: t('Liveness Probes'),
