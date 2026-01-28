@@ -246,12 +246,18 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 // RefreshAndCacheNewToken obtains a fresh OIDC token using the cached refresh token
 // and re-populates the cache so subsequent requests can reuse it. The provided ctx
 // controls cancellation and deadlines for all outbound requests during the refresh.
-func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.OidcConfig,
+func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.OidcConfig, debugEnabled bool,
 	cache cache.Cache[interface{}],
 	tokenType, token, issuerURL string,
 ) (*oauth2.Token, error) {
 	ctx = ConfigureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
 
+	if debugEnabled {
+		logger.Log(logger.LevelDebug, map[string]string{
+			"issuer":    issuerURL,
+			"client_id": oidcAuthConfig.ClientID,
+		}, nil, "Initiating token refresh with identity provider")
+	}
 	// get provider
 	provider, err := oidc.NewProvider(ctx, issuerURL)
 	if err != nil {
