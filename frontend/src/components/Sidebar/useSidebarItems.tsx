@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
+import { useTheme } from '@mui/material/styles';
 import _ from 'lodash';
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
 import { isElectron } from '../../helpers/isElectron';
-import { useSelectedClusters } from '../../lib/k8s';
+import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import CRD from '../../lib/k8s/crd';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
 import { DefaultSidebars, SidebarItemProps } from '.';
+import ClusterBadge from './ClusterBadge';
 
 /** Iterates over every entry in the list, including children */
 const forEachEntry = (items: SidebarItemProps[], cb: (item: SidebarItemProps) => void) => {
@@ -56,7 +59,9 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
   const shouldShowHomeItem = isElectron() || Object.keys(clusters).length !== 1;
   const selectedClusters = useSelectedClusters();
+  const allClustersConf = useClustersConf();
   const { t } = useTranslation();
+  const theme = useTheme();
 
   const [crds, error] = CRD.useList();
   if (error !== null) {
@@ -111,6 +116,27 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   }, [sidebarName, crds]);
 
   const sidebars = useMemo(() => {
+    // Create cluster badges for sidebar
+    const clusterBadgesSubtitle =
+      selectedClusters.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+          {selectedClusters.map(clusterName => {
+            const appearance = getClusterAppearanceFromMeta(clusterName);
+            return (
+              <ClusterBadge
+                key={clusterName}
+                name={clusterName}
+                accentColor={
+                  appearance.accentColor ||
+                  theme.palette.getContrastText(theme.palette.text.primary)
+                }
+                icon={appearance.icon}
+              />
+            );
+          })}
+        </div>
+      ) : undefined;
+
     const homeItems: SidebarItemProps[] = [
       {
         name: 'home',
@@ -163,7 +189,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
       {
         name: 'cluster',
         label: selectedClusters.length ? t('Clusters') : t('glossary|Cluster'),
-        subtitle: selectedClusters.join('\n') || undefined,
+        subtitle: clusterBadgesSubtitle,
         icon: 'mdi:hexagon-multiple-outline',
         subList: [
           {
@@ -484,6 +510,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     shouldShowHomeItem,
     Object.keys(clusters).join(','),
     selectedClusters.join(','),
+    allClustersConf,
     crdsSidebarEntries,
     t,
   ]);

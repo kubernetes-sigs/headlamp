@@ -22,6 +22,7 @@ import { styled } from '@mui/system';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath, useHistory } from 'react-router-dom';
+import { getClusterAppearanceFromMeta } from '../../../helpers/clusterAppearance';
 import { isElectron } from '../../../helpers/isElectron';
 import { getRecentClusters, setRecentCluster } from '../../../helpers/recentClusters';
 import { formatClusterPathParam, getClusterPrefixedPath } from '../../../lib/cluster';
@@ -44,11 +45,14 @@ interface ClusterButtonProps extends React.PropsWithChildren<{}> {
 
 function ClusterButton(props: ClusterButtonProps) {
   const { cluster, onClick = undefined, focusedRef } = props;
+  const appearance = getClusterAppearanceFromMeta(cluster?.name || '');
+  const icon = appearance.icon || 'mdi:kubernetes';
 
   return (
     <SquareButton
       focusRipple
-      icon="mdi:kubernetes"
+      icon={icon}
+      iconColor={appearance.accentColor}
       label={cluster.name}
       ref={focusedRef}
       onClick={onClick}

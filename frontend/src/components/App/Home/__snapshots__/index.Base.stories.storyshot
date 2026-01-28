@@ -617,7 +617,18 @@
                         class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                         href="/c/cluster0/"
                       >
-                        cluster0
+                        <div
+                          class="MuiBox-root css-1or8la4"
+                        >
+                          <div
+                            class="MuiBox-root css-iyhyxy"
+                          />
+                          <span
+                            class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                          >
+                            cluster0
+                          </span>
+                        </div>
                       </a>
                     </td>
                     <td
@@ -717,7 +728,18 @@
                         class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                         href="/c/cluster1/"
                       >
-                        cluster1
+                        <div
+                          class="MuiBox-root css-1or8la4"
+                        >
+                          <div
+                            class="MuiBox-root css-iyhyxy"
+                          />
+                          <span
+                            class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                          >
+                            cluster1
+                          </span>
+                        </div>
                       </a>
                     </td>
                     <td
@@ -817,7 +839,18 @@
                         class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                         href="/c/cluster2/"
                       >
-                        cluster2
+                        <div
+                          class="MuiBox-root css-1or8la4"
+                        >
+                          <div
+                            class="MuiBox-root css-iyhyxy"
+                          />
+                          <span
+                            class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                          >
+                            cluster2
+                          </span>
+                        </div>
                       </a>
                     </td>
                     <td
