@@ -12,7 +12,7 @@ By default, OpenUnison's charts now ship with Headlamp.  This means that deployi
 * **ServiceAccount with No Permissions** - Headlamp's dedicated `ServiceAccount` has no RBAC bindings, so a lost `ServiceAccount` token is not a danger to your cluster
 * **End-to-End TLS** - OpenUnison has its own built in certificate automation, making sure that your sessions are encrypted from your Ingress, through OpenUnison's reverse proxy, to Headlamp and makes sure that the certificate is rotated as needed
 * **Hardened Deployment** - OpenUnison's Headlamp `Deployment` removes all capabilities, marks the container as read-only, and creates `emptyDir` volumes where writes are needed
-* **Who Am I?** - When you're logged into Headlamp, under the cluster there's now a link for a who-am-i feature that shows you who the cluster thinks you are, this is the same information provided by `kubectl auth whami`
+* **Who Am I?** - When you're logged into Headlamp, under the cluster there's now a link for a who-am-i feature that shows you who the cluster thinks you are, this is the same information provided by `kubectl auth whoami`
 * **Namespace Listing** - OpenUnison can manage which namespaces are listed by Headlamp either by listing all namespaces, testing which namespaces you have access to, or letting you write your own service to map from your user's identity to available namespaces
 
 Additionally, the Headlamp deployment from OpenUnison supports [adding plugins](https://openunison.github.io/deployauth/#configuring-plugins) just as the stock deployment charts for Headlamp does.
