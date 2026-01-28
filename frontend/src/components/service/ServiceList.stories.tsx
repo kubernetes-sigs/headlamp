@@ -56,6 +56,34 @@ const items = [
     },
   },
 ];
+const serviceWithOwner = {
+  apiVersion: 'v1',
+  kind: 'Service',
+  metadata: {
+    name: 'owned-service',
+    namespace: 'default',
+    creationTimestamp: '2022-10-26T10:30:00Z',
+    uid: '67890',
+    annotations: {
+      'a8r.io/owner': 'platform-team@example.com',
+    },
+  },
+  spec: {
+    type: 'ClusterIP',
+    clusterIP: '10.96.0.101',
+    ports: [
+      {
+        protocol: 'TCP',
+        port: 443,
+        targetPort: 8443,
+      },
+    ],
+    selector: {
+      app: 'owned-app',
+    },
+  },
+  status: {},
+};
 
 export default {
   title: 'Service/List',
@@ -85,6 +113,22 @@ Items.parameters = {
           HttpResponse.json({
             kind: 'List',
             items,
+            metadata: {},
+          })
+        ),
+      ],
+    },
+  },
+};
+export const WithOwnerAnnotation = Template.bind({});
+WithOwnerAnnotation.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/api/v1/services', () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: [serviceWithOwner],
             metadata: {},
           })
         ),
