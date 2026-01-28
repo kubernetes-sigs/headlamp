@@ -24,8 +24,8 @@ import TextField from '@mui/material/TextField';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { alpha } from '@mui/system/colorManipulator';
 import { lazy, Suspense, useState } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
 import { Trans, useTranslation } from 'react-i18next';
+import { formatShortcutKey, useShortcut, useShortcutKey } from '../../lib/useShortcut';
 import { Delayed } from './Delayed';
 
 const LazySearchContent = lazy(async () => {
@@ -51,9 +51,9 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
     setPlaceholderValue('');
   };
 
-  useHotkeys('/', e => {
-    e.preventDefault();
-    e.stopPropagation();
+  const searchShortcutKey = useShortcutKey('GLOBAL_SEARCH');
+
+  useShortcut('GLOBAL_SEARCH', () => {
     setFocused(true);
   });
 
@@ -99,8 +99,10 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
             <Trans>
               Press
               <Box
+                component="kbd"
                 sx={theme => ({
-                  fontSize: '14px',
+                  fontSize: '12px',
+                  fontFamily: 'monospace',
                   border: '1px solid',
                   borderRadius: '4px',
                   borderColor: theme.palette.divider,
@@ -108,11 +110,12 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  width: '24px',
+                  minWidth: '24px',
                   height: '24px',
+                  px: 0.5,
                 })}
               >
-                /
+                {formatShortcutKey(searchShortcutKey)}
               </Box>
               to search
             </Trans>
