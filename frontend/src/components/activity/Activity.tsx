@@ -390,7 +390,7 @@ export function SingleActivityRenderer({
           {isOverview && (
             <Box
               sx={{
-                fontSize: '18px',
+                fontSize: { xs: '12px', sm: '14px', md: '18px' },
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -399,7 +399,28 @@ export function SingleActivityRenderer({
                 height: '100%',
               }}
             >
-              <Box sx={{ width: '48px', height: '48px', flexShrink: 0 }}>{icon}</Box> {title}
+              <Box
+                sx={{
+                  width: { xs: '32px', sm: '40px', md: '48px' },
+                  height: { xs: '32px', sm: '40px', md: '48px' },
+                  flexShrink: 0,
+                }}
+              >
+                {icon}
+              </Box>
+              <Box
+                sx={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  minWidth: 0,
+                  flex: 1,
+                  textAlign: 'center',
+                }}
+                title={typeof title === 'string' ? title : undefined}
+              >
+                {title}
+              </Box>
             </Box>
           )}
           <>
@@ -427,15 +448,17 @@ export function SingleActivityRenderer({
             >
               {!hideTitleInHeader && (
                 <>
-                  <Box sx={{ width: '18px', height: '18px' }}>{icon}</Box>
+                  <Box sx={{ width: '18px', height: '18px', flexShrink: 0 }}>{icon}</Box>
                   <Typography
                     color="textSecondary"
                     fontSize={14}
                     sx={{
-                      maxWidth: 'calc(45% - 60px)',
+                      maxWidth: { xs: '100px', sm: '150px', md: 'calc(45% - 60px)' },
+                      minWidth: 0,
                       whiteSpace: 'nowrap',
                       textOverflow: 'ellipsis',
                       overflow: 'hidden',
+                      flexShrink: 1,
                     }}
                     title={typeof title === 'string' ? title : undefined}
                   >
@@ -451,10 +474,20 @@ export function SingleActivityRenderer({
                     fontSize: '0.875rem',
                     paddingX: 0.5,
                     color: theme.palette.text.secondary,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    maxWidth: { xs: '80px', sm: '120px', md: 'none' },
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 1,
                   })}
+                  title={cluster}
                 >
-                  <Icon icon="mdi:hexagon-multiple-outline" />
-                  {cluster}
+                  <Icon icon="mdi:hexagon-multiple-outline" style={{ flexShrink: 0 }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{cluster}</span>
                 </Box>
               )}
               {!isOverview && (
@@ -1159,6 +1192,8 @@ export const ActivityBar = React.memo(function ({
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               justifyContent: 'start',
+              minWidth: 0,
+              maxWidth: { xs: '150px', sm: '200px', md: '300px' },
             }}
             onClick={() => {
               // Minimize or show Activity, unless it's not active then bring it to front
@@ -1181,16 +1216,33 @@ export const ActivityBar = React.memo(function ({
                 alignItems: 'flex-start',
                 gap: 0.5,
                 overflow: 'hidden',
+                minWidth: 0,
+                flex: 1,
               }}
             >
-              {it.cluster && <Box sx={{ opacity: 0.7 }}>{it.cluster}</Box>}{' '}
+              {it.cluster && (
+                <Box
+                  sx={{
+                    opacity: 0.7,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    width: '100%',
+                  }}
+                  title={it.cluster}
+                >
+                  {it.cluster}
+                </Box>
+              )}{' '}
               <Box
                 sx={{
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   fontStyle: it.temporary ? 'italic' : undefined,
+                  width: '100%',
                 }}
+                title={typeof it.title === 'string' ? it.title : undefined}
               >
                 {it.title ?? 'Something'}
               </Box>
