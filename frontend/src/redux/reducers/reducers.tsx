@@ -30,6 +30,7 @@ import eventCallbackReducer from '../headlampEventSlice';
 import overviewChartsReducer from '../overviewChartsSlice';
 import projectsReducer from '../projectsSlice';
 import routesReducer from '../routesSlice';
+import shortcutsReducer from '../shortcutsSlice';
 import uiReducer from '../uiSlice';
 import resourceTableReducer from './../../components/common/Resource/resourceTableSlice';
 import detailsViewSectionReducer from './../../components/DetailsViewSection/detailsViewSectionSlice';
@@ -58,6 +59,7 @@ const reducers = combineReducers({
   clusterProvider: clusterProviderReducer,
   activity: activityReducer,
   projects: projectsReducer,
+  shortcuts: shortcutsReducer,
 });
 
 export type RootState = ReturnType<typeof reducers>;
