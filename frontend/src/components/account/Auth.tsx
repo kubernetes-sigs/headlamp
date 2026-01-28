@@ -168,7 +168,10 @@ export function PureAuthToken({
           <div style={{ flex: '1 0 0' }}></div>
         </DialogActions>
         <Box overflow="hidden" textAlign="center">
-          <HeadlampLink routeName="settingsCluster" params={{ clusterID: cluster || '' }}>
+          <HeadlampLink
+            routeName="settingsClusterHomeContext"
+            search={cluster ? { c: cluster } : ''}
+          >
             {t('translation|Cluster settings')}
           </HeadlampLink>
         </Box>
