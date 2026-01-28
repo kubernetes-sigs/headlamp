@@ -196,6 +196,10 @@ export function makeCustomResourceClass(
       metadata: Partial<import('./KubeMetadata').KubeMetadata>;
     } {
       // For custom resources, use the storage version from the CRD
+      if (!crClassArgs.customResourceDefinition) {
+        return super.getBaseObject();
+      }
+
       const [group, version] = crClassArgs.customResourceDefinition.getMainAPIGroup();
       const apiVersion = group ? `${group}/${version}` : version;
 
