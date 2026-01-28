@@ -142,10 +142,10 @@ describe('parseCpu', () => {
         const valMillicores = parseCpu(`${num}m`);
         const valCores = parseCpu(`${num}`);
 
-        // Verify scaling relationships
-        expect(valMicrocores).toBe(valNanocores * 1000);
-        expect(valMillicores).toBe(valMicrocores * 1000);
-        expect(valCores).toBe(valMillicores * 1000);
+        // Verify scaling relationships (use toBeCloseTo for floating-point precision)
+        expect(valMicrocores).toBeCloseTo(valNanocores * 1000, 10);
+        expect(valMillicores).toBeCloseTo(valMicrocores * 1000, 10);
+        expect(valCores).toBeCloseTo(valMillicores * 1000, 10);
       })
     );
   });
