@@ -155,7 +155,23 @@ function AuthRoute(props: AuthRouteProps) {
     computedMatch = {},
     ...other
   } = props;
-  const redirectRoute = getCluster() ? 'login' : 'chooser';
+
+  const clusters = useClustersConf();
+  const currentCluster = getCluster();
+  const clusterConf = currentCluster && clusters ? clusters[currentCluster] : null;
+
+  let redirectRoute: string;
+
+  if (!currentCluster) {
+    redirectRoute = 'chooser';
+  } else if (!clusters || !clusterConf) {
+    redirectRoute = 'login';
+  } else if (clusterConf?.auth_type === 'oidc') {
+    redirectRoute = 'login';
+  } else {
+    redirectRoute = 'token';
+  }
+
   useSidebarItem(sidebar, computedMatch);
   const cluster = useCluster();
   const query = useQuery({
