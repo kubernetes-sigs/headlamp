@@ -147,20 +147,28 @@ export const getKindGroupColor = (group: keyof typeof kindGroupColors) =>
  */
 export function KubeIcon({
   kind,
+  apiVersion,
   width,
   height,
 }: {
   kind: keyof typeof kindToIcon;
+  apiVersion?: string;
   width?: string;
   height?: string;
 }) {
   const pluginDefinedIcons = useTypedSelector(state => state.graphView.kindIcons);
 
+  const apiGroup = apiVersion && apiVersion.includes('/') ? apiVersion.split('/')[0] : null;
+  const fullKey = apiGroup ? `${apiGroup}/${kind}` : null;
+
   const IconComponent = kindToIcon[kind] ?? kindToIcon['Pod'];
-  const icon = pluginDefinedIcons[kind]?.icon ?? (
+
+  const pluginIcon = (fullKey && pluginDefinedIcons[fullKey]) || pluginDefinedIcons[kind];
+
+  const icon = pluginIcon?.icon ?? (
     <IconComponent style={{ scale: '1.1', width: '100%', height: '100%' }} />
   );
-  const color = pluginDefinedIcons[kind]?.color ?? getKindColor(kind);
+  const color = pluginIcon?.color ?? getKindColor(kind);
 
   return (
     <Box

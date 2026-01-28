@@ -839,8 +839,8 @@ export function registerMapSource(source: GraphSource) {
  * registerKindIcon("MyCustomResource", { icon: <MyIcon />, color: "#FF0000" })
  * ```
  */
-export function registerKindIcon(kind: string, definition: IconDefinition) {
-  store.dispatch(graphViewSlice.actions.addKindIcon({ kind, definition }));
+export function registerKindIcon(kind: string, definition: IconDefinition, apiGroup?: string) {
+  store.dispatch(graphViewSlice.actions.addKindIcon({ kind, definition, apiGroup }));
 }
 
 /**

@@ -186,7 +186,12 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
   }, [isHovered]);
 
   const icon = kubeObject ? (
-    <KubeIcon width="42px" height="42px" kind={kubeObject.kind} />
+    <KubeIcon
+      width="42px"
+      height="42px"
+      kind={kubeObject.kind}
+      apiVersion={kubeObject.jsonData?.apiVersion}
+    />
   ) : (
     node?.icon ?? null
   );
@@ -207,7 +212,12 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
       cluster: node.kubeObject?.cluster,
       hideTitleInHeader: true,
       icon: node.kubeObject ? (
-        <KubeIcon kind={node.kubeObject.kind} width="100%" height="100%" />
+        <KubeIcon
+          kind={node.kubeObject.kind}
+          apiVersion={node.kubeObject.jsonData?.apiVersion}
+          width="100%"
+          height="100%"
+        />
       ) : null,
       title: node.label ?? node.kubeObject?.metadata?.name,
       content: <GraphNodeDetails node={node} />,

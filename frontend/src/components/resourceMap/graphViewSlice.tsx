@@ -55,12 +55,14 @@ export interface Glance {
 export interface GraphViewSliceState {
   graphSources: GraphSource[];
   kindIcons: Record<string, IconDefinition>;
+  kindGroupIcons: Record<string, IconDefinition>;
   glances: Record<string, Glance>;
 }
 
 const initialState: GraphViewSliceState = {
   graphSources: [],
   kindIcons: {},
+  kindGroupIcons: {},
   glances: {},
 };
 
@@ -75,8 +77,13 @@ export const graphViewSlice = createSlice({
       }
       state.graphSources.push(action.payload);
     },
-    addKindIcon(state, action: PayloadAction<{ kind: string; definition: IconDefinition }>) {
-      state.kindIcons[action.payload.kind] = action.payload.definition;
+    addKindIcon(
+      state,
+      action: PayloadAction<{ kind: string; definition: IconDefinition; apiGroup?: string }>
+    ) {
+      const { kind, definition, apiGroup } = action.payload;
+      const key = apiGroup ? `${apiGroup}/${kind}` : kind;
+      state.kindIcons[key] = definition;
     },
     setGlance(state, action: PayloadAction<Glance>) {
       state.glances[action.payload.id] = action.payload;
