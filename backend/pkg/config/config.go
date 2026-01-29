@@ -53,6 +53,7 @@ type Config struct {
 	UserPluginsDir            string `koanf:"user-plugins-dir"`
 	BaseURL                   string `koanf:"base-url"`
 	ProxyURLs                 string `koanf:"proxy-urls"`
+	OidcAllowContext          bool   `koanf:"oidc-allow-context"`
 	OidcClientID              string `koanf:"oidc-client-id"`
 	OidcValidatorClientID     string `koanf:"oidc-validator-client-id"`
 	OidcClientSecret          string `koanf:"oidc-client-secret"`
@@ -84,10 +85,10 @@ type Config struct {
 }
 
 func (c *Config) Validate() error {
-	if !c.InCluster && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
-		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
-		return errors.New(`oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, oidc-validator-client-id,
-		oidc-validator-idp-issuer-url, flags are only meant to be used in inCluster mode`)
+	if !c.InCluster && !c.OidcAllowContext && (c.OidcClientID != "" || c.OidcClientSecret != "" ||
+		c.OidcIdpIssuerURL != "" || c.OidcValidatorClientID != "" ||
+		c.OidcValidatorIdpIssuerURL != "") {
+		return errors.New(`oidc flags require in-cluster mode or --oidc-allow-context`)
 	}
 
 	// OIDC TLS verification warning.
@@ -433,6 +434,8 @@ func addGeneralFlags(f *flag.FlagSet) {
 }
 
 func addOIDCFlags(f *flag.FlagSet) {
+	f.Bool("oidc-allow-context", false, "Allow OIDC authentication for clusters "+
+		"defined in kubeconfig for non-inCluster mode")
 	f.String("oidc-client-id", "", "ClientID for OIDC")
 	f.String("oidc-client-secret", "", "ClientSecret for OIDC")
 	f.String("oidc-validator-client-id", "", "Override ClientID for OIDC during validation")

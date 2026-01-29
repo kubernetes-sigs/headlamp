@@ -150,9 +150,9 @@ func TestParseErrors(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name:          "oidc_settings_without_incluster",
+			name:          "oidc_settings_without_incluster_or_allow_context",
 			args:          []string{"go run ./cmd", "-oidc-client-id=noClient"},
-			errorContains: "are only meant to be used in inCluster mode",
+			errorContains: "require in-cluster mode or --oidc-allow-context",
 		},
 		{
 			name:          "invalid_base_url",
