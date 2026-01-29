@@ -538,6 +538,7 @@
   "Create new project": "创建新项目",
   "To create a new project pick which clusters you want to include and then select existing or create a new namespace": "要创建新项目，请选择要包含的集群，然后选择现有命名空间或创建新的命名空间",
   "Project Name": "项目名称",
+  "A project with this name already exists": "",
   "Enter a name for your new project.": "为新项目输入一个名称。",
   "Clusters": "集群",
   "Select one or more clusters for this project": "为此项目选择一个或多个集群",

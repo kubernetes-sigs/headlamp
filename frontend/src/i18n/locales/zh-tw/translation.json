@@ -538,6 +538,7 @@
   "Create new project": "建立新專案",
   "To create a new project pick which clusters you want to include and then select existing or create a new namespace": "要建立新專案，請選擇要包含的叢集，然後選擇現有命名空間或建立新命名空間",
   "Project Name": "專案名稱",
+  "A project with this name already exists": "",
   "Enter a name for your new project.": "輸入新專案的名稱。",
   "Clusters": "叢集",
   "Select one or more clusters for this project": "選擇一個或多個叢集以用於此專案",
