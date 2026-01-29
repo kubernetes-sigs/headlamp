@@ -51,6 +51,7 @@ import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import { DateLabel } from '../Label';
 import Link from '../Link';
 import Table, { TableColumn } from '../Table';
+import CopyableCell from './CopyableCell';
 import DeleteButton from './DeleteButton';
 import EditButton from './EditButton';
 import ResourceTableMultiActions from './ResourceTableMultiActions';
@@ -89,6 +90,12 @@ export type ResourceTableColumn<RowItem> = {
   gridTemplate?: string | number;
   /** Options for the select filter */
   filterSelectOptions?: TableColumn<any>['filterSelectOptions'];
+  /**
+   * If true, adds a copy-to-clipboard button that appears on hover.
+   * The value from getValue() will be copied when clicked.
+   * @default false
+   */
+  copyable?: boolean;
 } & (
   | {
       /** To render a simple value provide property name of the item */
@@ -425,9 +432,33 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
           } else {
             mrtColumn.accessorFn = (item: RowItem) => item[column.datum];
           }
-          if ('render' in column) {
+          if ('render' in column && 'getValue' in column) {
+            const getValueFn = column.getValue as (
+              item: RowItem
+            ) => string | number | null | undefined;
+            const renderFn = column.render;
+            if (column.copyable) {
+              mrtColumn.Cell = ({ row }: { row: MRT_Row<RowItem> }) => {
+                const value = String(getValueFn(row.original) ?? '');
+                return (
+                  <CopyableCell value={value}>{renderFn?.(row.original) ?? null}</CopyableCell>
+                );
+              };
+            } else {
+              mrtColumn.Cell = ({ row }: { row: MRT_Row<RowItem> }) =>
+                renderFn?.(row.original) ?? null;
+            }
+          } else if ('render' in column) {
             mrtColumn.Cell = ({ row }: { row: MRT_Row<RowItem> }) =>
               column.render?.(row.original) ?? null;
+          } else if (column.copyable && 'getValue' in column) {
+            const getValueFn = column.getValue as (
+              item: RowItem
+            ) => string | number | null | undefined;
+            mrtColumn.Cell = ({ row }: { row: MRT_Row<RowItem> }) => {
+              const value = String(getValueFn(row.original) ?? '');
+              return <CopyableCell value={value}>{value}</CopyableCell>;
+            };
           }
           if (sort && typeof sort === 'function') {
             mrtColumn.sortingFn = sortingFn(sort);
