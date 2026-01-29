@@ -29,7 +29,7 @@ import {
   useTheme,
 } from '@mui/material';
 import { uniq } from 'lodash';
-import { ReactNode, useCallback, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router';
 import { useClustersConf } from '../../lib/k8s';
@@ -119,11 +119,37 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
     clusters: selectedClusters,
   });
 
+  const namespaceToProjectMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!namespaces) return map;
+    namespaces.forEach(ns => {
+      const projectId = ns.metadata?.labels?.[PROJECT_ID_LABEL];
+      if (projectId) {
+        map.set(ns.metadata.name, projectId);
+      }
+    });
+    return map;
+  }, [namespaces]);
+
+  const effectiveNamespace = selectedNamespace || toKubernetesName(typedNamespace);
+  const isNamespaceAlreadyAssigned = effectiveNamespace
+    ? namespaceToProjectMap.has(effectiveNamespace)
+    : false;
+
   const isReadyToCreate =
-    selectedClusters.length && (selectedNamespace || typedNamespace) && projectName;
+    selectedClusters.length &&
+    (selectedNamespace || typedNamespace) &&
+    projectName &&
+    !isNamespaceAlreadyAssigned;
+
+  useEffect(() => {
+    if (selectedNamespace && namespaceToProjectMap.has(selectedNamespace)) {
+      setSelectedNamespace(undefined);
+    }
+  }, [selectedNamespace, namespaceToProjectMap]);
 
   /**
-   * Creates or updates namespaces for the proejct
+   * Creates or updates namespaces for the project
    */
   const handleCreate = async () => {
     if (!isReadyToCreate || isCreating) return;
@@ -259,6 +285,7 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
           onInputChange={(e, v) => {
             setTypedNamespace(v);
           }}
+          getOptionDisabled={option => namespaceToProjectMap.has(option)}
           renderInput={params => (
             <TextField
               {...params}
