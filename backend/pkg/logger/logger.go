@@ -44,12 +44,13 @@ type LogFunc func(level uint, str map[string]string, err interface{}, msg string
 var logFunc LogFunc = log
 
 // Init configures the global zerolog log level from environment variables.
-// The HEADLAMP_LOG_LEVEL environment variable controls log.
+// The HEADLAMP_LOG_LEVEL environment variable controls the global log level.
 func Init() {
 	logLevel := strings.ToLower(strings.TrimSpace(os.Getenv("HEADLAMP_LOG_LEVEL")))
 
 	// If no log level is provided, default to info.
 	if logLevel == "" {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 		return
 	}
 
