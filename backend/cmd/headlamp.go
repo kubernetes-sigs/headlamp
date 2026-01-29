@@ -426,6 +426,9 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		go kubeconfig.LoadAndWatchFiles(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	}
 
+	// Initialize OIDC Cookie setting from flags
+	config.OidcUseCookie = config.HeadlampCFG.OidcUseCookie
+
 	// In-cluster
 	if config.UseInCluster {
 		context, err := kubeconfig.GetInClusterContext(
@@ -1284,8 +1287,8 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 	// Create a copy of the context to avoid modifying the cached context
 	context = context.Copy()
 
-	// If headlamp is running in cluster, use the token from the cookie for oidc auth
-	if c.UseInCluster && context.OidcConf != nil {
+	// If running in cluster or explicitly enabled via flag, use the token from the cookie for oidc auth
+	if (c.UseInCluster || c.OidcUseCookie) && context.OidcConf != nil {
 		setTokenFromCookie(r, clusterName)
 	}
 
