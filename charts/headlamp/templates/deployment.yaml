@@ -242,6 +242,9 @@ spec:
             {{- if .Values.config.watchPlugins }}
             - "-watch-plugins-changes"
             {{- end }}
+            {{- if .Values.config.oidc.useCookie }}  
+            - "-oidc-use-cookie"                     
+            {{- end }}
             {{- with .Values.config.pluginsDir}}
             - "-plugins-dir={{ . }}"
             {{- end }}

@@ -1972,3 +1972,28 @@ func TestHandleClusterServiceProxy(t *testing.T) {
 		assert.Equal(t, "OK", rr.Body.String())
 	}
 }
+
+// TestOidcUseCookieLogic verifies that the mechanism for promoting an OIDC token
+// from a cookie to the Authorization header works as expected.
+func TestOidcUseCookieLogic(t *testing.T) {
+	clusterName := "test-cluster-oidc"
+	testToken := "fake-token-for-testing"
+	cookieName := "headlamp-auth-" + clusterName + ".0"
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/api/v1/clusters/"+clusterName, nil)
+	assert.NoError(t, err)
+
+	req.AddCookie(&http.Cookie{
+		Name:  cookieName,
+		Value: testToken,
+	})
+
+	setTokenFromCookie(req, clusterName)
+
+	got := req.Header.Get("Authorization")
+	want := "Bearer " + testToken
+
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
