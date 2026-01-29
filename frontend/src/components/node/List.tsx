@@ -107,11 +107,14 @@ export default function NodeList() {
           id: 'internalIP',
           label: t('translation|Internal IP'),
           getValue: node => node.getInternalIP(),
+          copyable: true,
         },
         {
           id: 'externalIP',
           label: t('External IP'),
-          getValue: node => node.getExternalIP() || t('translation|None'),
+          getValue: node => node.getExternalIP() || '',
+          render: node => node.getExternalIP() || t('translation|None'),
+          copyable: true,
         },
         {
           id: 'version',
