@@ -72,6 +72,7 @@ import (
 
 type HeadlampConfig struct {
 	*headlampcfg.HeadlampCFG
+	OidcAutoLogin             bool
 	oidcClientID              string
 	oidcValidatorClientID     string
 	oidcClientSecret          string
@@ -119,6 +120,7 @@ const (
 type clientConfig struct {
 	Clusters                []Cluster `json:"clusters"`
 	IsDynamicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
+	OidcAutoLogin           bool      `json:"oidcAutoLogin"`
 }
 
 type OauthConfig struct {
@@ -1767,7 +1769,11 @@ func parseClusterFromKubeConfig(kubeConfigs []string) ([]Cluster, []error) {
 func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	clientConfig := clientConfig{c.getClusters(), c.EnableDynamicClusters}
+	clientConfig := clientConfig{
+		c.getClusters(),
+		c.EnableDynamicClusters,
+		c.OidcAutoLogin,
+	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {
 		logger.Log(logger.LevelError, nil, err, "encoding config")
