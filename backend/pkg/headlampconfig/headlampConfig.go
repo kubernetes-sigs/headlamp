@@ -28,4 +28,5 @@ type HeadlampCFG struct {
 	ProxyURLs             []string
 	TLSCertPath           string
 	TLSKeyPath            string
+	OidcUseCookie         bool
 }

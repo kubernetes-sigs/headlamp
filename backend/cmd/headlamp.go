@@ -79,6 +79,7 @@ type HeadlampConfig struct {
 	oidcCallbackURL           string
 	oidcValidatorIdpIssuerURL string
 	oidcUseAccessToken        bool
+	oidcUseCookie             bool
 	oidcSkipTLSVerify         bool
 	oidcCACert                string
 	oidcUsePKCE               bool
@@ -447,6 +448,9 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		// in-cluster mode is unlikely to want reloading kubeconfig.
 		go kubeconfig.LoadAndWatchFiles(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	}
+
+	// Initialize OIDC Cookie setting from flags
+	config.oidcUseCookie = config.HeadlampCFG.OidcUseCookie
 
 	// In-cluster
 	if config.UseInCluster {
@@ -1302,8 +1306,8 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 	// Create a copy of the context to avoid modifying the cached context
 	context = context.Copy()
 
-	// If headlamp is running in cluster, use the token from the cookie for oidc auth
-	if c.UseInCluster && context.OidcConf != nil {
+	// If running in cluster or explicitly enabled via flag, use the token from the cookie for oidc auth
+	if (c.UseInCluster || c.oidcUseCookie) && context.OidcConf != nil {
 		setTokenFromCookie(r, clusterName)
 	}
 
