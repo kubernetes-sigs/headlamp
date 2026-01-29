@@ -88,6 +88,12 @@ func TestLog(t *testing.T) {
 
 // Sets global log level from HEADLAMP_LOG_LEVEL.
 func TestLogLevelsFromEnv(t *testing.T) {
+	orig := zerolog.GlobalLevel()
+
+	t.Cleanup(func() {
+		zerolog.SetGlobalLevel(orig)
+	})
+
 	tests := []struct {
 		name     string
 		envValue string
@@ -121,6 +127,12 @@ func TestLogLevelsFromEnv(t *testing.T) {
 
 // Falls back to info on invalid log level.
 func TestInvalidLevelDefaultsToInfo(t *testing.T) {
+	orig := zerolog.GlobalLevel()
+
+	t.Cleanup(func() {
+		zerolog.SetGlobalLevel(orig)
+	})
+
 	t.Setenv("HEADLAMP_LOG_LEVEL", "not-a-level")
 
 	logger.Init()
@@ -132,6 +144,12 @@ func TestInvalidLevelDefaultsToInfo(t *testing.T) {
 
 // Defaults to info when env is empty or missing.
 func TestEmptyOrMissingEnvDefaultsToInfo(t *testing.T) {
+	orig := zerolog.GlobalLevel()
+
+	t.Cleanup(func() {
+		zerolog.SetGlobalLevel(orig)
+	})
+
 	t.Run("empty", func(t *testing.T) {
 		t.Setenv("HEADLAMP_LOG_LEVEL", "")
 		logger.Init()
