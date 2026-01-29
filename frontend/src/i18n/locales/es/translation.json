@@ -544,6 +544,7 @@
   "Create new project": "",
   "To create a new project pick which clusters you want to include and then select existing or create a new namespace": "",
   "Project Name": "",
+  "A project with this name already exists": "",
   "Enter a name for your new project.": "",
   "Clusters": "",
   "Select one or more clusters for this project": "",

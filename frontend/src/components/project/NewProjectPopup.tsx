@@ -29,7 +29,7 @@ import {
   useTheme,
 } from '@mui/material';
 import { uniq } from 'lodash';
-import { ReactNode, useCallback, useState } from 'react';
+import { ReactNode, useCallback, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router';
 import { useClustersConf } from '../../lib/k8s';
@@ -119,8 +119,28 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
     clusters: selectedClusters,
   });
 
+  const existingProjectNames = useMemo(() => {
+    if (!namespaces) return new Set<string>();
+    const result = new Set<string>();
+    for (const ns of namespaces) {
+      const labelValue = ns.metadata.labels?.[PROJECT_ID_LABEL];
+      if (!labelValue) {
+        continue;
+      }
+      result.add(labelValue);
+      result.add(toKubernetesName(labelValue));
+    }
+    return result;
+  }, [namespaces]);
+
+  // Check if project name already exists
+  const projectNameExists = projectName.length > 0 && existingProjectNames.has(projectName);
+
   const isReadyToCreate =
-    selectedClusters.length && (selectedNamespace || typedNamespace) && projectName;
+    selectedClusters.length &&
+    (selectedNamespace || typedNamespace) &&
+    projectName &&
+    !projectNameExists;
 
   /**
    * Creates or updates namespaces for the proejct
@@ -223,7 +243,12 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
               }, 0);
             }
           }}
-          helperText={t('translation|Enter a name for your new project.')}
+          error={projectNameExists}
+          helperText={
+            projectNameExists
+              ? t('A project with this name already exists')
+              : t('translation|Enter a name for your new project.')
+          }
           autoComplete="off"
           fullWidth
         />

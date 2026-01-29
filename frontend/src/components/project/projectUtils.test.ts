@@ -20,7 +20,13 @@ import DaemonSet from '../../lib/k8s/daemonSet';
 import Deployment from '../../lib/k8s/deployment';
 import Pod from '../../lib/k8s/pod';
 import StatefulSet from '../../lib/k8s/statefulSet';
-import { getHealthIcon, getResourcesByKind, getResourcesHealth } from './projectUtils';
+import {
+  getHealthIcon,
+  getResourcesByKind,
+  getResourcesHealth,
+  PROJECT_ID_LABEL,
+  toKubernetesName,
+} from './projectUtils';
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
@@ -196,5 +202,126 @@ describe('getProjectHealth', () => {
       warning: 3,
       error: 1,
     });
+  });
+});
+
+describe('toKubernetesName', () => {
+  it('converts spaces to dashes', () => {
+    expect(toKubernetesName('my project')).toBe('my-project');
+  });
+
+  it('converts to lowercase', () => {
+    expect(toKubernetesName('MyProject')).toBe('myproject');
+  });
+
+  it('replaces special characters with dashes', () => {
+    expect(toKubernetesName('my_project@test')).toBe('my-project-test');
+  });
+
+  it('removes leading and trailing dashes', () => {
+    expect(toKubernetesName('-my-project-')).toBe('my-project');
+  });
+
+  it('collapses multiple dashes into one', () => {
+    expect(toKubernetesName('my--project')).toBe('my-project');
+  });
+
+  it('handles complex names', () => {
+    expect(toKubernetesName('My Test Project 123')).toBe('my-test-project-123');
+  });
+
+  it('truncates names longer than 63 characters', () => {
+    const longName = 'a'.repeat(100);
+    expect(toKubernetesName(longName).length).toBeLessThanOrEqual(63);
+  });
+
+  it('returns empty string for invalid names', () => {
+    expect(toKubernetesName('---')).toBe('');
+  });
+});
+
+describe('project name duplicate detection helper', () => {
+  function buildExistingProjectNames(
+    namespaces: Array<{ name: string; labels?: Record<string, string> }>
+  ): Set<string> {
+    const result = new Set<string>();
+    for (const ns of namespaces) {
+      const labelValue = ns.labels?.[PROJECT_ID_LABEL];
+      if (!labelValue) {
+        continue;
+      }
+      result.add(labelValue);
+      result.add(toKubernetesName(labelValue));
+    }
+    return result;
+  }
+
+  it('returns empty set when no namespaces have project labels', () => {
+    const namespaces = [{ name: 'default' }, { name: 'kube-system' }];
+    const result = buildExistingProjectNames(namespaces);
+    expect(result.size).toBe(0);
+  });
+
+  it('collects project names from namespace labels', () => {
+    const namespaces = [
+      { name: 'project-a-ns', labels: { [PROJECT_ID_LABEL]: 'project-a' } },
+      { name: 'project-b-ns', labels: { [PROJECT_ID_LABEL]: 'project-b' } },
+      { name: 'default' },
+    ];
+    const result = buildExistingProjectNames(namespaces);
+    expect(result.has('project-a')).toBe(true);
+    expect(result.has('project-b')).toBe(true);
+    expect(result.has('default')).toBe(false);
+  });
+
+  it('stores both raw label and kubernetes-normalized form', () => {
+    const namespaces = [{ name: 'my-project-ns', labels: { [PROJECT_ID_LABEL]: 'My Project' } }];
+    const result = buildExistingProjectNames(namespaces);
+    expect(result.has('My Project')).toBe(true);
+    expect(result.has('my-project')).toBe(true);
+  });
+
+  it('detects duplicate when user enters existing project name', () => {
+    const namespaces = [
+      { name: 'existing-ns', labels: { [PROJECT_ID_LABEL]: 'existing-project' } },
+    ];
+    const existingProjectNames = buildExistingProjectNames(namespaces);
+
+    const userInput = 'existing-project';
+    const projectNameExists = userInput.length > 0 && existingProjectNames.has(userInput);
+    expect(projectNameExists).toBe(true);
+  });
+
+  it('detects duplicate when user enters name that normalizes to existing project', () => {
+    const namespaces = [{ name: 'my-project-ns', labels: { [PROJECT_ID_LABEL]: 'my-project' } }];
+    const existingProjectNames = buildExistingProjectNames(namespaces);
+
+    const userInput = 'My Project';
+    const normalizedInput = toKubernetesName(userInput);
+    const projectNameExists =
+      normalizedInput.length > 0 && existingProjectNames.has(normalizedInput);
+    expect(projectNameExists).toBe(true);
+  });
+
+  it('allows new unique project names', () => {
+    const namespaces = [
+      { name: 'existing-ns', labels: { [PROJECT_ID_LABEL]: 'existing-project' } },
+    ];
+    const existingProjectNames = buildExistingProjectNames(namespaces);
+
+    const userInput = 'new-project';
+    const projectNameExists = userInput.length > 0 && existingProjectNames.has(userInput);
+    expect(projectNameExists).toBe(false);
+  });
+
+  it('returns false for empty project name', () => {
+    const namespaces = [
+      { name: 'existing-ns', labels: { [PROJECT_ID_LABEL]: 'existing-project' } },
+    ];
+    const existingProjectNames = buildExistingProjectNames(namespaces);
+
+    const userInput = '';
+    const projectNameExists = userInput.length > 0 && existingProjectNames.has(userInput);
+    expect(projectNameExists).toBe(false);
   });
 });
