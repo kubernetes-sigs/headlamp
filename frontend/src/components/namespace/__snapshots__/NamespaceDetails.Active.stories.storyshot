@@ -207,16 +207,7 @@
                   </h1>
                   <div
                     class="MuiBox-root css-ldp2l3"
-                  >
-                    <button
-                      aria-label="Create ResourceQuota"
-                      class="MuiButtonBase-root Mui-disabled MuiIconButton-root Mui-disabled MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                      data-mui-internal-clone-element="true"
-                      disabled=""
-                      tabindex="-1"
-                      type="button"
-                    />
-                  </div>
+                  />
                 </div>
               </div>
             </div>
@@ -265,16 +256,7 @@
                   </h1>
                   <div
                     class="MuiBox-root css-ldp2l3"
-                  >
-                    <button
-                      aria-label="Create LimitRange"
-                      class="MuiButtonBase-root Mui-disabled MuiIconButton-root Mui-disabled MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                      data-mui-internal-clone-element="true"
-                      disabled=""
-                      tabindex="-1"
-                      type="button"
-                    />
-                  </div>
+                  />
                 </div>
               </div>
             </div>
@@ -323,16 +305,7 @@
                   </h1>
                   <div
                     class="MuiBox-root css-ldp2l3"
-                  >
-                    <button
-                      aria-label="Create Pod"
-                      class="MuiButtonBase-root Mui-disabled MuiIconButton-root Mui-disabled MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                      data-mui-internal-clone-element="true"
-                      disabled=""
-                      tabindex="-1"
-                      type="button"
-                    />
-                  </div>
+                  />
                 </div>
               </div>
             </div>

@@ -88,18 +88,16 @@ export function CreateResourceButton(props: CreateResourceButtonProps) {
     [activityId, baseObject, errorMessage, name, t]
   );
 
+  if (!canCreate) return null;
+
   return (
     <AuthVisible item={resourceClass} authVerb="create">
       <ActionButton
         color="primary"
         description={t('translation|Create {{ name }}', { name })}
         icon={'mdi:plus-circle'}
-        longDescription={canCreate ? undefined : t('translation|Choose a cluster')}
-        iconButtonProps={{ disabled: !canCreate }}
+        longDescription={t('translation|Choose a cluster')}
         onClick={() => {
-          if (!canCreate) {
-            return;
-          }
           if (clusters.length > 1) {
             setIsClusterChooserOpen(true);
             return;
@@ -117,7 +115,7 @@ export function CreateResourceButton(props: CreateResourceButtonProps) {
       >
         <DialogTitle>{t('translation|Choose a cluster')}</DialogTitle>
         <DialogContent>
-          <FormControl fullWidth margin="dense">
+          <FormControl variant="outlined" size="small" fullWidth margin="dense">
             <InputLabel id="create-resource-target-cluster-label">
               {t('glossary|Cluster')}
             </InputLabel>
@@ -140,7 +138,13 @@ export function CreateResourceButton(props: CreateResourceButtonProps) {
           </FormControl>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setIsClusterChooserOpen(false)}>{t('translation|Cancel')}</Button>
+          <Button
+            color="secondary"
+            variant="contained"
+            onClick={() => setIsClusterChooserOpen(false)}
+          >
+            {t('translation|Cancel')}
+          </Button>
           <Button
             variant="contained"
             onClick={() => {
