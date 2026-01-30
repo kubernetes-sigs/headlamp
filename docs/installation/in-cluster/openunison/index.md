@@ -5,7 +5,7 @@ sidebar_label: "Tutorial: Authentication with OpenUnison"
 
 ![OpenUnison Portal with Headlamp Badge](./openunison-portal.png)
 
-Starting with 1.0.44, OpenUnison provides support for Headlamp in both clusters that support OpenID Connection and in managed clusters using impersonation.  When integrated with OpenUnison you can securely deploy Headlamp in-cluster to any kind of Kubernetes distribution, regardless of if it supports OpenID Connect or not.
+Starting with 1.0.44, OpenUnison provides support for Headlamp in both clusters that support OpenID Connection, generaly on premesis clusters, and in cloud managed clusters using impersonation where OIDC is not available, such as EKS, AKS, and GKE.  When integrated with OpenUnison you can securely deploy Headlamp in-cluster to any kind of Kubernetes distribution, regardless of if it supports OpenID Connect or not.
 
 By default, OpenUnison's charts now ship with Headlamp.  This means that deploying OpenUnison into a cluster will automatically deploy Headlamp with some additional features:
 
@@ -59,7 +59,7 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 ```
 
-In your OpenUnison values.yaml, make a few changes:
+Assuming you have [already deployed the OpenUnison authentication portal](https://openunison.github.io/deployauth/), update your OpenUnison values.yaml, with the following changes:
 
 ```yaml
 
