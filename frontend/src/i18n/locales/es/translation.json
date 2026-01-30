@@ -156,6 +156,7 @@
   "Are you sure you want to remove the cluster \"{{ clusterName }}\"?": "",
   "Server": "Servidor",
   "Log out": "Desconectar",
+  "Log out from all": "",
   "Account of current user": "Cuenta del usuario actual",
   "Appbar Tools": "Herramientas de la barra de aplicación",
   "show more": "mostrar más",

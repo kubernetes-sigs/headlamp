@@ -48,6 +48,20 @@ if (globalThis.window) {
       dispatchEvent: vi.fn(),
     })),
   });
+
+  if (!window.localStorage || typeof window.localStorage.getItem !== 'function') {
+    Object.defineProperty(window, 'localStorage', {
+      value: {
+        getItem: vi.fn(() => null),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+        clear: vi.fn(),
+        length: 0,
+        key: vi.fn(),
+      },
+      writable: true,
+    });
+  }
 }
 
 beforeEach(() => {
