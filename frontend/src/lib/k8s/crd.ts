@@ -195,7 +195,7 @@ export function makeCustomResourceClass(
     static getBaseObject(): Omit<KubeObjectInterface, 'metadata'> & {
       metadata: Partial<import('./KubeMetadata').KubeMetadata>;
     } {
-  const crd = crClassArgs.customResourceDefinition;
+      const crd = crClassArgs.customResourceDefinition;
 
       if (crd && typeof crd.getMainAPIGroup === 'function') {
         const [group, version] = crd.getMainAPIGroup();
