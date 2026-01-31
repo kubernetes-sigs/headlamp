@@ -78,16 +78,17 @@
             tabindex="-1"
           >
             <div
-              class="MuiListItemIcon-root css-cveggr-MuiListItemIcon-root"
-            />
-            <div
-              class="MuiListItemText-root MuiListItemText-dense MuiListItemText-multiline css-konndc-MuiListItemText-root"
+              class="MuiBox-root css-172hjuw"
             >
               <span
-                class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
               >
                 cluster0
               </span>
+            </div>
+            <div
+              class="MuiListItemText-root MuiListItemText-dense css-krqs19-MuiListItemText-root"
+            >
               <p
                 class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-pglae5-MuiTypography-root"
               >
@@ -105,19 +106,13 @@
             tabindex="-1"
           >
             <div
-              class="MuiListItemIcon-root css-cveggr-MuiListItemIcon-root"
-            />
-            <div
-              class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
+              class="MuiBox-root css-172hjuw"
             >
               <span
-                class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
               >
                 cluster1
               </span>
-              <p
-                class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-pglae5-MuiTypography-root"
-              />
             </div>
             <span
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
@@ -130,19 +125,13 @@
             tabindex="-1"
           >
             <div
-              class="MuiListItemIcon-root css-cveggr-MuiListItemIcon-root"
-            />
-            <div
-              class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
+              class="MuiBox-root css-172hjuw"
             >
               <span
-                class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
               >
                 cluster2
               </span>
-              <p
-                class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-pglae5-MuiTypography-root"
-              />
             </div>
             <span
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
@@ -155,19 +144,13 @@
             tabindex="-1"
           >
             <div
-              class="MuiListItemIcon-root css-cveggr-MuiListItemIcon-root"
-            />
-            <div
-              class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
+              class="MuiBox-root css-172hjuw"
             >
               <span
-                class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
               >
                 cluster3
               </span>
-              <p
-                class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-pglae5-MuiTypography-root"
-              />
             </div>
             <span
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
@@ -180,19 +163,13 @@
             tabindex="-1"
           >
             <div
-              class="MuiListItemIcon-root css-cveggr-MuiListItemIcon-root"
-            />
-            <div
-              class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
+              class="MuiBox-root css-172hjuw"
             >
               <span
-                class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
               >
                 cluster4
               </span>
-              <p
-                class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-pglae5-MuiTypography-root"
-              />
             </div>
             <span
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"

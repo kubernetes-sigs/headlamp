@@ -139,6 +139,7 @@ export default function TopBar({}: TopBarProps) {
       }
     },
     enabled: Boolean(clusterName),
+    retry: false,
     staleTime: 0,
     refetchOnMount: 'always',
   });
