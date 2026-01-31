@@ -43,6 +43,11 @@ export interface ConfigState {
     [clusterName: string]: Cluster;
   } | null;
   /**
+   * Whether dynamic clusters are enabled.
+   * When true, users can add and delete clusters dynamically.
+   */
+  isDynamicClusterEnabled: boolean;
+  /**
    * Settings is a map of settings names to settings values.
    */
   settings: {
@@ -71,6 +76,7 @@ export const initialState: ConfigState = {
   clusters: null,
   statelessClusters: null,
   allClusters: null,
+  isDynamicClusterEnabled: false,
   settings: {
     tableRowsPerPageOptions:
       storedSettings.tableRowsPerPageOptions || defaultTableRowsPerPageOptions,
@@ -89,8 +95,17 @@ const configSlice = createSlice({
      * @param state - The current state.
      * @param action - The payload action containing the config.
      */
-    setConfig(state, action: PayloadAction<{ clusters: ConfigState['clusters'] }>) {
+    setConfig(
+      state,
+      action: PayloadAction<{
+        clusters: ConfigState['clusters'];
+        isDynamicClusterEnabled?: boolean;
+      }>
+    ) {
       state.clusters = action.payload.clusters;
+      if (action.payload.isDynamicClusterEnabled !== undefined) {
+        state.isDynamicClusterEnabled = action.payload.isDynamicClusterEnabled;
+      }
     },
     /**
      * Save the config. To both the store, and localStorage.
