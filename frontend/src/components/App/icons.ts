@@ -471,6 +471,12 @@ const mdiIcons = {
     speedometer: {
       body: '<path fill="currentColor" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10s10-4.5 10-10S17.5 2 12 2m0 2c4.4 0 8 3.6 8 8c0 1.8-.6 3.5-1.6 4.8l-1.5-1.5c.7-.9 1.1-2.1 1.1-3.3c0-3.3-2.7-6-6-6s-6 2.7-6 6c0 1.2.4 2.4 1.1 3.3l-1.5 1.5C4.6 15.5 4 13.8 4 12c0-4.4 3.6-8 8-8m0 4a4 4 0 0 0-4 4c0 1.2.5 2.3 1.4 3L11 13.4V10h2v3.4l1.6 1.6c.9-.7 1.4-1.8 1.4-3a4 4 0 0 0-4-4Z"/>',
     },
+    'keyboard-settings-outline': {
+      body: '<path fill="currentColor" d="M7 22h2v2H7v-2m4 0h2v2h-2v-2m4 0h2v2h-2v-2M4 5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H4m0 2h16v10H4V7m1 1v2h2V8H5m3 0v2h2V8H8m3 0v2h2V8h-2m3 0v2h2V8h-2m3 0v2h2V8h-2M5 11v2h2v-2H5m3 0v2h2v-2H8m3 0v2h2v-2h-2m3 0v2h2v-2h-2m3 0v2h2v-2h-2m-9 3v2h8v-2H8Z"/>',
+    },
+    restore: {
+      body: '<path fill="currentColor" d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89l.07.14L9 12H6a7 7 0 0 1 7-7a7 7 0 0 1 7 7a7 7 0 0 1-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.896 8.896 0 0 0 13 21a9 9 0 0 0 9-9a9 9 0 0 0-9-9Z"/>',
+    },
   },
   aliases: {
     'more-vert': {

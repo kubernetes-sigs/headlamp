@@ -22,6 +22,7 @@ import { createStore } from 'redux';
 import { useMockListQuery } from '../../../helpers/testHelpers';
 import Pod, { KubePod } from '../../../lib/k8s/pod';
 import reducers from '../../../redux/reducers/reducers';
+import shortcutsReducer from '../../../redux/shortcutsSlice';
 import { uiSlice } from '../../../redux/uiSlice';
 import { TestContext } from '../../../test';
 import ResourceTable, { ResourceTableFromResourceClassProps } from './ResourceTable';
@@ -57,6 +58,7 @@ const TemplateWithFilter: StoryFn<{
         config: { settings: { tableRowsPerPageOptions: [10, 20, 50, 100] } },
         ui: { ...uiSlice.getInitialState() },
         drawerMode: { isDetailDrawerEnabled: false },
+        shortcuts: { ...shortcutsReducer(undefined, { type: '' }) },
       }
     ) => state,
     preloadedState: {
@@ -74,6 +76,7 @@ const TemplateWithFilter: StoryFn<{
         tableColumnsProcessors: [],
       },
       drawerMode: { isDetailDrawerEnabled: false },
+      shortcuts: { ...shortcutsReducer(undefined, { type: '' }) },
     },
   });
 
