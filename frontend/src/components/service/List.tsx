@@ -64,12 +64,15 @@ export default function ServiceList() {
           label: t('Cluster IP'),
           gridTemplate: 'min-content',
           getValue: service => service.spec.clusterIP,
+          copyable: true,
         },
         {
           id: 'externalIP',
           label: t('External IP'),
           gridTemplate: 'min-content',
-          getValue: service => service.getExternalAddresses() || '-',
+          getValue: service => service.getExternalAddresses() || '',
+          render: service => service.getExternalAddresses() || '-',
+          copyable: true,
         },
         {
           id: 'ports',
