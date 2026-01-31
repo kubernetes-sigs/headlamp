@@ -156,6 +156,7 @@
   "Are you sure you want to remove the cluster \"{{ clusterName }}\"?": "您确定要移除集群 \"{{ clusterName }}\" 吗？",
   "Server": "服务器",
   "Log out": "登出",
+  "Log out from all": "",
   "Account of current user": "当前用户的账户",
   "Appbar Tools": "应用栏工具",
   "show more": "显示更多",
