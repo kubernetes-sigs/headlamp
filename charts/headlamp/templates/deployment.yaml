@@ -216,7 +216,7 @@ spec:
             {{- end }}
             {{- if $oidc.usePKCE }}
             - name: OIDC_USE_PKCE
-              value: {{ $oidc.usePKCE }}
+              value: {{ $oidc.usePKCE | quote }}
             {{- end }}
             {{- if $oidc.meUserInfoURL }}
             - name: ME_USER_INFO_URL
@@ -231,6 +231,9 @@ spec:
           args:
             {{- if .Values.config.inCluster }}
             - "-in-cluster"
+            {{- if .Values.config.inClusterContextName }}
+            - "-in-cluster-context-name={{ .Values.config.inClusterContextName }}"
+            {{- end }}
             {{- end }}
             {{- with .Values.config.enableHelm }}
             - "-enable-helm"

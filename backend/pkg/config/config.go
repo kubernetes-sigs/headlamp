@@ -32,10 +32,11 @@ const (
 )
 
 type Config struct {
-	Version     bool `koanf:"version"`
-	InCluster   bool `koanf:"in-cluster"`
-	DevMode     bool `koanf:"dev"`
-	InsecureSsl bool `koanf:"insecure-ssl"`
+	Version              bool   `koanf:"version"`
+	InCluster            bool   `koanf:"in-cluster"`
+	InClusterContextName string `koanf:"in-cluster-context-name"`
+	DevMode              bool   `koanf:"dev"`
+	InsecureSsl          bool   `koanf:"insecure-ssl"`
 	// NoBrowser disables automatically opening the default browser when running
 	// a locally embedded Headlamp binary (non in-cluster with spa.UseEmbeddedFiles == true).
 	// It has no effect in in-cluster mode or when running without embedded frontend.
@@ -412,6 +413,7 @@ func flagset() *flag.FlagSet {
 func addGeneralFlags(f *flag.FlagSet) {
 	f.Bool("version", false, "Print version information and exit")
 	f.Bool("in-cluster", false, "Set when running from a k8s cluster")
+	f.String("in-cluster-context-name", "main", "Name to use for the in-cluster Kubernetes context")
 	f.Bool("dev", false, "Allow connections from other origins")
 	f.Bool("cache-enabled", false, "K8s cache in backend")
 	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")

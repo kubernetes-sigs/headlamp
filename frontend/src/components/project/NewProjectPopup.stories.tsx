@@ -17,14 +17,15 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
+import { useState } from 'react';
 import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
-import { CreateNew } from './ProjectCreateFromYaml';
+import { NewProjectPopup } from './NewProjectPopup';
 import { PROJECT_ID_LABEL } from './projectUtils';
 
 export default {
-  title: 'project/CreateFromYaml',
-  component: CreateNew,
+  title: 'project/NewProjectPopup',
+  component: NewProjectPopup,
   argTypes: {},
   decorators: [Story => <Story />],
 } as Meta;
@@ -58,11 +59,11 @@ const makeStore = () => {
 
 const Template: StoryFn<{ store: ReturnType<typeof configureStore> }> = args => {
   const { store } = args;
+  const [open, setOpen] = useState(true);
   return (
     <TestContext store={store}>
-      <div style={{ height: 800 }}>
-        <CreateNew />
-      </div>
+      <button onClick={() => setOpen(true)}>Open Popup</button>
+      <NewProjectPopup open={open} onClose={() => setOpen(false)} />
     </TestContext>
   );
 };
@@ -71,8 +72,6 @@ export const Default = Template.bind({});
 Default.args = {
   store: makeStore(),
 };
-
-// Optional MSW handlers to satisfy apiDiscovery when a cluster is selected
 Default.parameters = {
   msw: {
     handlers: {
@@ -82,26 +81,6 @@ Default.parameters = {
             kind: 'NamespaceList',
             items: [],
             metadata: {},
-          })
-        ),
-        http.get('http://localhost:4466/clusters/cluster-a/api', () =>
-          HttpResponse.json({ versions: ['v1'] })
-        ),
-        http.get('http://localhost:4466/clusters/cluster-a/apis', () =>
-          HttpResponse.json({ groups: [] })
-        ),
-        http.get('http://localhost:4466/clusters/cluster-a/api/v1', () =>
-          HttpResponse.json({
-            resources: [
-              { name: 'pods', singularName: 'pod', namespaced: true, kind: 'Pod', verbs: ['list'] },
-              {
-                name: 'configmaps',
-                singularName: 'configmap',
-                namespaced: true,
-                kind: 'ConfigMap',
-                verbs: ['list'],
-              },
-            ],
           })
         ),
       ],
@@ -136,35 +115,23 @@ WithExistingProjects.parameters = {
                 apiVersion: 'v1',
                 kind: 'Namespace',
                 metadata: {
-                  name: 'my-app',
+                  name: 'another-project',
                   uid: 'ns-2',
                   labels: {
-                    [PROJECT_ID_LABEL]: 'my-app',
+                    [PROJECT_ID_LABEL]: 'another-project',
                   },
+                },
+              },
+              {
+                apiVersion: 'v1',
+                kind: 'Namespace',
+                metadata: {
+                  name: 'default',
+                  uid: 'ns-3',
                 },
               },
             ],
             metadata: {},
-          })
-        ),
-        http.get('http://localhost:4466/clusters/cluster-a/api', () =>
-          HttpResponse.json({ versions: ['v1'] })
-        ),
-        http.get('http://localhost:4466/clusters/cluster-a/apis', () =>
-          HttpResponse.json({ groups: [] })
-        ),
-        http.get('http://localhost:4466/clusters/cluster-a/api/v1', () =>
-          HttpResponse.json({
-            resources: [
-              { name: 'pods', singularName: 'pod', namespaced: true, kind: 'Pod', verbs: ['list'] },
-              {
-                name: 'configmaps',
-                singularName: 'configmap',
-                namespaced: true,
-                kind: 'ConfigMap',
-                verbs: ['list'],
-              },
-            ],
           })
         ),
       ],

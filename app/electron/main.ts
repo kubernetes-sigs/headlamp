@@ -1327,6 +1327,11 @@ function adjustZoom(delta: number) {
 function startElectron() {
   console.info('App starting...');
 
+  // Increase max listeners to prevent false positive warnings
+  // The app legitimately needs multiple IPC listeners (currently 11)
+  // Default is 10, setting to 20 provides headroom for future additions
+  ipcMain.setMaxListeners(20);
+
   let appVersion: string;
   if (isDev && process.env.HEADLAMP_APP_VERSION) {
     appVersion = process.env.HEADLAMP_APP_VERSION;

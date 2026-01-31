@@ -109,6 +109,7 @@ spec:
           env:
           args:
             - "-in-cluster"
+            - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             # Check if externalSecret is disabled
             - "-tls-cert-path=/headlamp-cert/headlamp-ca.crt"
