@@ -25,7 +25,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { generatePath, useHistory } from 'react-router-dom';
+import { generatePath, useHistory, useLocation } from 'react-router-dom';
 import { setToken } from '../../lib/auth';
 import { getCluster, getClusterPrefixedPath } from '../../lib/cluster';
 import { useClustersConf } from '../../lib/k8s';
@@ -37,6 +37,7 @@ import HeadlampLink from '../common/Link';
 
 export default function AuthToken() {
   const history = useHistory();
+  const location = useLocation<{ from?: Location }>();
   const clusterConf = useClustersConf();
   const [token, setToken] = React.useState('');
   const [showError, setShowError] = React.useState(false);
@@ -47,11 +48,15 @@ export default function AuthToken() {
     loginWithToken(token).then(code => {
       // If successful, redirect.
       if (code === 200) {
-        history.replace(
-          generatePath(getClusterPrefixedPath(), {
-            cluster: getCluster() as string,
-          })
-        );
+        if (location.state && location.state.from) {
+          history.replace(location.state.from);
+        } else {
+          history.replace(
+            generatePath(getClusterPrefixedPath(), {
+              cluster: getCluster() as string,
+            })
+          );
+        }
       } else {
         setToken('');
         setShowError(true);
