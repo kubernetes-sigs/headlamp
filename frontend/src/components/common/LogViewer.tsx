@@ -20,6 +20,7 @@ import DialogContent from '@mui/material/DialogContent';
 import Grid from '@mui/material/Grid';
 import InputBase from '@mui/material/InputBase';
 import Paper from '@mui/material/Paper';
+import { useTheme } from '@mui/material/styles';
 import { FitAddon } from '@xterm/addon-fit';
 import { ISearchOptions, SearchAddon } from '@xterm/addon-search';
 import { Terminal as XTerminal } from '@xterm/xterm';
@@ -64,6 +65,7 @@ export function LogViewer(props: LogViewerProps) {
     ...other
   } = props;
   const { t } = useTranslation();
+  const theme = useTheme();
   const xtermRef = React.useRef<XTerminal | null>(null);
   const fitAddonRef = React.useRef<any>(null);
   const searchAddonRef = React.useRef<any>(null);
@@ -95,12 +97,22 @@ export function LogViewer(props: LogViewerProps) {
     fitAddonRef.current = new FitAddon();
     searchAddonRef.current = new SearchAddon();
 
+    const isDarkMode = theme.palette.mode === 'dark';
+
     xtermRef.current = new XTerminal({
       cursorStyle: 'bar',
       scrollback: 10000,
       rows: 30, // initial rows before fit
       lineHeight: 1.21,
       allowProposedApi: true,
+      theme: {
+        background: isDarkMode ? '#111' : '#f0f0f0',
+        foreground: isDarkMode ? '#d4d4d4' : '#000000',
+        cursor: isDarkMode ? '#ffffff' : '#000000',
+        cursorAccent: isDarkMode ? '#000000' : '#ffffff',
+        selectionBackground: isDarkMode ? '#264f78' : '#add6ff',
+        selectionForeground: isDarkMode ? '#ffffff' : '#000000',
+      },
     });
 
     if (!!outXtermRef) {
@@ -168,6 +180,7 @@ export function LogViewer(props: LogViewerProps) {
           overflow: 'hidden',
           width: '100%',
           height: '100%',
+          backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : '#ffffff',
           '& .terminal.xterm': {
             padding: theme.spacing(1),
           },
