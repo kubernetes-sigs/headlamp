@@ -162,7 +162,7 @@ func TestParseErrors(t *testing.T) {
 		{
 			name:          "oidc_settings_without_incluster",
 			args:          []string{"go run ./cmd", "-oidc-client-id=noClient"},
-			errorContains: "are only meant to be used in inCluster mode",
+			errorContains: "flags are only meant to be used in inCluster mode or with --oidc-use-cookie",
 		},
 		{
 			name:          "invalid_base_url",
