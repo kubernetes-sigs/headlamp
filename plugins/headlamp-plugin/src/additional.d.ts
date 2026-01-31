@@ -18,6 +18,135 @@
 /// <reference types="react" />
 /// <reference types="react-dom" />
 
+export interface HeadlampChartStyles {
+  defaultFillColor: string;
+  fillColor?: string;
+  labelColor: string;
+}
+
+export interface HeadlampHeaderStyle {
+  normal: {
+    fontSize: string;
+    fontWeight: string;
+  };
+  main: {
+    fontSize: string;
+    fontWeight: string;
+  };
+  subsection: {
+    fontSize: string;
+    fontWeight: string;
+  };
+  label: {
+    fontSize: string;
+    paddingTop: string;
+  };
+}
+
+export interface HeadlampTables {
+  head: {
+    background: string;
+    color: string;
+    borderColor: string;
+    text?: string;
+  };
+  body: {
+    background: string;
+  };
+  headerText?: string;
+}
+
+export interface HeadlampHome {
+  status: {
+    error: string;
+    success: string;
+    warning: string;
+    unknown: string;
+  };
+}
+
+export interface HeadlampClusterChooser {
+  button: {
+    color: string;
+    background: string;
+    hover: {
+      background: string;
+    };
+  };
+}
+
+export interface HeadlampSidebarButtonInLinkArea {
+  color: string;
+  primary: {
+    background: string;
+  };
+  hover: {
+    background: string;
+  };
+}
+
+export interface HeadlampSquareButton {
+  background: string;
+}
+
+export interface HeadlampResourceToolTip {
+  color: string;
+}
+
+export interface HeadlampSidebar {
+  background: string;
+  color: string;
+  selectedBackground: string;
+  selectedColor: string;
+  actionBackground: string;
+}
+
+export interface HeadlampNavbar {
+  background: string;
+  color: string;
+}
+
+declare module '@mui/material/styles' {
+  interface Palette {
+    sidebar: HeadlampSidebar;
+    navbar: HeadlampNavbar;
+    chartStyles: HeadlampChartStyles;
+    headerStyle: HeadlampHeaderStyle;
+    tables: HeadlampTables;
+    home: HeadlampHome;
+    clusterChooser: HeadlampClusterChooser;
+    sidebarButtonInLinkArea: HeadlampSidebarButtonInLinkArea;
+    squareButton: HeadlampSquareButton;
+    resourceToolTip: HeadlampResourceToolTip;
+    normalEventBg: string;
+    metadataBgColor: string;
+    notificationBorderColor: string;
+    [propName: string]: any;
+  }
+  interface PaletteOptions {
+    sidebar?: Partial<HeadlampSidebar>;
+    navbar?: Partial<HeadlampNavbar>;
+    chartStyles?: Partial<HeadlampChartStyles>;
+    headerStyle?: Partial<HeadlampHeaderStyle>;
+    tables?: Partial<HeadlampTables>;
+    home?: Partial<HeadlampHome>;
+    clusterChooser?: Partial<HeadlampClusterChooser>;
+    sidebarButtonInLinkArea?: Partial<HeadlampSidebarButtonInLinkArea>;
+    squareButton?: Partial<HeadlampSquareButton>;
+    resourceToolTip?: Partial<HeadlampResourceToolTip>;
+    normalEventBg?: string;
+    metadataBgColor?: string;
+    notificationBorderColor?: string;
+    [propName: string]: any;
+  }
+
+  interface TypeBackground {
+    default: string;
+    paper: string;
+    muted: string;
+  }
+}
+
 declare namespace NodeJS {
   interface ProcessEnv {
     readonly NODE_ENV: 'development' | 'production' | 'test';
