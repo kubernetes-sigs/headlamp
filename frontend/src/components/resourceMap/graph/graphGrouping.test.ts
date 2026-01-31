@@ -183,4 +183,47 @@ describe('groupGraph', () => {
     const individualNodes = groupedGraph.nodes?.filter(node => !node.id.startsWith('group-'));
     expect(individualNodes?.map(n => n.id)).toEqual(['hpa', 'configmap']);
   });
+
+  it('does not merge separate components through shared RWX PVC', () => {
+    const rwxPvc: GraphNode = {
+      id: 'pvc-rwx',
+      kubeObject: {
+        kind: 'PersistentVolumeClaim',
+        metadata: { name: 'pvc-rwx', namespace: 'ns1' } as any,
+        spec: { accessModes: ['ReadWriteMany'] },
+      } as any,
+    };
+
+    const deploymentA: GraphNode = { id: 'deploy-a', kubeObject: { kind: 'Deployment' } as any };
+    const podA: GraphNode = { id: 'pod-a', kubeObject: { kind: 'Pod' } as any };
+    const deploymentB: GraphNode = { id: 'deploy-b', kubeObject: { kind: 'Deployment' } as any };
+    const podB: GraphNode = { id: 'pod-b', kubeObject: { kind: 'Pod' } as any };
+
+    const groupedGraph = groupGraph(
+      [deploymentA, podA, deploymentB, podB, rwxPvc],
+      [
+        { id: 'e-a', source: 'deploy-a', target: 'pod-a' },
+        { id: 'e-b', source: 'deploy-b', target: 'pod-b' },
+        { id: 'e-a-pvc', source: 'pod-a', target: 'pvc-rwx' },
+        { id: 'e-b-pvc', source: 'pod-b', target: 'pvc-rwx' },
+      ],
+      {
+        namespaces: [],
+        k8sNodes: [],
+      }
+    );
+
+    const connectedGroups = (groupedGraph.nodes ?? []).filter(
+      node => node.id.startsWith('group-') && (node.edges?.length ?? 0) > 0
+    );
+    expect(connectedGroups).toHaveLength(2);
+
+    const pvcNodesByGroup = connectedGroups.map(group =>
+      (group.nodes ?? []).filter(node => node.kubeObject?.kind === 'PersistentVolumeClaim')
+    );
+
+    expect(pvcNodesByGroup[0]).toHaveLength(1);
+    expect(pvcNodesByGroup[1]).toHaveLength(1);
+    expect(pvcNodesByGroup[0][0].id).not.toEqual(pvcNodesByGroup[1][0].id);
+  });
 });

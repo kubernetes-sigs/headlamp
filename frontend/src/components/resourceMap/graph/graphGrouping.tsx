@@ -47,9 +47,173 @@ export const getGraphSize = (graph: GraphNode) => {
  *          or a group node containing multiple nodes and edges
  */
 const getConnectedComponents = (nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] => {
+  const isRWXPersistentVolumeClaim = (node: GraphNode) => {
+    if (node.kubeObject?.kind !== 'PersistentVolumeClaim') {
+      return false;
+    }
+
+    const accessModes = (node.kubeObject as any)?.spec?.accessModes;
+    return Array.isArray(accessModes) && accessModes.includes('ReadWriteMany');
+  };
+
+  const getConnectedComponentGroups = (
+    componentNodes: GraphNode[],
+    componentEdges: GraphEdge[]
+  ) => {
+    const components: GraphNode[] = [];
+    const graphLookup = makeGraphLookup(componentNodes, componentEdges);
+
+    const visitedNodes = new Set<string>();
+    const visitedEdges = new Set<string>();
+
+    const findConnectedComponent = (
+      node: GraphNode,
+      nodesInComponent: GraphNode[],
+      edgesInComponent: GraphEdge[]
+    ) => {
+      visitedNodes.add(node.id);
+      nodesInComponent.push(node);
+
+      graphLookup.getOutgoingEdges(node.id)?.forEach(edge => {
+        if (!visitedEdges.has(edge.id)) {
+          visitedEdges.add(edge.id);
+          edgesInComponent.push(edge);
+        }
+
+        if (!visitedNodes.has(edge.target)) {
+          const targetNode = graphLookup.getNode(edge.target);
+          if (targetNode) {
+            findConnectedComponent(targetNode, nodesInComponent, edgesInComponent);
+          }
+        }
+      });
+
+      graphLookup.getIncomingEdges(node.id)?.forEach(edge => {
+        if (!visitedEdges.has(edge.id)) {
+          visitedEdges.add(edge.id);
+          edgesInComponent.push(edge);
+        }
+
+        if (!visitedNodes.has(edge.source)) {
+          const sourceNode = graphLookup.getNode(edge.source);
+          if (sourceNode) {
+            findConnectedComponent(sourceNode, nodesInComponent, edgesInComponent);
+          }
+        }
+      });
+    };
+
+    componentNodes.forEach(node => {
+      if (!visitedNodes.has(node.id)) {
+        const nodesInComponent: GraphNode[] = [];
+        const edgesInComponent: GraphEdge[] = [];
+        findConnectedComponent(node, nodesInComponent, edgesInComponent);
+        const mainNode = getMainNode(nodesInComponent);
+
+        const id = 'group-' + (mainNode?.id ?? 'unknown');
+        components.push({
+          id,
+          nodes: nodesInComponent,
+          edges: edgesInComponent,
+        });
+      }
+    });
+
+    return components;
+  };
+
   const components: GraphNode[] = [];
 
   const graphLookup = makeGraphLookup(nodes, edges);
+  const sharedRWXPVCNodeIds = new Set<string>();
+
+  nodes.forEach(node => {
+    if (!isRWXPersistentVolumeClaim(node)) {
+      return;
+    }
+
+    const neighborNodeIds = new Set<string>();
+    graphLookup.getOutgoingEdges(node.id)?.forEach(edge => neighborNodeIds.add(edge.target));
+    graphLookup.getIncomingEdges(node.id)?.forEach(edge => neighborNodeIds.add(edge.source));
+
+    if (neighborNodeIds.size > 1) {
+      sharedRWXPVCNodeIds.add(node.id);
+    }
+  });
+
+  if (sharedRWXPVCNodeIds.size > 0) {
+    const baseNodes = nodes.filter(node => !sharedRWXPVCNodeIds.has(node.id));
+    const baseEdges = edges.filter(
+      edge => !sharedRWXPVCNodeIds.has(edge.source) && !sharedRWXPVCNodeIds.has(edge.target)
+    );
+
+    const sharedRWXPVCById = new Map<string, GraphNode>();
+    nodes.forEach(node => {
+      if (sharedRWXPVCNodeIds.has(node.id)) {
+        sharedRWXPVCById.set(node.id, node);
+      }
+    });
+
+    const edgesBySharedRWXPVC = new Map<string, GraphEdge[]>();
+    edges.forEach(edge => {
+      const pvcId = sharedRWXPVCNodeIds.has(edge.source)
+        ? edge.source
+        : sharedRWXPVCNodeIds.has(edge.target)
+        ? edge.target
+        : undefined;
+      if (!pvcId) {
+        return;
+      }
+
+      const list = edgesBySharedRWXPVC.get(pvcId) ?? [];
+      list.push(edge);
+      edgesBySharedRWXPVC.set(pvcId, list);
+    });
+
+    const baseComponents = getConnectedComponentGroups(baseNodes, baseEdges);
+
+    baseComponents.forEach(component => {
+      const componentNodeIds = new Set(component.nodes?.map(n => n.id) ?? []);
+      if (componentNodeIds.size === 0) {
+        return;
+      }
+
+      sharedRWXPVCNodeIds.forEach(pvcId => {
+        const pvcNode = sharedRWXPVCById.get(pvcId);
+        if (!pvcNode) {
+          return;
+        }
+
+        const incidentEdges = edgesBySharedRWXPVC.get(pvcId) ?? [];
+        const edgesToThisComponent = incidentEdges.filter(edge => {
+          const otherNodeId = edge.source === pvcId ? edge.target : edge.source;
+          return componentNodeIds.has(otherNodeId);
+        });
+
+        if (edgesToThisComponent.length === 0) {
+          return;
+        }
+
+        const pvcCloneId = `${pvcId}--${component.id}`;
+        if (!componentNodeIds.has(pvcCloneId)) {
+          component.nodes = [...(component.nodes ?? []), { ...pvcNode, id: pvcCloneId }];
+          componentNodeIds.add(pvcCloneId);
+        }
+
+        component.edges = [
+          ...(component.edges ?? []),
+          ...edgesToThisComponent.map(edge => ({
+            ...edge,
+            id: `${edge.id}--${pvcCloneId}`,
+            source: edge.source === pvcId ? pvcCloneId : edge.source,
+            target: edge.target === pvcId ? pvcCloneId : edge.target,
+          })),
+        ];
+      });
+    });
+
+    return baseComponents.map(it => (it.nodes?.length === 1 ? it.nodes[0] : it));
+  }
 
   const visitedNodes = new Set<string>();
   const visitedEdges = new Set<string>();
