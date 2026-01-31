@@ -94,7 +94,7 @@ spec:
     spec:
       serviceAccountName: headlamp
       automountServiceAccountToken: true
-      hostUsers: true
+      hostUsers: false
       securityContext:
         {}
       containers:
@@ -110,11 +110,8 @@ spec:
           env:
           args:
             - "-in-cluster"
-            - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             # Check if externalSecret is disabled
-            - "-tls-cert-path=/headlamp-cert/headlamp-ca.crt"
-            - "-tls-key-path=/headlamp-cert/headlamp-tls.key"
           ports:
             - name: http
               containerPort: 4466
@@ -129,15 +126,3 @@ spec:
               port: http
           resources:
             {}
-          volumeMounts:
-            - mountPath: /headlamp-cert
-              name: headlamp-cert
-      volumes:
-        - name: headlamp-cert
-          secret:
-            items:
-            - key: tls.crt
-              path: headlamp-ca.crt
-            - key: tls.key
-              path: headlamp-tls.key
-            secretName: headlamp-tls
