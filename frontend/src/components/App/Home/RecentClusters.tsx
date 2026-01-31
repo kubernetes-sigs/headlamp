@@ -131,7 +131,8 @@ export default function RecentClusters(props: RecentClustersProps) {
 
   return (
     <Grid
-      aria-labelledby={`#${recentClustersLabelId}`}
+      role="group"
+      aria-labelledby={recentClustersLabelId}
       item
       container
       alignItems="flex-start"
