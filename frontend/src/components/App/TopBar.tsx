@@ -69,7 +69,9 @@ export function processAppBarActions(
 ): AppBarAction[] {
   let appBarActionsProcessed = [...appBarActions];
   for (const appBarActionsProcessor of appBarActionsProcessors) {
-    appBarActionsProcessed = appBarActionsProcessor.processor({ actions: appBarActionsProcessed });
+    appBarActionsProcessed = appBarActionsProcessor.processor({
+      actions: appBarActionsProcessed,
+    });
   }
   return appBarActionsProcessed;
 }
@@ -146,7 +148,10 @@ export default function TopBar({}: TopBarProps) {
   const logoutCallback = useCallback(async () => {
     if (!!cluster) {
       await logout(cluster);
-      queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
+      queryClient.removeQueries({
+        queryKey: ['clusterMe', cluster],
+        exact: true,
+      });
     }
     history.push('/');
   }, [cluster, history, queryClient]);
@@ -403,30 +408,24 @@ export const PureTopBar = memo(
       },
       {
         id: DefaultAppBarAction.SETTINGS,
-        action: (
-          <MenuItem>
-            <SettingsButton onClickExtra={handleMenuClose} />
-          </MenuItem>
-        ),
+        action: isClusterContext ? <SettingsButton onClickExtra={handleMenuClose} /> : null,
       },
       {
         id: DefaultAppBarAction.USER,
         action: !!isClusterContext && (
-          <MenuItem>
-            <IconButton
-              aria-label={t('Account of current user')}
-              aria-controls={userMenuId}
-              aria-haspopup="true"
-              color="inherit"
-              onClick={event => {
-                handleMenuClose();
-                handleProfileMenuOpen(event);
-              }}
-              size="medium"
-            >
-              <Icon icon="mdi:account" />
-            </IconButton>
-          </MenuItem>
+          <IconButton
+            aria-label={t('Account of current user')}
+            aria-controls={userMenuId}
+            aria-haspopup="true"
+            color="inherit"
+            onClick={event => {
+              handleMenuClose();
+              handleProfileMenuOpen(event);
+            }}
+            size="medium"
+          >
+            <Icon icon="mdi:account" />
+          </IconButton>
         ),
       },
     ];
@@ -488,7 +487,14 @@ export const PureTopBar = memo(
     const visibleMobileActions = processAppBarActions(
       allAppBarActionsMobile,
       appBarActionsProcessors
-    ).filter(action => React.isValidElement(action.action) || typeof action === 'function');
+    ).filter(action => {
+      return (
+        React.isValidElement((action as AppBarAction).action) ||
+        typeof (action as AppBarAction).action === 'function' ||
+        React.isValidElement(action) ||
+        typeof action === 'function'
+      );
+    });
 
     return (
       <>

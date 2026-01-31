@@ -64,10 +64,10 @@
                   />
                   <fieldset
                     aria-hidden="true"
-                    class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                    class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                   >
                     <legend
-                      class="css-yjsfm1"
+                      class="css-njhac4-MuiNotchedOutlined-root"
                     >
                       <span>
                         Project Name
@@ -161,10 +161,10 @@
                     </div>
                     <fieldset
                       aria-hidden="true"
-                      class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                      class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                     >
                       <legend
-                        class="css-yjsfm1"
+                        class="css-njhac4-MuiNotchedOutlined-root"
                       >
                         <span>
                           Clusters
@@ -257,7 +257,7 @@
                       <input
                         accept="application/x-yaml,.yaml,.yml,text/yaml,.yaml,.yml,text/plain,.yaml,.yml"
                         multiple=""
-                        style="display: none;"
+                        style="border: 0px; clip: rect(0px, 0px, 0px, 0px); clip-path: inset(50%); height: 1px; margin: 0px -1px -1px 0px; overflow: hidden; padding: 0px; position: absolute; width: 1px; white-space: nowrap;"
                         tabindex="-1"
                         type="file"
                       />

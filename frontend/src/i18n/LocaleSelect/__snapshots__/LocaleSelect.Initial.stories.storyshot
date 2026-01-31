@@ -4,7 +4,7 @@
       class="MuiFormControl-root css-1nrlq1o-MuiFormControl-root"
     >
       <div
-        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall  css-uwmwwo-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
+        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall css-uwmwwo-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
       >
         <div
           aria-controls="under-test"
@@ -38,10 +38,10 @@
         </svg>
         <fieldset
           aria-hidden="true"
-          class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+          class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
         >
           <legend
-            class="css-ihdtdm"
+            class="css-1whs34k-MuiNotchedOutlined-root"
           >
             <span
               class="notranslate"

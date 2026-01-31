@@ -21,7 +21,7 @@
             role="combobox"
             spellcheck="false"
             type="text"
-            value="(UTC+0) Etc/Utc"
+            value=""
           />
           <div
             class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
@@ -51,10 +51,10 @@
           </div>
           <fieldset
             aria-hidden="true"
-            class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+            class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
           >
             <legend
-              class="css-ihdtdm"
+              class="css-1whs34k-MuiNotchedOutlined-root"
             >
               <span
                 class="notranslate"
@@ -65,7 +65,7 @@
           </fieldset>
         </div>
         <p
-          class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained MuiFormHelperText-filled css-153yz37-MuiFormHelperText-root"
+          class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained css-153yz37-MuiFormHelperText-root"
           id="cluster-selector-autocomplete-helper-text"
         >
           Timezone
