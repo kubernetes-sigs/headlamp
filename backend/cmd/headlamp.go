@@ -72,6 +72,7 @@ import (
 
 type HeadlampConfig struct {
 	*headlampcfg.HeadlampCFG
+	OidcAllowContext          bool
 	oidcClientID              string
 	oidcValidatorClientID     string
 	oidcClientSecret          string
@@ -1305,7 +1306,7 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 	context = context.Copy()
 
 	// If headlamp is running in cluster, use the token from the cookie for oidc auth
-	if c.UseInCluster && context.OidcConf != nil {
+	if (c.UseInCluster || c.OidcAllowContext) && context.OidcConf != nil {
 		setTokenFromCookie(r, clusterName)
 	}
 
