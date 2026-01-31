@@ -95,6 +95,10 @@ type HeadlampConfig struct {
 	meGroupsPaths string
 	// meUserInfoURL is the URL to fetch additional user info for the /me endpoint. /oauth2/userinfo
 	meUserInfoURL string
+	// oauthRequestMap stores pending OAuth requests keyed by state
+	oauthRequestMap map[string]*OauthConfig
+	// oauthMu protects oauthRequestMap
+	oauthMu sync.Mutex
 }
 
 const DrainNodeCacheTTL = 20 // seconds
@@ -125,8 +129,9 @@ type OauthConfig struct {
 	Config       *oauth2.Config
 	Verifier     *oidc.IDTokenVerifier
 	Ctx          context.Context
-	CodeVerifier string // PKCE code verifier
-	Cluster      string // cluster context name this is associated with
+	CodeVerifier string    // PKCE code verifier
+	Cluster      string    // cluster context name this is associated with
+	CreatedAt    time.Time // Time when the entry was created (for TTL cleanup)
 }
 
 // returns True if a file exists.
@@ -546,115 +551,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 	config.handleClusterRequests(r)
 
-	r.HandleFunc("/externalproxy", func(w http.ResponseWriter, r *http.Request) {
-		proxyURL := r.Header.Get("proxy-to")
-		if proxyURL == "" && r.Header.Get("Forward-to") != "" {
-			proxyURL = r.Header.Get("Forward-to")
-		}
-
-		if proxyURL == "" {
-			logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL},
-				errors.New("proxy URL is empty"), "proxy URL is empty")
-			http.Error(w, "proxy URL is empty", http.StatusBadRequest)
-
-			return
-		}
-
-		url, err := url.Parse(proxyURL)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL},
-				err, "The provided proxy URL is invalid")
-			http.Error(w, fmt.Sprintf("The provided proxy URL is invalid: %v", err), http.StatusBadRequest)
-
-			return
-		}
-
-		isURLContainedInProxyURLs := false
-
-		for _, proxyURL := range config.ProxyURLs {
-			g := glob.MustCompile(proxyURL)
-			if g.Match(url.String()) {
-				isURLContainedInProxyURLs = true
-				break
-			}
-		}
-
-		if !isURLContainedInProxyURLs {
-			logger.Log(logger.LevelError, nil, err, "no allowed proxy url match, request denied")
-			http.Error(w, "no allowed proxy url match, request denied ", http.StatusBadRequest)
-
-			return
-		}
-
-		ctx := context.Background()
-
-		proxyReq, err := http.NewRequestWithContext(ctx, r.Method, proxyURL, r.Body)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "creating request")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		// We may want to filter some headers, otherwise we could just use a shallow copy
-		proxyReq.Header = make(http.Header)
-		for h, val := range r.Header {
-			proxyReq.Header[h] = val
-		}
-
-		// Disable caching
-		w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
-		w.Header().Set("Expires", time.Unix(0, 0).Format(http.TimeFormat))
-		w.Header().Set("Pragma", "no-cache")
-		w.Header().Set("X-Accel-Expires", "0")
-
-		client := http.Client{}
-
-		resp, err := client.Do(proxyReq)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "making request")
-			http.Error(w, err.Error(), http.StatusBadGateway)
-
-			return
-		}
-
-		defer resp.Body.Close()
-
-		// Check that the server actually sent compressed data
-		var reader io.ReadCloser
-
-		switch resp.Header.Get("Content-Encoding") {
-		case "gzip":
-			reader, err = gzip.NewReader(resp.Body)
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "reading gzip response")
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-
-				return
-			}
-			defer reader.Close()
-		default:
-			reader = resp.Body
-		}
-
-		respBody, err := io.ReadAll(reader)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "reading response")
-			http.Error(w, err.Error(), http.StatusBadGateway)
-
-			return
-		}
-
-		_, err = w.Write(respBody)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "writing response")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		defer resp.Body.Close()
-	})
+	r.HandleFunc("/externalproxy", config.handleExternalProxy)
 
 	// Configuration
 	r.HandleFunc("/config", config.getConfig).Methods("GET")
@@ -667,10 +564,35 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 	config.addClusterSetupRoute(r)
 
-	var (
-		oauthRequestMap = make(map[string]*OauthConfig)
-		oauthMu         sync.Mutex
-	)
+	// Initialize OAuth request map if not already initialized
+	if config.oauthRequestMap == nil {
+		config.oauthRequestMap = make(map[string]*OauthConfig)
+	}
+
+	// Start background goroutine to clean up expired OAuth entries (prevents unbounded memory growth)
+	go func() {
+		const oauthTTL = 15 * time.Minute
+
+		ticker := time.NewTicker(5 * time.Minute)
+
+		defer ticker.Stop()
+
+		for range ticker.C {
+			config.oauthMu.Lock()
+
+			now := time.Now()
+
+			for state, entry := range config.oauthRequestMap {
+				if now.Sub(entry.CreatedAt) > oauthTTL {
+					delete(config.oauthRequestMap, state)
+					logger.Log(logger.LevelInfo, map[string]string{"state": state},
+						nil, "Cleaned up expired OAuth entry")
+				}
+			}
+
+			config.oauthMu.Unlock()
+		}
+	}()
 
 	r.HandleFunc("/oidc", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
@@ -746,10 +668,11 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		}()
 
 		entry := &OauthConfig{
-			Config:   oauthConfig,
-			Verifier: verifier,
-			Ctx:      ctx,
-			Cluster:  cluster,
+			Config:    oauthConfig,
+			Verifier:  verifier,
+			Ctx:       ctx,
+			Cluster:   cluster,
+			CreatedAt: time.Now(),
 		}
 
 		var authURL string
@@ -762,9 +685,9 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		}
 
 		// Store the request config keyed by state for callback handling
-		oauthMu.Lock()
-		oauthRequestMap[state] = entry
-		oauthMu.Unlock()
+		config.oauthMu.Lock()
+		config.oauthRequestMap[state] = entry
+		config.oauthMu.Unlock()
 
 		http.Redirect(w, r, authURL, http.StatusFound)
 	}).Queries("cluster", "{cluster}")
@@ -783,15 +706,15 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			return
 		}
 
-		oauthMu.Lock()
+		config.oauthMu.Lock()
 
-		oauthConfig, ok := oauthRequestMap[state]
+		oauthConfig, ok := config.oauthRequestMap[state]
 		if ok {
 			// We have a copy of the oauthConfig, we can delete the map entry now
-			delete(oauthRequestMap, state)
+			delete(config.oauthRequestMap, state)
 		}
 
-		oauthMu.Unlock()
+		config.oauthMu.Unlock()
 
 		if !ok {
 			http.Error(w, "invalid request", http.StatusBadRequest)
@@ -923,6 +846,140 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	}
 
 	return r
+}
+
+//nolint:funlen
+func (c *HeadlampConfig) handleExternalProxy(w http.ResponseWriter, r *http.Request) {
+	proxyURL := r.Header.Get("proxy-to")
+	if proxyURL == "" && r.Header.Get("Forward-to") != "" {
+		proxyURL = r.Header.Get("Forward-to")
+	}
+
+	if proxyURL == "" {
+		logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL},
+			errors.New("proxy URL is empty"), "proxy URL is empty")
+		http.Error(w, "proxy URL is empty", http.StatusBadRequest)
+
+		return
+	}
+
+	parsedURL, err := url.Parse(proxyURL)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL},
+			err, "The provided proxy URL is invalid")
+		http.Error(w, fmt.Sprintf("The provided proxy URL is invalid: %v", err), http.StatusBadRequest)
+
+		return
+	}
+
+	isURLContainedInProxyURLs := false
+
+	for _, proxyURL := range c.ProxyURLs {
+		g := glob.MustCompile(proxyURL)
+		if g.Match(parsedURL.String()) {
+			isURLContainedInProxyURLs = true
+			break
+		}
+	}
+
+	if !isURLContainedInProxyURLs {
+		logger.Log(logger.LevelError, nil, errors.New("no allowed proxy url match"), "request denied")
+		http.Error(w, "no allowed proxy url match, request denied", http.StatusBadRequest)
+
+		return
+	}
+
+	// Create context with timeout to prevent hanging requests
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	proxyReq, err := http.NewRequestWithContext(ctx, r.Method, proxyURL, r.Body)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "creating request")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	// We may want to filter some headers, otherwise we could just use a shallow copy
+	proxyReq.Header = make(http.Header)
+	for h, val := range r.Header {
+		proxyReq.Header[h] = val
+	}
+
+	// Create HTTP client with explicit timeout
+	client := http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	resp, err := client.Do(proxyReq)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "making request")
+		http.Error(w, err.Error(), http.StatusBadGateway)
+
+		return
+	}
+
+	defer resp.Body.Close()
+
+	// Copy relevant response headers from upstream (excluding certain headers we override)
+	skipHeaders := map[string]bool{
+		"Cache-Control":   true,
+		"Expires":         true,
+		"Pragma":          true,
+		"X-Accel-Expires": true,
+	}
+
+	for key, values := range resp.Header {
+		if !skipHeaders[key] {
+			for _, value := range values {
+				w.Header().Add(key, value)
+			}
+		}
+	}
+
+	// Set cache control headers (override any from upstream)
+	w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
+	w.Header().Set("Expires", time.Unix(0, 0).Format(http.TimeFormat))
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("X-Accel-Expires", "0")
+
+	// Check that the server actually sent compressed data
+	var reader io.ReadCloser
+
+	switch resp.Header.Get("Content-Encoding") {
+	case "gzip":
+		reader, err = gzip.NewReader(resp.Body)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "reading gzip response")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		defer reader.Close()
+	default:
+		reader = resp.Body
+	}
+
+	respBody, err := io.ReadAll(reader)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "reading response")
+		http.Error(w, err.Error(), http.StatusBadGateway)
+
+		return
+	}
+
+	// Forward the upstream status code to the client
+	w.WriteHeader(resp.StatusCode)
+
+	_, err = w.Write(respBody)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing response")
+		// Can't call http.Error here since we already wrote the header
+
+		return
+	}
 }
 
 func (c *HeadlampConfig) refreshAndSetToken(oidcAuthConfig *kubeconfig.OidcConfig,
