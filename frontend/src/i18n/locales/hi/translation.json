@@ -400,6 +400,7 @@
   "Failed to run \"{{ command }}\"": "\"{{ command }}\" चलाने में विफल",
   "Trying to attach to the container {{ container }}…": "कंटेनर {{ container }} से जुड़ने का प्रयास कर रहे हैं…",
   "Trying to run \"{{command}}\"…": "\"{{command}}\" चलाने का प्रयास कर रहे हैं…",
+  "Paste": "पेस्ट करें",
   "Attach: {{ itemName }}": "जोड़ें: {{ itemName }}",
   "Terminal: {{ itemName }}": "टर्मिनल: {{ itemName }}",
   "Timezone": "समय क्षेत्र",

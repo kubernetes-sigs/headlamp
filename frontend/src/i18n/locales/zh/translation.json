@@ -397,6 +397,7 @@
   "Failed to run \"{{ command }}\"": "执行 \"{{ command }}\" 失败",
   "Trying to attach to the container {{ container }}…": "尝试附加到容器 {{ container }}…",
   "Trying to run \"{{command}}\"…": "尝试执行 \"{{command}}\"…",
+  "Paste": "粘贴",
   "Attach: {{ itemName }}": "附加：{{ itemName }}",
   "Terminal: {{ itemName }}": "终端：{{ itemName }}",
   "Timezone": "时区",

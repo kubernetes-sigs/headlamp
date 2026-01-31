@@ -403,6 +403,7 @@
   "Failed to run \"{{ command }}\"": "Fallo al ejecutar \"{{ command }}\"",
   "Trying to attach to the container {{ container }}…": "Intentando adjuntarse al contenedor {{ container }}…",
   "Trying to run \"{{command}}\"…": "Intentando ejecutar \"{{command}}\"…",
+  "Paste": "Pegar",
   "Attach: {{ itemName }}": "",
   "Terminal: {{ itemName }}": "",
   "Timezone": "Huso horario",
