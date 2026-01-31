@@ -195,19 +195,23 @@ export function makeCustomResourceClass(
     static getBaseObject(): Omit<KubeObjectInterface, 'metadata'> & {
       metadata: Partial<import('./KubeMetadata').KubeMetadata>;
     } {
-      if (!crClassArgs.customResourceDefinition) {
-        return super.getBaseObject();
+      const crd = crClassArgs.customResourceDefinition;
+
+      if (crd && typeof crd.getMainAPIGroup === 'function') {
+        const [group, version] = crd.getMainAPIGroup();
+        return {
+          apiVersion: group ? `${group}/${version}` : version,
+          kind: this.kind,
+          metadata: { name: '' },
+        };
       }
 
-      const [group, version] = crClassArgs.customResourceDefinition.getMainAPIGroup();
-      const apiVersion = group ? `${group}/${version}` : version;
-
       return {
-        apiVersion,
+        apiVersion: Array.isArray(this.apiVersion)
+          ? this.apiVersion[0]
+          : this.apiVersion,
         kind: this.kind,
-        metadata: {
-          name: '',
-        },
+        metadata: { name: '' },
       };
     }
   };
