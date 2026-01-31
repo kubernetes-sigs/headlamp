@@ -1,0 +1,9 @@
+.LogsDisplay__row:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.LogsDisplay__row {
+  word-break: break-all;
+  border-left: 5px solid;
+  padding-left: 5px;
+}
