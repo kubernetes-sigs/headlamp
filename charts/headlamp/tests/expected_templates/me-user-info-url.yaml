@@ -20,6 +20,7 @@ metadata:
   namespace: default
 type: Opaque
 data:
+  meUserInfoURL: "L29hdXRoMi91c2VyaW5mb2N1c3RvbTI="
 ---
 # Source: headlamp/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
