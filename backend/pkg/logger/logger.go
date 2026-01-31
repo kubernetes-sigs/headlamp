@@ -24,8 +24,10 @@ import (
 )
 
 const (
+	// LevelDebug is the debug level.
+	LevelDebug = iota
 	// LevelInfo is the info level.
-	LevelInfo = iota
+	LevelInfo
 	// LevelWarn is the warn level.
 	LevelWarn
 	// LevelError is the error level.
@@ -53,6 +55,8 @@ func log(level uint, str map[string]string, err interface{}, msg string) {
 	var event *zerolog.Event
 
 	switch level {
+	case LevelDebug:
+		event = zlog.Debug()
 	case LevelInfo:
 		event = zlog.Info()
 	case LevelWarn:
