@@ -50,6 +50,13 @@ export const GroupNodeComponent = memo(({ id }: { id: string }) => {
   const graph = useGraphView();
   const node = useNode(id);
 
+  const kubeObject = node?.kubeObject;
+
+  const apiGroup =
+    kubeObject?.jsonData?.apiVersion && kubeObject.jsonData.apiVersion.includes('/')
+      ? kubeObject.jsonData.apiVersion.split('/')[0]
+      : 'core';
+
   const handleSelect = () => {
     graph.setNodeSelection(id);
   };
@@ -68,7 +75,7 @@ export const GroupNodeComponent = memo(({ id }: { id: string }) => {
       {(node?.label || node?.subtitle) && (
         <Label title={node?.label}>
           {node?.kubeObject ? (
-            <KubeIcon kind={node.kubeObject.kind} width="24px" height="24px" />
+            <KubeIcon kind={node.kubeObject.kind} apiGroup={apiGroup} width="24px" height="24px" />
           ) : (
             node?.icon ?? null
           )}
