@@ -49,7 +49,22 @@
       "allowToChangeInstallationDirectory": true
     },
     "deb": {
-      "artifactName": "${name}_${version}-1_${arch}.${ext}"
+      "artifactName": "${name}_${version}-1_${arch}.${ext}",
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0",
+        "libasound2",
+        "gconf2",
+        "gconf-service",
+        "libappindicator1"
+      ]
     },
     "linux": {
       "target": [
