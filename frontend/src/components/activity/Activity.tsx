@@ -247,7 +247,7 @@ export function SingleActivityRenderer({
       const x = (box.width / cols) * (index % 3) + gapPx;
       const y = (box.height / rows) * Math.floor(index / 3) + gapPx;
       const width = box.width / cols - gapPx * (cols - 2);
-      const height = box.height / rows - gapPx * (rows - 2);
+      const height = Math.max(150, box.height / rows - gapPx * (rows - 2));
 
       oldTranslation = activity.style.transform ?? '';
       oldHeight = activity.style.height;
@@ -390,16 +390,40 @@ export function SingleActivityRenderer({
           {isOverview && (
             <Box
               sx={{
-                fontSize: '18px',
+                fontSize: '0.875rem',
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: 1,
-                gap: 1,
+                padding: 2,
+                gap: 1.5,
                 height: '100%',
+                minHeight: '150px',
               }}
             >
-              <Box sx={{ width: '48px', height: '48px', flexShrink: 0 }}>{icon}</Box> {title}
+              <Box
+                sx={{
+                  width: { xs: '32px', sm: '40px', md: '48px' },
+                  height: { xs: '32px', sm: '40px', md: '48px' },
+                  flexShrink: 0,
+                }}
+              >
+                {icon}
+              </Box>
+              <Box
+                sx={{
+                  minWidth: 0,
+                  flex: 1,
+                  textAlign: 'center',
+                  wordBreak: 'break-word',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '100%',
+                }}
+              >
+                {title}
+              </Box>
             </Box>
           )}
           <>
@@ -427,17 +451,18 @@ export function SingleActivityRenderer({
             >
               {!hideTitleInHeader && (
                 <>
-                  <Box sx={{ width: '18px', height: '18px' }}>{icon}</Box>
+                  <Box sx={{ width: '18px', height: '18px', flexShrink: 0 }}>{icon}</Box>
                   <Typography
                     color="textSecondary"
                     fontSize={14}
                     sx={{
-                      maxWidth: 'calc(45% - 60px)',
+                      maxWidth: { xs: '100px', sm: '150px', md: 'calc(45% - 60px)' },
+                      minWidth: 0,
                       whiteSpace: 'nowrap',
                       textOverflow: 'ellipsis',
                       overflow: 'hidden',
+                      flexShrink: 1,
                     }}
-                    title={typeof title === 'string' ? title : undefined}
                   >
                     {title}
                   </Typography>
@@ -451,10 +476,19 @@ export function SingleActivityRenderer({
                     fontSize: '0.875rem',
                     paddingX: 0.5,
                     color: theme.palette.text.secondary,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    maxWidth: { xs: '80px', sm: '120px', md: 'none' },
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 1,
                   })}
                 >
-                  <Icon icon="mdi:hexagon-multiple-outline" />
-                  {cluster}
+                  <Icon icon="mdi:hexagon-multiple-outline" style={{ flexShrink: 0 }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{cluster}</span>
                 </Box>
               )}
               {!isOverview && (
@@ -1159,6 +1193,8 @@ export const ActivityBar = React.memo(function ({
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               justifyContent: 'start',
+              minWidth: 0,
+              maxWidth: { xs: '150px', sm: '200px', md: '300px' },
             }}
             onClick={() => {
               // Minimize or show Activity, unless it's not active then bring it to front
@@ -1181,15 +1217,30 @@ export const ActivityBar = React.memo(function ({
                 alignItems: 'flex-start',
                 gap: 0.5,
                 overflow: 'hidden',
+                minWidth: 0,
+                flex: 1,
               }}
             >
-              {it.cluster && <Box sx={{ opacity: 0.7 }}>{it.cluster}</Box>}{' '}
+              {it.cluster && (
+                <Box
+                  sx={{
+                    opacity: 0.7,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    width: '100%',
+                  }}
+                >
+                  {it.cluster}
+                </Box>
+              )}{' '}
               <Box
                 sx={{
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   fontStyle: it.temporary ? 'italic' : undefined,
+                  width: '100%',
                 }}
               >
                 {it.title ?? 'Something'}
