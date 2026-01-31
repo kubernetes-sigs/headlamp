@@ -50,14 +50,17 @@ describe('ClusterBadge', () => {
     expect(container).toBeInTheDocument();
   });
 
-  it('renders with default icon when no icon provided', () => {
-    const { container } = render(
+  it('renders no icon when no icon provided', () => {
+    render(
       <TestContext>
         <ClusterBadge name="test-cluster" />
       </TestContext>
     );
 
-    expect(container).toBeInTheDocument();
+    // Should not render the icon element
+    expect(screen.queryByTestId('cluster-badge-icon')).toBeNull();
+    // Still renders the cluster name
+    expect(screen.getByText('test-cluster')).toBeInTheDocument();
   });
 
   it('renders with all props', () => {

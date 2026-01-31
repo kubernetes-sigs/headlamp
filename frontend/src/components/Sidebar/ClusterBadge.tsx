@@ -35,8 +35,6 @@ export interface ClusterBadgeProps {
  */
 export default function ClusterBadge({ name, accentColor, icon }: ClusterBadgeProps) {
   const theme = useTheme();
-  const defaultIcon = 'mdi:hexagon-multiple-outline';
-
   const iconColor = theme.palette.primary.main;
   const backgroundColor = theme.palette.secondary.main;
 
@@ -46,25 +44,32 @@ export default function ClusterBadge({ name, accentColor, icon }: ClusterBadgePr
         display: 'flex',
         alignItems: 'center',
         gap: 0.75,
-        paddingY: 0.5,
       }}
     >
-      {/* Colored circle with icon */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 28,
-          height: 28,
-          borderRadius: '50%',
-          backgroundColor,
-          border: `2px solid ${accentColor}`,
-          flexShrink: 0,
-        }}
-      >
-        <Icon icon={icon || defaultIcon} color={iconColor} width={20} height={20} />
-      </Box>
+      {/* Colored circle with icon, only if icon is provided */}
+      {icon && (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 28,
+            height: 28,
+            borderRadius: '50%',
+            backgroundColor,
+            border: `2px solid ${accentColor}`,
+            flexShrink: 0,
+          }}
+        >
+          <Icon
+            icon={icon}
+            color={iconColor}
+            width={20}
+            height={20}
+            data-testid="cluster-badge-icon"
+          />
+        </Box>
+      )}
 
       {/* Cluster name */}
       <Typography
