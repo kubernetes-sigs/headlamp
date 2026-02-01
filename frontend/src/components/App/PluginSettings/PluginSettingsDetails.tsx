@@ -20,6 +20,7 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import _ from 'lodash';
+import { useSnackbar } from 'notistack';
 import { isValidElement, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -76,6 +77,7 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   const config = pluginConf() as { [key: string]: any };
   const dispatch: AppDispatch = useDispatch();
   const history = useHistory();
+  const { enqueueSnackbar } = useSnackbar();
 
   function handleSave(data: { [key: string]: any }) {
     store.set(data);
@@ -90,19 +92,41 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
     const pluginType =
       plugin.type === 'development' || plugin.type === 'user' ? plugin.type : undefined;
 
+    let deleteSucceeded = false;
+
     dispatch(
-      clusterAction(() => deletePlugin(pluginFolderName, pluginType), {
-        startMessage: t('Deleting plugin {{ itemName }}...', { itemName: pluginFolderName }),
-        cancelledMessage: t('Cancelled deletion of {{ itemName }}.', {
-          itemName: pluginFolderName,
-        }),
-        successMessage: t('Deleted plugin {{ itemName }}.', { itemName: pluginFolderName }),
-        errorMessage: t('Error deleting plugin {{ itemName }}.', { itemName: pluginFolderName }),
-      })
+      clusterAction(
+        () =>
+          deletePlugin(pluginFolderName, pluginType)
+            .then(() => {
+              deleteSucceeded = true;
+            })
+            .catch((error: Error) => {
+              enqueueSnackbar(t('Failed to delete plugin: {{ error }}', { error: error.message }), {
+                variant: 'error',
+                autoHideDuration: 6000,
+              });
+              throw error;
+            }),
+        {
+          startMessage: t('Deleting plugin {{ itemName }}...', { itemName: pluginFolderName }),
+          cancelledMessage: t('Cancelled deletion of {{ itemName }}.', {
+            itemName: pluginFolderName,
+          }),
+          successMessage: t('Deleted plugin {{ itemName }}.', { itemName: pluginFolderName }),
+          errorMessage: t('Error deleting plugin {{ itemName }}.', { itemName: pluginFolderName }),
+        }
+      )
     ).then(() => {
-      // Navigate to plugins list page, then reload to refresh plugin list from backend
-      history.push('/settings/plugins');
-      dispatch(reloadPage());
+      // Delay to let user see notification before reload
+      setTimeout(() => {
+        if (deleteSucceeded) {
+          // Navigate to plugins list page, then reload to refresh plugin list from backend
+          history.push('/settings/plugins');
+          dispatch(reloadPage());
+        }
+        // On error, don't reload - let user read the error message
+      }, 2000);
     });
   }
 
