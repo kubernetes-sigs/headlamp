@@ -107,6 +107,7 @@ test.describe('OIDC Integration', () => {
 
     const kubeconfigYaml = `
 apiVersion: v1
+kind: Config
 clusters:
 - cluster:
     server: https://test-cluster.com
@@ -136,10 +137,7 @@ users:
         'X-HEADLAMP_BACKEND-TOKEN': 'headlamp',
       },
       data: {
-        name: contextName,
-        server: 'https://test-cluster.com',
         kubeconfig: kubeConfigBase64,
-        meta_data: { source: 'dynamic_cluster' },
       },
     });
 
