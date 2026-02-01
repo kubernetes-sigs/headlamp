@@ -47,7 +47,9 @@ class MockOIDCProvider {
 
         if (redirectUri && state) {
           // Redirect back to callback
-          res.writeHead(302, { Location: `${redirectUri}?code=mock_code&state=${state}` });
+          res.writeHead(302, {
+            Location: `${redirectUri}?code=mock_code&state=${state}`,
+          });
           res.end();
         } else {
           res.writeHead(400);
