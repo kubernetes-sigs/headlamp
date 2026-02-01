@@ -20,8 +20,7 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import _ from 'lodash';
-import { useSnackbar } from 'notistack';
-import { isValidElement, useEffect, useMemo, useState } from 'react';
+import { isValidElement, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useParams } from 'react-router-dom';
@@ -77,7 +76,15 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   const config = pluginConf() as { [key: string]: any };
   const dispatch: AppDispatch = useDispatch();
   const history = useHistory();
-  const { enqueueSnackbar } = useSnackbar();
+  const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (deleteTimeoutRef.current) {
+        clearTimeout(deleteTimeoutRef.current);
+      }
+    };
+  }, []);
 
   function handleSave(data: { [key: string]: any }) {
     store.set(data);
@@ -97,17 +104,9 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
     dispatch(
       clusterAction(
         () =>
-          deletePlugin(pluginFolderName, pluginType)
-            .then(() => {
-              deleteSucceeded = true;
-            })
-            .catch((error: Error) => {
-              enqueueSnackbar(t('Failed to delete plugin: {{ error }}', { error: error.message }), {
-                variant: 'error',
-                autoHideDuration: 6000,
-              });
-              throw error;
-            }),
+          deletePlugin(pluginFolderName, pluginType).then(() => {
+            deleteSucceeded = true;
+          }),
         {
           startMessage: t('Deleting plugin {{ itemName }}...', { itemName: pluginFolderName }),
           cancelledMessage: t('Cancelled deletion of {{ itemName }}.', {
@@ -118,10 +117,10 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
         }
       )
     ).then(() => {
-      // Delay to let user see notification before reload
-      setTimeout(() => {
+      // Delay to let user see the snackbar notification before full page reload.
+      // The timeout is stored in a ref so it can be cleared if the component unmounts.
+      deleteTimeoutRef.current = setTimeout(() => {
         if (deleteSucceeded) {
-          // Navigate to plugins list page, then reload to refresh plugin list from backend
           history.push('/settings/plugins');
           dispatch(reloadPage());
         }

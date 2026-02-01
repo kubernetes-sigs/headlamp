@@ -312,23 +312,24 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 			config.TelemetryHandler.RecordError(span, err, "Failed to delete plugin")
 
 			logger.Log(logger.LevelError, nil, err, "Error deleting plugin: "+pluginName)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+
+			errResp, _ := json.Marshal(map[string]interface{}{"success": false, "message": err.Error()})
+			if _, writeErr := w.Write(errResp); writeErr != nil {
+				logger.Log(logger.LevelError, nil, writeErr, "Error writing delete error response")
+			}
+
 			return
 		}
 		logger.Log(logger.LevelInfo, nil, nil, "Plugin deleted successfully: "+pluginName)
 
-		resp := map[string]bool{"success": true}
-		respBytes, err := json.Marshal(resp)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Error encoding delete response")
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
-		if _, err := w.Write(respBytes); err != nil {
+		resp, _ := json.Marshal(map[string]interface{}{"success": true})
+		if _, err := w.Write(resp); err != nil {
 			logger.Log(logger.LevelError, nil, err, "Error writing delete response")
 		}
 	}).Methods("DELETE")
