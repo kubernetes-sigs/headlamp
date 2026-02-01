@@ -606,13 +606,32 @@
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-cxvskc-MuiTableCell-root"
               >
-                <span
-                  aria-label="127.0.01:8080"
-                  class=""
-                  data-mui-internal-clone-element="true"
+                <div
+                  class="MuiBox-root css-55gkwq"
                 >
-                  127.0.01:8080
-                </span>
+                  <div
+                    class="MuiBox-root css-1fjtzvx"
+                  >
+                    <span
+                      aria-label="127.0.01:8080"
+                      class=""
+                      data-mui-internal-clone-element="true"
+                    >
+                      127.0.01:8080
+                    </span>
+                  </div>
+                  <button
+                    aria-label="Copy to clipboard"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall copy-button css-d7r42q-MuiButtonBase-root-MuiIconButton-root"
+                    data-mui-internal-clone-element="true"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
               </td>
               <td
                 class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
