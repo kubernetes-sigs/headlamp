@@ -103,12 +103,12 @@ export default function PluginSettingsDetails() {
     // If type is specified, find exact match by name and type
     if (decodedType) {
       return pluginSettings.find(
-        plugin => plugin.name === decodedName && (plugin.type || 'shipped') === decodedType
+        (plugin: PluginInfo) => plugin.name === decodedName && (plugin.type || 'shipped') === decodedType
       );
     }
 
     // Otherwise, find by name only (backwards compatibility)
-    return pluginSettings.find(plugin => plugin.name === decodedName);
+    return pluginSettings.find((plugin: PluginInfo) => plugin.name === decodedName);
   }, [pluginSettings, name, type]);
 
   if (!plugin) {
