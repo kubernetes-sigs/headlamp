@@ -93,6 +93,11 @@ const themeSlice = createSlice({
         // Only persist to localStorage if not forced
         if (!backendConfig.forceTheme) {
           setAppTheme(newThemeName);
+        } else {
+          // Clear any previously stored user theme preference when a forced theme is applied
+          try {
+            localStorage.removeItem('headlampThemePreference');
+          } catch (e) {}
         }
       }
     },
