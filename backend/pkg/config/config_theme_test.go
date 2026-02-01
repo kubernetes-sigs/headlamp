@@ -71,6 +71,7 @@ func TestParseThemeConfiguration_ForceWithDefaults(t *testing.T) {
 func TestParseThemeConfiguration_FromEnv(t *testing.T) {
 	os.Setenv("HEADLAMP_CONFIG_DEFAULT_LIGHT_THEME", "env-light")
 	os.Setenv("HEADLAMP_CONFIG_DEFAULT_DARK_THEME", "env-dark")
+
 	defer func() {
 		os.Unsetenv("HEADLAMP_CONFIG_DEFAULT_LIGHT_THEME")
 		os.Unsetenv("HEADLAMP_CONFIG_DEFAULT_DARK_THEME")
