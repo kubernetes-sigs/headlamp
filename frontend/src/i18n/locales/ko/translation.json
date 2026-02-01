@@ -397,6 +397,7 @@
   "Failed to run \"{{ command }}\"": "\"{{ command }}\" 실행에 실패했습니다.",
   "Trying to attach to the container {{ container }}…": "컨테이너 {{ container }}에 연결을 시도 중…",
   "Trying to run \"{{command}}\"…": "\"{{command}}\" 실행 중…",
+  "Paste": "붙여넣기",
   "Attach: {{ itemName }}": "연결: {{ itemName }}",
   "Terminal: {{ itemName }}": "터미널: {{ itemName }}",
   "Timezone": "시간대",

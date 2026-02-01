@@ -15,11 +15,15 @@
  */
 
 import '@xterm/xterm/css/xterm.css';
+import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import { DialogProps } from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import { FitAddon } from '@xterm/addon-fit';
@@ -68,6 +72,11 @@ export default function Terminal(props: TerminalProps) {
     available: getAvailableShells(),
     currentIdx: 0,
   });
+  const [contextMenu, setContextMenu] = React.useState<{
+    mouseX: number;
+    mouseY: number;
+    hasSelection: boolean;
+  } | null>(null);
   const { t } = useTranslation(['translation', 'glossary']);
 
   function getDefaultContainer() {
@@ -369,6 +378,46 @@ export default function Terminal(props: TerminalProps) {
     setContainer(event.target.value);
   }
 
+  const handleContextMenu = (event: React.MouseEvent) => {
+    event.preventDefault();
+    const hasSelection = !!xtermRef.current?.xterm.getSelection();
+    setContextMenu({
+      mouseX: event.clientX + 2,
+      mouseY: event.clientY - 6,
+      hasSelection,
+    });
+  };
+
+  const handleContextMenuClose = () => {
+    setContextMenu(null);
+  };
+
+  const handleCopy = async () => {
+    if (xtermRef.current) {
+      const selection = xtermRef.current.xterm.getSelection();
+      if (selection) {
+        try {
+          await navigator.clipboard.writeText(selection);
+        } catch (err) {
+          console.error('Failed to copy text: ', err);
+        }
+      }
+    }
+    handleContextMenuClose();
+  };
+
+  const handlePaste = async () => {
+    if (xtermRef.current) {
+      try {
+        const text = await navigator.clipboard.readText();
+        send(0, text);
+      } catch (err) {
+        console.error('Failed to paste text: ', err);
+      }
+    }
+    handleContextMenuClose();
+  };
+
   function isSuccessfulExitError(channel: number, text: string): boolean {
     // Linux container Error
     if (channel === 3) {
@@ -479,8 +528,34 @@ export default function Terminal(props: TerminalProps) {
         <div
           id="xterm-container"
           ref={x => setTerminalContainerRef(x)}
-          style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse' }}
+          onContextMenu={handleContextMenu}
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column-reverse',
+          }}
         />
+        <Menu
+          open={contextMenu !== null}
+          onClose={handleContextMenuClose}
+          anchorReference="anchorPosition"
+          anchorPosition={
+            contextMenu !== null ? { top: contextMenu.mouseY, left: contextMenu.mouseX } : undefined
+          }
+        >
+          <MenuItem onClick={handleCopy} disabled={!contextMenu?.hasSelection}>
+            <ListItemIcon>
+              <Icon icon="mdi:content-copy" />
+            </ListItemIcon>
+            <ListItemText>{t('translation|Copy')}</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={handlePaste}>
+            <ListItemIcon>
+              <Icon icon="mdi:content-paste" />
+            </ListItemIcon>
+            <ListItemText>{t('translation|Paste')}</ListItemText>
+          </MenuItem>
+        </Menu>
       </Box>
     </DialogContent>
   );

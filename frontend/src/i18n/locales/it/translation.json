@@ -403,6 +403,7 @@
   "Failed to run \"{{ command }}\"": "Impossibile eseguire \"{{ command }}\"",
   "Trying to attach to the container {{ container }}…": "Tentativo di collegamento al container {{ container }}…",
   "Trying to run \"{{command}}\"…": "Sto tentando di eseguire \"{{command}}\"…",
+  "Paste": "Incolla",
   "Attach: {{ itemName }}": "Collega: {{ itemName }}",
   "Terminal: {{ itemName }}": "Terminale: {{ itemName }}",
   "Timezone": "Fuso orario",
