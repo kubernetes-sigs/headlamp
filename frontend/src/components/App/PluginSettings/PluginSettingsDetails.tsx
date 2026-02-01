@@ -98,12 +98,18 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
         }),
         successMessage: t('Deleted plugin {{ itemName }}.', { itemName: pluginFolderName }),
         errorMessage: t('Error deleting plugin {{ itemName }}.', { itemName: pluginFolderName }),
+        errorMessageFormatter: (error: Error) =>
+          t('Error deleting plugin {{ itemName }}: {{ error }}', {
+            itemName: pluginFolderName,
+            error: error.message,
+          }),
+        onSuccess: () => {
+          // Navigate to plugins list page, then reload to refresh plugin list from backend
+          history.push('/settings/plugins');
+          dispatch(reloadPage());
+        },
       })
-    ).then(() => {
-      // Navigate to plugins list page, then reload to refresh plugin list from backend
-      history.push('/settings/plugins');
-      dispatch(reloadPage());
-    });
+    );
   }
 
   return (

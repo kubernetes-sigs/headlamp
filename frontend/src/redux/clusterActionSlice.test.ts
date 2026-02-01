@@ -174,6 +174,100 @@ describe('clusterActionSlice', () => {
 
       expect(callback).toHaveBeenCalled();
     });
+
+    it('should use the error message formatter if provided', async () => {
+      const callback = vi.fn(() => {
+        throw new Error('Something went wrong');
+      });
+
+      const errorMessageFormatter = vi.fn((error: Error) => `Formatted: ${error.message}`);
+
+      const action: CallbackAction = {
+        callback,
+        errorMessageFormatter,
+        startMessage: 'Starting',
+        errorMessage: 'Error',
+      };
+
+      vi.useFakeTimers();
+      const dispatchedAction = store.dispatch(executeClusterAction(action));
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+      await dispatchedAction;
+
+      const actions = store.getActions();
+      expect(actions).toContainEqual(
+        expect.objectContaining({
+          type: updateClusterAction.type,
+          payload: expect.objectContaining({
+            message: 'Formatted: Something went wrong',
+          }),
+        })
+      );
+
+      expect(errorMessageFormatter).toHaveBeenCalled();
+    });
+
+    it('should call lifecycle callbacks (onSuccess)', async () => {
+      const callback = vi.fn(() => Promise.resolve());
+      const onSuccess = vi.fn();
+
+      const action: CallbackAction = {
+        callback,
+        onSuccess,
+        startMessage: 'Starting',
+      };
+
+      vi.useFakeTimers();
+      const dispatchedAction = store.dispatch(executeClusterAction(action));
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+      await dispatchedAction;
+
+      expect(onSuccess).toHaveBeenCalled();
+    });
+
+    it('should call lifecycle callbacks (onError)', async () => {
+      const callback = vi.fn(() => {
+        throw new Error('Failed');
+      });
+      const onError = vi.fn();
+
+      const action: CallbackAction = {
+        callback,
+        onError,
+        startMessage: 'Starting',
+      };
+
+      vi.useFakeTimers();
+      const dispatchedAction = store.dispatch(executeClusterAction(action));
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+      await dispatchedAction;
+
+      expect(onError).toHaveBeenCalledWith(expect.any(Error));
+    });
+
+    it('should call lifecycle callbacks (onCancelled)', async () => {
+      const callback = vi.fn(() => Promise.resolve());
+      const onCancelled = vi.fn();
+
+      const action: CallbackAction = {
+        callback,
+        onCancelled,
+        startMessage: 'Starting',
+      };
+
+      vi.useFakeTimers();
+      const dispatchedAction = store.dispatch(executeClusterAction(action));
+
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD / 2);
+
+      const actionKey = store.getActions().find(action => action.payload?.id !== undefined)
+        ?.payload?.id;
+
+      clusterActionSliceReducer(undefined, cancelClusterAction(actionKey));
+      await dispatchedAction;
+
+      expect(onCancelled).toHaveBeenCalled();
+    });
   });
 
   describe('updateClusterAction', () => {
