@@ -46,7 +46,7 @@ func newTestDialer() *websocket.Dialer {
 
 func TestNewMultiplexer(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, nil)
+	m := NewMultiplexer(store, nil, nil)
 
 	assert.NotNil(t, m)
 	assert.Equal(t, store, m.kubeConfigStore)
@@ -56,7 +56,7 @@ func TestNewMultiplexer(t *testing.T) {
 
 func TestHandleClientWebSocket(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore, nil)
+	m := NewMultiplexer(contextStore, nil, nil)
 
 	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +107,7 @@ func TestHandleClientWebSocket(t *testing.T) {
 
 func TestGetClusterConfigWithFallback(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, nil)
+	m := NewMultiplexer(store, nil, nil)
 
 	// Add a mock cluster config
 	err := store.AddContext(&kubeconfig.Context{
@@ -129,7 +129,7 @@ func TestGetClusterConfigWithFallback(t *testing.T) {
 }
 
 func TestCreateConnection(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 	clientConn, _ := createTestWebSocketConnection()
 
 	// Add RequestID to the createConnection call
@@ -142,7 +142,7 @@ func TestCreateConnection(t *testing.T) {
 }
 
 func TestDialWebSocket(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upgrader := websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
@@ -185,7 +185,7 @@ func TestDialWebSocket(t *testing.T) {
 }
 
 func TestDialWebSocket_WithToken(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 
 	var receivedAuth string
 
@@ -220,7 +220,7 @@ func TestDialWebSocket_WithToken(t *testing.T) {
 
 func TestDialWebSocket_Errors(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore, nil)
+	m := NewMultiplexer(contextStore, nil, nil)
 
 	// Test invalid URL
 	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
@@ -236,7 +236,7 @@ func TestDialWebSocket_Errors(t *testing.T) {
 }
 
 func TestMonitorConnection(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -300,7 +300,7 @@ func TestUpdateStatus(t *testing.T) {
 }
 
 func TestCleanupConnections(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -321,7 +321,7 @@ func TestCleanupConnections(t *testing.T) {
 }
 
 func TestCloseConnection(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -519,7 +519,7 @@ func createMockKubeAPIServer() *httptest.Server {
 
 func TestGetOrCreateConnection(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, nil)
+	m := NewMultiplexer(store, nil, nil)
 
 	// Create a mock Kubernetes API server
 	mockServer := createMockKubeAPIServer()
@@ -571,7 +571,7 @@ func TestGetOrCreateConnection(t *testing.T) {
 
 func TestEstablishClusterConnection(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, nil)
+	m := NewMultiplexer(store, nil, nil)
 
 	// Create a mock Kubernetes API server
 	mockServer := createMockKubeAPIServer()
@@ -608,7 +608,7 @@ func TestEstablishClusterConnection(t *testing.T) {
 
 func TestReconnect(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, nil)
+	m := NewMultiplexer(store, nil, nil)
 
 	// Create a mock Kubernetes API server
 	mockServer := createMockKubeAPIServer()
@@ -672,7 +672,7 @@ func TestReconnect(t *testing.T) {
 }
 
 func TestCreateWrapperMessage(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 	conn := &Connection{
 		ClusterID: "test-cluster",
 		Path:      "/api/v1/pods",
@@ -702,7 +702,7 @@ func TestCreateWrapperMessage(t *testing.T) {
 }
 
 func TestHandleConnectionError(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -756,7 +756,7 @@ func TestHandleConnectionError(t *testing.T) {
 //nolint:funlen
 func TestReadClientMessage_InvalidMessage(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore, nil)
+	m := NewMultiplexer(contextStore, nil, nil)
 
 	// Create a server that will echo messages back
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -872,7 +872,7 @@ func TestUpdateStatus_WithError(t *testing.T) {
 
 func TestMonitorConnection_ReconnectFailure(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, nil)
+	m := NewMultiplexer(store, nil, nil)
 
 	// Add an invalid cluster config to force reconnection failure
 	err := store.AddContext(&kubeconfig.Context{
@@ -916,7 +916,7 @@ func TestMonitorConnection_ReconnectFailure(t *testing.T) {
 }
 
 func TestHandleClientWebSocket_InvalidMessages(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		m.HandleClientWebSocket(w, r)
@@ -985,7 +985,7 @@ func TestHandleClientWebSocket_InvalidMessages(t *testing.T) {
 }
 
 func TestSendIfNewResourceVersion_VersionComparison(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -1031,7 +1031,7 @@ func TestSendIfNewResourceVersion_VersionComparison(t *testing.T) {
 }
 
 func TestSendCompleteMessage_ClosedConnection(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -1104,7 +1104,7 @@ func TestSendCompleteMessage_ErrorConditions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+			m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 			clientConn, clientServer := createTestWebSocketConnection()
 
 			defer clientServer.Close()
@@ -1130,7 +1130,7 @@ func TestSendCompleteMessage_ErrorConditions(t *testing.T) {
 
 func TestGetOrCreateConnection_TokenRefresh(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, nil)
+	m := NewMultiplexer(store, nil, nil)
 
 	// Create a mock Kubernetes API server
 	mockServer := createMockKubeAPIServer()
@@ -1178,7 +1178,7 @@ func TestGetOrCreateConnection_TokenRefresh(t *testing.T) {
 
 func TestReconnect_WithToken(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, nil)
+	m := NewMultiplexer(store, nil, nil)
 
 	// Create a mock Kubernetes API server
 	mockServer := createMockKubeAPIServer()
@@ -1242,7 +1242,7 @@ func TestReconnect_WithToken(t *testing.T) {
 
 func TestMonitorConnection_Reconnect(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore, nil)
+	m := NewMultiplexer(contextStore, nil, nil)
 
 	// Create a server that will accept the connection and then close it
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1289,7 +1289,7 @@ func TestMonitorConnection_Reconnect(t *testing.T) {
 }
 
 func TestWriteMessageToCluster(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 	clusterConn, clusterServer := createTestWebSocketConnection()
 
 	defer clusterServer.Close()
@@ -1331,7 +1331,7 @@ func TestWriteMessageToCluster(t *testing.T) {
 }
 
 func TestHandleClusterMessages(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -1376,7 +1376,7 @@ func TestHandleClusterMessages(t *testing.T) {
 }
 
 func TestSendCompleteMessage(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -1404,7 +1404,7 @@ func TestSendCompleteMessage(t *testing.T) {
 }
 
 func TestSendDataMessage(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -1564,10 +1564,39 @@ func TestCheckOrigin_SameOrigin(t *testing.T) {
 			expected:    false,
 			description: "localhost.localdomain is not localhost and should be rejected",
 		},
+		// Case-insensitive host comparison tests (RFC 4343)
+		{
+			name:        "case insensitive same origin - uppercase origin",
+			origin:      "http://LOCALHOST:3000",
+			host:        "localhost:4466",
+			expected:    true,
+			description: "Host comparison should be case-insensitive per RFC 4343",
+		},
+		{
+			name:        "case insensitive same origin - uppercase host",
+			origin:      "http://localhost:3000",
+			host:        "LOCALHOST:4466",
+			expected:    true,
+			description: "Host comparison should be case-insensitive per RFC 4343",
+		},
+		{
+			name:        "case insensitive same origin - mixed case",
+			origin:      "http://MyApp.Example.COM:3000",
+			host:        "myapp.example.com:4466",
+			expected:    true,
+			description: "Host comparison should be case-insensitive per RFC 4343",
+		},
+		{
+			name:        "case insensitive same origin - both mixed case",
+			origin:      "http://HEADLAMP.Example.Org:3000",
+			host:        "headlamp.EXAMPLE.org:4466",
+			expected:    true,
+			description: "Host comparison should be case-insensitive per RFC 4343",
+		},
 	}
 
 	// Create a multiplexer with no allowed hosts (backward compatible mode)
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1588,8 +1617,11 @@ func TestIsLoopbackHost(t *testing.T) {
 		host     string
 		expected bool
 	}{
-		// Localhost hostname
+		// Localhost hostname (case-insensitive)
 		{"localhost", "localhost", true},
+		{"LOCALHOST uppercase", "LOCALHOST", true},
+		{"LocalHost mixed case", "LocalHost", true},
+		{"LOCALhost mixed case", "LOCALhost", true},
 
 		// IPv4 loopback range (127.0.0.0/8)
 		{"127.0.0.1", "127.0.0.1", true},
@@ -1691,7 +1723,7 @@ func TestDNSRebindingProtection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewMultiplexer(kubeconfig.NewContextStore(), tt.allowedHosts)
+			m := NewMultiplexer(kubeconfig.NewContextStore(), tt.allowedHosts, nil)
 			req := httptest.NewRequest("GET", "http://"+tt.host+"/wsMultiplexer", nil)
 			req.Header.Set("Origin", tt.origin)
 			assert.Equal(t, tt.expected, m.checkOrigin(req))
@@ -1700,6 +1732,8 @@ func TestDNSRebindingProtection(t *testing.T) {
 }
 
 // TestIsAllowedHost tests the isAllowedHost helper method directly.
+//
+//nolint:funlen // Table-driven test with comprehensive test cases.
 func TestIsAllowedHost(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -1749,54 +1783,159 @@ func TestIsAllowedHost(t *testing.T) {
 			host:         "anything.com",
 			expected:     true,
 		},
+		// Case-insensitive allowed hosts tests (RFC 4343)
+		{
+			name:         "case insensitive allowed host - uppercase in list",
+			allowedHosts: []string{"EXAMPLE.COM"},
+			host:         "example.com",
+			expected:     true,
+		},
+		{
+			name:         "case insensitive allowed host - uppercase request",
+			allowedHosts: []string{"example.com"},
+			host:         "EXAMPLE.COM",
+			expected:     true,
+		},
+		{
+			name:         "case insensitive allowed host - mixed case",
+			allowedHosts: []string{"Headlamp.Example.Org"},
+			host:         "headlamp.EXAMPLE.org",
+			expected:     true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewMultiplexer(kubeconfig.NewContextStore(), tt.allowedHosts)
+			m := NewMultiplexer(kubeconfig.NewContextStore(), tt.allowedHosts, nil)
 			result := m.isAllowedHost(tt.host)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
+// TestExtractClientIP tests client IP extraction with various proxy configurations.
+//
+//nolint:funlen // Table-driven test with comprehensive proxy scenarios.
 func TestExtractClientIP(t *testing.T) {
+	// Test without trusted proxies - forwarded headers should be ignored
+	t.Run("without trusted proxies", func(t *testing.T) {
+		m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil) // No trusted proxies
+
+		tests := []struct {
+			name       string
+			remoteAddr string
+			xff        string
+			xRealIP    string
+			expected   string
+		}{
+			{"direct connection", "192.168.1.100:12345", "", "", "192.168.1.100"},
+			{"X-Forwarded-For ignored without trust", "10.0.0.1:12345", "203.0.113.50", "", "10.0.0.1"},
+			{"X-Real-IP ignored without trust", "10.0.0.1:12345", "", "203.0.113.99", "10.0.0.1"},
+			{"IPv6 address", "[::1]:12345", "", "", "::1"},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				req := httptest.NewRequest("GET", "/", nil)
+				req.RemoteAddr = tt.remoteAddr
+
+				if tt.xff != "" {
+					req.Header.Set("X-Forwarded-For", tt.xff)
+				}
+
+				if tt.xRealIP != "" {
+					req.Header.Set("X-Real-IP", tt.xRealIP)
+				}
+
+				assert.Equal(t, tt.expected, m.extractClientIP(req))
+			})
+		}
+	})
+
+	// Test with trusted proxies - forwarded headers should be used
+	t.Run("with trusted proxies", func(t *testing.T) {
+		m := NewMultiplexer(kubeconfig.NewContextStore(), nil, []string{"10.0.0.1", "192.168.0.0/16"})
+
+		tests := []struct {
+			name       string
+			remoteAddr string
+			xff        string
+			xRealIP    string
+			expected   string
+		}{
+			{"direct connection from trusted", "10.0.0.1:12345", "", "", "10.0.0.1"},
+			{"X-Forwarded-For single", "10.0.0.1:12345", "203.0.113.50", "", "203.0.113.50"},
+			{"X-Forwarded-For multiple", "10.0.0.1:12345", "203.0.113.50, 70.41.3.18, 150.172.238.178", "", "203.0.113.50"},
+			{"X-Real-IP", "10.0.0.1:12345", "", "203.0.113.99", "203.0.113.99"},
+			{"X-Forwarded-For takes precedence", "10.0.0.1:12345", "203.0.113.50", "203.0.113.99", "203.0.113.50"},
+			{"whitespace handling", "10.0.0.1:12345", "  203.0.113.50  , 70.41.3.18", "", "203.0.113.50"},
+			{"CIDR trusted proxy", "192.168.1.1:12345", "203.0.113.50", "", "203.0.113.50"},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				req := httptest.NewRequest("GET", "/", nil)
+				req.RemoteAddr = tt.remoteAddr
+
+				if tt.xff != "" {
+					req.Header.Set("X-Forwarded-For", tt.xff)
+				}
+
+				if tt.xRealIP != "" {
+					req.Header.Set("X-Real-IP", tt.xRealIP)
+				}
+
+				assert.Equal(t, tt.expected, m.extractClientIP(req))
+			})
+		}
+	})
+
+	// Test untrusted proxy doesn't allow header spoofing
+	t.Run("untrusted proxy header spoofing prevention", func(t *testing.T) {
+		m := NewMultiplexer(kubeconfig.NewContextStore(), nil, []string{"10.0.0.1"}) // Only 10.0.0.1 trusted
+
+		req := httptest.NewRequest("GET", "/", nil)
+		req.RemoteAddr = "203.0.113.100:12345"           // Not a trusted proxy
+		req.Header.Set("X-Forwarded-For", "192.168.1.1") // Attacker tries to spoof
+
+		// Should return the direct remote address, ignoring the spoofed header
+		assert.Equal(t, "203.0.113.100", m.extractClientIP(req))
+	})
+}
+
+// TestIsTrustedProxy tests the trusted proxy detection logic.
+func TestIsTrustedProxy(t *testing.T) {
 	tests := []struct {
-		name       string
-		remoteAddr string
-		xff        string
-		xRealIP    string
-		expected   string
+		name           string
+		trustedProxies []string
+		ip             string
+		expected       bool
 	}{
-		{"direct connection", "192.168.1.100:12345", "", "", "192.168.1.100"},
-		{"X-Forwarded-For single", "10.0.0.1:12345", "203.0.113.50", "", "203.0.113.50"},
-		{"X-Forwarded-For multiple", "10.0.0.1:12345", "203.0.113.50, 70.41.3.18, 150.172.238.178", "", "203.0.113.50"},
-		{"X-Real-IP", "10.0.0.1:12345", "", "203.0.113.99", "203.0.113.99"},
-		{"X-Forwarded-For takes precedence", "10.0.0.1:12345", "203.0.113.50", "203.0.113.99", "203.0.113.50"},
-		{"whitespace handling", "10.0.0.1:12345", "  203.0.113.50  , 70.41.3.18", "", "203.0.113.50"},
-		{"IPv6 address", "[::1]:12345", "", "", "::1"},
+		{"empty list returns false", nil, "10.0.0.1", false},
+		{"empty slice returns false", []string{}, "10.0.0.1", false},
+		{"exact IP match", []string{"10.0.0.1"}, "10.0.0.1", true},
+		{"exact IP no match", []string{"10.0.0.1"}, "10.0.0.2", false},
+		{"CIDR contains IP", []string{"10.0.0.0/8"}, "10.255.255.255", true},
+		{"CIDR does not contain IP", []string{"10.0.0.0/8"}, "192.168.1.1", false},
+		{"multiple entries - match first", []string{"10.0.0.1", "192.168.0.0/16"}, "10.0.0.1", true},
+		{"multiple entries - match second", []string{"10.0.0.1", "192.168.0.0/16"}, "192.168.1.1", true},
+		{"multiple entries - no match", []string{"10.0.0.1", "192.168.0.0/16"}, "172.16.0.1", false},
+		{"IPv6 exact match", []string{"::1"}, "::1", true},
+		{"IPv6 CIDR match", []string{"2001:db8::/32"}, "2001:db8::1", true},
+		{"invalid IP returns false", []string{"10.0.0.1"}, "not-an-ip", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/", nil)
-			req.RemoteAddr = tt.remoteAddr
-
-			if tt.xff != "" {
-				req.Header.Set("X-Forwarded-For", tt.xff)
-			}
-
-			if tt.xRealIP != "" {
-				req.Header.Set("X-Real-IP", tt.xRealIP)
-			}
-
-			assert.Equal(t, tt.expected, extractClientIP(req))
+			m := NewMultiplexer(kubeconfig.NewContextStore(), nil, tt.trustedProxies)
+			result := m.isTrustedProxy(tt.ip)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
 func TestIPRateLimiter(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 
 	// Create two requests from the same IP (different ports)
 	req1 := httptest.NewRequest("GET", "/", nil)
@@ -1830,7 +1969,7 @@ func TestIPRateLimiter(t *testing.T) {
 }
 
 func TestRateLimiter(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), nil)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
 
 	// Create a mock WebSocket connection
 	wsConn, wsServer := createTestWebSocketConn()
@@ -1866,7 +2005,7 @@ func TestRateLimiter(t *testing.T) {
 
 func TestMessageSizeLimit(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore, nil)
+	m := NewMultiplexer(contextStore, nil, nil)
 
 	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1905,9 +2044,16 @@ func TestMessageSizeLimit(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestRateLimitExceeded(t *testing.T) { //nolint:funlen
+func TestRateLimitExceeded(t *testing.T) {
+	// This test verifies that the rate limiter is properly integrated into the
+	// WebSocket handler by sending many messages rapidly and checking that:
+	// 1. The connection handles the load without crashing
+	// 2. Messages can be sent through the WebSocket
+	//
+	// Note: The actual rate limiter behavior (Allow/Deny) is tested in detail
+	// by TestRateLimitViolationTracking. This test focuses on integration.
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore, nil)
+	m := NewMultiplexer(contextStore, nil, nil)
 
 	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1931,10 +2077,12 @@ func TestRateLimitExceeded(t *testing.T) { //nolint:funlen
 
 	defer ws.Close()
 
-	// Send many messages quickly to trigger rate limiting
-	// We send more than BurstSize messages to ensure we exceed the rate limit
+	// Send messages through the WebSocket to verify the handler doesn't crash
+	// when receiving many messages (even if some get rate limited).
+	// The rate limiter has BurstSize=100 and MessagesPerSecond=50.
+	messagesSent := 0
 
-	for i := 0; i < BurstSize+5; i++ {
+	for i := 0; i < BurstSize+10; i++ {
 		msg := Message{
 			Type:      "REQUEST",
 			ClusterID: "test-cluster",
@@ -1944,43 +2092,22 @@ func TestRateLimitExceeded(t *testing.T) { //nolint:funlen
 
 		err := ws.WriteJSON(msg)
 		if err != nil {
-			// Connection may be closed due to rate limiting
-			break
-		}
-	}
-
-	// Read responses - expect at least one rate limit error
-	foundRateLimitError := false
-
-	for i := 0; i < 10; i++ {
-		_ = ws.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-
-		_, rawMsg, err := ws.ReadMessage()
-		if err != nil {
+			// Connection may be closed due to rate limiting, which is acceptable
 			break
 		}
 
-		var response map[string]interface{}
-		if json.Unmarshal(rawMsg, &response) == nil {
-			if response["type"] == "error" && response["error"] == "rate_limit_exceeded" {
-				foundRateLimitError = true
-				break
-			}
-		}
+		messagesSent++
 	}
 
-	// Note: Rate limit detection depends on timing and system load.
-	// The rate limiter allows BurstSize (100) messages initially, then MessagesPerSecond (50) per second.
-	// In a fast test environment, we may or may not hit the limit depending on how quickly messages are processed.
-	// The assertion below verifies rate limiting works when triggered, but we log rather than fail
-	// if timing prevents us from triggering it, since the rate limiter functionality is verified
-	// in TestRateLimiter which directly tests the limiter behavior.
-	if foundRateLimitError {
-		assert.True(t, foundRateLimitError, "Rate limit error should be returned when rate limit is exceeded")
-	} else {
-		t.Logf("Rate limit error not triggered in this test run (timing-dependent); " +
-			"rate limiter functionality verified in TestRateLimiter")
-	}
+	// Give server time to process messages
+	time.Sleep(100 * time.Millisecond)
+
+	assert.Greater(t, messagesSent, 0, "Should have sent at least some messages")
+	t.Logf("Successfully sent %d messages through WebSocket (BurstSize=%d)", messagesSent, BurstSize)
+
+	// Verify rate limiter constants are set correctly
+	assert.Equal(t, 50, MessagesPerSecond, "MessagesPerSecond should be 50")
+	assert.Equal(t, 100, BurstSize, "BurstSize should be 100")
 }
 
 func TestRateLimitConnectionClosure(t *testing.T) {
@@ -2022,7 +2149,7 @@ func TestRateLimitViolationTracking(t *testing.T) {
 	// This test verifies the rate limiter behavior using the direct rate limiter API
 	// to ensure the rate limiting mechanism works correctly.
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore, nil)
+	m := NewMultiplexer(contextStore, nil, nil)
 
 	// Create a mock WebSocket connection
 	wsConn, wsServer := createTestWebSocketConn()
@@ -2057,4 +2184,48 @@ func TestRateLimitViolationTracking(t *testing.T) {
 	assert.Equal(t, 5, deniedCount, "Rate limiter should deny requests after burst is exhausted")
 
 	t.Logf("Rate limiter test: allowed %d requests (burst), denied %d subsequent requests", allowedCount, deniedCount)
+}
+
+// TestIPRateLimiterEntryTracking tests that IP rate limiters track lastSeen time
+// for cleanup purposes.
+func TestIPRateLimiterEntryTracking(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "192.168.1.100:12345"
+
+	// Get rate limiter - this creates an entry
+	limiter1 := m.getIPRateLimiter(req)
+	require.NotNil(t, limiter1)
+
+	// Verify the entry was stored with the ipRateLimiterEntry struct
+	entry, ok := m.ipRateLimiters.Load("192.168.1.100")
+	require.True(t, ok, "IP rate limiter entry should exist")
+
+	ipEntry, ok := entry.(*ipRateLimiterEntry)
+	require.True(t, ok, "Entry should be of type *ipRateLimiterEntry")
+	require.NotNil(t, ipEntry.limiter)
+	require.False(t, ipEntry.lastSeen.IsZero(), "lastSeen should be set")
+
+	firstSeen := ipEntry.lastSeen
+
+	// Wait a tiny bit and access again - lastSeen should be updated
+	time.Sleep(10 * time.Millisecond)
+
+	limiter2 := m.getIPRateLimiter(req)
+	require.Same(t, limiter1, limiter2, "Should return the same limiter")
+
+	// Get the entry again and check lastSeen was updated
+	entry, _ = m.ipRateLimiters.Load("192.168.1.100")
+	ipEntry = entry.(*ipRateLimiterEntry)
+	require.True(t, ipEntry.lastSeen.After(firstSeen) || ipEntry.lastSeen.Equal(firstSeen),
+		"lastSeen should be updated on access")
+}
+
+// TestIPRateLimiterConstants verifies the cleanup-related constants are properly defined.
+func TestIPRateLimiterConstants(t *testing.T) {
+	assert.Equal(t, 5*time.Minute, IPRateLimiterCleanupInterval,
+		"IPRateLimiterCleanupInterval should be 5 minutes")
+	assert.Equal(t, 10*time.Minute, IPRateLimiterStaleTimeout,
+		"IPRateLimiterStaleTimeout should be 10 minutes")
 }

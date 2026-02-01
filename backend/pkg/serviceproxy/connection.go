@@ -26,42 +26,32 @@ func NewConnection(ps *proxyService) ServiceConnection {
 
 // validateRequestURI validates the request URI to prevent SSRF attacks.
 func validateRequestURI(requestURI string) error { //nolint:funlen
-	// Reject empty URI
+	// 1. Reject empty URI
 	if requestURI == "" {
 		return fmt.Errorf("empty request URI")
 	}
 
-	// Parse the URI to inspect decoded components
+	// 2. Parse the URI to safely inspect decoded components
 	parsedURL, err := url.Parse(requestURI)
 	if err != nil {
 		return fmt.Errorf("invalid URI format: %w", err)
 	}
 
-	// Reject absolute URLs using parsed URL check (handles case-insensitive schemes)
+	// 3. Reject absolute URLs (any scheme, case-insensitive via url.Parse)
 	if parsedURL.IsAbs() {
 		return fmt.Errorf("absolute URLs not allowed")
 	}
 
-	// Also check raw string for case-insensitive absolute URL patterns
-	// This catches URL-encoded schemes like %68%74%74%70 (http)
-	lowerURI := strings.ToLower(requestURI)
-	if strings.HasPrefix(lowerURI, "http://") || strings.HasPrefix(lowerURI, "https://") {
-		return fmt.Errorf("absolute URLs not allowed")
+	// 4. Decode path for traversal checks
+	decodedPath := parsedURL.Path
+	if parsedURL.RawPath != "" {
+		decodedPath, err = url.PathUnescape(parsedURL.RawPath)
+		if err != nil {
+			return fmt.Errorf("invalid encoding in request URI path")
+		}
 	}
 
-	// URL-decode the path to check for encoded traversal attacks
-	decodedPath, err := url.PathUnescape(parsedURL.Path)
-	if err != nil {
-		return fmt.Errorf("invalid URL encoding in path: %w", err)
-	}
-
-	// Also decode query string to check for encoded attacks there
-	decodedQuery, err := url.QueryUnescape(parsedURL.RawQuery)
-	if err != nil {
-		return fmt.Errorf("invalid URL encoding in query: %w", err)
-	}
-
-	// Fully decode the entire URI to catch double-encoding attacks
+	// 5. Fully decode the entire URI to catch double-encoding attacks
 	fullyDecodedURI, err := url.QueryUnescape(requestURI)
 	if err != nil {
 		// If decoding fails, continue with partial decoding
@@ -74,25 +64,26 @@ func validateRequestURI(requestURI string) error { //nolint:funlen
 		doubleDecodedURI = fullyDecodedURI
 	}
 
-	// Reject path traversal in raw, decoded, and double-decoded forms
+	// 6. Reject path traversal on decoded path and all decoded forms
 	if strings.Contains(requestURI, "..") ||
 		strings.Contains(decodedPath, "..") ||
-		strings.Contains(decodedQuery, "..") ||
 		strings.Contains(fullyDecodedURI, "..") ||
 		strings.Contains(doubleDecodedURI, "..") {
 		return fmt.Errorf("path traversal not allowed")
 	}
 
-	// Check for absolute URLs in decoded forms (catches encoded schemes)
+	// 7. Reject dangerous schemes (defense in depth, case-insensitive)
+	lowerURI := strings.ToLower(requestURI)
 	lowerDecoded := strings.ToLower(fullyDecodedURI)
 	lowerDoubleDecoded := strings.ToLower(doubleDecodedURI)
 
-	if strings.HasPrefix(lowerDecoded, "http://") || strings.HasPrefix(lowerDecoded, "https://") ||
+	// Check for absolute URLs in decoded forms (catches encoded schemes like %68%74%74%70)
+	if strings.HasPrefix(lowerURI, "http://") || strings.HasPrefix(lowerURI, "https://") ||
+		strings.HasPrefix(lowerDecoded, "http://") || strings.HasPrefix(lowerDecoded, "https://") ||
 		strings.HasPrefix(lowerDoubleDecoded, "http://") || strings.HasPrefix(lowerDoubleDecoded, "https://") {
 		return fmt.Errorf("absolute URLs not allowed")
 	}
 
-	// Reject dangerous schemes (check both raw and decoded, case-insensitive)
 	dangerousSchemes := []string{"file:", "ftp:", "gopher:", "data:", "javascript:"}
 
 	for _, scheme := range dangerousSchemes {
@@ -103,11 +94,40 @@ func validateRequestURI(requestURI string) error { //nolint:funlen
 		}
 	}
 
-	// Validate path characters: alphanumeric, slashes, hyphens, underscores,
-	// dots, query params, comma for label selectors.
+	// 8. Validate raw URI characters: alphanumeric, slashes, hyphens, underscores,
+	// dots, query params, comma for label selectors, plus for URL encoding.
+	// Note: Backslash traversal is blocked by this regex (backslash not allowed).
 	validChars := regexp.MustCompile(`^[a-zA-Z0-9/_\-\.?=&%:@+,]+$`)
 	if !validChars.MatchString(requestURI) {
 		return fmt.Errorf("invalid characters in request URI")
+	}
+
+	// 9. Validate decoded characters (catch double-encoding attacks)
+	// After decoding, % should not appear (would indicate double-encoding)
+	decodedForValidation := decodedPath
+
+	if parsedURL.RawQuery != "" {
+		decodedQuery, err := url.QueryUnescape(parsedURL.RawQuery)
+		if err != nil {
+			return fmt.Errorf("invalid encoding in request URI query")
+		}
+
+		decodedForValidation = decodedForValidation + "?" + decodedQuery
+	}
+
+	// No % allowed in decoded form (catches double-encoding)
+	validDecodedChars := regexp.MustCompile(`^[a-zA-Z0-9/_\-\.?=&:@+,]+$`)
+	if !validDecodedChars.MatchString(decodedForValidation) {
+		return fmt.Errorf("invalid characters in decoded request URI")
+	}
+
+	// 10. Reject userinfo patterns (user:pass@host)
+	// Only block if @ appears before the first / (indicating userinfo in authority)
+	atIndex := strings.Index(requestURI, "@")
+	slashIndex := strings.Index(requestURI, "/")
+
+	if atIndex != -1 && (slashIndex == -1 || atIndex < slashIndex) {
+		return fmt.Errorf("userinfo pattern not allowed")
 	}
 
 	return nil
@@ -126,20 +146,18 @@ func validateResolvedURL(resolved, base *url.URL) error {
 		return fmt.Errorf("host mismatch: expected %s, got %s", base.Host, resolved.Host)
 	}
 
-	// Ensure the resolved path starts with the base path prefix
-	// This prevents escaping the intended API scope via path manipulation
-	basePath := base.Path
-	if basePath != "" && !strings.HasSuffix(basePath, "/") {
-		// For base paths like "/api/v1", we need to check the directory prefix
-		basePath = basePath[:strings.LastIndex(basePath, "/")+1]
+	// Ensure resolved URL stays within base path
+	// Use stricter logic: trim trailing slash and check for exact match OR subpath
+	// This prevents bypasses like /api/v1 allowing access to /api/v2/
+	basePath := strings.TrimRight(base.Path, "/")
+	if basePath != "" {
+		// Allow either exact match or subpath with trailing slash
+		if resolved.Path != basePath && !strings.HasPrefix(resolved.Path, basePath+"/") {
+			return fmt.Errorf("path escaped base prefix: base=%s, resolved=%s", base.Path, resolved.Path)
+		}
 	}
 
-	if basePath != "" && !strings.HasPrefix(resolved.Path, basePath) {
-		return fmt.Errorf("path escaped base prefix: base=%s, resolved=%s", base.Path, resolved.Path)
-	}
-
-	// Check for path traversal sequences in the final resolved path
-	// (should be normalized away, but defense in depth)
+	// Re-check for path traversal after resolution (defense in depth)
 	if strings.Contains(resolved.Path, "..") {
 		return fmt.Errorf("path traversal detected in resolved URL")
 	}
