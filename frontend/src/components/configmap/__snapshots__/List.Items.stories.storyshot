@@ -106,10 +106,10 @@
                       </div>
                       <fieldset
                         aria-hidden="true"
-                        class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                        class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                       >
                         <legend
-                          class="css-14lo706"
+                          class="css-sl37lx-MuiNotchedOutlined-root"
                         >
                           <span>
                             Namespaces
@@ -278,12 +278,12 @@
                     >
                       <span
                         aria-label="Toggle select all"
-                        class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                        class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
                         data-mui-internal-clone-element="true"
                       >
                         <input
                           aria-label="Toggle select all"
-                          class="PrivateSwitchBase-input css-1m9pwf3"
+                          class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
                           data-indeterminate="false"
                           type="checkbox"
                         />
@@ -567,12 +567,12 @@
               >
                 <span
                   aria-label="Toggle select row"
-                  class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                  class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
                   data-mui-internal-clone-element="true"
                 >
                   <input
                     aria-label="Toggle select row"
-                    class="PrivateSwitchBase-input css-1m9pwf3"
+                    class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
                     data-indeterminate="false"
                     type="checkbox"
                   />
@@ -664,12 +664,12 @@
               >
                 <span
                   aria-label="Toggle select row"
-                  class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                  class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
                   data-mui-internal-clone-element="true"
                 >
                   <input
                     aria-label="Toggle select row"
-                    class="PrivateSwitchBase-input css-1m9pwf3"
+                    class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
                     data-indeterminate="false"
                     type="checkbox"
                   />

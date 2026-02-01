@@ -555,11 +555,11 @@
                           class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
                         >
                           <span
-                            class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
+                            class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
                           >
                             <input
                               checked=""
-                              class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
+                              class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
                               type="checkbox"
                             />
                             <span
@@ -654,10 +654,10 @@
                               </div>
                               <fieldset
                                 aria-hidden="true"
-                                class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                                class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                               >
                                 <legend
-                                  class="css-14lo706"
+                                  class="css-sl37lx-MuiNotchedOutlined-root"
                                 >
                                   <span>
                                     Namespaces
