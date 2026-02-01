@@ -448,10 +448,11 @@ func TestValidateResolvedURL(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name:     "base path without trailing slash - within directory",
-			resolved: "http://example.com/api/pods",
-			base:     "http://example.com/api/v1",
-			wantErr:  false,
+			name:       "base path without trailing slash - different directory should fail",
+			resolved:   "http://example.com/api/pods",
+			base:       "http://example.com/api/v1",
+			wantErr:    true,
+			errContain: "path escaped base prefix",
 		},
 	}
 
@@ -508,5 +509,141 @@ func TestGetWithResolvedURLValidation(t *testing.T) {
 	_, err = conn2.Get("/etc/passwd")
 	if err == nil {
 		t.Error("Get(/etc/passwd) should fail when it escapes base path /api/v1/")
+	}
+}
+
+// TestValidateRequestURI_EncodingBypass tests various URL encoding bypass attempts.
+func TestValidateRequestURI_EncodingBypass(t *testing.T) {
+	testCases := []struct {
+		name      string
+		uri       string
+		wantError bool
+	}{
+		// URL-encoded path traversal
+		{"encoded path traversal", "%2e%2e/%2e%2e/etc/passwd", true},
+		{"double encoded traversal", "%252e%252e/etc/passwd", true},
+		{"triple encoded traversal", "%25252e%25252e/etc/passwd", true},
+
+		// URL-encoded schemes
+		{"encoded http scheme", "%68%74%74%70://attacker.com", true},
+		{"encoded https scheme", "%68%74%74%70%73://evil.com", true},
+
+		// Mixed case schemes
+		{"mixed case http", "Http://attacker.com", true},
+		{"mixed case https", "HTTPS://attacker.com", true},
+		{"all caps http", "HTTP://attacker.com", true},
+		{"alternating case", "hTtP://attacker.com", true},
+
+		// Backslash traversal (should be blocked by regex)
+		{"backslash traversal", "..\\..\\etc\\passwd", true},
+		{"mixed slash traversal", "../..\\etc/passwd", true},
+
+		// Userinfo patterns
+		{"userinfo pattern", "user:pass@evil.com/path", true},
+		{"userinfo with encoded at", "user%40host.com/path", false}, // @ is encoded, not userinfo
+		{"at sign in path is ok", "/api/v1/users@example.com", false},
+
+		// Valid paths should still work
+		{"valid api path", "/api/v1/pods", false},
+		{"valid with query", "/api/v1/pods?labelSelector=app=foo,version=1", false},
+		{"valid with multiple labels", "/api/v1/pods?labelSelector=app=nginx,env=prod,tier=frontend", false},
+		{"valid with watch", "/api/v1/namespaces/default/pods?watch=true", false},
+		{"valid with limit", "/api/v1/pods?limit=100", false},
+
+		// Cloud metadata service patterns (blocked by transport, but test validation)
+		{"metadata service path only", "/latest/meta-data/", false}, // Path-only is allowed
+		{"metadata absolute URL", "http://169.254.169.254/latest/meta-data/", true},
+
+		// Null byte injection attempts
+		{"null byte in path", "/api/v1/pods%00.txt", true},
+
+		// Unicode normalization attacks
+		{"unicode dot", "/api/v1/\u002e\u002e/etc/passwd", true},
+
+		// Fragment injection
+		{"fragment in URI", "/api/v1/pods#fragment", true},
+
+		// Empty segments
+		{"double slash", "/api//v1/pods", false}, // Generally allowed
+		{"triple slash", "/api///v1/pods", false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateRequestURI(tc.uri)
+			if tc.wantError && err == nil {
+				t.Errorf("expected error for %q, got nil", tc.uri)
+			}
+
+			if !tc.wantError && err != nil {
+				t.Errorf("unexpected error for %q: %v", tc.uri, err)
+			}
+		})
+	}
+}
+
+// TestValidateResolvedURL_BasePathBypass tests that base path validation cannot be bypassed.
+func TestValidateResolvedURL_BasePathBypass(t *testing.T) {
+	testCases := []struct {
+		name      string
+		base      string
+		resolved  string
+		wantError bool
+	}{
+		// Base path /api/v1 should NOT allow access to /api/v2
+		{
+			name:      "version bypass attempt",
+			base:      "http://example.com/api/v1",
+			resolved:  "http://example.com/api/v2/pods",
+			wantError: true,
+		},
+		{
+			name:      "version bypass with trailing slash",
+			base:      "http://example.com/api/v1/",
+			resolved:  "http://example.com/api/v2/pods",
+			wantError: true,
+		},
+		// Valid subpaths should work
+		{
+			name:      "valid subpath",
+			base:      "http://example.com/api/v1",
+			resolved:  "http://example.com/api/v1/pods",
+			wantError: false,
+		},
+		{
+			name:      "valid exact match",
+			base:      "http://example.com/api/v1",
+			resolved:  "http://example.com/api/v1",
+			wantError: false,
+		},
+		// Similar prefix but different path should be blocked
+		{
+			name:      "similar prefix different path",
+			base:      "http://example.com/api/v1",
+			resolved:  "http://example.com/api/v10/pods",
+			wantError: true,
+		},
+		{
+			name:      "prefix substring attack",
+			base:      "http://example.com/api/v1",
+			resolved:  "http://example.com/api/v1extra/pods",
+			wantError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			base, _ := url.Parse(tc.base)
+			resolved, _ := url.Parse(tc.resolved)
+
+			err := validateResolvedURL(resolved, base)
+			if tc.wantError && err == nil {
+				t.Errorf("expected error for base=%q resolved=%q, got nil", tc.base, tc.resolved)
+			}
+
+			if !tc.wantError && err != nil {
+				t.Errorf("unexpected error for base=%q resolved=%q: %v", tc.base, tc.resolved, err)
+			}
+		})
 	}
 }

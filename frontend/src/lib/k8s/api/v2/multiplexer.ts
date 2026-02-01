@@ -28,8 +28,8 @@ export const WebSocketManager = {
   /** Current WebSocket connection instance */
   socketMultiplexer: null as WebSocket | null,
 
-  /** Flag to track if a connection attempt is in progress */
-  connecting: false,
+  /** Promise for pending connection attempt - used to coordinate concurrent callers */
+  connectionPromise: null as Promise<WebSocket> | null,
 
   /** Flag to track if we're reconnecting after a disconnect */
   isReconnecting: false,
@@ -63,62 +63,58 @@ export const WebSocketManager = {
   /**
    * Establishes or returns an existing WebSocket connection.
    *
-   * This implementation uses a polling approach to handle concurrent connection attempts.
-   * While not ideal, it's a simple solution that works for most cases.
+   * This implementation uses Promise caching to handle concurrent connection attempts.
+   * All concurrent callers receive the same Promise, which resolves when the connection
+   * is established or rejects on failure/timeout.
    *
-   * Known limitations:
-   * 1. Polls every 100ms which may not be optimal for performance
-   * 2. May miss state changes that happen between polls
-   *
-   * A more robust solution would use event listeners and Promise caching,
-   * but that adds complexity and potential race conditions to handle.
-   * The current polling approach, while not perfect, is simple and mostly reliable.
+   * The Promise is automatically cleared in .finally(), ensuring that:
+   * 1. Successful connections allow the socket to be reused
+   * 2. Failed connections allow retry attempts
+   * 3. No manual flag management is needed
    *
    * @returns Promise resolving to WebSocket connection
    */
   async connect(): Promise<WebSocket> {
-    // Return existing connection if available
+    // Return existing open connection
     if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
       return this.socketMultiplexer;
     }
 
-    // Wait for existing connection attempt if in progress
-    if (this.connecting) {
-      return new Promise((resolve, reject) => {
-        const startTime = Date.now();
-        const checkConnection = setInterval(() => {
-          // Check for timeout
-          if (Date.now() - startTime > this.connectionTimeout) {
-            clearInterval(checkConnection);
-            this.connecting = false;
-            reject(new Error('WebSocket connection timeout'));
-            return;
-          }
-
-          if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
-            clearInterval(checkConnection);
-            resolve(this.socketMultiplexer);
-          } else if (
-            this.socketMultiplexer?.readyState === WebSocket.CLOSED ||
-            this.socketMultiplexer?.readyState === WebSocket.CLOSING
-          ) {
-            clearInterval(checkConnection);
-            this.connecting = false;
-            reject(new Error('WebSocket connection failed'));
-          }
-        }, 100);
-      });
+    // Return pending connection promise if one exists
+    // All concurrent callers will share this same promise
+    if (this.connectionPromise) {
+      return this.connectionPromise;
     }
 
-    this.connecting = true;
+    // Create new connection and store the promise
+    // The .finally() ensures cleanup happens regardless of success/failure
+    this.connectionPromise = this.createConnection().finally(() => {
+      this.connectionPromise = null;
+    });
+
+    return this.connectionPromise;
+  },
+
+  /**
+   * Creates a new WebSocket connection with timeout handling.
+   *
+   * @returns Promise resolving to WebSocket connection
+   */
+  createConnection(): Promise<WebSocket> {
     const wsUrl = `${getBaseWsUrl()}${MULTIPLEXER_ENDPOINT}`;
 
     return new Promise((resolve, reject) => {
       const socket = new WebSocket(wsUrl);
 
+      // Set up timeout to reject if connection takes too long
+      const timeoutId = setTimeout(() => {
+        socket.close();
+        reject(new Error('WebSocket connection timeout'));
+      }, this.connectionTimeout);
+
       socket.onopen = () => {
+        clearTimeout(timeoutId);
         this.socketMultiplexer = socket;
-        this.connecting = false;
 
         // Only resubscribe if we're reconnecting after a disconnect
         if (this.isReconnecting) {
@@ -132,12 +128,13 @@ export const WebSocketManager = {
       socket.onmessage = this.handleWebSocketMessage.bind(this);
 
       socket.onerror = event => {
-        this.connecting = false;
+        clearTimeout(timeoutId);
         console.error('WebSocket error:', event);
         reject(new Error('WebSocket connection failed'));
       };
 
       socket.onclose = () => {
+        clearTimeout(timeoutId);
         this.handleWebSocketClose();
       };
     });
@@ -278,10 +275,9 @@ export const WebSocketManager = {
    */
   handleWebSocketClose(): void {
     this.socketMultiplexer = null;
-    this.connecting = false;
     this.completedPaths.clear();
 
-    // Only log reconnecting if we have active subscriptions
+    // Only set reconnecting flag if we have active subscriptions
     this.isReconnecting = this.activeSubscriptions.size > 0;
   },
 

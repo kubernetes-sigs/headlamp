@@ -134,7 +134,18 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		}
 	}
 
-	multiplexer := NewMultiplexer(kubeConfigStore, allowedHosts)
+	var trustedProxies []string
+
+	if conf.TrustedProxies != "" {
+		for _, proxy := range strings.Split(conf.TrustedProxies, ",") {
+			proxy = strings.TrimSpace(proxy)
+			if proxy != "" {
+				trustedProxies = append(trustedProxies, proxy)
+			}
+		}
+	}
+
+	multiplexer := NewMultiplexer(kubeConfigStore, allowedHosts, trustedProxies)
 
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),

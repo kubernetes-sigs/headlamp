@@ -102,13 +102,30 @@ func newSSRFSafeClient(timeout time.Duration) *http.Client {
 	return &http.Client{
 		Timeout:   timeout,
 		Transport: transport,
-		// Disable automatic redirect following to prevent redirect-based SSRF
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// SSRF Protection via Transport-Level Validation
+			//
+			// Each redirected request goes through SSRFSafeDialContext, which resolves
+			// the destination hostname and validates that none of the resolved IP addresses
+			// are in private network ranges. Blocked ranges include:
+			//   - Loopback: 127.0.0.0/8, ::1
+			//   - Private: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7
+			//   - Link-local: 169.254.0.0/16, fe80::/10 (includes cloud metadata 169.254.169.254)
+			//   - Unspecified: 0.0.0.0, ::
+			//
+			// Trade-off: This protection will also block legitimate redirects to internal
+			// services. For example:
+			//   - OAuth flows that redirect to internal identity providers
+			//   - External APIs that redirect to internal data endpoints
+			//   - CDN redirects to origin servers in private networks
+			//
+			// This is an intentional security trade-off. Operators who need internal
+			// redirects should consider alternative approaches such as configuring
+			// services to avoid redirects or using dedicated internal proxies.
 			if len(via) >= 10 {
 				return fmt.Errorf("too many redirects")
 			}
-			// The next request will go through our SSRF-safe transport,
-			// so redirects to private IPs will be blocked at the dial level
+
 			return nil
 		},
 	}
