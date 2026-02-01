@@ -167,7 +167,6 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
     const obj = props.kubeObject;
     const objClass = obj.constructor as KubeObjectClass;
 
-
     // 1. The Class explicitly claims the same 'kind' as the object instance.
     // 2. The Class explicitly claims the same 'apiGroup' (via apiVersion) as the object instance.
     const kindMatches = objClass.kind === obj.kind;
@@ -178,9 +177,8 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
       const classVersions = Array.isArray(objClass.apiVersion)
         ? objClass.apiVersion
         : [objClass.apiVersion];
-      const classGroups = classVersions.map(v => getApiGroup(v));
 
-      if (classGroups.includes(instanceGroup)) {
+      if (classVersions.find(v => getApiGroup(v) === instanceGroup)) {
         groupMatches = true;
       }
     }
@@ -193,53 +191,52 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
   const openDrawer =
     drawerEnabled && canRenderDetails(kind) && matchesStandard
       ? () => {
+          // Object information can be provided throught kubeObject or route parameters
+          const name = 'kubeObject' in props ? props.kubeObject?.getName() : props.params?.name;
+          const namespace =
+            'kubeObject' in props ? props.kubeObject?.getNamespace() : props.params?.namespace;
 
-        const name = 'kubeObject' in props ? props.kubeObject?.getName() : props.params?.name;
-        const namespace =
-          'kubeObject' in props ? props.kubeObject?.getNamespace() : props.params?.namespace;
+          const selectedResource =
+            kind === 'customresource'
+              ? {
+                  kind,
+                  metadata: {
+                    name: props.params?.crName,
+                    namespace,
+                  },
+                  cluster,
+                  customResourceDefinition: props.params?.crd,
+                }
+              : { kind, metadata: { name, namespace }, cluster };
 
-        const selectedResource =
-          kind === 'customresource'
-            ? {
-            
-              kind,
-              metadata: {
-                name: props.params?.crName,
-                namespace,
-              },
-              cluster,
-              customResourceDefinition: props.params?.crd,
-            }
-            : { kind, metadata: { name, namespace }, cluster };
-
-        Activity.launch({
-          id:
-            'details' +
-            selectedResource.kind +
-            ' ' +
-            selectedResource.metadata.name +
-            selectedResource.cluster,
-          title: selectedResource.kind + ' ' + selectedResource.metadata.name,
-          hideTitleInHeader: true,
-          location: 'split-right',
-          cluster: selectedResource.cluster,
-          temporary: true,
-          content: (
-            <KubeObjectDetails
-              resource={{
-                kind: selectedResource.kind,
-                metadata: {
-                  name: selectedResource.metadata.name,
-                  namespace: selectedResource.metadata.namespace,
-                },
-                cluster: selectedResource.cluster,
-              }}
-              customResourceDefinition={selectedResource.customResourceDefinition}
-            />
-          ),
-          icon: <KubeIcon kind={selectedResource.kind} width="100%" height="100%" />,
-        });
-      }
+          Activity.launch({
+            id:
+              'details' +
+              selectedResource.kind +
+              ' ' +
+              selectedResource.metadata.name +
+              selectedResource.cluster,
+            title: selectedResource.kind + ' ' + selectedResource.metadata.name,
+            hideTitleInHeader: true,
+            location: 'split-right',
+            cluster: selectedResource.cluster,
+            temporary: true,
+            content: (
+              <KubeObjectDetails
+                resource={{
+                  kind: selectedResource.kind,
+                  metadata: {
+                    name: selectedResource.metadata.name,
+                    namespace: selectedResource.metadata.namespace,
+                  },
+                  cluster: selectedResource.cluster,
+                }}
+                customResourceDefinition={selectedResource.customResourceDefinition}
+              />
+            ),
+            icon: <KubeIcon kind={selectedResource.kind} width="100%" height="100%" />,
+          });
+        }
       : undefined;
 
   const link = <PureLink {...propsRest} onClick={openDrawer} />;
@@ -265,4 +262,3 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
 
   return link;
 }
-
