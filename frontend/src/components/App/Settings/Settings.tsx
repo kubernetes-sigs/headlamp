@@ -234,7 +234,12 @@ export default function Settings() {
                 role="button"
                 tabIndex={forceTheme ? -1 : 0}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') dispatch(setTheme(it.name));
+                  if (forceTheme) {
+                    return;
+                  }
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    dispatch(setTheme(it.name));
+                  }
                 }}
                 sx={{
                   cursor: forceTheme ? 'not-allowed' : 'pointer',
