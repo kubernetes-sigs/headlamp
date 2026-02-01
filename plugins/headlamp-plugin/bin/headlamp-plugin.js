@@ -232,7 +232,11 @@ function extract(pluginPackagesPath, outputPlugins, logSteps = true) {
         const srcFile = path.join(distPath, file);
         const destFile = path.join(plugName, file);
         console.log(`Copying "${srcFile}" to "${destFile}".`);
-        fs.copyFileSync(srcFile, destFile);
+        if (fs.statSync(srcFile).isDirectory()) {
+          fs.copySync(srcFile, destFile);
+        } else {
+          fs.copyFileSync(srcFile, destFile);
+        }
       });
 
       const inputPackageJson = path.join(pluginPackagesPath, 'package.json');
@@ -264,7 +268,11 @@ function extract(pluginPackagesPath, outputPlugins, logSteps = true) {
         const srcFile = path.join(distPath, file);
         const destFile = path.join(plugName, file);
         console.log(`Copying "${srcFile}" to "${destFile}".`);
-        fs.copyFileSync(srcFile, destFile);
+        if (fs.statSync(srcFile).isDirectory()) {
+          fs.copySync(srcFile, destFile);
+        } else {
+          fs.copyFileSync(srcFile, destFile);
+        }
       });
 
       const inputPackageJson = path.join(pluginPackagesPath, folder.name, 'package.json');

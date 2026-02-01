@@ -19,7 +19,14 @@ import {
   alpha,
   Box,
   Button,
+  ClickAwayListener,
   IconButton,
+  ListItemIcon,
+  ListItemText,
+  MenuItem,
+  MenuList,
+  Paper,
+  Popper,
   Tooltip,
   Typography,
   useMediaQuery,
@@ -40,6 +47,7 @@ import React, {
 import { createPortal } from 'react-dom';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { Trans, useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 import { useTypedSelector } from '../../redux/hooks';
 import store from '../../redux/stores/store';
 import { activitySlice } from './activitySlice';
@@ -47,7 +55,13 @@ import { activitySlice } from './activitySlice';
 const areWindowsEnabled = false;
 
 /** Activity position relative to the main container */
-type ActivityLocation = 'full' | 'split-left' | 'split-right' | 'window';
+type ActivityLocation =
+  | 'full'
+  | 'split-left'
+  | 'split-right'
+  | 'split-top'
+  | 'split-bottom'
+  | 'window';
 
 /** Independent screen or a page rendered on top of the app */
 export interface Activity {
@@ -129,9 +143,27 @@ export function SingleActivityRenderer({
   const containerElementRef = useRef(document.getElementById('main'));
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('lg'));
+  const [snapMenuAnchor, setSnapMenuAnchor] = useState<HTMLElement | null>(null);
+  const [snapMenuOpenReason, setSnapMenuOpenReason] = useState<'hover' | 'click' | null>(null);
+  const openTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const closeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const menuListRef = useRef<HTMLUListElement>(null);
+  const isSnapMenuOpen = Boolean(snapMenuAnchor);
 
   useEffect(() => {
     containerElementRef.current = document.getElementById('main');
+  }, []);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (openTimerRef.current) {
+        clearTimeout(openTimerRef.current);
+      }
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+    };
   }, []);
 
   // Styles of different activity locations
@@ -157,6 +189,21 @@ export function SingleActivityRenderer({
       width: '50%',
       height: '100%',
       gridColumn: '2 / 4',
+    },
+    'split-top': {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '50%',
+      borderBottom: '1px solid',
+    },
+    'split-bottom': {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      width: '100%',
+      height: '50%',
     },
     window: {
       position: 'absolute',
@@ -218,7 +265,7 @@ export function SingleActivityRenderer({
         activity.style.height = oldHeight;
       }
     };
-  }, [isOverview]);
+  }, [isOverview, index]);
 
   // Move focus inside the Activity
   useEffect(() => {
@@ -243,6 +290,39 @@ export function SingleActivityRenderer({
       }
     };
   }, [location]);
+
+  // Handle click outside to close temporary activities
+  const selectedResource = useTypedSelector(state => state.drawerMode.selectedResource);
+  const isDetailDrawerEnabled = useTypedSelector(state => state.drawerMode.isDetailDrawerEnabled);
+  const isDetailsDrawerSmallScreen = useMediaQuery(theme.breakpoints.down('md'));
+  const isDetailsDrawerOpen =
+    !!selectedResource && isDetailDrawerEnabled && !isDetailsDrawerSmallScreen;
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
+      const isClickInside = activityElementRef.current?.contains(target);
+
+      if (
+        activity.temporary &&
+        !minimized &&
+        !isOverview &&
+        activityElementRef.current &&
+        !isClickInside &&
+        !isDetailsDrawerOpen
+      ) {
+        Activity.close(id);
+      }
+    }
+
+    if (activity.temporary && !minimized && !isOverview) {
+      document.addEventListener('mousedown', handleClickOutside);
+
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [activity.temporary, minimized, isOverview, id, location, isDetailsDrawerOpen]);
 
   return (
     <ActivityContext.Provider value={activity}>
@@ -288,6 +368,10 @@ export function SingleActivityRenderer({
               ? {
                   borderRadius: '20px',
                   cursor: 'pointer',
+                  top: 0,
+                  left: 0,
+                  right: 'auto',
+                  bottom: 'auto',
                   ':hover': {
                     boxShadow:
                       theme.palette.mode === 'light'
@@ -377,20 +461,209 @@ export function SingleActivityRenderer({
                 <>
                   <IconButton
                     size="small"
-                    title={t('Snap Left')}
-                    onClick={() => Activity.update(id, { location: 'split-left' })}
-                    disabled={location === 'split-left'}
+                    title={t('Window')}
+                    aria-haspopup="menu"
+                    aria-expanded={isSnapMenuOpen}
+                    aria-controls={isSnapMenuOpen ? 'snap-menu' : undefined}
+                    onMouseEnter={event => {
+                      // Clear any existing close timer
+                      if (closeTimerRef.current) {
+                        clearTimeout(closeTimerRef.current);
+                        closeTimerRef.current = null;
+                      }
+                      // Set 350ms timer to open on hover
+                      if (openTimerRef.current) {
+                        clearTimeout(openTimerRef.current);
+                      }
+                      const target = event.currentTarget;
+                      openTimerRef.current = setTimeout(() => {
+                        setSnapMenuAnchor(target);
+                        setSnapMenuOpenReason('hover');
+                        openTimerRef.current = null;
+                      }, 350);
+                    }}
+                    onMouseLeave={() => {
+                      // Cancel open timer if pointer leaves before 350ms
+                      if (openTimerRef.current) {
+                        clearTimeout(openTimerRef.current);
+                        openTimerRef.current = null;
+                      }
+                      // If menu is open due to hover, start close timer
+                      if (snapMenuOpenReason === 'hover' && isSnapMenuOpen) {
+                        if (closeTimerRef.current) {
+                          clearTimeout(closeTimerRef.current);
+                        }
+                        closeTimerRef.current = setTimeout(() => {
+                          setSnapMenuAnchor(null);
+                          setSnapMenuOpenReason(null);
+                          closeTimerRef.current = null;
+                        }, 150);
+                      }
+                    }}
+                    onClick={event => {
+                      // Clear any timers
+                      if (openTimerRef.current) {
+                        clearTimeout(openTimerRef.current);
+                        openTimerRef.current = null;
+                      }
+                      if (closeTimerRef.current) {
+                        clearTimeout(closeTimerRef.current);
+                        closeTimerRef.current = null;
+                      }
+                      // Toggle menu on click
+                      if (isSnapMenuOpen && snapMenuOpenReason === 'click') {
+                        setSnapMenuAnchor(null);
+                        setSnapMenuOpenReason(null);
+                      } else {
+                        setSnapMenuAnchor(event.currentTarget);
+                        setSnapMenuOpenReason('click');
+                      }
+                    }}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        if (openTimerRef.current) {
+                          clearTimeout(openTimerRef.current);
+                          openTimerRef.current = null;
+                        }
+                        if (!isSnapMenuOpen) {
+                          setSnapMenuAnchor(event.currentTarget as HTMLElement);
+                          setSnapMenuOpenReason('click');
+                        }
+                      }
+                    }}
                   >
-                    <Icon icon="mdi:dock-left" />
+                    <Icon icon="mdi:dock-window" />
                   </IconButton>
-                  <IconButton
-                    size="small"
-                    title={t('Snap Right')}
-                    onClick={() => Activity.update(id, { location: 'split-right' })}
-                    disabled={location === 'split-right'}
+                  <Popper
+                    id="snap-menu"
+                    open={isSnapMenuOpen}
+                    anchorEl={snapMenuAnchor}
+                    placement="bottom-end"
+                    sx={{ zIndex: theme.zIndex.modal }}
                   >
-                    <Icon icon="mdi:dock-right" />
-                  </IconButton>
+                    <ClickAwayListener
+                      onClickAway={() => {
+                        if (snapMenuOpenReason === 'click') {
+                          setSnapMenuAnchor(null);
+                          setSnapMenuOpenReason(null);
+                        }
+                      }}
+                    >
+                      <Paper
+                        elevation={8}
+                        onMouseEnter={() => {
+                          // Cancel close timer when entering menu (for hover-open case)
+                          if (closeTimerRef.current && snapMenuOpenReason === 'hover') {
+                            clearTimeout(closeTimerRef.current);
+                            closeTimerRef.current = null;
+                          }
+                        }}
+                        onMouseLeave={() => {
+                          // Start close timer when leaving menu (for hover-open case)
+                          if (snapMenuOpenReason === 'hover') {
+                            if (closeTimerRef.current) {
+                              clearTimeout(closeTimerRef.current);
+                            }
+                            closeTimerRef.current = setTimeout(() => {
+                              setSnapMenuAnchor(null);
+                              setSnapMenuOpenReason(null);
+                              closeTimerRef.current = null;
+                            }, 150);
+                          }
+                        }}
+                        onKeyDown={event => {
+                          if (event.key === 'Escape') {
+                            setSnapMenuAnchor(null);
+                            setSnapMenuOpenReason(null);
+                            snapMenuAnchor?.focus();
+                          }
+                        }}
+                      >
+                        <MenuList
+                          ref={menuListRef}
+                          aria-label={t('Window')}
+                          autoFocusItem={isSnapMenuOpen}
+                        >
+                          <MenuItem
+                            selected={location === 'full'}
+                            aria-label={t('Fullscreen')}
+                            title={t('Fullscreen')}
+                            onClick={() => {
+                              Activity.update(id, { location: 'full' });
+                              setSnapMenuAnchor(null);
+                              setSnapMenuOpenReason(null);
+                            }}
+                          >
+                            <ListItemIcon>
+                              <Icon icon="mdi:fullscreen" />
+                            </ListItemIcon>
+                            <ListItemText>{t('Fullscreen')}</ListItemText>
+                          </MenuItem>
+                          <MenuItem
+                            selected={location === 'split-left'}
+                            aria-label={t('Snap Left')}
+                            title={t('Snap Left')}
+                            onClick={() => {
+                              Activity.update(id, { location: 'split-left' });
+                              setSnapMenuAnchor(null);
+                              setSnapMenuOpenReason(null);
+                            }}
+                          >
+                            <ListItemIcon>
+                              <Icon icon="mdi:dock-left" />
+                            </ListItemIcon>
+                            <ListItemText>{t('Snap Left')}</ListItemText>
+                          </MenuItem>
+                          <MenuItem
+                            selected={location === 'split-right'}
+                            aria-label={t('Snap Right')}
+                            title={t('Snap Right')}
+                            onClick={() => {
+                              Activity.update(id, { location: 'split-right' });
+                              setSnapMenuAnchor(null);
+                              setSnapMenuOpenReason(null);
+                            }}
+                          >
+                            <ListItemIcon>
+                              <Icon icon="mdi:dock-right" />
+                            </ListItemIcon>
+                            <ListItemText>{t('Snap Right')}</ListItemText>
+                          </MenuItem>
+                          <MenuItem
+                            selected={location === 'split-top'}
+                            aria-label={t('Snap Top')}
+                            title={t('Snap Top')}
+                            onClick={() => {
+                              Activity.update(id, { location: 'split-top' });
+                              setSnapMenuAnchor(null);
+                              setSnapMenuOpenReason(null);
+                            }}
+                          >
+                            <ListItemIcon>
+                              <Icon icon="mdi:dock-top" />
+                            </ListItemIcon>
+                            <ListItemText>{t('Snap Top')}</ListItemText>
+                          </MenuItem>
+                          <MenuItem
+                            selected={location === 'split-bottom'}
+                            aria-label={t('Snap Bottom')}
+                            title={t('Snap Bottom')}
+                            onClick={() => {
+                              Activity.update(id, { location: 'split-bottom' });
+                              setSnapMenuAnchor(null);
+                              setSnapMenuOpenReason(null);
+                            }}
+                          >
+                            <ListItemIcon>
+                              <Icon icon="mdi:dock-bottom" />
+                            </ListItemIcon>
+                            <ListItemText>{t('Snap Bottom')}</ListItemText>
+                          </MenuItem>
+                        </MenuList>
+                      </Paper>
+                    </ClickAwayListener>
+                  </Popper>
                   <IconButton
                     onClick={() => {
                       Activity.update(id, { minimized: true });
@@ -400,30 +673,6 @@ export function SingleActivityRenderer({
                   >
                     <Icon icon="mdi:minimize" />
                   </IconButton>
-
-                  <>
-                    {location === 'full' ? (
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          Activity.update(id, {
-                            location: lastNonFullscreenLocation.current ?? 'split-right',
-                          });
-                        }}
-                        title={t('Window')}
-                      >
-                        <Icon icon="mdi:dock-window" />
-                      </IconButton>
-                    ) : (
-                      <IconButton
-                        size="small"
-                        onClick={() => Activity.update(id, { location: 'full' })}
-                        title={t('Fullscreen')}
-                      >
-                        <Icon icon="mdi:fullscreen" />
-                      </IconButton>
-                    )}
-                  </>
                   <IconButton onClick={() => Activity.close(id)} size="small" title={t('Close')}>
                     <Icon icon="mdi:close" />
                   </IconButton>
@@ -731,6 +980,28 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
   const history = useTypedSelector(state => state.activity.history) as string[];
   const lastElement = history.at(-1);
   const [isOverview, setIsOverview] = useState(false);
+  const location = useLocation();
+  const locationRef = useRef(location.pathname);
+
+  // Minimize activities that block the main content on route change.
+  // Activities in 'split-right' location are kept visible since they
+  // allow the user to see most of the main content.
+  useEffect(() => {
+    activities.forEach(activity => {
+      // If we were triggered just because of the activities changing but the
+      // location hasn't changed, we have nothing to do.
+      if (locationRef.current === location.pathname) {
+        return;
+      }
+
+      if (activity.location !== 'split-right' && !activity.minimized) {
+        Activity.update(activity.id, { minimized: true });
+      }
+    });
+
+    locationRef.current = location.pathname;
+  }, [location.pathname, activities]);
+
   useEffect(() => {
     if (activities.length === 0 && isOverview) {
       setIsOverview(false);
@@ -750,6 +1021,18 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
   useHotkeys('Ctrl+ArrowRight', () => {
     if (lastElement) {
       Activity.update(lastElement, { location: 'split-right' });
+    }
+  });
+
+  useHotkeys('Ctrl+Shift+ArrowUp', () => {
+    if (lastElement) {
+      Activity.update(lastElement, { location: 'split-top' });
+    }
+  });
+
+  useHotkeys('Ctrl+Shift+ArrowDown', () => {
+    if (lastElement) {
+      Activity.update(lastElement, { location: 'split-bottom' });
     }
   });
 

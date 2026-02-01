@@ -31,7 +31,7 @@ import {
   Typography,
 } from '@mui/material';
 import { loadAll } from 'js-yaml';
-import { Dispatch, FormEvent, SetStateAction, useState } from 'react';
+import { Dispatch, FormEvent, SetStateAction, useMemo, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Trans, useTranslation } from 'react-i18next';
 import { Redirect, useHistory } from 'react-router';
@@ -39,6 +39,7 @@ import { useClustersConf } from '../../lib/k8s';
 import { apply } from '../../lib/k8s/api/v1/apply';
 import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { KubeObjectInterface } from '../../lib/k8s/KubeObject';
+import Namespace from '../../lib/k8s/namespace';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { ViewYaml } from '../advancedSearch/ResourceSearch';
 import { DropZoneBox } from '../common/DropZoneBox';
@@ -122,6 +123,34 @@ export function CreateNew() {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const { items: allProjectNamespaces } = Namespace.useList({
+    clusters: allClusters ? Object.keys(allClusters) : [],
+    labelSelector: PROJECT_ID_LABEL,
+  });
+
+  const existingProjectNames = useMemo(() => {
+    const result = new Set<string>();
+    if (!allProjectNamespaces) {
+      return result;
+    }
+
+    for (const ns of allProjectNamespaces) {
+      const labelValue = ns.metadata.labels?.[PROJECT_ID_LABEL];
+      if (!labelValue) {
+        continue;
+      }
+
+      // Store both the raw label and its Kubernetes-normalized form so that
+      // duplicate detection works regardless of how PROJECT_ID_LABEL was set.
+      result.add(labelValue);
+      result.add(toKubernetesName(labelValue));
+    }
+
+    return result;
+  }, [allProjectNamespaces]);
+
+  const projectNameExists = k8sName.length > 0 && existingProjectNames.has(k8sName);
 
   // New state for URL and tab management
   const [currentTab, setCurrentTab] = useState(0);
@@ -220,6 +249,9 @@ export function CreateNew() {
     if (!name.trim()) {
       errors.name = t('Name is required');
     }
+    if (projectNameExists) {
+      errors.name = t('A project with this name already exists');
+    }
     if (!selectedClusters) {
       errors.clusters = t('Cluster is required');
     }
@@ -278,8 +310,11 @@ export function CreateNew() {
                     sx={{ minWidth: 400 }}
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    error={!!errors.name}
-                    helperText={errors.name}
+                    error={!!errors.name || projectNameExists}
+                    helperText={
+                      errors.name ||
+                      (projectNameExists ? t('A project with this name already exists') : undefined)
+                    }
                   />
                 </Grid>
 

@@ -79,6 +79,7 @@ func main() {
 func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextStore) *headlampconfig.HeadlampCFG {
 	return &headlampconfig.HeadlampCFG{
 		UseInCluster:          conf.InCluster,
+		InClusterContextName:  conf.InClusterContextName,
 		KubeConfigPath:        conf.KubeConfigPath,
 		SkippedKubeContexts:   conf.SkippedKubeContexts,
 		ListenAddr:            conf.ListenAddr,

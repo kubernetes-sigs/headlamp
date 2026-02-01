@@ -107,9 +107,10 @@ spec:
             - name: OIDC_SCOPES
               value: testScope
             - name: OIDC_USE_PKCE
-              value: true
+              value: "true"
           args:
             - "-in-cluster"
+            - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             # Check if externalSecret is disabled
             # Check if clientID is non empty either from env or oidc.config
