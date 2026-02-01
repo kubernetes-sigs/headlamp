@@ -140,8 +140,45 @@ func TestSkipWebSocket(t *testing.T) {
 }
 
 func TestRunInformerToWatch(t *testing.T) { //nolint: funlen
+	grvlist := []schema.GroupVersionResource{
+		{Group: "", Version: "v1", Resource: "pods"},
+		{Group: "apps", Version: "v1", Resource: "deployments"},
+	}
+	clientMap := map[schema.GroupVersionResource]string{
+		{Group: "", Version: "v1", Resource: "pods"}:            "PodList",
+		{Group: "apps", Version: "v1", Resource: "deployments"}: "DeploymentList",
+	}
+	mockPod := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Pod",
+			"metadata": map[string]interface{}{
+				"name":              "test-pod",
+				"namespace":         "default",
+				"creationTimestamp": time.Now().UTC().Format(time.RFC3339),
+			},
+		},
+	}
+	beforeCache := &MockCache{
+		store: map[string]string{
+			"+pods+default+test-context-2":            "pod-data",
+			"apps+deployments+default+test-context-2": "deployment-data",
+			"+nodes+default+test-context-2":           "node-data",
+			"apps+replicaset+default+test-context-2":  "replicaset-data",
+		},
+	}
+
+	afterCache := &MockCache{
+		store: map[string]string{
+			"apps+deployments+default+test-context-2": "deployment-data",
+			"+nodes+default+test-context-2":           "node-data",
+			"apps+replicaset+default+test-context-2":  "replicaset-data",
+		},
+	}
+
 	tests := []struct {
 		name        string
+		eventType   string
 		contextKey  string
 		gvrList     []schema.GroupVersionResource
 		clientMap   map[schema.GroupVersionResource]string
@@ -150,50 +187,42 @@ func TestRunInformerToWatch(t *testing.T) { //nolint: funlen
 		afterCache  *MockCache
 	}{
 		{
-			name:       "testing run watcher informer",
-			contextKey: "test-context-2",
-			gvrList: []schema.GroupVersionResource{
-				{Group: "", Version: "v1", Resource: "pods"},
-				{Group: "apps", Version: "v1", Resource: "deployments"},
-			},
-			clientMap: map[schema.GroupVersionResource]string{
-				{Group: "", Version: "v1", Resource: "pods"}:            "PodList",
-				{Group: "apps", Version: "v1", Resource: "deployments"}: "DeploymentList",
-			},
-			mockPod: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"apiVersion": "v1",
-					"kind":       "Pod",
-					"metadata": map[string]interface{}{
-						"name":              "test-pod",
-						"namespace":         "default",
-						"creationTimestamp": time.Now().UTC().Format(time.RFC3339),
-					},
-				},
-			},
-			beforeCache: &MockCache{
-				store: map[string]string{
-					"+pods+default+test-context-2":            "pod-data",
-					"apps+deployments+default+test-context-2": "deployment-data",
-					"+nodes+default+test-context-2":           "node-data",
-					"apps+replicaset+default+test-context-2":  "replicaset-data",
-				},
-			},
-			afterCache: &MockCache{
-				store: map[string]string{
-					"apps+deployments+default+test-context-2": "deployment-data",
-					"+nodes+default+test-context-2":           "node-data",
-					"apps+replicaset+default+test-context-2":  "replicaset-data",
-				},
-			},
+			name:        "testing run watcher informer",
+			eventType:   "add",
+			contextKey:  "test-context-2",
+			gvrList:     grvlist,
+			clientMap:   clientMap,
+			mockPod:     mockPod,
+			beforeCache: beforeCache,
+			afterCache:  afterCache,
+		},
+		{
+			name:        "testing run watcher informer for update event",
+			eventType:   "update",
+			contextKey:  "test-context-2",
+			gvrList:     grvlist,
+			clientMap:   clientMap,
+			mockPod:     mockPod,
+			beforeCache: beforeCache,
+			afterCache:  afterCache,
+		},
+		{
+			name:        "testing run watcher informer for delete event",
+			eventType:   "delete",
+			contextKey:  "test-context-2",
+			gvrList:     grvlist,
+			clientMap:   clientMap,
+			mockPod:     mockPod,
+			beforeCache: beforeCache,
+			afterCache:  afterCache,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			schema := runtime.NewScheme()
+			scheme := runtime.NewScheme()
 
-			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(schema, tc.clientMap)
+			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, tc.clientMap)
 			factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(client, 0, "", nil)
 
 			mockCache := tc.beforeCache
@@ -203,8 +232,30 @@ func TestRunInformerToWatch(t *testing.T) { //nolint: funlen
 			factory.Start(stopCh)
 			factory.WaitForCacheSync(stopCh)
 
-			err := client.Tracker().Add(tc.mockPod)
-			assert.NoError(t, err)
+			switch tc.eventType {
+			case "add":
+				err := client.Tracker().Add(tc.mockPod)
+				assert.NoError(t, err)
+
+			case "update":
+				err := client.Tracker().Add(tc.mockPod)
+				assert.NoError(t, err)
+
+				updatedPod := tc.mockPod.DeepCopy()
+				updatedPod.Object["metadata"].(map[string]interface{})["labels"] = map[string]interface{}{"app": "updated"}
+
+				gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+				err = client.Tracker().Update(gvr, updatedPod, "default")
+				assert.NoError(t, err)
+
+			case "delete":
+				err := client.Tracker().Add(tc.mockPod)
+				assert.NoError(t, err)
+
+				gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+				err = client.Tracker().Delete(gvr, tc.mockPod.GetNamespace(), tc.mockPod.GetName())
+				assert.NoError(t, err)
+			}
 
 			time.Sleep(100 * time.Millisecond)
 
