@@ -83,6 +83,8 @@ type Config struct {
 	// TLS config
 	TLSCertPath string `koanf:"tls-cert-path"`
 	TLSKeyPath  string `koanf:"tls-key-path"`
+	// WebSocket security
+	AllowedHosts string `koanf:"allowed-hosts"`
 }
 
 func (c *Config) Validate() error {
@@ -407,6 +409,7 @@ func flagset() *flag.FlagSet {
 	addOIDCFlags(f)
 	addTelemetryFlags(f)
 	addTLSFlags(f)
+	addSecurityFlags(f)
 
 	return f
 }
@@ -474,6 +477,14 @@ func addTLSFlags(f *flag.FlagSet) {
 	// TLS flags
 	f.String("tls-cert-path", "", "Certificate for serving TLS")
 	f.String("tls-key-path", "", "Key for serving TLS")
+}
+
+func addSecurityFlags(f *flag.FlagSet) {
+	// WebSocket security flags
+	f.String("allowed-hosts", "",
+		"Comma-separated list of allowed Host header values for WebSocket connections (DNS rebinding protection). "+
+			"Loopback addresses (localhost, 127.0.0.1, ::1) are always allowed. "+
+			"Example: --allowed-hosts=headlamp.example.com,headlamp.internal")
 }
 
 // Gets the default plugins-dir depending on platform.
