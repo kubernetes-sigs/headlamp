@@ -192,60 +192,87 @@ func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 		}
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if k8cache.SkipWebSocket(r, next, w) {
-				return
-			}
-
-			ctx, span, contextKey, kContext, err := GetContextKeyAndKContext(w, r, c)
-			if err != nil {
-				return
-			}
-
-			if err := k8cache.HandleNonGETCacheInvalidation(k8sResponseCache, w, r, next, contextKey); err != nil {
-				c.handleError(w, ctx, span, err, "error while invalidating keys", http.StatusInternalServerError)
-				return
-			}
-
-			rcw := k8cache.NewResponseCapture(w)
-
-			key, err := k8cache.GenerateKey(r.URL, contextKey)
-			if err != nil {
-				c.handleError(w, ctx, span, err, "failed to generate key ", http.StatusBadRequest)
-				return
-			}
-
-			isAllowed, authErr := k8cache.IsAllowed(kContext, r)
-			if authErr != nil {
-				k8cache.ServeFromCacheOrForwardToK8s(k8sResponseCache, isAllowed, next, key, w, r, rcw)
-
-				return
-			} else if !isAllowed && k8cache.IsAuthBypassURL(r.URL.Path) {
-				_ = k8cache.ReturnAuthErrorResponse(w, r, contextKey)
-
-				return
-			}
-
-			served, err := k8cache.LoadFromCache(k8sResponseCache, isAllowed, key, w, r)
-			if err != nil {
-				c.handleError(w, ctx, span, errors.New(kContext.Error), "failed to load from cache", http.StatusServiceUnavailable)
-			}
-
-			if served {
-				c.TelemetryHandler.RecordEvent(span, "Served from cache")
-				return
-			}
-
-			k8cache.CheckForChanges(k8sResponseCache, contextKey, *kContext)
-
-			next.ServeHTTP(rcw, r)
-
-			err = k8cache.StoreK8sResponseInCache(k8sResponseCache, r.URL, rcw, r, key)
-			if err != nil {
-				c.handleError(w, ctx, span, errors.New(kContext.Error), "error while storing into cache", http.StatusBadRequest)
-				return
-			}
+			cacheMiddlewareHandler(c, next, w, r)
 		})
 	}
+}
+
+func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.ResponseWriter, r *http.Request) {
+	if k8cache.SkipWebSocket(r, next, w) {
+		return
+	}
+
+	ctx, span, contextKey, kContext, err := GetContextKeyAndKContext(w, r, c)
+	if err != nil {
+		return
+	}
+
+	if err := k8cache.HandleNonGETCacheInvalidation(k8sResponseCache, w, r, next, contextKey); err != nil {
+		c.handleError(w, ctx, span, err, "error while invalidating keys", http.StatusInternalServerError)
+		return
+	}
+
+	rcw := k8cache.NewResponseCapture(w)
+
+	key, err := k8cache.GenerateKey(r.URL, contextKey)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to generate key ", http.StatusBadRequest)
+		return
+	}
+
+	handled := handleCacheAuthorization(c, next, w, r, rcw, ctx, span, contextKey, kContext, key)
+	if handled {
+		return
+	}
+
+	k8cache.CheckForChanges(k8sResponseCache, contextKey, *kContext)
+
+	next.ServeHTTP(rcw, r)
+
+	if err := k8cache.StoreK8sResponseInCache(k8sResponseCache, r.URL, rcw, r, key); err != nil {
+		c.handleError(w, ctx, span, errors.New(kContext.Error), "error while storing into cache", http.StatusBadRequest)
+		return
+	}
+}
+
+func handleCacheAuthorization(
+	c *HeadlampConfig,
+	next http.Handler,
+	w http.ResponseWriter,
+	r *http.Request,
+	rcw *k8cache.ResponseCapture,
+	ctx context.Context,
+	span trace.Span,
+	contextKey string,
+	kContext *kubeconfig.Context,
+	key string,
+) bool {
+	isAllowed, authErr := k8cache.IsAllowed(kContext, r)
+	if authErr != nil {
+		k8cache.ServeFromCacheOrForwardToK8s(k8sResponseCache, isAllowed, next, key, w, r, rcw)
+
+		return true
+	}
+
+	if !isAllowed && k8cache.IsAuthBypassURL(r.URL.Path) {
+		if err := k8cache.ReturnAuthErrorResponse(w, r, contextKey); err != nil {
+			c.handleError(w, ctx, span, err, "failed to return auth error response", http.StatusInternalServerError)
+		}
+
+		return true
+	}
+
+	served, err := k8cache.LoadFromCache(k8sResponseCache, isAllowed, key, w, r)
+	if err != nil {
+		c.handleError(w, ctx, span, errors.New(kContext.Error), "failed to load from cache", http.StatusServiceUnavailable)
+	}
+
+	if served {
+		c.TelemetryHandler.RecordEvent(span, "Served from cache")
+		return true
+	}
+
+	return false
 }
 
 func runListPlugins() {
