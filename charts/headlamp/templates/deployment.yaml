@@ -212,7 +212,7 @@ spec:
             {{- end }}
             {{- if $oidc.useAccessToken }}
             - name: OIDC_USE_ACCESS_TOKEN
-              value: {{ $oidc.useAccessToken }}
+              value: {{ $oidc.useAccessToken | quote }}
             {{- end }}
             {{- if $oidc.usePKCE }}
             - name: OIDC_USE_PKCE
@@ -387,6 +387,9 @@ spec:
               {{- $defaultSC := dict "allowPrivilegeEscalation" false "runAsNonRoot" true "seccompProfile" (dict "type" "RuntimeDefault") "capabilities" (dict "drop" (list "ALL")) }}
               {{- toYaml $defaultSC | nindent 12 }}
             {{- end }}
+        {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
