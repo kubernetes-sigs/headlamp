@@ -119,6 +119,7 @@
   "Cancelled deletion of {{ itemName }}.": "取消刪除外掛 {{ itemName }}。",
   "Deleted plugin {{ itemName }}.": "已刪除外掛 {{ itemName }}。",
   "Error deleting plugin {{ itemName }}.": "刪除外掛 {{ itemName }} 時出錯。",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Uh-oh! Something went wrong.": "哎呀！出現問題。",
   "Error loading {{ routeName }}": "讀取 {{ routeName }} 時出錯",
   "Cluster name must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "叢集名稱只能包含小寫字母數字字元或 '-'，且必須以字母數字字元開頭和結尾。",

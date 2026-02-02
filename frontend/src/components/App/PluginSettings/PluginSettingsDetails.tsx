@@ -27,6 +27,7 @@ import { isElectron } from '../../../helpers/isElectron';
 import { ConfigStore } from '../../../plugin/configStore';
 import { PluginInfo } from '../../../plugin/pluginsSlice';
 import { useTypedSelector } from '../../../redux/hooks';
+import type { RootState } from '../../../redux/stores/store';
 import NotFoundComponent from '../../404';
 import { SectionHeader } from '../../common';
 import ActionButton from '../../common/ActionButton';
@@ -93,7 +94,7 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
 };
 
 export default function PluginSettingsDetails() {
-  const pluginSettings = useTypedSelector(state => state.plugins.pluginSettings);
+  const pluginSettings = useTypedSelector((state: RootState) => state.plugins.pluginSettings);
   const { name, type } = useParams<{ name: string; type?: string }>();
 
   const plugin = useMemo(() => {
@@ -103,7 +104,8 @@ export default function PluginSettingsDetails() {
     // If type is specified, find exact match by name and type
     if (decodedType) {
       return pluginSettings.find(
-        (plugin: PluginInfo) => plugin.name === decodedName && (plugin.type || 'shipped') === decodedType
+        (plugin: PluginInfo) =>
+          plugin.name === decodedName && (plugin.type || 'shipped') === decodedType
       );
     }
 

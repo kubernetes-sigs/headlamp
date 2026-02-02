@@ -119,6 +119,7 @@
   "Cancelled deletion of {{ itemName }}.": "取消删除 {{ itemName }}。",
   "Deleted plugin {{ itemName }}.": "已删除插件 {{ itemName }}。",
   "Error deleting plugin {{ itemName }}.": "删除插件 {{ itemName }} 时出错。",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Uh-oh! Something went wrong.": "哎呀！出现问题。",
   "Error loading {{ routeName }}": "读取 {{ routeName }} 时出错",
   "Cluster name must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "集群名称只能包含小写字母数字字符或 '-'，且必须以字母数字字符开头和结尾。",

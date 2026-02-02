@@ -119,6 +119,7 @@
   "Cancelled deletion of {{ itemName }}.": "Удаление {{ itemName }} отменено.",
   "Deleted plugin {{ itemName }}.": "Удалён плагин {{ itemName }}.",
   "Error deleting plugin {{ itemName }}.": "Ошибка удаления плагина {{ itemName }}.",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Uh-oh! Something went wrong.": "Ой-ой! Что-то пошло не так.",
   "Error loading {{ routeName }}": "Ошибка загрузки {{ routeName }}.",
   "Cluster name must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "Имя кластера должно содержать только строчные буквенно-цифровые символы или «-» и должно начинаться и заканчиваться буквенно-цифровым символом.",

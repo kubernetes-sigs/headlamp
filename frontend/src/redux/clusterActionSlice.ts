@@ -333,7 +333,7 @@ export const executeClusterAction = createAsyncThunk(
           buttons: undefined,
           dismissSnackbar: actionKey,
           id: actionKey,
-          message: message,
+          message,
           state: 'error',
           snackbarProps: errorOptions,
           url: errorUrl,
@@ -396,9 +396,13 @@ export const executeClusterAction = createAsyncThunk(
             }
           }
         } else {
-          dispatchError(err as Error);
+          dispatchError(error);
           if (onError) {
-            onError(err as Error);
+            try {
+              onError(error);
+            } catch (callbackErr) {
+              console.error('onError callback threw an error:', callbackErr);
+            }
           }
         }
       } finally {
