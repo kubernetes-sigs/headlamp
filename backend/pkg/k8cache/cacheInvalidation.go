@@ -164,6 +164,7 @@ func CheckForChanges(
 // StopWatcher stops and cleans up the watcher for a given contextKey.
 func StopWatcher(contextKey string) {
 	logger.Log(logger.LevelInfo, nil, nil, "stopping watcher for context: "+contextKey)
+
 	if cancelAny, ok := contextCancel.Load(contextKey); ok {
 		cancelAny.(context.CancelFunc)()
 		contextCancel.Delete(contextKey)
