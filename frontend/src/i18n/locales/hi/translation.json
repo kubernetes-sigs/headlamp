@@ -157,6 +157,7 @@
   "Timezone to display for dates": "तिथियों के लिए प्रदर्शित करने का समय क्षेत्र",
   "Sort sidebar items alphabetically": "साइडबार आइटमों को वर्णानुक्रम में सॉर्ट करें",
   "Use evict for pod deletion": "Pod हटाने के लिए निष्कासन का उपयोग करें",
+  "Keep Large Graph Groups Expanded": "",
   "Theme": "थीम",
   "Keyboard Shortcuts": "",
   "Configure keyboard shortcuts for quick access to various parts of the application.": "",
