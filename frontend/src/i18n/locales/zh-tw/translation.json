@@ -110,6 +110,7 @@
   "Cancelled deletion of {{ itemName }}.": "取消刪除外掛 {{ itemName }}。",
   "Deleted plugin {{ itemName }}.": "已刪除外掛 {{ itemName }}。",
   "Error deleting plugin {{ itemName }}.": "刪除外掛 {{ itemName }} 時出錯。",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Open Plugin Folder": "開啟外掛資料夾",
   "Delete Plugin": "刪除外掛",
   "By": "由",

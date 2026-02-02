@@ -110,6 +110,7 @@
   "Cancelled deletion of {{ itemName }}.": "Eliminazione di {{ itemName }} annullata.",
   "Deleted plugin {{ itemName }}.": "",
   "Error deleting plugin {{ itemName }}.": "",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Open Plugin Folder": "",
   "Delete Plugin": "Elimina Estensione",
   "By": "Di",

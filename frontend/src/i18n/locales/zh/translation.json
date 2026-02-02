@@ -110,6 +110,7 @@
   "Cancelled deletion of {{ itemName }}.": "取消删除 {{ itemName }}。",
   "Deleted plugin {{ itemName }}.": "已删除插件 {{ itemName }}。",
   "Error deleting plugin {{ itemName }}.": "删除插件 {{ itemName }} 时出错。",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Open Plugin Folder": "打开插件文件夹",
   "Delete Plugin": "删除插件",
   "By": "由",

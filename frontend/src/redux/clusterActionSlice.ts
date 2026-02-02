@@ -136,6 +136,22 @@ export interface CallbackActionOptions {
    * A callback to execute when the action is cancelled.
    */
   cancelCallback?: (...args: any[]) => void;
+  /**
+   * A function to format the error message.
+   */
+  errorMessageFormatter?: (error: Error) => string;
+  /**
+   * A callback to execute when the action is successful.
+   */
+  onSuccess?: () => void;
+  /**
+   * A callback to execute when the action fails.
+   */
+  onError?: (error: Error) => void;
+  /**
+   * A callback to execute when the action is cancelled.
+   */
+  onCancelled?: () => void;
 }
 
 /**
@@ -183,6 +199,10 @@ export const executeClusterAction = createAsyncThunk(
       successMessage,
       callbackArgs,
       cancelCallback,
+      errorMessageFormatter,
+      onSuccess,
+      onError,
+      onCancelled,
       startOptions = {},
       cancelledOptions = {},
       successOptions = { variant: 'success' },
@@ -236,13 +256,14 @@ export const executeClusterAction = createAsyncThunk(
         })
       );
     }
-    function dispatchError() {
+    function dispatchError(error: Error) {
+      const message = errorMessageFormatter ? errorMessageFormatter(error) : errorMessage;
       dispatch(
         updateClusterAction({
           buttons: undefined,
           dismissSnackbar: actionKey,
           id: actionKey,
-          message: errorMessage,
+          message: message,
           state: 'error',
           snackbarProps: errorOptions,
           url: errorUrl,
@@ -277,6 +298,9 @@ export const executeClusterAction = createAsyncThunk(
           await Promise.resolve(callback(...callbackArgs));
         }
         dispatchSuccess();
+        if (onSuccess) {
+          onSuccess();
+        }
       } catch (err) {
         if ((err as Error).message === 'Action cancelled' || controller.signal.aborted) {
           dispatchCancelled();
@@ -288,8 +312,19 @@ export const executeClusterAction = createAsyncThunk(
               console.error(err);
             }
           }
+
+          if (onCancelled) {
+            try {
+              onCancelled();
+            } catch (err) {
+              console.error(err);
+            }
+          }
         } else {
-          dispatchError();
+          dispatchError(err as Error);
+          if (onError) {
+            onError(err as Error);
+          }
         }
       } finally {
         controllers.delete(actionKey);
