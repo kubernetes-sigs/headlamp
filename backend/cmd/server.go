@@ -183,9 +183,7 @@ func GetContextKeyAndKContext(w http.ResponseWriter,
 
 // CacheMiddleWare is Middleware for Caching purpose. It involves generating key for a request,
 // authorizing user , store resource data in cache and returns data if key is present.
-func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc { //nolint: funlen
-	kubeconfig.StopContextWatcher = k8cache.StopWatcher
-
+func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		if !c.CacheEnabled {
 			return next
