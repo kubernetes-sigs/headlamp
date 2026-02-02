@@ -31,6 +31,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -41,6 +42,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
@@ -320,6 +322,43 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 	assert.NotNil(t, minikubeCluster)
 	assert.Equal(t, minikubeName, minikubeCluster.Name)
 	assert.Equal(t, "default", minikubeCluster.Metadata["namespace"])
+}
+
+func TestWiresStopContextWatcher(t *testing.T) {
+	orig := kubeconfig.StopContextWatcher
+	defer func() {
+		kubeconfig.StopContextWatcher = orig
+	}()
+	kubeconfig.StopContextWatcher = nil
+	cache := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	c := HeadlampConfig{
+		HeadlampCFG: &headlampconfig.HeadlampCFG{
+			UseInCluster:          false,
+			KubeConfigPath:        "",
+			EnableDynamicClusters: true,
+			KubeConfigStore:       kubeConfigStore,
+		},
+		cache:            cache,
+		telemetryConfig:  GetDefaultTestTelemetryConfig(),
+		telemetryHandler: &telemetry.RequestHandler{},
+	}
+
+	handler := createHeadlampHandler(&c)
+	require.NotNil(t, handler)
+
+	require.NotNil(
+		t,
+		kubeconfig.StopContextWatcher,
+		"StopContextWatcher should be wired during handler creation",
+	)
+	require.Equal(
+		t,
+		reflect.ValueOf(k8cache.StopWatcher).Pointer(),
+		reflect.ValueOf(kubeconfig.StopContextWatcher).Pointer(),
+		"StopContextWatcher should be wired to k8cache.StopWatcher",
+	)
 }
 
 func TestInvalidKubeConfig(t *testing.T) {
