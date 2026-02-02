@@ -183,8 +183,21 @@ func GetContextKeyAndKContext(w http.ResponseWriter,
 	return ctx, span, contextKey, kContext, nil
 }
 
-// handleCacheRequest processes a request with caching logic.
-func handleCacheRequest(c *HeadlampConfig, next http.Handler, w http.ResponseWriter, r *http.Request) {
+// CacheMiddleWare is middleware for caching purposes. It generates a key for each request,
+// authorizes the user, stores resource data in cache, and returns cached data when available.
+func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		if !c.CacheEnabled {
+			return next
+		}
+
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			cacheMiddlewareHandler(c, next, w, r)
+		})
+	}
+}
+
+func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.ResponseWriter, r *http.Request) {
 	if k8cache.SkipWebSocket(r, next, w) {
 		return
 	}
@@ -195,14 +208,8 @@ func handleCacheRequest(c *HeadlampConfig, next http.Handler, w http.ResponseWri
 	}
 
 	if err := k8cache.HandleNonGETCacheInvalidation(k8sResponseCache, w, r, next, contextKey); err != nil {
-		// ErrHandled is a sentinel error indicating the request was fully
-		// processed during cache invalidation. For non-GET requests
-		// (POST/PUT/DELETE), HandleNonGETCacheInvalidation invalidates the
-		// cache, makes a fresh request to K8s, stores the response, and
-		// writes the response to the client. When ErrHandled is returned,
-		// the request has already been handled and we must return early to
-		// avoid processing the request again or writing duplicate responses.
 		if errors.Is(err, k8cache.ErrHandled) {
+			// Request was already handled (response written), return early
 			return
 		}
 
@@ -215,29 +222,12 @@ func handleCacheRequest(c *HeadlampConfig, next http.Handler, w http.ResponseWri
 
 	key, err := k8cache.GenerateKey(r.URL, contextKey)
 	if err != nil {
-		c.handleError(w, ctx, span, err, "failed to generate key ", http.StatusBadRequest)
+		c.handleError(w, ctx, span, err, "failed to generate key", http.StatusBadRequest)
 		return
 	}
 
-	isAllowed, authErr := k8cache.IsAllowed(kContext, r)
-	if authErr != nil {
-		k8cache.ServeFromCacheOrForwardToK8s(k8sResponseCache, isAllowed, next, key, w, r, rcw)
-
-		return
-	} else if !isAllowed && k8cache.IsAuthBypassURL(r.URL.Path) {
-		_ = k8cache.ReturnAuthErrorResponse(w, r, contextKey)
-
-		return
-	}
-
-	served, err := k8cache.LoadFromCache(k8sResponseCache, isAllowed, key, w, r)
-	if err != nil {
-		c.handleError(w, ctx, span, errors.New(kContext.Error), "failed to load from cache", http.StatusServiceUnavailable)
-		return
-	}
-
-	if served {
-		c.TelemetryHandler.RecordEvent(span, "Served from cache")
+	handled := handleCacheAuthorization(c, next, w, r, rcw, ctx, span, contextKey, kContext, key)
+	if handled {
 		return
 	}
 
@@ -245,25 +235,52 @@ func handleCacheRequest(c *HeadlampConfig, next http.Handler, w http.ResponseWri
 
 	next.ServeHTTP(rcw, r)
 
-	err = k8cache.StoreK8sResponseInCache(k8sResponseCache, r.URL, rcw, r, key)
-	if err != nil {
-		c.handleError(w, ctx, span, errors.New(kContext.Error), "error while storing into cache", http.StatusBadRequest)
-		return
+	if err := k8cache.StoreK8sResponseInCache(k8sResponseCache, r.URL, rcw, r, key); err != nil {
+		// Response was already written to client via rcw; just log the cache storage error
+		logger.Log(logger.LevelError, nil, err, "failed to store response in cache")
 	}
 }
 
-// CacheMiddleWare is Middleware for Caching purpose. It involves generating key for a request,
-// authorizing user , store resource data in cache and returns data if key is present.
-func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		if !c.CacheEnabled {
-			return next
+func handleCacheAuthorization(
+	c *HeadlampConfig,
+	next http.Handler,
+	w http.ResponseWriter,
+	r *http.Request,
+	rcw *k8cache.ResponseCapture,
+	ctx context.Context,
+	span trace.Span,
+	contextKey string,
+	kContext *kubeconfig.Context,
+	key string,
+) bool {
+	isAllowed, authErr := k8cache.IsAllowed(kContext, r)
+	if authErr != nil {
+		k8cache.ServeFromCacheOrForwardToK8s(k8sResponseCache, isAllowed, next, key, w, r, rcw)
+
+		return true
+	}
+
+	if !isAllowed && k8cache.IsAuthBypassURL(r.URL.Path) {
+		if err := k8cache.ReturnAuthErrorResponse(w, r, contextKey); err != nil {
+			c.handleError(w, ctx, span, err, "failed to return auth error response", http.StatusInternalServerError)
 		}
 
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			handleCacheRequest(c, next, w, r)
-		})
+		return true
 	}
+
+	served, err := k8cache.LoadFromCache(k8sResponseCache, isAllowed, key, w, r)
+	if err != nil {
+		// Cache read failed; log error and fall back to K8s instead of failing the request
+		logger.Log(logger.LevelError, nil, err, "failed to load from cache")
+		return false
+	}
+
+	if served {
+		c.TelemetryHandler.RecordEvent(span, "Served from cache")
+		return true
+	}
+
+	return false
 }
 
 func runListPlugins() {
