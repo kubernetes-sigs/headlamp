@@ -142,6 +142,7 @@
   "Timezone to display for dates": "தேதிகளுக்கு காட்ட வேண்டிய நேர மண்டலம்",
   "Sort sidebar items alphabetically": "பக்கப்பட்டி உருப்படிகளை அகரவரிசையில் வரிசைப்படுத்து",
   "Use evict for pod deletion": "பாட் நீக்குவதற்கு evict பயன்படுத்து",
+  "Collapse Large Graph by Default": "",
   "Theme": "தீம்",
   "Cluster Settings": "க்ளஸ்டர் அமைப்புகள்",
   "There seem to be no clusters configured…": "எந்த க்ளஸ்டர்களும் கட்டமைக்கப்படவில்லை போல் தோன்றுகிறது…",

@@ -76,6 +76,7 @@ export const initialState: ConfigState = {
       storedSettings.tableRowsPerPageOptions || defaultTableRowsPerPageOptions,
     timezone: storedSettings.timezone || defaultTimezone(),
     sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically || false,
+    collapseLargeGraph: storedSettings.collapseLargeGraph ?? true,
     useEvict: storedSettings.useEvict || true,
   },
 };

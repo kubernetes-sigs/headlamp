@@ -168,6 +168,9 @@ function GraphViewContent({
   // Expand all groups state
   const [expandAll, setExpandAll] = useState(false);
 
+  // Expand by Default
+  const collapseLargeGraph = useTypedSelector(state => state.config.settings.collapseLargeGraph);
+
   // Load source data
   const { nodes, edges, selectedSources, sourceData, isLoading, toggleSelection } = useSources();
 
@@ -198,11 +201,10 @@ function GraphViewContent({
       namespaces: allNamespaces ?? [],
       k8sNodes: allNodes ?? [],
     });
-
-    const visibleGraph = collapseGraph(graph, { selectedNodeId, expandAll });
+    const visibleGraph = collapseGraph(graph, { selectedNodeId, expandAll, collapseLargeGraph });
 
     return { visibleGraph, fullGraph: graph };
-  }, [filteredGraph, groupBy, selectedNodeId, expandAll, allNamespaces]);
+  }, [filteredGraph, groupBy, selectedNodeId, expandAll, allNamespaces, collapseLargeGraph]);
 
   const viewport = useGraphViewport();
 

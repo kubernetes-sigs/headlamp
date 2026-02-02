@@ -142,6 +142,7 @@
   "Timezone to display for dates": "显示日期的时区",
   "Sort sidebar items alphabetically": "侧边栏按字母排序",
   "Use evict for pod deletion": "使用驱逐方式删除 Pod",
+  "Collapse Large Graph by Default": "",
   "Theme": "主题",
   "Cluster Settings": "集群设置",
   "There seem to be no clusters configured…": "似乎没有设置任何集群…",

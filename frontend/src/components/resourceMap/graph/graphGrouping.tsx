@@ -399,7 +399,11 @@ export function findGroupContaining(
  */
 export function collapseGraph(
   graph: GraphNode,
-  { selectedNodeId = 'root', expandAll }: { selectedNodeId?: string; expandAll: boolean }
+  {
+    selectedNodeId = 'root',
+    expandAll,
+    collapseLargeGraph = true,
+  }: { selectedNodeId?: string; expandAll: boolean; collapseLargeGraph?: boolean }
 ) {
   let root = { ...graph };
   let selectedGroup: GraphNode | undefined;
@@ -418,8 +422,13 @@ export function collapseGraph(
     const isBig = (group.nodes?.length ?? 0) > 10 || (group.edges?.length ?? 0) > 0;
     const isSelectedGroup = selectedGroup?.id === group.id;
     const isRoot = group.id === 'root';
-
-    const collapsed = !expandAll && !isRoot && !isSelectedGroup && isBig;
+    const isPrimaryGroup = graph.nodes?.some(n => n.id === group.id);
+    const collapsed =
+      !expandAll &&
+      !isRoot &&
+      !isSelectedGroup &&
+      isBig &&
+      !(!collapseLargeGraph && isPrimaryGroup);
 
     return {
       ...group,

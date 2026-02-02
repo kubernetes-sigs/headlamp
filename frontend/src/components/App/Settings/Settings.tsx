@@ -43,11 +43,13 @@ export default function Settings() {
   const storedTimezone = settingsObj.timezone;
   const storedRowsPerPageOptions = settingsObj.tableRowsPerPageOptions;
   const storedSortSidebar = settingsObj.sidebarSortAlphabetically;
+  const collapseLargeGraph = settingsObj.collapseLargeGraph;
   const storedUseEvict = settingsObj.useEvict;
   const [selectedTimezone, setSelectedTimezone] = useState<string>(
     storedTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   );
   const [sortSidebar, setSortSidebar] = useState<boolean>(storedSortSidebar);
+  const [collapseGraph, setCollapseGraph] = useState<boolean>(collapseLargeGraph);
   const [useEvict, setUseEvict] = useState<boolean>(storedUseEvict);
   const dispatch = useDispatch();
   const themeName = useTypedSelector(state => state.theme.name);
@@ -77,10 +79,19 @@ export default function Settings() {
     );
   }, [useEvict]);
 
+  useEffect(() => {
+    dispatch(
+      setAppSettings({
+        collapseLargeGraph: collapseGraph,
+      })
+    );
+  }, [collapseGraph]);
+
   const sidebarLabelID = 'sort-sidebar-label';
   const evictLabelID = 'use-evict-label';
   const tableRowsLabelID = 'rows-per-page-label';
   const timezoneLabelID = 'timezone-label';
+  const collapseGraphID = 'collapse-graph-label';
 
   return (
     <SectionBox
@@ -159,6 +170,20 @@ export default function Settings() {
               />
             ),
             nameID: evictLabelID,
+          },
+          {
+            name: t('translation|Collapse Large Graph by Default'),
+            value: (
+              <Switch
+                color="primary"
+                checked={collapseGraph}
+                onChange={e => setCollapseGraph(e.target.checked)}
+                inputProps={{
+                  'aria-labelledby': collapseGraphID,
+                }}
+              />
+            ),
+            nameID: collapseGraphID,
           },
         ]}
       />

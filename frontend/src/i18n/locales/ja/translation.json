@@ -142,6 +142,7 @@
   "Timezone to display for dates": "日付表示のタイムゾーン",
   "Sort sidebar items alphabetically": "",
   "Use evict for pod deletion": "",
+  "Collapse Large Graph by Default": "",
   "Theme": "テーマ",
   "Cluster Settings": "クラスター設定",
   "There seem to be no clusters configured…": "設定されたクラスターがないようです...",

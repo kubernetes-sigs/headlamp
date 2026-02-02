@@ -142,6 +142,7 @@
   "Timezone to display for dates": "Fuseau horaire à afficher pour les dates",
   "Sort sidebar items alphabetically": "Trier les éléments de la barre latérale par ordre alphabétique",
   "Use evict for pod deletion": "Utiliser l'éviction pour la suppression de pods",
+  "Collapse Large Graph by Default": "",
   "Theme": "Thème",
   "Cluster Settings": "Paramètres du cluster",
   "There seem to be no clusters configured…": "Il ne semble pas y avoir de clusters configurés…",
