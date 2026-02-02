@@ -110,6 +110,7 @@
   "Cancelled deletion of {{ itemName }}.": "Löschen von {{ itemName }} abgebrochen.",
   "Deleted plugin {{ itemName }}.": "",
   "Error deleting plugin {{ itemName }}.": "",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Open Plugin Folder": "",
   "Delete Plugin": "",
   "By": "",
