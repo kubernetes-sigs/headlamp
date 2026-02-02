@@ -333,7 +333,7 @@ export function ProjectResourcesTab({
                         const id = 'logs-' + resource.metadata.uid;
                         Activity.launch({
                           id,
-                          title: t('Logs') + ': ' + resource.metadata.name,
+                          title: t('Logs: {{ itemName }}', { itemName: resource.metadata.name }),
                           cluster: resource.cluster,
                           icon: (
                             <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />

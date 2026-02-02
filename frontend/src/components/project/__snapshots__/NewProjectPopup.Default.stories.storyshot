@@ -1,0 +1,125 @@
+<body>
+  <div
+    aria-hidden="true"
+  >
+    <button>
+      Open Popup
+    </button>
+  </div>
+  <div
+    class="MuiDialog-root MuiModal-root css-zw3mfo-MuiModal-root-MuiDialog-root"
+    role="presentation"
+  >
+    <div
+      aria-hidden="true"
+      class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
+      style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+    />
+    <div
+      data-testid="sentinelStart"
+      tabindex="0"
+    />
+    <div
+      class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
+      role="presentation"
+      style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+      tabindex="-1"
+    >
+      <div
+        aria-labelledby=":mock-test-id:"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthFalse css-v61m47-MuiPaper-root-MuiDialog-paper"
+        role="dialog"
+      >
+        <h2
+          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-q5kqw8-MuiTypography-root-MuiDialogTitle-root"
+          id=":mock-test-id:"
+        >
+          Create a Project
+        </h2>
+        <div
+          class="MuiDialogContent-root css-15ohtq7-MuiDialogContent-root"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-1enx7tw-MuiTypography-root"
+          >
+            Project is a collection of Kubernetes resources. You can use projects to organize your resources, for example, by environment, team, or application.
+          </p>
+          <div
+            class="MuiBox-root css-1821gv5"
+          >
+            <button
+              class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-7jl865-MuiButtonBase-root-MuiButton-root"
+              tabindex="0"
+              type="button"
+            >
+              <div
+                class="MuiBox-root css-n6bg7z"
+              />
+              <div
+                class="MuiBox-root css-0"
+              >
+                <h6
+                  class="MuiTypography-root MuiTypography-h6 css-16yif3g-MuiTypography-root"
+                >
+                  New Project
+                </h6>
+                <p
+                  class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+                >
+                  Create a new project
+                </p>
+              </div>
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+            <button
+              class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-qys2hi-MuiButtonBase-root-MuiButton-root"
+              tabindex="0"
+              type="button"
+            >
+              <div
+                class="MuiBox-root css-n6bg7z"
+              />
+              <div
+                class="MuiBox-root css-0"
+              >
+                <h6
+                  class="MuiTypography-root MuiTypography-h6 css-16yif3g-MuiTypography-root"
+                >
+                  New Project from YAML
+                </h6>
+                <p
+                  class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+                >
+                  Deploy a new application from YAML
+                </p>
+              </div>
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+          </div>
+        </div>
+        <div
+          class="MuiDialogActions-root MuiDialogActions-spacing css-knqc4i-MuiDialogActions-root"
+        >
+          <button
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-14f6w6s-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            Cancel
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+        </div>
+      </div>
+    </div>
+    <div
+      data-testid="sentinelEnd"
+      tabindex="0"
+    />
+  </div>
+</body>

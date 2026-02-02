@@ -64,7 +64,7 @@
     "js-base64": "^3.7.2",
     "js-yaml": "^4.1.1",
     "jsonpath-plus": "^10.3.0",
-    "lodash": "^4.17.21",
+    "lodash": "^4.17.23",
     "material-react-table": "^2.13.3",
     "monaco-editor": "^0.52.0",
     "notistack": "^3.0.2",

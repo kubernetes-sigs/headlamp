@@ -291,6 +291,39 @@ export function SingleActivityRenderer({
     };
   }, [location]);
 
+  // Handle click outside to close temporary activities
+  const selectedResource = useTypedSelector(state => state.drawerMode.selectedResource);
+  const isDetailDrawerEnabled = useTypedSelector(state => state.drawerMode.isDetailDrawerEnabled);
+  const isDetailsDrawerSmallScreen = useMediaQuery(theme.breakpoints.down('md'));
+  const isDetailsDrawerOpen =
+    !!selectedResource && isDetailDrawerEnabled && !isDetailsDrawerSmallScreen;
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
+      const isClickInside = activityElementRef.current?.contains(target);
+
+      if (
+        activity.temporary &&
+        !minimized &&
+        !isOverview &&
+        activityElementRef.current &&
+        !isClickInside &&
+        !isDetailsDrawerOpen
+      ) {
+        Activity.close(id);
+      }
+    }
+
+    if (activity.temporary && !minimized && !isOverview) {
+      document.addEventListener('mousedown', handleClickOutside);
+
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [activity.temporary, minimized, isOverview, id, location, isDetailsDrawerOpen]);
+
   return (
     <ActivityContext.Provider value={activity}>
       <Box
