@@ -28,11 +28,13 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
-import { useClustersConf } from '../../lib/k8s';
+import { useCluster, useClustersConf } from '../../lib/k8s';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
+import { getSavedNamespaces } from '../../lib/storage';
 import { setConfig } from '../../redux/configSlice';
 import { ConfigState } from '../../redux/configSlice';
+import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import store from '../../redux/stores/store';
 import { useUIPanelsGroupedBySide } from '../../redux/uiSlice';
@@ -211,6 +213,14 @@ export default function Layout({}: LayoutProps) {
   useEffect(() => {
     document.body.removeAttribute('style');
   }, []);
+
+  const cluster = useCluster();
+  useEffect(() => {
+    if (cluster) {
+      const saved = getSavedNamespaces(cluster);
+      dispatch(setNamespaceFilter(saved));
+    }
+  }, [cluster, dispatch]);
 
   const urlClusters = getSelectedClusters();
   const clustersNotInURL =
