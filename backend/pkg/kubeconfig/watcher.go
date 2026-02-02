@@ -13,6 +13,8 @@ import (
 
 const watchInterval = 10 * time.Second
 
+var StopContextWatcher func(contextName string)
+
 // LoadAndWatchFiles loads kubeconfig files and watches them for changes.
 func LoadAndWatchFiles(kubeConfigStore ContextStore, paths string, source int, ignoreFunc shouldBeSkippedFunc) {
 	// create ticker
@@ -138,6 +140,10 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 		}
 
 		if !found {
+			if StopContextWatcher != nil {
+				StopContextWatcher(existingCtx.Name)
+			}
+
 			err := kubeConfigStore.RemoveContext(existingCtx.Name)
 			if err != nil {
 				logger.Log(logger.LevelError, nil, err, "error removing context")
