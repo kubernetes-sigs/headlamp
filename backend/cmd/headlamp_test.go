@@ -329,6 +329,7 @@ func TestWiresStopContextWatcher(t *testing.T) {
 	defer func() {
 		kubeconfig.StopContextWatcher = orig
 	}()
+
 	kubeconfig.StopContextWatcher = nil
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()

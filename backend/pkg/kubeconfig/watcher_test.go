@@ -101,7 +101,9 @@ func TestWatchAndLoadFiles(t *testing.T) {
 		time.Sleep(2 * time.Second)
 
 		stoppedContexts := make(map[string]int)
+
 		var mu sync.Mutex
+
 		callbackInvoked := make(chan string, 10)
 
 		kubeconfig.StopContextWatcher = func(contextName string) {
@@ -134,15 +136,20 @@ func TestWatchAndLoadFiles(t *testing.T) {
 
 		// Wait for context to be added
 		found := false
+
 		for i := 0; i < 20; i++ {
 			context, err := kubeConfigStore.GetContext(testContextName)
 			if err == nil && context != nil {
 				found = true
+
 				t.Logf("Context %s found in store after %d attempts", testContextName, i+1)
+
 				break
 			}
+
 			time.Sleep(500 * time.Millisecond)
 		}
+
 		require.True(t, found, "Context should have been added")
 
 		time.Sleep(1 * time.Second)
@@ -168,7 +175,8 @@ func TestWatchAndLoadFiles(t *testing.T) {
 			t.Fatal("Timeout waiting for StopContextWatcher callback")
 		}
 
-		require.Equal(t, testContextName, removedContext, "StopContextWatcher should have been called for the removed context")
+		require.Equal(t, testContextName,
+			removedContext, "StopContextWatcher should have been called for the removed context")
 
 		_, err = kubeConfigStore.GetContext(testContextName)
 		require.Error(t, err, "Context should have been removed from store")
