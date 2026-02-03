@@ -55,6 +55,12 @@ export interface ConfigState {
      */
     timezone: string;
     useEvict: boolean;
+    /**
+     * enableWebsocketMultiplexer enables the websocket multiplexer for optimized resource watching.
+     * This is an experimental feature. If not explicitly set by the user, respects the
+     * REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER environment variable.
+     */
+    enableWebsocketMultiplexer?: boolean;
     [key: string]: any;
   };
 }
@@ -77,6 +83,7 @@ export const initialState: ConfigState = {
     timezone: storedSettings.timezone || defaultTimezone(),
     sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically || false,
     useEvict: storedSettings.useEvict || true,
+    enableWebsocketMultiplexer: storedSettings.enableWebsocketMultiplexer,
   },
 };
 
