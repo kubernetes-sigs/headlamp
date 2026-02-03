@@ -23,7 +23,7 @@
  */
 
 const fs = require('fs-extra');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 /**
  * Get the stored hash from a hash file
@@ -54,7 +54,7 @@ function storeHash(hashFile, hash) {
  */
 function getLocalGitHash(dirPath, cwd) {
   try {
-    const output = execSync(`git log -1 --format=%H -- ${dirPath}`, {
+    const output = execFileSync('git', ['log', '-1', '--format=%H', '--', dirPath], {
       cwd: cwd,
       encoding: 'utf8',
     });
@@ -72,7 +72,7 @@ function getLocalGitHash(dirPath, cwd) {
  */
 function getRemoteGitHash(repoUrl) {
   try {
-    const output = execSync(`git ls-remote ${repoUrl} HEAD`, {
+    const output = execFileSync('git', ['ls-remote', repoUrl, 'HEAD'], {
       encoding: 'utf8',
     });
     return output.split('\t')[0].trim();
