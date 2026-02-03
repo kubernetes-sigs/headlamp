@@ -95,6 +95,13 @@ func (c *Config) Validate() error {
 		oidc-validator-idp-issuer-url, flags are only meant to be used in inCluster mode`)
 	}
 
+	// Theme configuration warning.
+	if c.ForceTheme != "" && (c.DefaultLightTheme != "" || c.DefaultDarkTheme != "") {
+		logger.Log(logger.LevelWarn, nil, nil,
+			"force-theme is set together with default-light-theme/default-dark-theme, "+
+				"default themes will be ignored when force-theme is active")
+	}
+
 	// OIDC TLS verification warning.
 	if c.OidcSkipTLSVerify {
 		logger.Log(logger.LevelWarn, nil, nil, "oidc-skip-tls-verify is set, this is not safe for production")
