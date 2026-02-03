@@ -46,8 +46,8 @@ import AlertNotification from '../common/AlertNotification';
 import DetailsDrawer from '../common/Resource/DetailsDrawer';
 import Sidebar, { NavigationTabs } from '../Sidebar';
 import RouteSwitcher from './RouteSwitcher';
-import { applyBackendThemeConfig } from './themeSlice';
 import ShortcutsSettings from './Settings/ShortcutsSettings';
+import { applyBackendThemeConfig } from './themeSlice';
 import TopBar from './TopBar';
 import VersionDialog from './VersionDialog';
 
