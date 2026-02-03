@@ -16,7 +16,7 @@
 
 import _ from 'lodash';
 import React, { useContext, useMemo } from 'react';
-import { useHistory } from 'react-router-dom';
+import { useHistory, useLocation } from 'react-router-dom';
 import { ConfigState } from '../../redux/configSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { getCluster, getSelectedClusters } from '../cluster';
@@ -165,12 +165,12 @@ export function useCluster() {
  */
 export function useSelectedClusters(): string[] {
   const clusterInURL = useCluster();
-  const history = useHistory();
+  const location = useLocation();
   const maybeSelectedClusters = useContext(SelectedClustersContext);
 
   const clusterGroup = React.useMemo(() => {
-    return getSelectedClusters([], history.location.pathname);
-  }, [clusterInURL]);
+    return getSelectedClusters([], location.pathname);
+  }, [clusterInURL, location.pathname]);
 
   return maybeSelectedClusters && maybeSelectedClusters.length > 0
     ? maybeSelectedClusters
