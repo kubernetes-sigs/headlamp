@@ -46,6 +46,7 @@ import AlertNotification from '../common/AlertNotification';
 import DetailsDrawer from '../common/Resource/DetailsDrawer';
 import Sidebar, { NavigationTabs } from '../Sidebar';
 import RouteSwitcher from './RouteSwitcher';
+import ShortcutsSettings from './Settings/ShortcutsSettings';
 import TopBar from './TopBar';
 import VersionDialog from './VersionDialog';
 
@@ -289,6 +290,7 @@ export default function Layout({}: LayoutProps) {
         {t('Skip to main content')}
       </Link>
       <VersionDialog />
+      <ShortcutsSettings />
       <CssBaseline enableColorScheme />
       <ActionsNotifier />
       <Box sx={{ display: 'flex', height: '100dvh' }}>

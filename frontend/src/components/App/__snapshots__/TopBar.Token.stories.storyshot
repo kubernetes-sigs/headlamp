@@ -58,67 +58,6 @@
             fill="#1B1A19"
           />
         </svg>
-        <div
-          class="MuiBox-root css-p8ekiu"
-        >
-          <div
-            class="MuiBox-root css-xqhmuz"
-          >
-            <div
-              class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
-            >
-              <div
-                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedStart MuiInputBase-adornedEnd css-5ntm9s-MuiInputBase-root-MuiOutlinedInput-root"
-              >
-                <div
-                  class="MuiInputAdornment-root MuiInputAdornment-positionStart MuiInputAdornment-outlined MuiInputAdornment-sizeSmall css-16yk9m0-MuiInputAdornment-root"
-                >
-                  <span
-                    class="notranslate"
-                  >
-                    ​
-                  </span>
-                </div>
-                <input
-                  aria-invalid="false"
-                  class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedStart MuiInputBase-inputAdornedEnd css-12yjm75-MuiInputBase-input-MuiOutlinedInput-input"
-                  id=":mock-test-id:"
-                  placeholder="Search"
-                  type="text"
-                  value=""
-                />
-                <div
-                  class="MuiBox-root css-1rstwa7"
-                >
-                  Press
-                  <div
-                    class="MuiBox-root css-1y54l5z"
-                  >
-                    /
-                  </div>
-                  to search
-                </div>
-                <fieldset
-                  aria-hidden="true"
-                  class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
-                >
-                  <legend
-                    class="css-ihdtdm"
-                  >
-                    <span
-                      class="notranslate"
-                    >
-                      ​
-                    </span>
-                  </legend>
-                </fieldset>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div
-          class="MuiBox-root css-0"
-        />
       </div>
     </nav>
   </div>
