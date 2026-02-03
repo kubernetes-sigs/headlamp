@@ -212,11 +212,11 @@ spec:
             {{- end }}
             {{- if $oidc.useAccessToken }}
             - name: OIDC_USE_ACCESS_TOKEN
-              value: {{ $oidc.useAccessToken }}
+              value: {{ $oidc.useAccessToken | quote }}
             {{- end }}
             {{- if $oidc.usePKCE }}
             - name: OIDC_USE_PKCE
-              value: {{ $oidc.usePKCE }}
+              value: {{ $oidc.usePKCE | quote }}
             {{- end }}
             {{- if $oidc.meUserInfoURL }}
             - name: ME_USER_INFO_URL
@@ -231,6 +231,9 @@ spec:
           args:
             {{- if .Values.config.inCluster }}
             - "-in-cluster"
+            {{- if .Values.config.inClusterContextName }}
+            - "-in-cluster-context-name={{ .Values.config.inClusterContextName }}"
+            {{- end }}
             {{- end }}
             {{- with .Values.config.enableHelm }}
             - "-enable-helm"
@@ -384,6 +387,9 @@ spec:
               {{- $defaultSC := dict "allowPrivilegeEscalation" false "runAsNonRoot" true "seccompProfile" (dict "type" "RuntimeDefault") "capabilities" (dict "drop" (list "ALL")) }}
               {{- toYaml $defaultSC | nindent 12 }}
             {{- end }}
+        {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

@@ -14,23 +14,44 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
+import { MenuItem } from '@mui/material';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Service from '../../lib/k8s/service';
+import { useNamespaces } from '../../redux/filterSlice';
 import LabelListItem from '../common/LabelListItem';
 import { MetadataDictGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
+import { getA8RMetadata } from './A8RServiceInfo';
 
 export default function ServiceList() {
   const { t } = useTranslation(['glossary', 'translation']);
+  const { items } = Service.useList({ namespace: useNamespaces() });
+
+  const hideOwnerColumn = useMemo(() => {
+    if (!items || items.length === 0) return true;
+    const hasOwner = items.some(service => service?.metadata?.annotations?.['a8r.io/owner']);
+    return !hasOwner;
+  }, [items]);
 
   return (
     <ResourceListView
       title={t('Services')}
       resourceClass={Service}
+      hideColumns={hideOwnerColumn ? ['a8r-owner'] : []}
       columns={[
         'name',
         'namespace',
         'cluster',
+        {
+          id: 'a8r-owner',
+          label: t('Owner'),
+          gridTemplate: 'auto',
+          getValue: service => service.metadata?.annotations?.['a8r.io/owner'] ?? '-',
+        },
         {
           id: 'type',
           label: t('translation|Type'),
@@ -66,6 +87,36 @@ export default function ServiceList() {
             service.spec.selector ? <MetadataDictGrid dict={service.spec.selector} /> : null,
         },
         'age',
+      ]}
+      actions={[
+        {
+          id: 'a8r-actions',
+          action: ({ item, closeMenu }) => {
+            const annotations = item.metadata.annotations ?? {};
+            const metadata = getA8RMetadata(annotations).filter(m => m.isLink);
+
+            if (metadata.length === 0) return null;
+
+            return (
+              <>
+                {metadata.map(meta => (
+                  <MenuItem
+                    key={meta.key}
+                    onClick={() => {
+                      window.open(meta.value, '_blank', 'noopener,noreferrer');
+                      closeMenu();
+                    }}
+                  >
+                    <ListItemIcon>
+                      <Icon icon={meta.icon} width="20" />
+                    </ListItemIcon>
+                    <ListItemText>{t(meta.labelKey)}</ListItemText>
+                  </MenuItem>
+                ))}
+              </>
+            );
+          },
+        },
       ]}
     />
   );

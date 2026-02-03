@@ -26,7 +26,7 @@ import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
 import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
@@ -49,6 +49,7 @@ import LightTooltip from '../common/Tooltip/TooltipLight';
 import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
+import { PodDebugAction } from './PodDebugAction';
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   margin: 0,
   paddingTop: theme.spacing(2),
@@ -491,6 +492,48 @@ export default function PodDetails(props: PodDetailsProps) {
   const { t } = useTranslation('glossary');
   const dispatchHeadlampEvent = useEventCallback();
 
+  const lastAutoLaunchedPod = React.useRef<string | null>(null);
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const autoLaunchView = queryParams.get('view');
+  const [podItem, setPodItem] = React.useState<Pod | null>(null);
+
+  const launchLogs = React.useCallback(
+    (item: Pod) => {
+      Activity.launch({
+        id: 'logs-' + item.metadata.uid,
+        title: t('Logs: {{ itemName }}', { itemName: item.metadata.name }),
+        cluster: item.cluster,
+        icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
+        location: 'full',
+        content: <PodLogViewer noDialog open item={item} onClose={() => {}} />,
+      });
+      dispatchHeadlampEvent({
+        type: HeadlampEventType.LOGS,
+        data: {
+          status: EventStatus.OPENED,
+        },
+      });
+    },
+    [t, dispatchHeadlampEvent]
+  );
+
+  React.useEffect(() => {
+    if (autoLaunchView !== 'logs') {
+      lastAutoLaunchedPod.current = null;
+      return;
+    }
+
+    if (
+      podItem &&
+      autoLaunchView === 'logs' &&
+      lastAutoLaunchedPod.current !== podItem.metadata.uid
+    ) {
+      lastAutoLaunchedPod.current = podItem.metadata.uid;
+      launchLogs(podItem);
+    }
+  }, [podItem, launchLogs, autoLaunchView]);
+
   function prepareExtraInfo(item: Pod | null) {
     let extraInfo: {
       name: string;
@@ -589,6 +632,9 @@ export default function PodDetails(props: PodDetailsProps) {
       namespace={namespace}
       cluster={cluster}
       withEvents
+      onResourceUpdate={item => {
+        setPodItem(item);
+      }}
       actions={item =>
         item && [
           {
@@ -598,24 +644,7 @@ export default function PodDetails(props: PodDetailsProps) {
                 <ActionButton
                   description={t('Show Logs')}
                   icon="mdi:file-document-box-outline"
-                  onClick={() => {
-                    Activity.launch({
-                      id: 'logs-' + item.metadata.uid,
-                      title: t('Logs') + ': ' + item.metadata.name,
-                      cluster: item.cluster,
-                      icon: (
-                        <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />
-                      ),
-                      location: 'full',
-                      content: <PodLogViewer noDialog open item={item} onClose={() => {}} />,
-                    });
-                    dispatchHeadlampEvent({
-                      type: HeadlampEventType.LOGS,
-                      data: {
-                        status: EventStatus.OPENED,
-                      },
-                    });
-                  }}
+                  onClick={() => launchLogs(item)}
                 />
               </AuthVisible>
             ),
@@ -649,6 +678,10 @@ export default function PodDetails(props: PodDetailsProps) {
                 />
               </AuthVisible>
             ),
+          },
+          {
+            id: DefaultHeaderAction.POD_DEBUG,
+            action: <PodDebugAction item={item} />,
           },
           {
             id: DefaultHeaderAction.POD_ATTACH,

@@ -28,8 +28,12 @@ namespaceOverride: ""
 # -- An optional list of init containers to be run before the main containers.
 initContainers: []
 
+# -- An optional list of extra containers to be run along side the main containers.
+extraContainers: []
+
 config:
   inCluster: true
+  inClusterContextName: "main"
   # -- base url path at which headlamp should run
   baseURL: ""
   oidc:

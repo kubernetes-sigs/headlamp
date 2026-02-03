@@ -25,8 +25,8 @@ import { ISearchOptions, SearchAddon } from '@xterm/addon-search';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
 import React, { ReactNode, useEffect } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
 import { useTranslation } from 'react-i18next';
+import { useShortcut } from '../../lib/useShortcut';
 import ActionButton from './ActionButton';
 import { Dialog, DialogProps } from './Dialog';
 
@@ -70,7 +70,7 @@ export function LogViewer(props: LogViewerProps) {
   const [terminalContainerRef, setTerminalContainerRef] = React.useState<HTMLElement | null>(null);
   const [showSearch, setShowSearch] = React.useState(false);
 
-  useHotkeys('ctrl+shift+f', () => {
+  useShortcut('LOG_VIEWER_SEARCH', () => {
     setShowSearch(true);
   });
 

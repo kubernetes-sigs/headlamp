@@ -32,6 +32,42 @@ function testHeadlampPlugin() {
   // Make a package file of headlamp-plugin we can test
   run('npm', ['install']);
   run('npm', ['run', 'build']);
+
+  // test that example and official plugins are bundled after build
+  console.log('Testing that example and official plugins are bundled...');
+  checkFileExists('examples');
+  checkFileExists('official-plugins');
+
+  // Check that example plugins are present
+  const examplePlugins = ['pod-counter', 'sidebar', 'change-logo', 'custom-theme'];
+  examplePlugins.forEach(plugin => {
+    checkFileExists(join('examples', plugin));
+    checkFileExists(join('examples', plugin, 'package.json'));
+    checkFileExists(join('examples', plugin, 'src', 'index.tsx'));
+  });
+
+  // Check that official plugins are present
+  const officialPlugins = ['prometheus', 'opencost', 'cert-manager', 'keda'];
+  officialPlugins.forEach(plugin => {
+    checkFileExists(join('official-plugins', plugin));
+    checkFileExists(join('official-plugins', plugin, 'package.json'));
+  });
+
+  // Test that git hash skipping works by running the scripts again
+  console.log('Testing git hash skipping for bundle-examples.js...');
+  const bundleExamplesOutput = runAndCaptureOutput('node', ['scripts/bundle-examples.js']);
+  if (!bundleExamplesOutput.includes('are already up to date')) {
+    throw new Error('Expected bundle-examples.js to skip bundling (git hash should match)');
+  }
+  console.log('✓ bundle-examples.js correctly skipped bundling (hash matched)');
+
+  console.log('Testing git hash skipping for fetch-official-plugins.js...');
+  const fetchPluginsOutput = runAndCaptureOutput('node', ['scripts/fetch-official-plugins.js']);
+  if (!fetchPluginsOutput.includes('are already up to date')) {
+    throw new Error('Expected fetch-official-plugins.js to skip fetching (git hash should match)');
+  }
+  console.log('✓ fetch-official-plugins.js correctly skipped fetching (hash matched)');
+
   run('npm', ['pack']);
 
   const packedFile = fs
@@ -44,6 +80,9 @@ function testHeadlampPlugin() {
   run('node', ['bin/headlamp-plugin.js', 'create', PACKAGE_NAME, '--link']);
   curDir = join('.', PACKAGE_NAME);
   run('npm', ['install', join('..', packedFile)]);
+
+  // test AGENTS.md was created
+  checkFileExists(join(PACKAGE_NAME, 'AGENTS.md'));
 
   // test headlamp-plugin build
   run('node', [join('..', 'bin', 'headlamp-plugin.js'), 'build']);
@@ -108,6 +147,7 @@ function testHeadlampPlugin() {
     'tsconfig.json',
     join('src', 'headlamp-plugin.d.ts'),
     join('.vscode', 'extensions.json'),
+    'AGENTS.md',
   ];
   filesToRemove.forEach(file => {
     fs.rmSync(join(curDir, file), { recursive: true });
@@ -116,6 +156,7 @@ function testHeadlampPlugin() {
   checkFileExists(join(curDir, 'tsconfig.json'));
   checkFileExists(join(curDir, 'src', 'headlamp-plugin.d.ts'));
   checkFileExists(join(curDir, '.vscode', 'extensions.json'));
+  checkFileExists(join(curDir, 'AGENTS.md'));
 
   // Does it upgrade "@kinvolk/headlamp-plugin" from an old version?
   // change @kinvolk/headlamp-plugin version in package.json to an old one "^0.4.9"
@@ -139,8 +180,9 @@ function testHeadlampPlugin() {
   }
 
   // test there are no @material-ui imports, they should be mui
-  if (fs.readFileSync(join(curDir, 'src', 'index.tsx'), 'utf8').includes('@material-ui')) {
-    exit(`Error: @material-ui imports in ${mainJsPath}`);
+  const indexTsxPath = join(curDir, 'src', 'index.tsx');
+  if (fs.readFileSync(indexTsxPath, 'utf8').includes('@material-ui')) {
+    exit(`Error: @material-ui imports in ${indexTsxPath}`);
   }
 }
 
@@ -198,6 +240,44 @@ function run(cmd, args) {
     );
   }
 }
+
+function runAndCaptureOutput(cmd, args) {
+  console.log('');
+  console.log(
+    `Running cmd:${cmd} with args:${args.join(' ')} inside of cwd:${curDir} abs: "${resolve(
+      curDir
+    )}" (capturing output)`
+  );
+  console.log('');
+  try {
+    const res = child_process.spawnSync(cmd, args, {
+      cwd: curDir,
+      env: process.env,
+      encoding: 'utf8',
+    });
+    if (res.error) {
+      throw res.error;
+    }
+    const output = (res.stdout || '') + (res.stderr || '');
+    console.log(output);
+    if (res.status !== 0) {
+      const signal = res.signal ? ` (killed by signal ${res.signal})` : '';
+      exit(
+        `Error: Problem running "${cmd} ${args.join(' ')}" inside of "${curDir}" abs: "${resolve(
+          curDir
+        )}"${signal}`
+      );
+    }
+    return output;
+  } catch (e) {
+    exit(
+      `Error: Problem running "${cmd} ${args.join(' ')}" inside of "${curDir}" abs: "${resolve(
+        curDir
+      )}": ${e && e.message ? e.message : e}`
+    );
+  }
+}
+
 function checkFileExists(fname) {
   if (!fs.existsSync(fname)) {
     exit(`Error: ${fname} does not exist.`);

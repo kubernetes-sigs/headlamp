@@ -30,6 +30,7 @@ import { DetailsGrid, MetadataDictGrid } from '../common/Resource';
 import PortForward from '../common/Resource/PortForward';
 import { SectionBox } from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
+import A8RServiceInfo from './A8RServiceInfo';
 
 export default function ServiceDetails(props: {
   name?: string;
@@ -82,8 +83,29 @@ export default function ServiceDetails(props: {
           },
         ]
       }
-      extraSections={item =>
-        item && [
+      extraSections={item => {
+        if (!item) {
+          return [];
+        }
+
+        const annotations = item.metadata?.annotations ?? {};
+        const hasA8r = Object.keys(annotations).some(key => key.startsWith('a8r.io/'));
+
+        return [
+          // Conditionally add Service Information
+          ...(hasA8r
+            ? [
+                {
+                  id: 'headlamp.service-a8r-info',
+                  section: (
+                    <SectionBox title={t('Service Information')}>
+                      <A8RServiceInfo annotations={annotations} />
+                    </SectionBox>
+                  ),
+                },
+              ]
+            : []),
+
           {
             id: 'headlamp.service-ports',
             section: (
@@ -91,23 +113,17 @@ export default function ServiceDetails(props: {
                 <SimpleTable
                   data={item.spec.ports}
                   columns={[
-                    {
-                      label: t('Protocol'),
-                      datum: 'protocol',
-                    },
-                    {
-                      label: t('translation|Name'),
-                      datum: 'name',
-                    },
+                    { label: t('Protocol'), datum: 'protocol' },
+                    { label: t('translation|Name'), datum: 'name' },
                     {
                       label: t('Ports'),
                       getter: ({ port, targetPort }) => (
-                        <React.Fragment>
+                        <>
                           <ValueLabel>{port}</ValueLabel>
                           <InlineIcon icon="mdi:chevron-right" />
                           <ValueLabel>{targetPort}</ValueLabel>
                           <PortForward containerPort={targetPort} resource={item} />
-                        </React.Fragment>
+                        </>
                       ),
                     },
                   ]}
@@ -116,6 +132,7 @@ export default function ServiceDetails(props: {
               </SectionBox>
             ),
           },
+
           {
             id: 'headlamp.service-endpoints',
             section: (
@@ -134,8 +151,8 @@ export default function ServiceDetails(props: {
                         label: t('translation|Addresses'),
                         getter: endpoint => (
                           <Box display="flex" flexDirection="column">
-                            {endpoint.getAddresses().map((address: string) => (
-                              <ValueLabel>{address}</ValueLabel>
+                            {endpoint.getAddresses().map((address: string, index: number) => (
+                              <ValueLabel key={index}>{address}</ValueLabel>
                             ))}
                           </Box>
                         ),
@@ -147,6 +164,7 @@ export default function ServiceDetails(props: {
               </SectionBox>
             ),
           },
+
           {
             id: 'headlamp.service-endpointslices',
             section: (
@@ -165,15 +183,15 @@ export default function ServiceDetails(props: {
                         label: t('translation|Addresses'),
                         getter: endpointSlice => (
                           <Box display="flex" flexDirection="column">
-                            {endpointSlice.spec.endpoints.map((endpoint: any) => (
-                              <ValueLabel>{endpoint.addresses.join(',')}</ValueLabel>
+                            {endpointSlice.spec.endpoints.map((ep: any, index: number) => (
+                              <ValueLabel key={index}>{ep.addresses.join(',')}</ValueLabel>
                             ))}
                           </Box>
                         ),
                       },
                       {
                         label: t('Ports'),
-                        getter: endpoint => endpoint.ports?.join(', '),
+                        getter: endpoint => endpoint.ports?.join(', ') ?? '',
                       },
                       {
                         label: t('translation|Address Type'),
@@ -186,8 +204,8 @@ export default function ServiceDetails(props: {
               </SectionBox>
             ),
           },
-        ]
-      }
+        ];
+      }}
     />
   );
 }

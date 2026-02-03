@@ -111,9 +111,10 @@ spec:
             - name: OIDC_VALIDATOR_ISSUER_URL
               value: overriddenIssuerURL
             - name: OIDC_USE_ACCESS_TOKEN
-              value: true
+              value: "true"
           args:
             - "-in-cluster"
+            - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             # Check if externalSecret is disabled
             # Check if clientID is non empty either from env or oidc.config

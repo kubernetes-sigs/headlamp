@@ -57,8 +57,8 @@ test('main page should have global search along with react-hotkey hint text', as
   const searchHintContainer = globalSearch.locator('xpath=following-sibling::div');
   const pressTextExists = await searchHintContainer.getByText(/^Press/).isVisible();
   const slashHotKeyExists = await searchHintContainer
-    .locator('div')
-    .filter({ hasText: /^\/$/ })
+    .locator('kbd')
+    .filter({ hasText: '/' })
     .isVisible();
   const toSearchTextExists = await searchHintContainer.getByText(/to search$/).isVisible();
 

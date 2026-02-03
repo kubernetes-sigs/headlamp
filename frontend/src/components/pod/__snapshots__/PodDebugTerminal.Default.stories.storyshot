@@ -1,0 +1,25 @@
+<body>
+  <div>
+    <div
+      class="MuiDialogContent-root css-1ydrgiv-MuiDialogContent-root"
+    >
+      <div
+        class="MuiBox-root css-hpgf8j"
+      >
+        <p
+          class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+        >
+          Press Ctrl+D or type "exit" to terminate the ephemeral container. If you don't, the container will stay running.
+        </p>
+      </div>
+      <div
+        class="MuiBox-root css-ffkpbp"
+      >
+        <div
+          id="xterm-container"
+          style="flex: 1; display: flex; flex-direction: column-reverse;"
+        />
+      </div>
+    </div>
+  </div>
+</body>

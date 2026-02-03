@@ -232,7 +232,11 @@ function extract(pluginPackagesPath, outputPlugins, logSteps = true) {
         const srcFile = path.join(distPath, file);
         const destFile = path.join(plugName, file);
         console.log(`Copying "${srcFile}" to "${destFile}".`);
-        fs.copyFileSync(srcFile, destFile);
+        if (fs.statSync(srcFile).isDirectory()) {
+          fs.copySync(srcFile, destFile);
+        } else {
+          fs.copyFileSync(srcFile, destFile);
+        }
       });
 
       const inputPackageJson = path.join(pluginPackagesPath, 'package.json');
@@ -264,7 +268,11 @@ function extract(pluginPackagesPath, outputPlugins, logSteps = true) {
         const srcFile = path.join(distPath, file);
         const destFile = path.join(plugName, file);
         console.log(`Copying "${srcFile}" to "${destFile}".`);
-        fs.copyFileSync(srcFile, destFile);
+        if (fs.statSync(srcFile).isDirectory()) {
+          fs.copySync(srcFile, destFile);
+        } else {
+          fs.copyFileSync(srcFile, destFile);
+        }
       });
 
       const inputPackageJson = path.join(pluginPackagesPath, folder.name, 'package.json');
@@ -952,6 +960,7 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
       path.join('.vscode', 'settings.json'),
       path.join('.vscode', 'tasks.json'),
       'tsconfig.json',
+      'AGENTS.md',
     ];
     const templateFolder = path.resolve(__dirname, '..', 'template');
 
@@ -967,9 +976,14 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
         fs.copyFileSync(from, to);
       }
       // Add file if it is different
-      if (fs.readFileSync(from, 'utf8') !== fs.readFileSync(to, 'utf8')) {
-        console.log(`Updating file: "${to}"`);
-        fs.copyFileSync(from, to);
+      if (fs.existsSync(to)) {
+        const fromContent = fs.readFileSync(from, 'utf8');
+        const toContent = fs.readFileSync(to, 'utf8');
+
+        if (fromContent !== toContent) {
+          console.log(`Updating file: "${to}"`);
+          fs.writeFileSync(to, fromContent);
+        }
       }
     });
   }

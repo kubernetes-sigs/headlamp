@@ -7,7 +7,10 @@
   "bin": "bin/headlamp-plugin.js",
   "scripts": {
     "prepack": "(node -e \"if (! require('fs').existsSync('./lib/components')) {process.exit(1)} \" || (echo 'lib dir is empty. Remember to run `npm run build` before packing' && exit 1))",
-    "build": "npx shx rm -rf lib types lib/assets lib/components lib/helpers lib/i18n lib/lib lib/plugin lib/redux lib/resources && npx shx cp -r ../../frontend/src/assets ../../frontend/src/components ../../frontend/src/helpers ../../frontend/src/stateless ../../frontend/src/i18n ../../frontend/src/lib ../../frontend/src/plugin ../../frontend/src/redux ../../frontend/src/resources src/ && tsc --build ./tsconfig.json && npx shx cp -r src/additional.d.ts lib/ && npx shx cp -r ../../frontend/src/assets lib/ && npx shx cp -r ../../frontend/src/resources lib/ && npx shx cp -r ../../frontend/src/i18n/locales lib/i18n && node scripts/copy-static-assets.js",
+    "build": "npm run prepare-bundle && npx shx rm -rf lib types lib/assets lib/components lib/helpers lib/i18n lib/lib lib/plugin lib/redux lib/resources && npx shx cp -r ../../frontend/src/assets ../../frontend/src/components ../../frontend/src/helpers ../../frontend/src/stateless ../../frontend/src/i18n ../../frontend/src/lib ../../frontend/src/plugin ../../frontend/src/redux ../../frontend/src/resources src/ && tsc --build ./tsconfig.json && npx shx cp -r src/additional.d.ts lib/ && npx shx cp -r ../../frontend/src/assets lib/ && npx shx cp -r ../../frontend/src/resources lib/ && npx shx cp -r ../../frontend/src/i18n/locales lib/i18n && node scripts/copy-static-assets.js",
+    "bundle-examples": "node scripts/bundle-examples.js",
+    "fetch-official-plugins": "node scripts/fetch-official-plugins.js",
+    "prepare-bundle": "npm run bundle-examples && npm run fetch-official-plugins",
     "update-dependencies": "node dependencies-sync.js update && npm install && node scripts/copy-package-lock.js",
     "check-dependencies": "node dependencies-sync.js check",
     "copy-package-lock": "node scripts/copy-package-lock.js"
@@ -80,7 +83,7 @@
     "js-yaml": "^4.1.1",
     "jsdom": "^24.0.0",
     "jsonpath-plus": "^10.3.0",
-    "lodash": "^4.17.21",
+    "lodash": "^4.17.23",
     "material-react-table": "^2.13.3",
     "monaco-editor": "^0.52.0",
     "msw": "2.4.9",
@@ -106,7 +109,7 @@
     "spacetime": "^7.4.0",
     "storybook": "^9.1.17",
     "table": "^6.8.2",
-    "tar": "^7.4.3",
+    "tar": "^7.5.7",
     "ts-loader": "^9.5.2",
     "typescript": "5.6.2",
     "validate-npm-package-name": "^3.0.0",
@@ -132,6 +135,8 @@
     "lib",
     "types",
     ".storybook",
+    "examples",
+    "official-plugins",
     "plugin-management/plugin-management.js",
     "plugin-management/multi-plugin-management.js"
   ],

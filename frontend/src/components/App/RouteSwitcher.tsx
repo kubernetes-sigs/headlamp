@@ -130,9 +130,16 @@ function PageTitle({
   title: string | null | undefined;
   children: React.ReactNode;
 }) {
+  const cluster = useCluster();
+
   React.useEffect(() => {
-    document.title = title || '';
-  }, [title]);
+    if (cluster && title) {
+      document.title = `${cluster} - ${title}`;
+      return;
+    }
+
+    document.title = cluster || title || '';
+  }, [cluster, title]);
 
   return <>{children}</>;
 }
@@ -155,7 +162,7 @@ function AuthRoute(props: AuthRouteProps) {
     computedMatch = {},
     ...other
   } = props;
-  const redirectRoute = getCluster() ? 'login' : 'chooser';
+
   useSidebarItem(sidebar, computedMatch);
   const cluster = useCluster();
   const query = useQuery({
@@ -164,6 +171,24 @@ function AuthRoute(props: AuthRouteProps) {
     enabled: !!cluster && requiresAuth,
     retry: 0,
   });
+
+  const clusters = useClustersConf();
+  const currentCluster = getCluster();
+  const clusterConf = currentCluster && clusters ? clusters[currentCluster] : null;
+  const authError = query.error as any;
+  const isExplicitAuthError = [401, 403].includes(authError?.status);
+
+  let redirectRoute: string;
+
+  if (!currentCluster) {
+    redirectRoute = 'chooser';
+  } else if (clusterConf?.auth_type === 'oidc') {
+    redirectRoute = 'login';
+  } else if (query.isError && isExplicitAuthError) {
+    redirectRoute = 'token';
+  } else {
+    redirectRoute = 'login';
+  }
 
   function getRenderer({ location }: RouteProps) {
     if (!requiresAuth) {

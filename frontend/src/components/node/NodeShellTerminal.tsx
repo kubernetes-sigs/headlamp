@@ -16,8 +16,6 @@
 
 import Box from '@mui/material/Box';
 import DialogContent from '@mui/material/DialogContent';
-import { FitAddon } from '@xterm/addon-fit';
-import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -30,27 +28,11 @@ import { apply } from '../../lib/k8s/api/v1/apply';
 import { stream, StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
 import Node from '../../lib/k8s/node';
 import { KubePod } from '../../lib/k8s/pod';
-
-const decoder = new TextDecoder('utf-8');
-const encoder = new TextEncoder();
-
-enum Channel {
-  StdIn = 0,
-  StdOut,
-  StdErr,
-  ServerError,
-  Resize,
-}
+import { Channel, useTerminalStream, XTerminalConnected } from '../../lib/k8s/useTerminalStream';
 
 interface NodeShellTerminalProps {
   item: Node;
   onClose?: () => void;
-}
-
-interface XTerminalConnected {
-  xterm: XTerminal;
-  connected: boolean;
-  reconnectOnEnter: boolean;
 }
 
 const shellPod = (name: string, namespace: string, nodeName: string, nodeShellImage: string) => {
@@ -153,11 +135,25 @@ async function shell(item: Node, onExec: StreamResultsCb) {
 export function NodeShellTerminal(props: NodeShellTerminalProps) {
   const { item, onClose } = props;
   const [terminalContainerRef, setTerminalContainerRef] = useState<HTMLElement | null>(null);
-  const xtermRef = useRef<XTerminalConnected | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
-  const streamRef = useRef<any | null>(null);
   const exitSentRef = useRef(false);
   const pendingExitRef = useRef(false);
+
+  const { xtermRef, streamRef, send } = useTerminalStream({
+    containerRef: terminalContainerRef,
+    connectStream: async onDataCallback => {
+      xtermRef.current?.xterm.writeln('Trying to open a shell');
+      const { stream } = await shell(item, onDataCallback);
+      return {
+        stream,
+      };
+    },
+    onClose: wrappedOnClose,
+    errorHandlers: {
+      isSuccessfulExit: isSuccessfulExitError,
+      isShellNotFound: isShellNotFoundError,
+      onConnectionFailed: shellConnectFailed,
+    },
+  });
 
   const sendExitIfPossible = () => {
     if (exitSentRef.current) {
@@ -169,7 +165,7 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
       return false;
     }
 
-    send(0, 'exit\r');
+    send(Channel.StdIn, 'exit\r');
     exitSentRef.current = true;
     pendingExitRef.current = false;
     setTimeout(() => streamRef.current?.cancel(), 1000);
@@ -190,137 +186,22 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
     }
   };
 
-  const wrappedOnClose = () => {
+  function wrappedOnClose() {
     requestShellExit('dialog-close');
-    if (!!onClose) {
+    if (onClose) {
       onClose();
     }
-  };
-
-  // @todo: Give the real exec type when we have it.
-  function setupTerminal(containerRef: HTMLElement, xterm: XTerminal, fitAddon: FitAddon) {
-    if (!containerRef) {
-      return;
-    }
-
-    xterm.open(containerRef);
-
-    let lastKeyPressEvent: KeyboardEvent | null = null;
-    xterm.onData(data => {
-      let dataToSend = data;
-
-      // On MacOS with a German layout, the Alt+7 should yield a | character, but
-      // the onData event doesn't get it. So we need to add a custom key handler.
-      // No need to check for the actual platform because the key patterns should
-      // be good enough.
-      if (
-        data === '\u001b7' &&
-        lastKeyPressEvent?.key === '|' &&
-        lastKeyPressEvent.code === 'Digit7'
-      ) {
-        dataToSend = '|';
-      }
-
-      send(0, dataToSend);
-    });
-
-    xterm.onResize(size => {
-      send(4, `{"Width":${size.cols},"Height":${size.rows}}`);
-    });
-
-    // Allow copy/paste in terminal
-    xterm.attachCustomKeyEventHandler(arg => {
-      if (arg.type === 'keydown') {
-        lastKeyPressEvent = arg;
-      } else {
-        lastKeyPressEvent = null;
-      }
-
-      if (arg.ctrlKey && arg.type === 'keydown') {
-        if (arg.code === 'KeyC') {
-          const selection = xterm.getSelection();
-          if (selection) {
-            return false;
-          }
-        }
-        if (arg.code === 'KeyV') {
-          return false;
-        }
-      }
-
-      return true;
-    });
-
-    fitAddon.fit();
-  }
-
-  function send(channel: number, data: string) {
-    const socket = streamRef.current!.getSocket();
-
-    // We should only send data if the socket is ready.
-    if (!socket || socket.readyState !== 1) {
-      console.debug('Could not send data to exec: Socket not ready...', socket);
-      return;
-    }
-
-    const encoded = encoder.encode(data);
-    const buffer = new Uint8Array([channel, ...encoded]);
-
-    socket.send(buffer);
-  }
-
-  function onData(xtermc: XTerminalConnected, bytes: ArrayBuffer) {
-    const xterm = xtermc.xterm;
-    // Only show data from stdout, stderr and server error channel.
-    const channel: Channel = new Int8Array(bytes.slice(0, 1))[0];
-    if (channel < Channel.StdOut || channel > Channel.ServerError) {
-      return;
-    }
-
-    // The first byte is discarded because it just identifies whether
-    // this data is from stderr, stdout, or stdin.
-    const data = bytes.slice(1);
-    const text = decoder.decode(data);
-
-    // Send resize command to server once connection is establised.
-    if (!xtermc.connected) {
-      xterm.clear();
-      (async function () {
-        send(4, `{"Width":${xterm.cols},"Height":${xterm.rows}}`);
-      })();
-      // On server error, don't set it as connected
-      if (channel !== Channel.ServerError) {
-        xtermc.connected = true;
-        console.debug('Terminal is now connected');
-        if (pendingExitRef.current && !exitSentRef.current) {
-          sendExitIfPossible();
-        }
-      }
-    }
-
-    if (isSuccessfulExitError(channel, text)) {
-      wrappedOnClose();
-
-      if (streamRef.current) {
-        streamRef.current?.cancel();
-      }
-
-      return;
-    }
-
-    if (isShellNotFoundError(channel, text)) {
-      shellConnectFailed(xtermc);
-      return;
-    }
-    xterm.write(text);
   }
 
   function isSuccessfulExitError(channel: number, text: string): boolean {
     // Linux container Error
-    if (channel === 3) {
+    if (channel === Channel.ServerError) {
       try {
         const error = JSON.parse(text);
         if (_.isEmpty(error.metadata) && error.status === 'Success') {
+          if (pendingExitRef.current && !exitSentRef.current) {
+            sendExitIfPossible();
+          }
           return true;
         }
       } catch {}
@@ -330,7 +211,7 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
 
   function isShellNotFoundError(channel: number, text: string): boolean {
     // Linux container Error
-    if (channel === 3) {
+    if (channel === Channel.ServerError) {
       try {
         const error = JSON.parse(text);
         if (error.code === 500 && error.status === 'Failure' && error.reason === 'InternalError') {
@@ -339,7 +220,7 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
       } catch {}
     }
     // Windows container Error
-    if (channel === 1) {
+    if (channel === Channel.StdOut) {
       if (text.includes('The system cannot find the file specified')) {
         return true;
       }
@@ -352,61 +233,6 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
     xterm.clear();
     xterm.write('Failed to connect…\r\n');
   }
-
-  useEffect(
-    () => {
-      // We need a valid container ref for the terminal to add itself to it.
-      if (terminalContainerRef === null) {
-        return;
-      }
-
-      if (xtermRef.current) {
-        xtermRef.current.xterm.dispose();
-        streamRef.current?.cancel();
-      }
-
-      xtermRef.current = {
-        xterm: new XTerminal({
-          cursorBlink: true,
-          cursorStyle: 'underline',
-          scrollback: 10000,
-          rows: 30, // initial rows before fit
-          windowsMode: false,
-          allowProposedApi: true,
-        }),
-        connected: false,
-        reconnectOnEnter: false,
-      };
-
-      fitAddonRef.current = new FitAddon();
-      xtermRef.current.xterm.loadAddon(fitAddonRef.current);
-
-      (async function () {
-        xtermRef?.current?.xterm.writeln('Trying to open a shell');
-        const { stream } = await shell(item, (items: ArrayBuffer) =>
-          onData(xtermRef.current!, items)
-        );
-        streamRef.current = stream;
-
-        setupTerminal(terminalContainerRef, xtermRef.current!.xterm, fitAddonRef.current!);
-      })();
-
-      const handler = () => {
-        fitAddonRef.current!.fit();
-      };
-
-      window.addEventListener('resize', handler);
-
-      return function cleanup() {
-        requestShellExit('component-unmount');
-        xtermRef.current?.xterm.dispose();
-        streamRef.current?.cancel();
-        window.removeEventListener('resize', handler);
-      };
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [terminalContainerRef]
-  );
 
   useEffect(() => {
     const handleBeforeUnload = () => {

@@ -33,7 +33,6 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import _ from 'lodash';
 import React, { isValidElement, PropsWithChildren } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath } from 'react-router';
@@ -43,6 +42,7 @@ import { getRecentClusters, setRecentCluster } from '../../helpers/recentCluster
 import { useClustersConf } from '../../lib/k8s';
 import { Cluster } from '../../lib/k8s/cluster';
 import { createRouteURL } from '../../lib/router/createRouteURL';
+import { useShortcut } from '../../lib/useShortcut';
 import { getCluster, getClusterPrefixedPath } from '../../lib/util';
 import { useTypedSelector } from '../../redux/hooks';
 import { uiSlice } from '../../redux/uiSlice';
@@ -69,13 +69,9 @@ export function ClusterTitle(props: ClusterTitleProps) {
   const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
   const ChooserButton = useTypedSelector(state => state.ui.clusterChooserButtonComponent);
 
-  useHotkeys(
-    'ctrl+shift+l',
-    () => {
-      setAnchorEl(buttonRef.current);
-    },
-    { preventDefault: true }
-  );
+  useShortcut('CLUSTER_CHOOSER', () => {
+    setAnchorEl(buttonRef.current);
+  });
 
   if (!cluster) {
     return null;
