@@ -16,6 +16,7 @@
 
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { loadClusterSettings } from '../../../../helpers/clusterSettings';
+import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import type { ConfigState } from '../../../../redux/configSlice';
 import store from '../../../../redux/stores/store';
@@ -39,6 +40,65 @@ export async function testAuth(cluster = '', namespace = 'default') {
     timeout: 5 * 1000,
     cluster: clusterName,
   });
+}
+
+/**
+ * User info returned from SelfSubjectReview or derived from cluster config
+ */
+export interface ClusterUserInfo {
+  /** Username of the authenticated user */
+  username?: string;
+  /** UID of the authenticated user */
+  uid?: string;
+  /** Groups the user belongs to */
+  groups?: string[];
+  /** Extra info about the user */
+  extra?: Record<string, string[]>;
+}
+
+/**
+ * Get user info for the given cluster using SelfSubjectReview API.
+ * Falls back to returning cluster name if the API is not available.
+ * Returns { username: 'unknown' } if no cluster is resolved.
+ *
+ * @param cluster - The name of the cluster (optional).
+ * @returns Promise resolving to user info
+ */
+export async function getClusterUserInfo(cluster = ''): Promise<ClusterUserInfo> {
+  const clusterName = cluster || getCluster() || '';
+
+  if (!clusterName) {
+    return { username: 'unknown' };
+  }
+
+  try {
+    // Try SelfSubjectReview API (available in K8s 1.28+)
+    const response = await post(
+      '/apis/authentication.k8s.io/v1/selfsubjectreviews',
+      {
+        apiVersion: 'authentication.k8s.io/v1',
+        kind: 'SelfSubjectReview',
+      },
+      false,
+      {
+        timeout: 5 * 1000,
+        cluster: clusterName,
+      }
+    );
+
+    if (response?.status?.userInfo) {
+      return response.status.userInfo;
+    }
+
+    // Fallback: return cluster name as username
+    return { username: clusterName };
+  } catch (error) {
+    // If SelfSubjectReview is not available, return cluster name
+    if (isDebugVerbose('k8s/api/v1/clusterApi@getClusterUserInfo')) {
+      console.debug('SelfSubjectReview not available for cluster', clusterName, error);
+    }
+    return { username: clusterName };
+  }
 }
 
 /**
