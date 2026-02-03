@@ -18,6 +18,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { get } from 'lodash';
+import { http, HttpResponse } from 'msw';
 import { PropsWithChildren } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
@@ -62,6 +63,7 @@ export default {
       );
     },
   ],
+  parameters: {},
 } as Meta;
 
 function OurTopBar(args: PropsWithChildren<PureTopBarProps>) {
@@ -116,6 +118,16 @@ OneCluster.args = {
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '' },
 };
+OneCluster.parameters = {
+  msw: {
+    handlers: [
+      http.post(
+        'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
+        () => HttpResponse.json({ status: { userInfo: { username: 'one-cluster-user' } } })
+      ),
+    ],
+  },
+};
 
 export const TwoCluster = PureTemplate.bind({});
 TwoCluster.args = {
@@ -131,9 +143,22 @@ WithUserInfo.args = {
   logout: () => {},
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '' },
-  userInfo: {
-    username: 'Ada Lovelace',
-    email: 'ada@example.com',
+};
+WithUserInfo.parameters = {
+  msw: {
+    handlers: [
+      http.post(
+        'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
+        () =>
+          HttpResponse.json({
+            status: {
+              userInfo: {
+                username: 'Ada Lovelace',
+              },
+            },
+          })
+      ),
+    ],
   },
 };
 
@@ -143,8 +168,22 @@ WithEmailOnly.args = {
   logout: () => {},
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '' },
-  userInfo: {
-    email: 'grace@example.com',
+};
+WithEmailOnly.parameters = {
+  msw: {
+    handlers: [
+      http.post(
+        'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
+        () =>
+          HttpResponse.json({
+            status: {
+              userInfo: {
+                username: 'grace@example.com',
+              },
+            },
+          })
+      ),
+    ],
   },
 };
 
@@ -154,7 +193,17 @@ UndefinedData.args = {
   logout: () => {},
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '' },
-  userInfo: undefined,
+};
+UndefinedData.parameters = {
+  msw: {
+    handlers: [
+      // Return 404 to simulate missing API or data
+      http.post(
+        'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
+        () => new HttpResponse(null, { status: 404 })
+      ),
+    ],
+  },
 };
 
 export const EmptyUserInfo = PureTemplate.bind({});
@@ -163,8 +212,57 @@ EmptyUserInfo.args = {
   logout: () => {},
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '' },
-  userInfo: {
-    email: '',
-    username: '',
+};
+EmptyUserInfo.parameters = {
+  msw: {
+    handlers: [
+      http.post(
+        'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
+        () => HttpResponse.json({})
+      ),
+    ],
+  },
+};
+
+export const MultiCluster = PureTemplate.bind({});
+MultiCluster.args = {
+  appBarActions: [],
+  logout: () => {},
+  cluster: 'admin-cluster',
+  clusters: {
+    'admin-cluster': '',
+    'view-cluster': '',
+    'other-cluster': '',
+  },
+  selectedClusters: ['admin-cluster', 'view-cluster'],
+};
+MultiCluster.parameters = {
+  msw: {
+    handlers: [
+      http.post(
+        'http://localhost:4466/clusters/admin-cluster/apis/authentication.k8s.io/v1/selfsubjectreviews',
+        () =>
+          HttpResponse.json({
+            status: {
+              userInfo: {
+                username: 'admin-user',
+                groups: ['system:masters'],
+              },
+            },
+          })
+      ),
+      http.post(
+        'http://localhost:4466/clusters/view-cluster/apis/authentication.k8s.io/v1/selfsubjectreviews',
+        () =>
+          HttpResponse.json({
+            status: {
+              userInfo: {
+                username: 'view-user',
+                groups: ['view-group'],
+              },
+            },
+          })
+      ),
+    ],
   },
 };
