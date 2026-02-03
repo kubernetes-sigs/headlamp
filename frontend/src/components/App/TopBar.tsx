@@ -79,6 +79,41 @@ export function processAppBarActions(
 }
 
 /**
+ * Handles the logic for updating the URL after a user logs out from a cluster.
+ * If the user logs out from a specific cluster in a multi-cluster context,
+ * it removes that cluster from the URL. Otherwise, it redirects to the home page.
+ *
+ * @param clusterToLogout - The name of the cluster the user is logging out from.
+ * @param currentPath - The current URL path (e.g., from history.location.pathname).
+ * @param historyPush - Function to navigate to a new path (e.g., history.push).
+ */
+function handleLogoutPathUpdate(
+  clusterToLogout: string | undefined,
+  currentPath: string,
+  historyPush: (path: string) => void
+) {
+  if (clusterToLogout) {
+    const clusterSegmentMatch = currentPath.match(/\/c\/([^/]+)(\/|$)/);
+    if (clusterSegmentMatch) {
+      const currentClusterParam = clusterSegmentMatch[1];
+      const clustersInPath = currentClusterParam.split('+');
+      const remainingClustersInPath = clustersInPath.filter(c => c !== clusterToLogout);
+      if (remainingClustersInPath.length > 0) {
+        const newClusterParam = remainingClustersInPath.join('+');
+        const newPath = currentPath.replace(`/c/${currentClusterParam}`, `/c/${newClusterParam}`);
+        historyPush(newPath);
+      } else {
+        historyPush('/');
+      }
+    } else {
+      historyPush('/');
+    }
+  } else {
+    historyPush('/');
+  }
+}
+
+/**
  * Gets the display name for a user in a cluster.
  *
  * @param clusterName - The name of the cluster.
@@ -168,7 +203,9 @@ export default function TopBar({}: TopBarProps) {
         }
       }
 
-      history.push('/');
+      handleLogoutPathUpdate(clusterToLogout, history.location.pathname, (path: string) =>
+        history.push(path)
+      );
     },
     [cluster, selectedClusters, history]
   );
@@ -472,21 +509,19 @@ export const PureTopBar = memo(
       {
         id: DefaultAppBarAction.USER,
         action: showUserMenu && (
-          <MenuItem>
-            <IconButton
-              aria-label={t('Account of current user')}
-              aria-controls={userMenuId}
-              aria-haspopup="true"
-              color="inherit"
-              onClick={event => {
-                handleMenuClose();
-                handleProfileMenuOpen(event);
-              }}
-              size="medium"
-            >
-              <Icon icon="mdi:account" />
-            </IconButton>
-          </MenuItem>
+          <IconButton
+            aria-label={t('Account of current user')}
+            aria-controls={userMenuId}
+            aria-haspopup="true"
+            color="inherit"
+            onClick={event => {
+              handleMenuClose();
+              handleProfileMenuOpen(event);
+            }}
+            size="medium"
+          >
+            <Icon icon="mdi:account" />
+          </IconButton>
         ),
       },
     ];
