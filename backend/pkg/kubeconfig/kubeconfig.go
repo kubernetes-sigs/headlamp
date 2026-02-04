@@ -1001,6 +1001,18 @@ func splitKubeConfigPath(path string) []string {
 	return strings.Split(path, delimiter)
 }
 
+func resolveServiceAccountTokenPath(clusterConfig *rest.Config, serviceAccountTokenPath string) string {
+	if serviceAccountTokenPath != "" {
+		return serviceAccountTokenPath
+	}
+
+	if clusterConfig.BearerTokenFile != "" {
+		return clusterConfig.BearerTokenFile
+	}
+
+	return "/var/run/secrets/kubernetes.io/serviceaccount/token" // #nosec G101
+}
+
 // GetInClusterContext returns the in-cluster context.
 func GetInClusterContext(
 	contextName string,
@@ -1009,6 +1021,8 @@ func GetInClusterContext(
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
 	oidcCACert string,
+	useServiceAccountToken bool,
+	serviceAccountTokenPath string,
 ) (*Context, error) {
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
@@ -1032,6 +1046,10 @@ func GetInClusterContext(
 	contextName = MakeDNSFriendly(contextName)
 
 	inClusterAuthInfo := &api.AuthInfo{}
+
+	if useServiceAccountToken {
+		inClusterAuthInfo.TokenFile = resolveServiceAccountTokenPath(clusterConfig, serviceAccountTokenPath)
+	}
 
 	var oidcConf *OidcConfig
 

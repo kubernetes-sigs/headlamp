@@ -45,6 +45,7 @@ func TestParseBasic(t *testing.T) {
 				assert.Equal(t, config.DefaultMeEmailPath, conf.MeEmailPath)
 				assert.Equal(t, config.DefaultMeGroupsPath, conf.MeGroupsPath)
 				assert.Equal(t, "info", conf.LogLevel)
+				assert.Equal(t, "", conf.ServiceAccountTokenPath)
 			},
 		},
 		{
@@ -184,6 +185,11 @@ func TestParseErrors(t *testing.T) {
 			errorContains: "flags are only meant to be used in inCluster mode or with --oidc-use-cookie",
 		},
 		{
+			name:          "use_service_account_token_without_incluster",
+			args:          []string{"go run ./cmd", "--use-service-account-token"},
+			errorContains: "are only meant to be used in inCluster mode",
+		},
+		{
 			name:          "invalid_base_url",
 			args:          []string{"go run ./cmd", "--base-url=testingthis"},
 			errorContains: "base-url",
@@ -210,56 +216,89 @@ func TestParseErrors(t *testing.T) {
 	}
 }
 
-func TestParseFlags(t *testing.T) {
-	tests := []struct {
-		name   string
-		args   []string
-		verify func(*testing.T, *config.Config)
-	}{
-		{
-			name: "enable_dynamic_clusters",
-			args: []string{"go run ./cmd", "--enable-dynamic-clusters"},
-			verify: func(t *testing.T, conf *config.Config) {
-				assert.Equal(t, true, conf.EnableDynamicClusters)
-			},
-		},
-		{
-			name: "oidc_skip_tls_verify_flag",
-			args: []string{"go run ./cmd", "--oidc-skip-tls-verify"},
-			verify: func(t *testing.T, conf *config.Config) {
-				assert.Equal(t, true, conf.OidcSkipTLSVerify)
-			},
-		},
-		{
-			name: "oidc_ca_file_flag",
-			args: []string{"go run ./cmd", "--oidc-ca-file=" + filepath.Join(getTestDataPath(), "valid_ca.pem")},
-			verify: func(t *testing.T, conf *config.Config) {
-				assert.Equal(t, filepath.Join(getTestDataPath(), "valid_ca.pem"), conf.OidcCAFile)
-			},
-		},
-		{
-			name: "enable_helm",
-			args: []string{"go run ./cmd", "--enable-helm"},
-			verify: func(t *testing.T, conf *config.Config) {
-				assert.Equal(t, true, conf.EnableHelm)
-			},
-		},
-		{
-			name: "in_cluster_context_name_flag",
-			args: []string{"go run ./cmd", "--in-cluster-context-name=mycluster"},
-			verify: func(t *testing.T, conf *config.Config) {
-				assert.Equal(t, "mycluster", conf.InClusterContextName)
-			},
-		},
-		{
-			name: "log_level_flag",
-			args: []string{"go run ./cmd", "--log-level=warn"},
-			verify: func(t *testing.T, conf *config.Config) {
-				assert.Equal(t, "warn", conf.LogLevel)
-			},
-		},
-	}
+type parseFlagTest struct {
+	name   string
+	args   []string
+	verify func(*testing.T, *config.Config)
+}
 
+var parseFlagTests = []parseFlagTest{
+	{
+		name: "enable_dynamic_clusters",
+		args: []string{"go run ./cmd", "--enable-dynamic-clusters"},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.EnableDynamicClusters)
+		},
+	},
+	{
+		name: "oidc_skip_tls_verify_flag",
+		args: []string{"go run ./cmd", "--oidc-skip-tls-verify"},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.OidcSkipTLSVerify)
+		},
+	},
+	{
+		name: "oidc_ca_file_flag",
+		args: []string{
+			"go run ./cmd",
+			"--oidc-ca-file=" + filepath.Join(getTestDataPath(), "valid_ca.pem"),
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, filepath.Join(getTestDataPath(), "valid_ca.pem"), conf.OidcCAFile)
+		},
+	},
+	{
+		name: "enable_helm",
+		args: []string{"go run ./cmd", "--enable-helm"},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.EnableHelm)
+		},
+	},
+	{
+		name: "in_cluster_context_name_flag",
+		args: []string{"go run ./cmd", "--in-cluster-context-name=mycluster"},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, "mycluster", conf.InClusterContextName)
+		},
+	},
+	{
+		name: "log_level_flag",
+		args: []string{"go run ./cmd", "--log-level=warn"},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, "warn", conf.LogLevel)
+		},
+	},
+	{
+		name: "service_account_token_path_without_flag",
+		args: []string{
+			"go run ./cmd",
+			"--service-account-token-path=/custom/token/path",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, false, conf.UseServiceAccountToken)
+			assert.Equal(t, "/custom/token/path", conf.ServiceAccountTokenPath)
+		},
+	},
+	{
+		name: "use_service_account_token_flag",
+		args: []string{
+			"go run ./cmd",
+			"--in-cluster",
+			"--use-service-account-token",
+			"--service-account-token-path=/custom/token/path",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.UseServiceAccountToken)
+			assert.Equal(t, "/custom/token/path", conf.ServiceAccountTokenPath)
+		},
+	},
+}
+
+func TestParseFlags(t *testing.T) {
+	runParseFlagTests(t, parseFlagTests)
+}
+
+func runParseFlagTests(t *testing.T, tests []parseFlagTest) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conf, err := config.Parse(tt.args)

@@ -74,6 +74,8 @@ type Config struct {
 	MeGroupsPath              string `koanf:"me-groups-path"`
 	MeUserInfoURL             string `koanf:"me-user-info-url"`
 	OidcUsePKCE               bool   `koanf:"oidc-use-pkce"`
+	UseServiceAccountToken    bool   `koanf:"use-service-account-token"`
+	ServiceAccountTokenPath   string `koanf:"service-account-token-path"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -95,6 +97,11 @@ func (c *Config) Validate() error {
 		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
 			"oidc-validator-client-id, oidc-validator-idp-issuer-url, flags are only " +
 			"meant to be used in inCluster mode or with --oidc-use-cookie")
+	}
+
+	if !c.InCluster && (c.UseServiceAccountToken || c.ServiceAccountTokenPath != "") {
+		return errors.New("use-service-account-token and service-account-token-path " +
+			"flags are only meant to be used in inCluster mode")
 	}
 
 	// OIDC TLS verification warning.
@@ -453,6 +460,8 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
 	f.Bool("enable-helm", false, "Enable Helm operations")
+	f.Bool("use-service-account-token", false, "Use the service account token for in-cluster authentication")
+	f.String("service-account-token-path", "", "Path to the service account token; used only when --use-service-account-token is enabled and only for in-cluster authentication")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {

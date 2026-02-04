@@ -451,13 +451,26 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	// In-cluster
 	if config.UseInCluster {
+		if config.UseServiceAccountToken {
+			logger.Log(
+				logger.LevelWarn,
+				nil,
+				nil,
+				"Using service account token for in-cluster authentication could pose security risks "+
+					"if Headlamp is exposed externally.",
+			)
+		}
+
 		context, err := kubeconfig.GetInClusterContext(
 			config.InClusterContextName,
 			config.OidcIdpIssuerURL,
 			config.OidcClientID, config.OidcClientSecret,
 			strings.Join(config.OidcScopes, ","),
 			config.OidcSkipTLSVerify,
-			config.OidcCACert)
+			config.OidcCACert,
+			config.UseServiceAccountToken,
+			config.ServiceAccountTokenPath,
+		)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
 		}
