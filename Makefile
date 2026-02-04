@@ -352,6 +352,9 @@ frontend-i18n-check:
 frontend-test:
 	cd frontend && npm run test -- --coverage
 
+frontend-test-a11y:
+	cd frontend && npm run test:a11y
+
 .PHONY: lint
 lint: backend-lint frontend-lint
 

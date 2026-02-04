@@ -1,0 +1,61 @@
+{
+  "_comment": "Baseline configuration for accessibility testing (test-a11y-with-baseline.mjs)",
+  "_instructions": [
+    "This file tracks known accessibility violations that are allowed in CI.",
+    "Format: { 'Story/Path': ['rule-id-1', 'rule-id-2'] }",
+    "To update: Run 'npm run test:a11y' locally and add new baseline entries if needed.",
+    "CI will pass with these violations but fail on any NEW violations."
+  ],
+  "baseline": {
+    "Settings/PluginSettings/Few Items": ["heading-order"],
+    "Settings/PluginSettings/Default Save Enable": ["heading-order"],
+    "Settings/PluginSettings/Many Items": ["heading-order"],
+    "Settings/PluginSettings/More Items": ["heading-order"],
+    "Settings/PluginSettings/Empty Homepage Items": ["heading-order"],
+    "Settings/PluginSettings/Multiple Locations": ["color-contrast", "heading-order"],
+    "Settings/PluginSettings/Migration Scenario": ["color-contrast", "heading-order"],
+    "TopBar/Processor Action": ["color-contrast"],
+    "TopBar/No Token": ["color-contrast"],
+    "TopBar/Token": ["color-contrast"],
+    "TopBar/One Cluster": ["color-contrast"],
+    "TopBar/Two Cluster": ["color-contrast"],
+    "TopBar/With User Info": ["color-contrast"],
+    "TopBar/With Email Only": ["color-contrast"],
+    "TopBar/Undefined Data": ["color-contrast"],
+    "TopBar/Empty User Info": ["color-contrast"],
+    "TopBar/Version Dialog": ["aria-dialog-name"],
+    "AuthToken/Show Error": ["empty-heading"],
+    "AuthToken/Show Actions": ["empty-heading"],
+    "Activity/Basic": ["landmark-unique"],
+    "AuthChooser/Basic Auth Chooser": ["empty-heading"],
+    "AuthChooser/Testing": ["empty-heading"],
+    "AuthChooser/Have Clusters": ["empty-heading"],
+    "AuthChooser/Auth Typeoidc": ["empty-heading"],
+    "AuthChooser/An Error": ["empty-heading"],
+    "cluster/Chooser/Normal": ["empty-heading"],
+    "cluster/Chooser/Single Cluster": ["empty-heading"],
+    "cluster/Chooser/Many Clusters": ["empty-heading"],
+    "cluster/Chooser/No Clusters": ["empty-heading"],
+    "cluster/ClusterChooserPopup/Normal": ["aria-required-children", "listitem"],
+    "cluster/ClusterChooserPopup/Scrollbar": [
+      "aria-required-children",
+      "listitem",
+      "scrollable-region-focusable"
+    ],
+    "DropZoneBox/Upload Files": ["aria-allowed-role"],
+    "common/Loader/With Empty Title": ["aria-progressbar-name"],
+    "common/ReleaseNotes/ReleaseNotes/Default": ["heading-order"],
+    "common/ReleaseNotes/ReleaseNotesModal/Show": ["heading-order"],
+    "Resource/RestartMultipleButton/Menu Button Style": ["aria-required-parent"],
+    "common/ShowHideLabel/Basic": ["aria-allowed-attr"],
+    "common/ShowHideLabel/Expanded": ["aria-allowed-attr"],
+    "GlobalSearch/Basic Example": ["color-contrast"],
+    "Settings/PodDebugSettings/Default": ["label-title-only"],
+    "Settings/PodDebugSettings/Disabled": ["label-title-only"],
+    "project/NewProjectPopup/Default": ["heading-order"],
+    "project/NewProjectPopup/With Existing Projects (for duplicate name testing)": [
+      "heading-order"
+    ],
+    "Settings/PodDebugSettings/Version Dialog": ["aria-dialog-name"]
+  }
+}
