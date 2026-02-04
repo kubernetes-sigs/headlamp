@@ -16,18 +16,21 @@
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
 
-vi.hoisted(() => {
-  HTMLCanvasElement.prototype.getContext = (() =>
-    null) as typeof HTMLCanvasElement.prototype.getContext;
-});
+let canvasGetContextSpy: ReturnType<typeof vi.spyOn> | undefined;
 
 beforeAll(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
+  canvasGetContextSpy = vi
+    .spyOn(HTMLCanvasElement.prototype, 'getContext')
+    .mockImplementation(() => null as unknown as CanvasRenderingContext2D);
 });
 
+afterAll(() => {
+  canvasGetContextSpy?.mockRestore();
+});
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (str: string) => str, i18n: { language: 'en' } }),
   initReactI18next: { type: '3rdParty', init: () => {} },
