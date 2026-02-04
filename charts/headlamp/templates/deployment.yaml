@@ -245,6 +245,12 @@ spec:
             {{- with .Values.config.pluginsDir}}
             - "-plugins-dir={{ . }}"
             {{- end }}
+            {{- if .Values.config.useServiceAccountToken }}
+            - "-use-service-account-token"
+            {{- end }}
+            {{- if and .Values.config.useServiceAccountToken .Values.config.serviceAccountTokenPath }}
+            - "-service-account-token-path={{ .Values.config.serviceAccountTokenPath }}"
+            {{- end }}
             {{- if not $oidc.externalSecret.enabled}}
             # Check if externalSecret is disabled
             {{- if or (ne $oidc.clientID "") (ne $clientID "") }}

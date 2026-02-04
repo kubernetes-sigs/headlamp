@@ -25,10 +25,11 @@ const (
 )
 
 const (
-	DefaultMeUsernamePath = "preferred_username,upn,username,name"
-	DefaultMeEmailPath    = "email"
-	DefaultMeGroupsPath   = "groups,realm_access.roles"
-	DefaultMeUserInfoURL  = ""
+	DefaultMeUsernamePath          = "preferred_username,upn,username,name"
+	DefaultMeEmailPath             = "email"
+	DefaultMeGroupsPath            = "groups,realm_access.roles"
+	DefaultMeUserInfoURL           = ""
+	DefaultServiceAccountTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token" // #nosec G101
 )
 
 type Config struct {
@@ -70,6 +71,8 @@ type Config struct {
 	MeGroupsPath              string `koanf:"me-groups-path"`
 	MeUserInfoURL             string `koanf:"me-user-info-url"`
 	OidcUsePKCE               bool   `koanf:"oidc-use-pkce"`
+	UseServiceAccountToken    bool   `koanf:"use-service-account-token"`
+	ServiceAccountTokenPath   string `koanf:"service-account-token-path"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -87,9 +90,10 @@ type Config struct {
 
 func (c *Config) Validate() error {
 	if !c.InCluster && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
-		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
+		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "" || c.UseServiceAccountToken) {
 		return errors.New(`oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, oidc-validator-client-id,
-		oidc-validator-idp-issuer-url, flags are only meant to be used in inCluster mode`)
+		oidc-validator-idp-issuer-url, use-service-account-token
+		flags are only meant to be used in inCluster mode`)
 	}
 
 	// OIDC TLS verification warning.
@@ -434,6 +438,8 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
 	f.Bool("enable-helm", false, "Enable Helm operations")
+	f.Bool("use-service-account-token", false, "Use the service account token for in-cluster authentication")
+	f.String("service-account-token-path", DefaultServiceAccountTokenPath, "Path to the service account token")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {
