@@ -2,7 +2,7 @@
   "plugins": [
     {
       "name": "prometheus",
-      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/prometheus-0.8.1/prometheus-0.8.1.tar.gz"
+      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/prometheus-0.8.2/prometheus-0.8.2.tar.gz"
     }
   ]
 }

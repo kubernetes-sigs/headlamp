@@ -209,6 +209,9 @@ export default function NodeShellSettings(props: SettingsProps) {
                 )}
                 variant="outlined"
                 size="small"
+                inputProps={{
+                  'aria-label': t('translation|Linux image'),
+                }}
                 InputProps={{
                   endAdornment: isEditingImage() ? (
                     <Icon
@@ -243,6 +246,9 @@ export default function NodeShellSettings(props: SettingsProps) {
                 }
                 variant="outlined"
                 size="small"
+                inputProps={{
+                  'aria-label': t('translation|Namespace'),
+                }}
                 InputProps={{
                   endAdornment: isEditingNamespace() ? (
                     <Icon

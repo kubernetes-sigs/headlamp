@@ -39,7 +39,7 @@ export const getGraphSize = (graph: GraphNode) => {
 /**
  * Identifies and groups connected components from a set of nodes and edges.
  * Connected component is a subgraph where all nodes are connected to each other
- * but not to any other node in the graph. Essentialy a separate subgraph
+ * but not to any other node in the graph. Essentially a separate subgraph.
  *
  * @param nodes - An array of `KubeObjectNode` representing the nodes in the graph
  * @param edges - An array of `GraphEdge` representing the edges in the graph
@@ -47,70 +47,215 @@ export const getGraphSize = (graph: GraphNode) => {
  *          or a group node containing multiple nodes and edges
  */
 const getConnectedComponents = (nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] => {
-  const components: GraphNode[] = [];
-
-  const graphLookup = makeGraphLookup(nodes, edges);
-
-  const visitedNodes = new Set<string>();
-  const visitedEdges = new Set<string>();
-
   /**
-   * Recursively finds all nodes in the connected component of a given node
-   * This function performs a depth-first search (DFS) to traverse and collect all nodes
-   * that are part of the same connected component as the provided node
-   *
-   * @param node - The starting node for the connected component search
-   * @param componentNodes - An array to store the nodes that are part of the connected component
+   * Recursively collects all nodes/edges in the connected component of `node`.
+   * Uses DFS over both incoming and outgoing edges.
    */
-  const findConnectedComponent = (
+  function findConnectedComponent(
+    graphLookup: ReturnType<typeof makeGraphLookup>,
     node: GraphNode,
+    visitedNodes: Set<string>,
+    visitedEdges: Set<string>,
     componentNodes: GraphNode[],
     componentEdges: GraphEdge[]
-  ) => {
+  ) {
     visitedNodes.add(node.id);
     componentNodes.push(node);
 
-    // Outgoing edges
     graphLookup.getOutgoingEdges(node.id)?.forEach(edge => {
-      // Always collect the edge if we haven't yet
       if (!visitedEdges.has(edge.id)) {
         visitedEdges.add(edge.id);
         componentEdges.push(edge);
       }
 
-      // Only recurse further if we haven't visited the target node
       if (!visitedNodes.has(edge.target)) {
         const targetNode = graphLookup.getNode(edge.target);
         if (targetNode) {
-          findConnectedComponent(targetNode, componentNodes, componentEdges);
+          findConnectedComponent(
+            graphLookup,
+            targetNode,
+            visitedNodes,
+            visitedEdges,
+            componentNodes,
+            componentEdges
+          );
         }
       }
     });
 
-    // Incoming edges
     graphLookup.getIncomingEdges(node.id)?.forEach(edge => {
-      // Always collect the edge if we haven't yet
       if (!visitedEdges.has(edge.id)) {
         visitedEdges.add(edge.id);
         componentEdges.push(edge);
       }
 
-      // Only recurse further if we haven't visited the source node
       if (!visitedNodes.has(edge.source)) {
         const sourceNode = graphLookup.getNode(edge.source);
         if (sourceNode) {
-          findConnectedComponent(sourceNode, componentNodes, componentEdges);
+          findConnectedComponent(
+            graphLookup,
+            sourceNode,
+            visitedNodes,
+            visitedEdges,
+            componentNodes,
+            componentEdges
+          );
         }
       }
     });
+  }
+
+  /**
+   * Computes connected components for a pre-filtered node/edge set and returns them as group nodes.
+   */
+  const getConnectedComponentGroups = (
+    componentNodes: GraphNode[],
+    componentEdges: GraphEdge[]
+  ) => {
+    const components: GraphNode[] = [];
+    const graphLookup = makeGraphLookup(componentNodes, componentEdges);
+
+    const visitedNodes = new Set<string>();
+    const visitedEdges = new Set<string>();
+
+    componentNodes.forEach(node => {
+      if (!visitedNodes.has(node.id)) {
+        const nodesInComponent: GraphNode[] = [];
+        const edgesInComponent: GraphEdge[] = [];
+        findConnectedComponent(
+          graphLookup,
+          node,
+          visitedNodes,
+          visitedEdges,
+          nodesInComponent,
+          edgesInComponent
+        );
+        const mainNode = getMainNode(nodesInComponent);
+
+        const id = 'group-' + (mainNode?.id ?? 'unknown');
+        components.push({
+          id,
+          nodes: nodesInComponent,
+          edges: edgesInComponent,
+        });
+      }
+    });
+
+    return components;
   };
+
+  const components: GraphNode[] = [];
+  const graphLookup = makeGraphLookup(nodes, edges);
+
+  const sharedNodeIds = new Set<string>();
+
+  nodes.forEach(node => {
+    // Check if node is connected to multiple groups via non-grouping edges
+    const incomingEdges = graphLookup.getIncomingEdges(node.id) || [];
+    const outgoingEdges = graphLookup.getOutgoingEdges(node.id) || [];
+    const allEdges = [...incomingEdges, ...outgoingEdges];
+
+    // Check if node is firmly attached to a group (has any grouping edge)
+    const hasGroupingEdges = allEdges.some(edge => !edge.isNonGrouping);
+    if (hasGroupingEdges) {
+      return;
+    }
+
+    const neighborNodeIds = new Set<string>();
+    outgoingEdges.forEach(edge => neighborNodeIds.add(edge.target));
+    incomingEdges.forEach(edge => neighborNodeIds.add(edge.source));
+
+    // If it's connected to more than 1 neighbor, it's a shared node
+    if (neighborNodeIds.size > 1) {
+      sharedNodeIds.add(node.id);
+    }
+  });
+
+  if (sharedNodeIds.size > 0) {
+    const baseNodes = nodes.filter(node => !sharedNodeIds.has(node.id));
+    const baseEdges = edges.filter(
+      edge => !sharedNodeIds.has(edge.source) && !sharedNodeIds.has(edge.target)
+    );
+
+    const sharedNodesById = new Map<string, GraphNode>();
+    nodes.forEach(node => {
+      if (sharedNodeIds.has(node.id)) {
+        sharedNodesById.set(node.id, node);
+      }
+    });
+
+    const edgesBySharedNode = new Map<string, GraphEdge[]>();
+    edges.forEach(edge => {
+      const sharedId = sharedNodeIds.has(edge.source)
+        ? edge.source
+        : sharedNodeIds.has(edge.target)
+        ? edge.target
+        : undefined;
+      if (!sharedId) {
+        return;
+      }
+
+      const list = edgesBySharedNode.get(sharedId) ?? [];
+      list.push(edge);
+      edgesBySharedNode.set(sharedId, list);
+    });
+
+    const baseComponents = getConnectedComponentGroups(baseNodes, baseEdges);
+
+    baseComponents.forEach(component => {
+      const componentNodeIds = new Set(component.nodes?.map(n => n.id) ?? []);
+
+      sharedNodeIds.forEach(sharedId => {
+        const sharedNode = sharedNodesById.get(sharedId);
+        if (!sharedNode) {
+          return;
+        }
+
+        const incidentEdges = edgesBySharedNode.get(sharedId) ?? [];
+        const edgesToThisComponent = incidentEdges.filter(edge => {
+          const otherNodeId = edge.source === sharedId ? edge.target : edge.source;
+          return componentNodeIds.has(otherNodeId);
+        });
+
+        if (edgesToThisComponent.length === 0) {
+          return;
+        }
+
+        const clonedId = `${sharedId}--${component.id}`;
+        component.nodes = [...(component.nodes ?? []), { ...sharedNode, id: clonedId }];
+        componentNodeIds.add(clonedId);
+
+        component.edges = [
+          ...(component.edges ?? []),
+          ...edgesToThisComponent.map(edge => ({
+            ...edge,
+            id: `${edge.id}--${clonedId}`,
+            source: edge.source === sharedId ? clonedId : edge.source,
+            target: edge.target === sharedId ? clonedId : edge.target,
+          })),
+        ];
+      });
+    });
+
+    return baseComponents.map(it => (it.nodes?.length === 1 ? it.nodes[0] : it));
+  }
+
+  const visitedNodes = new Set<string>();
+  const visitedEdges = new Set<string>();
 
   // Iterate over each node and find connected components
   nodes.forEach(node => {
     if (!visitedNodes.has(node.id)) {
       const componentNodes: GraphNode[] = [];
       const componentEdges: GraphEdge[] = [];
-      findConnectedComponent(node, componentNodes, componentEdges);
+      findConnectedComponent(
+        graphLookup,
+        node,
+        visitedNodes,
+        visitedEdges,
+        componentNodes,
+        componentEdges
+      );
       const mainNode = getMainNode(componentNodes);
 
       const id = 'group-' + (mainNode?.id ?? 'unknown');

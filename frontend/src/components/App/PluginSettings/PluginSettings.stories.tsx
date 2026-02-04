@@ -22,6 +22,14 @@ import { PluginSettingsPure, PluginSettingsPureProps } from './PluginSettings';
 export default {
   title: 'Settings/PluginSettings',
   component: PluginSettingsPure,
+  decorators: [
+    Story => (
+      <div>
+        <h1 style={{ position: 'absolute', left: '-10000px' }}>Plugin Settings Test Page</h1>
+        <Story />
+      </div>
+    ),
+  ],
 } as Meta;
 
 const Template: StoryFn<PluginSettingsPureProps> = args => (

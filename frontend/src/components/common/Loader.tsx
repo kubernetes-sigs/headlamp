@@ -25,7 +25,7 @@ export interface LoaderProps extends CircularProgressProps {
 
 export default function Loader(props: LoaderProps) {
   const { noContainer = false, title, ...other } = props;
-  const progress = <CircularProgress title={title} {...other} />;
+  const progress = <CircularProgress title={title} aria-label={title} {...other} />;
 
   if (noContainer) return progress;
 

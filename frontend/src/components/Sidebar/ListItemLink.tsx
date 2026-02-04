@@ -32,7 +32,7 @@ interface ListItemLinkProps {
   pathname: string;
   search?: string;
   name: string;
-  subtitle?: string;
+  subtitle?: React.ReactNode;
   tabIndex?: number;
   icon?: IconProps['icon'];
   iconOnly?: boolean;
@@ -129,6 +129,7 @@ export default function ListItemLink(props: ListItemLinkProps) {
     <StyledLi level={calcLevel}>
       <ListItemButton
         component={renderLink}
+        aria-label={iconOnly ? name : undefined}
         {...other}
         sx={theme => ({
           color:
@@ -250,7 +251,9 @@ export default function ListItemLink(props: ListItemLinkProps) {
           <ListItemText
             primary={primary}
             secondary={subtitle}
-            secondaryTypographyProps={{ sx: { whiteSpace: 'pre' } }}
+            secondaryTypographyProps={
+              typeof subtitle === 'string' ? { sx: { whiteSpace: 'pre' } } : undefined
+            }
           />
         )}
       </ListItemButton>

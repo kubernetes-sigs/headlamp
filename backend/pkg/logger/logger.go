@@ -18,6 +18,7 @@ package logger
 
 import (
 	"runtime"
+	"strings"
 
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
@@ -40,6 +41,35 @@ type LogFunc func(level uint, str map[string]string, err interface{}, msg string
 
 // logFunc holds the actual logging function.
 var logFunc LogFunc = log
+
+// Init configures the global zerolog log level from environment variables.
+// The HEADLAMP_CONFIG_LOG_LEVEL environment variable controls the global log level.
+func Init(loglevel string) {
+	logLevel := strings.ToLower(strings.TrimSpace(loglevel))
+
+	// If no log level is provided, default to info.
+	if logLevel == "" {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+		return
+	}
+
+	level, err := zerolog.ParseLevel(logLevel)
+	// If an invalid log level is provided, log a warning and default to info.
+	if err != nil {
+		zlog.Warn().
+			Str("value", logLevel).
+			Msg("Invalid HEADLAMP_CONFIG_LOG_LEVEL, defaulting to info")
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+
+		return
+	}
+
+	// Set the global log level.
+	zerolog.SetGlobalLevel(level)
+	zlog.Info().
+		Str("level", level.String()).
+		Msg("Log level set from HEADLAMP_CONFIG_LOG_LEVEL")
+}
 
 // Log logs the message, source file, and line number at the specified level.
 func Log(level uint, str map[string]string, err interface{}, msg string) {

@@ -343,6 +343,7 @@ export default function SimpleTable(props: SimpleTableProps) {
       }}
       component={Paper}
       variant="outlined"
+      tabIndex={0}
     >
       {
         // Show a refresh button if the data is not up to date, so we allow the user to keep

@@ -256,6 +256,7 @@
                     >
                       <input
                         accept="application/x-yaml,.yaml,.yml,text/yaml,.yaml,.yml,text/plain,.yaml,.yml"
+                        aria-label="Choose Files"
                         multiple=""
                         style="display: none;"
                         tabindex="-1"

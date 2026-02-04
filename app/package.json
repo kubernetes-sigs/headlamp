@@ -87,7 +87,7 @@
     },
     "mac": {
       "appId": "com.microsoft.Headlamp",
-      "sign": "./mac/scripts/codeSign.js",
+      "identity": "-",
       "target": [
         {
           "target": "dmg",
@@ -99,6 +99,7 @@
       ],
       "gatekeeperAssess": false,
       "notarize": false,
+      "hardenedRuntime": false,
       "entitlements": "mac/entitlements.mac.plist",
       "entitlementsInherit": "mac/entitlements.mac.plist",
       "extraResources": [

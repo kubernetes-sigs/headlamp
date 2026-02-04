@@ -55,6 +55,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	logger.Init(conf.LogLevel)
+
 	if conf.Version {
 		fmt.Printf("%s %s (%s/%s)\n", kubeconfig.AppName, kubeconfig.Version, runtime.GOOS, runtime.GOARCH)
 		return

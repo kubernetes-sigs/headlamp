@@ -289,11 +289,17 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
         fromNodes.forEach(from => {
           toNodes.forEach(to => {
             if (relation.predicate(from, to)) {
-              edges.push({
+              let edge: GraphEdge = {
                 id: from.id + '-' + to.id,
                 source: from.id,
                 target: to.id,
-              });
+              };
+
+              if (relation.edgeAttributes) {
+                edge = { ...edge, ...relation.edgeAttributes(from, to) };
+              }
+
+              edges.push(edge);
             }
           });
         });

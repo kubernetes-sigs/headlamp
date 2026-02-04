@@ -83,6 +83,7 @@
                 <input
                   aria-describedby=":mock-test-id:"
                   aria-invalid="false"
+                  aria-label="Linux image"
                   class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
                   id=":mock-test-id:"
                   placeholder="docker.io/library/busybox:latest"
@@ -129,6 +130,7 @@
                 <input
                   aria-describedby=":mock-test-id:"
                   aria-invalid="false"
+                  aria-label="Namespace"
                   class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
                   id=":mock-test-id:"
                   placeholder="default"

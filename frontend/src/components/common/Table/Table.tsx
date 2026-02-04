@@ -47,9 +47,9 @@ import { MRT_Localization_PT } from 'material-react-table/locales/pt';
 import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
 import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
 import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
 import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
+import { useShortcut } from '../../../lib/useShortcut';
 import { useURLState } from '../../../lib/util';
 import { useSettings } from '../../App/Settings/hook';
 import { useQueryParamsState } from '../../resourceMap/useQueryParamsState';
@@ -372,14 +372,13 @@ export default function Table<RowItem extends Record<string, any>>({
     },
   });
 
-  // toggle
-  useHotkeys(
-    'ctrl+shift+t',
-    e => {
-      e.preventDefault();
-      e.stopPropagation();
+  useShortcut(
+    'TABLE_COLUMN_FILTERS',
+    event => {
+      event.stopPropagation();
       table.setShowColumnFilters(!table.getState().showColumnFilters);
     },
+    {},
     [table]
   );
 

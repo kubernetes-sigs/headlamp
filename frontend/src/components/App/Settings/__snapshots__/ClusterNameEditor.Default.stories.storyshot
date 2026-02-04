@@ -24,6 +24,7 @@
             <input
               aria-describedby=":mock-test-id:"
               aria-invalid="false"
+              aria-label="Cluster name"
               autocomplete="off"
               class="MuiInputBase-input MuiInput-input MuiInputBase-inputAdornedEnd css-1x51dt5-MuiInputBase-input-MuiInput-input"
               id=":mock-test-id:"

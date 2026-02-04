@@ -37,6 +37,7 @@ type Config struct {
 	InClusterContextName string `koanf:"in-cluster-context-name"`
 	DevMode              bool   `koanf:"dev"`
 	InsecureSsl          bool   `koanf:"insecure-ssl"`
+	LogLevel             string `koanf:"log-level"`
 	// NoBrowser disables automatically opening the default browser when running
 	// a locally embedded Headlamp binary (non in-cluster with spa.UseEmbeddedFiles == true).
 	// It has no effect in in-cluster mode or when running without embedded frontend.
@@ -418,6 +419,7 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Bool("cache-enabled", false, "K8s cache in backend")
 	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
+	f.String("log-level", "info", "Set backend log verbosity. Options: debug, info (default), warn, error")
 	f.Bool("enable-dynamic-clusters", false, "Enable dynamic clusters, which stores stateless clusters in the frontend.")
 	// Note: When running in-cluster and if not explicitly set, this flag defaults to false.
 	f.Bool("watch-plugins-changes", true, "Reloads plugins when there are changes to them or their directory")

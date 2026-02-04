@@ -4,6 +4,7 @@
       class="MuiBox-root css-5cned0"
     >
       <span
+        aria-label="Loading with custom size..."
         class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
         role="progressbar"
         style="width: 80px; height: 80px;"
