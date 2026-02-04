@@ -58,6 +58,12 @@ function moveDirs(currentPath, newPath) {
   }
 }
 
+const normalizePluginName = name => name.replace(/^@headlamp-k8s\//, '');
+
+const getPluginFolderName = name => {
+  return normalizePluginName(name);
+};
+
 class PluginManager {
   /**
    * Installs a plugin from the specified URL.
@@ -124,7 +130,7 @@ class PluginManager {
   ) {
     try {
       const installedPlugins = PluginManager.list(destinationFolder);
-      const plugin = installedPlugins.find(p => p.pluginName === pluginName);
+      const plugin = installedPlugins.find(p => normalizePluginName(p.pluginName) === normalizePluginName(pluginName));
       if (!plugin) {
         throw new Error('Plugin not found');
       }
@@ -188,7 +194,7 @@ class PluginManager {
   static uninstall(name, folder = defaultPluginsDir(), progressCallback = null) {
     try {
       const installedPlugins = PluginManager.list(folder);
-      const plugin = installedPlugins.find(p => p.pluginName === name);
+      const plugin = installedPlugins.find(p => normalizePluginName(p.pluginName) === normalizePluginName(name));
       if (!plugin) {
         throw new Error('Plugin not found');
       }
@@ -289,15 +295,23 @@ class PluginManager {
 /**
  * Checks the plugin name is a valid one.
  *
- * Look for "..", "/", or "\" in the plugin name.
+ * Scoped names in the form "@headlamp-k8s/<name>" are allowed.
+ * 
+ * Path traversal ("..") and path separators ("/" or "\") are still rejected after normalization.
  *
  * @param {string} pluginName
  *
  * @returns true if the name is valid.
  */
 function validatePluginName(pluginName) {
+  if(pluginName.includes('..')){
+    return false;
+  }
+
+  const name = normalizePluginName(pluginName);
+
   const invalidPattern = /[\/\\]|(\.\.)/;
-  return !invalidPattern.test(pluginName);
+  return !invalidPattern.test(name);
 }
 
 /**
@@ -327,7 +341,9 @@ function validateArchiveURL(archiveURL) {
  * @param {function} progressCallback - A callback function for reporting progress.
  * @param {AbortSignal} signal - An optional AbortSignal for cancellation.
  * @param {string} [pluginVersion=""] - The version of the plugin to install.
- * @returns {Promise<[string, string]>} A promise that resolves to an array containing the plugin name and temporary folder path.
+ * @returns {Promise<[string, string]>} A promise that resolves to an array: [folderName, tempFolder]
+ *   - folderName: normalized install folder name (scope stripped if present).
+ *   - tempFolder: path to the extracted plugin contents.
  */
 async function downloadExtractPlugin(
   URL,
@@ -353,6 +369,7 @@ async function downloadExtractPlugin(
     throw new Error('Unable to fetch plugin metadata. Please check the plugin details.');
   }
   const pluginName = pluginInfo.name;
+  const folderName = getPluginFolderName(pluginName);
   if (!validatePluginName(pluginName)) {
     throw new Error('Invalid plugin name');
   }
@@ -390,7 +407,7 @@ async function downloadExtractPlugin(
   }
 
   const tempDir = await fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-temp-'));
-  const tempFolder = fs.mkdirSync(path.join(tempDir, pluginName), { recursive: true });
+  const tempFolder = fs.mkdirSync(path.join(tempDir, folderName), { recursive: true });
 
   if (progressCallback) {
     progressCallback({ type: 'info', message: 'Downloading Plugin' });
@@ -475,7 +492,7 @@ async function downloadExtractPlugin(
   };
   packageJSON.isManagedByHeadlampPlugin = true;
   fs.writeFileSync(`${tempFolder}/package.json`, JSON.stringify(packageJSON, null, 2));
-  return [pluginName, tempFolder];
+  return [folderName, tempFolder];
 }
 
 /**
