@@ -72,7 +72,7 @@ describe('PluginManager Test Cases', () => {
 
   test('No Update available for Plugin', async () => {
     // No updates available for "app-catalog" plugin
-    await PluginManager.update('app-catalog', tempDir, '', mockProgressCallback);
+    await PluginManager.update('@headlamp-k8s/app-catalog', tempDir, '', mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'error',
       message: 'No updates available',
@@ -91,7 +91,7 @@ describe('PluginManager Test Cases', () => {
     // Write the updated package.json back to the file
     fs.writeFileSync(packageJSONPath, JSON.stringify(packageJSON, null, 2));
 
-    await PluginManager.update('app-catalog', tempDir, '', mockProgressCallback);
+    await PluginManager.update('@headlamp-k8s/app-catalog', tempDir, '', mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugin Updated',
@@ -112,7 +112,7 @@ describe('PluginManager Test Cases', () => {
       message: 'Plugin Installed',
     });
 
-    PluginManager.uninstall('app-catalog', tempDir, mockProgressCallback);
+    PluginManager.uninstall('@headlamp-k8s/app-catalog', tempDir, mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugin Uninstalled',
