@@ -25,6 +25,7 @@ import {
   LogsButton,
   MetadataDictGrid,
   OwnedPodsSection,
+  RolloutUndoButton,
 } from '../common/Resource';
 
 interface WorkloadDetailsProps<T extends WorkloadClass> {
@@ -107,14 +108,27 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
       actions={item => {
         if (!item) return [];
         const isLoggable = ['Deployment', 'ReplicaSet', 'DaemonSet'].includes(workloadKind.kind);
-        if (!isLoggable) return [];
+        const isRolloutUndoable = ['Deployment', 'StatefulSet', 'DaemonSet'].includes(
+          workloadKind.kind
+        );
 
-        return [
-          {
+        const actions = [];
+
+        if (isLoggable) {
+          actions.push({
             id: 'logs',
             action: <LogsButton key="logs" item={item} />,
-          },
-        ];
+          });
+        }
+
+        if (isRolloutUndoable) {
+          actions.push({
+            id: 'rollout-undo',
+            action: <RolloutUndoButton key="rollout-undo" item={item} />,
+          });
+        }
+
+        return actions;
       }}
       extraInfo={item =>
         item && [

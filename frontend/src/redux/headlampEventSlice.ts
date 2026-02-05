@@ -43,6 +43,8 @@ export enum HeadlampEventType {
   RESTART_RESOURCE = 'headlamp.restart-resource',
   /** Events related to restarting multiple resources. */
   RESTART_RESOURCES = 'headlamp.restart-resources',
+  /** Events related to rolling back a resource. */
+  ROLLOUT_UNDO_RESOURCE = 'headlamp.rollout-undo-resource',
   /** Events related to viewing logs. */
   LOGS = 'headlamp.logs',
   /** Events related to opening a terminal. */

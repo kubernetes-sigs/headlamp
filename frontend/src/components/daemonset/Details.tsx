@@ -22,6 +22,7 @@ import {
   DetailsGrid,
   MetadataDictGrid,
   OwnedPodsSection,
+  RolloutUndoButton,
 } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
@@ -98,6 +99,15 @@ export default function DaemonSetDetails(props: {
       namespace={namespace}
       cluster={cluster}
       withEvents
+      actions={item => {
+        if (!item) return [];
+        return [
+          {
+            id: 'rollout-undo',
+            action: <RolloutUndoButton key="rollout-undo" item={item} />,
+          },
+        ];
+      }}
       extraInfo={item =>
         item && [
           {

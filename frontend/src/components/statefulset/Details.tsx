@@ -23,6 +23,7 @@ import {
   DetailsGrid,
   MetadataDictGrid,
   OwnedPodsSection,
+  RolloutUndoButton,
 } from '../common/Resource';
 
 export default function StatefulSetDetails(props: {
@@ -41,6 +42,15 @@ export default function StatefulSetDetails(props: {
       namespace={namespace}
       cluster={cluster}
       withEvents
+      actions={item => {
+        if (!item) return [];
+        return [
+          {
+            id: 'rollout-undo',
+            action: <RolloutUndoButton key="rollout-undo" item={item} />,
+          },
+        ];
+      }}
       extraInfo={item =>
         item && [
           {
