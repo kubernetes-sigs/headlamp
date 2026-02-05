@@ -681,6 +681,7 @@
   "Users": "Users",
   "Handler": "Handler",
   "No data in this secret": "이 비밀에 데이터가 없습니다",
+  "Hide Helm Secrets": "",
   "Shrink sidebar": "사이드바 축소",
   "Expand sidebar": "사이드바 확장",
   "Main Navigation": "메인 탐색",

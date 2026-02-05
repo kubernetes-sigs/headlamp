@@ -685,6 +685,7 @@
   "Users": "Benutzer",
   "Handler": "Handler",
   "No data in this secret": "Keine Daten in dieser Secret",
+  "Hide Helm Secrets": "",
   "Shrink sidebar": "Seitenleiste verkleinern",
   "Expand sidebar": "Seitenleiste erweitern",
   "Main Navigation": "Hauptnavigation",
