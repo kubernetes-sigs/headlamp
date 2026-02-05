@@ -17,6 +17,7 @@
 import { createRouteURL } from '../router/createRouteURL';
 import { labelSelectorToQuery, ResourceClasses } from '.';
 import { LabelSelector } from './cluster';
+import { makeCustomResourceClass } from './crd';
 import { KubeObjectClass } from './KubeObject';
 import Namespace from './namespace';
 
@@ -318,5 +319,59 @@ describe('Namespace testing', () => {
     it('should return false for empty namespace', () => {
       expect(Namespace.isValidNamespaceFormat('')).toBe(false);
     });
+  });
+});
+
+describe('makeCustomResourceClass.getBaseObject regression tests', () => {
+  it('falls back to apiInfoArgs when customResourceDefinition is undefined', () => {
+    const ResourceClass = makeCustomResourceClass({
+      kind: 'StoragePool',
+      pluralName: 'storagepools',
+      singularName: 'storagepool',
+      apiInfo: [{ group: 'storage.k8s.io', version: 'v1' }],
+      isNamespaced: false,
+    });
+
+    expect(() => ResourceClass.getBaseObject()).not.toThrow();
+
+    expect(ResourceClass.getBaseObject()).toMatchObject({
+      apiVersion: 'storage.k8s.io/v1',
+    });
+  });
+
+  it('falls back to default base object when getMainAPIGroup throws', () => {
+    const ResourceClass = makeCustomResourceClass({
+      kind: 'StoragePool',
+      pluralName: 'storagepools',
+      singularName: 'storagepool',
+      apiInfo: [{ group: 'storage.k8s.io', version: 'v1' }],
+      isNamespaced: false,
+      customResourceDefinition: {
+        getMainAPIGroup: () => {
+          throw new Error('invalid CRD');
+        },
+      } as any,
+    });
+
+    expect(() => ResourceClass.getBaseObject()).not.toThrow();
+
+    expect(ResourceClass.getBaseObject()).toBeDefined();
+  });
+
+  it('falls back to default base object when getMainAPIGroup returns invalid version', () => {
+    const ResourceClass = makeCustomResourceClass({
+      kind: 'StoragePool',
+      pluralName: 'storagepools',
+      singularName: 'storagepool',
+      apiInfo: [{ group: 'storage.k8s.io', version: 'v1' }],
+      isNamespaced: false,
+      customResourceDefinition: {
+        getMainAPIGroup: () => ['storage.k8s.io', undefined],
+      } as any,
+    });
+
+    expect(() => ResourceClass.getBaseObject()).not.toThrow();
+
+    expect(ResourceClass.getBaseObject().apiVersion).not.toContain('undefined');
   });
 });
