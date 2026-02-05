@@ -28,13 +28,13 @@ import { useTranslation } from 'react-i18next';
 import { timeAgo } from '../../../lib/util';
 import { DialogTitle } from '../Dialog';
 
-interface RevisionHistoryEntry {
+export type RevisionHistoryEntry = {
   number: number;
   name: string;
   created: string;
   reason?: string;
   active: boolean;
-}
+};
 
 interface RevisionPickerDialogProps {
   visible: boolean;

@@ -14,21 +14,10 @@
  * limitations under the License.
  */
 
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import MuiDialog from '@mui/material/Dialog';
-import DialogActions from '@mui/material/DialogActions';
-import DialogContent from '@mui/material/DialogContent';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemText from '@mui/material/ListItemText';
-import Typography from '@mui/material/Typography';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router';
-import { DialogTitle } from '../Dialog';
 import ControllerRevision from '../../../lib/k8s/controllerRevision';
 import DaemonSet from '../../../lib/k8s/daemonSet';
 import Deployment from '../../../lib/k8s/deployment';
@@ -42,22 +31,14 @@ import {
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
 import { AppDispatch } from '../../../redux/stores/store';
-import { timeAgo } from '../../../lib/util';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 import AuthVisible from './AuthVisible';
+import { RevisionPickerDialog, RevisionHistoryEntry } from './RevisionPickerDialog';
 
 export type RolloutUndoResource = Deployment | StatefulSet | DaemonSet;
 
 export function isRolloutUndoResource(item: KubeObject): item is RolloutUndoResource {
   return item instanceof Deployment || item instanceof StatefulSet || item instanceof DaemonSet;
-}
-
-interface RevisionInfo {
-  revisionNumber: number;
-  resourceName: string;
-  timestamp: string;
-  changeReason?: string;
-  isCurrent: boolean;
 }
 
 interface RolloutUndoButtonProps {
@@ -74,114 +55,146 @@ export function RolloutUndoButton(props: RolloutUndoButtonProps) {
     return null;
   }
 
-  const [openDialog, setOpenDialog] = useState(false);
-  const location = useLocation();
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickedRevision, setPickedRevision] = useState<number | null>(null);
+  const routePath = useLocation();
   const { t } = useTranslation(['translation']);
-  const dispatchRolloutUndoEvent = useEventCallback(HeadlampEventType.ROLLOUT_UNDO_RESOURCE);
+  const triggerUndoEvent = useEventCallback(HeadlampEventType.ROLLOUT_UNDO_RESOURCE);
 
-  // Fetch ReplicaSets for Deployments or ControllerRevisions for DaemonSets/StatefulSets
-  const [replicaSets] = ReplicaSet.useList({ namespace: item.metadata.namespace });
-  const [controllerRevisions] = ControllerRevision.useList({ namespace: item.metadata.namespace });
+  const [rsCollection] = ReplicaSet.useList({ namespace: item.metadata.namespace });
+  const [crCollection] = ControllerRevision.useList({ namespace: item.metadata.namespace });
 
-  async function rolloutUndo() {
-    if (item instanceof Deployment) {
-      // Handle Deployment rollback using ReplicaSets
-      if (!replicaSets) {
-        throw new Error('Unable to fetch ReplicaSets');
-      }
+  const historyEntries = useMemo<RevisionHistoryEntry[]>(() => {
+    const workingResource = item;
 
-      // Filter ReplicaSets owned by this Deployment
-      const ownedReplicaSets = replicaSets.filter(rs => {
-        const ownerRefs = rs.metadata.ownerReferences;
-        if (!ownerRefs) return false;
+    if (workingResource instanceof Deployment) {
+      if (!rsCollection) return [];
 
-        return ownerRefs.some(
-          owner =>
-            owner.kind === item.kind &&
-            owner.name === item.metadata.name &&
-            owner.uid === item.metadata.uid
+      const belongsToDeployment = (replica: ReplicaSet) => {
+        const owners = replica.metadata.ownerReferences || [];
+        return owners.some(
+          o =>
+            o.kind === workingResource.kind &&
+            o.name === workingResource.metadata.name &&
+            o.uid === workingResource.metadata.uid
         );
-      });
+      };
 
-      if (ownedReplicaSets.length === 0) {
-        throw new Error('No ReplicaSets found for this Deployment');
+      const myReplicaSets = rsCollection.filter(belongsToDeployment);
+
+      const extractRevNumber = (rs: ReplicaSet): number => {
+        const revAnnotation = rs.metadata.annotations?.['deployment.kubernetes.io/revision'];
+        return revAnnotation ? parseInt(revAnnotation, 10) : 0;
+      };
+
+      const latestRevNum =
+        myReplicaSets.length > 0 ? Math.max(...myReplicaSets.map(extractRevNumber)) : 0;
+
+      return myReplicaSets
+        .map(rs => {
+          const revNum = extractRevNumber(rs);
+          const changeMsg = rs.metadata.annotations?.['kubernetes.io/change-cause'];
+
+          return {
+            number: revNum,
+            name: rs.metadata.name,
+            created: rs.metadata.creationTimestamp || '',
+            reason: changeMsg,
+            active: revNum === latestRevNum,
+          };
+        })
+        .sort((x, y) => y.number - x.number);
+    } else {
+      if (!crCollection) return [];
+
+      const belongsToResource = (ctrlRev: ControllerRevision) => {
+        const owners = ctrlRev.metadata.ownerReferences || [];
+        return owners.some(
+          o =>
+            o.kind === workingResource.kind &&
+            o.name === workingResource.metadata.name &&
+            o.uid === workingResource.metadata.uid
+        );
+      };
+
+      const myRevisions = crCollection.filter(belongsToResource);
+      const topRevision =
+        myRevisions.length > 0 ? Math.max(...myRevisions.map(cr => cr.revision)) : 0;
+
+      return myRevisions
+        .map(cr => ({
+          number: cr.revision,
+          name: cr.metadata.name,
+          created: cr.metadata.creationTimestamp || '',
+          reason: cr.metadata.annotations?.['kubernetes.io/change-cause'],
+          active: cr.revision === topRevision,
+        }))
+        .sort((x, y) => y.number - x.number);
+    }
+  }, [item, rsCollection, crCollection]);
+
+  async function executeRollback(targetRevision: number) {
+    const workingResource = item;
+
+    if (workingResource instanceof Deployment) {
+      if (!rsCollection) {
+        throw new Error('ReplicaSet data not available');
       }
 
-      // Sort by revision annotation (newest first)
-      const sortedReplicaSets = ownedReplicaSets.sort((a, b) => {
-        const revA = parseInt(a.metadata.annotations?.['deployment.kubernetes.io/revision'] || '0');
-        const revB = parseInt(b.metadata.annotations?.['deployment.kubernetes.io/revision'] || '0');
-        return revB - revA;
+      const matchingRS = rsCollection.find(rs => {
+        const revStr = rs.metadata.annotations?.['deployment.kubernetes.io/revision'];
+        return revStr && parseInt(revStr, 10) === targetRevision;
       });
 
-      // Find previous ReplicaSet (second highest revision)
-      const previousReplicaSet = sortedReplicaSets[1];
-
-      if (!previousReplicaSet) {
-        throw new Error('No previous revision found to rollback to');
+      if (!matchingRS) {
+        throw new Error(`Revision ${targetRevision} not found`);
       }
 
-      // Patch the deployment with the previous ReplicaSet's pod template
-      const patchData = {
+      const updatePayload = {
         spec: {
-          template: previousReplicaSet.spec.template,
+          template: matchingRS.spec.template,
         },
       };
 
-      return item.patch(patchData);
+      return workingResource.patch(updatePayload);
     } else {
-      // Handle DaemonSet and StatefulSet rollback using ControllerRevisions
-      if (!controllerRevisions) {
-        throw new Error('Unable to fetch ControllerRevisions');
+      if (!crCollection) {
+        throw new Error('ControllerRevision data not available');
       }
 
-      // Filter ControllerRevisions owned by this resource
-      const ownedRevisions = controllerRevisions.filter(cr => {
-        const ownerRefs = cr.metadata.ownerReferences;
-        if (!ownerRefs) return false;
+      const matchingCR = crCollection.find(cr => cr.revision === targetRevision);
 
-        return ownerRefs.some(
-          owner =>
-            owner.kind === item.kind &&
-            owner.name === item.metadata.name &&
-            owner.uid === item.metadata.uid
-        );
-      });
-
-      if (ownedRevisions.length === 0) {
-        throw new Error(`No ControllerRevisions found for this ${item.kind}`);
+      if (!matchingCR) {
+        throw new Error(`Revision ${targetRevision} not found`);
       }
 
-      // Sort by revision number (newest first)
-      const sortedRevisions = ownedRevisions.sort((a, b) => b.revision - a.revision);
-
-      // Find previous revision (second highest)
-      const previousRevision = sortedRevisions[1];
-
-      if (!previousRevision) {
-        throw new Error('No previous revision found to rollback to');
-      }
-
-      // Patch the resource with the previous revision's spec
-      // ControllerRevision stores the full spec in the data field
-      const patchData = {
-        spec: previousRevision.data?.spec || previousRevision.data,
+      const updatePayload = {
+        spec: matchingCR.data?.spec || matchingCR.data,
       };
 
-      return item.patch(patchData);
+      return workingResource.patch(updatePayload);
     }
   }
 
-  function handleSave() {
-    const itemName = item.metadata.name;
+  function initiateRollback() {
+    if (pickedRevision === null) return;
+
+    const resourceLabel = item.metadata.name;
+    const revLabel = pickedRevision.toString();
 
     dispatch(
-      clusterAction(() => rolloutUndo(), {
-        startMessage: t('Rolling back {{ itemName }}…', { itemName }),
-        cancelledMessage: t('Cancelled rolling back {{ itemName }}.', { itemName }),
-        successMessage: t('Rolled back {{ itemName }}.', { itemName }),
-        errorMessage: t('Failed to rollback {{ itemName }}.', { itemName }),
-        cancelUrl: location.pathname,
+      clusterAction(() => executeRollback(pickedRevision), {
+        startMessage: t('Rolling back {{ itemName }} to revision {{ revisionNum }}…', {
+          itemName: resourceLabel,
+          revisionNum: revLabel,
+        }),
+        cancelledMessage: t('Cancelled rollback of {{ itemName }}.', { itemName: resourceLabel }),
+        successMessage: t('{{ itemName }} rolled back to revision {{ revisionNum }}.', {
+          itemName: resourceLabel,
+          revisionNum: revLabel,
+        }),
+        errorMessage: t('Failed to rollback {{ itemName }}.', { itemName: resourceLabel }),
+        cancelUrl: routePath.pathname,
         startUrl: item.getListLink(),
         errorUrl: item.getListLink(),
       })
@@ -200,32 +213,32 @@ export function RolloutUndoButton(props: RolloutUndoButtonProps) {
         description={t('translation|Rollout Undo')}
         buttonStyle={buttonStyle}
         onClick={() => {
-          setOpenDialog(true);
+          setShowPicker(true);
         }}
         icon="mdi:undo"
       />
-      <ConfirmDialog
-        open={openDialog}
-        title={t('translation|Rollout Undo')}
-        description={t(
-          'translation|Are you sure you want to rollback {{ itemName }} to the previous revision?',
-          {
-            itemName: item.metadata.name,
-          }
-        )}
-        handleClose={() => setOpenDialog(false)}
+      <RevisionPickerDialog
+        visible={showPicker}
+        resourceName={item.metadata.name}
+        revisionList={historyEntries}
+        selectedRev={pickedRevision}
+        onRevisionClick={revNum => setPickedRevision(revNum)}
+        onCancel={() => {
+          setShowPicker(false);
+          setPickedRevision(null);
+        }}
         onConfirm={() => {
-          dispatchRolloutUndoEvent({
+          triggerUndoEvent({
             resource: item,
             status: EventStatus.CONFIRMED,
           });
-          handleSave();
+          initiateRollback();
+          setShowPicker(false);
+          setPickedRevision(null);
           if (afterConfirm) {
             afterConfirm();
           }
         }}
-        cancelLabel={t('Cancel')}
-        confirmLabel={t('Rollback')}
       />
     </AuthVisible>
   );
