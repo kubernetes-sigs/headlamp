@@ -44,7 +44,7 @@ import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import StatefulSet from '../../../../lib/k8s/statefulSet';
 import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
 import { useNamespaces } from '../../../../redux/filterSlice';
-import { Relation } from '../../graph/graphModel';
+import { GraphEdge, Relation } from '../../graph/graphModel';
 import { makeKubeSourceId } from './graphDefinitionUtils';
 
 /**
@@ -61,7 +61,8 @@ export const matchesLabels = (matchLabels: Record<string, string>, item: KubeObj
 const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
   from: From,
   to: To,
-  selector: (a: InstanceType<From>, b: InstanceType<To>) => unknown
+  selector: (a: InstanceType<From>, b: InstanceType<To>) => unknown,
+  edgeAttributes?: (a: InstanceType<From>, b: InstanceType<To>) => Partial<GraphEdge>
 ): Relation => ({
   fromSource: makeKubeSourceId(from),
   toSource: makeKubeSourceId(to),
@@ -71,6 +72,13 @@ const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
 
     return fromObject.cluster === toObject.cluster && Boolean(selector(fromObject, toObject));
   },
+  edgeAttributes: edgeAttributes
+    ? (fromNode, toNode) => {
+        const fromObject = fromNode.kubeObject as InstanceType<From>;
+        const toObject = toNode.kubeObject as InstanceType<To>;
+        return edgeAttributes(fromObject, toObject);
+      }
+    : undefined,
 });
 
 const makeOwnerRelation = (cl: KubeObjectClass): Relation => ({
@@ -209,8 +217,17 @@ const serviceAccountToDaemonSets = makeRelation(
     ds.metadata.namespace === sa.metadata.namespace
 );
 
-const pvcToPods = makeRelation(PersistentVolumeClaim, Pod, (pvc, pod) =>
-  pod.spec.volumes?.find(volume => volume.persistentVolumeClaim?.claimName === pvc.metadata.name)
+const pvcToPods = makeRelation(
+  PersistentVolumeClaim,
+  Pod,
+  (pvc, pod) =>
+    pod.spec.volumes?.find(volume => volume.persistentVolumeClaim?.claimName === pvc.metadata.name),
+  // eslint-disable-next-line no-unused-vars
+  (pvc, _pod) => {
+    const isRWX =
+      Array.isArray(pvc.spec?.accessModes) && pvc.spec.accessModes.includes('ReadWriteMany');
+    return isRWX ? { isNonGrouping: true } : {};
+  }
 );
 
 const podToOwner = makeOwnerRelation(Pod);

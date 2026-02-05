@@ -77,6 +77,12 @@ export interface GraphEdge {
   label?: ReactNode;
   /** Custom data for this node */
   data?: any;
+  /**
+   * If set to true, this edge will not cause the source and target nodes to be grouped together.
+   * This is useful for "shared" resources that are used by multiple components but shouldn't merge them
+   * into a single giant group (e.g. a shared RWX PVC).
+   */
+  isNonGrouping?: boolean;
 }
 
 /**
@@ -122,6 +128,10 @@ export interface Relation {
   fromSource: string;
   toSource?: string;
   predicate: (from: GraphNode, to: GraphNode) => boolean;
+  /**
+   * Optional attributes to apply to the edge if the predicate matches.
+   */
+  edgeAttributes?: (from: GraphNode, to: GraphNode) => Partial<GraphEdge>;
 }
 
 /**
