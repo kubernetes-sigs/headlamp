@@ -14,10 +14,21 @@
  * limitations under the License.
  */
 
-import { useState } from 'react';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import MuiDialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemButton from '@mui/material/ListItemButton';
+import ListItemText from '@mui/material/ListItemText';
+import Typography from '@mui/material/Typography';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router';
+import { DialogTitle } from '../Dialog';
 import ControllerRevision from '../../../lib/k8s/controllerRevision';
 import DaemonSet from '../../../lib/k8s/daemonSet';
 import Deployment from '../../../lib/k8s/deployment';
@@ -31,14 +42,22 @@ import {
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
 import { AppDispatch } from '../../../redux/stores/store';
+import { timeAgo } from '../../../lib/util';
 import ActionButton, { ButtonStyle } from '../ActionButton';
-import ConfirmDialog from '../ConfirmDialog';
 import AuthVisible from './AuthVisible';
 
 export type RolloutUndoResource = Deployment | StatefulSet | DaemonSet;
 
 export function isRolloutUndoResource(item: KubeObject): item is RolloutUndoResource {
   return item instanceof Deployment || item instanceof StatefulSet || item instanceof DaemonSet;
+}
+
+interface RevisionInfo {
+  revisionNumber: number;
+  resourceName: string;
+  timestamp: string;
+  changeReason?: string;
+  isCurrent: boolean;
 }
 
 interface RolloutUndoButtonProps {
