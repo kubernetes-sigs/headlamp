@@ -27,6 +27,7 @@ import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
+import { getDefaultContainer } from '../../helpers/podContainer';
 import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
 import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
@@ -50,6 +51,7 @@ import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
 import { PodDebugAction } from './PodDebugAction';
+
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   margin: 0,
   paddingTop: theme.spacing(2),
@@ -62,7 +64,7 @@ interface PodLogViewerProps extends Omit<LogViewerProps, 'logs'> {
 
 export function PodLogViewer(props: PodLogViewerProps) {
   const { item, onClose, open, ...other } = props;
-  const [container, setContainer] = React.useState(getDefaultContainer());
+  const [container, setContainer] = React.useState(() => getDefaultContainer(item));
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showTimestamps, setShowTimestamps] = useLocalStorageState<boolean>(
     'headlamp.logs.showTimestamps',
@@ -81,10 +83,6 @@ export function PodLogViewer(props: PodLogViewerProps) {
   const [cancelLogsStream, setCancelLogsStream] = React.useState<(() => void) | null>(null);
   const xtermRef = React.useRef<XTerminal | null>(null);
   const { t } = useTranslation();
-
-  function getDefaultContainer() {
-    return item.spec.containers.length > 0 ? item.spec.containers[0].name : '';
-  }
 
   const options = { leading: true, trailing: true, maxWait: 1000 };
 
@@ -136,6 +134,12 @@ export function PodLogViewer(props: PodLogViewerProps) {
   }
 
   const debouncedSetState = _.debounce(setLogsDebounced, 500, options);
+  React.useEffect(() => {
+    const next = getDefaultContainer(item);
+    if (next && !container) {
+      setContainer(next);
+    }
+  }, [item?.status]);
 
   React.useEffect(
     () => {
