@@ -6,10 +6,10 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.39.0
+    helm.sh/chart: headlamp-0.40.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.39.0"
+    app.kubernetes.io/version: "0.40.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: headlamp/templates/secret.yaml
@@ -21,6 +21,26 @@ metadata:
 type: Opaque
 data:
 ---
+# Source: headlamp/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-admin
+  labels:
+    helm.sh/chart: headlamp-0.40.0
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/instance: headlamp
+    app.kubernetes.io/version: "0.40.0"
+    app.kubernetes.io/managed-by: Helm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: headlamp
+  namespace: default
+---
 # Source: headlamp/templates/service.yaml
 apiVersion: v1
 kind: Service
@@ -28,10 +48,10 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.39.0
+    helm.sh/chart: headlamp-0.40.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.39.0"
+    app.kubernetes.io/version: "0.40.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   type: ClusterIP
@@ -55,10 +75,10 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.39.0
+    helm.sh/chart: headlamp-0.40.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.39.0"
+    app.kubernetes.io/version: "0.40.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -84,7 +104,7 @@ spec:
             runAsGroup: 101
             runAsNonRoot: true
             runAsUser: 100
-          image: "ghcr.io/headlamp-k8s/headlamp:v0.39.0"
+          image: "ghcr.io/headlamp-k8s/headlamp:v0.40.0"
           imagePullPolicy: IfNotPresent
           
           env:
@@ -118,154 +138,3 @@ spec:
           maxSkew: 2
           topologyKey: topology.kubernetes.io/zone
           whenUnsatisfiable: ScheduleAnyway
----
-# Source: headlamp/templates/pre-upgrade-cleanup.yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: headlamp-pre-upgrade
-  namespace: default
-  labels:
-    helm.sh/chart: headlamp-0.39.0
-    app.kubernetes.io/name: headlamp
-    app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.39.0"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    "helm.sh/hook": pre-upgrade
-    "helm.sh/hook-weight": "-5"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
----
-# Source: headlamp/templates/pre-upgrade-cleanup.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: headlamp-pre-upgrade
-  labels:
-    helm.sh/chart: headlamp-0.39.0
-    app.kubernetes.io/name: headlamp
-    app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.39.0"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    "helm.sh/hook": pre-upgrade
-    "helm.sh/hook-weight": "-5"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-rules:
-- apiGroups: ["rbac.authorization.k8s.io"]
-  resources: ["clusterrolebindings"]
-  verbs: ["get", "delete"]
----
-# Source: headlamp/templates/pre-upgrade-cleanup.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: headlamp-pre-upgrade
-  labels:
-    helm.sh/chart: headlamp-0.39.0
-    app.kubernetes.io/name: headlamp
-    app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.39.0"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    "helm.sh/hook": pre-upgrade
-    "helm.sh/hook-weight": "-4"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: headlamp-pre-upgrade
-subjects:
-- kind: ServiceAccount
-  name: headlamp-pre-upgrade
-  namespace: default
----
-# Source: headlamp/templates/pre-upgrade-cleanup.yaml
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: headlamp-pre-upgrade
-  namespace: default
-  labels:
-    helm.sh/chart: headlamp-0.39.0
-    app.kubernetes.io/name: headlamp
-    app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.39.0"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    "helm.sh/hook": pre-upgrade
-    "helm.sh/hook-weight": "-3"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-spec:
-  ttlSecondsAfterFinished: 300
-  template:
-    metadata:
-      name: headlamp-pre-upgrade
-      labels:
-        helm.sh/chart: headlamp-0.39.0
-        app.kubernetes.io/name: headlamp
-        app.kubernetes.io/instance: headlamp
-        app.kubernetes.io/version: "0.39.0"
-        app.kubernetes.io/managed-by: Helm
-    spec:
-      serviceAccountName: headlamp-pre-upgrade
-      restartPolicy: Never
-      containers:
-      - name: pre-upgrade-cleanup
-        image: alpine/kubectl:1.35.0@sha256:e7e078c7bb25012141e5957d500834b2a5b266d6de20ecfa862b30d8a892fc7e
-        command:
-        - /bin/sh
-        - -c
-        - |
-          set -e
-          CRB_NAME="headlamp-admin"
-          RELEASE_NAME="headlamp"
-
-          echo "Checking for old ClusterRoleBinding ${CRB_NAME}..."
-
-          if ! kubectl get clusterrolebinding "${CRB_NAME}" 2>/dev/null; then
-            echo "ClusterRoleBinding ${CRB_NAME} not found, nothing to clean up"
-            exit 0
-          fi
-
-          echo "Found ClusterRoleBinding ${CRB_NAME}, verifying it was created by Helm..."
-
-          # Check if the ClusterRoleBinding has Helm labels indicating it was created by this chart
-          MANAGED_BY=$(kubectl get clusterrolebinding "${CRB_NAME}" -o jsonpath='{.metadata.labels.app\.kubernetes\.io/managed-by}' 2>/dev/null || echo "")
-          INSTANCE=$(kubectl get clusterrolebinding "${CRB_NAME}" -o jsonpath='{.metadata.labels.app\.kubernetes\.io/instance}' 2>/dev/null || echo "")
-          APP_NAME=$(kubectl get clusterrolebinding "${CRB_NAME}" -o jsonpath='{.metadata.labels.app\.kubernetes\.io/name}' 2>/dev/null || echo "")
-
-          if [ "${MANAGED_BY}" = "Helm" ] && [ "${INSTANCE}" = "${RELEASE_NAME}" ] && [ "${APP_NAME}" = "headlamp" ]; then
-            echo "Confirmed: ${CRB_NAME} was created by this Helm release (${RELEASE_NAME})"
-            echo "Deleting old ClusterRoleBinding..."
-            kubectl delete clusterrolebinding "${CRB_NAME}"
-            echo "Successfully deleted old ClusterRoleBinding"
-          else
-            echo "WARNING: ${CRB_NAME} exists but was NOT created by this Helm release"
-            echo "  managed-by: ${MANAGED_BY} (expected: Helm)"
-            echo "  instance: ${INSTANCE} (expected: ${RELEASE_NAME})"
-            echo "  app: ${APP_NAME} (expected: headlamp)"
-            echo "Skipping deletion to preserve user-created resource"
-          fi
-        resources:
-          requests:
-            cpu: 10m
-            memory: 64Mi
-          limits:
-            cpu: 100m
-            memory: 128Mi
-
-        securityContext:
-          allowPrivilegeEscalation: false
-          runAsNonRoot: true
-          capabilities:
-            drop:
-              - ALL
-          seccompProfile:
-            type: RuntimeDefault
-        volumeMounts:
-        - name: tmp
-          mountPath: /tmp
-      volumes:
-      - name: tmp
-        emptyDir: {}
