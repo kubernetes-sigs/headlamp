@@ -25,6 +25,50 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import { DialogTitle } from '../Dialog';
 
+/**
+ * Helper function to detect GitHub user-attachments video URLs
+ * These are URLs that GitHub generates when users upload videos to issues/releases
+ * Format: https://github.com/user-attachments/assets/{uuid}
+ */
+function isGitHubVideoUrl(text: string): boolean {
+  const trimmed = text.trim();
+  return /^https:\/\/github\.com\/user-attachments\/assets\/[\w-]+$/.test(trimmed);
+}
+
+/**
+ * Custom component for rendering paragraphs that may contain GitHub video URLs
+ */
+function ParagraphWithVideo({ children }: { children?: React.ReactNode }) {
+  // Check if this paragraph contains only a GitHub video URL
+  const childrenArray = React.Children.toArray(children);
+
+  if (childrenArray.length === 1 && typeof childrenArray[0] === 'string') {
+    const text = childrenArray[0];
+    if (isGitHubVideoUrl(text)) {
+      return (
+        // eslint-disable-next-line jsx-a11y/media-has-caption
+        <video
+          src={text}
+          controls
+          style={{
+            maxWidth: '100%',
+            height: 'auto',
+            display: 'block',
+          }}
+        >
+          Video content is not available in your browser. Please{' '}
+          <a href={text} target="_blank" rel="noopener noreferrer">
+            view the video here
+          </a>
+          .
+        </video>
+      );
+    }
+  }
+
+  return <p>{children}</p>;
+}
+
 export interface ReleaseNotesModalProps {
   releaseNotes: string;
   appVersion: string | null;
@@ -66,6 +110,7 @@ export default function ReleaseNotesModal(props: ReleaseNotesModalProps) {
                   </Link>
                 );
               },
+              p: ParagraphWithVideo,
             }}
           >
             {releaseNotes}

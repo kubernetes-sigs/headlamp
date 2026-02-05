@@ -42,3 +42,16 @@ export const ShowNoNotes = {
     appVersion: '1.8.8',
   },
 };
+
+export const WithGitHubVideo = {
+  args: {
+    releaseNotes: `### Release with Video
+
+This release includes an exciting new feature!
+
+https://github.com/user-attachments/assets/46b377f2-a949-4e6e-b82a-bf528e7fd42a
+
+Some more text after the video.`,
+    appVersion: '2.0.0',
+  },
+};
