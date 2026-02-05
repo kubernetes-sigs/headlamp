@@ -185,6 +185,8 @@ func GetContextKeyAndKContext(w http.ResponseWriter,
 
 // CacheMiddleWare is Middleware for Caching purpose. It involves generating key for a request,
 // authorizing user , store resource data in cache and returns data if key is present.
+//
+//nolint:gocognit,funlen
 func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		if !c.CacheEnabled {
@@ -202,7 +204,12 @@ func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 			}
 
 			if err := k8cache.HandleNonGETCacheInvalidation(k8sResponseCache, w, r, next, contextKey); err != nil {
+				if errors.Is(err, k8cache.ErrHandled) {
+					return
+				}
+
 				c.handleError(w, ctx, span, err, "error while invalidating keys", http.StatusInternalServerError)
+
 				return
 			}
 

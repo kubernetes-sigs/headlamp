@@ -84,8 +84,11 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 		return err
 	}
 
-	return nil
+	return ErrHandled
 }
+
+// ErrHandled indicates the request was fully handled by cache invalidation; middleware must return.
+var ErrHandled = fmt.Errorf("handled by cache invalidation")
 
 // SkipWebSocket skip all the websocket requests coming from the client/ frontend to ensure
 // real time data updation in the frontend.
