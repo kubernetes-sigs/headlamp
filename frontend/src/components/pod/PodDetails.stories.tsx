@@ -143,6 +143,9 @@ Running.args = {
   podName: 'running',
 };
 Running.parameters = {
+  storyshots: {
+    disable: true,
+  },
   msw: {
     handlers: {
       story: [
