@@ -18,6 +18,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router';
+import ControllerRevision from '../../../lib/k8s/controllerRevision';
 import DaemonSet from '../../../lib/k8s/daemonSet';
 import Deployment from '../../../lib/k8s/deployment';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
@@ -59,53 +60,97 @@ export function RolloutUndoButton(props: RolloutUndoButtonProps) {
   const { t } = useTranslation(['translation']);
   const dispatchRolloutUndoEvent = useEventCallback(HeadlampEventType.ROLLOUT_UNDO_RESOURCE);
 
-  // Fetch all ReplicaSets in the namespace
+  // Fetch ReplicaSets for Deployments or ControllerRevisions for DaemonSets/StatefulSets
   const [replicaSets] = ReplicaSet.useList({ namespace: item.metadata.namespace });
+  const [controllerRevisions] = ControllerRevision.useList({ namespace: item.metadata.namespace });
 
   async function rolloutUndo() {
-    if (!replicaSets) {
-      throw new Error('Unable to fetch ReplicaSets');
+    if (item instanceof Deployment) {
+      // Handle Deployment rollback using ReplicaSets
+      if (!replicaSets) {
+        throw new Error('Unable to fetch ReplicaSets');
+      }
+
+      // Filter ReplicaSets owned by this Deployment
+      const ownedReplicaSets = replicaSets.filter(rs => {
+        const ownerRefs = rs.metadata.ownerReferences;
+        if (!ownerRefs) return false;
+
+        return ownerRefs.some(
+          owner =>
+            owner.kind === item.kind &&
+            owner.name === item.metadata.name &&
+            owner.uid === item.metadata.uid
+        );
+      });
+
+      if (ownedReplicaSets.length === 0) {
+        throw new Error('No ReplicaSets found for this Deployment');
+      }
+
+      // Sort by revision annotation (newest first)
+      const sortedReplicaSets = ownedReplicaSets.sort((a, b) => {
+        const revA = parseInt(a.metadata.annotations?.['deployment.kubernetes.io/revision'] || '0');
+        const revB = parseInt(b.metadata.annotations?.['deployment.kubernetes.io/revision'] || '0');
+        return revB - revA;
+      });
+
+      // Find previous ReplicaSet (second highest revision)
+      const previousReplicaSet = sortedReplicaSets[1];
+
+      if (!previousReplicaSet) {
+        throw new Error('No previous revision found to rollback to');
+      }
+
+      // Patch the deployment with the previous ReplicaSet's pod template
+      const patchData = {
+        spec: {
+          template: previousReplicaSet.spec.template,
+        },
+      };
+
+      return item.patch(patchData);
+    } else {
+      // Handle DaemonSet and StatefulSet rollback using ControllerRevisions
+      if (!controllerRevisions) {
+        throw new Error('Unable to fetch ControllerRevisions');
+      }
+
+      // Filter ControllerRevisions owned by this resource
+      const ownedRevisions = controllerRevisions.filter(cr => {
+        const ownerRefs = cr.metadata.ownerReferences;
+        if (!ownerRefs) return false;
+
+        return ownerRefs.some(
+          owner =>
+            owner.kind === item.kind &&
+            owner.name === item.metadata.name &&
+            owner.uid === item.metadata.uid
+        );
+      });
+
+      if (ownedRevisions.length === 0) {
+        throw new Error(`No ControllerRevisions found for this ${item.kind}`);
+      }
+
+      // Sort by revision number (newest first)
+      const sortedRevisions = ownedRevisions.sort((a, b) => b.revision - a.revision);
+
+      // Find previous revision (second highest)
+      const previousRevision = sortedRevisions[1];
+
+      if (!previousRevision) {
+        throw new Error('No previous revision found to rollback to');
+      }
+
+      // Patch the resource with the previous revision's spec
+      // ControllerRevision stores the full spec in the data field
+      const patchData = {
+        spec: previousRevision.data?.spec || previousRevision.data,
+      };
+
+      return item.patch(patchData);
     }
-
-    // Filter ReplicaSets owned by this resource
-    const ownedReplicaSets = replicaSets.filter(rs => {
-      const ownerRefs = rs.metadata.ownerReferences;
-      if (!ownerRefs) return false;
-
-      return ownerRefs.some(
-        owner =>
-          owner.kind === item.kind &&
-          owner.name === item.metadata.name &&
-          owner.uid === item.metadata.uid
-      );
-    });
-
-    if (ownedReplicaSets.length === 0) {
-      throw new Error('No ReplicaSets found for this resource');
-    }
-
-    // Sort by revision annotation (newest first)
-    const sortedReplicaSets = ownedReplicaSets.sort((a, b) => {
-      const revA = parseInt(a.metadata.annotations?.['deployment.kubernetes.io/revision'] || '0');
-      const revB = parseInt(b.metadata.annotations?.['deployment.kubernetes.io/revision'] || '0');
-      return revB - revA;
-    });
-
-    // Find previous ReplicaSet (second highest revision)
-    const previousReplicaSet = sortedReplicaSets[1];
-
-    if (!previousReplicaSet) {
-      throw new Error('No previous revision found to rollback to');
-    }
-
-    // Patch the deployment with the previous ReplicaSet's pod template
-    const patchData = {
-      spec: {
-        template: previousReplicaSet.spec.template,
-      },
-    };
-
-    return item.patch(patchData);
   }
 
   function handleSave() {
