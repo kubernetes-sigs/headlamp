@@ -688,6 +688,7 @@
   "Users": "使用者",
   "Handler": "處理程式",
   "No data in this secret": "此金鑰中無資料",
+  "Hide Helm Secrets": "",
   "Shrink sidebar": "收縮側邊欄",
   "Expand sidebar": "展開側邊欄",
   "Main Navigation": "主導航",
