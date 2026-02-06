@@ -77,8 +77,8 @@
                     class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                   >
                     <button
-                      aria-label="Edit"
-                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                      aria-label="View YAML"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-edgeEnd MuiIconButton-sizeMedium css-1d2b2o6-MuiButtonBase-root-MuiIconButton-root"
                       data-mui-internal-clone-element="true"
                       tabindex="0"
                       type="button"
@@ -90,20 +90,7 @@
                   </div>
                   <div
                     class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                  >
-                    <button
-                      aria-label="Delete"
-                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                      data-mui-internal-clone-element="true"
-                      tabindex="0"
-                      type="button"
-                    >
-                      <span
-                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                      />
-                    </button>
-                    <div />
-                  </div>
+                  />
                 </div>
               </div>
             </div>
