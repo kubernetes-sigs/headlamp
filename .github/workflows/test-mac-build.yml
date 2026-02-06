@@ -1,0 +1,25 @@
+name: Test Mac ARM64 Build
+on: 
+  workflow_dispatch:  # Manual trigger for testing
+
+jobs:
+  test-mac-build:
+    runs-on: macos-14  # M1 Mac runner (FREE!)
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Show architecture
+        run: uname -m
+      
+      - name: Test default build (before fix)
+        run: |
+          git checkout main
+          make -p | grep "^DOCKER_PLATFORM"
+      
+      - name: Test with fix
+        run: |
+          git checkout your-branch-name
+          make -p | grep "^DOCKER_PLATFORM"
+      
+      - name: Try actual build
+        run: make image
