@@ -29,10 +29,20 @@ export interface ClusterSettings {
     namespace?: string;
     isEnabled?: boolean;
   };
+  podDebugTerminal?: {
+    debugImage?: string;
+    isEnabled?: boolean;
+  };
+  /** Cluster appearance settings stored in localStorage */
+  appearance?: {
+    accentColor?: string;
+    icon?: string;
+  };
 }
 
 export const DEFAULT_NODE_SHELL_LINUX_IMAGE = 'docker.io/library/busybox:latest';
 export const DEFAULT_NODE_SHELL_NAMESPACE = 'default';
+export const DEFAULT_POD_DEBUG_IMAGE = 'docker.io/library/busybox:latest';
 
 /**
  * Stores the cluster settings in local storage.

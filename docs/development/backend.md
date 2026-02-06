@@ -27,6 +27,30 @@ Once built, it can be run in development mode (insecure / don't use in productio
 npm run backend:start
 ```
 
+## Logging configuration
+
+Headlamp’s backend supports configurable log levels to control verbosity.
+
+Log level can be configured using either a flag or an environment variable:
+- the log level: `--log-level` or env var `HEADLAMP_CONFIG_LOG_LEVEL`
+
+Supported Values:
+- `debug`
+- `info` (default)
+- `warn` 
+- `error`
+
+> **Note:** Headlamp uses zerolog defaults.  
+> Zerolog’s default log level is `info`, and Headlamp follows this behavior.
+
+### Examples
+
+Run with warning level:
+
+```bash
+./headlamp-server --log-level warn
+```
+
 ## Lint
 
 To lint the backend/ code.

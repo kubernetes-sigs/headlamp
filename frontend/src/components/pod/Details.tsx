@@ -49,6 +49,7 @@ import LightTooltip from '../common/Tooltip/TooltipLight';
 import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
+import { PodDebugAction } from './PodDebugAction';
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   margin: 0,
   paddingTop: theme.spacing(2),
@@ -677,6 +678,10 @@ export default function PodDetails(props: PodDetailsProps) {
                 />
               </AuthVisible>
             ),
+          },
+          {
+            id: DefaultHeaderAction.POD_DEBUG,
+            action: <PodDebugAction item={item} />,
           },
           {
             id: DefaultHeaderAction.POD_ATTACH,

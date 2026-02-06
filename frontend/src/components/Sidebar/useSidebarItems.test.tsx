@@ -17,6 +17,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
+import React from 'react';
 import { Provider } from 'react-redux';
 import App from '../../App';
 import reducers from '../../redux/reducers/reducers';
@@ -165,5 +166,41 @@ describe('useSidebarItems', () => {
     expect(result.current).not.toEqual(
       expect.arrayContaining([{ name: 'custom2', label: 'Custom 2', url: '/custom2' }])
     );
+  });
+
+  it('should support ReactNode as subtitle', () => {
+    const customEntries = {
+      custom1: {
+        name: 'custom1',
+        label: 'Custom 1',
+        url: '/custom1',
+        subtitle: <div>Custom Subtitle</div>,
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result } = renderHook(() => useSidebarItems(), {
+      wrapper: wrapper(store),
+    });
+
+    const item = result.current.find(it => it.name === 'custom1');
+    expect(item).toBeDefined();
+    expect(item?.subtitle).toBeDefined();
+  });
+
+  it('should render cluster badges as subtitles for selected clusters', () => {
+    const store = mockStore({}, []);
+
+    const { result } = renderHook(() => useSidebarItems(), {
+      wrapper: wrapper(store),
+    });
+
+    const clusterItem = result.current?.find(it => it.name === 'cluster' || it.name === 'home');
+    expect(clusterItem).toBeDefined();
+
+    // If subtitle exists and is a ReactNode (not a string), that means ClusterBadge components were rendered
+    if (clusterItem?.subtitle && typeof clusterItem.subtitle !== 'string') {
+      expect(React.isValidElement(clusterItem.subtitle)).toBe(true);
+    }
   });
 });

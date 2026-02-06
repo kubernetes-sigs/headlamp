@@ -46,7 +46,7 @@ default_agent: "@dev-agent"
 >
 > **Build/Config files:**
 > - `/package.json` - Root package with all npm scripts and Node.js version (>=20.11.1)
-> - `/backend/go.mod` - Go version (1.24.11)
+> - `/backend/go.mod` - Go version (1.24.13)
 > - `/CONTRIBUTING.md` - Contributing guidelines
 > - `/OWNERS` - Code reviewers and approvers
 
@@ -74,7 +74,7 @@ should NOT unless explicitly requested or strictly necessary for the change
 - **Runtimes/tools:** 
   - Node.js >=20.11.1 (specified in `/package.json` engines field)
   - npm >=10.0.0 (specified in `/package.json` engines field)
-  - Go 1.24.11 (specified in `/backend/go.mod`)
+  - Go 1.24.13 (specified in `/backend/go.mod`)
 - **Reproduce locally:** Use commands from `/package.json` scripts section and documentation files listed above.
 
 ---
@@ -374,7 +374,7 @@ Reference: `/docs/contributing.md` and `/.github/pull_request_template.md`
 **Version Information:**
 - Node.js: >=20.11.1 (from `/package.json`)
 - npm: >=10.0.0 (from `/package.json`)
-- Go: 1.24.11 (from `/backend/go.mod`)
+- Go: 1.24.13 (from `/backend/go.mod`)
 
 **Key Command Sources:**
 - Build/test commands: `/package.json`
