@@ -250,6 +250,14 @@ func TestParseFlags(t *testing.T) {
 				assert.Equal(t, "warn", conf.LogLevel)
 			},
 		},
+		{
+			name: "use_service_account_token_flag",
+			args: []string{"go run ./cmd", "--use-service-account-token", "--service-account-token-path=/custom/token/path"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, true, conf.UseServiceAccountToken)
+				assert.Equal(t, "/custom/token/path", conf.ServiceAccountTokenPath)
+			},
+		},
 	}
 
 	for _, tt := range tests {

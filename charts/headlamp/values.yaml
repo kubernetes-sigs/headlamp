@@ -36,6 +36,15 @@ config:
   inClusterContextName: "main"
   # -- base url path at which headlamp should run
   baseURL: ""
+
+  # -- use service account token for authentication
+  # if true, the service account token will be used for authentication in in-cluster mode
+  useServiceAccountToken: false
+  # -- path to the service account token file
+  # if useServiceAccountToken is true, this path will be used to read the service account token
+  # if not set, the default path will be used: /var/run/secrets/kubernetes.io/serviceaccount/token  
+  serviceAccountTokenPath: ""
+
   oidc:
     # Option 1:
     # @param config.oidc.secret - OIDC secret configuration

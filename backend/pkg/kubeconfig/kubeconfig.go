@@ -1009,6 +1009,8 @@ func GetInClusterContext(
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
 	oidcCACert string,
+	useServiceAccountToken bool,
+	serviceAccountTokenPath string,
 ) (*Context, error) {
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
@@ -1032,6 +1034,12 @@ func GetInClusterContext(
 	contextName = makeDNSFriendly(contextName)
 
 	inClusterAuthInfo := &api.AuthInfo{}
+	if useServiceAccountToken {
+		if serviceAccountTokenPath == "" {
+			serviceAccountTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+		}
+		inClusterAuthInfo.TokenFile = serviceAccountTokenPath
+	}
 
 	var oidcConf *OidcConfig
 
