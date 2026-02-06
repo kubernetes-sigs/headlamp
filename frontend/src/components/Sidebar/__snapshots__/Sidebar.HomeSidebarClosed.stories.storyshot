@@ -12,7 +12,6 @@
         >
           <div
             class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column MuiGrid-wrap-xs-nowrap css-opqjvv-MuiGrid-root"
-            inert="true"
           >
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
