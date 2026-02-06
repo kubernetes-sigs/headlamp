@@ -1684,7 +1684,9 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 
 	if clusterName == "" {
 		clusters := (&HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
+			},
 		}).getClusters()
 		for _, c := range clusters {
 			if c.Error == "" {
@@ -1699,17 +1701,19 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 	}
 
 	c := &HeadlampConfig{
-		HeadlampCFG: &headlampconfig.HeadlampCFG{
-			UseInCluster:    false,
-			KubeConfigPath:  kubeConfigPath,
-			KubeConfigStore: kubeConfigStore,
-			CacheEnabled:    true,
-			PluginDir:       pluginDir,
-			UserPluginDir:   userPluginDir,
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigPath:  kubeConfigPath,
+				KubeConfigStore: kubeConfigStore,
+				CacheEnabled:    true,
+				PluginDir:       pluginDir,
+				UserPluginDir:   userPluginDir,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
 		},
-		cache:            cache.New[interface{}](),
-		telemetryConfig:  GetDefaultTestTelemetryConfig(),
-		telemetryHandler: &telemetry.RequestHandler{},
 	}
 
 	return c, clusterName
