@@ -25,7 +25,7 @@ export default {
   decorators: [
     Story => (
       <div>
-        <h1 style={{ position: 'absolute', left: '-10000px' }}>Plugin Settings Test Page</h1>
+        <h1 style={{ position: 'absolute', left: '-10000px' }}>Settings</h1>
         <Story />
       </div>
     ),
