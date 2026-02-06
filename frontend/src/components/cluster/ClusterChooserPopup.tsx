@@ -281,6 +281,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
                 clustersToShow.length > 0 && (
                   <ListSubheader
                     disableSticky
+                    role="presentation"
                     sx={{
                       paddingLeft: 0,
                       lineHeight: theme.typography.pxToRem(24),
@@ -300,7 +301,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
               ))}
             </>
           )}
-          {clustersToShow.length > 0 && recentClusters.length > 0 && <Divider />}
+          {clustersToShow.length > 0 && recentClusters.length > 0 && <Divider role="separator" />}
           {clustersToShow.map(cluster => (
             <ClusterListItem
               key={`cluster_button_${cluster.name}`}

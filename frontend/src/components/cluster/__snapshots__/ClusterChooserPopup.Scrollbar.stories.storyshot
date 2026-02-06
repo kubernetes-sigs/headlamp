@@ -73,6 +73,7 @@
         >
           <li
             class="MuiListSubheader-root MuiListSubheader-gutters css-1ac4l9u-MuiListSubheader-root"
+            role="presentation"
           >
             Recent clusters
           </li>
@@ -144,6 +145,7 @@
           </li>
           <hr
             class="MuiDivider-root MuiDivider-fullWidth css-9mgopn-MuiDivider-root"
+            role="separator"
           />
           <li
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
