@@ -1018,8 +1018,19 @@ func GetInClusterContext(
 
 	// Use custom API server endpoint if provided, otherwise use default from in-cluster config
 	apiServerHost := clusterConfig.Host
-	if customAPIServerEndpoint != "" {
-		apiServerHost = customAPIServerEndpoint
+
+	if strings.TrimSpace(customAPIServerEndpoint) != "" {
+		endpoint := strings.TrimSpace(customAPIServerEndpoint)
+		parsedURL, err := url.Parse(endpoint)
+
+		if err != nil || !parsedURL.IsAbs() || parsedURL.Host == "" {
+			return nil, fmt.Errorf(
+				"invalid custom API server endpoint %q: must be an absolute URL with scheme and host",
+				endpoint,
+			)
+		}
+
+		apiServerHost = endpoint
 	}
 
 	cluster := &api.Cluster{
