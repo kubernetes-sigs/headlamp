@@ -30,6 +30,8 @@ import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
 import ActionButton from '../common/ActionButton';
 import CreateButton from '../common/Resource/CreateButton';
+import { TutorialGuide } from '../common/Tutorial';
+import { TutorialToolTip } from '../common/Tutorial/TutorialToolTip';
 import NavigationTabs from './NavigationTabs';
 import SidebarItem, { SidebarItemProps } from './SidebarItem';
 import { DefaultSidebars, setSidebarSelected, setWhetherSidebarOpen } from './sidebarSlice';
@@ -73,6 +75,10 @@ function AddClusterButton() {
   const { t } = useTranslation(['translation']);
   const { isOpen } = useSidebarInfo();
 
+  const buttonText = (
+    <TutorialToolTip context="AddClusterButton" labelText={t('translation|Add Cluster')} />
+  );
+
   return (
     <Box pb={2}>
       {isOpen ? (
@@ -81,17 +87,47 @@ function AddClusterButton() {
           startIcon={<InlineIcon icon="mdi:plus-box-outline" />}
           sx={{ color: theme => theme.palette.sidebar.color }}
         >
-          {t('translation|Add Cluster')}
+          {buttonText}
         </Button>
       ) : (
         <ActionButton
           onClick={() => history.push(createRouteURL('addCluster'))}
           icon="mdi:plus-box-outline"
-          description={t('translation|Add Cluster')}
+          description={buttonText}
           color="#adadad"
           width={38}
         />
       )}
+    </Box>
+  );
+}
+
+function HelpButton() {
+  const { isOpen } = useSidebarInfo();
+  const { t } = useTranslation();
+  const [openGuide, setOpenGuide] = React.useState(false);
+  const label = t('translation|Guide');
+
+  return (
+    <Box pb={2}>
+      {isOpen ? (
+        <Button
+          onClick={() => setOpenGuide(true)}
+          startIcon={<InlineIcon icon="mdi:lightbulb-on-outline" />}
+          sx={{ color: theme => theme.palette.sidebar.color }}
+        >
+          {label}
+        </Button>
+      ) : (
+        <ActionButton
+          onClick={() => setOpenGuide(true)}
+          icon="mdi:lightbulb-on-outline"
+          description={label}
+          color="#adadad"
+          width={38}
+        />
+      )}
+      <TutorialGuide open={openGuide} onClose={() => setOpenGuide(false)} />
     </Box>
   );
 }
@@ -134,12 +170,19 @@ const DefaultLinkArea = memo((props: { sidebarName: string; isOpen: boolean }) =
       <Box
         display="flex"
         justifyContent="space-between"
-        alignItems="center"
-        flexDirection={isOpen ? 'row' : 'column'}
+        alignItems="flex-start"
+        flexDirection={'column'}
         p={1}
       >
-        <Box>{isElectron() && <AddClusterButton />}</Box>
         <Box>
+          <HelpButton />
+        </Box>
+        <Box>{isElectron() && <AddClusterButton />}</Box>
+        <Box
+          sx={{
+            alignSelf: isOpen ? 'flex-end' : 'center',
+          }}
+        >
           <SidebarToggleButton />
         </Box>
       </Box>
@@ -148,7 +191,27 @@ const DefaultLinkArea = memo((props: { sidebarName: string; isOpen: boolean }) =
 
   return (
     <Box textAlign="center">
-      <CreateButton isNarrow={!isOpen} />
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          mb: 2,
+        }}
+      >
+        <Box
+          sx={{
+            alignSelf: isOpen ? 'flex-start' : 'center',
+            mt: 1,
+            ml: isOpen ? 2 : 0,
+            mb: isOpen ? 2 : 0,
+          }}
+        >
+          <HelpButton />
+        </Box>
+        <CreateButton isNarrow={!isOpen} />
+      </Box>
       <Box
         display="flex"
         justifyContent="space-between"
@@ -347,9 +410,9 @@ export const PureSidebar = memo(
 
     const conditionalProps = isTemporaryDrawer
       ? {
-          open: temporarySideBarOpen,
-          onClose: onToggleOpen,
-        }
+        open: temporarySideBarOpen,
+        onClose: onToggleOpen,
+      }
       : {};
 
     React.useEffect(() => {
