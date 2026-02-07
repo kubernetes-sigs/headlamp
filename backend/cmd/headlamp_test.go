@@ -1733,48 +1733,48 @@ func TestHandleClusterServiceProxy(t *testing.T) {
 }
 
 // TestCustomAPIServerEndpoint tests the custom API server endpoint configuration
-// with a mock proxy server, simulating kube-oidc-proxy behavior.
+// with validation logic, simulating kube-oidc-proxy scenarios.
 func TestCustomAPIServerEndpoint(t *testing.T) {
-istrue := true
-if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
-t.Skip("skipping integration test")
+	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
+		t.Skip("skipping integration test")
+	}
+
+	// Test https validation - should reject http URLs
+	_, err := kubeconfig.GetInClusterContext(
+		"test-cluster",
+		"", "", "", "",
+		false, "",
+		"http://insecure-proxy.example.com:443", // http scheme should be rejected
+	)
+
+	// Should fail with validation error (or in-cluster config error if not in cluster)
+	if err != nil {
+		if strings.Contains(err.Error(), "must be a full https:// URL") {
+			t.Logf("https validation working correctly: %v", err)
+		} else if strings.Contains(err.Error(), "unable to load in-cluster configuration") {
+			t.Skip("not running in cluster environment, cannot test full functionality")
+		} else {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	// Test with valid https URL (will fail with in-cluster error if not in cluster)
+	ctx, err := kubeconfig.GetInClusterContext(
+		"test-cluster",
+		"", "", "", "",
+		false, "",
+		"https://kube-oidc-proxy.example.com:443", // Valid https endpoint
+	)
+
+	if err != nil {
+		if strings.Contains(err.Error(), "unable to load in-cluster configuration") {
+			t.Skip("not running in cluster environment, cannot test full functionality")
+		}
+		t.Fatalf("unexpected error with valid https endpoint: %v", err)
+	}
+
+	// If we get here, we're in a cluster and endpoint was accepted
+	assert.Equal(t, "https://kube-oidc-proxy.example.com:443", ctx.Cluster.Server,
+		"Custom endpoint should be used")
 }
 
-// Create a mock "proxy" server that forwards to the actual K8s API
-mockK8sAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-w.WriteHeader(http.StatusOK)
-w.Write([]byte(`{"kind":"APIVersions","versions":["v1"]}`))
-}))
-defer mockK8sAPI.Close()
-
-// Create a mock proxy server (simulates kube-oidc-proxy)
-proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// Simulate proxy forwarding to the actual K8s API
-w.WriteHeader(http.StatusOK)
-w.Write([]byte(`{"kind":"APIVersions","versions":["v1"]}`))
-}))
-defer proxyServer.Close()
-
-// Test that custom endpoint is used when provided
-ctx, err := kubeconfig.GetInClusterContext(
-"test-cluster",
-"", "", "", "",
-false, "",
-proxyServer.URL, // Use proxy URL as custom endpoint
-)
-
-// Since we're not actually in a cluster, this will fail to get in-cluster config
-// but we're testing the parameter passing works correctly
-if err != nil && !strings.Contains(err.Error(), "unable to load in-cluster configuration") {
-// If error is not the expected "not in cluster" error, verify it's the validation working
-if strings.Contains(err.Error(), "invalid custom API server endpoint") {
-// This is expected if URL validation fails
-t.Logf("URL validation working: %v", err)
-} else {
-t.Fatalf("unexpected error: %v", err)
-}
-} else if err == nil {
-// If no error (running in actual cluster), verify custom endpoint was set
-assert.Equal(t, proxyServer.URL, ctx.Cluster.Server, "Custom endpoint should be used")
-}
-}
