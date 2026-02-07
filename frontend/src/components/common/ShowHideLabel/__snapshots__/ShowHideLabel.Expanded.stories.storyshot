@@ -6,15 +6,15 @@
       <div
         class="MuiBox-root css-13o7eu2"
       >
-        <label
-          aria-expanded="true"
+        <span
           id="my-label"
           style="word-break: break-all; white-space: normal;"
         >
           This is a placeholder label text that is many characters long. It is meant to be used as a temporary label for a UI element until the actual label is available. The text is long enough to fill up the space allocated for the label and provide a realistic preview of how the label will look in the final UI. You can replace this text with the actual label text once it is available. This will ensure that the UI looks complete and professional even during the development phase. Thank you for using this placeholder text!
           <button
             aria-controls="my-label"
-            arial-label="Collapse"
+            aria-expanded="true"
+            aria-label="Collapse"
             class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-z81te2-MuiButtonBase-root-MuiIconButton-root"
             tabindex="0"
             type="button"
@@ -23,7 +23,7 @@
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
             />
           </button>
-        </label>
+        </span>
       </div>
     </div>
   </div>
