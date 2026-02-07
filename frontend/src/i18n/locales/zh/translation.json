@@ -61,6 +61,7 @@
   "Active": "活跃",
   "Plugin": "插件",
   "In-cluster": "集群内",
+  "Cluster Inventory": "",
   "View Clusters": "查看集群",
   "Loading...": "正在加载…",
   "No clusters found": "未找到集群",

@@ -46,6 +46,7 @@ import (
 	"github.com/gorilla/mux"
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 
@@ -64,6 +65,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
@@ -370,8 +372,51 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 	}).Methods("GET")
 }
 
+func setupInCluster(ctx context.Context, config *HeadlampConfig) {
+	inClusterContext, err := kubeconfig.GetInClusterContext(
+		config.InClusterContextName,
+		config.OidcIdpIssuerURL,
+		config.OidcClientID, config.OidcClientSecret,
+		strings.Join(config.OidcScopes, ","),
+		config.OidcSkipTLSVerify,
+		config.OidcCACert)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
+		return
+	}
+
+	inClusterContext.Source = kubeconfig.InCluster
+
+	err = inClusterContext.SetupProxy()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
+	}
+
+	err = config.KubeConfigStore.AddContext(inClusterContext)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+	}
+
+	if config.EnableClusterInventory {
+		hubConfig, err := rest.InClusterConfig()
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster config for cluster inventory")
+		} else {
+			go clusterinventory.Discover(
+				ctx,
+				config.KubeConfigStore,
+				config.ClusterInventoryProviderFile,
+				config.ClusterInventoryRescanInterval,
+				config.ClusterInventoryNoCRDCacheTTL,
+				hubConfig,
+				false,
+			)
+		}
+	}
+}
+
 //nolint:gocognit,funlen,gocyclo
-func createHeadlampHandler(config *HeadlampConfig) http.Handler {
+func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
 
 	config.StaticPluginDir = os.Getenv("HEADLAMP_STATIC_PLUGINS_DIR")
@@ -430,28 +475,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 	// In-cluster
 	if config.UseInCluster {
-		context, err := kubeconfig.GetInClusterContext(
-			config.InClusterContextName,
-			config.OidcIdpIssuerURL,
-			config.OidcClientID, config.OidcClientSecret,
-			strings.Join(config.OidcScopes, ","),
-			config.OidcSkipTLSVerify,
-			config.OidcCACert)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
-		}
-
-		context.Source = kubeconfig.InCluster
-
-		err = context.SetupProxy()
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
-		}
-
-		err = config.KubeConfigStore.AddContext(context)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
-		}
+		setupInCluster(ctx, config)
 	}
 
 	if config.StaticDir != "" {
@@ -494,6 +518,15 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		kubeconfig.DynamicCluster, skipFunc)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "loading dynamic kubeconfig")
+	}
+
+	// Cluster inventory from store: when not in-cluster, discover ClusterProfiles from every
+	// context already in the store (kubeconfig, dynamic) so that ClusterProfile-based clusters
+	// appear in local runs and desktop app.
+	if config.EnableClusterInventory && !config.UseInCluster {
+		go clusterinventory.Discover(ctx, config.KubeConfigStore,
+			config.ClusterInventoryProviderFile, config.ClusterInventoryRescanInterval,
+			config.ClusterInventoryNoCRDCacheTTL, nil, true)
 	}
 
 	addPluginRoutes(config, r)
@@ -1096,6 +1129,20 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 	})
 }
 
+// copyStaticFiles copies static files to a temp directory (needed for read-only filesystems like AppImage).
+func copyStaticFiles(staticDir string) (string, error) {
+	dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
+	if err != nil {
+		return "", fmt.Errorf("creating static dir: %w", err)
+	}
+
+	if err := os.CopyFS(dir, os.DirFS(staticDir)); err != nil {
+		return "", fmt.Errorf("copying files from static dir: %w", err)
+	}
+
+	return dir, nil
+}
+
 func StartHeadlampServer(config *HeadlampConfig) {
 	tel, err := telemetry.NewTelemetry(config.TelemetryConfig)
 	if err != nil {
@@ -1130,22 +1177,19 @@ func StartHeadlampServer(config *HeadlampConfig) {
 
 	// Copy static files as squashFS is read-only (AppImage)
 	if config.StaticDir != "" {
-		dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
+		dir, err := copyStaticFiles(config.StaticDir)
 		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to create static dir")
-			return
-		}
-
-		err = os.CopyFS(dir, os.DirFS(config.StaticDir))
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to copy files from static dir")
+			logger.Log(logger.LevelError, nil, err, "Failed to handle static files")
 			return
 		}
 
 		config.StaticDir = dir
 	}
 
-	handler := createHeadlampHandler(config)
+	serverCtx, stopBackground := context.WithCancel(context.Background())
+	defer stopBackground()
+
+	handler := createHeadlampHandler(serverCtx, config)
 	handler = config.OIDCTokenRefreshMiddleware(handler)
 
 	addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)

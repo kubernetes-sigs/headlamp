@@ -61,6 +61,7 @@
   "Active": "Active",
   "Plugin": "Plugin",
   "In-cluster": "In-cluster",
+  "Cluster Inventory": "Cluster Inventory",
   "View Clusters": "View Clusters",
   "Loading...": "Loading...",
   "No clusters found": "No clusters found",

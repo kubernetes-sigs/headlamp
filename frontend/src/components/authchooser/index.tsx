@@ -271,6 +271,20 @@ export function PureAuthChooser({
     // Do nothing because we're not supposed to close on backdrop click or escape.
   }
 
+  let errorMessage = '';
+  if (error) {
+    const status = (error as any)?.status;
+    const isConnectionError = typeof status === 'number' && [408, 502, 504].includes(status);
+    errorMessage = isConnectionError
+      ? t(
+          'Failed to connect. Please make sure the Kubernetes cluster is running and accessible. Error: {{ errorMessage }}',
+          { errorMessage: error.message }
+        )
+      : t('Failed to get authentication information: {{ errorMessage }}', {
+          errorMessage: error.message,
+        });
+  }
+
   return (
     <ClusterDialog useCover onClose={onClose} aria-labelledby="authchooser-dialog-title">
       {testingAuth ? (
@@ -311,16 +325,7 @@ export function PureAuthChooser({
           ) : (
             <Box alignItems="center" textAlign="center">
               <Box m={2}>
-                <Empty>
-                  {error && error.message === 'Bad Gateway'
-                    ? t(
-                        'Failed to connect. Please make sure the Kubernetes cluster is running and accessible. Error: {{ errorMessage }}',
-                        { errorMessage: error!.message }
-                      )
-                    : t('Failed to get authentication information: {{ errorMessage }}', {
-                        errorMessage: error!.message,
-                      })}
-                </Empty>
+                <Empty>{errorMessage}</Empty>
                 <Link routeName="settingsClusterHomeContext">
                   {t('translation|Cluster settings')}
                 </Link>

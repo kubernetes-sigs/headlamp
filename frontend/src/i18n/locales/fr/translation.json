@@ -61,6 +61,7 @@
   "Active": "Actif",
   "Plugin": "Plugin",
   "In-cluster": "Dans le cluster",
+  "Cluster Inventory": "",
   "View Clusters": "Voir les clusters",
   "Loading...": "Chargement...",
   "No clusters found": "Aucun cluster trouvé",

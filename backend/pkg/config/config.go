@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/providers/basicflag"
@@ -42,37 +43,41 @@ type Config struct {
 	// NoBrowser disables automatically opening the default browser when running
 	// a locally embedded Headlamp binary (non in-cluster with spa.UseEmbeddedFiles == true).
 	// It has no effect in in-cluster mode or when running without embedded frontend.
-	NoBrowser                 bool   `koanf:"no-browser"`
-	CacheEnabled              bool   `koanf:"cache-enabled"`
-	EnableHelm                bool   `koanf:"enable-helm"`
-	EnableDynamicClusters     bool   `koanf:"enable-dynamic-clusters"`
-	AllowKubeconfigChanges    bool   `koanf:"allow-kubeconfig-changes"`
-	ListenAddr                string `koanf:"listen-addr"`
-	WatchPluginsChanges       bool   `koanf:"watch-plugins-changes"`
-	Port                      uint   `koanf:"port"`
-	KubeConfigPath            string `koanf:"kubeconfig"`
-	SkippedKubeContexts       string `koanf:"skipped-kube-contexts"`
-	StaticDir                 string `koanf:"html-static-dir"`
-	PluginsDir                string `koanf:"plugins-dir"`
-	UserPluginsDir            string `koanf:"user-plugins-dir"`
-	BaseURL                   string `koanf:"base-url"`
-	SessionTTL                int    `koanf:"session-ttl"`
-	ProxyURLs                 string `koanf:"proxy-urls"`
-	OidcClientID              string `koanf:"oidc-client-id"`
-	OidcValidatorClientID     string `koanf:"oidc-validator-client-id"`
-	OidcClientSecret          string `koanf:"oidc-client-secret"`
-	OidcIdpIssuerURL          string `koanf:"oidc-idp-issuer-url"`
-	OidcCallbackURL           string `koanf:"oidc-callback-url"`
-	OidcValidatorIdpIssuerURL string `koanf:"oidc-validator-idp-issuer-url"`
-	OidcScopes                string `koanf:"oidc-scopes"`
-	OidcUseAccessToken        bool   `koanf:"oidc-use-access-token"`
-	OidcSkipTLSVerify         bool   `koanf:"oidc-skip-tls-verify"`
-	OidcCAFile                string `koanf:"oidc-ca-file"`
-	MeUsernamePath            string `koanf:"me-username-path"`
-	MeEmailPath               string `koanf:"me-email-path"`
-	MeGroupsPath              string `koanf:"me-groups-path"`
-	MeUserInfoURL             string `koanf:"me-user-info-url"`
-	OidcUsePKCE               bool   `koanf:"oidc-use-pkce"`
+	NoBrowser                      bool          `koanf:"no-browser"`
+	CacheEnabled                   bool          `koanf:"cache-enabled"`
+	EnableHelm                     bool          `koanf:"enable-helm"`
+	EnableDynamicClusters          bool          `koanf:"enable-dynamic-clusters"`
+	EnableClusterInventory         bool          `koanf:"enable-cluster-inventory"`
+	ClusterInventoryProviderFile   string        `koanf:"cluster-inventory-provider-file"`
+	ClusterInventoryRescanInterval time.Duration `koanf:"cluster-inventory-rescan-interval"`
+	ClusterInventoryNoCRDCacheTTL  time.Duration `koanf:"cluster-inventory-no-crd-cache-ttl"`
+	AllowKubeconfigChanges         bool          `koanf:"allow-kubeconfig-changes"`
+	ListenAddr                     string        `koanf:"listen-addr"`
+	WatchPluginsChanges            bool          `koanf:"watch-plugins-changes"`
+	Port                           uint          `koanf:"port"`
+	KubeConfigPath                 string        `koanf:"kubeconfig"`
+	SkippedKubeContexts            string        `koanf:"skipped-kube-contexts"`
+	StaticDir                      string        `koanf:"html-static-dir"`
+	PluginsDir                     string        `koanf:"plugins-dir"`
+	UserPluginsDir                 string        `koanf:"user-plugins-dir"`
+	BaseURL                        string        `koanf:"base-url"`
+	SessionTTL                     int           `koanf:"session-ttl"`
+	ProxyURLs                      string        `koanf:"proxy-urls"`
+	OidcClientID                   string        `koanf:"oidc-client-id"`
+	OidcValidatorClientID          string        `koanf:"oidc-validator-client-id"`
+	OidcClientSecret               string        `koanf:"oidc-client-secret"`
+	OidcIdpIssuerURL               string        `koanf:"oidc-idp-issuer-url"`
+	OidcCallbackURL                string        `koanf:"oidc-callback-url"`
+	OidcValidatorIdpIssuerURL      string        `koanf:"oidc-validator-idp-issuer-url"`
+	OidcScopes                     string        `koanf:"oidc-scopes"`
+	OidcUseAccessToken             bool          `koanf:"oidc-use-access-token"`
+	OidcSkipTLSVerify              bool          `koanf:"oidc-skip-tls-verify"`
+	OidcCAFile                     string        `koanf:"oidc-ca-file"`
+	MeUsernamePath                 string        `koanf:"me-username-path"`
+	MeEmailPath                    string        `koanf:"me-email-path"`
+	MeGroupsPath                   string        `koanf:"me-groups-path"`
+	MeUserInfoURL                  string        `koanf:"me-user-info-url"`
+	OidcUsePKCE                    bool          `koanf:"oidc-use-pkce"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -434,6 +439,26 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
 	f.String("log-level", "info", "Set backend log verbosity. Options: debug, info (default), warn, error")
 	f.Bool("enable-dynamic-clusters", false, "Enable dynamic clusters, which stores stateless clusters in the frontend.")
+	f.Bool(
+		"enable-cluster-inventory",
+		false,
+		"Enable automatic discovery of clusters from ClusterProfile resources (Cluster Inventory API)",
+	)
+	f.String(
+		"cluster-inventory-provider-file",
+		"",
+		"Path to the JSON configuration file for ClusterProfile access providers (exec plugins)",
+	)
+	f.Duration(
+		"cluster-inventory-rescan-interval",
+		5*time.Minute,
+		"Interval for rescanning spoke clusters for new ClusterProfiles (recursive discovery)",
+	)
+	f.Duration(
+		"cluster-inventory-no-crd-cache-ttl",
+		2*time.Hour,
+		"How long to cache the fact that a server has no ClusterProfile CRD before re-checking",
+	)
 	f.Bool("allow-kubeconfig-changes", false,
 		"Allow Headlamp to make changes to the known kubeconfigs when needed. "+
 			"E.g. to remove a cluster via the UI. May not be recommendable when Headlamp is deployed as a service.")
