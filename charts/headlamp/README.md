@@ -53,6 +53,18 @@ $ helm install my-headlamp headlamp/headlamp \
   --set ingress.hosts[0].paths[0].path=/
 ```
 
+### Installation with Custom API Server Endpoint
+
+For use cases where API requests need to pass through a proxy (e.g., kube-oidc-proxy for OIDC authentication from private endpoints):
+
+```console
+$ helm install my-headlamp headlamp/headlamp \
+  --namespace kube-system \
+  --set config.apiServerEndpoint=https://kube-oidc-proxy.example.com:443
+```
+
+This is particularly useful with managed Kubernetes clusters (like EKS) when using [kube-oidc-proxy](https://github.com/jetstack/kube-oidc-proxy) to handle OIDC authentication.
+
 ## Configuration
 
 ### Core Parameters
@@ -67,15 +79,16 @@ $ helm install my-headlamp headlamp/headlamp \
 
 ### Application Configuration
 
-| Key                | Type   | Default               | Description                                                               |
-|--------------------|--------|-----------------------|---------------------------------------------------------------------------|
-| config.inCluster   | bool   | `true`                | Run Headlamp in-cluster                                                   |
-| config.baseURL     | string | `""`                  | Base URL path for Headlamp UI                                             |
-| config.pluginsDir  | string | `"/headlamp/plugins"` | Directory to load Headlamp plugins from                                   |
-| config.enableHelm  | bool   | `false`               | Enable Helm operations like install, upgrade and uninstall of Helm charts |
-| config.extraArgs   | array  | `[]`                  | Additional arguments for Headlamp server                                  |
-| config.tlsCertPath | string | `""`                  | Certificate for serving TLS                                               |
-| config.tlsKeyPath  | string | `""`                  | Key for serving TLS                                                       |
+| Key                     | Type   | Default               | Description                                                               |
+|-------------------------|--------|-----------------------|---------------------------------------------------------------------------|
+| config.inCluster        | bool   | `true`                | Run Headlamp in-cluster                                                   |
+| config.apiServerEndpoint| string | `""`                  | Custom Kubernetes API server endpoint (overrides default in-cluster endpoint). Useful when requests need to pass through a proxy like kube-oidc-proxy. |
+| config.baseURL          | string | `""`                  | Base URL path for Headlamp UI                                             |
+| config.pluginsDir       | string | `"/headlamp/plugins"` | Directory to load Headlamp plugins from                                   |
+| config.enableHelm       | bool   | `false`               | Enable Helm operations like install, upgrade and uninstall of Helm charts |
+| config.extraArgs        | array  | `[]`                  | Additional arguments for Headlamp server                                  |
+| config.tlsCertPath      | string | `""`                  | Certificate for serving TLS                                               |
+| config.tlsKeyPath       | string | `""`                  | Key for serving TLS                                                       |
 
 ### OIDC Configuration
 
