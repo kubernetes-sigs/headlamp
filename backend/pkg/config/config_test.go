@@ -55,6 +55,13 @@ func TestParseBasic(t *testing.T) {
 				assert.Equal(t, config.DefaultMeUsernamePath, conf.MeUsernamePath)
 			},
 		},
+		{
+			name: "api_server_endpoint_flag",
+			args: []string{"go run ./cmd", "--api-server-endpoint=https://kube-proxy.example.com"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, "https://kube-proxy.example.com", conf.APIServerEndpoint)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -139,6 +146,16 @@ var ParseWithEnvTests = []struct {
 		},
 		verify: func(t *testing.T, conf *config.Config) {
 			assert.Equal(t, "warn", conf.LogLevel)
+		},
+	},
+	{
+		name: "api_server_endpoint_from_env",
+		args: []string{"go run ./cmd"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_API_SERVER_ENDPOINT": "https://kube-oidc-proxy.example.com:443",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, "https://kube-oidc-proxy.example.com:443", conf.APIServerEndpoint)
 		},
 	},
 }
