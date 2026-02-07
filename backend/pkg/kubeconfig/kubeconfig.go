@@ -1017,6 +1017,13 @@ func validateAPIServerEndpoint(endpoint string) (string, error) {
 		)
 	}
 
+	if parsedURL.Scheme != "https" {
+		return "", fmt.Errorf(
+			"invalid custom API server endpoint %q: must be a full https:// URL",
+			trimmed,
+		)
+	}
+
 	return trimmed, nil
 }
 

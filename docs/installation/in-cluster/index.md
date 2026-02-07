@@ -81,6 +81,8 @@ You can also configure it using environment variables or command-line flags:
 - **Environment variable**: `HEADLAMP_CONFIG_API_SERVER_ENDPOINT=https://kube-oidc-proxy.example.com:443`
 - **Command-line flag**: `--api-server-endpoint=https://kube-oidc-proxy.example.com:443`
 
+**Note**: These options are only used when running Headlamp with in-cluster mode enabled (`--in-cluster` flag or `config.inCluster: true` in Helm values).
+
 ### Example: Using with kube-oidc-proxy on EKS
 
 When using Amazon EKS with a private OIDC issuer, you can deploy kube-oidc-proxy to handle authentication and configure Headlamp to route requests through it:
@@ -99,6 +101,38 @@ helm install my-headlamp headlamp/headlamp \
 ```
 
 For more information about using kube-oidc-proxy with EKS, see the [AWS blog post on consistent OIDC authentication](https://aws.amazon.com/blogs/opensource/consistent-oidc-authentication-across-multiple-eks-clusters-using-kube-oidc-proxy/).
+
+### Testing the Custom API Server Endpoint
+
+To manually test the custom API server endpoint configuration with kube-oidc-proxy:
+
+1. **Deploy kube-oidc-proxy** in your cluster following the [kube-oidc-proxy documentation](https://github.com/jetstack/kube-oidc-proxy).
+
+2. **Install Headlamp** with the custom endpoint pointing to kube-oidc-proxy:
+   ```bash
+   helm install my-headlamp headlamp/headlamp \
+     --namespace kube-system \
+     --set config.apiServerEndpoint=https://kube-oidc-proxy.kube-system.svc.cluster.local:443
+   ```
+
+3. **Verify the configuration**:
+   ```bash
+   # Check pod arguments include the custom endpoint
+   kubectl get pod -n kube-system -l app.kubernetes.io/name=headlamp -o jsonpath='{.items[0].spec.containers[0].args}' | grep api-server-endpoint
+   ```
+
+4. **Check Headlamp logs** to confirm it's connecting through the custom endpoint:
+   ```bash
+   kubectl logs -n kube-system -l app.kubernetes.io/name=headlamp | grep -i "api server\|endpoint\|proxy"
+   ```
+
+5. **Test API connectivity** by accessing Headlamp and verifying you can list resources from the cluster.
+
+6. **Test backward compatibility** by installing without the custom endpoint:
+   ```bash
+   helm install headlamp-default headlamp/headlamp --namespace kube-system
+   # Verify it connects to the default in-cluster API server
+   ```
 
 ## Use a non-default kube config file
 

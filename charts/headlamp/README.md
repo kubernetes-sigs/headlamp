@@ -79,11 +79,11 @@ This is particularly useful with managed Kubernetes clusters (like EKS) when usi
 
 ### Application Configuration
 
-| Key                     | Type   | Default               | Description                                                               |
-|-------------------------|--------|-----------------------|---------------------------------------------------------------------------|
-| config.inCluster        | bool   | `true`                | Run Headlamp in-cluster                                                   |
-| config.apiServerEndpoint| string | `""`                  | Custom Kubernetes API server endpoint (overrides default in-cluster endpoint). Useful when requests need to pass through a proxy like kube-oidc-proxy. |
-| config.baseURL          | string | `""`                  | Base URL path for Headlamp UI                                             |
+| Key                      | Type   | Default               | Description                                                               |
+|--------------------------|--------|-----------------------|---------------------------------------------------------------------------|
+| config.inCluster         | bool   | `true`                | Run Headlamp in-cluster                                                   |
+| config.apiServerEndpoint | string | `""`                  | Custom Kubernetes API server endpoint (overrides default in-cluster endpoint). Useful when requests need to pass through a proxy like kube-oidc-proxy. |
+| config.baseURL           | string | `""`                  | Base URL path for Headlamp UI                                             |
 | config.pluginsDir       | string | `"/headlamp/plugins"` | Directory to load Headlamp plugins from                                   |
 | config.enableHelm       | bool   | `false`               | Enable Helm operations like install, upgrade and uninstall of Helm charts |
 | config.extraArgs        | array  | `[]`                  | Additional arguments for Headlamp server                                  |
