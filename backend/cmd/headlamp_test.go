@@ -1747,15 +1747,17 @@ func TestCustomAPIServerEndpoint(t *testing.T) {
 		"http://insecure-proxy.example.com:443", // http scheme should be rejected
 	)
 
-	// Should fail with validation error (or in-cluster config error if not in cluster)
-	if err != nil {
-		if strings.Contains(err.Error(), "must be a full https:// URL") {
-			t.Logf("https validation working correctly: %v", err)
-		} else if strings.Contains(err.Error(), "unable to load in-cluster configuration") {
-			t.Skip("not running in cluster environment, cannot test full functionality")
-		} else {
-			t.Fatalf("unexpected error: %v", err)
-		}
+	// Should always fail - either with validation error or in-cluster config error
+	if err == nil {
+		t.Fatal("Expected error with http:// URL, but got nil")
+	}
+
+	if strings.Contains(err.Error(), "must be a full https:// URL") {
+		t.Logf("https validation working correctly: %v", err)
+	} else if strings.Contains(err.Error(), "unable to load in-cluster configuration") {
+		t.Skip("not running in cluster environment, cannot test full functionality")
+	} else {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// Test with valid https URL (will fail with in-cluster error if not in cluster)
