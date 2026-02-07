@@ -1767,11 +1767,11 @@ func TestCustomAPIServerEndpoint(t *testing.T) {
 		false, "",
 		"https://kube-oidc-proxy.example.com:443", // Valid https endpoint
 	)
-
 	if err != nil {
 		if strings.Contains(err.Error(), "unable to load in-cluster configuration") {
 			t.Skip("not running in cluster environment, cannot test full functionality")
 		}
+
 		t.Fatalf("unexpected error with valid https endpoint: %v", err)
 	}
 
@@ -1779,4 +1779,3 @@ func TestCustomAPIServerEndpoint(t *testing.T) {
 	assert.Equal(t, "https://kube-oidc-proxy.example.com:443", ctx.Cluster.Server,
 		"Custom endpoint should be used")
 }
-

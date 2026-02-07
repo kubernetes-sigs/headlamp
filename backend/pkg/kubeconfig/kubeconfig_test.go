@@ -826,3 +826,109 @@ func TestHandleConfigLoadError(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateAPIServerEndpoint(t *testing.T) {
+	tests := []struct {
+		name        string
+		endpoint    string
+		wantResult  string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:       "empty string returns empty",
+			endpoint:   "",
+			wantResult: "",
+			wantErr:    false,
+		},
+		{
+			name:       "whitespace only returns empty",
+			endpoint:   "   \t\n   ",
+			wantResult: "",
+			wantErr:    false,
+		},
+		{
+			name:       "valid https URL",
+			endpoint:   "https://kube-oidc-proxy.example.com:443",
+			wantResult: "https://kube-oidc-proxy.example.com:443",
+			wantErr:    false,
+		},
+		{
+			name:       "valid https URL with whitespace is trimmed",
+			endpoint:   "  https://kube-oidc-proxy.example.com:443  ",
+			wantResult: "https://kube-oidc-proxy.example.com:443",
+			wantErr:    false,
+		},
+		{
+			name:        "http URL is rejected",
+			endpoint:    "http://insecure-proxy.example.com:443",
+			wantErr:     true,
+			errContains: "must be a full https:// URL",
+		},
+		{
+			name:        "missing scheme is rejected",
+			endpoint:    "kube-oidc-proxy.example.com:443",
+			wantErr:     true,
+			errContains: "must be an absolute URL with scheme and host",
+		},
+		{
+			name:        "relative URL is rejected",
+			endpoint:    "/path/to/proxy",
+			wantErr:     true,
+			errContains: "must be an absolute URL with scheme and host",
+		},
+		{
+			name:        "URL with embedded credentials is rejected",
+			endpoint:    "https://user:password@proxy.example.com:443",
+			wantErr:     true,
+			errContains: "must not include user info (credentials)",
+		},
+		{
+			name:        "URL with query string is rejected",
+			endpoint:    "https://proxy.example.com:443?token=secret",
+			wantErr:     true,
+			errContains: "must not include a query string",
+		},
+		{
+			name:        "URL with fragment is rejected",
+			endpoint:    "https://proxy.example.com:443#section",
+			wantErr:     true,
+			errContains: "must not include a fragment",
+		},
+		{
+			name:        "URL with path is rejected",
+			endpoint:    "https://proxy.example.com:443/api/v1",
+			wantErr:     true,
+			errContains: "path must be empty or '/'",
+		},
+		{
+			name:       "URL with root path is allowed",
+			endpoint:   "https://proxy.example.com:443/",
+			wantResult: "https://proxy.example.com:443/",
+			wantErr:    false,
+		},
+		{
+			name:       "URL without port",
+			endpoint:   "https://proxy.example.com",
+			wantResult: "https://proxy.example.com",
+			wantErr:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := kubeconfig.ValidateAPIServerEndpoint(tt.endpoint)
+
+			if tt.wantErr {
+				require.Error(t, err)
+
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantResult, result)
+			}
+		})
+	}
+}

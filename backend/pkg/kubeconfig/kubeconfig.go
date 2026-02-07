@@ -1024,6 +1024,35 @@ func validateAPIServerEndpoint(endpoint string) (string, error) {
 		)
 	}
 
+	// Disallow embedded credentials, query strings, fragments, and non-root paths
+	if parsedURL.User != nil {
+		return "", fmt.Errorf(
+			"invalid custom API server endpoint %q: must not include user info (credentials)",
+			trimmed,
+		)
+	}
+
+	if parsedURL.RawQuery != "" {
+		return "", fmt.Errorf(
+			"invalid custom API server endpoint %q: must not include a query string",
+			trimmed,
+		)
+	}
+
+	if parsedURL.Fragment != "" {
+		return "", fmt.Errorf(
+			"invalid custom API server endpoint %q: must not include a fragment",
+			trimmed,
+		)
+	}
+
+	if parsedURL.Path != "" && parsedURL.Path != "/" {
+		return "", fmt.Errorf(
+			"invalid custom API server endpoint %q: path must be empty or '/' (scheme+host[:port] only)",
+			trimmed,
+		)
+	}
+
 	return trimmed, nil
 }
 

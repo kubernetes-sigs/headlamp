@@ -104,6 +104,19 @@ For more information about using kube-oidc-proxy with EKS, see the [AWS blog pos
 
 ### Testing the Custom API Server Endpoint
 
+The custom API server endpoint feature allows you to configure Headlamp to route all Kubernetes API requests through an intermediate proxy server instead of connecting directly to the cluster's API server. This is useful in architectures where:
+
+- **Private OIDC providers**: Your OIDC identity provider is on a private network and needs a proxy like kube-oidc-proxy to handle authentication requests before they reach the API server.
+- **Centralized authentication**: You have multiple clusters and want to use a single authentication proxy to provide consistent OIDC authentication across all of them.
+- **Security policies**: Your organization requires all API traffic to go through a specific gateway for auditing, logging, or compliance reasons.
+- **Network segmentation**: The cluster API server is not directly accessible from where Headlamp is deployed and must go through a proxy.
+
+**Benefits:**
+- Enables using OIDC authentication with private identity providers in managed Kubernetes services (like AWS EKS)
+- Centralizes authentication logic across multiple clusters
+- Provides a single point for API traffic monitoring and control
+- Maintains security by enforcing https:// connections and validating endpoint URLs
+
 To manually test the custom API server endpoint configuration with kube-oidc-proxy:
 
 1. **Deploy kube-oidc-proxy** in your cluster following the [kube-oidc-proxy documentation](https://github.com/jetstack/kube-oidc-proxy).
