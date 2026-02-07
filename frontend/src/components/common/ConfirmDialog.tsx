@@ -68,6 +68,11 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
         onClose={handleClose}
         aria-labelledby="alert-dialog-title"
         aria-describedby="alert-dialog-description"
+        PaperProps={{
+          sx: {
+            minWidth: 'clamp(280px, 25vw, 600px)',
+          },
+        }}
       >
         <DialogTitle id="alert-dialog-title">{title}</DialogTitle>
         <DialogContent ref={focusedRef} sx={{ py: 1 }}>

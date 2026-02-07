@@ -223,7 +223,7 @@ export function ClusterNameEditor({
               }}
               InputProps={{
                 endAdornment: (
-                  <Box pt={2} textAlign="right">
+                  <Box display="flex" alignItems="center">
                     <ConfirmButton
                       onConfirm={() => {
                         if (isValidCurrentName) {
