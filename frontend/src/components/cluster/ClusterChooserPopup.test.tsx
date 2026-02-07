@@ -19,7 +19,8 @@ import userEvent from '@testing-library/user-event';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
 
-let canvasGetContextSpy: ReturnType<typeof vi.spyOn> | undefined;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let canvasGetContextSpy: ReturnType<typeof vi.spyOn<any, any>> | undefined;
 
 beforeAll(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -29,6 +30,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
+  vi.restoreAllMocks();
   canvasGetContextSpy?.mockRestore();
 });
 vi.mock('react-i18next', () => ({
@@ -55,7 +57,7 @@ vi.mock('../../helpers/recentClusters', () => ({
 describe('ClusterChooserPopup', () => {
   let anchor: HTMLElement;
 
-  beforeAll(() => {
+  beforeEach(() => {
     anchor = document.createElement('button');
     document.body.appendChild(anchor);
   });
@@ -64,8 +66,6 @@ describe('ClusterChooserPopup', () => {
     if (anchor.parentNode) {
       document.body.removeChild(anchor);
     }
-    anchor = document.createElement('button');
-    document.body.appendChild(anchor);
   });
 
   it('renders nothing without anchor', () => {
@@ -151,9 +151,22 @@ describe('ClusterChooserPopup', () => {
 
     const input = screen.getByLabelText(/choose cluster/i);
     await user.click(input);
-    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowUp}');
 
-    expect(input).toBeInTheDocument();
+    const menuItems = screen.getAllByRole('menuitem');
+    menuItems.forEach(item => {
+      expect(item).not.toHaveClass('Mui-selected');
+    });
+
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: /dev/i })).toHaveClass('Mui-selected');
+
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: /dev/i })).not.toHaveClass('Mui-selected');
+    expect(screen.getByRole('menuitem', { name: /prod/i })).toHaveClass('Mui-selected');
+
+    await user.keyboard('{ArrowUp}');
+    expect(screen.getByRole('menuitem', { name: /dev/i })).toHaveClass('Mui-selected');
+    expect(screen.getByRole('menuitem', { name: /prod/i })).not.toHaveClass('Mui-selected');
   });
 
   it('restores list after clearing search', async () => {
