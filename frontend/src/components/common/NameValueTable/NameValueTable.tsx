@@ -140,7 +140,8 @@ export default function NameValueTable(props: NameValueTableProps) {
                   fontSize: '1rem',
                   textAlign: 'left',
                   maxWidth: '100%',
-                  minWidth: '8rem',
+                  minWidth: 0,
+                  wordBreak: 'break-word',
                   verticalAlign: 'top',
                   color: theme.palette.text.secondary,
                   borderBottom:
