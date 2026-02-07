@@ -56,6 +56,7 @@ const (
 	KubeConfig = 1 << iota
 	DynamicCluster
 	InCluster
+	ClusterInventory
 )
 
 // Context contains all information related to a kubernetes context.
@@ -406,6 +407,8 @@ func (c *Context) SourceStr() string {
 		return "dynamic_cluster"
 	case InCluster:
 		return "incluster"
+	case ClusterInventory:
+		return "cluster-inventory"
 	default:
 		return "unknown"
 	}
@@ -432,10 +435,21 @@ func (c *Context) SetupProxy() error {
 		}
 	}
 
+	// Log proxy errors (e.g. connection refused, TLS verify failed) so Bad Gateway is debuggable.
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		logger.Log(logger.LevelError, map[string]string{
+			"context": c.Name, "clusterURL": c.Cluster.Server,
+			"insecureSkipTLSVerify": fmt.Sprintf("%v", c.Cluster != nil && c.Cluster.InsecureSkipTLSVerify),
+		}, err, "proxy to cluster failed (upstream error)")
+		http.Error(w, err.Error(), http.StatusBadGateway)
+	}
+
 	c.proxy = proxy
 
-	logger.Log(logger.LevelInfo, map[string]string{"context": c.Name, "clusterURL": c.Cluster.Server},
-		nil, "Proxy setup")
+	logger.Log(logger.LevelInfo, map[string]string{
+		"context": c.Name, "clusterURL": c.Cluster.Server,
+		"insecureSkipTLSVerify": fmt.Sprintf("%v", c.Cluster != nil && c.Cluster.InsecureSkipTLSVerify),
+	}, nil, "Proxy setup")
 
 	return nil
 }
@@ -932,7 +946,7 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 	authInfo := clientConfig.AuthInfos[context.AuthInfo]
 
 	// Make contextName DNS friendly.
-	contextName = makeDNSFriendly(contextName)
+	contextName = MakeDNSFriendly(contextName)
 
 	newContext := Context{
 		Name:        contextName,
@@ -968,7 +982,7 @@ func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Conte
 		authInfo := config.AuthInfos[context.AuthInfo]
 
 		// Make contextName DNS friendly.
-		contextName = makeDNSFriendly(contextName)
+		contextName = MakeDNSFriendly(contextName)
 
 		context := Context{
 			Name:        contextName,
@@ -1029,7 +1043,7 @@ func GetInClusterContext(
 		Cluster:  contextName,
 		AuthInfo: contextName,
 	}
-	contextName = makeDNSFriendly(contextName)
+	contextName = MakeDNSFriendly(contextName)
 
 	inClusterAuthInfo := &api.AuthInfo{}
 
@@ -1123,8 +1137,8 @@ func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, s
 	return errors.Join(errs...)
 }
 
-// makeDNSFriendly converts a string to a DNS-friendly format.
-func makeDNSFriendly(name string) string {
+// MakeDNSFriendly converts a string to a DNS-friendly format.
+func MakeDNSFriendly(name string) string {
 	name = strings.ReplaceAll(name, "/", "--")
 	name = strings.ReplaceAll(name, " ", "__")
 
