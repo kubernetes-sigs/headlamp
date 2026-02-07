@@ -47,6 +47,59 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/headlamp/main
 
 Headlamp supports optional TLS termination at the backend server. The default is to terminate at the ingress (default) or optionally directly at the Headlamp container. This enables use cases such as NGINX TLS passthrough and transport server. See [tls](./tls.md) for details and usage.
 
+## Custom API Server Endpoint
+
+By default, when running in-cluster, Headlamp automatically detects and connects to the Kubernetes API server using the in-cluster configuration. However, in some scenarios, you may need to route API requests through a proxy server instead of connecting directly to the API server.
+
+### Use Cases
+
+This feature is particularly useful for:
+
+- **OIDC Authentication with Private Endpoints**: When using managed Kubernetes services (like AWS EKS) with OIDC authentication where the identity provider is on a private endpoint, you can use [kube-oidc-proxy](https://github.com/jetstack/kube-oidc-proxy) to handle authentication requests.
+- **API Gateway or Proxy Requirements**: When your cluster requires all API traffic to go through a specific gateway or proxy for security, logging, or compliance reasons.
+- **Multi-cluster Authentication**: When using a centralized authentication proxy across multiple clusters.
+
+### Configuration
+
+You can configure a custom API server endpoint using Helm values:
+
+```bash
+helm install my-headlamp headlamp/headlamp \
+  --namespace kube-system \
+  --set config.apiServerEndpoint=https://kube-oidc-proxy.example.com:443
+```
+
+Or in your Helm values file:
+
+```yaml
+config:
+  apiServerEndpoint: "https://kube-oidc-proxy.example.com:443"
+```
+
+You can also configure it using environment variables or command-line flags:
+
+- **Environment variable**: `HEADLAMP_CONFIG_API_SERVER_ENDPOINT=https://kube-oidc-proxy.example.com:443`
+- **Command-line flag**: `--api-server-endpoint=https://kube-oidc-proxy.example.com:443`
+
+### Example: Using with kube-oidc-proxy on EKS
+
+When using Amazon EKS with a private OIDC issuer, you can deploy kube-oidc-proxy to handle authentication and configure Headlamp to route requests through it:
+
+```bash
+# Install kube-oidc-proxy (example)
+kubectl apply -f kube-oidc-proxy-deployment.yaml
+
+# Install Headlamp with custom API endpoint
+helm install my-headlamp headlamp/headlamp \
+  --namespace kube-system \
+  --set config.apiServerEndpoint=https://kube-oidc-proxy.kube-system.svc.cluster.local:443 \
+  --set config.oidc.clientID=your-client-id \
+  --set config.oidc.clientSecret=your-client-secret \
+  --set config.oidc.issuerURL=https://your-private-issuer.example.com
+```
+
+For more information about using kube-oidc-proxy with EKS, see the [AWS blog post on consistent OIDC authentication](https://aws.amazon.com/blogs/opensource/consistent-oidc-authentication-across-multiple-eks-clusters-using-kube-oidc-proxy/).
+
 ## Use a non-default kube config file
 
 By default, Headlamp uses the default service account from the namespace it is deployed to, and generates a kubeconfig from it named `main`.
