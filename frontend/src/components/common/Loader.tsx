@@ -17,6 +17,7 @@
 import Box from '@mui/material/Box';
 import CircularProgress, { CircularProgressProps } from '@mui/material/CircularProgress';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface LoaderProps extends CircularProgressProps {
   noContainer?: boolean;
@@ -24,8 +25,11 @@ export interface LoaderProps extends CircularProgressProps {
 }
 
 export default function Loader(props: LoaderProps) {
+  const { t } = useTranslation();
   const { noContainer = false, title, ...other } = props;
-  const progress = <CircularProgress title={title} aria-label={title} {...other} />;
+  const progress = (
+    <CircularProgress title={title} aria-label={title || t('Loading...')} {...other} />
+  );
 
   if (noContainer) return progress;
 
