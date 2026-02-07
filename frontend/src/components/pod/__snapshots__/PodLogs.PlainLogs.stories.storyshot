@@ -39,6 +39,7 @@
             >
               <h1
                 class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
+                id=":mock-test-id:"
                 style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
               >
                 Logs: pod-name

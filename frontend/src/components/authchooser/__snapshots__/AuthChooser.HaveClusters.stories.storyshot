@@ -85,6 +85,7 @@
                 >
                   <h1
                     class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
+                    id="authchooser-dialog-title"
                     style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
                     tabindex="-1"
                   >
