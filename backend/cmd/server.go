@@ -55,6 +55,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	logger.Init(conf.LogLevel)
+
 	if conf.Version {
 		fmt.Printf("%s %s (%s/%s)\n", kubeconfig.AppName, kubeconfig.Version, runtime.GOOS, runtime.GOARCH)
 		return
@@ -121,25 +123,25 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	kubeConfigStore := kubeconfig.NewContextStore()
 	multiplexer := NewMultiplexer(kubeConfigStore)
 
-	headlampConfig := &HeadlampConfig{
+	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
-		oidcClientID:              conf.OidcClientID,
-		oidcValidatorClientID:     conf.OidcValidatorClientID,
-		oidcClientSecret:          conf.OidcClientSecret,
-		oidcIdpIssuerURL:          conf.OidcIdpIssuerURL,
-		oidcCallbackURL:           conf.OidcCallbackURL,
-		oidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
-		oidcScopes:                strings.Split(conf.OidcScopes, ","),
-		oidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
-		oidcUseAccessToken:        conf.OidcUseAccessToken,
-		oidcUsePKCE:               conf.OidcUsePKCE,
-		meUsernamePaths:           conf.MeUsernamePath,
-		meEmailPaths:              conf.MeEmailPath,
-		meGroupsPaths:             conf.MeGroupsPath,
-		meUserInfoURL:             conf.MeUserInfoURL,
-		cache:                     cache,
-		multiplexer:               multiplexer,
-		telemetryConfig:           buildTelemetryConfig(conf),
+		OidcClientID:              conf.OidcClientID,
+		OidcValidatorClientID:     conf.OidcValidatorClientID,
+		OidcClientSecret:          conf.OidcClientSecret,
+		OidcIdpIssuerURL:          conf.OidcIdpIssuerURL,
+		OidcCallbackURL:           conf.OidcCallbackURL,
+		OidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
+		OidcScopes:                strings.Split(conf.OidcScopes, ","),
+		OidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
+		OidcUseAccessToken:        conf.OidcUseAccessToken,
+		OidcUsePKCE:               conf.OidcUsePKCE,
+		MeUsernamePaths:           conf.MeUsernamePath,
+		MeEmailPaths:              conf.MeEmailPath,
+		MeGroupsPaths:             conf.MeGroupsPath,
+		MeUserInfoURL:             conf.MeUserInfoURL,
+		Cache:                     cache,
+		Multiplexer:               multiplexer,
+		TelemetryConfig:           buildTelemetryConfig(conf),
 	}
 
 	if conf.OidcCAFile != "" {
@@ -149,10 +151,10 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 			os.Exit(1)
 		}
 
-		headlampConfig.oidcCACert = string(caFileContents)
+		cfg.OidcCACert = string(caFileContents)
 	}
 
-	return headlampConfig
+	return &HeadlampConfig{HeadlampConfig: cfg}
 }
 
 // GetContextKeyAndContext returns Kcontext , ContextKey for using these in CacheMiddleWare function.
@@ -229,7 +231,7 @@ func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 			}
 
 			if served {
-				c.telemetryHandler.RecordEvent(span, "Served from cache")
+				c.TelemetryHandler.RecordEvent(span, "Served from cache")
 				return
 			}
 

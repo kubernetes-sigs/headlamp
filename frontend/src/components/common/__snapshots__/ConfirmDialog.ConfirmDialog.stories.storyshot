@@ -26,7 +26,7 @@
       <div
         aria-describedby="alert-dialog-description"
         aria-labelledby="alert-dialog-title"
-        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm css-1708vl9-MuiPaper-root-MuiDialog-paper"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm css-1a0zqad-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
         <h2

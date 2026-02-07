@@ -33,16 +33,17 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import _ from 'lodash';
 import React, { isValidElement, PropsWithChildren } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath } from 'react-router';
 import { useHistory } from 'react-router-dom';
+import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
 import { isElectron } from '../../helpers/isElectron';
 import { getRecentClusters, setRecentCluster } from '../../helpers/recentClusters';
 import { useClustersConf } from '../../lib/k8s';
 import { Cluster } from '../../lib/k8s/cluster';
 import { createRouteURL } from '../../lib/router/createRouteURL';
+import { useShortcut } from '../../lib/useShortcut';
 import { getCluster, getClusterPrefixedPath } from '../../lib/util';
 import { useTypedSelector } from '../../redux/hooks';
 import { uiSlice } from '../../redux/uiSlice';
@@ -69,13 +70,9 @@ export function ClusterTitle(props: ClusterTitleProps) {
   const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
   const ChooserButton = useTypedSelector(state => state.ui.clusterChooserButtonComponent);
 
-  useHotkeys(
-    'ctrl+shift+l',
-    () => {
-      setAnchorEl(buttonRef.current);
-    },
-    { preventDefault: true }
-  );
+  useShortcut('CLUSTER_CHOOSER', () => {
+    setAnchorEl(buttonRef.current);
+  });
 
   if (!cluster) {
     return null;
@@ -111,6 +108,8 @@ export function ClusterTitle(props: ClusterTitleProps) {
             e?.currentTarget && setAnchorEl(e.currentTarget);
           }}
           cluster={cluster}
+          icon={getClusterAppearanceFromMeta(cluster).icon}
+          accentColor={getClusterAppearanceFromMeta(cluster).accentColor}
         />
       )}
       <ClusterChooserPopup anchor={anchorEl} onClose={() => setAnchorEl(null)} />
@@ -127,6 +126,9 @@ interface ClusterButtonProps extends PropsWithChildren<{}> {
 function ClusterButton(props: ClusterButtonProps) {
   const theme = useTheme();
   const { cluster, onClick = undefined, focusedRef } = props;
+  const appearance = getClusterAppearanceFromMeta(cluster?.name || '');
+  const icon = appearance.icon || 'mdi:kubernetes';
+  const iconColor = appearance.accentColor || theme.palette.primaryColor;
 
   return (
     <ButtonBase focusRipple ref={focusedRef} onClick={onClick}>
@@ -143,7 +145,7 @@ function ClusterButton(props: ClusterButtonProps) {
             paddingTop: 0,
           }}
         >
-          <Icon icon="mdi:kubernetes" width="50" height="50" color={theme.palette.primaryColor} />
+          <Icon icon={icon} width="50" height="50" color={iconColor} />
           <Typography
             color="textSecondary"
             gutterBottom

@@ -24,6 +24,7 @@
             <input
               aria-describedby=":mock-test-id:"
               aria-invalid="true"
+              aria-label="Cluster name"
               autocomplete="off"
               class="MuiInputBase-input MuiInput-input MuiInputBase-inputAdornedEnd css-1x51dt5-MuiInputBase-input-MuiInput-input"
               id=":mock-test-id:"
@@ -32,7 +33,7 @@
               value="Invalid Cluster Name"
             />
             <div
-              class="MuiBox-root css-oxzk7u"
+              class="MuiBox-root css-70qvj9"
             >
               <button
                 class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"

@@ -218,9 +218,12 @@ export function ClusterNameEditor({
                     t('translation|The current name of the cluster. You can define a custom name')}
                 </Typography>
               }
+              inputProps={{
+                'aria-label': t('translation|Cluster name'),
+              }}
               InputProps={{
                 endAdornment: (
-                  <Box pt={2} textAlign="right">
+                  <Box display="flex" alignItems="center">
                     <ConfirmButton
                       onConfirm={() => {
                         if (isValidCurrentName) {

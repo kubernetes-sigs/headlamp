@@ -3,6 +3,7 @@
     aria-hidden="true"
   />
   <div
+    aria-label="Version information"
     class="MuiDialog-root MuiModal-root css-zw3mfo-MuiModal-root-MuiDialog-root"
     role="presentation"
     style="z-index: 1900;"

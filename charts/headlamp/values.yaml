@@ -150,6 +150,14 @@ podAnnotations: {}
 # -- Labels to add to the pod
 podLabels: {}
 
+# -- Controls user namespace isolation for the Headlamp pod.
+# When true (default), the pod shares the host user namespace (user namespaces are DISABLED).
+# When false, the pod uses a separate user namespace (user namespaces are ENABLED) for stronger isolation,
+# if supported by the cluster. Set this to false if your cluster supports user namespaces and you want
+# additional isolation; leave as true if user namespaces are not available.
+# See: https://kubernetes.io/docs/concepts/workloads/pods/user-namespaces/
+hostUsers: true
+
 # -- Headlamp pod's Security Context
 podSecurityContext:
   {}
@@ -299,6 +307,19 @@ tolerations: []
 
 # -- Affinity settings for pod assignment
 affinity: {}
+
+# -- Topology Spread Constraints for pod assignment
+topologySpreadConstraints: []
+#  - maxSkew: 1
+#    topologyKey: topology.kubernetes.io/zone
+#    whenUnsatisfiable: ScheduleAnyway
+#    matchLabelKeys:
+#      - pod-template-hash
+#  - maxSkew: 1
+#    topologyKey: kubernetes.io/hostname
+#    whenUnsatisfiable: DoNotSchedule
+#    matchLabelKeys:
+#      - pod-template-hash
 
 # -- Pod priority class
 priorityClassName: ""

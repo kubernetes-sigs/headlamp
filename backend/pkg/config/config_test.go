@@ -44,6 +44,7 @@ func TestParseBasic(t *testing.T) {
 				assert.Equal(t, config.DefaultMeUsernamePath, conf.MeUsernamePath)
 				assert.Equal(t, config.DefaultMeEmailPath, conf.MeEmailPath)
 				assert.Equal(t, config.DefaultMeGroupsPath, conf.MeGroupsPath)
+				assert.Equal(t, "info", conf.LogLevel)
 			},
 		},
 		{
@@ -128,6 +129,16 @@ var ParseWithEnvTests = []struct {
 		},
 		verify: func(t *testing.T, conf *config.Config) {
 			assert.Equal(t, "mycluster", conf.InClusterContextName)
+		},
+	},
+	{
+		name: "log_level_from_env",
+		args: []string{"go run ./cmd"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_LOG_LEVEL": "warn",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, "warn", conf.LogLevel)
 		},
 	},
 }
@@ -230,6 +241,13 @@ func TestParseFlags(t *testing.T) {
 			args: []string{"go run ./cmd", "--in-cluster-context-name=mycluster"},
 			verify: func(t *testing.T, conf *config.Config) {
 				assert.Equal(t, "mycluster", conf.InClusterContextName)
+			},
+		},
+		{
+			name: "log_level_flag",
+			args: []string{"go run ./cmd", "--log-level=warn"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, "warn", conf.LogLevel)
 			},
 		},
 	}

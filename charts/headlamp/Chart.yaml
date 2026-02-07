@@ -20,8 +20,8 @@ sources:
 maintainers:
   - name: kinvolk
     url: https://kinvolk.io/
-version: 0.39.0
-appVersion: 0.39.0
+version: 0.40.0
+appVersion: 0.40.0
 annotations:
   artifacthub.io/signKey: |
     fingerprint: 2956B7F7167769370C93730C7264DA7B85D08A37

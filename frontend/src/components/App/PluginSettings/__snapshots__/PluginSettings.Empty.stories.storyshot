@@ -1,42 +1,49 @@
 <body>
   <div>
-    <div
-      class="MuiBox-root css-j1fy4m"
-    >
+    <div>
+      <h1
+        style="position: absolute; left: -10000px;"
+      >
+        Plugin Settings Test Page
+      </h1>
       <div
-        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+        class="MuiBox-root css-j1fy4m"
       >
         <div
-          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+          class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
         >
           <div
-            class="MuiBox-root css-70qvj9"
+            class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
           >
-            <h1
-              class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
-            >
-              Plugins
-            </h1>
             <div
-              class="MuiBox-root css-ldp2l3"
-            />
+              class="MuiBox-root css-70qvj9"
+            >
+              <h1
+                class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+              >
+                Plugins
+              </h1>
+              <div
+                class="MuiBox-root css-ldp2l3"
+              />
+            </div>
           </div>
         </div>
-      </div>
-      <div
-        class="MuiBox-root css-1txv3mw"
-      >
         <div
-          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
+          class="MuiBox-root css-1txv3mw"
         >
           <div
-            class="MuiBox-root css-19midj6"
+            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
           >
-            <p
-              class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+            <div
+              class="MuiBox-root css-19midj6"
             >
-              No data to be shown.
-            </p>
+              <p
+                class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+              >
+                No data to be shown.
+              </p>
+            </div>
           </div>
         </div>
       </div>

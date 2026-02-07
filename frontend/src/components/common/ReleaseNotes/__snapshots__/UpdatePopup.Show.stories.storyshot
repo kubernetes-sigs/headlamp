@@ -41,6 +41,7 @@
               class="MuiBox-root css-1itv5e3"
             >
               <button
+                aria-label="Disable update notifications"
                 class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
                 style="color: rgb(255, 242, 0);"
                 tabindex="0"

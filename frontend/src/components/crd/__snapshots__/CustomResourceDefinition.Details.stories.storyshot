@@ -259,6 +259,7 @@
             >
               <div
                 class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-onzayo-MuiPaper-root-MuiTableContainer-root"
+                tabindex="0"
               >
                 <table
                   class="MuiTable-root css-qzmaqi-MuiTable-root"
@@ -363,6 +364,7 @@
             >
               <div
                 class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-onzayo-MuiPaper-root-MuiTableContainer-root"
+                tabindex="0"
               >
                 <table
                   class="MuiTable-root css-bv8t57-MuiTable-root"

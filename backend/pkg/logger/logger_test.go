@@ -18,9 +18,11 @@ package logger_test
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"github.com/rs/zerolog"
 )
 
 var capturedLogs []string
@@ -82,4 +84,87 @@ func TestLog(t *testing.T) {
 		// Reset capturedLogs for the next test case
 		capturedLogs = nil
 	}
+}
+
+// Sets global log level from HEADLAMP_CONFIG_LOG_LEVEL.
+func TestLogLevelsFromEnv(t *testing.T) {
+	orig := zerolog.GlobalLevel()
+
+	t.Cleanup(func() {
+		zerolog.SetGlobalLevel(orig)
+	})
+
+	tests := []struct {
+		name     string
+		envValue string
+		expected zerolog.Level
+	}{
+		{"debug lowercase", "debug", zerolog.DebugLevel},
+		{"info lowercase", "info", zerolog.InfoLevel},
+		{"warn lowercase", "warn", zerolog.WarnLevel},
+		{"error lowercase", "error", zerolog.ErrorLevel},
+
+		{"uppercase INFO", "INFO", zerolog.InfoLevel},
+		{"mixed case Info", "Info", zerolog.InfoLevel},
+
+		{"leading whitespace", "   warn", zerolog.WarnLevel},
+		{"trailing whitespace", "error   ", zerolog.ErrorLevel},
+		{"both sides whitespace", "  debug  ", zerolog.DebugLevel},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HEADLAMP_CONFIG_LOG_LEVEL", tt.envValue)
+
+			logger.Init(os.Getenv("HEADLAMP_CONFIG_LOG_LEVEL"))
+
+			if got := zerolog.GlobalLevel(); got != tt.expected {
+				t.Fatalf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
+}
+
+// Falls back to info on invalid log level.
+func TestInvalidLevelDefaultsToInfo(t *testing.T) {
+	orig := zerolog.GlobalLevel()
+
+	t.Cleanup(func() {
+		zerolog.SetGlobalLevel(orig)
+	})
+
+	t.Setenv("HEADLAMP_CONFIG_LOG_LEVEL", "not-a-level")
+
+	logger.Init(os.Getenv("HEADLAMP_CONFIG_LOG_LEVEL"))
+
+	if got := zerolog.GlobalLevel(); got != zerolog.InfoLevel {
+		t.Fatalf("expected fallback to info, got %v", got)
+	}
+}
+
+// Defaults to info when env is empty or missing.
+func TestEmptyOrMissingEnvDefaultsToInfo(t *testing.T) {
+	orig := zerolog.GlobalLevel()
+
+	t.Cleanup(func() {
+		zerolog.SetGlobalLevel(orig)
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		t.Setenv("HEADLAMP_CONFIG_LOG_LEVEL", "")
+		logger.Init(os.Getenv("HEADLAMP_CONFIG_LOG_LEVEL"))
+
+		if zerolog.GlobalLevel() != zerolog.InfoLevel {
+			t.Fatalf("expected info for empty env")
+		}
+	})
+
+	t.Run("missing", func(t *testing.T) {
+		os.Unsetenv("HEADLAMP_CONFIG_LOG_LEVEL")
+		logger.Init(os.Getenv("HEADLAMP_CONFIG_LOG_LEVEL"))
+
+		if zerolog.GlobalLevel() != zerolog.InfoLevel {
+			t.Fatalf("expected info when env missing")
+		}
+	})
 }
