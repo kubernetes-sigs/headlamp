@@ -72,8 +72,19 @@ describe('Loader Component', () => {
     const progress = screen.getByRole('progressbar');
     expect(progress).toHaveClass('MuiCircularProgress-colorSecondary');
   });
+  it('uses title as aria-label when provided', () => {
+    render(
+      <TestContext>
+        <Loader title="Fetching data..." />
+      </TestContext>
+    );
 
-  it('renders with empty title', () => {
+    const progress = screen.getByRole('progressbar');
+    // Verify the explicit title is used as the accessible label
+    expect(progress).toHaveAttribute('title', 'Fetching data...');
+    expect(progress).toHaveAttribute('aria-label', 'Fetching data...');
+  });
+  it('uses translated fallback aria-label when title is empty', () => {
     render(
       <TestContext>
         <Loader title="" />
@@ -81,7 +92,8 @@ describe('Loader Component', () => {
     );
 
     const progress = screen.getByRole('progressbar');
-    expect(progress).toHaveAttribute('title', '');
+    expect(progress).toHaveAttribute('title', 'Loading...');
+    expect(progress).toHaveAttribute('aria-label', 'Loading...');
   });
 
   it('passes additional props to CircularProgress', () => {
