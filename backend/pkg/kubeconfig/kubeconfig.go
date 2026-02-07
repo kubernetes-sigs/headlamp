@@ -1009,14 +1009,21 @@ func GetInClusterContext(
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
 	oidcCACert string,
+	customAPIServerEndpoint string,
 ) (*Context, error) {
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
 	}
 
+	// Use custom API server endpoint if provided, otherwise use default from in-cluster config
+	apiServerHost := clusterConfig.Host
+	if customAPIServerEndpoint != "" {
+		apiServerHost = customAPIServerEndpoint
+	}
+
 	cluster := &api.Cluster{
-		Server:                   clusterConfig.Host,
+		Server:                   apiServerHost,
 		CertificateAuthority:     clusterConfig.CAFile,
 		CertificateAuthorityData: clusterConfig.CAData,
 	}

@@ -235,6 +235,9 @@ spec:
             {{- if .Values.config.inClusterContextName }}
             - "-in-cluster-context-name={{ .Values.config.inClusterContextName }}"
             {{- end }}
+            {{- if .Values.config.apiServerEndpoint }}
+            - "-api-server-endpoint={{ .Values.config.apiServerEndpoint }}"
+            {{- end }}
             {{- end }}
             {{- with .Values.config.enableHelm }}
             - "-enable-helm"

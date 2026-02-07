@@ -35,6 +35,7 @@ type Config struct {
 	Version              bool   `koanf:"version"`
 	InCluster            bool   `koanf:"in-cluster"`
 	InClusterContextName string `koanf:"in-cluster-context-name"`
+	APIServerEndpoint    string `koanf:"api-server-endpoint"`
 	DevMode              bool   `koanf:"dev"`
 	InsecureSsl          bool   `koanf:"insecure-ssl"`
 	LogLevel             string `koanf:"log-level"`
@@ -415,6 +416,7 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Bool("version", false, "Print version information and exit")
 	f.Bool("in-cluster", false, "Set when running from a k8s cluster")
 	f.String("in-cluster-context-name", "main", "Name to use for the in-cluster Kubernetes context")
+	f.String("api-server-endpoint", "", "Custom Kubernetes API server endpoint (overrides default in-cluster endpoint)")
 	f.Bool("dev", false, "Allow connections from other origins")
 	f.Bool("cache-enabled", false, "K8s cache in backend")
 	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")

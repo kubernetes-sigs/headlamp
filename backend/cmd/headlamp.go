@@ -434,7 +434,8 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			config.OidcClientID, config.OidcClientSecret,
 			strings.Join(config.OidcScopes, ","),
 			config.OidcSkipTLSVerify,
-			config.OidcCACert)
+			config.OidcCACert,
+			config.APIServerEndpoint)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
 		}
