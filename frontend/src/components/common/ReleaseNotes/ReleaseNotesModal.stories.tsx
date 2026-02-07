@@ -20,6 +20,14 @@ export default {
   title: 'common/ReleaseNotes/ReleaseNotesModal',
   component: ReleaseNotesModal,
   argTypes: {},
+  decorators: [
+    (Story: React.ComponentType) => (
+      <>
+        <h1>Release Notes Modal Component</h1>
+        <Story />
+      </>
+    ),
+  ],
 };
 
 export const Show = {
