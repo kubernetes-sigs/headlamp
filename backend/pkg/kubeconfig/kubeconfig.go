@@ -1001,6 +1001,46 @@ func splitKubeConfigPath(path string) []string {
 	return strings.Split(path, delimiter)
 }
 
+// validateAPIServerEndpoint validates and returns a trimmed API server endpoint.
+// Returns empty string if endpoint is empty, or an error if endpoint is invalid.
+func validateAPIServerEndpoint(endpoint string) (string, error) {
+	trimmed := strings.TrimSpace(endpoint)
+	if trimmed == "" {
+		return "", nil
+	}
+
+	parsedURL, err := url.Parse(trimmed)
+	if err != nil || !parsedURL.IsAbs() || parsedURL.Host == "" {
+		return "", fmt.Errorf(
+			"invalid custom API server endpoint %q: must be an absolute URL with scheme and host",
+			trimmed,
+		)
+	}
+
+	return trimmed, nil
+}
+
+// buildOIDCConfig creates an OIDC configuration if the required parameters are provided.
+func buildOIDCConfig(
+	clientID, issuerURL, scopes string,
+	clientSecret string,
+	skipTLSVerify bool,
+	caCert string,
+) *OidcConfig {
+	if clientID == "" || issuerURL == "" || scopes == "" {
+		return nil
+	}
+
+	return &OidcConfig{
+		ClientID:      clientID,
+		ClientSecret:  clientSecret,
+		IdpIssuerURL:  issuerURL,
+		Scopes:        strings.Split(scopes, ","),
+		SkipTLSVerify: &skipTLSVerify,
+		CACert:        &caCert,
+	}
+}
+
 // GetInClusterContext returns the in-cluster context.
 func GetInClusterContext(
 	contextName string,
@@ -1019,18 +1059,13 @@ func GetInClusterContext(
 	// Use custom API server endpoint if provided, otherwise use default from in-cluster config
 	apiServerHost := clusterConfig.Host
 
-	if strings.TrimSpace(customAPIServerEndpoint) != "" {
-		endpoint := strings.TrimSpace(customAPIServerEndpoint)
-		parsedURL, err := url.Parse(endpoint)
+	customEndpoint, err := validateAPIServerEndpoint(customAPIServerEndpoint)
+	if err != nil {
+		return nil, err
+	}
 
-		if err != nil || !parsedURL.IsAbs() || parsedURL.Host == "" {
-			return nil, fmt.Errorf(
-				"invalid custom API server endpoint %q: must be an absolute URL with scheme and host",
-				endpoint,
-			)
-		}
-
-		apiServerHost = endpoint
+	if customEndpoint != "" {
+		apiServerHost = customEndpoint
 	}
 
 	cluster := &api.Cluster{
@@ -1051,19 +1086,14 @@ func GetInClusterContext(
 
 	inClusterAuthInfo := &api.AuthInfo{}
 
-	var oidcConf *OidcConfig
-
-	if oidcClientID != "" && oidcIssuerURL != "" && oidcScopes != "" {
-		// client secret is optional for in-cluster OIDC configuration
-		oidcConf = &OidcConfig{
-			ClientID:      oidcClientID,
-			ClientSecret:  oidcClientSecret,
-			IdpIssuerURL:  oidcIssuerURL,
-			Scopes:        strings.Split(oidcScopes, ","),
-			SkipTLSVerify: &oidcSkipTLSVerify,
-			CACert:        &oidcCACert,
-		}
-	}
+	oidcConf := buildOIDCConfig(
+		oidcClientID,
+		oidcIssuerURL,
+		oidcScopes,
+		oidcClientSecret,
+		oidcSkipTLSVerify,
+		oidcCACert,
+	)
 
 	return &Context{
 		Name:        contextName,
