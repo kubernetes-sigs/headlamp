@@ -11,6 +11,7 @@
         class="MuiBox-root css-11hh78l"
       />
       <div
+        aria-label="Activity 1"
         class="MuiBox-root css-3xoqkk"
         role="complementary"
       >
@@ -25,7 +26,10 @@
             />
             <p
               class="MuiTypography-root MuiTypography-body1 css-slk4bd-MuiTypography-root"
-            />
+              title="Activity 1"
+            >
+              Activity 1
+            </p>
             <div
               class="MuiBox-root css-1po99kh"
             />
@@ -70,6 +74,7 @@
         </div>
       </div>
       <div
+        aria-label="Activity 2"
         class="MuiBox-root css-3xoqkk"
         role="complementary"
       >
@@ -84,7 +89,10 @@
             />
             <p
               class="MuiTypography-root MuiTypography-body1 css-slk4bd-MuiTypography-root"
-            />
+              title="Activity 2"
+            >
+              Activity 2
+            </p>
             <div
               class="MuiBox-root css-1po99kh"
             />
@@ -149,7 +157,7 @@
               <div
                 class="MuiBox-root css-1h2ruwl"
               >
-                Something
+                Activity 2
               </div>
             </div>
             <span
@@ -185,7 +193,7 @@
               <div
                 class="MuiBox-root css-1h2ruwl"
               >
-                Something
+                Activity 1
               </div>
             </div>
             <span

@@ -64,6 +64,7 @@ const makeActivity = (activity: Partial<Activity>): Activity => ({
   id: 'id',
   location: 'window',
   content: 'Activity Content',
+  title: activity.title || 'Activity',
   ...activity,
 });
 
@@ -75,8 +76,8 @@ function setupActivities(activities: Activity[]) {
 
 export const Basic: StoryFn = () => {
   setupActivities([
-    makeActivity({ id: '1', location: 'split-left', content: 'Left' }),
-    makeActivity({ id: '2', location: 'split-right', content: 'Right' }),
+    makeActivity({ id: '1', location: 'split-left', title: 'Activity 1', content: 'Left' }),
+    makeActivity({ id: '2', location: 'split-right', title: 'Activity 2', content: 'Right' }),
   ]);
 
   return <ActivitiesRenderer />;
