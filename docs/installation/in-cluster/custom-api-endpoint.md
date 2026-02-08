@@ -6,7 +6,7 @@ By default, when running in-cluster, Headlamp automatically detects and connects
 
 This feature is particularly useful for:
 
-- **OIDC Authentication with Private Endpoints**: When using managed Kubernetes services (like AWS EKS, Azure AKS, or Google GKE) with OIDC authentication where the identity provider is on a private endpoint, you can use [kube-oidc-proxy](https://github.com/jetstack/kube-oidc-proxy) to handle authentication requests.
+- **OIDC Authentication with Private Endpoints**: When using managed Kubernetes services (like AWS EKS, Azure AKS, or Google GKE) with OIDC authentication where the identity provider is on a private endpoint, you can use [kube-oidc-proxy](https://github.com/TremoloSecurity/kube-oidc-proxy) to handle authentication requests.
 - **API Gateway or Proxy Requirements**: When your cluster requires all API traffic to go through a specific gateway or proxy for security, logging, or compliance reasons.
 - **Multi-cluster Authentication**: When using a centralized authentication proxy across multiple clusters.
 
@@ -74,7 +74,7 @@ The custom API server endpoint feature allows you to configure Headlamp to route
 
 To manually test the custom API server endpoint configuration with kube-oidc-proxy:
 
-1. **Deploy kube-oidc-proxy** in your cluster following the [kube-oidc-proxy documentation](https://github.com/jetstack/kube-oidc-proxy).
+1. **Deploy kube-oidc-proxy** in your cluster following the [kube-oidc-proxy documentation](https://github.com/TremoloSecurity/kube-oidc-proxy).
 
 2. **Install Headlamp** with the custom endpoint pointing to kube-oidc-proxy:
    ```bash
