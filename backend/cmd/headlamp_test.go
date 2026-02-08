@@ -31,6 +31,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -1608,6 +1609,246 @@ func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
 	assert.Equal(t, expectedResponse, resp1String)
 	assert.Equal(t, "true", resp1.Header.Get("X-HEADLAMP-CACHE"))
 	assert.Equal(t, http.StatusOK, resp1.StatusCode)
+}
+
+// newRealK8sHeadlampConfig creates a HeadlampConfig for integration tests
+// that use a real Kubernetes cluster (e.g. minikube in CI).
+// Uses a temp config dir so Headlamp's dynamic clusters file does not overwrite
+// the main kubeconfig with stale entries.
+//
+//nolint:funlen
+func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
+	t.Helper()
+
+	kubeConfigPath := os.Getenv("KUBECONFIG")
+	if kubeConfigPath == "" {
+		kubeConfigPath = config.GetDefaultKubeConfigPath()
+	}
+
+	// KUBECONFIG may be a list of files separated by os.PathListSeparator.
+	paths := strings.Split(kubeConfigPath, string(os.PathListSeparator))
+	kubeconfigExists := false
+
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+
+		if _, err := os.Stat(p); err == nil {
+			kubeconfigExists = true
+			break
+		} else if !os.IsNotExist(err) {
+			// For errors other than non-existence, let the loaders handle them;
+			// treat this as "exists" so we don't incorrectly skip.
+			kubeconfigExists = true
+			break
+		}
+	}
+
+	if !kubeconfigExists {
+		t.Skipf("kubeconfig not found at %s, skipping real K8s integration test", kubeConfigPath)
+	}
+
+	tempDir, err := os.MkdirTemp("", "headlamp-integration-test")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(tempDir) })
+
+	pluginDir := filepath.Join(tempDir, "plugins")
+	userPluginDir := filepath.Join(tempDir, "user-plugins")
+
+	require.NoError(t, os.MkdirAll(pluginDir, 0o755))
+	require.NoError(t, os.MkdirAll(userPluginDir, 0o755))
+
+	// Use temp dir as config home so Headlamp's dynamic clusters file
+	// (which can have stale minikube entries) does not overwrite the main kubeconfig.
+	tempConfigHome := filepath.Join(tempDir, "config-home")
+	if runtime.GOOS == "darwin" {
+		require.NoError(t, os.MkdirAll(
+			filepath.Join(tempConfigHome, "Library", "Application Support", "Headlamp", "kubeconfigs"),
+			0o755,
+		))
+		t.Cleanup(setEnvForTest(t, "HOME", tempConfigHome))
+	} else {
+		require.NoError(t, os.MkdirAll(filepath.Join(tempConfigHome, "Headlamp", "kubeconfigs"), 0o755))
+		t.Cleanup(setEnvForTest(t, "XDG_CONFIG_HOME", tempConfigHome))
+	}
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, nil)
+	require.NoError(t, err, "failed to load kubeconfig")
+
+	cfg, err := clientcmd.LoadFromFile(kubeConfigPath)
+	require.NoError(t, err, "failed to load kubeconfig for current context")
+
+	clusterName := cfg.CurrentContext
+
+	if clusterName == "" {
+		clusters := (&HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
+			},
+		}).getClusters()
+		for _, c := range clusters {
+			if c.Error == "" {
+				clusterName = c.Name
+				break
+			}
+		}
+	}
+
+	if clusterName == "" {
+		t.Skip("no current or valid cluster in kubeconfig, skipping real K8s integration test")
+	}
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigPath:  kubeConfigPath,
+				KubeConfigStore: kubeConfigStore,
+				CacheEnabled:    true,
+				PluginDir:       pluginDir,
+				UserPluginDir:   userPluginDir,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	return c, clusterName
+}
+
+// setEnvForTest sets an env var for the test and returns a cleanup that restores it.
+func setEnvForTest(t *testing.T, key, value string) func() {
+	t.Helper()
+
+	old, had := os.LookupEnv(key)
+	require.NoError(t, os.Setenv(key, value))
+
+	return func() {
+		if had {
+			_ = os.Setenv(key, old)
+		} else {
+			_ = os.Unsetenv(key)
+		}
+	}
+}
+
+// TestCacheMiddleware_CacheHitAndCacheMiss_RealK8s tests cache hit/miss with a
+// real Kubernetes API server (e.g. minikube). Requires HEADLAMP_RUN_INTEGRATION_TESTS=true
+// and a running cluster.
+func TestCacheMiddleware_CacheHitAndCacheMiss_RealK8s(t *testing.T) {
+	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
+		t.Skip("skipping integration test")
+	}
+
+	c, clusterName := newRealK8sHeadlampConfig(t)
+	handler := createHeadlampHandler(c)
+	ts := httptest.NewServer(handler)
+	t.Cleanup(ts.Close)
+
+	apiPath := "/clusters/" + clusterName + "/api/v1/namespaces/default/pods"
+	ctx := context.Background()
+
+	resp1, err := httpRequestWithContext(ctx, ts.URL+apiPath, "GET")
+	require.NoError(t, err)
+	defer resp1.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp1.StatusCode, "first GET should succeed")
+	firstFromCache := resp1.Header.Get("X-HEADLAMP-CACHE")
+
+	resp2, err := httpRequestWithContext(ctx, ts.URL+apiPath, "GET")
+	require.NoError(t, err)
+	defer resp2.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp2.StatusCode, "second GET should succeed")
+	secondFromCache := resp2.Header.Get("X-HEADLAMP-CACHE")
+
+	assert.NotEqual(t, "true", firstFromCache, "first request should not be from cache")
+	assert.Equal(t, "true", secondFromCache, "second request should be from cache")
+}
+
+// TestCacheMiddleware_CacheInvalidation_RealK8s tests cache invalidation with a
+// real Kubernetes API server. Creates a ConfigMap, invalidates via DELETE, then
+// verifies the next GET fetches fresh data. Requires HEADLAMP_RUN_INTEGRATION_TESTS=true
+// and a running cluster.
+//
+//nolint:funlen // Integration test requires setup, requests, and assertions in one function
+func TestCacheMiddleware_CacheInvalidation_RealK8s(t *testing.T) {
+	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
+		t.Skip("skipping integration test")
+	}
+
+	c, clusterName := newRealK8sHeadlampConfig(t)
+	handler := createHeadlampHandler(c)
+	ts := httptest.NewServer(handler)
+	t.Cleanup(ts.Close)
+
+	cmName := "headlamp-cache-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	cmPath := "/clusters/" + clusterName + "/api/v1/namespaces/default/configmaps/" + cmName
+	listPath := "/clusters/" + clusterName + "/api/v1/namespaces/default/configmaps"
+	ctx := context.Background()
+
+	cmBody := []byte(fmt.Sprintf(
+		`{"kind":"ConfigMap","apiVersion":"v1","metadata":{"name":"%s"},"data":{"test":"value"}}`,
+		cmName,
+	))
+
+	createReq, err := http.NewRequestWithContext(ctx, "POST", ts.URL+listPath, bytes.NewReader(cmBody))
+	require.NoError(t, err)
+	createReq.Header.Set("Content-Type", "application/json")
+
+	createResp, err := http.DefaultClient.Do(createReq)
+	require.NoError(t, err)
+	createResp.Body.Close()
+	require.Equal(t, http.StatusCreated, createResp.StatusCode, "creating ConfigMap should succeed")
+
+	t.Cleanup(func() {
+		delReq, _ := http.NewRequestWithContext(context.Background(), "DELETE", ts.URL+cmPath, nil)
+		resp, _ := http.DefaultClient.Do(delReq)
+
+		if resp != nil {
+			resp.Body.Close()
+		}
+	})
+
+	resp1, err := httpRequestWithContext(ctx, ts.URL+cmPath, "GET")
+	require.NoError(t, err)
+
+	defer resp1.Body.Close()
+	require.Equal(t, http.StatusOK, resp1.StatusCode)
+
+	delResp, err := httpRequestWithContext(ctx, ts.URL+cmPath, "DELETE")
+	require.NoError(t, err)
+	delResp.Body.Close()
+	require.Contains(t, []int{http.StatusOK, http.StatusAccepted}, delResp.StatusCode, "DELETE should succeed")
+
+	// If DELETE returned 202 Accepted (asynchronous), poll until resource is deleted.
+	// If it returned 200 OK (synchronous), the resource should be immediately unavailable.
+	if delResp.StatusCode == http.StatusAccepted {
+		// Poll with timeout for asynchronous deletion
+		deadline := time.Now().Add(10 * time.Second)
+		for time.Now().Before(deadline) {
+			resp, err := httpRequestWithContext(ctx, ts.URL+cmPath, "GET")
+			if err == nil {
+				resp.Body.Close()
+
+				if resp.StatusCode == http.StatusNotFound {
+					break
+				}
+			}
+
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+
+	resp2, err := httpRequestWithContext(ctx, ts.URL+cmPath, "GET")
+	require.NoError(t, err)
+	defer resp2.Body.Close()
+
+	require.Equal(t, http.StatusNotFound, resp2.StatusCode,
+		"GET after DELETE should return 404 (cache invalidated)")
 }
 
 //nolint:funlen
