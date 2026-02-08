@@ -689,6 +689,7 @@
   "Users": "Utilisateurs",
   "Handler": "Gestionnaire",
   "No data in this secret": "Aucune donnée pour cette secret",
+  "Hide Helm Secrets": "",
   "Shrink sidebar": "Réduire la barre latérale",
   "Expand sidebar": "Développer la barre latérale",
   "Main Navigation": "Navigation principale",
