@@ -15,6 +15,7 @@
     "deletePlugin": [Function],
     "drainNode": [Function],
     "drainNodeStatus": [Function],
+    "getClusterUserInfo": [Function],
     "listPortForward": [Function],
     "metrics": [Function],
     "parseKubeConfig": [Function],

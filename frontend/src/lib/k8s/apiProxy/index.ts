@@ -84,6 +84,7 @@ export {
   testClusterHealth,
   parseKubeConfig,
   renameCluster,
+  getClusterUserInfo,
 } from '../api/v1/clusterApi';
 export { metrics } from '../api/v1/metricsApi';
 export { deletePlugin } from '../api/v1/pluginsApi';
