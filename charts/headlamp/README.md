@@ -63,7 +63,7 @@ $ helm install my-headlamp headlamp/headlamp \
   --set config.apiServerEndpoint=https://kube-oidc-proxy.example.com:443
 ```
 
-This is particularly useful with managed Kubernetes clusters (like EKS) when using [kube-oidc-proxy](https://github.com/jetstack/kube-oidc-proxy) to handle OIDC authentication.
+This is particularly useful with managed Kubernetes clusters (like AWS EKS, Azure AKS, or Google GKE) when using [kube-oidc-proxy](https://github.com/jetstack/kube-oidc-proxy) to handle OIDC authentication with private identity providers.
 
 ## Configuration
 

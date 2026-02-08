@@ -1752,11 +1752,12 @@ func TestCustomAPIServerEndpoint(t *testing.T) {
 		t.Fatal("Expected error with http:// URL, but got nil")
 	}
 
-	if strings.Contains(err.Error(), "must be a full https:// URL") {
+	switch {
+	case strings.Contains(err.Error(), "must be a full https:// URL"):
 		t.Logf("https validation working correctly: %v", err)
-	} else if strings.Contains(err.Error(), "unable to load in-cluster configuration") {
+	case strings.Contains(err.Error(), "unable to load in-cluster configuration"):
 		t.Skip("not running in cluster environment, cannot test full functionality")
-	} else {
+	default:
 		t.Fatalf("unexpected error: %v", err)
 	}
 

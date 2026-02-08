@@ -55,7 +55,7 @@ By default, when running in-cluster, Headlamp automatically detects and connects
 
 This feature is particularly useful for:
 
-- **OIDC Authentication with Private Endpoints**: When using managed Kubernetes services (like AWS EKS) with OIDC authentication where the identity provider is on a private endpoint, you can use [kube-oidc-proxy](https://github.com/jetstack/kube-oidc-proxy) to handle authentication requests.
+- **OIDC Authentication with Private Endpoints**: When using managed Kubernetes services (like AWS EKS, Azure AKS, or Google GKE) with OIDC authentication where the identity provider is on a private endpoint, you can use [kube-oidc-proxy](https://github.com/jetstack/kube-oidc-proxy) to handle authentication requests.
 - **API Gateway or Proxy Requirements**: When your cluster requires all API traffic to go through a specific gateway or proxy for security, logging, or compliance reasons.
 - **Multi-cluster Authentication**: When using a centralized authentication proxy across multiple clusters.
 
@@ -83,9 +83,11 @@ You can also configure it using environment variables or command-line flags:
 
 **Note**: These options are only used when running Headlamp with in-cluster mode enabled (`--in-cluster` flag or `config.inCluster: true` in Helm values).
 
-### Example: Using with kube-oidc-proxy on EKS
+### Example: Using with kube-oidc-proxy on Managed Kubernetes
 
-When using Amazon EKS with a private OIDC issuer, you can deploy kube-oidc-proxy to handle authentication and configure Headlamp to route requests through it:
+When using managed Kubernetes services (AWS EKS, Azure AKS, Google GKE) with a private OIDC issuer, you can deploy kube-oidc-proxy to handle authentication and configure Headlamp to route requests through it.
+
+**Example with AWS EKS:**
 
 ```bash
 # Install kube-oidc-proxy (example)
@@ -100,7 +102,9 @@ helm install my-headlamp headlamp/headlamp \
   --set config.oidc.issuerURL=https://your-private-issuer.example.com
 ```
 
-For more information about using kube-oidc-proxy with EKS, see the [AWS blog post on consistent OIDC authentication](https://aws.amazon.com/blogs/opensource/consistent-oidc-authentication-across-multiple-eks-clusters-using-kube-oidc-proxy/).
+For more information about using kube-oidc-proxy with managed Kubernetes clusters, see:
+- AWS EKS: [Consistent OIDC authentication across multiple EKS clusters](https://aws.amazon.com/blogs/opensource/consistent-oidc-authentication-across-multiple-eks-clusters-using-kube-oidc-proxy/)
+- The configuration works similarly with Azure AKS and Google GKE when using private OIDC providers
 
 ### Testing the Custom API Server Endpoint
 
