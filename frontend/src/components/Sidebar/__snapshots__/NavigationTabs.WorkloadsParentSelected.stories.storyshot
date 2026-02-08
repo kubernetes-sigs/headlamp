@@ -199,6 +199,7 @@
         />
         <hr
           class="MuiDivider-root MuiDivider-fullWidth css-9mgopn-MuiDivider-root"
+          role="separator"
         />
       </nav>
     </div>

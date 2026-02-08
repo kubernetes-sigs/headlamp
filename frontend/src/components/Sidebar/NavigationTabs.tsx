@@ -258,7 +258,7 @@ export default function NavigationTabs() {
         }}
         ariaLabel={t('translation|Navigation Tabs')}
       />
-      <Divider />
+      <Divider role="separator" />
       {secondLevelTabRoutes !== undefined && secondLevelTabRoutes.length !== 0 && (
         <>
           <Tabs
@@ -269,7 +269,7 @@ export default function NavigationTabs() {
             }}
             ariaLabel={t('translation|Navigation Tabs')}
           />
-          <Divider />
+          <Divider role="separator" />
         </>
       )}
     </Box>

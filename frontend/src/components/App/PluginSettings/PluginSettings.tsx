@@ -237,7 +237,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
 
                 return (
                   <>
-                    <Typography variant="subtitle1">
+                    <Typography variant="subtitle1" component="div">
                       <HeadlampLink
                         routeName={'pluginDetails'}
                         params={{ name: plugin.name, type: plugin.type || 'shipped' }}
