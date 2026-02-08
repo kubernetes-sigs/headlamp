@@ -102,24 +102,26 @@ export default function RestartMultipleButton(props: RestartMultipleButtonProps)
         }}
         icon="mdi:restart"
       />
-      <ConfirmDialog
-        open={openDialog}
-        title={t('translation|Restart items')}
-        description={<RestartMultipleButtonDescription items={items} />}
-        handleClose={() => setOpenDialog(false)}
-        onConfirm={() => {
-          handleRestart();
-          dispatchRestartEvent({
-            resources: items,
-            status: EventStatus.CONFIRMED,
-          });
-          if (afterConfirm) {
-            afterConfirm();
-          }
-        }}
-        cancelLabel={t('Cancel')}
-        confirmLabel={t('Restart')}
-      />
+      {openDialog && (
+        <ConfirmDialog
+          open={openDialog}
+          title={t('translation|Restart items')}
+          description={<RestartMultipleButtonDescription items={items} />}
+          handleClose={() => setOpenDialog(false)}
+          onConfirm={() => {
+            handleRestart();
+            dispatchRestartEvent({
+              resources: items,
+              status: EventStatus.CONFIRMED,
+            });
+            if (afterConfirm) {
+              afterConfirm();
+            }
+          }}
+          cancelLabel={t('Cancel')}
+          confirmLabel={t('Restart')}
+        />
+      )}
     </>
   );
 }
