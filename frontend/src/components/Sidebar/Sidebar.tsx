@@ -319,9 +319,8 @@ export const PureSidebar = memo(
           direction="column"
           justifyContent="space-between"
           wrap="nowrap"
-          {...(!largeSideBarOpen && { inert: 'true' as any })}
         >
-          <Grid item>
+          <Grid item {...(!largeSideBarOpen && { inert: 'true' as any })}>
             <List
               onClick={isTemporaryDrawer ? toggleDrawer : undefined}
               onKeyDown={isTemporaryDrawer ? toggleDrawer : undefined}

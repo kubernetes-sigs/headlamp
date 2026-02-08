@@ -62,4 +62,6 @@ type HeadlampCFG struct {
 	ProxyURLs             []string
 	TLSCertPath           string
 	TLSKeyPath            string
+	PrometheusEndpoint    string
+	FiltersWarningsOnly   bool
 }
