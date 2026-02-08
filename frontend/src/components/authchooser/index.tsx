@@ -105,7 +105,15 @@ function AuthChooser({ children }: AuthChooserProps) {
       //   cluster, then we check here.
       // With clusterAuthType == oidc,
       //   they are presented with a choice of login or enter token.
-      if (clusterAuthType !== 'oidc' && cluster.useToken === undefined) {
+      // With clusterAuthType == exec, client-cert, or tsh,
+      //   RouteSwitcher handles auth - don't run testAuth here to avoid conflicts.
+      if (
+        clusterAuthType !== 'oidc' &&
+        clusterAuthType !== 'exec' &&
+        clusterAuthType !== 'client-cert' &&
+        clusterAuthType !== 'tsh' &&
+        cluster.useToken === undefined
+      ) {
         let useToken = true;
 
         setTestingAuth(true);
