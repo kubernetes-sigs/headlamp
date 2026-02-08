@@ -874,7 +874,7 @@ func TestValidateAPIServerEndpoint_ValidCases(t *testing.T) {
 	}
 }
 
-func TestValidateAPIServerEndpoint_InvalidCases(t *testing.T) {
+func TestValidateAPIServerEndpoint_InvalidCases_Format(t *testing.T) {
 	tests := []struct {
 		name        string
 		endpoint    string
@@ -896,14 +896,41 @@ func TestValidateAPIServerEndpoint_InvalidCases(t *testing.T) {
 			errContains: "must be an absolute URL with scheme and host",
 		},
 		{
-			name:        "URL with embedded credentials is rejected",
-			endpoint:    "https://user:password@proxy.example.com:443",
-			errContains: "must not include user info (credentials)",
-		},
-		{
 			name:        "URL with empty hostname is rejected",
 			endpoint:    "https://:443",
 			errContains: "must be an absolute URL with scheme and host",
+		},
+		{
+			name:        "URL with invalid port (non-numeric) is rejected",
+			endpoint:    "https://proxy.example.com:abc",
+			errContains: "must be an absolute URL with scheme and host",
+		},
+		{
+			name:        "URL with port out of range (negative via parsing) is rejected",
+			endpoint:    "https://proxy.example.com:-1",
+			errContains: "must be an absolute URL with scheme and host",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := kubeconfig.ValidateAPIServerEndpoint(tt.endpoint)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errContains)
+		})
+	}
+}
+
+func TestValidateAPIServerEndpoint_InvalidCases_Security(t *testing.T) {
+	tests := []struct {
+		name        string
+		endpoint    string
+		errContains string
+	}{
+		{
+			name:        "URL with embedded credentials is rejected",
+			endpoint:    "https://user:password@proxy.example.com:443",
+			errContains: "must not include user info (credentials)",
 		},
 		{
 			name:        "URL with query string is rejected",
@@ -919,6 +946,16 @@ func TestValidateAPIServerEndpoint_InvalidCases(t *testing.T) {
 			name:        "URL with path is rejected",
 			endpoint:    "https://proxy.example.com:443/api/v1",
 			errContains: "path must be empty or '/'",
+		},
+		{
+			name:        "URL with port out of range (too high) is rejected",
+			endpoint:    "https://proxy.example.com:99999",
+			errContains: "port must be a valid number between 1 and 65535",
+		},
+		{
+			name:        "URL with port out of range (zero) is rejected",
+			endpoint:    "https://proxy.example.com:0",
+			errContains: "port must be a valid number between 1 and 65535",
 		},
 	}
 

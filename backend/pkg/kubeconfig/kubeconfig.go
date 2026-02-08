@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -1049,6 +1050,16 @@ func validateAPIServerEndpoint(endpoint string) (string, error) {
 		return "", fmt.Errorf(
 			"invalid custom API server endpoint: path must be empty or '/' (scheme+host[:port] only)",
 		)
+	}
+
+	// Validate port if present
+	if portStr := parsedURL.Port(); portStr != "" {
+		port, err := strconv.Atoi(portStr)
+		if err != nil || port < 1 || port > 65535 {
+			return "", fmt.Errorf(
+				"invalid custom API server endpoint: port must be a valid number between 1 and 65535",
+			)
+		}
 	}
 
 	return trimmed, nil
