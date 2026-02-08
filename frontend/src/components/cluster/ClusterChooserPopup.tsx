@@ -46,9 +46,11 @@ function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selecte
   return (
     <MenuItem
       selected={selected}
+      aria-selected={!!cluster.isCurrent}
       key={`recent_cluster_${cluster.name}`}
       onClick={onClick}
       id={cluster.name}
+      role="option"
       sx={theme => ({
         borderRadius: theme.shape.borderRadius + 'px',
       })}
@@ -257,6 +259,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
         />
         <MenuList
           id="cluster-chooser-list"
+          role="listbox"
           tabIndex={0}
           sx={{
             width: '280px',

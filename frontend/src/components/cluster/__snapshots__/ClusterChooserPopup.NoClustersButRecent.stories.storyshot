@@ -68,13 +68,14 @@
         <ul
           class="MuiList-root MuiList-padding MuiList-dense css-1k1lw4j-MuiList-root"
           id="cluster-chooser-list"
-          role="menu"
+          role="listbox"
           tabindex="0"
         >
           <li
+            aria-selected="true"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster0"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -100,9 +101,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster1"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -119,9 +121,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster2"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
