@@ -1010,7 +1010,7 @@ func validateAPIServerEndpoint(endpoint string) (string, error) {
 	}
 
 	parsedURL, err := url.Parse(trimmed)
-	if err != nil || !parsedURL.IsAbs() || parsedURL.Host == "" {
+	if err != nil || !parsedURL.IsAbs() || parsedURL.Host == "" || parsedURL.Hostname() == "" {
 		return "", fmt.Errorf(
 			"invalid custom API server endpoint %q: must be an absolute URL with scheme and host",
 			trimmed,
@@ -1087,6 +1087,12 @@ func GetInClusterContext(
 	oidcCACert string,
 	customAPIServerEndpoint string,
 ) (*Context, error) {
+	// Validate custom endpoint first, before attempting to load in-cluster config
+	customEndpoint, err := validateAPIServerEndpoint(customAPIServerEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
@@ -1094,11 +1100,6 @@ func GetInClusterContext(
 
 	// Use custom API server endpoint if provided, otherwise use default from in-cluster config
 	apiServerHost := clusterConfig.Host
-
-	customEndpoint, err := validateAPIServerEndpoint(customAPIServerEndpoint)
-	if err != nil {
-		return nil, err
-	}
 
 	if customEndpoint != "" {
 		apiServerHost = customEndpoint

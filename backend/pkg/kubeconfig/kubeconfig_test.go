@@ -884,6 +884,12 @@ func TestValidateAPIServerEndpoint(t *testing.T) {
 			errContains: "must not include user info (credentials)",
 		},
 		{
+			name:        "URL with empty hostname is rejected",
+			endpoint:    "https://:443",
+			wantErr:     true,
+			errContains: "must be an absolute URL with scheme and host",
+		},
+		{
 			name:        "URL with query string is rejected",
 			endpoint:    "https://proxy.example.com:443?token=secret",
 			wantErr:     true,

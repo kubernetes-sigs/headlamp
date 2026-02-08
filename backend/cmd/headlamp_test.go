@@ -1735,11 +1735,8 @@ func TestHandleClusterServiceProxy(t *testing.T) {
 // TestCustomAPIServerEndpoint tests the custom API server endpoint configuration
 // with validation logic, simulating kube-oidc-proxy scenarios.
 func TestCustomAPIServerEndpoint(t *testing.T) {
-	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
-		t.Skip("skipping integration test")
-	}
-
-	// Test https validation - should reject http URLs
+	// Test https validation directly - should reject http URLs
+	// Since validation now happens before InClusterConfig, this will always test validation
 	_, err := kubeconfig.GetInClusterContext(
 		"test-cluster",
 		"", "", "", "",
@@ -1747,21 +1744,16 @@ func TestCustomAPIServerEndpoint(t *testing.T) {
 		"http://insecure-proxy.example.com:443", // http scheme should be rejected
 	)
 
-	// Should always fail - either with validation error or in-cluster config error
-	if err == nil {
-		t.Fatal("Expected error with http:// URL, but got nil")
+	// Should always fail with validation error (validation happens before in-cluster check)
+	require.Error(t, err, "Expected error with http:// URL")
+	assert.Contains(t, err.Error(), "must be a full https:// URL",
+		"Error should be about https requirement")
+
+	// Test with valid https URL - will fail with in-cluster error if not actually in cluster
+	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
+		t.Skip("skipping full integration test (validation already tested above)")
 	}
 
-	switch {
-	case strings.Contains(err.Error(), "must be a full https:// URL"):
-		t.Logf("https validation working correctly: %v", err)
-	case strings.Contains(err.Error(), "unable to load in-cluster configuration"):
-		t.Skip("not running in cluster environment, cannot test full functionality")
-	default:
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// Test with valid https URL (will fail with in-cluster error if not in cluster)
 	ctx, err := kubeconfig.GetInClusterContext(
 		"test-cluster",
 		"", "", "", "",

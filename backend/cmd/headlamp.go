@@ -438,18 +438,18 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			config.APIServerEndpoint)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
-		}
+		} else {
+			context.Source = kubeconfig.InCluster
 
-		context.Source = kubeconfig.InCluster
+			err = context.SetupProxy()
+			if err != nil {
+				logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
+			}
 
-		err = context.SetupProxy()
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
-		}
-
-		err = config.KubeConfigStore.AddContext(context)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+			err = config.KubeConfigStore.AddContext(context)
+			if err != nil {
+				logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+			}
 		}
 	}
 
