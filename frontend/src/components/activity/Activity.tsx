@@ -244,10 +244,19 @@ export function SingleActivityRenderer({
       const rows = 5;
       const gapPx = 20;
       const box = container.getBoundingClientRect();
-      const x = (box.width / cols) * (index % 3) + gapPx;
-      const y = (box.height / rows) * Math.floor(index / 3) + gapPx;
-      const width = box.width / cols - gapPx * (cols - 2);
-      const height = box.height / rows - gapPx * (rows - 2);
+      const row = Math.floor(index / 3);
+      const col = index % 3;
+
+      // Calculate cell dimensions accounting for gaps
+      const cellWidth = (box.width - gapPx * (cols + 1)) / cols;
+      const cellHeight = Math.max(150, (box.height - gapPx * (rows + 1)) / rows);
+
+      // Position with gaps
+      const x = gapPx + col * (cellWidth + gapPx);
+      const y = gapPx + row * (cellHeight + gapPx);
+
+      const width = cellWidth;
+      const height = cellHeight;
 
       oldTranslation = activity.style.transform ?? '';
       oldHeight = activity.style.height;
@@ -390,16 +399,40 @@ export function SingleActivityRenderer({
           {isOverview && (
             <Box
               sx={{
-                fontSize: '18px',
+                fontSize: { xs: '1rem', md: '0.875rem' },
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: 1,
-                gap: 1,
+                padding: 2,
+                gap: 1.5,
                 height: '100%',
+                minHeight: '150px',
               }}
             >
-              <Box sx={{ width: '48px', height: '48px', flexShrink: 0 }}>{icon}</Box> {title}
+              <Box
+                sx={{
+                  width: { xs: '32px', sm: '40px', md: '48px' },
+                  height: { xs: '32px', sm: '40px', md: '48px' },
+                  flexShrink: 0,
+                }}
+              >
+                {icon}
+              </Box>
+              <Box
+                sx={{
+                  minWidth: 0,
+                  flex: 1,
+                  textAlign: 'center',
+                  wordBreak: 'break-word',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '100%',
+                }}
+              >
+                {title}
+              </Box>
             </Box>
           )}
           <>
@@ -427,17 +460,18 @@ export function SingleActivityRenderer({
             >
               {!hideTitleInHeader && (
                 <>
-                  <Box sx={{ width: '18px', height: '18px' }}>{icon}</Box>
+                  <Box sx={{ width: '18px', height: '18px', flexShrink: 0 }}>{icon}</Box>
                   <Typography
                     color="textSecondary"
                     fontSize={14}
                     sx={{
-                      maxWidth: 'calc(45% - 60px)',
+                      maxWidth: { xs: '100px', sm: '150px', md: 'calc(45% - 60px)' },
+                      minWidth: 0,
                       whiteSpace: 'nowrap',
                       textOverflow: 'ellipsis',
                       overflow: 'hidden',
+                      flexShrink: 1,
                     }}
-                    title={typeof title === 'string' ? title : undefined}
                   >
                     {title}
                   </Typography>
@@ -451,10 +485,19 @@ export function SingleActivityRenderer({
                     fontSize: '0.875rem',
                     paddingX: 0.5,
                     color: theme.palette.text.secondary,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    maxWidth: { xs: '80px', sm: '120px', md: 'none' },
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 1,
                   })}
                 >
-                  <Icon icon="mdi:hexagon-multiple-outline" />
-                  {cluster}
+                  <Icon icon="mdi:hexagon-multiple-outline" style={{ flexShrink: 0 }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{cluster}</span>
                 </Box>
               )}
               {!isOverview && (
@@ -1130,7 +1173,8 @@ export const ActivityBar = React.memo(function ({
         position: 'relative',
         alignItems: 'center',
         display: 'flex',
-        minHeight: '56px',
+        flexWrap: 'nowrap',
+        minHeight: { xs: '80px', sm: '70px', md: '56px' },
         overflowX: 'auto',
         scrollbarWidth: 'thin',
       })}
@@ -1148,17 +1192,17 @@ export const ActivityBar = React.memo(function ({
             borderTop: 0,
             borderColor: lastElement === it.id ? theme.palette.divider : 'transparent',
             background: lastElement === it.id ? theme.palette.background.default : 'transparent',
+            flexShrink: 0,
           })}
         >
           <Button
             sx={{
               height: '100%',
-              padding: '0px 5px 0 10px',
-              lineHeight: 1,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
+              padding: '8px 5px 8px 10px',
+              lineHeight: 1.3,
               justifyContent: 'start',
+              minWidth: { xs: '150px', sm: '200px', md: '300px' },
+              maxWidth: { xs: '150px', sm: '200px', md: '300px' },
             }}
             onClick={() => {
               // Minimize or show Activity, unless it's not active then bring it to front
@@ -1170,9 +1214,6 @@ export const ActivityBar = React.memo(function ({
               }
             }}
           >
-            <Box sx={{ width: '22px', height: '22px', flexShrink: 0, marginRight: 1 }}>
-              {it.icon}
-            </Box>
             <Box
               sx={{
                 marginRight: 'auto',
@@ -1180,16 +1221,44 @@ export const ActivityBar = React.memo(function ({
                 flexDirection: 'column',
                 alignItems: 'flex-start',
                 gap: 0.5,
-                overflow: 'hidden',
+                minWidth: 0,
+                flex: 1,
               }}
             >
-              {it.cluster && <Box sx={{ opacity: 0.7 }}>{it.cluster}</Box>}{' '}
+              {it.cluster && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    width: '100%',
+                  }}
+                >
+                  <Box sx={{ width: '22px', height: '22px', flexShrink: 0 }}>{it.icon}</Box>
+                  <Box
+                    sx={{
+                      opacity: 0.7,
+                      wordBreak: 'break-word',
+                      fontSize: '0.875rem',
+                      flex: 1,
+                      minWidth: 0,
+                    }}
+                  >
+                    {it.cluster}
+                  </Box>
+                </Box>
+              )}
+              {!it.cluster && (
+                <Box sx={{ width: '22px', height: '22px', flexShrink: 0, marginBottom: 0.5 }}>
+                  {it.icon}
+                </Box>
+              )}
               <Box
                 sx={{
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
+                  wordBreak: 'break-word',
                   fontStyle: it.temporary ? 'italic' : undefined,
+                  width: '100%',
+                  fontSize: '0.875rem',
                 }}
               >
                 {it.title ?? 'Something'}
