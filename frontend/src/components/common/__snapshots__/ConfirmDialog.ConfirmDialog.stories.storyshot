@@ -54,7 +54,7 @@
           tabindex="-1"
         >
           <div
-            class="MuiTypography-root MuiDialogContentText-root MuiTypography-body1 MuiDialogContentText-root css-1tmyuhs-MuiTypography-root-MuiDialogContentText-root"
+            class="MuiTypography-root MuiDialogContentText-root MuiTypography-body1 MuiDialogContentText-root css-1vsh3qd-MuiTypography-root-MuiDialogContentText-root"
             id="alert-dialog-description"
           >
             A really good description.

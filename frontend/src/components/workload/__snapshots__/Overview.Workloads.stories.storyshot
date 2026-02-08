@@ -935,7 +935,7 @@
                             style="margin-top: 0px;"
                           >
                             <label
-                              class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
+                              class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1nqy3le-MuiFormLabel-root-MuiInputLabel-root"
                               data-shrink="true"
                               for="namespaces-filter"
                               id="namespaces-filter-label"
@@ -1133,7 +1133,7 @@
                   </div>
                 </div>
                 <table
-                  class="MuiTable-root css-t42u2c-MuiTable-root"
+                  class="MuiTable-root css-xtwoc7-MuiTable-root"
                 >
                   <thead
                     class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
@@ -1159,7 +1159,7 @@
                             >
                               <span
                                 aria-label="Toggle select all"
-                                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1c3rdll-MuiButtonBase-root-MuiCheckbox-root"
                                 data-mui-internal-clone-element="true"
                               >
                                 <input
@@ -1216,7 +1216,7 @@
                             >
                               <span
                                 aria-label="Sort by Kind ascending"
-                                class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                                class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                                 role="button"
                                 tabindex="0"
                               >
@@ -1271,7 +1271,7 @@
                             >
                               <span
                                 aria-label="Sort by Name ascending"
-                                class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                                class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                                 role="button"
                                 tabindex="0"
                               >
@@ -1326,7 +1326,7 @@
                             >
                               <span
                                 aria-label="Sort by Namespace ascending"
-                                class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                                class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                                 role="button"
                                 tabindex="0"
                               >
@@ -1381,7 +1381,7 @@
                             >
                               <span
                                 aria-label="Sort by Pods ascending"
-                                class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                                class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                                 role="button"
                                 tabindex="0"
                               >
@@ -1437,7 +1437,7 @@
                             >
                               <span
                                 aria-label="Sorted by Age ascending"
-                                class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-kfi25q-MuiButtonBase-root-MuiTableSortLabel-root"
+                                class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-1woqchj-MuiButtonBase-root-MuiTableSortLabel-root"
                                 role="button"
                                 tabindex="0"
                               >
@@ -1503,7 +1503,7 @@
                       >
                         <span
                           aria-label="Toggle select row"
-                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1c3rdll-MuiButtonBase-root-MuiCheckbox-root"
                           data-mui-internal-clone-element="true"
                         >
                           <input
@@ -1605,7 +1605,7 @@
                       >
                         <span
                           aria-label="Toggle select row"
-                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1c3rdll-MuiButtonBase-root-MuiCheckbox-root"
                           data-mui-internal-clone-element="true"
                         >
                           <input
@@ -1707,7 +1707,7 @@
                       >
                         <span
                           aria-label="Toggle select row"
-                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1c3rdll-MuiButtonBase-root-MuiCheckbox-root"
                           data-mui-internal-clone-element="true"
                         >
                           <input
@@ -1809,7 +1809,7 @@
                       >
                         <span
                           aria-label="Toggle select row"
-                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1c3rdll-MuiButtonBase-root-MuiCheckbox-root"
                           data-mui-internal-clone-element="true"
                         >
                           <input
@@ -1911,7 +1911,7 @@
                       >
                         <span
                           aria-label="Toggle select row"
-                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1c3rdll-MuiButtonBase-root-MuiCheckbox-root"
                           data-mui-internal-clone-element="true"
                         >
                           <input
@@ -2013,7 +2013,7 @@
                       >
                         <span
                           aria-label="Toggle select row"
-                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1c3rdll-MuiButtonBase-root-MuiCheckbox-root"
                           data-mui-internal-clone-element="true"
                         >
                           <input

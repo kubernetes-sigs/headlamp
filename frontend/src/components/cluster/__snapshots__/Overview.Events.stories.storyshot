@@ -602,7 +602,7 @@
                             style="margin-top: 0px;"
                           >
                             <label
-                              class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
+                              class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1nqy3le-MuiFormLabel-root-MuiInputLabel-root"
                               data-shrink="true"
                               for="namespaces-filter"
                               id="namespaces-filter-label"
@@ -682,7 +682,7 @@
                     class="MuiBox-root css-19midj6"
                   >
                     <p
-                      class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-1giwt2l-MuiTypography-root"
                     >
                       No data to be shown.
                     </p>

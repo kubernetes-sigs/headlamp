@@ -39,7 +39,7 @@
                   style="margin-top: 0px;"
                 >
                   <label
-                    class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
+                    class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1nqy3le-MuiFormLabel-root-MuiInputLabel-root"
                     data-shrink="true"
                     for="namespaces-filter"
                     id="namespaces-filter-label"
@@ -234,7 +234,7 @@
       </div>
     </div>
     <table
-      class="MuiTable-root css-1p2wpqe-MuiTable-root"
+      class="MuiTable-root css-ytapzn-MuiTable-root"
     >
       <thead
         class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
@@ -268,7 +268,7 @@
                 >
                   <span
                     aria-label="Sort by Name ascending"
-                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                     role="button"
                     tabindex="0"
                   >
@@ -323,7 +323,7 @@
                 >
                   <span
                     aria-label="Sort by Namespace ascending"
-                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                     role="button"
                     tabindex="0"
                   >
@@ -378,7 +378,7 @@
                 >
                   <span
                     aria-label="Sort by UID ascending"
-                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                     role="button"
                     tabindex="0"
                   >
@@ -433,7 +433,7 @@
                 >
                   <span
                     aria-label="Sort by Labels descending"
-                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                     role="button"
                     tabindex="0"
                   >

@@ -159,7 +159,7 @@
                 <button
                   aria-controls="full-width-tabpanel-0-Editor-tabs-id"
                   aria-selected="true"
-                  class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-f00lt7-MuiButtonBase-root-MuiTab-root"
+                  class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-i7e10r-MuiButtonBase-root-MuiTab-root"
                   id="full-width-tab-0-Editor-tabs-id"
                   role="tab"
                   tabindex="0"
@@ -173,7 +173,7 @@
                 <button
                   aria-controls="full-width-tabpanel-1-Editor-tabs-id"
                   aria-selected="false"
-                  class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
+                  class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-i7e10r-MuiButtonBase-root-MuiTab-root"
                   id="full-width-tab-1-Editor-tabs-id"
                   role="tab"
                   tabindex="-1"
@@ -219,7 +219,7 @@
                 class="MuiBox-root css-19midj6"
               >
                 <p
-                  class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-1giwt2l-MuiTypography-root"
                 >
                   No documentation available.
                 </p>
