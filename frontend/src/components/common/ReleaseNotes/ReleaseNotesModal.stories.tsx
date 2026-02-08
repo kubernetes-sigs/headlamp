@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
 import ReleaseNotesModal from './ReleaseNotesModal';
 
 export default {
@@ -22,7 +23,16 @@ export default {
   argTypes: {},
 };
 
+const Template = (args: any) => (
+  <Box>
+    <h1>Application</h1>
+    <h2>Updates</h2>
+    <ReleaseNotesModal {...args} />
+  </Box>
+);
+
 export const Show = {
+  render: Template,
   args: {
     releaseNotes: '### Hello\n\nworld',
     appVersion: '1.9.9',
@@ -30,6 +40,7 @@ export const Show = {
 };
 
 export const Closed = {
+  render: Template,
   args: {
     releaseNotes: undefined,
     appVersion: null,
@@ -37,6 +48,7 @@ export const Closed = {
 };
 
 export const ShowNoNotes = {
+  render: Template,
   args: {
     releaseNotes: undefined,
     appVersion: '1.8.8',
