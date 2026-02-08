@@ -316,6 +316,9 @@ spec:
             {{- with .Values.config.baseURL }}
             - "-base-url={{ . }}"
             {{- end }}
+            {{- with .Values.config.prometheus.endpoint }}
+            - "-prometheus-endpoint={{ . }}"
+            {{- end }}
             {{- with .Values.config.tlsCertPath }}
             - "-tls-cert-path={{ . }}"
             {{- end }}
