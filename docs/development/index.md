@@ -60,6 +60,19 @@ and in a different terminal instance:
 npm run frontend:start
 ```
 
+### Backend logging
+
+Backend log verbosity can be controlled using either a flag or an environment variable.
+- `--log-level`
+- `HEADLAMP_CONFIG_LOG_LEVEL`
+
+Supported Values: `debug`, `info`, `warn`, `error` (default: `info`) 
+
+Example:
+```bash
+npm run backend:start -- --log-level warn
+```
+
 ## Generate API documentation
 
 To generate the TypeScript API documentation:

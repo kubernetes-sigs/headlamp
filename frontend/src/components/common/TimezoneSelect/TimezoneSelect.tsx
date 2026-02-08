@@ -60,7 +60,8 @@ export default function TimezoneSelect(props: TimezoneSelectorProps) {
           variant="outlined"
           inputProps={{
             ...params.inputProps,
-            'aria-labelledby': nameLabelID,
+            ...(nameLabelID ? { 'aria-labelledby': nameLabelID } : {}),
+            'aria-label': nameLabelID ? undefined : t('Timezone'),
           }}
         />
       )}

@@ -28,6 +28,7 @@
       >
         <div
           class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-onzayo-MuiPaper-root-MuiTableContainer-root"
+          tabindex="0"
         >
           <table
             class="MuiTable-root css-r7i92b-MuiTable-root"
@@ -107,12 +108,12 @@
                   <div
                     class="MuiBox-root css-k008qs"
                   >
-                    <label
+                    <span
                       id="event-uid-1"
                       style="word-break: break-all; white-space: normal;"
                     >
                       Successfully assigned default/test-pod-for-events to worker-node-1
-                    </label>
+                    </span>
                   </div>
                 </td>
                 <td
@@ -151,12 +152,12 @@
                   <div
                     class="MuiBox-root css-k008qs"
                   >
-                    <label
+                    <span
                       id="event-uid-2"
                       style="word-break: break-all; white-space: normal;"
                     >
                       Container image "nginx:latest" already present on machine
-                    </label>
+                    </span>
                   </div>
                 </td>
                 <td

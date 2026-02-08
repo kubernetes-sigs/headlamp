@@ -81,6 +81,7 @@ spec:
       {{- end }}
       serviceAccountName: {{ include "headlamp.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      hostUsers: {{ .Values.hostUsers }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- with .Values.initContainers }}
@@ -212,7 +213,7 @@ spec:
             {{- end }}
             {{- if $oidc.useAccessToken }}
             - name: OIDC_USE_ACCESS_TOKEN
-              value: {{ $oidc.useAccessToken }}
+              value: {{ $oidc.useAccessToken | quote }}
             {{- end }}
             {{- if $oidc.usePKCE }}
             - name: OIDC_USE_PKCE
@@ -231,6 +232,9 @@ spec:
           args:
             {{- if .Values.config.inCluster }}
             - "-in-cluster"
+            {{- if .Values.config.inClusterContextName }}
+            - "-in-cluster-context-name={{ .Values.config.inClusterContextName }}"
+            {{- end }}
             {{- end }}
             {{- with .Values.config.enableHelm }}
             - "-enable-helm"
@@ -385,6 +389,9 @@ spec:
               {{- toYaml $defaultSC | nindent 12 }}
             {{- end }}
         {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -396,6 +403,17 @@ spec:
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- range $constraint := . }}
+        - {{ toYaml $constraint | nindent 10 }}
+          {{- if not $constraint.labelSelector }}
+          labelSelector:
+            matchLabels:
+              {{- include "headlamp.selectorLabels" $ | nindent 14 }}
+          {{- end }}
+        {{- end }}
       {{- end }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . | quote }}

@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
-import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import ListSubheader from '@mui/material/ListSubheader';
 import MenuItem from '@mui/material/MenuItem';
@@ -31,35 +29,43 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath } from 'react-router';
 import { useHistory } from 'react-router-dom';
+import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
 import { isElectron } from '../../helpers/isElectron';
 import { getRecentClusters, setRecentCluster } from '../../helpers/recentClusters';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { Cluster } from '../../lib/k8s/cluster';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getCluster, getClusterPrefixedPath } from '../../lib/util';
+import ClusterBadge from '../Sidebar/ClusterBadge';
 
 function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selected?: boolean }) {
   const { cluster, selected, onClick } = props;
   const { t } = useTranslation();
-  const theme = useTheme();
+  const appearance = getClusterAppearanceFromMeta(cluster?.name || '');
 
   return (
     <MenuItem
       selected={selected}
+      aria-selected={!!cluster.isCurrent}
       key={`recent_cluster_${cluster.name}`}
       onClick={onClick}
       id={cluster.name}
+      role="option"
       sx={theme => ({
         borderRadius: theme.shape.borderRadius + 'px',
       })}
     >
-      <ListItemIcon>
-        <Icon icon="mdi:kubernetes" width={26} color={theme.palette.text.primary} />
-      </ListItemIcon>
-      <ListItemText
-        primary={cluster.name}
-        secondary={!!cluster.isCurrent ? t('Current', { context: 'cluster' }) : ''}
+      <ClusterBadge
+        name={cluster.name}
+        icon={appearance.icon}
+        accentColor={appearance.accentColor}
       />
+      {!!cluster.isCurrent && (
+        <ListItemText
+          secondary={t('Current', { context: 'cluster' })}
+          sx={{ marginLeft: 'auto', paddingLeft: 2 }}
+        />
+      )}
     </MenuItem>
   );
 }
@@ -253,6 +259,8 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
         />
         <MenuList
           id="cluster-chooser-list"
+          role="listbox"
+          tabIndex={0}
           sx={{
             width: '280px',
             minWidth: '280px',
@@ -277,6 +285,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
                 clustersToShow.length > 0 && (
                   <ListSubheader
                     disableSticky
+                    role="presentation"
                     sx={{
                       paddingLeft: 0,
                       lineHeight: theme.typography.pxToRem(24),
@@ -296,7 +305,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
               ))}
             </>
           )}
-          {clustersToShow.length > 0 && recentClusters.length > 0 && <Divider />}
+          {clustersToShow.length > 0 && recentClusters.length > 0 && <Divider role="separator" />}
           {clustersToShow.map(cluster => (
             <ClusterListItem
               key={`cluster_button_${cluster.name}`}

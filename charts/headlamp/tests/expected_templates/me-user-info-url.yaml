@@ -6,10 +6,10 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.39.0
+    helm.sh/chart: headlamp-0.40.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.39.0"
+    app.kubernetes.io/version: "0.40.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: headlamp/templates/secret.yaml
@@ -20,6 +20,7 @@ metadata:
   namespace: default
 type: Opaque
 data:
+  meUserInfoURL: "L29hdXRoMi91c2VyaW5mb2N1c3RvbTI="
 ---
 # Source: headlamp/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -27,10 +28,10 @@ kind: ClusterRoleBinding
 metadata:
   name: headlamp-admin
   labels:
-    helm.sh/chart: headlamp-0.39.0
+    helm.sh/chart: headlamp-0.40.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.39.0"
+    app.kubernetes.io/version: "0.40.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -48,10 +49,10 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.39.0
+    helm.sh/chart: headlamp-0.40.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.39.0"
+    app.kubernetes.io/version: "0.40.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   type: ClusterIP
@@ -75,10 +76,10 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.39.0
+    helm.sh/chart: headlamp-0.40.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.39.0"
+    app.kubernetes.io/version: "0.40.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -94,6 +95,7 @@ spec:
     spec:
       serviceAccountName: headlamp
       automountServiceAccountToken: true
+      hostUsers: true
       securityContext:
         {}
       containers:
@@ -103,7 +105,7 @@ spec:
             runAsGroup: 101
             runAsNonRoot: true
             runAsUser: 100
-          image: "ghcr.io/headlamp-k8s/headlamp:v0.39.0"
+          image: "ghcr.io/headlamp-k8s/headlamp:v0.40.0"
           imagePullPolicy: IfNotPresent
           
           env:
@@ -114,6 +116,7 @@ spec:
                   key: meUserInfoURL
           args:
             - "-in-cluster"
+            - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             # Check if externalSecret is disabled
             - "-me-user-info-url=$(ME_USER_INFO_URL)"

@@ -3,26 +3,29 @@
     <div
       class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1ic9gem-MuiPaper-root"
     >
-      <nav
-        class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
-      >
-        <li
-          class="css-1tmipa6"
+      <nav>
+        <ul
+          class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
         >
-          <a
-            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
-            href="/workloads"
-            role="button"
-            tabindex="0"
+          <li
+            class="css-1tmipa6"
           >
-            <div
-              class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
-            />
-            <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-            />
-          </a>
-        </li>
+            <a
+              aria-label="Workloads"
+              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
+              href="/workloads"
+              role="button"
+              tabindex="0"
+            >
+              <div
+                class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+              />
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </a>
+          </li>
+        </ul>
       </nav>
     </div>
   </div>

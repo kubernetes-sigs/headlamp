@@ -201,6 +201,7 @@ function UpdatePopup({
                   localStorage.setItem('disable_update_check', 'true');
                   setShow(false);
                 }}
+                aria-label={t('translation|Disable update notifications')}
               >
                 <Icon icon={'mdi:bell-off-outline'} width="20" />
               </Button>

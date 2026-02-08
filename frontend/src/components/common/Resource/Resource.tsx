@@ -1009,7 +1009,7 @@ export function ContainerInfo(props: ContainerInfoProps) {
                 {index < container.ports!.length - 1 && (
                   <Grid item xs={12}>
                     <Box mt={2} mb={2}>
-                      <Divider />
+                      <Divider role="separator" />
                     </Box>
                   </Grid>
                 )}

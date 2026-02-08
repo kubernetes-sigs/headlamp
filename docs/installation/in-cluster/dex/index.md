@@ -157,10 +157,10 @@ To configure Headlamp, you can use the Headlamp Helm chart. Follow these steps t
 ```yaml title="values.yaml"
 config:
   oidc:
-  clientID: "<YOUR-CLIENT-ID>"
-  clientSecret: "<YOUR-CLIENT-SECRET>"
-  issuerURL: "<YOUR-DEX-URL>"
-  scopes: "email"
+    clientID: "<YOUR-CLIENT-ID>"
+    clientSecret: "<YOUR-CLIENT-SECRET>"
+    issuerURL: "<YOUR-DEX-URL>"
+    scopes: "email"
 ```
 
 Replace `<YOUR-CLIENT-ID>`,`<YOUR-CLIENT-SECRET>`,`<YOUR-DEX-URL>` with your specific OIDC configuration details.

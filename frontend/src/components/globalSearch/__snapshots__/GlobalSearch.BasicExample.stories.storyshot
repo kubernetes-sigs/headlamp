@@ -33,11 +33,11 @@
               class="MuiBox-root css-1rstwa7"
             >
               Press
-              <div
-                class="MuiBox-root css-1y54l5z"
+              <kbd
+                class="MuiBox-root css-a3hhso"
               >
                 /
-              </div>
+              </kbd>
               to search
             </div>
             <fieldset

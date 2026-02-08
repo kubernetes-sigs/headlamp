@@ -75,13 +75,15 @@ func TestStatelessClustersKubeConfig(t *testing.T) {
 			cache := cache.New[interface{}]()
 			kubeConfigStore := kubeconfig.NewContextStore()
 			c := HeadlampConfig{
-				HeadlampCFG: &headlampconfig.HeadlampCFG{
-					UseInCluster:          false,
-					KubeConfigPath:        "",
-					EnableDynamicClusters: true,
-					KubeConfigStore:       kubeConfigStore,
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:          false,
+						KubeConfigPath:        "",
+						EnableDynamicClusters: true,
+						KubeConfigStore:       kubeConfigStore,
+					},
+					Cache: cache,
 				},
-				cache: cache,
 			}
 			handler := createHeadlampHandler(&c)
 
@@ -109,6 +111,7 @@ func TestStatelessClustersKubeConfig(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestStatelessClusterApiRequest(t *testing.T) {
 	kubeConfigByte, err := os.ReadFile("./headlamp_testdata/kubeconfig")
 	require.NoError(t, err)
@@ -130,14 +133,17 @@ func TestStatelessClusterApiRequest(t *testing.T) {
 			cache := cache.New[interface{}]()
 			kubeConfigStore := kubeconfig.NewContextStore()
 			c := HeadlampConfig{
-				HeadlampCFG: &headlampconfig.HeadlampCFG{
-					UseInCluster: false, KubeConfigPath: "",
-					EnableDynamicClusters: true,
-					KubeConfigStore:       kubeConfigStore,
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:          false,
+						KubeConfigPath:        "",
+						EnableDynamicClusters: true,
+						KubeConfigStore:       kubeConfigStore,
+					},
+					Cache:            cache,
+					TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+					TelemetryHandler: &telemetry.RequestHandler{},
 				},
-				cache:            cache,
-				telemetryConfig:  GetDefaultTestTelemetryConfig(),
-				telemetryHandler: &telemetry.RequestHandler{},
 			}
 			handler := createHeadlampHandler(&c)
 			headers := map[string]string{

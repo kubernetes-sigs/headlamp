@@ -55,6 +55,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	logger.Init(conf.LogLevel)
+
 	if conf.Version {
 		fmt.Printf("%s %s (%s/%s)\n", kubeconfig.AppName, kubeconfig.Version, runtime.GOOS, runtime.GOARCH)
 		return
@@ -79,6 +81,7 @@ func main() {
 func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextStore) *headlampconfig.HeadlampCFG {
 	return &headlampconfig.HeadlampCFG{
 		UseInCluster:          conf.InCluster,
+		InClusterContextName:  conf.InClusterContextName,
 		KubeConfigPath:        conf.KubeConfigPath,
 		SkippedKubeContexts:   conf.SkippedKubeContexts,
 		ListenAddr:            conf.ListenAddr,
@@ -120,25 +123,25 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	kubeConfigStore := kubeconfig.NewContextStore()
 	multiplexer := NewMultiplexer(kubeConfigStore)
 
-	headlampConfig := &HeadlampConfig{
+	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
-		oidcClientID:              conf.OidcClientID,
-		oidcValidatorClientID:     conf.OidcValidatorClientID,
-		oidcClientSecret:          conf.OidcClientSecret,
-		oidcIdpIssuerURL:          conf.OidcIdpIssuerURL,
-		oidcCallbackURL:           conf.OidcCallbackURL,
-		oidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
-		oidcScopes:                strings.Split(conf.OidcScopes, ","),
-		oidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
-		oidcUseAccessToken:        conf.OidcUseAccessToken,
-		oidcUsePKCE:               conf.OidcUsePKCE,
-		meUsernamePaths:           conf.MeUsernamePath,
-		meEmailPaths:              conf.MeEmailPath,
-		meGroupsPaths:             conf.MeGroupsPath,
-		meUserInfoURL:             conf.MeUserInfoURL,
-		cache:                     cache,
-		multiplexer:               multiplexer,
-		telemetryConfig:           buildTelemetryConfig(conf),
+		OidcClientID:              conf.OidcClientID,
+		OidcValidatorClientID:     conf.OidcValidatorClientID,
+		OidcClientSecret:          conf.OidcClientSecret,
+		OidcIdpIssuerURL:          conf.OidcIdpIssuerURL,
+		OidcCallbackURL:           conf.OidcCallbackURL,
+		OidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
+		OidcScopes:                strings.Split(conf.OidcScopes, ","),
+		OidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
+		OidcUseAccessToken:        conf.OidcUseAccessToken,
+		OidcUsePKCE:               conf.OidcUsePKCE,
+		MeUsernamePaths:           conf.MeUsernamePath,
+		MeEmailPaths:              conf.MeEmailPath,
+		MeGroupsPaths:             conf.MeGroupsPath,
+		MeUserInfoURL:             conf.MeUserInfoURL,
+		Cache:                     cache,
+		Multiplexer:               multiplexer,
+		TelemetryConfig:           buildTelemetryConfig(conf),
 	}
 
 	if conf.OidcCAFile != "" {
@@ -148,10 +151,10 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 			os.Exit(1)
 		}
 
-		headlampConfig.oidcCACert = string(caFileContents)
+		cfg.OidcCACert = string(caFileContents)
 	}
 
-	return headlampConfig
+	return &HeadlampConfig{HeadlampConfig: cfg}
 }
 
 // GetContextKeyAndContext returns Kcontext , ContextKey for using these in CacheMiddleWare function.
@@ -180,6 +183,75 @@ func GetContextKeyAndKContext(w http.ResponseWriter,
 	return ctx, span, contextKey, kContext, nil
 }
 
+// handleCacheRequest processes a request with caching logic.
+func handleCacheRequest(c *HeadlampConfig, next http.Handler, w http.ResponseWriter, r *http.Request) {
+	if k8cache.SkipWebSocket(r, next, w) {
+		return
+	}
+
+	ctx, span, contextKey, kContext, err := GetContextKeyAndKContext(w, r, c)
+	if err != nil {
+		return
+	}
+
+	if err := k8cache.HandleNonGETCacheInvalidation(k8sResponseCache, w, r, next, contextKey); err != nil {
+		// ErrHandled is a sentinel error indicating the request was fully
+		// processed during cache invalidation. For non-GET requests
+		// (POST/PUT/DELETE), HandleNonGETCacheInvalidation invalidates the
+		// cache, makes a fresh request to K8s, stores the response, and
+		// writes the response to the client. When ErrHandled is returned,
+		// the request has already been handled and we must return early to
+		// avoid processing the request again or writing duplicate responses.
+		if errors.Is(err, k8cache.ErrHandled) {
+			return
+		}
+
+		c.handleError(w, ctx, span, err, "error while invalidating keys", http.StatusInternalServerError)
+
+		return
+	}
+
+	rcw := k8cache.NewResponseCapture(w)
+
+	key, err := k8cache.GenerateKey(r.URL, contextKey)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to generate key ", http.StatusBadRequest)
+		return
+	}
+
+	isAllowed, authErr := k8cache.IsAllowed(kContext, r)
+	if authErr != nil {
+		k8cache.ServeFromCacheOrForwardToK8s(k8sResponseCache, isAllowed, next, key, w, r, rcw)
+
+		return
+	} else if !isAllowed && k8cache.IsAuthBypassURL(r.URL.Path) {
+		_ = k8cache.ReturnAuthErrorResponse(w, r, contextKey)
+
+		return
+	}
+
+	served, err := k8cache.LoadFromCache(k8sResponseCache, isAllowed, key, w, r)
+	if err != nil {
+		c.handleError(w, ctx, span, errors.New(kContext.Error), "failed to load from cache", http.StatusServiceUnavailable)
+		return
+	}
+
+	if served {
+		c.TelemetryHandler.RecordEvent(span, "Served from cache")
+		return
+	}
+
+	k8cache.CheckForChanges(k8sResponseCache, contextKey, *kContext)
+
+	next.ServeHTTP(rcw, r)
+
+	err = k8cache.StoreK8sResponseInCache(k8sResponseCache, r.URL, rcw, r, key)
+	if err != nil {
+		c.handleError(w, ctx, span, errors.New(kContext.Error), "error while storing into cache", http.StatusBadRequest)
+		return
+	}
+}
+
 // CacheMiddleWare is Middleware for Caching purpose. It involves generating key for a request,
 // authorizing user , store resource data in cache and returns data if key is present.
 func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
@@ -189,58 +261,7 @@ func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 		}
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if k8cache.SkipWebSocket(r, next, w) {
-				return
-			}
-
-			ctx, span, contextKey, kContext, err := GetContextKeyAndKContext(w, r, c)
-			if err != nil {
-				return
-			}
-
-			if err := k8cache.HandleNonGETCacheInvalidation(k8sResponseCache, w, r, next, contextKey); err != nil {
-				c.handleError(w, ctx, span, err, "error while invalidating keys", http.StatusInternalServerError)
-				return
-			}
-
-			rcw := k8cache.NewResponseCapture(w)
-
-			key, err := k8cache.GenerateKey(r.URL, contextKey)
-			if err != nil {
-				c.handleError(w, ctx, span, err, "failed to generate key ", http.StatusBadRequest)
-				return
-			}
-
-			isAllowed, authErr := k8cache.IsAllowed(kContext, r)
-			if authErr != nil {
-				k8cache.ServeFromCacheOrForwardToK8s(k8sResponseCache, isAllowed, next, key, w, r, rcw)
-
-				return
-			} else if !isAllowed && k8cache.IsAuthBypassURL(r.URL.Path) {
-				_ = k8cache.ReturnAuthErrorResponse(w, r, contextKey)
-
-				return
-			}
-
-			served, err := k8cache.LoadFromCache(k8sResponseCache, isAllowed, key, w, r)
-			if err != nil {
-				c.handleError(w, ctx, span, errors.New(kContext.Error), "failed to load from cache", http.StatusServiceUnavailable)
-			}
-
-			if served {
-				c.telemetryHandler.RecordEvent(span, "Served from cache")
-				return
-			}
-
-			k8cache.CheckForChanges(k8sResponseCache, contextKey, *kContext)
-
-			next.ServeHTTP(rcw, r)
-
-			err = k8cache.StoreK8sResponseInCache(k8sResponseCache, r.URL, rcw, r, key)
-			if err != nil {
-				c.handleError(w, ctx, span, errors.New(kContext.Error), "error while storing into cache", http.StatusBadRequest)
-				return
-			}
+			handleCacheRequest(c, next, w, r)
 		})
 	}
 }

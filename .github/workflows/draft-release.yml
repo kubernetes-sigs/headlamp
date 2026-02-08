@@ -47,23 +47,23 @@ jobs:
           echo "$RELEASE_NOTES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Create Release Coordination Issue
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
-        with:
-          github-token: ${{ github.token }}
-          script: |
-            const releaseName = '${{ github.event.inputs.releaseName }}';
-            const issueBody = `${{ steps.issue_body.outputs.body }}`;
+      # - name: Create Release Coordination Issue
+      #   uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+      #   with:
+      #     github-token: ${{ github.token }}
+      #     script: |
+      #       const releaseName = '${{ github.event.inputs.releaseName }}';
+      #       const issueBody = `${{ steps.issue_body.outputs.body }}`;
 
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Release ${releaseName} - Coordination`,
-              body: issueBody,
-              labels: ['release']
-            });
+      #       const issue = await github.rest.issues.create({
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         title: `Release ${releaseName} - Coordination`,
+      #         body: issueBody,
+      #         labels: ['release']
+      #       });
 
-            console.log(`Created issue #${issue.data.number}`);
+      #       console.log(`Created issue #${issue.data.number}`);
 
       - name: Create Release Draft
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1

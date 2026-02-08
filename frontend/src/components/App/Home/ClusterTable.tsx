@@ -22,6 +22,7 @@ import Typography from '@mui/material/Typography';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { generatePath, useHistory } from 'react-router-dom';
+import { getClusterAppearanceFromMeta } from '../../../helpers/clusterAppearance';
 import { isElectron } from '../../../helpers/isElectron';
 import { formatClusterPathParam } from '../../../lib/cluster';
 import { useClustersConf, useClustersVersion } from '../../../lib/k8s';
@@ -33,6 +34,7 @@ import { useTypedSelector } from '../../../redux/hooks';
 import { Loader } from '../../common';
 import Link from '../../common/Link';
 import Table from '../../common/Table';
+import ClusterBadge from '../../Sidebar/ClusterBadge';
 import ClusterContextMenu from './ClusterContextMenu';
 import { MULTI_HOME_ENABLED } from './config';
 import { getCustomClusterNames } from './customClusterNames';
@@ -190,11 +192,18 @@ export default function ClusterTable({
           id: 'name',
           header: t('Name'),
           accessorKey: 'name',
-          Cell: ({ row: { original } }) => (
-            <Link routeName="cluster" params={{ cluster: original.name }}>
-              {original.name}
-            </Link>
-          ),
+          Cell: ({ row: { original } }) => {
+            const appearance = getClusterAppearanceFromMeta(original.name);
+            return (
+              <Link routeName="cluster" params={{ cluster: original.name }}>
+                <ClusterBadge
+                  name={original.name}
+                  icon={appearance.icon}
+                  accentColor={appearance.accentColor}
+                />
+              </Link>
+            );
+          },
         },
         {
           header: t('Origin'),

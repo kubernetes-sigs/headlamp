@@ -68,26 +68,28 @@
         <ul
           class="MuiList-root MuiList-padding MuiList-dense css-1k1lw4j-MuiList-root"
           id="cluster-chooser-list"
-          role="menu"
-          tabindex="-1"
+          role="listbox"
+          tabindex="0"
         >
           <li
+            aria-selected="true"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster0"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
-              class="MuiListItemIcon-root css-cveggr-MuiListItemIcon-root"
-            />
-            <div
-              class="MuiListItemText-root MuiListItemText-dense MuiListItemText-multiline css-konndc-MuiListItemText-root"
+              class="MuiBox-root css-172hjuw"
             >
               <span
-                class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
               >
                 cluster0
               </span>
+            </div>
+            <div
+              class="MuiListItemText-root MuiListItemText-dense css-krqs19-MuiListItemText-root"
+            >
               <p
                 class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-pglae5-MuiTypography-root"
               >
@@ -99,50 +101,40 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster1"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
-              class="MuiListItemIcon-root css-cveggr-MuiListItemIcon-root"
-            />
-            <div
-              class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
+              class="MuiBox-root css-172hjuw"
             >
               <span
-                class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
               >
                 cluster1
               </span>
-              <p
-                class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-pglae5-MuiTypography-root"
-              />
             </div>
             <span
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster2"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
-              class="MuiListItemIcon-root css-cveggr-MuiListItemIcon-root"
-            />
-            <div
-              class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
+              class="MuiBox-root css-172hjuw"
             >
               <span
-                class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
               >
                 cluster2
               </span>
-              <p
-                class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-pglae5-MuiTypography-root"
-              />
             </div>
             <span
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"

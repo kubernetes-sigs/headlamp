@@ -53,6 +53,7 @@ import { getDefaultRoutes } from '../../lib/router/getDefaultRoutes';
 import { getClusterPrefixedPath } from '../../lib/util';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
+import { setShortcutsDialogOpen } from '../../redux/shortcutsSlice';
 import { Activity } from '../activity/Activity';
 import { ADVANCED_SEARCH_QUERY_KEY } from '../advancedSearch/AdvancedSearch';
 import { ThemePreview } from '../App/Settings/ThemePreview';
@@ -338,9 +339,24 @@ export function GlobalSearchContent({
       },
     };
   }, [query, selectedClusters]);
+  const configureShortcutsAction: SearchResult = useMemo(
+    () => ({
+      id: 'configure-shortcuts',
+      subLabel: t('Settings'),
+      icon: <Icon icon="mdi:keyboard-settings-outline" />,
+      label: t('Configure Keyboard Shortcuts'),
+      onClick: () => {
+        dispatch(setShortcutsDialogOpen(true));
+        onBlur();
+      },
+    }),
+    [dispatch, t, onBlur]
+  );
+
   const allOptions = useMemo(
     () =>
       [
+        configureShortcutsAction,
         ...themeActions,
         ...clusterItems,
         ...routes,
@@ -348,7 +364,15 @@ export function GlobalSearchContent({
         ...items,
         advancedSearchSuggestion,
       ].filter(Boolean) as SearchResult[],
-    [themeActions, clusterItems, routes, namespaceOptions, items, advancedSearchSuggestion]
+    [
+      configureShortcutsAction,
+      themeActions,
+      clusterItems,
+      routes,
+      namespaceOptions,
+      items,
+      advancedSearchSuggestion,
+    ]
   );
 
   const fuse = useMemo(

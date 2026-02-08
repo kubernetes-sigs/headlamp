@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { getSavedNamespaces } from '../lib/storage';
 import filterReducer, {
   FilterState,
   initialState,
@@ -21,26 +22,70 @@ import filterReducer, {
   setNamespaceFilter,
 } from './filterSlice';
 
+// Mock getCluster to ensure a consistent key for localStorage tests
+vi.mock('../lib/cluster', () => ({
+  getCluster: () => 'test-cluster',
+}));
+
 describe('filterSlice', () => {
   let state: FilterState;
+  const STORAGE_KEY = 'headlamp-selected-namespace_test-cluster';
 
   beforeEach(() => {
-    state = initialState;
+    state = { ...initialState, namespaces: new Set() };
+    localStorage.clear();
+    vi.clearAllMocks();
   });
 
-  it('should handle setNamespaceFilter', () => {
+  it('should handle setNamespaceFilter and persist to localStorage', () => {
     const namespaces = ['default', 'kube-system'];
     state = filterReducer(state, setNamespaceFilter(namespaces));
+
+    // Verify state update
     expect(state.namespaces).toEqual(new Set(namespaces));
+
+    // Verify localStorage write
+    const stored = localStorage.getItem(STORAGE_KEY);
+    expect(stored).not.toBeNull();
+    expect(JSON.parse(stored!)).toEqual(namespaces);
   });
 
-  it('should handle resetFilter', () => {
+  it('should handle resetFilter and clear namespaces', () => {
     state = {
       ...state,
       namespaces: new Set(['default']),
     };
 
     state = filterReducer(state, resetFilter());
-    expect(state).toEqual(initialState);
+    expect(state.namespaces).toEqual(new Set());
+  });
+
+  describe('getSavedNamespaces (Persistence Logic)', () => {
+    it('should correctly restore per-cluster selections', () => {
+      const saved = ['namespace-a', 'namespace-b'];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+
+      const restored = getSavedNamespaces('test-cluster');
+      expect(restored).toEqual(saved);
+    });
+
+    it('should safely handle invalid JSON in storage', () => {
+      localStorage.setItem(STORAGE_KEY, '{ invalid json [');
+
+      const restored = getSavedNamespaces('test-cluster');
+      expect(restored).toEqual([]);
+    });
+
+    it('should safely handle non-array values in storage', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ not: 'an array' }));
+
+      const restored = getSavedNamespaces('test-cluster');
+      expect(restored).toEqual([]);
+    });
+
+    it('should return empty array if no data exists for the cluster', () => {
+      const restored = getSavedNamespaces('non-existent-cluster');
+      expect(restored).toEqual([]);
+    });
   });
 });

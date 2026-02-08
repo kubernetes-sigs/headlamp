@@ -31,6 +31,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -187,15 +188,17 @@ func TestDynamicClusters(t *testing.T) {
 			cache := cache.New[interface{}]()
 			kubeConfigStore := kubeconfig.NewContextStore()
 			c := HeadlampConfig{
-				HeadlampCFG: &headlampconfig.HeadlampCFG{
-					UseInCluster:          false,
-					KubeConfigPath:        "",
-					EnableDynamicClusters: true,
-					KubeConfigStore:       kubeConfigStore,
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:          false,
+						KubeConfigPath:        "",
+						EnableDynamicClusters: true,
+						KubeConfigStore:       kubeConfigStore,
+					},
+					Cache:            cache,
+					TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+					TelemetryHandler: &telemetry.RequestHandler{},
 				},
-				cache:            cache,
-				telemetryConfig:  GetDefaultTestTelemetryConfig(),
-				telemetryHandler: &telemetry.RequestHandler{},
 			}
 			handler := createHeadlampHandler(&c)
 
@@ -278,15 +281,17 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 	kubeConfigStore := kubeconfig.NewContextStore()
 
 	c := HeadlampConfig{
-		HeadlampCFG: &headlampconfig.HeadlampCFG{
-			UseInCluster:          false,
-			KubeConfigPath:        "",
-			EnableDynamicClusters: true,
-			KubeConfigStore:       kubeConfigStore,
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:          false,
+				KubeConfigPath:        "",
+				EnableDynamicClusters: true,
+				KubeConfigStore:       kubeConfigStore,
+			},
+			Cache:            cache,
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
 		},
-		cache:            cache,
-		telemetryConfig:  GetDefaultTestTelemetryConfig(),
-		telemetryHandler: &telemetry.RequestHandler{},
 	}
 	handler := createHeadlampHandler(&c)
 
@@ -330,13 +335,15 @@ func TestInvalidKubeConfig(t *testing.T) {
 	assert.NoError(t, err)
 
 	c := HeadlampConfig{
-		HeadlampCFG: &headlampconfig.HeadlampCFG{
-			UseInCluster:          false,
-			KubeConfigPath:        absPath,
-			EnableDynamicClusters: true,
-			KubeConfigStore:       kubeConfigStore,
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:          false,
+				KubeConfigPath:        absPath,
+				EnableDynamicClusters: true,
+				KubeConfigStore:       kubeConfigStore,
+			},
+			Cache: cache,
 		},
-		cache: cache,
 	}
 
 	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, absPath, kubeconfig.KubeConfig, nil)
@@ -379,34 +386,40 @@ func TestExternalProxy(t *testing.T) {
 	tests := []test{
 		{
 			handler: createHeadlampHandler(&HeadlampConfig{
-				HeadlampCFG: &headlampconfig.HeadlampCFG{
-					UseInCluster:    false,
-					ProxyURLs:       []string{proxyURL.String()},
-					KubeConfigStore: kubeConfigStore,
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:    false,
+						ProxyURLs:       []string{proxyURL.String()},
+						KubeConfigStore: kubeConfigStore,
+					},
+					Cache: cache,
 				},
-				cache: cache,
 			}),
 			useForwardedHeaders: true,
 		},
 		{
 			handler: createHeadlampHandler(&HeadlampConfig{
-				HeadlampCFG: &headlampconfig.HeadlampCFG{
-					UseInCluster:    false,
-					ProxyURLs:       []string{},
-					KubeConfigStore: kubeConfigStore,
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:    false,
+						ProxyURLs:       []string{},
+						KubeConfigStore: kubeConfigStore,
+					},
+					Cache: cache,
 				},
-				cache: cache,
 			}),
 			useNoProxyURL: true,
 		},
 		{
 			handler: createHeadlampHandler(&HeadlampConfig{
-				HeadlampCFG: &headlampconfig.HeadlampCFG{
-					UseInCluster:    false,
-					KubeConfigStore: kubeConfigStore,
-					ProxyURLs:       []string{proxyURL.String()},
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:    false,
+						KubeConfigStore: kubeConfigStore,
+						ProxyURLs:       []string{proxyURL.String()},
+					},
+					Cache: cache,
 				},
-				cache: cache,
 			}),
 			useProxyURL: true,
 		},
@@ -462,14 +475,16 @@ func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
 	tests := []test{
 		{
 			handler: createHeadlampHandler(&HeadlampConfig{
-				HeadlampCFG: &headlampconfig.HeadlampCFG{
-					UseInCluster:    false,
-					KubeConfigPath:  config.GetDefaultKubeConfigPath(),
-					KubeConfigStore: kubeConfigStore,
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:    false,
+						KubeConfigPath:  config.GetDefaultKubeConfigPath(),
+						KubeConfigStore: kubeConfigStore,
+					},
+					Cache:            cache,
+					TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+					TelemetryHandler: &telemetry.RequestHandler{},
 				},
-				cache:            cache,
-				telemetryConfig:  GetDefaultTestTelemetryConfig(),
-				telemetryHandler: &telemetry.RequestHandler{},
 			}),
 		},
 	}
@@ -550,14 +565,16 @@ func TestDeletePlugin(t *testing.T) {
 	kubeConfigStore := kubeconfig.NewContextStore()
 
 	c := HeadlampConfig{
-		HeadlampCFG: &headlampconfig.HeadlampCFG{
-			UseInCluster:    false,
-			KubeConfigPath:  config.GetDefaultKubeConfigPath(),
-			PluginDir:       devPluginDir,
-			UserPluginDir:   userPluginDir,
-			KubeConfigStore: kubeConfigStore,
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigPath:  config.GetDefaultKubeConfigPath(),
+				PluginDir:       devPluginDir,
+				UserPluginDir:   userPluginDir,
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache: cache,
 		},
-		cache: cache,
 	}
 
 	handler := createHeadlampHandler(&c)
@@ -596,14 +613,16 @@ func TestHandleClusterAPI_XForwardedHost(t *testing.T) {
 	cache := cache.New[interface{}]()
 
 	c := HeadlampConfig{
-		HeadlampCFG: &headlampconfig.HeadlampCFG{
-			UseInCluster:    false,
-			KubeConfigPath:  config.GetDefaultKubeConfigPath(),
-			KubeConfigStore: kubeConfigStore,
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigPath:  config.GetDefaultKubeConfigPath(),
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache,
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
 		},
-		cache:            cache,
-		telemetryConfig:  GetDefaultTestTelemetryConfig(),
-		telemetryHandler: &telemetry.RequestHandler{},
 	}
 
 	handler := createHeadlampHandler(&c)
@@ -714,15 +733,17 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 	kubeConfigStore := kubeconfig.NewContextStore()
 
 	c := HeadlampConfig{
-		HeadlampCFG: &headlampconfig.HeadlampCFG{
-			UseInCluster:          false,
-			KubeConfigPath:        "./headlamp_testdata/kubeconfig",
-			EnableDynamicClusters: true,
-			KubeConfigStore:       kubeConfigStore,
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:          false,
+				KubeConfigPath:        "./headlamp_testdata/kubeconfig",
+				EnableDynamicClusters: true,
+				KubeConfigStore:       kubeConfigStore,
+			},
+			Cache:            cache,
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
 		},
-		cache:            cache,
-		telemetryConfig:  GetDefaultTestTelemetryConfig(),
-		telemetryHandler: &telemetry.RequestHandler{},
 	}
 	handler := createHeadlampHandler(&c)
 
@@ -889,6 +910,7 @@ func TestBaseURLReplaceWithCurrentIndexHTMLContentAndRSPackBuild(t *testing.T) {
 `)
 }
 
+//nolint:funlen
 func TestGetOidcCallbackURL(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -903,7 +925,11 @@ func TestGetOidcCallbackURL(t *testing.T) {
 				Host: "example.com",
 				TLS:  &tls.ConnectionState{},
 			},
-			config:         &HeadlampConfig{HeadlampCFG: &headlampconfig.HeadlampCFG{BaseURL: ""}},
+			config: &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{BaseURL: ""},
+				},
+			},
 			expectedResult: "https://example.com/oidc-callback",
 		},
 		{
@@ -912,7 +938,11 @@ func TestGetOidcCallbackURL(t *testing.T) {
 				URL:  &url.URL{Scheme: "http"},
 				Host: "example.com",
 			},
-			config:         &HeadlampConfig{HeadlampCFG: &headlampconfig.HeadlampCFG{BaseURL: "/headlamp"}},
+			config: &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{BaseURL: "/headlamp"},
+				},
+			},
 			expectedResult: "http://example.com/headlamp/oidc-callback",
 		},
 		{
@@ -922,7 +952,11 @@ func TestGetOidcCallbackURL(t *testing.T) {
 				Host:   "example.com",
 				Header: http.Header{"X-Forwarded-Proto": []string{"https"}},
 			},
-			config:         &HeadlampConfig{HeadlampCFG: &headlampconfig.HeadlampCFG{BaseURL: ""}},
+			config: &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{BaseURL: ""},
+				},
+			},
 			expectedResult: "https://example.com/oidc-callback",
 		},
 		{
@@ -931,7 +965,11 @@ func TestGetOidcCallbackURL(t *testing.T) {
 				URL:  &url.URL{},
 				Host: "localhost:8080",
 			},
-			config:         &HeadlampConfig{HeadlampCFG: &headlampconfig.HeadlampCFG{BaseURL: ""}},
+			config: &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{BaseURL: ""},
+				},
+			},
 			expectedResult: "http://localhost:8080/oidc-callback",
 		},
 	}
@@ -949,11 +987,11 @@ func TestGetOidcCallbackURL(t *testing.T) {
 func TestOIDCTokenRefreshMiddleware(t *testing.T) {
 	kubeConfigStore := kubeconfig.NewContextStore()
 	config := &HeadlampConfig{
-		HeadlampCFG: &headlampconfig.HeadlampCFG{
-			KubeConfigStore: kubeConfigStore,
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
 		},
-		cache:            cache.New[interface{}](),
-		telemetryHandler: &telemetry.RequestHandler{},
 	}
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -983,13 +1021,15 @@ func TestStartHeadlampServer(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	config := &HeadlampConfig{
-		HeadlampCFG: &headlampconfig.HeadlampCFG{
-			Port:            8080,
-			PluginDir:       tempDir,
-			KubeConfigStore: kubeconfig.NewContextStore(),
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				Port:            8080,
+				PluginDir:       tempDir,
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache:           cache.New[interface{}](),
+			TelemetryConfig: GetDefaultTestTelemetryConfig(),
 		},
-		cache:           cache.New[interface{}](),
-		telemetryConfig: GetDefaultTestTelemetryConfig(),
 	}
 
 	// Use a channel to signal when the server is ready
@@ -1038,15 +1078,17 @@ func TestStartHeadlampServerTLS(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	cfg := &HeadlampConfig{
-		HeadlampCFG: &headlampconfig.HeadlampCFG{
-			Port:            8185,
-			PluginDir:       tempDir,
-			KubeConfigStore: kubeconfig.NewContextStore(),
-			TLSCertPath:     "headlamp_testdata/headlamp.crt",
-			TLSKeyPath:      "headlamp_testdata/headlamp.key",
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				Port:            8185,
+				PluginDir:       tempDir,
+				KubeConfigStore: kubeconfig.NewContextStore(),
+				TLSCertPath:     "headlamp_testdata/headlamp.crt",
+				TLSKeyPath:      "headlamp_testdata/headlamp.key",
+			},
+			Cache:           cache.New[interface{}](),
+			TelemetryConfig: GetDefaultTestTelemetryConfig(),
 		},
-		cache:           cache.New[interface{}](),
-		telemetryConfig: GetDefaultTestTelemetryConfig(),
 	}
 
 	go StartHeadlampServer(cfg)
@@ -1084,13 +1126,12 @@ func TestHandleClusterHelm(t *testing.T) {
 	defer os.Unsetenv("HEADLAMP_BACKEND_TOKEN")
 
 	config := &HeadlampConfig{
-		HeadlampCFG: &headlampconfig.HeadlampCFG{
-			KubeConfigStore: kubeconfig.NewContextStore(),
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: kubeconfig.NewContextStore()},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
 		},
-		cache: cache.New[interface{}](),
-
-		telemetryConfig:  GetDefaultTestTelemetryConfig(),
-		telemetryHandler: &telemetry.RequestHandler{},
 	}
 
 	// Add a mock context to the kubeConfigStore
@@ -1349,12 +1390,11 @@ func newHeadlampConfig(fakeK8s *httptest.Server, testName string) *HeadlampConfi
 	}
 
 	return &HeadlampConfig{
-		HeadlampCFG: &headlampconfig.HeadlampCFG{
-			KubeConfigStore: store,
-			CacheEnabled:    true,
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: store, CacheEnabled: true},
+			TelemetryHandler: &telemetry.RequestHandler{},
+			Cache:            cache.New[interface{}](),
 		},
-		telemetryHandler: &telemetry.RequestHandler{},
-		cache:            cache.New[interface{}](),
 	}
 }
 
@@ -1571,12 +1611,254 @@ func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp1.StatusCode)
 }
 
+// newRealK8sHeadlampConfig creates a HeadlampConfig for integration tests
+// that use a real Kubernetes cluster (e.g. minikube in CI).
+// Uses a temp config dir so Headlamp's dynamic clusters file does not overwrite
+// the main kubeconfig with stale entries.
+//
+//nolint:funlen
+func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
+	t.Helper()
+
+	kubeConfigPath := os.Getenv("KUBECONFIG")
+	if kubeConfigPath == "" {
+		kubeConfigPath = config.GetDefaultKubeConfigPath()
+	}
+
+	// KUBECONFIG may be a list of files separated by os.PathListSeparator.
+	paths := strings.Split(kubeConfigPath, string(os.PathListSeparator))
+	kubeconfigExists := false
+
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+
+		if _, err := os.Stat(p); err == nil {
+			kubeconfigExists = true
+			break
+		} else if !os.IsNotExist(err) {
+			// For errors other than non-existence, let the loaders handle them;
+			// treat this as "exists" so we don't incorrectly skip.
+			kubeconfigExists = true
+			break
+		}
+	}
+
+	if !kubeconfigExists {
+		t.Skipf("kubeconfig not found at %s, skipping real K8s integration test", kubeConfigPath)
+	}
+
+	tempDir, err := os.MkdirTemp("", "headlamp-integration-test")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(tempDir) })
+
+	pluginDir := filepath.Join(tempDir, "plugins")
+	userPluginDir := filepath.Join(tempDir, "user-plugins")
+
+	require.NoError(t, os.MkdirAll(pluginDir, 0o755))
+	require.NoError(t, os.MkdirAll(userPluginDir, 0o755))
+
+	// Use temp dir as config home so Headlamp's dynamic clusters file
+	// (which can have stale minikube entries) does not overwrite the main kubeconfig.
+	tempConfigHome := filepath.Join(tempDir, "config-home")
+	if runtime.GOOS == "darwin" {
+		require.NoError(t, os.MkdirAll(
+			filepath.Join(tempConfigHome, "Library", "Application Support", "Headlamp", "kubeconfigs"),
+			0o755,
+		))
+		t.Cleanup(setEnvForTest(t, "HOME", tempConfigHome))
+	} else {
+		require.NoError(t, os.MkdirAll(filepath.Join(tempConfigHome, "Headlamp", "kubeconfigs"), 0o755))
+		t.Cleanup(setEnvForTest(t, "XDG_CONFIG_HOME", tempConfigHome))
+	}
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, nil)
+	require.NoError(t, err, "failed to load kubeconfig")
+
+	cfg, err := clientcmd.LoadFromFile(kubeConfigPath)
+	require.NoError(t, err, "failed to load kubeconfig for current context")
+
+	clusterName := cfg.CurrentContext
+
+	if clusterName == "" {
+		clusters := (&HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
+			},
+		}).getClusters()
+		for _, c := range clusters {
+			if c.Error == "" {
+				clusterName = c.Name
+				break
+			}
+		}
+	}
+
+	if clusterName == "" {
+		t.Skip("no current or valid cluster in kubeconfig, skipping real K8s integration test")
+	}
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigPath:  kubeConfigPath,
+				KubeConfigStore: kubeConfigStore,
+				CacheEnabled:    true,
+				PluginDir:       pluginDir,
+				UserPluginDir:   userPluginDir,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	return c, clusterName
+}
+
+// setEnvForTest sets an env var for the test and returns a cleanup that restores it.
+func setEnvForTest(t *testing.T, key, value string) func() {
+	t.Helper()
+
+	old, had := os.LookupEnv(key)
+	require.NoError(t, os.Setenv(key, value))
+
+	return func() {
+		if had {
+			_ = os.Setenv(key, old)
+		} else {
+			_ = os.Unsetenv(key)
+		}
+	}
+}
+
+// TestCacheMiddleware_CacheHitAndCacheMiss_RealK8s tests cache hit/miss with a
+// real Kubernetes API server (e.g. minikube). Requires HEADLAMP_RUN_INTEGRATION_TESTS=true
+// and a running cluster.
+func TestCacheMiddleware_CacheHitAndCacheMiss_RealK8s(t *testing.T) {
+	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
+		t.Skip("skipping integration test")
+	}
+
+	c, clusterName := newRealK8sHeadlampConfig(t)
+	handler := createHeadlampHandler(c)
+	ts := httptest.NewServer(handler)
+	t.Cleanup(ts.Close)
+
+	apiPath := "/clusters/" + clusterName + "/api/v1/namespaces/default/pods"
+	ctx := context.Background()
+
+	resp1, err := httpRequestWithContext(ctx, ts.URL+apiPath, "GET")
+	require.NoError(t, err)
+	defer resp1.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp1.StatusCode, "first GET should succeed")
+	firstFromCache := resp1.Header.Get("X-HEADLAMP-CACHE")
+
+	resp2, err := httpRequestWithContext(ctx, ts.URL+apiPath, "GET")
+	require.NoError(t, err)
+	defer resp2.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp2.StatusCode, "second GET should succeed")
+	secondFromCache := resp2.Header.Get("X-HEADLAMP-CACHE")
+
+	assert.NotEqual(t, "true", firstFromCache, "first request should not be from cache")
+	assert.Equal(t, "true", secondFromCache, "second request should be from cache")
+}
+
+// TestCacheMiddleware_CacheInvalidation_RealK8s tests cache invalidation with a
+// real Kubernetes API server. Creates a ConfigMap, invalidates via DELETE, then
+// verifies the next GET fetches fresh data. Requires HEADLAMP_RUN_INTEGRATION_TESTS=true
+// and a running cluster.
+//
+//nolint:funlen // Integration test requires setup, requests, and assertions in one function
+func TestCacheMiddleware_CacheInvalidation_RealK8s(t *testing.T) {
+	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
+		t.Skip("skipping integration test")
+	}
+
+	c, clusterName := newRealK8sHeadlampConfig(t)
+	handler := createHeadlampHandler(c)
+	ts := httptest.NewServer(handler)
+	t.Cleanup(ts.Close)
+
+	cmName := "headlamp-cache-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	cmPath := "/clusters/" + clusterName + "/api/v1/namespaces/default/configmaps/" + cmName
+	listPath := "/clusters/" + clusterName + "/api/v1/namespaces/default/configmaps"
+	ctx := context.Background()
+
+	cmBody := []byte(fmt.Sprintf(
+		`{"kind":"ConfigMap","apiVersion":"v1","metadata":{"name":"%s"},"data":{"test":"value"}}`,
+		cmName,
+	))
+
+	createReq, err := http.NewRequestWithContext(ctx, "POST", ts.URL+listPath, bytes.NewReader(cmBody))
+	require.NoError(t, err)
+	createReq.Header.Set("Content-Type", "application/json")
+
+	createResp, err := http.DefaultClient.Do(createReq)
+	require.NoError(t, err)
+	createResp.Body.Close()
+	require.Equal(t, http.StatusCreated, createResp.StatusCode, "creating ConfigMap should succeed")
+
+	t.Cleanup(func() {
+		delReq, _ := http.NewRequestWithContext(context.Background(), "DELETE", ts.URL+cmPath, nil)
+		resp, _ := http.DefaultClient.Do(delReq)
+
+		if resp != nil {
+			resp.Body.Close()
+		}
+	})
+
+	resp1, err := httpRequestWithContext(ctx, ts.URL+cmPath, "GET")
+	require.NoError(t, err)
+
+	defer resp1.Body.Close()
+	require.Equal(t, http.StatusOK, resp1.StatusCode)
+
+	delResp, err := httpRequestWithContext(ctx, ts.URL+cmPath, "DELETE")
+	require.NoError(t, err)
+	delResp.Body.Close()
+	require.Contains(t, []int{http.StatusOK, http.StatusAccepted}, delResp.StatusCode, "DELETE should succeed")
+
+	// If DELETE returned 202 Accepted (asynchronous), poll until resource is deleted.
+	// If it returned 200 OK (synchronous), the resource should be immediately unavailable.
+	if delResp.StatusCode == http.StatusAccepted {
+		// Poll with timeout for asynchronous deletion
+		deadline := time.Now().Add(10 * time.Second)
+		for time.Now().Before(deadline) {
+			resp, err := httpRequestWithContext(ctx, ts.URL+cmPath, "GET")
+			if err == nil {
+				resp.Body.Close()
+
+				if resp.StatusCode == http.StatusNotFound {
+					break
+				}
+			}
+
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+
+	resp2, err := httpRequestWithContext(ctx, ts.URL+cmPath, "GET")
+	require.NoError(t, err)
+	defer resp2.Body.Close()
+
+	require.Equal(t, http.StatusNotFound, resp2.StatusCode,
+		"GET after DELETE should return 404 (cache invalidated)")
+}
+
 //nolint:funlen
 func TestHandleClusterServiceProxy(t *testing.T) {
 	cfg := &HeadlampConfig{
-		HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: kubeconfig.NewContextStore()},
-		telemetryHandler: &telemetry.RequestHandler{},
-		telemetryConfig:  GetDefaultTestTelemetryConfig(),
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: kubeconfig.NewContextStore()},
+			TelemetryHandler: &telemetry.RequestHandler{},
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+		},
 	}
 
 	// Backend service the proxy should call

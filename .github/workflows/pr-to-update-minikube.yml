@@ -41,13 +41,13 @@ jobs:
         run: |
           gh repo sync headlamp-k8s/minikube
         env:
-          GITHUB_TOKEN: ${{ secrets. KINVOLK_REPOS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.KINVOLK_REPOS_TOKEN }}
       - name: Check out minikube repo
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           repository: headlamp-k8s/minikube
           path: minikube
-          token: ${{ secrets. KINVOLK_REPOS_TOKEN }}
+          token: ${{ secrets.KINVOLK_REPOS_TOKEN }}
           fetch-depth: 0
       - name: Update headlamp version in minikube
         run: |
@@ -90,4 +90,4 @@ jobs:
             cc: @$user" \
         env:
           LATEST_HEADLAMP_TAG: ${{ env.LATEST_HEADLAMP_TAG }}
-          GITHUB_TOKEN: ${{ secrets. KINVOLK_REPOS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.KINVOLK_REPOS_TOKEN }}

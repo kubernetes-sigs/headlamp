@@ -4,7 +4,7 @@
       class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
     >
       <dt
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-4 css-iqixpy-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1779c3p-MuiGrid-root"
       >
         <p
           class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
@@ -13,7 +13,7 @@
         </p>
       </dt>
       <dd
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-8 css-1xrovmc-MuiGrid-root"
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
       >
         <div
           class="MuiFormControl-root MuiTextField-root css-1u3bzj6-MuiFormControl-root-MuiTextField-root"
@@ -24,6 +24,7 @@
             <input
               aria-describedby=":mock-test-id:"
               aria-invalid="false"
+              aria-label="Cluster name"
               autocomplete="off"
               class="MuiInputBase-input MuiInput-input MuiInputBase-inputAdornedEnd css-1x51dt5-MuiInputBase-input-MuiInput-input"
               id=":mock-test-id:"
@@ -32,7 +33,7 @@
               value="new-cluster-name"
             />
             <div
-              class="MuiBox-root css-oxzk7u"
+              class="MuiBox-root css-70qvj9"
             >
               <button
                 class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"

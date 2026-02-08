@@ -85,6 +85,7 @@ export default function VpaList() {
                     href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler#installation"
                     target="_blank"
                     rel="noopener"
+                    sx={{ textDecoration: 'underline' }}
                   >
                     Learn More
                   </Link>
