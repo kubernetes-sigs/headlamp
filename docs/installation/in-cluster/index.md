@@ -47,6 +47,10 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/headlamp/main
 
 Headlamp supports optional TLS termination at the backend server. The default is to terminate at the ingress (default) or optionally directly at the Headlamp container. This enables use cases such as NGINX TLS passthrough and transport server. See [tls](./tls.md) for details and usage.
 
+## Custom API Server Endpoint
+
+For scenarios where API requests need to be routed through a proxy server (such as when using kube-oidc-proxy with private OIDC providers on managed Kubernetes services like AWS EKS, Azure AKS, or Google GKE), Headlamp supports configuring a custom API server endpoint. See [custom-api-endpoint](./custom-api-endpoint.md) for details and usage.
+
 ## Use a non-default kube config file
 
 By default, Headlamp uses the default service account from the namespace it is deployed to, and generates a kubeconfig from it named `main`.

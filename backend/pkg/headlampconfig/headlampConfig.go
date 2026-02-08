@@ -41,6 +41,7 @@ type HeadlampConfig struct {
 type HeadlampCFG struct {
 	UseInCluster          bool
 	InClusterContextName  string
+	APIServerEndpoint     string
 	ListenAddr            string
 	CacheEnabled          bool
 	DevMode               bool

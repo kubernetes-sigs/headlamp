@@ -34,6 +34,10 @@ extraContainers: []
 config:
   inCluster: true
   inClusterContextName: "main"
+  # -- Custom Kubernetes API server endpoint (overrides the default in-cluster endpoint).
+  # Useful when requests need to pass through a proxy (e.g., kube-oidc-proxy).
+  # Example: "https://kube-oidc-proxy.example.com:443"
+  apiServerEndpoint: ""
   # -- base url path at which headlamp should run
   baseURL: ""
   oidc:

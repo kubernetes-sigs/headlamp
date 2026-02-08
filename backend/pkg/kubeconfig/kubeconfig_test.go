@@ -826,3 +826,144 @@ func TestHandleConfigLoadError(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateAPIServerEndpoint_ValidCases(t *testing.T) {
+	tests := []struct {
+		name       string
+		endpoint   string
+		wantResult string
+	}{
+		{
+			name:       "empty string returns empty",
+			endpoint:   "",
+			wantResult: "",
+		},
+		{
+			name:       "whitespace only returns empty",
+			endpoint:   "   \t\n   ",
+			wantResult: "",
+		},
+		{
+			name:       "valid https URL",
+			endpoint:   "https://kube-oidc-proxy.example.com:443",
+			wantResult: "https://kube-oidc-proxy.example.com:443",
+		},
+		{
+			name:       "valid https URL with whitespace is trimmed",
+			endpoint:   "  https://kube-oidc-proxy.example.com:443  ",
+			wantResult: "https://kube-oidc-proxy.example.com:443",
+		},
+		{
+			name:       "URL with root path is allowed",
+			endpoint:   "https://proxy.example.com:443/",
+			wantResult: "https://proxy.example.com:443/",
+		},
+		{
+			name:       "URL without port",
+			endpoint:   "https://proxy.example.com",
+			wantResult: "https://proxy.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := kubeconfig.ValidateAPIServerEndpoint(tt.endpoint)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantResult, result)
+		})
+	}
+}
+
+func TestValidateAPIServerEndpoint_InvalidCases_Format(t *testing.T) {
+	tests := []struct {
+		name        string
+		endpoint    string
+		errContains string
+	}{
+		{
+			name:        "http URL is rejected",
+			endpoint:    "http://insecure-proxy.example.com:443",
+			errContains: "must be a full https:// URL",
+		},
+		{
+			name:        "missing scheme is rejected",
+			endpoint:    "kube-oidc-proxy.example.com:443",
+			errContains: "must be an absolute URL with scheme and host",
+		},
+		{
+			name:        "relative URL is rejected",
+			endpoint:    "/path/to/proxy",
+			errContains: "must be an absolute URL with scheme and host",
+		},
+		{
+			name:        "URL with empty hostname is rejected",
+			endpoint:    "https://:443",
+			errContains: "must be an absolute URL with scheme and host",
+		},
+		{
+			name:        "URL with invalid port (non-numeric) is rejected",
+			endpoint:    "https://proxy.example.com:abc",
+			errContains: "must be an absolute URL with scheme and host",
+		},
+		{
+			name:        "URL with port out of range (negative via parsing) is rejected",
+			endpoint:    "https://proxy.example.com:-1",
+			errContains: "must be an absolute URL with scheme and host",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := kubeconfig.ValidateAPIServerEndpoint(tt.endpoint)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errContains)
+		})
+	}
+}
+
+func TestValidateAPIServerEndpoint_InvalidCases_Security(t *testing.T) {
+	tests := []struct {
+		name        string
+		endpoint    string
+		errContains string
+	}{
+		{
+			name:        "URL with embedded credentials is rejected",
+			endpoint:    "https://user:password@proxy.example.com:443",
+			errContains: "must not include user info (credentials)",
+		},
+		{
+			name:        "URL with query string is rejected",
+			endpoint:    "https://proxy.example.com:443?token=secret",
+			errContains: "must not include a query string",
+		},
+		{
+			name:        "URL with fragment is rejected",
+			endpoint:    "https://proxy.example.com:443#section",
+			errContains: "must not include a fragment",
+		},
+		{
+			name:        "URL with path is rejected",
+			endpoint:    "https://proxy.example.com:443/api/v1",
+			errContains: "path must be empty or '/'",
+		},
+		{
+			name:        "URL with port out of range (too high) is rejected",
+			endpoint:    "https://proxy.example.com:99999",
+			errContains: "port must be a valid number between 1 and 65535",
+		},
+		{
+			name:        "URL with port out of range (zero) is rejected",
+			endpoint:    "https://proxy.example.com:0",
+			errContains: "port must be a valid number between 1 and 65535",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := kubeconfig.ValidateAPIServerEndpoint(tt.endpoint)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errContains)
+		})
+	}
+}

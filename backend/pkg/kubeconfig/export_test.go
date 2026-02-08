@@ -8,6 +8,9 @@ import "net/http"
 // BuildUserAgent is exported for testing.
 var BuildUserAgent = buildUserAgent
 
+// ValidateAPIServerEndpoint is exported for testing.
+var ValidateAPIServerEndpoint = validateAPIServerEndpoint
+
 // UserAgentRoundTripper is exported for testing.
 type UserAgentRoundTripper struct {
 	Base      roundTripperInterface

@@ -428,28 +428,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 	// In-cluster
 	if config.UseInCluster {
-		context, err := kubeconfig.GetInClusterContext(
-			config.InClusterContextName,
-			config.OidcIdpIssuerURL,
-			config.OidcClientID, config.OidcClientSecret,
-			strings.Join(config.OidcScopes, ","),
-			config.OidcSkipTLSVerify,
-			config.OidcCACert)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
-		}
-
-		context.Source = kubeconfig.InCluster
-
-		err = context.SetupProxy()
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
-		}
-
-		err = config.KubeConfigStore.AddContext(context)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
-		}
+		setupInClusterContext(config)
 	}
 
 	if config.StaticDir != "" {
@@ -1092,6 +1071,34 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 			attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
 			attribute.String("status", "success"))
 	})
+}
+
+// setupInClusterContext sets up the in-cluster Kubernetes context.
+func setupInClusterContext(config *HeadlampConfig) {
+	context, err := kubeconfig.GetInClusterContext(
+		config.InClusterContextName,
+		config.OidcIdpIssuerURL,
+		config.OidcClientID, config.OidcClientSecret,
+		strings.Join(config.OidcScopes, ","),
+		config.OidcSkipTLSVerify,
+		config.OidcCACert,
+		config.APIServerEndpoint)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
+		return
+	}
+
+	context.Source = kubeconfig.InCluster
+
+	err = context.SetupProxy()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
+	}
+
+	err = config.KubeConfigStore.AddContext(context)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+	}
 }
 
 func StartHeadlampServer(config *HeadlampConfig) {

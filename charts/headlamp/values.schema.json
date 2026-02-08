@@ -245,6 +245,10 @@
           "items": {
             "type": "string"
           }
+        },
+        "apiServerEndpoint": {
+          "type": "string",
+          "description": "Custom Kubernetes API server endpoint (overrides default in-cluster endpoint). Must be a full https:// URL. Useful when requests need to pass through a proxy like kube-oidc-proxy."
         }
       }
     },
