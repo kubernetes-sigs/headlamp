@@ -1018,10 +1018,9 @@ func validateAPIServerEndpoint(endpoint string) (string, error) {
 	}
 
 	if parsedURL.Scheme != "https" {
-		// Safe to include scheme+host as it doesn't contain secrets
+		// Don't include scheme or host to avoid any information disclosure
 		return "", fmt.Errorf(
-			"invalid custom API server endpoint %s://%s: must be a full https:// URL",
-			parsedURL.Scheme, parsedURL.Host,
+			"invalid custom API server endpoint: must be a full https:// URL (non-https scheme detected)",
 		)
 	}
 
@@ -1046,10 +1045,9 @@ func validateAPIServerEndpoint(endpoint string) (string, error) {
 	}
 
 	if parsedURL.Path != "" && parsedURL.Path != "/" {
-		// Safe to include scheme+host+path as path shouldn't contain secrets
+		// Don't include path to avoid potential sensitive information
 		return "", fmt.Errorf(
-			"invalid custom API server endpoint https://%s%s: path must be empty or '/' (scheme+host[:port] only)",
-			parsedURL.Host, parsedURL.Path,
+			"invalid custom API server endpoint: path must be empty or '/' (scheme+host[:port] only)",
 		)
 	}
 
