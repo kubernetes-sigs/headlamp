@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -16,8 +17,17 @@ import (
 	k8stesting "k8s.io/client-go/testing"
 )
 
+// newTestClientForHandler creates an HTTP client without SSRF protection for testing.
+func newTestClientForHandler(timeout time.Duration) *http.Client {
+	return &http.Client{Timeout: timeout}
+}
+
 //nolint:funlen
 func TestHandleServiceProxy(t *testing.T) {
+	// Use test client without SSRF protection for these tests
+	SetHTTPClientFactory(newTestClientForHandler)
+	t.Cleanup(ResetHTTPClientFactory)
+
 	tests := []struct {
 		name           string
 		proxyService   *proxyService
@@ -107,8 +117,9 @@ func TestHandleServiceProxy(t *testing.T) {
 			mockResponse:   "",
 			mockStatusCode: http.StatusOK,
 			expectedCode:   http.StatusInternalServerError,
-			expectedBody:   "invalid request uri: parse \"://invalid-request-uri\": missing protocol scheme\n",
-			useMockServer:  false,
+			expectedBody: "invalid request URI: invalid URI format: " +
+				"parse \"://invalid-request-uri\": missing protocol scheme\n",
+			useMockServer: false,
 		},
 	}
 
