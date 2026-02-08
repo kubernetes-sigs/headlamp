@@ -65,4 +65,5 @@ type HeadlampCFG struct {
 	TLSKeyPath             string
 	SessionTTL             int
 	OidcUseCookie          bool
+	PrometheusEndpoint     string
 }
