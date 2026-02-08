@@ -32,6 +32,7 @@ import { useCluster, useClustersConf } from '../../lib/k8s';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
 import { getSavedNamespaces } from '../../lib/storage';
+import { setPluginConfig } from '../../plugin/pluginConfigSlice';
 import { setConfig } from '../../redux/configSlice';
 import { ConfigState } from '../../redux/configSlice';
 import { setNamespaceFilter } from '../../redux/filterSlice';
@@ -176,6 +177,39 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
      */
     if (config?.isDynamicClusterEnabled) {
       fetchStatelessClusterKubeConfigs(dispatch);
+    }
+
+    if (config?.prometheusEndpoint) {
+      const currentPluginConfigs: { [key: string]: any } = store.getState().pluginConfigs || {};
+      const prometheusConfig = currentPluginConfigs['prometheus'] || {};
+      const newPrometheusConfig: { [key: string]: any } = { ...prometheusConfig };
+      let hasChanges = false;
+
+      Object.keys(clustersToConfig).forEach(clusterName => {
+        const currentClusterConfig = prometheusConfig[clusterName] || {};
+        if (
+          currentClusterConfig.address !== config.prometheusEndpoint ||
+          !currentClusterConfig.isMetricsEnabled ||
+          currentClusterConfig.autoDetect !== false
+        ) {
+          newPrometheusConfig[clusterName] = {
+            ...currentClusterConfig,
+            isMetricsEnabled: true,
+            address: config.prometheusEndpoint,
+            autoDetect: false,
+          };
+          hasChanges = true;
+        }
+      });
+
+      if (hasChanges) {
+        dispatch(
+          setPluginConfig({
+            configKey: 'prometheus',
+            payload: newPrometheusConfig,
+          })
+        );
+      }
     }
 
     return configToStore;
