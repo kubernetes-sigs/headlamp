@@ -62,46 +62,44 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
   }, []);
 
   return (
-    <div>
-      <MuiDialog
-        open={open}
-        onClose={handleClose}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
-        PaperProps={{
-          sx: {
-            minWidth: 'clamp(280px, 25vw, 600px)',
-          },
-        }}
-      >
-        <DialogTitle id="alert-dialog-title">{title}</DialogTitle>
-        <DialogContent ref={focusedRef} sx={{ py: 1 }}>
-          <DialogContentText id="alert-dialog-description" component="div">
-            {description}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          {!hideCancelButton && (
-            <Button
-              onClick={handleClose}
-              aria-label="cancel-button"
-              color="secondary"
-              variant="contained"
-            >
-              {cancelLabel || t('No')}
-            </Button>
-          )}
+    <MuiDialog
+      open={open}
+      onClose={handleClose}
+      aria-labelledby="alert-dialog-title"
+      aria-describedby="alert-dialog-description"
+      PaperProps={{
+        sx: {
+          minWidth: 'clamp(280px, 25vw, 600px)',
+        },
+      }}
+    >
+      <DialogTitle id="alert-dialog-title">{title}</DialogTitle>
+      <DialogContent ref={focusedRef} sx={{ py: 1 }}>
+        <DialogContentText id="alert-dialog-description" component="div">
+          {description}
+        </DialogContentText>
+      </DialogContent>
+      <DialogActions>
+        {!hideCancelButton && (
           <Button
-            onClick={onConfirmationClicked}
-            aria-label="confirm-button"
-            color="primary"
+            onClick={handleClose}
+            aria-label="cancel-button"
+            color="secondary"
             variant="contained"
           >
-            {confirmLabel || t('Yes')}
+            {cancelLabel || t('No')}
           </Button>
-        </DialogActions>
-      </MuiDialog>
-    </div>
+        )}
+        <Button
+          onClick={onConfirmationClicked}
+          aria-label="confirm-button"
+          color="primary"
+          variant="contained"
+        >
+          {confirmLabel || t('Yes')}
+        </Button>
+      </DialogActions>
+    </MuiDialog>
   );
 }
 

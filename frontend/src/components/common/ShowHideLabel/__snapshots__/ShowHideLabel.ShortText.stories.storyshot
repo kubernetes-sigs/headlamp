@@ -6,12 +6,12 @@
       <div
         class="MuiBox-root css-k008qs"
       >
-        <span
+        <label
           id="my-label2"
           style="word-break: break-all; white-space: normal;"
         >
           Short text
-        </span>
+        </label>
       </div>
     </div>
   </div>

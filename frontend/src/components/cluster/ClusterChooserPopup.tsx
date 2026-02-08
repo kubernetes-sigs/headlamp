@@ -257,7 +257,6 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
         />
         <MenuList
           id="cluster-chooser-list"
-          tabIndex={0}
           sx={{
             width: '280px',
             minWidth: '280px',

@@ -24,7 +24,8 @@ export default {
   component: PluginSettingsPure,
   decorators: [
     Story => (
-      <div aria-label="Plugin Settings Test Page">
+      <div>
+        <h1 style={{ position: 'absolute', left: '-10000px' }}>Plugin Settings Test Page</h1>
         <Story />
       </div>
     ),

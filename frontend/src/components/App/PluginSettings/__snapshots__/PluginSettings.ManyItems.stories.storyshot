@@ -1,8 +1,11 @@
 <body>
   <div>
-    <div
-      aria-label="Plugin Settings Test Page"
-    >
+    <div>
+      <h1
+        style="position: absolute; left: -10000px;"
+      >
+        Plugin Settings Test Page
+      </h1>
       <div
         class="MuiBox-root css-j1fy4m"
       >
@@ -387,7 +390,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -396,7 +399,7 @@
                     >
                       plugin a 0
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -450,7 +453,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -459,7 +462,7 @@
                     >
                       plugin a 1
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -515,7 +518,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -524,7 +527,7 @@
                     >
                       plugin a 2
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -578,7 +581,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -587,7 +590,7 @@
                     >
                       plugin a 3
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -643,7 +646,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -652,7 +655,7 @@
                     >
                       plugin a 4
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -706,7 +709,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -715,7 +718,7 @@
                     >
                       plugin a 5
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -771,7 +774,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -780,7 +783,7 @@
                     >
                       plugin a 6
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -834,7 +837,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -843,7 +846,7 @@
                     >
                       plugin a 7
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -899,7 +902,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -908,7 +911,7 @@
                     >
                       plugin a 8
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -962,7 +965,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -971,7 +974,7 @@
                     >
                       plugin a 9
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -1027,7 +1030,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -1036,7 +1039,7 @@
                     >
                       plugin a 10
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -1090,7 +1093,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -1099,7 +1102,7 @@
                     >
                       plugin a 11
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -1155,7 +1158,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -1164,7 +1167,7 @@
                     >
                       plugin a 12
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -1218,7 +1221,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -1227,7 +1230,7 @@
                     >
                       plugin a 13
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -1283,7 +1286,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -1292,7 +1295,7 @@
                     >
                       plugin a 14
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />

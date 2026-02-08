@@ -69,7 +69,7 @@
           class="MuiList-root MuiList-padding MuiList-dense css-1k1lw4j-MuiList-root"
           id="cluster-chooser-list"
           role="menu"
-          tabindex="0"
+          tabindex="-1"
         >
           <li
             class="MuiListSubheader-root MuiListSubheader-gutters css-1ac4l9u-MuiListSubheader-root"

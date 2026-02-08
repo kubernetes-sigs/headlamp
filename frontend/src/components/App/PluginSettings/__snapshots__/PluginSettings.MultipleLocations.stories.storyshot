@@ -1,8 +1,11 @@
 <body>
   <div>
-    <div
-      aria-label="Plugin Settings Test Page"
-    >
+    <div>
+      <h1
+        style="position: absolute; left: -10000px;"
+      >
+        Plugin Settings Test Page
+      </h1>
       <div
         class="MuiBox-root css-j1fy4m"
       >
@@ -387,7 +390,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -405,7 +408,7 @@
                         Multiple versions
                       </span>
                     </div>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -459,7 +462,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -477,7 +480,7 @@
                         Multiple versions
                       </span>
                     </div>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -533,7 +536,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -551,7 +554,7 @@
                         Multiple versions
                       </span>
                     </div>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -607,7 +610,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -625,7 +628,7 @@
                         Multiple versions
                       </span>
                     </div>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -679,7 +682,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -697,7 +700,7 @@
                         Multiple versions
                       </span>
                     </div>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -753,7 +756,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -762,7 +765,7 @@
                     >
                       dev-only-plugin
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -816,7 +819,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -825,7 +828,7 @@
                     >
                       custom-plugin
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -879,7 +882,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -888,7 +891,7 @@
                     >
                       default-plugin
                     </a>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -942,7 +945,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -960,7 +963,7 @@
                         Multiple versions
                       </span>
                     </div>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -1014,7 +1017,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -1032,7 +1035,7 @@
                         Multiple versions
                       </span>
                     </div>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -1086,7 +1089,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <div
+                  <h6
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -1104,7 +1107,7 @@
                         Multiple versions
                       </span>
                     </div>
-                  </div>
+                  </h6>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
