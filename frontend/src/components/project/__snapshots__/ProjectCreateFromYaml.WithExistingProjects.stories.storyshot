@@ -24,7 +24,7 @@
                 Project name
               </p>
               <p
-                class="MuiTypography-root MuiTypography-body2 css-vm2751-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-body2 css-159nnbq-MuiTypography-root"
               >
                 Give your project a descriptive name
               </p>
@@ -36,7 +36,7 @@
                 class="MuiFormControl-root MuiTextField-root css-xbp7s-MuiFormControl-root-MuiTextField-root"
               >
                 <label
-                  class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary Mui-required MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined css-10fydcw-MuiFormLabel-root-MuiInputLabel-root"
+                  class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary Mui-required MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1kf9juj-MuiFormLabel-root-MuiInputLabel-root"
                   data-shrink="false"
                   for=":mock-test-id:"
                   id=":mock-test-id:"
@@ -88,7 +88,7 @@
                 Cluster
               </p>
               <p
-                class="MuiTypography-root MuiTypography-body2 css-vm2751-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-body2 css-159nnbq-MuiTypography-root"
               >
                 Select cluster for this project
               </p>
@@ -103,7 +103,7 @@
                   class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-19r8nsp-MuiFormControl-root-MuiTextField-root"
                 >
                   <label
-                    class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary Mui-disabled Mui-required MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined css-10fydcw-MuiFormLabel-root-MuiInputLabel-root"
+                    class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary Mui-disabled Mui-required MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1kf9juj-MuiFormLabel-root-MuiInputLabel-root"
                     data-shrink="false"
                     for=":mock-test-id:"
                     id=":mock-test-id:"
@@ -186,7 +186,7 @@
                 Load resources
               </p>
               <p
-                class="MuiTypography-root MuiTypography-body2 css-vm2751-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-body2 css-159nnbq-MuiTypography-root"
               >
                 Upload files or load from URL
               </p>
@@ -213,7 +213,7 @@
                       >
                         <button
                           aria-selected="true"
-                          class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-f00lt7-MuiButtonBase-root-MuiTab-root"
+                          class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-i7e10r-MuiButtonBase-root-MuiTab-root"
                           role="tab"
                           tabindex="0"
                           type="button"
@@ -225,7 +225,7 @@
                         </button>
                         <button
                           aria-selected="false"
-                          class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
+                          class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-i7e10r-MuiButtonBase-root-MuiTab-root"
                           role="tab"
                           tabindex="-1"
                           type="button"
@@ -279,7 +279,7 @@
                       </button>
                     </div>
                     <p
-                      class="MuiTypography-root MuiTypography-body2 css-tn1jak-MuiTypography-root"
+                      class="MuiTypography-root MuiTypography-body2 css-1i5gejl-MuiTypography-root"
                     >
                       Supports .yaml and .yml files
                     </p>
