@@ -53,6 +53,7 @@ export default function Settings() {
   const dispatch = useDispatch();
   const themeName = useTypedSelector(state => state.theme.name);
   const appThemes = useAppThemes();
+  const forceTheme = useTypedSelector(state => state.config.forceTheme);
 
   useEffect(() => {
     dispatch(
@@ -201,6 +202,19 @@ export default function Settings() {
             pb: 5,
           }}
         >
+          {forceTheme && (
+            <Typography
+              variant="body2"
+              sx={theme => ({
+                textAlign: 'center',
+                color: theme.palette.text.secondary,
+                fontStyle: 'italic',
+                mb: 2,
+              })}
+            >
+              {t('translation|Theme has been forced by your administrator')}
+            </Typography>
+          )}
           <Box
             sx={{
               display: 'grid',
@@ -211,18 +225,25 @@ export default function Settings() {
                 gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
                 gap: 2,
               },
+              opacity: forceTheme ? 0.5 : 1,
+              pointerEvents: forceTheme ? 'none' : 'auto',
             }}
           >
             {appThemes.map(it => (
               <Box
                 key={it.name}
                 role="button"
-                tabIndex={0}
+                tabIndex={forceTheme ? -1 : 0}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') dispatch(setTheme(it.name));
+                  if (forceTheme) {
+                    return;
+                  }
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    dispatch(setTheme(it.name));
+                  }
                 }}
                 sx={{
-                  cursor: 'pointer',
+                  cursor: forceTheme ? 'not-allowed' : 'pointer',
                   border: themeName === it.name ? '2px solid' : '1px solid',
                   borderColor: themeName === it.name ? 'primary' : 'divider',
                   borderRadius: 2,
@@ -232,10 +253,10 @@ export default function Settings() {
                   alignItems: 'center',
                   transition: '0.2 ease',
                   '&:hover': {
-                    backgroundColor: 'divider',
+                    backgroundColor: forceTheme ? 'transparent' : 'divider',
                   },
                 }}
-                onClick={() => dispatch(setTheme(it.name))}
+                onClick={() => !forceTheme && dispatch(setTheme(it.name))}
               >
                 <ThemePreview theme={it} size={110} />
                 <Box sx={{ mt: 1 }}>{capitalize(it.name)}</Box>

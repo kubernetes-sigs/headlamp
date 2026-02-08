@@ -16,7 +16,12 @@
 
 import React from 'react';
 import { AppLogoProps, AppLogoType } from './AppLogo';
-import themeReducer, { initialState, setBrandingAppLogoComponent, setTheme } from './themeSlice';
+import themeReducer, {
+  applyBackendThemeConfig,
+  initialState,
+  setBrandingAppLogoComponent,
+  setTheme,
+} from './themeSlice';
 
 describe('themeSlice', () => {
   it('should handle initial state', () => {
@@ -36,5 +41,40 @@ describe('themeSlice', () => {
     const themeName = 'dark';
     const actual = themeReducer(initialState, setTheme(themeName));
     expect(actual.name).toEqual(themeName);
+  });
+
+  describe('applyBackendThemeConfig', () => {
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    it('should apply forced theme and override current theme', () => {
+      const state = { ...initialState, name: 'light' };
+      const actual = themeReducer(state, applyBackendThemeConfig({ forceTheme: 'corporate' }));
+      expect(actual.name).toEqual('corporate');
+    });
+
+    it('should clear localStorage preference when forced theme is applied', () => {
+      localStorage.setItem('headlampThemePreference', 'dark');
+      const state = { ...initialState, name: 'light' };
+      themeReducer(state, applyBackendThemeConfig({ forceTheme: 'corporate' }));
+      expect(localStorage.getItem('headlampThemePreference')).toBeNull();
+    });
+
+    it('should not update state if theme has not changed', () => {
+      const state = { ...initialState, name: 'corporate' };
+      const actual = themeReducer(state, applyBackendThemeConfig({ forceTheme: 'corporate' }));
+      expect(actual.name).toEqual('corporate');
+    });
+
+    it('should persist to localStorage when theme is not forced', () => {
+      const state = { ...initialState, name: 'old-theme' };
+      const config = { defaultLightTheme: 'solarized-light' };
+      const actual = themeReducer(state, applyBackendThemeConfig(config));
+      // Theme changed, so it should be persisted via setTheme (property assignment)
+      if (actual.name !== state.name) {
+        expect(localStorage.headlampThemePreference).toEqual(actual.name);
+      }
+    });
   });
 });

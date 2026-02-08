@@ -158,6 +158,7 @@
   "Sort sidebar items alphabetically": "Trier les éléments de la barre latérale par ordre alphabétique",
   "Use evict for pod deletion": "Utiliser l'éviction pour la suppression de pods",
   "Theme": "Thème",
+  "Theme has been forced by your administrator": "Le thème est imposé par votre administrateur",
   "Keyboard Shortcuts": "",
   "Configure keyboard shortcuts for quick access to various parts of the application.": "",
   "Cluster Settings": "Paramètres du cluster",

@@ -445,28 +445,58 @@ export function usePrefersColorScheme() {
 /**
  * Hook gets theme based on user preference, and also OS/Browser preference.
  */
-export function getThemeName(): string {
+/**
+ * Computes the theme name based on user preference, backend configuration, and OS preference.
+ *
+ * Precedence order:
+ * 1. If forceTheme is set → use it (ignore user preference)
+ * 2. If user has selected theme in localStorage → use it
+ * 3. If backend has default theme matching OS preference → use it
+ * 4. Fallback to OS/browser preference (light/dark)
+ *
+ * @param backendConfig - Optional backend theme configuration
+ * @returns The theme name to use
+ */
+export function getThemeName(backendConfig?: {
+  defaultLightTheme?: string;
+  defaultDarkTheme?: string;
+  forceTheme?: string;
+}): string {
+  // If force theme is set, it overrides everything
+  if (backendConfig?.forceTheme) {
+    return backendConfig.forceTheme;
+  }
+
   const themePreference = localStorage.headlampThemePreference;
 
-  if (typeof window.matchMedia !== 'function') {
-    return 'light';
+  // User-selected theme preference takes precedence
+  if (themePreference) {
+    return themePreference;
   }
+
+  // Detect OS preference
+  if (typeof window.matchMedia !== 'function') {
+    return backendConfig?.defaultLightTheme || 'light';
+  }
+
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
 
-  let themeName = 'light';
-  if (themePreference) {
-    // A selected theme preference takes precedence.
-    themeName = themePreference;
-  } else {
-    if (prefersLight) {
-      themeName = 'light';
-    } else if (prefersDark) {
-      themeName = 'dark';
-    }
+  // Apply backend default theme based on OS preference
+  if (prefersLight && backendConfig?.defaultLightTheme) {
+    return backendConfig.defaultLightTheme;
+  } else if (prefersDark && backendConfig?.defaultDarkTheme) {
+    return backendConfig.defaultDarkTheme;
   }
 
-  return themeName;
+  // Fallback to OS preference
+  if (prefersLight) {
+    return 'light';
+  } else if (prefersDark) {
+    return 'dark';
+  }
+
+  return 'light';
 }
 
 export function setTheme(themeName: string) {
