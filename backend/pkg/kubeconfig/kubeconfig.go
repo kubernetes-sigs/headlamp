@@ -1011,45 +1011,45 @@ func validateAPIServerEndpoint(endpoint string) (string, error) {
 
 	parsedURL, err := url.Parse(trimmed)
 	if err != nil || !parsedURL.IsAbs() || parsedURL.Host == "" || parsedURL.Hostname() == "" {
+		// Don't include the endpoint in error as it may contain sensitive data
 		return "", fmt.Errorf(
-			"invalid custom API server endpoint %q: must be an absolute URL with scheme and host",
-			trimmed,
+			"invalid custom API server endpoint: must be an absolute URL with scheme and host",
 		)
 	}
 
 	if parsedURL.Scheme != "https" {
+		// Safe to include scheme+host as it doesn't contain secrets
 		return "", fmt.Errorf(
-			"invalid custom API server endpoint %q: must be a full https:// URL",
-			trimmed,
+			"invalid custom API server endpoint %s://%s: must be a full https:// URL",
+			parsedURL.Scheme, parsedURL.Host,
 		)
 	}
 
 	// Disallow embedded credentials, query strings, fragments, and non-root paths
+	// Don't include the full URL in these errors to avoid logging secrets
 	if parsedURL.User != nil {
 		return "", fmt.Errorf(
-			"invalid custom API server endpoint %q: must not include user info (credentials)",
-			trimmed,
+			"invalid custom API server endpoint: must not include user info (credentials)",
 		)
 	}
 
 	if parsedURL.RawQuery != "" {
 		return "", fmt.Errorf(
-			"invalid custom API server endpoint %q: must not include a query string",
-			trimmed,
+			"invalid custom API server endpoint: must not include a query string",
 		)
 	}
 
 	if parsedURL.Fragment != "" {
 		return "", fmt.Errorf(
-			"invalid custom API server endpoint %q: must not include a fragment",
-			trimmed,
+			"invalid custom API server endpoint: must not include a fragment",
 		)
 	}
 
 	if parsedURL.Path != "" && parsedURL.Path != "/" {
+		// Safe to include scheme+host+path as path shouldn't contain secrets
 		return "", fmt.Errorf(
-			"invalid custom API server endpoint %q: path must be empty or '/' (scheme+host[:port] only)",
-			trimmed,
+			"invalid custom API server endpoint https://%s%s: path must be empty or '/' (scheme+host[:port] only)",
+			parsedURL.Host, parsedURL.Path,
 		)
 	}
 
