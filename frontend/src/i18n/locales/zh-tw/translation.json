@@ -61,6 +61,7 @@
   "Active": "活躍",
   "Plugin": "外掛",
   "In-cluster": "叢集內",
+  "Cluster Inventory": "",
   "View Clusters": "檢視叢集",
   "Loading...": "載入中...",
   "No clusters found": "找不到叢集",

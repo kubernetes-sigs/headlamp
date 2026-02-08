@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -315,17 +314,37 @@ func createTempKubeconfig(t *testing.T, content string) string {
 }
 
 func TestContext(t *testing.T) {
-	kubeConfigFile := config.GetDefaultKubeConfigPath()
+	// Use an in-memory HTTP server so this test is deterministic and doesn't
+	// depend on the developer/CI machine having a specific kubeconfig context.
+	versionServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/version" {
+			http.NotFound(w, r)
+			return
+		}
 
-	configStore := kubeconfig.NewContextStore()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"major":"1","minor":"32"}`))
+	}))
+	defer versionServer.Close()
 
-	err := kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
+	testContext := &kubeconfig.Context{
+		Name: "test-context",
+		KubeContext: &api.Context{
+			Cluster:   "test-context",
+			AuthInfo:  "test-context",
+			Namespace: "default",
+		},
+		Cluster: &api.Cluster{
+			Server: versionServer.URL,
+		},
+		AuthInfo: &api.AuthInfo{},
+		Source:   kubeconfig.KubeConfig,
+	}
+
+	err := testContext.SetupProxy()
 	require.NoError(t, err)
 
-	testContext, err := configStore.GetContext("minikube")
-	require.NoError(t, err)
-
-	require.Equal(t, "minikube", testContext.Name)
+	require.Equal(t, "test-context", testContext.Name)
 	require.NotNil(t, testContext.ClientConfig())
 	require.Equal(t, "default", testContext.KubeContext.Namespace)
 

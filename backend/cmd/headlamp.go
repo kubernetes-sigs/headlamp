@@ -46,6 +46,7 @@ import (
 	"github.com/gorilla/mux"
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 
@@ -428,7 +429,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 	// In-cluster
 	if config.UseInCluster {
-		context, err := kubeconfig.GetInClusterContext(
+		inClusterContext, err := kubeconfig.GetInClusterContext(
 			config.InClusterContextName,
 			config.OidcIdpIssuerURL,
 			config.OidcClientID, config.OidcClientSecret,
@@ -439,16 +440,25 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
 		}
 
-		context.Source = kubeconfig.InCluster
+		inClusterContext.Source = kubeconfig.InCluster
 
-		err = context.SetupProxy()
+		err = inClusterContext.SetupProxy()
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
 		}
 
-		err = config.KubeConfigStore.AddContext(context)
+		err = config.KubeConfigStore.AddContext(inClusterContext)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+		}
+
+		if config.EnableClusterInventory {
+			go clusterinventory.WatchAndSync(
+				context.Background(),
+				config.KubeConfigStore,
+				config.ClusterInventoryProviderFile,
+				config.ClusterInventoryRescanInterval,
+			)
 		}
 	}
 
@@ -492,6 +502,14 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		kubeconfig.DynamicCluster, skipFunc)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "loading dynamic kubeconfig")
+	}
+
+	// Cluster inventory from store: when not in-cluster, discover ClusterProfiles from every
+	// context already in the store (kubeconfig, dynamic) so that ClusterProfile-based clusters
+	// appear in local runs and desktop app.
+	if config.EnableClusterInventory && !config.UseInCluster {
+		go clusterinventory.DiscoverFromStore(context.Background(), config.KubeConfigStore,
+			config.ClusterInventoryProviderFile, config.ClusterInventoryRescanInterval)
 	}
 
 	addPluginRoutes(config, r)

@@ -312,14 +312,19 @@ export function PureAuthChooser({
             <Box alignItems="center" textAlign="center">
               <Box m={2}>
                 <Empty>
-                  {error && error.message === 'Bad Gateway'
-                    ? t(
-                        'Failed to connect. Please make sure the Kubernetes cluster is running and accessible. Error: {{ errorMessage }}',
-                        { errorMessage: error!.message }
-                      )
-                    : t('Failed to get authentication information: {{ errorMessage }}', {
-                        errorMessage: error!.message,
-                      })}
+                  {(() => {
+                    const status = (error as any)?.status;
+                    const isConnectionError =
+                      typeof status === 'number' && [408, 502, 504].includes(status);
+                    return isConnectionError
+                      ? t(
+                          'Failed to connect. Please make sure the Kubernetes cluster is running and accessible. Error: {{ errorMessage }}',
+                          { errorMessage: error!.message }
+                        )
+                      : t('Failed to get authentication information: {{ errorMessage }}', {
+                          errorMessage: error!.message,
+                        });
+                  })()}
                 </Empty>
                 <Link routeName="settingsClusterHomeContext">
                   {t('translation|Cluster settings')}
