@@ -139,6 +139,10 @@ export class HeadlampPage {
     }
   }
 
+  async tableContains(text: string, options?: { timeout?: number }) {
+    await expect(this.page.locator('table')).toContainText(text, options);
+  }
+
   async clickOnPlugin(pluginName: string) {
     await this.page.click(`a:has-text("${pluginName}")`);
     await this.page.waitForLoadState('load');
