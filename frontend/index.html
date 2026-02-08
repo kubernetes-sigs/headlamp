@@ -16,7 +16,7 @@
       manifest.json provides metadata used when your web app is installed on a
       user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
     -->
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
     <!--
       Unlike "/favicon.ico" or "favicon.ico", "/favicon.ico" will
       work correctly both with client-side routing and a non-root public URL.
@@ -24,10 +24,12 @@
     -->
     <title>Headlamp</title>
     <script>
-        // handles both webpack and rspack build systems
-        __baseUrl__ = '%BASE_URL%<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');
-        // the syntax of the following line is special - it will be matched and replaced by the server if a base URL is set by the server
-        headlampBaseUrl = __baseUrl__;
+      // handles both webpack and rspack build systems
+      __baseUrl__ = '%BASE_URL%<%= BASE_URL %>'
+        .replace('%BASE_' + 'URL%', '')
+        .replace('<' + '%= BASE_URL %>', '');
+      // the syntax of the following line is special - it will be matched and replaced by the server if a base URL is set by the server
+      headlampBaseUrl = __baseUrl__;
     </script>
     <style>
       .splash {
