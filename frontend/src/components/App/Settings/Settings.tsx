@@ -45,11 +45,15 @@ export default function Settings() {
   const storedRowsPerPageOptions = settingsObj.tableRowsPerPageOptions;
   const storedSortSidebar = settingsObj.sidebarSortAlphabetically;
   const storedUseEvict = settingsObj.useEvict;
+  const storedEnableWebsocketMultiplexer = settingsObj.enableWebsocketMultiplexer;
   const [selectedTimezone, setSelectedTimezone] = useState<string>(
     storedTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   );
   const [sortSidebar, setSortSidebar] = useState<boolean>(storedSortSidebar);
   const [useEvict, setUseEvict] = useState<boolean>(storedUseEvict);
+  const [enableWebsocketMultiplexer, setEnableWebsocketMultiplexer] = useState<boolean | undefined>(
+    storedEnableWebsocketMultiplexer
+  );
   const dispatch = useDispatch();
   const themeName = useTypedSelector(state => state.theme.name);
   const appThemes = useAppThemes();
@@ -78,10 +82,21 @@ export default function Settings() {
     );
   }, [useEvict]);
 
+  useEffect(() => {
+    if (enableWebsocketMultiplexer !== undefined) {
+      dispatch(
+        setAppSettings({
+          enableWebsocketMultiplexer: enableWebsocketMultiplexer,
+        })
+      );
+    }
+  }, [enableWebsocketMultiplexer]);
+
   const sidebarLabelID = 'sort-sidebar-label';
   const evictLabelID = 'use-evict-label';
   const tableRowsLabelID = 'rows-per-page-label';
   const timezoneLabelID = 'timezone-label';
+  const websocketMultiplexerLabelID = 'websocket-multiplexer-label';
 
   return (
     <SectionBox
@@ -244,6 +259,67 @@ export default function Settings() {
           </Box>
         </Box>
       </Box>
+      <Box
+        sx={{
+          mt: '2',
+          borderTop: '1px solid',
+          borderTopColor: 'divider',
+          pt: '2',
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'baseline',
+            px: 1.5,
+            py: 1,
+          }}
+        >
+          <Typography
+            variant="body1"
+            sx={theme => ({
+              textAlign: 'left',
+              color: theme.palette.text.secondary,
+              fontSize: '1rem',
+              [theme.breakpoints.down('sm')]: {
+                fontSize: '1.5rem',
+                color: theme.palette.text.primary,
+              },
+            })}
+          >
+            {t('translation|Experimental Features')}
+          </Typography>
+        </Box>
+        <NameValueTable
+          rows={[
+            {
+              name: t('translation|WebSocket Multiplexer'),
+              value: (
+                <Box>
+                  <Switch
+                    color="primary"
+                    checked={enableWebsocketMultiplexer ?? true}
+                    onChange={e => setEnableWebsocketMultiplexer(e.target.checked)}
+                    inputProps={{
+                      'aria-labelledby': websocketMultiplexerLabelID,
+                    }}
+                  />
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: 'block',
+                      mt: 0.5,
+                      color: 'text.secondary',
+                    }}
+                  >
+                    {t('translation|Optimizes resource watching for multiple clusters')}
+                  </Typography>
+                </Box>
+              ),
+              nameID: websocketMultiplexerLabelID,
+            },
+          ]}
+        />
       <Box sx={{ mt: 4 }}>
         <SectionBox
           title={t('translation|Keyboard Shortcuts')}
