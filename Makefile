@@ -11,6 +11,17 @@ DOCKER_PLUGINS_IMAGE_NAME ?= plugins
 DOCKER_IMAGE_VERSION ?= $(shell git describe --tags --always --dirty)
 DOCKER_PLATFORM ?= local
 DOCKER_PUSH ?= false
+
+# On macOS, explicitly set DOCKER_PLATFORM when running locally to prevent buildx from targeting darwin/*, which breaks Linux-based Dockerfiles.
+ifeq ($(DOCKER_PLATFORM),local)
+  ifeq ($(shell uname -s 2>/dev/null),Darwin)
+    ifeq ($(shell uname -m 2>/dev/null),arm64)
+      DOCKER_PLATFORM = linux/arm64
+    else
+      DOCKER_PLATFORM = linux/amd64
+    endif
+  endif
+endif
 EMBED_BINARY_NAME := headlamp_app
 # Get version and app name from app/package.json
 APP_VERSION ?= $(shell node -p "require('./app/package.json').version" 2>/dev/null || echo "unknown")
