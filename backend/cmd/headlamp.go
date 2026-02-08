@@ -47,6 +47,7 @@ import (
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 
 	headlampcfg "github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
@@ -422,6 +423,8 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			pluginEventChan,
 			config.Cache,
 		)
+		// Set the function to stop kubeconfig context watchers
+		kubeconfig.StopContextWatcher = k8cache.StopWatcher
 		// in-cluster mode is unlikely to want reloading kubeconfig.
 		go kubeconfig.LoadAndWatchFiles(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	}

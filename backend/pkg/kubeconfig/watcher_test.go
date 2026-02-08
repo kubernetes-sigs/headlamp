@@ -3,6 +3,7 @@ package kubeconfig_test
 import (
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -95,7 +96,97 @@ func TestWatchAndLoadFiles(t *testing.T) {
 
 		require.True(t, removed, "Context should have been removed")
 	})
+	t.Run("StopContextWatcher callback", func(t *testing.T) {
+		// Sleep to ensure watcher is ready
+		time.Sleep(2 * time.Second)
 
+		stoppedContexts := make(map[string]int)
+
+		var mu sync.Mutex
+
+		callbackInvoked := make(chan string, 10)
+
+		kubeconfig.StopContextWatcher = func(contextName string) {
+			mu.Lock()
+			stoppedContexts[contextName]++
+			count := stoppedContexts[contextName]
+			mu.Unlock()
+			select {
+			case callbackInvoked <- contextName:
+			default:
+			}
+
+			t.Logf("StopContextWatcher called for context: %s (count: %d)", contextName, count)
+		}
+		defer func() {
+			kubeconfig.StopContextWatcher = nil
+		}()
+
+		config, err := clientcmd.LoadFromFile("./test_data/kubeconfig1")
+		require.NoError(t, err)
+
+		testContextName := "test-context-for-callback"
+		config.Contexts[testContextName] = &clientcmdapi.Context{
+			Cluster:  "docker-desktop",
+			AuthInfo: "docker-desktop",
+		}
+
+		err = clientcmd.WriteToFile(*config, "./test_data/kubeconfig1")
+		require.NoError(t, err)
+
+		// Wait for context to be added
+		found := false
+
+		for i := 0; i < 20; i++ {
+			context, err := kubeConfigStore.GetContext(testContextName)
+			if err == nil && context != nil {
+				found = true
+
+				t.Logf("Context %s found in store after %d attempts", testContextName, i+1)
+
+				break
+			}
+
+			time.Sleep(500 * time.Millisecond)
+		}
+
+		require.True(t, found, "Context should have been added")
+
+		time.Sleep(1 * time.Second)
+
+		for len(callbackInvoked) > 0 {
+			<-callbackInvoked
+		}
+
+		t.Logf("Removing context %s from kubeconfig file", testContextName)
+
+		config, err = clientcmd.LoadFromFile("./test_data/kubeconfig1")
+		require.NoError(t, err)
+		delete(config.Contexts, testContextName)
+
+		err = clientcmd.WriteToFile(*config, "./test_data/kubeconfig1")
+		require.NoError(t, err)
+
+		var removedContext string
+		select {
+		case removedContext = <-callbackInvoked:
+			t.Logf("Received callback for context: %s", removedContext)
+		case <-time.After(10 * time.Second):
+			t.Fatal("Timeout waiting for StopContextWatcher callback")
+		}
+
+		require.Equal(t, testContextName,
+			removedContext, "StopContextWatcher should have been called for the removed context")
+
+		_, err = kubeConfigStore.GetContext(testContextName)
+		require.Error(t, err, "Context should have been removed from store")
+
+		mu.Lock()
+		callCount := stoppedContexts[testContextName]
+		mu.Unlock()
+		t.Logf("StopContextWatcher was called %d time(s) for %s", callCount, testContextName)
+		require.Greater(t, callCount, 0, "StopContextWatcher should have been called at least once")
+	})
 	// Cleanup in case test fails
 	defer func() {
 		config, err := clientcmd.LoadFromFile("./test_data/kubeconfig1")

@@ -161,6 +161,17 @@ func CheckForChanges(
 	go runWatcher(ctx, k8scache, contextKey, kContext)
 }
 
+// StopWatcher stops and cleans up the watcher for a given contextKey.
+func StopWatcher(contextKey string) {
+	logger.Log(logger.LevelInfo, nil, nil, "stopping watcher for context: "+contextKey)
+
+	if cancelAny, ok := contextCancel.Load(contextKey); ok {
+		cancelAny.(context.CancelFunc)()
+		contextCancel.Delete(contextKey)
+		watcherRegistry.Delete(contextKey)
+	}
+}
+
 // runWatcher is a long-lived goroutine that sets up and runs Kubernetes informers.
 // It watches for resource changes and invalidates corresponding cache entries.
 // This function will only exit when its context is cancelled.
