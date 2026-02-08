@@ -58,6 +58,8 @@ function moveDirs(currentPath, newPath) {
   }
 }
 
+const normalizePluginName = name => name.replace(/^@headlamp-k8s\//, '');
+
 class PluginManager {
   /**
    * Installs a plugin from the specified URL.
@@ -124,7 +126,7 @@ class PluginManager {
   ) {
     try {
       const installedPlugins = PluginManager.list(destinationFolder);
-      const plugin = installedPlugins.find(p => p.pluginName === pluginName);
+      const plugin = installedPlugins.find(p => normalizePluginName(p.pluginName) === normalizePluginName(pluginName));
       if (!plugin) {
         throw new Error('Plugin not found');
       }
@@ -188,7 +190,7 @@ class PluginManager {
   static uninstall(name, folder = defaultPluginsDir(), progressCallback = null) {
     try {
       const installedPlugins = PluginManager.list(folder);
-      const plugin = installedPlugins.find(p => p.pluginName === name);
+      const plugin = installedPlugins.find(p => normalizePluginName(p.pluginName) === normalizePluginName(name));
       if (!plugin) {
         throw new Error('Plugin not found');
       }
