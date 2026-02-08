@@ -97,6 +97,7 @@ const (
 type clientConfig struct {
 	Clusters                []Cluster `json:"clusters"`
 	IsDynamicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
+	PrometheusEndpoint      string    `json:"prometheusEndpoint"`
 }
 
 type OauthConfig struct {
@@ -1749,7 +1750,7 @@ func parseClusterFromKubeConfig(kubeConfigs []string) ([]Cluster, []error) {
 func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	clientConfig := clientConfig{c.getClusters(), c.EnableDynamicClusters}
+	clientConfig := clientConfig{c.getClusters(), c.EnableDynamicClusters, c.PrometheusEndpoint}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {
 		logger.Log(logger.LevelError, nil, err, "encoding config")

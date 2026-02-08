@@ -36,6 +36,9 @@ config:
   inClusterContextName: "main"
   # -- base url path at which headlamp should run
   baseURL: ""
+  prometheus:
+    # -- Prometheus endpoint for the cluster
+    endpoint: ""
   oidc:
     # Option 1:
     # @param config.oidc.secret - OIDC secret configuration
@@ -159,8 +162,7 @@ podLabels: {}
 hostUsers: true
 
 # -- Headlamp pod's Security Context
-podSecurityContext:
-  {}
+podSecurityContext: {}
   # fsGroup: 2000
 
 # -- Headlamp containers Security Context
@@ -181,7 +183,6 @@ securityContext:
 #   capabilities:
 #     drop:
 #       - ALL
-
 
 service:
   # -- Annotations to add to the service
@@ -209,8 +210,7 @@ persistentVolumeClaim:
   # -- Enable Persistent Volume Claim
   enabled: false
   # -- Annotations to add to the persistent volume claim (if enabled)
-  annotations:
-    {}
+  annotations: {}
   # -- accessModes for the persistent volume claim, eg: ReadWriteOnce, ReadOnlyMany, ReadWriteMany etc.
   accessModes: []
   # -- size of the persistent volume claim, eg: 10Gi. Required if enabled is true.
@@ -226,8 +226,7 @@ ingress:
   # -- Enable ingress controller resource
   enabled: false
   # -- Annotations for Ingress resource
-  annotations:
-    {}
+  annotations: {}
     # kubernetes.io/tls-acme: "true"
 
   # -- Additional labels to add to the Ingress resource
@@ -240,8 +239,7 @@ ingress:
 
   # -- Hostname(s) for the Ingress resource
   # Please refer to https://kubernetes.io/docs/reference/kubernetes-api/service-resources/ingress-v1/#IngressSpec for more information.
-  hosts:
-    []
+  hosts: []
     # - host: chart-example.local
     #   paths:
     #   - path: /
@@ -286,8 +284,7 @@ httpRoute:
   #         port: 80
 
 # -- CPU/Memory resource requests/limits
-resources:
-  {}
+resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
   # resources, such as Minikube. If you do want to specify resources, uncomment the following
@@ -351,8 +348,7 @@ pluginsManager:
   #     cpu: "1000m"
   #     memory: "4096Mi"
   # If omitted, the plugin manager will inherit the global securityContext
-  securityContext:
-    {}
+  securityContext: {}
     # runAsUser: 1001
     # runAsNonRoot: true
     # allowPrivilegeEscalation: false
