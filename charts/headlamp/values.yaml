@@ -324,6 +324,34 @@ topologySpreadConstraints: []
 # -- Pod priority class
 priorityClassName: ""
 
+# Probe configuration for liveness and readiness checks
+probes:
+  # -- Scheme to use for liveness and readiness probes (HTTP or HTTPS).
+  # Set to HTTPS when TLS is enabled at the backend server.
+  scheme: HTTP
+  livenessProbe:
+    # -- Initial delay in seconds before starting liveness probe
+    initialDelaySeconds: 0
+    # -- Period in seconds between liveness probe checks
+    periodSeconds: 10
+    # -- Timeout in seconds for liveness probe
+    timeoutSeconds: 1
+    # -- Minimum consecutive successes for the probe to be considered successful (must be 1 for liveness probes per Kubernetes API)
+    successThreshold: 1
+    # -- Minimum consecutive failures for the probe to be considered failed
+    failureThreshold: 3
+  readinessProbe:
+    # -- Initial delay in seconds before starting readiness probe
+    initialDelaySeconds: 0
+    # -- Period in seconds between readiness probe checks
+    periodSeconds: 10
+    # -- Timeout in seconds for readiness probe
+    timeoutSeconds: 1
+    # -- Minimum consecutive successes for the probe to be considered successful
+    successThreshold: 1
+    # -- Minimum consecutive failures for the probe to be considered failed
+    failureThreshold: 3
+
 # Plugin Manager Sidecar Container Configuration
 pluginsManager:
   # -- Enable plugin manager

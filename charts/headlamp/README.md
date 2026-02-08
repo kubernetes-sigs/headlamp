@@ -246,6 +246,42 @@ httpRoute:
           port: 80
 ```
 
+### Probe Configuration
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| probes.scheme | string | `"HTTP"` | Scheme for liveness/readiness probes (HTTP or HTTPS). Set to HTTPS when TLS is enabled at the backend. |
+| probes.livenessProbe.initialDelaySeconds | int | `0` | Initial delay before liveness probe starts |
+| probes.livenessProbe.periodSeconds | int | `10` | Period between liveness checks |
+| probes.livenessProbe.timeoutSeconds | int | `1` | Timeout for liveness probe |
+| probes.livenessProbe.successThreshold | int | `1` | Must be 1 for liveness probes (Kubernetes requirement) |
+| probes.livenessProbe.failureThreshold | int | `3` | Minimum consecutive failures |
+| probes.readinessProbe.initialDelaySeconds | int | `0` | Initial delay before readiness probe starts |
+| probes.readinessProbe.periodSeconds | int | `10` | Period between readiness checks |
+| probes.readinessProbe.timeoutSeconds | int | `1` | Timeout for readiness probe |
+| probes.readinessProbe.successThreshold | int | `1` | Minimum consecutive successes |
+| probes.readinessProbe.failureThreshold | int | `3` | Minimum consecutive failures |
+
+When using TLS termination at the backend server, you must set `probes.scheme` to `HTTPS`:
+
+```yaml
+config:
+  tlsCertPath: "/headlamp-cert/tls.crt"
+  tlsKeyPath: "/headlamp-cert/tls.key"
+
+probes:
+  scheme: HTTPS  # Required when TLS is enabled at backend
+
+volumes:
+  - name: headlamp-cert
+    secret:
+      secretName: headlamp-tls
+
+volumeMounts:
+  - name: headlamp-cert
+    mountPath: /headlamp-cert
+```
+
 ### Resource Management
 
 | Key | Type | Default | Description |
