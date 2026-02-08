@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import MenuList from '@mui/material/MenuList';
+import Paper from '@mui/material/Paper';
 import { Meta, StoryFn } from '@storybook/react';
 import { getTestDate } from '../../../helpers/testHelpers';
 import { TestContext } from '../../../test';
@@ -54,7 +56,15 @@ AfterConfirmCallback.args = {
   },
 };
 
-export const MenuButtonStyle = Template.bind({});
+const MenuTemplate: StoryFn<typeof RestartMultipleButton> = args => (
+  <Paper>
+    <MenuList>
+      <RestartMultipleButton {...args} />
+    </MenuList>
+  </Paper>
+);
+
+export const MenuButtonStyle = MenuTemplate.bind({});
 MenuButtonStyle.args = {
   items: [
     { metadata: { uid: '1', name: 'Resource 1', creationTimestamp: getTestDate().toISOString() } },
