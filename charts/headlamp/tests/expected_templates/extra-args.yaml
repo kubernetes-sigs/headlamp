@@ -113,6 +113,7 @@ spec:
             - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             # Check if externalSecret is disabled
+            - "-filters-warnings-only=true"
             - -insecure-ssl
           ports:
             - name: http

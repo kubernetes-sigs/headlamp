@@ -96,7 +96,7 @@ const configSlice = createSlice({
      */
     setConfig(
       state,
-      action: PayloadAction<{ clusters: ConfigState['clusters']; filtersWarningsOnly: boolean }>
+      action: PayloadAction<{ clusters: ConfigState['clusters']; filtersWarningsOnly?: boolean }>
     ) {
       state.clusters = action.payload.clusters;
       if (action.payload.filtersWarningsOnly !== undefined) {

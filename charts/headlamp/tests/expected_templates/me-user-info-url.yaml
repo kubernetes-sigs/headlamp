@@ -120,6 +120,7 @@ spec:
             - "-plugins-dir=/headlamp/plugins"
             # Check if externalSecret is disabled
             - "-me-user-info-url=$(ME_USER_INFO_URL)"
+            - "-filters-warnings-only=true"
           ports:
             - name: http
               containerPort: 4466
