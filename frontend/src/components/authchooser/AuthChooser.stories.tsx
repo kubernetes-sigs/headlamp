@@ -70,6 +70,7 @@ export const AuthTypeoidc = Template.bind({});
 AuthTypeoidc.args = {
   ...argFixture,
   clusterAuthType: 'oidc',
+  title: 'Sign in with OpenID Connect',
 };
 
 export const AnError = Template.bind({});
