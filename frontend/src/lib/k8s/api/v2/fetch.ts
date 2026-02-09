@@ -41,6 +41,8 @@ export async function backendFetch(url: string | URL, init: RequestInit = {}) {
   init.headers = addBackstageAuthHeaders(init.headers);
   const response = await fetch(makeUrl([getAppUrl(), url]), init);
 
+  console.log('url: ', url);
+
   // The backend signals through this header that it wants a reload.
   // See plugins.go
   const headerVal = response.headers.get('X-Reload');

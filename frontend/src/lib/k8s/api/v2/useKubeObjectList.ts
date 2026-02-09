@@ -17,6 +17,8 @@
 import type { QueryObserverOptions } from '@tanstack/react-query';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../../../redux/reducers/reducers';
 import type { KubeObject, KubeObjectClass } from '../../KubeObject';
 import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
@@ -415,6 +417,11 @@ export function useKubeObjectList<K extends KubeObject>({
 }): [Array<K> | null, ApiError | null] &
   QueryListResponse<Array<ListResponse<K> | undefined | null>, K, ApiError> {
   const maybeNamespace = requests.find(it => it.namespaces)?.namespaces?.[0];
+  //   const pageIndex = useSelector(
+  //   (state: RootState) => state.tablePagination.pageIndex
+  // );
+
+  // console.log("page_index: ", pageIndex)
 
   // Get working endpoint from the first cluster
   // Now if clusters have different apiVersions for the same resource for example, this will not work
@@ -424,8 +431,17 @@ export function useKubeObjectList<K extends KubeObject>({
     maybeNamespace
   );
 
+  const pageIndex = useSelector((state: RootState) => state.tablePagination.pageIndex);
+
+  console.log('page_index: ', pageIndex);
+
   const cleanedUpQueryParams = Object.fromEntries(
     Object.entries(queryParams ?? {}).filter(([, value]) => value !== undefined && value !== '')
+  );
+
+  const pagedQueryParams = useMemo(
+    () => ({ ...cleanedUpQueryParams, page: pageIndex }),
+    [cleanedUpQueryParams, pageIndex]
   );
 
   const queries = useMemo(
@@ -439,7 +455,7 @@ export function useKubeObjectList<K extends KubeObject>({
                     endpoint,
                     namespace,
                     cluster,
-                    cleanedUpQueryParams,
+                    pagedQueryParams,
                     refetchInterval
                   )
                 )
@@ -448,12 +464,12 @@ export function useKubeObjectList<K extends KubeObject>({
                   endpoint,
                   undefined,
                   cluster,
-                  cleanedUpQueryParams,
+                  pagedQueryParams,
                   refetchInterval
                 )
           )
         : [],
-    [requests, kubeObjectClass, endpoint, cleanedUpQueryParams]
+    [requests, kubeObjectClass, endpoint, pagedQueryParams, refetchInterval]
   );
 
   const query = useQueries({
