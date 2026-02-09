@@ -50,6 +50,7 @@ const checkExports = [
   'ResourceTableColumnChooser',
   'RestartButton',
   'RestartMultipleButton',
+  'RollbackButton',
   'ScaleButton',
   'SimpleEditor',
   'UploadDialog',

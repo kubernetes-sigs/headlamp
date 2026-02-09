@@ -261,6 +261,37 @@ export function patch(
   return clusterRequest(url, opts);
 }
 
+/**
+ * Performs a JSON Patch (RFC 6902) request.
+ * This is different from the merge patch above - it uses 'application/json-patch+json'
+ * content type and expects an array of patch operations.
+ *
+ * @param url - The URL to patch.
+ * @param operations - Array of JSON Patch operations (e.g., [{op: 'replace', path: '/spec/template', value: {...}}]).
+ * @param autoLogoutOnAuthError - Whether to automatically log out on auth errors.
+ * @param options - Additional request options.
+ * @returns A Promise that resolves to the patched resource.
+ */
+export function jsonPatch(
+  url: string,
+  operations: Array<{ op: string; path: string; value?: any }>,
+  autoLogoutOnAuthError = true,
+  options: ClusterRequestParams = {}
+) {
+  const { cluster: clusterName, ...requestOptions } = options;
+  const body = JSON.stringify(operations);
+  const cluster = clusterName || getCluster() || '';
+  const opts = {
+    method: 'PATCH',
+    body,
+    headers: { ...JSON_HEADERS, 'Content-Type': 'application/json-patch+json' },
+    autoLogoutOnAuthError,
+    cluster,
+    ...requestOptions,
+  };
+  return clusterRequest(url, opts);
+}
+
 export function put(
   url: string,
   json: Partial<KubeObjectInterface>,

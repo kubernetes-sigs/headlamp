@@ -26,6 +26,7 @@ import { Cluster, LabelSelector, StringDict } from './cluster';
 import ClusterRole from './clusterRole';
 import ClusterRoleBinding from './clusterRoleBinding';
 import ConfigMap from './configMap';
+import ControllerRevision from './controllerRevision';
 import CustomResourceDefinition from './crd';
 import CronJob from './cronJob';
 import DaemonSet from './daemonSet';
@@ -66,6 +67,7 @@ export const ResourceClasses = {
   ClusterRole,
   ClusterRoleBinding,
   ConfigMap,
+  ControllerRevision,
   CustomResourceDefinition,
   CronJob,
   DaemonSet,
@@ -457,6 +459,7 @@ export * as clusterRoleBinding from './clusterRoleBinding';
 export * as configMap from './configMap';
 export * as crd from './crd';
 export * as cronJob from './cronJob';
+export * as controllerRevision from './controllerRevision';
 export * as daemonSet from './daemonSet';
 export * as deployment from './deployment';
 export * as event from './event';

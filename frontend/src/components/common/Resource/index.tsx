@@ -44,6 +44,7 @@ export * from './ResourceTableColumnChooser';
 export { default as ResourceTableColumnChooser } from './ResourceTableColumnChooser';
 export { addResourceTableColumnsProcessor } from './resourceTableSlice';
 export * from './RestartButton';
+export * from './RollbackButton';
 export * from './ScaleButton';
 export * from './LogsButton';
 export { default as ScaleButton } from './ScaleButton';

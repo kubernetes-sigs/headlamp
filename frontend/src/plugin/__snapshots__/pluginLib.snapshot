@@ -126,6 +126,7 @@
       },
       "ResourceTableColumnChooser": [Function],
       "RestartButton": [Function],
+      "RollbackButton": [Function],
       "ScaleButton": [Function],
       "SecretField": [Function],
       "SectionGrid": [Function],
@@ -136,6 +137,7 @@
       "VolumeSection": [Function],
       "addResourceTableColumnsProcessor": [Function],
       "isRestartableResource": [Function],
+      "isRollbackableResource": [Function],
       "metadataStyles": [Function],
       "resourceTableSlice": {
         "actions": {
@@ -163,6 +165,7 @@
     },
     "ResourceTableColumnChooser": [Function],
     "RestartButton": [Function],
+    "RollbackButton": [Function],
     "ScaleButton": [Function],
     "SearchPopover": [Function],
     "SecretField": [Function],
@@ -191,6 +194,7 @@
     "VolumeSection": [Function],
     "addResourceTableColumnsProcessor": [Function],
     "isRestartableResource": [Function],
+    "isRollbackableResource": [Function],
     "makeStatusLabel": [Function],
     "metadataStyles": [Function],
     "resourceTableSlice": {
@@ -248,6 +252,7 @@
     "POD_ATTACH": "headlamp.pod-attach",
     "RESTART_RESOURCE": "headlamp.restart-resource",
     "RESTART_RESOURCES": "headlamp.restart-resources",
+    "ROLLBACK_RESOURCE": "headlamp.rollback-resource",
     "SCALE_RESOURCE": "headlamp.scale-resource",
     "TERMINAL": "headlamp.terminal",
   },
@@ -272,6 +277,7 @@
       "ClusterRole": [Function],
       "ClusterRoleBinding": [Function],
       "ConfigMap": [Function],
+      "ControllerRevision": [Function],
       "CronJob": [Function],
       "CustomResourceDefinition": [Function],
       "DaemonSet": [Function],
@@ -320,6 +326,9 @@
       "default": [Function],
     },
     "configMap": {
+      "default": [Function],
+    },
+    "controllerRevision": {
       "default": [Function],
     },
     "crd": {

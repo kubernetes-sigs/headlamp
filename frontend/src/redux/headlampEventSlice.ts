@@ -43,6 +43,8 @@ export enum HeadlampEventType {
   RESTART_RESOURCE = 'headlamp.restart-resource',
   /** Events related to restarting multiple resources. */
   RESTART_RESOURCES = 'headlamp.restart-resources',
+  /** Events related to rolling back a resource. */
+  ROLLBACK_RESOURCE = 'headlamp.rollback-resource',
   /** Events related to viewing logs. */
   LOGS = 'headlamp.logs',
   /** Events related to opening a terminal. */
@@ -174,6 +176,20 @@ export interface RestartResourcesEvent extends HeadlampEvent<HeadlampEventType.R
     /** Resources for which restart was called. */
     resources: KubeObject[];
     /** What exactly this event represents. 'CONFIRMED' when the user confirms restart of resources.
+     * For now only 'CONFIRMED' is sent.
+     */
+    status: EventStatus.CONFIRMED;
+  };
+}
+
+/**
+ * Event fired when rolling back a resource (e.g., Deployment).
+ */
+export interface RollbackResourceEvent extends HeadlampEvent<HeadlampEventType.ROLLBACK_RESOURCE> {
+  data: {
+    /** The resource for which rollback was called. */
+    resource: KubeObject;
+    /** What exactly this event represents. 'CONFIRMED' when rollback is selected by the user.
      * For now only 'CONFIRMED' is sent.
      */
     status: EventStatus.CONFIRMED;
@@ -385,6 +401,9 @@ export function useEventCallback(
   eventType: HeadlampEventType.RESTART_RESOURCES
 ): (data: EventDataType<RestartResourcesEvent>) => void;
 export function useEventCallback(
+  eventType: HeadlampEventType.ROLLBACK_RESOURCE
+): (data: EventDataType<RollbackResourceEvent>) => void;
+export function useEventCallback(
   eventType: HeadlampEventType.LOGS
 ): (data: EventDataType<LogsEvent>) => void;
 export function useEventCallback(
@@ -445,6 +464,10 @@ export function useEventCallback(eventType?: HeadlampEventType | string) {
       return dispatchDataEventFunc<ScaleResourceEvent>(HeadlampEventType.SCALE_RESOURCE);
     case HeadlampEventType.RESTART_RESOURCE:
       return dispatchDataEventFunc<RestartResourceEvent>(HeadlampEventType.RESTART_RESOURCE);
+    case HeadlampEventType.RESTART_RESOURCES:
+      return dispatchDataEventFunc<RestartResourcesEvent>(HeadlampEventType.RESTART_RESOURCES);
+    case HeadlampEventType.ROLLBACK_RESOURCE:
+      return dispatchDataEventFunc<RollbackResourceEvent>(HeadlampEventType.ROLLBACK_RESOURCE);
     case HeadlampEventType.LOGS:
       return dispatchDataEventFunc<LogsEvent>(HeadlampEventType.LOGS);
     case HeadlampEventType.TERMINAL:

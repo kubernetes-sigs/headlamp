@@ -76,6 +76,22 @@
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                 >
                   <button
+                    aria-label="Rollback"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                    data-mui-internal-clone-element="true"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                  <div />
+                </div>
+                <div
+                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                >
+                  <button
                     aria-label="Restart"
                     class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
                     data-mui-internal-clone-element="true"
