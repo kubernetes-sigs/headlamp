@@ -88,7 +88,7 @@
                     style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
                     tabindex="-1"
                   >
-                    some title
+                    Select a cluster to sign in
                   </h1>
                 </div>
               </div>

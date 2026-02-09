@@ -64,6 +64,7 @@ Testing.args = {
 export const HaveClusters = Template.bind({});
 HaveClusters.args = {
   ...argFixture,
+  title: 'Select a cluster to sign in',
 };
 
 export const AuthTypeoidc = Template.bind({});
