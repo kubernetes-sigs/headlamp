@@ -90,11 +90,6 @@ export default function ObjectEventList(props: ObjectEventListProps) {
           {
             label: t('Age'),
             getter: item => {
-              if (item.count > 1) {
-                return `${timeAgo(item.lastOccurrence)} (${item.count} times over ${timeAgo(
-                  item.firstOccurrence
-                )})`;
-              }
               const eventDate = timeAgo(item.lastOccurrence, { format: 'mini' });
               let label: string;
               if (item.count > 1) {
@@ -115,8 +110,7 @@ export default function ObjectEventList(props: ObjectEventListProps) {
                 />
               );
             },
-            sort: (n1: KubeEvent, n2: KubeEvent) =>
-              new Date(n2.lastTimestamp).getTime() - new Date(n1.lastTimestamp).getTime(),
+            sort: (item: Event) => -new Date(item.lastOccurrence).getTime(),
           },
         ]}
         data={events}
