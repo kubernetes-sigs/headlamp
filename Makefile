@@ -9,7 +9,22 @@ DOCKER_EXT_REPO ?= docker.io/headlamp
 DOCKER_IMAGE_NAME ?= headlamp
 DOCKER_PLUGINS_IMAGE_NAME ?= plugins
 DOCKER_IMAGE_VERSION ?= $(shell git describe --tags --always --dirty)
-DOCKER_PLATFORM ?= local
+# Detect platform (Windows, macOS, Linux)
+ifeq ($(OS),Windows_NT)
+    DOCKER_PLATFORM ?= local
+else
+    UNAME_S := $(shell uname -s)
+    ifeq ($(UNAME_S),Darwin)
+        UNAME_M := $(shell uname -m)
+        ifeq ($(UNAME_M),arm64)
+            DOCKER_PLATFORM ?= linux/arm64
+        else
+            DOCKER_PLATFORM ?= linux/amd64
+        endif
+    else
+        DOCKER_PLATFORM ?= local
+    endif
+endif
 DOCKER_PUSH ?= false
 EMBED_BINARY_NAME := headlamp_app
 # Get version and app name from app/package.json
