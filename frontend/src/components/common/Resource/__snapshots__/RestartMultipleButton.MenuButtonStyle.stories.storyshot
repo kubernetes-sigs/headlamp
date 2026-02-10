@@ -1,26 +1,31 @@
 <body>
   <div>
-    <li
-      class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-1sgjfx9-MuiButtonBase-root-MuiMenuItem-root"
-      role="menuitem"
+    <ul
+      class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
+      role="menu"
       tabindex="-1"
     >
-      <div
-        class="MuiListItemIcon-root css-cveggr-MuiListItemIcon-root"
-      />
-      <div
-        class="MuiListItemText-root css-tlelie-MuiListItemText-root"
+      <li
+        class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-1sgjfx9-MuiButtonBase-root-MuiMenuItem-root"
+        role="menuitem"
+        tabindex="-1"
       >
-        <span
-          class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+        <div
+          class="MuiListItemIcon-root css-cveggr-MuiListItemIcon-root"
+        />
+        <div
+          class="MuiListItemText-root css-tlelie-MuiListItemText-root"
         >
-          Restart items
-        </span>
-      </div>
-      <span
-        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-      />
-    </li>
-    <div />
+          <span
+            class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+          >
+            Restart items
+          </span>
+        </div>
+        <span
+          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+        />
+      </li>
+    </ul>
   </div>
 </body>
