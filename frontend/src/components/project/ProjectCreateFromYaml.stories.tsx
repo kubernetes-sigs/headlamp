@@ -41,6 +41,7 @@ const makeStore = () => {
           'cluster-b': { name: 'cluster-b' },
         } as any,
         isDynamicClusterEnabled: true,
+        allowKubeconfigRemoval: false,
         settings: {
           tableRowsPerPageOptions: [15, 25, 50],
           timezone: 'UTC',
