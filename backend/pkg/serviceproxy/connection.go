@@ -8,19 +8,26 @@ import (
 	"strings"
 )
 
+var (
+	validCharsRe        = regexp.MustCompile(`^[a-zA-Z0-9/_\-\.?=&%:@+,]+$`)
+	validDecodedCharsRe = regexp.MustCompile(`^[a-zA-Z0-9/_\-\.?=&:@+,]+$`)
+)
+
 // ServiceConnection represents a connection to a service.
 type ServiceConnection interface {
 	// Get - perform a get request and return the response
 	Get(string) ([]byte, error)
 }
 type Connection struct {
-	URI string
+	URI           string
+	clientFactory httpClientFactory
 }
 
 // NewConnection creates a new connection to a service based on the provided proxyService.
 func NewConnection(ps *proxyService) ServiceConnection {
 	return &Connection{
-		URI: ps.URIPrefix,
+		URI:           ps.URIPrefix,
+		clientFactory: defaultClientFactory,
 	}
 }
 
@@ -97,8 +104,7 @@ func validateRequestURI(requestURI string) error { //nolint:funlen
 	// 8. Validate raw URI characters: alphanumeric, slashes, hyphens, underscores,
 	// dots, query params, comma for label selectors, plus for URL encoding.
 	// Note: Backslash traversal is blocked by this regex (backslash not allowed).
-	validChars := regexp.MustCompile(`^[a-zA-Z0-9/_\-\.?=&%:@+,]+$`)
-	if !validChars.MatchString(requestURI) {
+	if !validCharsRe.MatchString(requestURI) {
 		return fmt.Errorf("invalid characters in request URI")
 	}
 
@@ -116,8 +122,7 @@ func validateRequestURI(requestURI string) error { //nolint:funlen
 	}
 
 	// No % allowed in decoded form (catches double-encoding)
-	validDecodedChars := regexp.MustCompile(`^[a-zA-Z0-9/_\-\.?=&:@+,]+$`)
-	if !validDecodedChars.MatchString(decodedForValidation) {
+	if !validDecodedCharsRe.MatchString(decodedForValidation) {
 		return fmt.Errorf("invalid characters in decoded request URI")
 	}
 
@@ -193,7 +198,7 @@ func (c *Connection) Get(requestURI string) ([]byte, error) {
 		return nil, fmt.Errorf("invalid resolved URL: %w", err)
 	}
 
-	body, err := HTTPGet(context.Background(), fullURL.String())
+	body, err := httpGet(context.Background(), fullURL.String(), c.clientFactory)
 	if err != nil {
 		return nil, err
 	}

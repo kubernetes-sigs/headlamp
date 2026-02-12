@@ -74,14 +74,12 @@ done
 
 ### Running WebSocket Load Tests
 
-Start Headlamp with specific rate limit settings:
+Start Headlamp:
 
 ```bash
-# Default rate limits (50 msg/s per connection)
+# Rate limits are compile-time constants in the backend.
+# See backend/cmd/multiplexer.go for MessagesPerSecond and IPMessagesPerSecond.
 npm start
-
-# Higher rate limits for large cluster testing
-HEADLAMP_CONFIG_WEBSOCKET_RATE_LIMIT=200 npm start
 ```
 
 Use the provided test scripts or websocat:
@@ -98,21 +96,24 @@ done | websocat ws://localhost:4466/wsMultiplexer -H "Origin: http://localhost:4
 
 ### Rate Limit Recommendations
 
-The table below provides recommended rate limit settings based on cluster size and usage patterns:
+Rate limits are currently compile-time constants (not configurable via CLI flags or environment variables):
 
-| Cluster Size | Pods | Recommended Rate Limit | IP Rate Limit | Notes |
-|-------------|------|----------------------|---------------|-------|
-| Small | < 100 | 50 msg/s (default) | 10 conn/s | Suitable for development and small teams |
-| Medium | 100 - 1,000 | 100 msg/s | 20 conn/s | Good for active monitoring dashboards |
-| Large | 1,000 - 5,000 | 150 msg/s | 30 conn/s | Consider caching strategies |
-| Very Large | 5,000+ | 200+ msg/s | 50 conn/s | Test with KWOK first; may need horizontal scaling |
+- **Per-connection message rate**: 50 messages/second (`MessagesPerSecond` in `backend/cmd/multiplexer.go`)
+- **Per-IP message rate**: 200 messages/second (`IPMessagesPerSecond` in `backend/cmd/multiplexer.go`)
+
+The table below provides guidance based on cluster size:
+
+| Cluster Size | Pods | Notes |
+|-------------|------|-------|
+| Small | < 100 | Default compile-time limits are suitable for development and small teams |
+| Medium | 100 - 1,000 | Default limits work well for active monitoring dashboards |
+| Large | 1,000 - 5,000 | Consider caching strategies; adjust compile-time constants if needed |
+| Very Large | 5,000+ | Test with KWOK first; may need to adjust compile-time constants or use horizontal scaling |
 
 ### Configuration Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--websocket-rate-limit` | 50 | Maximum messages per second per WebSocket connection |
-| `--websocket-ip-rate-limit` | 10 | Maximum new WebSocket connections per second per IP |
 | `--websocket-require-origin` | true | Require Origin header for WebSocket connections |
 | `--allowed-hosts` | (empty) | Comma-separated list of allowed Host headers |
 | `--trusted-proxies` | (empty) | Comma-separated list of trusted proxy IPs/CIDRs |

@@ -86,13 +86,9 @@ var getTests = []struct {
 }
 
 func TestGet(t *testing.T) {
-	// Use test client without SSRF protection for these tests
-	SetHTTPClientFactory(newTestClient)
-	t.Cleanup(ResetHTTPClientFactory)
-
 	for _, tt := range getTests {
 		t.Run(tt.name, func(t *testing.T) {
-			conn := &Connection{URI: tt.uri}
+			conn := &Connection{URI: tt.uri, clientFactory: newTestClient}
 
 			if tt.wantBody != nil {
 				ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -119,16 +115,12 @@ func TestGet(t *testing.T) {
 }
 
 func TestGetNonOKStatusCode(t *testing.T) {
-	// Use test client without SSRF protection for this test
-	SetHTTPClientFactory(newTestClient)
-	t.Cleanup(ResetHTTPClientFactory)
-
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	t.Cleanup(ts.Close)
 
-	conn := &Connection{URI: ts.URL}
+	conn := &Connection{URI: ts.URL, clientFactory: newTestClient}
 
 	_, err := conn.Get("/test")
 	if err == nil {
@@ -330,18 +322,13 @@ func TestValidateRequestURI(t *testing.T) {
 }
 
 func TestGetWithSSRFPrevention(t *testing.T) {
-	// Use test client without SSRF protection for this test
-	// (SSRF prevention at input validation level is still active)
-	SetHTTPClientFactory(newTestClient)
-	t.Cleanup(ResetHTTPClientFactory)
-
 	// Create a test server that would be the legitimate target
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("legitimate response"))
 	}))
 	t.Cleanup(ts.Close)
 
-	conn := &Connection{URI: ts.URL}
+	conn := &Connection{URI: ts.URL, clientFactory: newTestClient}
 
 	// Test that SSRF attempts are blocked before reaching the server
 	// (these are blocked by validateRequestURI, not transport-level protection)

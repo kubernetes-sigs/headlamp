@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -81,7 +82,7 @@ const (
 // This allows the cleanup goroutine to remove stale entries that haven't been used recently.
 type ipRateLimiterEntry struct {
 	limiter  *rate.Limiter
-	lastSeen time.Time
+	lastSeen atomic.Int64 // stores UnixNano
 }
 
 // ConnectionState represents the current state of a connection.
@@ -165,8 +166,10 @@ type Multiplexer struct {
 	// trustedProxies is a list of trusted proxy IPs/CIDRs for X-Forwarded-For header processing.
 	// If empty, forwarded headers are ignored and the direct remote address is used.
 	trustedProxies []string
-	// ipCleanupOnce ensures the cleanup goroutine is started only once.
-	ipCleanupOnce sync.Once
+	// requireOrigin controls whether WebSocket connections must include an Origin header.
+	requireOrigin bool
+	// done signals the cleanup goroutine to stop.
+	done chan struct{}
 }
 
 // WSConnLock provides a thread-safe wrapper around a WebSocket connection.
@@ -235,50 +238,45 @@ func (conn *WSConnLock) Close() error {
 // allowedHosts is a list of allowed Host header values for DNS rebinding protection.
 // Loopback addresses (localhost, 127.0.0.1, ::1, etc.) are always allowed.
 // trustedProxies is a list of trusted proxy IPs/CIDRs for X-Forwarded-For header processing.
-func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, allowedHosts, trustedProxies []string) *Multiplexer {
+func NewMultiplexer(
+	kubeConfigStore kubeconfig.ContextStore,
+	allowedHosts, trustedProxies []string,
+	requireOrigin bool,
+) *Multiplexer {
 	m := &Multiplexer{
 		connections:     make(map[string]*Connection),
 		kubeConfigStore: kubeConfigStore,
 		allowedHosts:    allowedHosts,
 		trustedProxies:  trustedProxies,
+		requireOrigin:   requireOrigin,
+		done:            make(chan struct{}),
 	}
 	m.upgrader = websocket.Upgrader{
 		CheckOrigin: m.checkOrigin,
 	}
 
-	// Start the IP rate limiter cleanup goroutine (only once)
-	m.ipCleanupOnce.Do(func() {
-		go m.cleanupStaleIPRateLimiters()
-	})
+	// Start the IP rate limiter cleanup goroutine
+	go m.cleanupStaleIPRateLimiters()
 
 	return m
 }
 
-// checkOrigin validates the Origin header for WebSocket connections to prevent CSRF attacks.
-// It also validates the Host header to prevent DNS rebinding attacks.
-// It allows same-origin requests, localhost variations for development, and configured allowed hosts.
-//
-// SECURITY NOTE: DNS Rebinding Limitation.
-// Origin validation occurs only at connection establishment time. This does not fully prevent
-// DNS rebinding attacks where an attacker's domain initially resolves to a legitimate IP,
-// establishes a WebSocket connection, then changes DNS to point to an internal IP.
-// Without additional protections, the Origin and Host headers would both be the attacker's
-// domain, potentially passing origin checks while the connection reaches an internal server.
-//
-// For high-security environments, consider:
-// 1. Using authentication tokens validated on each message
-// 2. Implementing periodic origin re-validation
-// 3. Using a strict Content-Security-Policy
-// 4. Configuring the allowedHosts list to only allow specific trusted hostnames.
+// checkOrigin validates Origin and Host headers for WebSocket connections.
+// It allows same-origin requests, loopback variations for development, and configured allowed hosts.
+// Note: Origin validation at connection time does not fully prevent DNS rebinding attacks.
 func (m *Multiplexer) checkOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
-		// Reject requests without Origin header - non-browser clients (curl, scripts, attackers)
-		// can bypass origin validation by omitting the header. WebSocket connections already
-		// require authentication via cookies/tokens, so this is safe.
-		logger.Log(logger.LevelWarn, nil, nil,
-			"Rejected WebSocket connection: missing Origin header")
-		return false
+		if m.requireOrigin {
+			// Reject requests without Origin header - non-browser clients (curl, scripts, attackers)
+			// can bypass origin validation by omitting the header. WebSocket connections already
+			// require authentication via cookies/tokens, so this is safe.
+			logger.Log(logger.LevelWarn, nil, nil,
+				"Rejected WebSocket connection: missing Origin header")
+			return false
+		}
+
+		return true
 	}
 
 	// Parse the origin URL
@@ -402,22 +400,18 @@ func (m *Multiplexer) getRateLimiter(conn *websocket.Conn) *rate.Limiter {
 // by opening multiple WebSocket connections from the same IP.
 func (m *Multiplexer) getIPRateLimiter(r *http.Request) *rate.Limiter {
 	ip := m.extractClientIP(r)
-	now := time.Now()
+	now := time.Now().UnixNano()
 
-	if entry, ok := m.ipRateLimiters.Load(ip); ok {
-		e := entry.(*ipRateLimiterEntry)
-		e.lastSeen = now
-
-		return e.limiter
+	entry := &ipRateLimiterEntry{
+		limiter: rate.NewLimiter(rate.Limit(IPMessagesPerSecond), IPBurstSize),
 	}
+	entry.lastSeen.Store(now)
 
-	limiter := rate.NewLimiter(rate.Limit(IPMessagesPerSecond), IPBurstSize)
-	m.ipRateLimiters.Store(ip, &ipRateLimiterEntry{
-		limiter:  limiter,
-		lastSeen: now,
-	})
+	actual, _ := m.ipRateLimiters.LoadOrStore(ip, entry)
+	e := actual.(*ipRateLimiterEntry)
+	e.lastSeen.Store(now)
 
-	return limiter
+	return e.limiter
 }
 
 // cleanupStaleIPRateLimiters periodically removes IP rate limiters that haven't been used recently.
@@ -426,18 +420,33 @@ func (m *Multiplexer) cleanupStaleIPRateLimiters() {
 	ticker := time.NewTicker(IPRateLimiterCleanupInterval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		now := time.Now()
+	for {
+		select {
+		case <-m.done:
+			return
+		case <-ticker.C:
+			now := time.Now()
 
-		m.ipRateLimiters.Range(func(key, value interface{}) bool {
-			entry := value.(*ipRateLimiterEntry)
-			// Remove entries not seen in IPRateLimiterStaleTimeout
-			if now.Sub(entry.lastSeen) > IPRateLimiterStaleTimeout {
-				m.ipRateLimiters.Delete(key)
-			}
+			m.ipRateLimiters.Range(func(key, value interface{}) bool {
+				entry := value.(*ipRateLimiterEntry)
+				// Remove entries not seen in IPRateLimiterStaleTimeout
+				if now.Sub(time.Unix(0, entry.lastSeen.Load())) > IPRateLimiterStaleTimeout {
+					m.ipRateLimiters.Delete(key)
+				}
 
-			return true
-		})
+				return true
+			})
+		}
+	}
+}
+
+// Stop shuts down the cleanup goroutine. It is safe to call multiple times.
+func (m *Multiplexer) Stop() {
+	select {
+	case <-m.done:
+		// Already closed
+	default:
+		close(m.done)
 	}
 }
 

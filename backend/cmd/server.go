@@ -145,7 +145,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		}
 	}
 
-	multiplexer := NewMultiplexer(kubeConfigStore, allowedHosts, trustedProxies)
+	multiplexer := NewMultiplexer(kubeConfigStore, allowedHosts, trustedProxies, conf.WebSocketRequireOrigin)
 
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),

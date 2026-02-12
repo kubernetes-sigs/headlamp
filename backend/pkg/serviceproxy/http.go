@@ -32,27 +32,8 @@ func ResetHTTPClientFactory() {
 // IsPrivateIP checks if an IP address is in a private, loopback, or link-local range.
 // This is used to prevent SSRF attacks by blocking connections to internal network resources.
 func IsPrivateIP(ip net.IP) bool {
-	// Check for loopback addresses (127.0.0.0/8, ::1)
-	if ip.IsLoopback() {
-		return true
-	}
-
-	// Check for link-local addresses (169.254.0.0/16, fe80::/10)
-	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-		return true
-	}
-
-	// Check for private addresses (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7)
-	if ip.IsPrivate() {
-		return true
-	}
-
-	// Check for unspecified addresses (0.0.0.0, ::)
-	if ip.IsUnspecified() {
-		return true
-	}
-
-	return false
+	return ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsPrivate() || ip.IsUnspecified()
 }
 
 // SSRFSafeDialContext returns a DialContext function that validates resolved IP addresses
@@ -68,7 +49,7 @@ func SSRFSafeDialContext(dialer *net.Dialer) func(ctx context.Context, network, 
 		// Resolve the hostname to IP addresses
 		ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
 		if err != nil {
-			return nil, fmt.Errorf("DNS resolution failed: %w", err)
+			return nil, fmt.Errorf("dns resolution failed: %w", err)
 		}
 
 		// Check all resolved IPs - block if any are private
@@ -103,37 +84,19 @@ func newSSRFSafeClient(timeout time.Duration) *http.Client {
 		Timeout:   timeout,
 		Transport: transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			// SSRF Protection via Transport-Level Validation
-			//
-			// Each redirected request goes through SSRFSafeDialContext, which resolves
-			// the destination hostname and validates that none of the resolved IP addresses
-			// are in private network ranges. Blocked ranges include:
-			//   - Loopback: 127.0.0.0/8, ::1
-			//   - Private: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7
-			//   - Link-local: 169.254.0.0/16, fe80::/10 (includes cloud metadata 169.254.169.254)
-			//   - Unspecified: 0.0.0.0, ::
-			//
-			// Trade-off: This protection will also block legitimate redirects to internal
-			// services. For example:
-			//   - OAuth flows that redirect to internal identity providers
-			//   - External APIs that redirect to internal data endpoints
-			//   - CDN redirects to origin servers in private networks
-			//
-			// This is an intentional security trade-off. Operators who need internal
-			// redirects should consider alternative approaches such as configuring
-			// services to avoid redirects or using dedicated internal proxies.
+			// Redirects go through SSRFSafeDialContext which validates destination IPs.
+			// This also blocks legitimate redirects to internal services — an intentional trade-off.
 			if len(via) >= 10 {
 				return fmt.Errorf("too many redirects")
 			}
-
 			return nil
 		},
 	}
 }
 
-// HTTPGet sends an HTTP GET request to the specified URI.
-func HTTPGet(ctx context.Context, uri string) ([]byte, error) {
-	cli := defaultClientFactory(10 * time.Second)
+// httpGet sends an HTTP GET request using the provided client factory.
+func httpGet(ctx context.Context, uri string, factory httpClientFactory) ([]byte, error) {
+	cli := factory(10 * time.Second)
 
 	logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf("make request to %s", uri))
 
@@ -158,4 +121,9 @@ func HTTPGet(ctx context.Context, uri string) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+// HTTPGet sends an HTTP GET request to the specified URI.
+func HTTPGet(ctx context.Context, uri string) ([]byte, error) {
+	return httpGet(ctx, uri, defaultClientFactory)
 }
