@@ -65,6 +65,15 @@ then add them all to the option:
 used by Dex and other services, but since it's not part of the default spec,
 it was removed in the mentioned version.
 
+
+### Auto-login
+
+By default, Headlamp shows a "Sign in" button for OIDC clusters. To bypass this screen and redirect users to your Identity Provider (IDP) you can use the auto-login flag.
+
+- `-oidc-auto-login=true` OR env var `HEADLAMP_CONFIG_OIDC_AUTO_LOGIN`
+
+> **ℹ️ Note:** This will only cause a redirect if the user is not currently authenticated and the selected cluster is configured in OIDC.
+
 ### Token Validation Overrides
 
 In the event your OIDC Provider issues `access_tokens` from a different Issuer URL or clientID audience than its `id_tokens` (i.e. Azure Entra ID) you may have need of the following parameters to configure what is used in validation of tokens.
@@ -100,6 +109,7 @@ For quick reference if you are already familiar with setting up Entra ID,
 - Set `--oidc-validator-idp-issuer-url` to `https://sts.windows.net/<Your Directory (tenant) ID>/`
 - Set `-oidc-validator-client-id` to `6dae42f8-4368-4678-94ff-3960e28e3630`
 - Set `-oidc-use-access-token=true`
+- Set `-oidc-auto-login=true` (optional to skip the "Sign in" screen)
 
 
 ### Example: OIDC with Dex
