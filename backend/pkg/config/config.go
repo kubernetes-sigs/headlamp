@@ -58,6 +58,7 @@ type Config struct {
 	BaseURL                   string `koanf:"base-url"`
 	SessionTTL                int    `koanf:"session-ttl"`
 	ProxyURLs                 string `koanf:"proxy-urls"`
+	OidcAutoLogin             bool   `koanf:"oidc-auto-login"`
 	OidcClientID              string `koanf:"oidc-client-id"`
 	OidcValidatorClientID     string `koanf:"oidc-validator-client-id"`
 	OidcClientSecret          string `koanf:"oidc-client-secret"`
@@ -455,6 +456,7 @@ func addGeneralFlags(f *flag.FlagSet) {
 }
 
 func addOIDCFlags(f *flag.FlagSet) {
+	f.Bool("oidc-auto-login", false, "Automatic Redirect to OIDC provider")
 	f.String("oidc-client-id", "", "ClientID for OIDC")
 	f.String("oidc-client-secret", "", "ClientSecret for OIDC")
 	f.String("oidc-validator-client-id", "", "Override ClientID for OIDC during validation")
