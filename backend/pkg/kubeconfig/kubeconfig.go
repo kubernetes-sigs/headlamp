@@ -743,6 +743,9 @@ func HandleConfigLoadError(
 ) error {
 	switch {
 	case strings.Contains(err.Error(), "illegal base64"):
+		// Try to identify which field has invalid base64
+		// If checkBase64Errors returns nil, it means the base64 data is valid
+		// (likely a false positive from client-go), so we return nil to allow loading
 		return checkBase64Errors(kubeconfig, contextName, clusterName, userName)
 	case strings.Contains(err.Error(), "no server found"):
 		return ClusterError{
