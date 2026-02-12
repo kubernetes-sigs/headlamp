@@ -44,18 +44,25 @@ const store = configureStore({
   },
 });
 
-const queryClient = new QueryClient();
-
 export default {
   title: 'TopBar',
   component: PureTopBar,
   argTypes: {},
   decorators: [
     Story => {
+      // Create a fresh QueryClient per story to prevent cache bleeding
+      // between stories (PureTopBar caches ['clusterMe', clusterName] with staleTime).
+      const storyQueryClient = new QueryClient({
+        defaultOptions: {
+          queries: {
+            retry: false,
+          },
+        },
+      });
       return (
         <MemoryRouter>
           <Provider store={store}>
-            <QueryClientProvider client={queryClient}>
+            <QueryClientProvider client={storyQueryClient}>
               <Story />
             </QueryClientProvider>
           </Provider>
@@ -135,6 +142,16 @@ TwoCluster.args = {
   logout: () => {},
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '', 'ak8s-desktop2': '' },
+};
+TwoCluster.parameters = {
+  msw: {
+    handlers: [
+      http.post(
+        'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
+        () => HttpResponse.json({ status: { userInfo: { username: 'two-cluster-user' } } })
+      ),
+    ],
+  },
 };
 
 export const WithUserInfo = PureTemplate.bind({});
