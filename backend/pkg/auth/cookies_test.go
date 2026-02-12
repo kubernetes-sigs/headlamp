@@ -166,7 +166,8 @@ func TestSetAndGetAuthCookie(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// Test setting a cookie
-	auth.SetTokenCookie(w, req, "test-cluster", "test-token", "")
+	testTTL := 100
+	auth.SetTokenCookie(w, req, "test-cluster", "test-token", "", testTTL)
 
 	// Check if cookie was set
 	cookies := w.Result().Cookies()
@@ -191,6 +192,10 @@ func TestSetAndGetAuthCookie(t *testing.T) {
 		t.Error("Expected SameSite to be SameSiteStrictMode")
 	}
 
+	if cookie.MaxAge != testTTL {
+		t.Errorf("Expected MaxAge to be %d, got %d", testTTL, cookie.MaxAge)
+	}
+
 	// Test getting the cookie
 	req.AddCookie(cookie)
 
@@ -213,7 +218,7 @@ func TestGetAuthCookieChunked(t *testing.T) {
 	longToken := strings.Repeat("a", 5000)
 
 	// Test setting a cookie
-	auth.SetTokenCookie(w, req, "test-cluster", longToken, "")
+	auth.SetTokenCookie(w, req, "test-cluster", longToken, "", 86400)
 
 	// Check if cookie was set
 	cookies := w.Result().Cookies()
