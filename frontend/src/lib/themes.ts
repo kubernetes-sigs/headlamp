@@ -81,6 +81,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
     palette: {
       text: {
         primary: currentTheme.text?.primary ?? 'rgba(0, 0, 0, 0.87)',
+        secondary: '#74747B', // Meets WCAG AA 4.5:1 contrast on white background
       },
       primary: {
         main: currentTheme.primary ?? '#0078d4',
@@ -288,6 +289,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
         },
         text: {
           primary: currentTheme.text?.primary ?? '#fff',
+          secondary: 'rgba(255, 255, 255, 0.7)', // Material-UI default for dark mode
         },
         primary: {
           main: currentTheme.primary ?? '#4B99EE',
