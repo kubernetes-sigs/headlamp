@@ -743,7 +743,12 @@ func HandleConfigLoadError(
 ) error {
 	switch {
 	case strings.Contains(err.Error(), "illegal base64"):
-		return checkBase64Errors(kubeconfig, contextName, clusterName, userName)
+		base64Err := checkBase64Errors(kubeconfig, contextName, clusterName, userName)
+		if base64Err != nil {
+			return base64Err
+		}
+		// If we couldn't identify the specific field, return the original error
+		return ContextError{ContextName: contextName, Reason: fmt.Sprintf("Error loading config: %v", err)}
 	case strings.Contains(err.Error(), "no server found"):
 		return ClusterError{
 			ClusterName: clusterName,
@@ -810,6 +815,20 @@ func checkUserBase64Fields(userMap map[interface{}]interface{}, userName string)
 					UserName: userName,
 					Reason:   fmt.Sprintf("Invalid base64 encoding in %s. Please ensure it's correctly encoded.", field),
 				})
+			}
+		}
+	}
+
+	// Check auth-provider config for OIDC certificate data
+	if authProvider, ok := userMap["auth-provider"].(map[interface{}]interface{}); ok {
+		if config, ok := authProvider["config"].(map[interface{}]interface{}); ok {
+			if value, ok := config["idp-certificate-authority-data"].(string); ok {
+				if _, err := base64.StdEncoding.DecodeString(value); err != nil {
+					errs = append(errs, UserError{
+						UserName: userName,
+						Reason:   "Invalid base64 encoding in idp-certificate-authority-data. Please ensure it's correctly encoded.",
+					})
+				}
 			}
 		}
 	}
