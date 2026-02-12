@@ -125,7 +125,7 @@
       </div>
     </div>
     <table
-      class="MuiTable-root css-1q0rggb-MuiTable-root"
+      class="MuiTable-root css-o16pg1-MuiTable-root"
     >
       <thead
         class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
@@ -159,7 +159,7 @@
                 >
                   <span
                     aria-label="Sort by Name ascending"
-                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                     role="button"
                     tabindex="0"
                   >
@@ -214,7 +214,7 @@
                 >
                   <span
                     aria-label="Sort by Namespace ascending"
-                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                    class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                     role="button"
                     tabindex="0"
                   >

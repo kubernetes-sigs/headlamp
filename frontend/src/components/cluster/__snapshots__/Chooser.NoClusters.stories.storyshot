@@ -144,12 +144,12 @@
             </div>
           </h2>
           <p
-            class="MuiTypography-root MuiDialogContentText-root MuiTypography-body1 MuiDialogContentText-root css-1tmyuhs-MuiTypography-root-MuiDialogContentText-root"
+            class="MuiTypography-root MuiDialogContentText-root MuiTypography-body1 MuiDialogContentText-root css-1vsh3qd-MuiTypography-root-MuiDialogContentText-root"
           >
             There seems to be no clusters configured…
           </p>
           <p
-            class="MuiTypography-root MuiDialogContentText-root MuiTypography-body1 MuiDialogContentText-root css-1tmyuhs-MuiTypography-root-MuiDialogContentText-root"
+            class="MuiTypography-root MuiDialogContentText-root MuiTypography-body1 MuiDialogContentText-root css-1vsh3qd-MuiTypography-root-MuiDialogContentText-root"
           >
             Please make sure you have at least one cluster configured.
           </p>

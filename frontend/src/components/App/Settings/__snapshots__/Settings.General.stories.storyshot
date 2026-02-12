@@ -71,12 +71,12 @@
           class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
         >
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1dc1nyd-MuiGrid-root"
           >
             Language
           </dt>
           <dd
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dtzr7-MuiGrid-root"
           >
             <div
               class="MuiFormControl-root css-1nrlq1o-MuiFormControl-root"
@@ -132,12 +132,12 @@
             </div>
           </dd>
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1dc1nyd-MuiGrid-root"
           >
             Resource details view
           </dt>
           <dd
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dtzr7-MuiGrid-root"
           >
             <div
               class="MuiBox-root css-k008qs"
@@ -201,13 +201,13 @@
             </div>
           </dd>
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1dc1nyd-MuiGrid-root"
             id="rows-per-page-label"
           >
             Number of rows for tables
           </dt>
           <dd
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dtzr7-MuiGrid-root"
           >
             <div
               class="MuiFormControl-root css-1nrlq1o-MuiFormControl-root"
@@ -263,13 +263,13 @@
             </div>
           </dd>
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1dc1nyd-MuiGrid-root"
             id="timezone-label"
           >
             Timezone to display for dates
           </dt>
           <dd
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dtzr7-MuiGrid-root"
           >
             <div
               class="MuiBox-root css-10rqxfs"
@@ -340,7 +340,7 @@
                     </fieldset>
                   </div>
                   <p
-                    class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained css-153yz37-MuiFormHelperText-root"
+                    class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained css-zsmsam-MuiFormHelperText-root"
                     id="cluster-selector-autocomplete-helper-text"
                   >
                     Timezone
@@ -350,13 +350,13 @@
             </div>
           </dd>
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1dc1nyd-MuiGrid-root"
             id="sort-sidebar-label"
           >
             Sort sidebar items alphabetically
           </dt>
           <dd
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dtzr7-MuiGrid-root"
           >
             <span
               class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
@@ -382,13 +382,13 @@
             </span>
           </dd>
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1uzwzx9-MuiGrid-root"
             id="use-evict-label"
           >
             Use evict for pod deletion
           </dt>
           <dd
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1ont2t6-MuiGrid-root"
           >
             <span
               class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
@@ -422,7 +422,7 @@
             class="MuiBox-root css-xonqoi"
           >
             <p
-              class="MuiTypography-root MuiTypography-body1 css-k2ogvs-MuiTypography-root"
+              class="MuiTypography-root MuiTypography-body1 css-3cm696-MuiTypography-root"
             >
               Theme
             </p>
@@ -631,7 +631,7 @@
               class="MuiBox-root css-1txv3mw"
             >
               <p
-                class="MuiTypography-root MuiTypography-body2 css-1wgus3-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-body2 css-1u6i1l4-MuiTypography-root"
               >
                 Configure keyboard shortcuts for quick access to various parts of the application.
               </p>
@@ -651,7 +651,7 @@
                     </span>
                   </dt>
                   <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1dc1nyd-MuiGrid-root"
                   >
                     <div
                       class="MuiBox-root css-0"
@@ -662,14 +662,14 @@
                         Global Search
                       </p>
                       <span
-                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                        class="MuiTypography-root MuiTypography-caption css-7cqrrt-MuiTypography-root"
                       >
                         Open the global search dialog
                       </span>
                     </div>
                   </dt>
                   <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dtzr7-MuiGrid-root"
                   >
                     <div
                       class="MuiBox-root css-42kczj"
@@ -687,7 +687,7 @@
                     </div>
                   </dd>
                   <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1dc1nyd-MuiGrid-root"
                   >
                     <div
                       class="MuiBox-root css-0"
@@ -698,14 +698,14 @@
                         Log Viewer Search
                       </p>
                       <span
-                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                        class="MuiTypography-root MuiTypography-caption css-7cqrrt-MuiTypography-root"
                       >
                         Toggle search in log viewer
                       </span>
                     </div>
                   </dt>
                   <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dtzr7-MuiGrid-root"
                   >
                     <div
                       class="MuiBox-root css-42kczj"
@@ -732,7 +732,7 @@
                     </span>
                   </dt>
                   <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1dc1nyd-MuiGrid-root"
                   >
                     <div
                       class="MuiBox-root css-0"
@@ -743,14 +743,14 @@
                         Cluster Chooser
                       </p>
                       <span
-                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                        class="MuiTypography-root MuiTypography-caption css-7cqrrt-MuiTypography-root"
                       >
                         Open the cluster chooser popup
                       </span>
                     </div>
                   </dt>
                   <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dtzr7-MuiGrid-root"
                   >
                     <div
                       class="MuiBox-root css-42kczj"
@@ -777,7 +777,7 @@
                     </span>
                   </dt>
                   <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1uzwzx9-MuiGrid-root"
                   >
                     <div
                       class="MuiBox-root css-0"
@@ -788,14 +788,14 @@
                         Toggle Table Filters
                       </p>
                       <span
-                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                        class="MuiTypography-root MuiTypography-caption css-7cqrrt-MuiTypography-root"
                       >
                         Toggle column filters in tables
                       </span>
                     </div>
                   </dt>
                   <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1ont2t6-MuiGrid-root"
                   >
                     <div
                       class="MuiBox-root css-42kczj"

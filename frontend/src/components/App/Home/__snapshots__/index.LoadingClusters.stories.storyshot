@@ -51,7 +51,7 @@
                     >
                       <button
                         aria-selected="true"
-                        class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-mn9ohw-MuiButtonBase-root-MuiTab-root"
+                        class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-1d2swaj-MuiButtonBase-root-MuiTab-root"
                         role="tab"
                         tabindex="0"
                         type="button"
@@ -67,7 +67,7 @@
                       </button>
                       <button
                         aria-selected="false"
-                        class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-mn9ohw-MuiButtonBase-root-MuiTab-root"
+                        class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1d2swaj-MuiButtonBase-root-MuiTab-root"
                         role="tab"
                         tabindex="-1"
                         type="button"

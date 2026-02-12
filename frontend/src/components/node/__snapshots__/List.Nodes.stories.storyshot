@@ -22,19 +22,7 @@
               </h1>
               <div
                 class="MuiBox-root css-ldp2l3"
-              >
-                <button
-                  aria-label="Create Node"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                  data-mui-internal-clone-element="true"
-                  tabindex="0"
-                  type="button"
-                >
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
-                </button>
-              </div>
+              />
             </div>
           </div>
         </div>
@@ -166,7 +154,7 @@
             </div>
           </div>
           <table
-            class="MuiTable-root css-1drzxj3-MuiTable-root"
+            class="MuiTable-root css-pgv9r8-MuiTable-root"
           >
             <thead
               class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
@@ -192,7 +180,7 @@
                       >
                         <span
                           aria-label="Toggle select all"
-                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1c3rdll-MuiButtonBase-root-MuiCheckbox-root"
                           data-mui-internal-clone-element="true"
                         >
                           <input
@@ -249,7 +237,7 @@
                       >
                         <span
                           aria-label="Sort by Name ascending"
-                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                           role="button"
                           tabindex="0"
                         >
@@ -304,7 +292,7 @@
                       >
                         <span
                           aria-label="Sort by CPU descending"
-                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                           role="button"
                           tabindex="0"
                         >
@@ -359,7 +347,7 @@
                       >
                         <span
                           aria-label="Sort by Memory descending"
-                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                           role="button"
                           tabindex="0"
                         >
@@ -414,7 +402,7 @@
                       >
                         <span
                           aria-label="Sort by Ready ascending"
-                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                           role="button"
                           tabindex="0"
                         >
@@ -469,7 +457,7 @@
                       >
                         <span
                           aria-label="Sort by Taints ascending"
-                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                           role="button"
                           tabindex="0"
                         >
@@ -524,7 +512,7 @@
                       >
                         <span
                           aria-label="Sort by Roles ascending"
-                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                           role="button"
                           tabindex="0"
                         >
@@ -579,7 +567,7 @@
                       >
                         <span
                           aria-label="Sort by Internal IP ascending"
-                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                           role="button"
                           tabindex="0"
                         >
@@ -634,7 +622,7 @@
                       >
                         <span
                           aria-label="Sort by External IP ascending"
-                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                           role="button"
                           tabindex="0"
                         >
@@ -689,7 +677,7 @@
                       >
                         <span
                           aria-label="Sort by Version ascending"
-                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                           role="button"
                           tabindex="0"
                         >
@@ -745,7 +733,7 @@
                       >
                         <span
                           aria-label="Sorted by Age ascending"
-                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-kfi25q-MuiButtonBase-root-MuiTableSortLabel-root"
+                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-1woqchj-MuiButtonBase-root-MuiTableSortLabel-root"
                           role="button"
                           tabindex="0"
                         >
@@ -811,7 +799,7 @@
                 >
                   <span
                     aria-label="Toggle select row"
-                    class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                    class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1c3rdll-MuiButtonBase-root-MuiCheckbox-root"
                     data-mui-internal-clone-element="true"
                   >
                     <input
@@ -939,7 +927,7 @@
                 >
                   <span
                     aria-label="Toggle select row"
-                    class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                    class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1c3rdll-MuiButtonBase-root-MuiCheckbox-root"
                     data-mui-internal-clone-element="true"
                   >
                     <input

@@ -74,12 +74,12 @@
             class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
           >
             <dt
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1dc1nyd-MuiGrid-root"
             >
               Version
             </dt>
             <dd
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dtzr7-MuiGrid-root"
             >
               <span
                 class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
@@ -88,12 +88,12 @@
               </span>
             </dd>
             <dt
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1uzwzx9-MuiGrid-root"
             >
               Git Commit
             </dt>
             <dd
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1ont2t6-MuiGrid-root"
             >
               <span
                 class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"

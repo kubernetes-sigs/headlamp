@@ -26,7 +26,7 @@
               <button
                 aria-controls="full-width-tabpanel-0-NavigationTabs-tabs-id"
                 aria-selected="true"
-                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-1ao1q84-MuiButtonBase-root-MuiTab-root"
+                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-23cko9-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-0-NavigationTabs-tabs-id"
                 role="tab"
                 tabindex="0"
@@ -40,7 +40,7 @@
               <button
                 aria-controls="full-width-tabpanel-1-NavigationTabs-tabs-id"
                 aria-selected="false"
-                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1ao1q84-MuiButtonBase-root-MuiTab-root"
+                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-23cko9-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-1-NavigationTabs-tabs-id"
                 role="tab"
                 tabindex="-1"
@@ -54,7 +54,7 @@
               <button
                 aria-controls="full-width-tabpanel-2-NavigationTabs-tabs-id"
                 aria-selected="false"
-                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1ao1q84-MuiButtonBase-root-MuiTab-root"
+                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-23cko9-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-2-NavigationTabs-tabs-id"
                 role="tab"
                 tabindex="-1"
@@ -68,7 +68,7 @@
               <button
                 aria-controls="full-width-tabpanel-3-NavigationTabs-tabs-id"
                 aria-selected="false"
-                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1ao1q84-MuiButtonBase-root-MuiTab-root"
+                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-23cko9-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-3-NavigationTabs-tabs-id"
                 role="tab"
                 tabindex="-1"
@@ -82,7 +82,7 @@
               <button
                 aria-controls="full-width-tabpanel-4-NavigationTabs-tabs-id"
                 aria-selected="false"
-                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1ao1q84-MuiButtonBase-root-MuiTab-root"
+                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-23cko9-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-4-NavigationTabs-tabs-id"
                 role="tab"
                 tabindex="-1"
@@ -96,7 +96,7 @@
               <button
                 aria-controls="full-width-tabpanel-5-NavigationTabs-tabs-id"
                 aria-selected="false"
-                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1ao1q84-MuiButtonBase-root-MuiTab-root"
+                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-23cko9-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-5-NavigationTabs-tabs-id"
                 role="tab"
                 tabindex="-1"
@@ -110,7 +110,7 @@
               <button
                 aria-controls="full-width-tabpanel-6-NavigationTabs-tabs-id"
                 aria-selected="false"
-                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1ao1q84-MuiButtonBase-root-MuiTab-root"
+                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-23cko9-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-6-NavigationTabs-tabs-id"
                 role="tab"
                 tabindex="-1"
@@ -124,7 +124,7 @@
               <button
                 aria-controls="full-width-tabpanel-7-NavigationTabs-tabs-id"
                 aria-selected="false"
-                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1ao1q84-MuiButtonBase-root-MuiTab-root"
+                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-23cko9-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-7-NavigationTabs-tabs-id"
                 role="tab"
                 tabindex="-1"

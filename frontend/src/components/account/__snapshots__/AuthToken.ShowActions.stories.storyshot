@@ -97,7 +97,7 @@
             class="MuiDialogContent-root css-ypiqx9-MuiDialogContent-root"
           >
             <p
-              class="MuiTypography-root MuiDialogContentText-root MuiTypography-body1 MuiDialogContentText-root css-1tmyuhs-MuiTypography-root-MuiDialogContentText-root"
+              class="MuiTypography-root MuiDialogContentText-root MuiTypography-body1 MuiDialogContentText-root css-1vsh3qd-MuiTypography-root-MuiDialogContentText-root"
             >
               Please paste your authentication token.
             </p>
@@ -105,7 +105,7 @@
               class="MuiFormControl-root MuiFormControl-marginDense MuiFormControl-fullWidth MuiTextField-root css-1z10yd4-MuiFormControl-root-MuiTextField-root"
             >
               <label
-                class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
+                class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1nqy3le-MuiFormLabel-root-MuiInputLabel-root"
                 data-shrink="true"
                 for="token"
                 id="token-label"
@@ -144,7 +144,7 @@
               class="MuiBox-root css-d0uhtl"
             >
               <p
-                class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-body2 css-vvt2k2-MuiTypography-root"
               >
                 Check out how to generate a
                 <a
