@@ -743,11 +743,13 @@ func HandleConfigLoadError(
 ) error {
 	switch {
 	case strings.Contains(err.Error(), "illegal base64"):
+		// Try to identify the specific field with invalid base64
 		base64Err := checkBase64Errors(kubeconfig, contextName, clusterName, userName)
 		if base64Err != nil {
+			// Found the specific field - return the detailed error
 			return base64Err
 		}
-		// If we couldn't identify the specific field, return the original error
+		// Couldn't identify which field has invalid base64, return original error
 		return ContextError{ContextName: contextName, Reason: fmt.Sprintf("Error loading config: %v", err)}
 	case strings.Contains(err.Error(), "no server found"):
 		return ClusterError{
@@ -825,7 +827,8 @@ func checkUserBase64Fields(userMap map[interface{}]interface{}, userName string)
 	return errs
 }
 
-// checkAuthProviderBase64Fields checks base64 errors in auth-provider config.
+// checkAuthProviderBase64Fields validates base64 encoding of certificate data in auth-provider config.
+// Returns a slice of UserError if validation fails, or an empty slice if validation passes or the field is not present.
 func checkAuthProviderBase64Fields(userMap map[interface{}]interface{}, userName string) []error {
 	var errs []error
 
