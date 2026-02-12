@@ -113,6 +113,18 @@ func TestLoadContextsFromKubeConfigFile(t *testing.T) {
 		require.Equal(t, 1, len(contexts), "Expected 1 contexts from the partially valid file")
 		require.Equal(t, "valid-context", contexts[0].Name, "Expected context name to be 'valid-context'")
 	})
+
+	t.Run("valid_kubeconfig_from_issue", func(t *testing.T) {
+		// Test with the valid kubeconfig from issue that works with kubectl/Lens/FreeLens
+		// but was reportedly failing in Headlamp
+		kubeConfigFile := "./test_data/kubeconfig_valid_from_issue"
+
+		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig)
+		require.NoError(t, err, "Expected no error for valid kubeconfig from issue")
+		require.Empty(t, contextErrors, "Expected no context errors for valid kubeconfig")
+		require.Equal(t, 1, len(contexts), "Expected 1 context from valid kubeconfig")
+		require.Equal(t, "me2e", contexts[0].Name, "Expected context name to be 'me2e'")
+	})
 }
 
 // TestLoadContextFromFile validates the behavior of the LoadContextsFromFile function.
@@ -403,6 +415,21 @@ users:
 		require.NotEmpty(t, contextErrors, "Expected some context errors for partially valid base64")
 		require.Equal(t, 1, len(contexts), "Expected 1 valid context from partially valid base64")
 		assert.Equal(t, "valid-context", contexts[0].Name, "Expected context name to be 'valid-context'")
+	})
+
+	t.Run("valid_kubeconfig_from_issue_dynamic_cluster", func(t *testing.T) {
+		// Test with the valid kubeconfig from issue using DynamicCluster source
+		// (same as frontend uses when uploading kubeconfig)
+		data, err := os.ReadFile("./test_data/kubeconfig_valid_from_issue")
+		require.NoError(t, err, "Failed to read test file")
+
+		kubeConfigBase64 := base64.StdEncoding.EncodeToString(data)
+		contexts, contextErrors, err := kubeconfig.LoadContextsFromBase64String(kubeConfigBase64, kubeconfig.DynamicCluster)
+
+		require.NoError(t, err, "Expected no error for valid kubeconfig from issue")
+		require.Empty(t, contextErrors, "Expected no context errors for valid kubeconfig")
+		require.Equal(t, 1, len(contexts), "Expected 1 context from valid kubeconfig")
+		assert.Equal(t, "me2e", contexts[0].Name, "Expected context name to be 'me2e'")
 	})
 }
 
