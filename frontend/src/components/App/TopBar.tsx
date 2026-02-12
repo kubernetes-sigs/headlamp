@@ -53,6 +53,7 @@ import { GlobalSearch } from '../globalSearch/GlobalSearch';
 import HeadlampButton from '../Sidebar/HeadlampButton';
 import { setWhetherSidebarOpen } from '../Sidebar/sidebarSlice';
 import { AppLogo } from './AppLogo';
+import { handleLogoutPathUpdate } from './TopBar.utils';
 
 export interface TopBarProps {}
 
@@ -78,40 +79,7 @@ export function processAppBarActions(
   return appBarActionsProcessed;
 }
 
-/**
- * Handles the logic for updating the URL after a user logs out from a cluster.
- * If the user logs out from a specific cluster in a multi-cluster context,
- * it removes that cluster from the URL. Otherwise, it redirects to the home page.
- *
- * @param clusterToLogout - The name of the cluster the user is logging out from.
- * @param currentPath - The current URL path (e.g., from history.location.pathname).
- * @param historyPush - Function to navigate to a new path (e.g., history.push).
- */
-function handleLogoutPathUpdate(
-  clusterToLogout: string | undefined,
-  currentPath: string,
-  historyPush: (path: string) => void
-) {
-  if (clusterToLogout) {
-    const clusterSegmentMatch = currentPath.match(/\/c\/([^/]+)(\/|$)/);
-    if (clusterSegmentMatch) {
-      const currentClusterParam = clusterSegmentMatch[1];
-      const clustersInPath = currentClusterParam.split('+');
-      const remainingClustersInPath = clustersInPath.filter(c => c !== clusterToLogout);
-      if (remainingClustersInPath.length > 0) {
-        const newClusterParam = remainingClustersInPath.join('+');
-        const newPath = currentPath.replace(`/c/${currentClusterParam}`, `/c/${newClusterParam}`);
-        historyPush(newPath);
-      } else {
-        historyPush('/');
-      }
-    } else {
-      historyPush('/');
-    }
-  } else {
-    historyPush('/');
-  }
-}
+export { handleLogoutPathUpdate } from './TopBar.utils';
 
 /**
  * Gets the display name for a user in a cluster.
@@ -129,45 +97,6 @@ function getUserDisplayName(
     return userInfo.username;
   }
   return clusterName;
-}
-
-function ClusterLogoutMenuItem({
-  clusterName,
-  userName,
-  logout,
-  onClose,
-}: {
-  clusterName: string;
-  userName: string;
-  logout: (cluster: string) => void;
-  onClose: () => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <MenuItem
-      key={`logout-${clusterName}`}
-      onClick={async () => {
-        await logout(clusterName);
-        onClose();
-      }}
-    >
-      <ListItemIcon>
-        <Icon icon="mdi:logout" />
-      </ListItemIcon>
-      <ListItemText
-        primary={
-          <Box display="flex" flexDirection="column">
-            <Typography variant="body2" component="span">
-              {t('Log out')}: {userName}
-            </Typography>
-            <Typography variant="caption" color="text.secondary" component="span">
-              {clusterName}
-            </Typography>
-          </Box>
-        }
-      />
-    </MenuItem>
-  );
 }
 
 export default function TopBar({}: TopBarProps) {
@@ -402,61 +331,34 @@ export const PureTopBar = memo(
           },
         }}
       >
-        {selectedClusters && selectedClusters.length > 1 && (
-          <MenuItem
-            onClick={async () => {
-              await logout();
-              handleMenuClose();
-            }}
-          >
-            <ListItemIcon>
-              <Icon icon="mdi:logout" />
-            </ListItemIcon>
-            <ListItemText primary={t('Log out from all')} />
-          </MenuItem>
-        )}
-
-        {selectedClusters && selectedClusters.length > 1 ? (
-          selectedClusters.map(clusterName => {
-            const userName = getUserDisplayName(clusterName, clusterUserInfoMap);
-            return (
-              <ClusterLogoutMenuItem
-                key={`logout-${clusterName}`}
-                clusterName={clusterName}
-                userName={userName}
-                logout={logout}
-                onClose={handleMenuClose}
-              />
-            );
-          })
-        ) : (
-          <MenuItem
-            onClick={async () => {
-              await logout();
-              handleMenuClose();
-            }}
-          >
-            <ListItemIcon>
-              <Icon icon="mdi:logout" />
-            </ListItemIcon>
-            <ListItemText
-              primary={
-                cluster ? (
-                  <Box display="flex" flexDirection="column">
-                    <Typography variant="body2" component="span">
-                      {t('Log out')}: {getUserDisplayName(cluster, clusterUserInfoMap)}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" component="span">
-                      {cluster}
-                    </Typography>
-                  </Box>
-                ) : (
-                  t('Log out')
-                )
-              }
-            />
-          </MenuItem>
-        )}
+        <MenuItem
+          onClick={async () => {
+            await logout();
+            handleMenuClose();
+          }}
+        >
+          <ListItemIcon>
+            <Icon icon="mdi:logout" />
+          </ListItemIcon>
+          <ListItemText
+            primary={
+              selectedClusters && selectedClusters.length > 1 ? (
+                t('Log out from all')
+              ) : cluster ? (
+                <Box display="flex" flexDirection="column">
+                  <Typography variant="body2" component="span">
+                    {t('Log out')}: {getUserDisplayName(cluster, clusterUserInfoMap)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" component="span">
+                    {cluster}
+                  </Typography>
+                </Box>
+              ) : (
+                t('Log out')
+              )
+            }
+          />
+        </MenuItem>
 
         <Divider />
 
