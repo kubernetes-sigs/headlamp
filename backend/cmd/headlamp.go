@@ -316,9 +316,8 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 
-			errResp, _ := json.Marshal(map[string]interface{}{"success": false, "message": err.Error()})
-			if _, writeErr := w.Write(errResp); writeErr != nil {
-				logger.Log(logger.LevelError, nil, writeErr, "Error writing delete error response")
+			if err := json.NewEncoder(w).Encode(map[string]any{"success": false, "message": err.Error()}); err != nil {
+				logger.Log(logger.LevelError, nil, err, "Error writing delete error response")
 			}
 
 			return
@@ -326,10 +325,8 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 		logger.Log(logger.LevelInfo, nil, nil, "Plugin deleted successfully: "+pluginName)
 
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
 
-		resp, _ := json.Marshal(map[string]interface{}{"success": true})
-		if _, err := w.Write(resp); err != nil {
+		if err := json.NewEncoder(w).Encode(map[string]any{"success": true}); err != nil {
 			logger.Log(logger.LevelError, nil, err, "Error writing delete response")
 		}
 	}).Methods("DELETE")
