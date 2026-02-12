@@ -11,6 +11,7 @@
 {{- $usePKCE := "" }}
 {{- $useAccessToken := "" }}
 {{- $meUserInfoURL := "" }}
+{{- $oidcAutoLogin := "" }}
 
 # This block of code is used to extract the values from the env.
 # This is done to check if the values are non-empty and if they are, they are used in the deployment.yaml.
@@ -44,6 +45,9 @@
   {{- end }}
   {{- if eq .name "ME_USER_INFO_URL" }}
     {{- $meUserInfoURL = .value | toString }}
+  {{- end }}
+  {{- if eq .name "OIDC_AUTO_LOGIN" }}
+    {{- $oidcAutoLogin = .value | toString }}
   {{- end }}
 {{- end }}
 
@@ -182,6 +186,13 @@ spec:
                   name: {{ $oidc.secret.name }}
                   key: meUserInfoURL
             {{- end }}
+            {{- if $oidc.autoLogin }}
+            - name: OIDC_AUTO_LOGIN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.auto.login }}
+                  key: autoLogin
+            {{- end }}
             {{- else }}
             {{- if $oidc.clientID }}
             - name: OIDC_CLIENT_ID
@@ -223,10 +234,14 @@ spec:
             - name: ME_USER_INFO_URL
               value: {{ $oidc.meUserInfoURL }}
             {{- end }}
+            {{- if $oidc.autoLogin }}
+            - name: OIDC_AUTO_LOGIN
+              value: {{ $oidc.autoLogin | quote }}
             {{- end }}
-            {{- if .Values.env }}
+          {{- end }}
+          {{- if .Values.env }}
             {{- toYaml .Values.env | nindent 12 }}
-            {{- end }}
+          {{- end }}
           {{- end }}
           {{- end }}
           args:
@@ -288,6 +303,9 @@ spec:
             {{- if or (ne $oidc.meUserInfoURL "") (ne $meUserInfoURL "") }}
             - "-me-user-info-url=$(ME_USER_INFO_URL)"
             {{- end }}
+            {{- if or (eq ($oidc.autoLogin | toString) "true") (eq $oidcAutoLogin "true") }}
+            - "-oidc-auto-login=$(OIDC_AUTO_LOGIN)"
+            {{- end }}
             {{- else }}
             - "-oidc-client-id=$(OIDC_CLIENT_ID)"
             - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
@@ -314,6 +332,9 @@ spec:
             {{- end }}
             {{- if or (ne $oidc.meUserInfoURL "") (ne $meUserInfoURL "") }}
             - "-me-user-info-url=$(ME_USER_INFO_URL)"
+            {{- end }}
+            {{- if or (eq ($oidc.autoLogin | toString) "true") (eq $oidcAutoLogin "true") }}
+            - "-oidc-auto-login=$(OIDC_AUTO_LOGIN)"
             {{- end }}
             {{- end }}
             {{- with .Values.config.baseURL }}

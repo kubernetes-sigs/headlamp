@@ -218,6 +218,10 @@
               "type": "boolean",
               "description": "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow"
             },
+            "autoLogin": {
+              "type": "boolean",
+              "description": "Enable automatic redirect to the OIDC provider"
+            },
             "externalSecret": {
               "type": "object",
               "description": "External secret to use for OIDC configuration",
