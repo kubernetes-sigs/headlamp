@@ -142,7 +142,7 @@
         </div>
       </div>
       <table
-        class="MuiTable-root css-dq3jrr-MuiTable-root"
+        class="MuiTable-root css-shd5iw-MuiTable-root"
       >
         <thead
           class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
@@ -176,7 +176,7 @@
                   >
                     <span
                       aria-label="Sort by Name ascending"
-                      class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                      class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                       role="button"
                       tabindex="0"
                     >
@@ -231,7 +231,7 @@
                   >
                     <span
                       aria-label="Sort by Namespace ascending"
-                      class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                      class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                       role="button"
                       tabindex="0"
                     >
@@ -286,7 +286,7 @@
                   >
                     <span
                       aria-label="Sort by Number descending"
-                      class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                      class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-178m3r0-MuiButtonBase-root-MuiTableSortLabel-root"
                       role="button"
                       tabindex="0"
                     >
@@ -439,7 +439,7 @@
                 class="MuiBox-root css-exd1zr"
               >
                 <label
-                  class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-animated MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-animated css-17e6cjd-MuiFormLabel-root-MuiInputLabel-root"
+                  class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-animated MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-animated css-15ll2fq-MuiFormLabel-root-MuiInputLabel-root"
                   for="mrt-rows-per-page"
                 >
                   Rows per page

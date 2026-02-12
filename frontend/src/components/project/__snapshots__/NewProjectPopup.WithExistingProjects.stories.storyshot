@@ -40,7 +40,7 @@
           class="MuiDialogContent-root css-15ohtq7-MuiDialogContent-root"
         >
           <p
-            class="MuiTypography-root MuiTypography-body2 css-1enx7tw-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-body2 css-r4imqj-MuiTypography-root"
           >
             Project is a collection of Kubernetes resources. You can use projects to organize your resources, for example, by environment, team, or application.
           </p>
@@ -64,7 +64,7 @@
                   New Project
                 </span>
                 <p
-                  class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body2 css-vvt2k2-MuiTypography-root"
                 >
                   Create a new project
                 </p>
@@ -90,7 +90,7 @@
                   New Project from YAML
                 </span>
                 <p
-                  class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body2 css-vvt2k2-MuiTypography-root"
                 >
                   Deploy a new application from YAML
                 </p>
