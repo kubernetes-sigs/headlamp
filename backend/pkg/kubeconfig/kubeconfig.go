@@ -820,17 +820,35 @@ func checkUserBase64Fields(userMap map[interface{}]interface{}, userName string)
 	}
 
 	// Check auth-provider config for OIDC certificate data
-	if authProvider, ok := userMap["auth-provider"].(map[interface{}]interface{}); ok {
-		if config, ok := authProvider["config"].(map[interface{}]interface{}); ok {
-			if value, ok := config["idp-certificate-authority-data"].(string); ok {
-				if _, err := base64.StdEncoding.DecodeString(value); err != nil {
-					errs = append(errs, UserError{
-						UserName: userName,
-						Reason:   "Invalid base64 encoding in idp-certificate-authority-data. Please ensure it's correctly encoded.",
-					})
-				}
-			}
-		}
+	errs = append(errs, checkAuthProviderBase64Fields(userMap, userName)...)
+
+	return errs
+}
+
+// checkAuthProviderBase64Fields checks base64 errors in auth-provider config.
+func checkAuthProviderBase64Fields(userMap map[interface{}]interface{}, userName string) []error {
+	var errs []error
+
+	authProvider, ok := userMap["auth-provider"].(map[interface{}]interface{})
+	if !ok {
+		return errs
+	}
+
+	config, ok := authProvider["config"].(map[interface{}]interface{})
+	if !ok {
+		return errs
+	}
+
+	value, ok := config["idp-certificate-authority-data"].(string)
+	if !ok {
+		return errs
+	}
+
+	if _, err := base64.StdEncoding.DecodeString(value); err != nil {
+		errs = append(errs, UserError{
+			UserName: userName,
+			Reason:   "Invalid base64 encoding in idp-certificate-authority-data. Please ensure it's correctly encoded.",
+		})
 	}
 
 	return errs
