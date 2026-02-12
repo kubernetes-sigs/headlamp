@@ -158,6 +158,7 @@
   "Sort sidebar items alphabetically": "사이드바 항목을 가나다순으로 정렬",
   "Use evict for pod deletion": "",
   "Theme": "테마",
+  "Theme has been forced by your administrator": "",
   "Keyboard Shortcuts": "",
   "Configure keyboard shortcuts for quick access to various parts of the application.": "",
   "Cluster Settings": "클러스터 설정",

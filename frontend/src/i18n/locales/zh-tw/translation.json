@@ -158,6 +158,7 @@
   "Sort sidebar items alphabetically": "側邊欄項目按字母順序排序",
   "Use evict for pod deletion": "刪除 Pod 時使用 evict",
   "Theme": "主題",
+  "Theme has been forced by your administrator": "",
   "Keyboard Shortcuts": "",
   "Configure keyboard shortcuts for quick access to various parts of the application.": "",
   "Cluster Settings": "叢集設定",

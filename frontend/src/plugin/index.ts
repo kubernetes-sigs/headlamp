@@ -37,7 +37,7 @@ import * as Recharts from 'recharts';
 import semver from 'semver';
 import { Activity } from '../components/activity/Activity';
 import { runCommand } from '../components/App/runCommand';
-import { themeSlice } from '../components/App/themeSlice';
+import { applyBackendThemeConfig, ensureValidThemeName } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
 import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
 import { getAppUrl } from '../helpers/getAppUrl';
@@ -704,7 +704,23 @@ async function afterPluginsRun(
   );
 
   // Refresh theme name if the theme that was used from a plugin was deleted
-  store.dispatch(themeSlice.actions.ensureValidThemeName());
+  store.dispatch(ensureValidThemeName());
+
+  // Reapply backend theme configuration now that plugins (which may provide themes) are loaded
+  const backendThemeConfig = store.getState().config;
+  if (
+    backendThemeConfig?.defaultLightTheme ||
+    backendThemeConfig?.defaultDarkTheme ||
+    backendThemeConfig?.forceTheme
+  ) {
+    store.dispatch(
+      applyBackendThemeConfig({
+        defaultLightTheme: backendThemeConfig.defaultLightTheme,
+        defaultDarkTheme: backendThemeConfig.defaultDarkTheme,
+        forceTheme: backendThemeConfig.forceTheme,
+      })
+    );
+  }
 }
 
 /**
