@@ -82,6 +82,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 	return &headlampconfig.HeadlampCFG{
 		UseInCluster:          conf.InCluster,
 		InClusterContextName:  conf.InClusterContextName,
+		APIServerEndpoint:     conf.APIServerEndpoint,
 		KubeConfigPath:        conf.KubeConfigPath,
 		SkippedKubeContexts:   conf.SkippedKubeContexts,
 		ListenAddr:            conf.ListenAddr,
