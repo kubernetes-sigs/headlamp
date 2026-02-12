@@ -57,6 +57,10 @@ export interface ConfigState {
     useEvict: boolean;
     [key: string]: any;
   };
+  /**
+   * Whether OIDC auto-login is enabled. Null indicates the value hasn't been loaded from the backend yet.
+   */
+  oidcAutoLogin: boolean | null;
 }
 
 export const defaultTableRowsPerPageOptions = [15, 25, 50];
@@ -71,6 +75,7 @@ export const initialState: ConfigState = {
   clusters: null,
   statelessClusters: null,
   allClusters: null,
+  oidcAutoLogin: null,
   settings: {
     tableRowsPerPageOptions:
       storedSettings.tableRowsPerPageOptions || defaultTableRowsPerPageOptions,
@@ -89,8 +94,15 @@ const configSlice = createSlice({
      * @param state - The current state.
      * @param action - The payload action containing the config.
      */
-    setConfig(state, action: PayloadAction<{ clusters: ConfigState['clusters'] }>) {
+    setConfig(
+      state,
+      action: PayloadAction<{ clusters: ConfigState['clusters']; oidcAutoLogin?: boolean }>
+    ) {
       state.clusters = action.payload.clusters;
+
+      if (action.payload.oidcAutoLogin !== undefined) {
+        state.oidcAutoLogin = action.payload.oidcAutoLogin;
+      }
     },
     /**
      * Save the config. To both the store, and localStorage.
