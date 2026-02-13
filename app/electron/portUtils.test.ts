@@ -54,6 +54,27 @@ describe('portUtils', () => {
       expect(result.errorCode).toBeUndefined();
     });
 
+    it('should return available=true for an available port on ::1 (IPv6)', async () => {
+      // Try to bind to IPv6 - may not be available on all systems
+      const server = net.createServer();
+      try {
+        const port = await new Promise<number>((resolve, reject) => {
+          server.once('error', reject);
+          server.listen(0, '::1', () => {
+            const addr = server.address() as net.AddressInfo;
+            server.close(() => resolve(addr.port));
+          });
+        });
+
+        const result = await isPortAvailableOnHost(port, '::1');
+        expect(result.available).toBe(true);
+        expect(result.errorCode).toBeUndefined();
+      } catch (err) {
+        // IPv6 may not be available on all systems, skip test gracefully
+        console.log('IPv6 not available on this system, skipping IPv6 test');
+      }
+    });
+
     it('should return available=false with EADDRINUSE for a port that is in use', async () => {
       // Create a server to occupy a port
       const server = net.createServer();

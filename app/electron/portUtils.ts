@@ -85,8 +85,9 @@ export async function checkPortAvailability(port: number): Promise<PortCheckResu
       localhostResult.errorCode
     );
 
-  // If localhost failed due to resolution error, try IPv4 fallback
+  // If localhost failed due to resolution error, try both IPv4 and IPv6 fallbacks
   if (isResolutionError) {
+    // Try IPv4 explicitly
     const ipv4Result = await isPortAvailableOnHost(port, '127.0.0.1');
     if (ipv4Result.available) {
       return {
@@ -97,7 +98,7 @@ export async function checkPortAvailability(port: number): Promise<PortCheckResu
       };
     }
 
-    // If IPv4 also failed, try IPv6 as last resort
+    // Try IPv6 explicitly (independent of IPv4 result)
     const ipv6Result = await isPortAvailableOnHost(port, '::1');
     if (ipv6Result.available) {
       return {
@@ -108,7 +109,7 @@ export async function checkPortAvailability(port: number): Promise<PortCheckResu
       };
     }
 
-    // All failed with resolution errors
+    // All addresses failed with resolution errors
     return {
       available: false,
       host: 'localhost',

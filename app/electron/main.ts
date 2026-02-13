@@ -137,7 +137,7 @@ const isHeadlessMode = args.headless === true;
 let disableGPU = args['disable-gpu'] === true;
 const defaultPort = args.port || 4466;
 let actualPort = defaultPort; // Will be updated when backend starts
-let actualHost = 'localhost'; // Will be updated to '127.0.0.1' if localhost doesn't work
+let actualHost = 'localhost'; // Will be updated to '127.0.0.1' or '::1' if localhost doesn't work
 const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS) || 100); // Maximum number of ports to try
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
@@ -725,11 +725,12 @@ async function findAvailablePort(startPort: number): Promise<number> {
 
 /**
  * Format a host address for use in URLs
- * IPv6 addresses need to be wrapped in brackets for URL syntax
+ * IPv6 addresses need to be wrapped in brackets for URL syntax per RFC 3986
  */
 function formatHostForURL(host: string): string {
-  // Check if it's an IPv6 address (contains colons)
-  if (host.includes(':')) {
+  // Only wrap known IPv6 addresses (currently only ::1)
+  // This is more robust than checking for colons which could match other formats
+  if (host === '::1' || host.startsWith('::') || host.startsWith('fe80:')) {
     return `[${host}]`;
   }
   return host;
