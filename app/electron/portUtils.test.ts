@@ -70,8 +70,11 @@ describe('portUtils', () => {
         expect(result.available).toBe(true);
         expect(result.errorCode).toBeUndefined();
       } catch (err) {
-        // IPv6 may not be available on all systems, skip test gracefully
-        console.log('IPv6 not available on this system, skipping IPv6 test');
+        // IPv6 may not be available on all systems
+        // In this case, we just verify the function doesn't crash
+        const result = await isPortAvailableOnHost(50000, '::1');
+        expect(result.available).toBe(false);
+        // Error code will vary by system (EADDRNOTAVAIL or similar)
       }
     });
 

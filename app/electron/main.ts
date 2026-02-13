@@ -728,9 +728,9 @@ async function findAvailablePort(startPort: number): Promise<number> {
  * IPv6 addresses need to be wrapped in brackets for URL syntax per RFC 3986
  */
 function formatHostForURL(host: string): string {
-  // Only wrap known IPv6 addresses (currently only ::1)
-  // This is more robust than checking for colons which could match other formats
-  if (host === '::1' || host.startsWith('::') || host.startsWith('fe80:')) {
+  // IPv6 addresses contain colons but not dots (IPv4 addresses have dots)
+  // This distinguishes IPv6 from IPv4 while avoiding false positives on hostnames with ports
+  if (host.includes(':') && !host.includes('.')) {
     return `[${host}]`;
   }
   return host;
