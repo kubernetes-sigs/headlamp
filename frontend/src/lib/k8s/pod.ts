@@ -186,12 +186,51 @@ class Pod extends KubeObject<KubePod> {
         .replace(/\\\\/g, '\\'); // Backslash
     }
 
-    function prettifyLogLine(logLine: string): string {
-      try {
-        const jsonMatch = logLine.match(/(\{.*\})/);
-        if (!jsonMatch) return logLine;
+    function findJsonBounds(line: string): { start: number; end: number } | null {
+      const start = line.indexOf('{');
+      if (start === -1) return null;
 
-        const jsonStr = jsonMatch[1];
+      // Walk from the first '{' tracking brace depth and string context
+      // to find the matching '}', ignoring braces inside quoted strings.
+      let depth = 0;
+      let inString = false;
+      let escapeNext = false;
+
+      for (let i = start; i < line.length; i++) {
+        const ch = line[i];
+
+        if (escapeNext) {
+          escapeNext = false;
+          continue;
+        }
+
+        if (ch === '\\') {
+          escapeNext = true;
+          continue;
+        }
+
+        if (ch === '"') {
+          inString = !inString;
+          continue;
+        }
+
+        if (inString) continue;
+
+        if (ch === '{') {
+          depth++;
+        } else if (ch === '}') {
+          depth--;
+          if (depth === 0) return { start, end: i };
+          if (depth < 0) return null;
+        }
+      }
+
+      return null;
+    }
+
+    function prettifyLogLine(logLine: string, jsonBounds: { start: number; end: number }): string {
+      try {
+        const jsonStr = logLine.substring(jsonBounds.start, jsonBounds.end + 1);
         const jsonObj = JSON.parse(jsonStr);
 
         const valueReplacer = formatJsonValues
@@ -205,7 +244,7 @@ class Pod extends KubeObject<KubePod> {
           : prettyJson;
 
         if (showTimestamps) {
-          const timestamp = logLine.slice(0, jsonMatch.index).trim();
+          const timestamp = logLine.slice(0, jsonBounds.start).trim();
           return timestamp ? `${timestamp}\n${terminalReadyJson}\n` : `${terminalReadyJson}\n`;
         } else {
           return `${terminalReadyJson}\n`;
@@ -221,9 +260,15 @@ class Pod extends KubeObject<KubePod> {
       const decodedLog = Base64.decode(item);
       if (!decodedLog || decodedLog.trim() === '') return;
       const trimmedLog = decodedLog.trim();
-      const jsonMatch = trimmedLog.match(/(\{.*\})/);
-      if (jsonMatch) hasJsonLogs = true;
-      const processedLog = hasJsonLogs && prettifyLogs ? prettifyLogLine(decodedLog) : decodedLog;
+      const jsonBounds = findJsonBounds(trimmedLog);
+
+      const processedLog =
+        !!jsonBounds && prettifyLogs ? prettifyLogLine(trimmedLog, jsonBounds) : decodedLog;
+
+      if (jsonBounds) {
+        hasJsonLogs = true;
+      }
+
       logs.push(processedLog);
       onLogs({ logs, hasJsonLogs });
     }
