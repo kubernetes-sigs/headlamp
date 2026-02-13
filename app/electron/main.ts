@@ -133,6 +133,7 @@ const isHeadlessMode = args.headless === true;
 let disableGPU = args['disable-gpu'] === true;
 const defaultPort = args.port || 4466;
 let actualPort = defaultPort; // Will be updated when backend starts
+let actualHost = 'localhost'; // Will be updated to '127.0.0.1' if localhost doesn't work
 const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS) || 100); // Maximum number of ports to try
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
@@ -663,7 +664,13 @@ async function getShellEnv(): Promise<NodeJS.ProcessEnv> {
 /**
  * Check if a port is available by attempting to create a server on it
  */
-async function isPortAvailable(port: number): Promise<boolean> {
+/**
+ * Check if a port is available on a specific host
+ * @param port Port number to check
+ * @param host Host address to bind to (e.g., 'localhost' or '127.0.0.1')
+ * @returns Promise that resolves to true if port is available, false otherwise
+ */
+async function isPortAvailableOnHost(port: number, host: string): Promise<boolean> {
   return new Promise(resolve => {
     const server = net.createServer();
 
@@ -676,11 +683,38 @@ async function isPortAvailable(port: number): Promise<boolean> {
     });
 
     try {
-      server.listen({ port, host: 'localhost', exclusive: true });
+      server.listen({ port, host, exclusive: true });
     } catch (err) {
       server.emit('error', err as NodeJS.ErrnoException);
     }
   });
+}
+
+/**
+ * Check if a port is available, trying localhost first and 127.0.0.1 as fallback
+ * Updates the actualHost variable to the working host address
+ * @param port Port number to check
+ * @returns Promise that resolves to true if port is available on any host, false otherwise
+ */
+async function isPortAvailable(port: number): Promise<boolean> {
+  // Try localhost first
+  const localhostAvailable = await isPortAvailableOnHost(port, 'localhost');
+  if (localhostAvailable) {
+    actualHost = 'localhost';
+    return true;
+  }
+
+  // If localhost doesn't work, try 127.0.0.1 as fallback
+  console.warn(
+    `Port ${port} check failed on 'localhost', trying '127.0.0.1' as fallback...`
+  );
+  const fallbackAvailable = await isPortAvailableOnHost(port, '127.0.0.1');
+  if (fallbackAvailable) {
+    actualHost = '127.0.0.1';
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -713,8 +747,12 @@ async function findAvailablePort(startPort: number): Promise<number> {
     console.info(`Port ${port} is occupied by another process, trying next port...`);
   }
 
+  const hostInfo =
+    actualHost === 'localhost'
+      ? " (tried 'localhost' and '127.0.0.1')"
+      : ` (using fallback '127.0.0.1' as 'localhost' was not available)`;
   throw new Error(
-    `Could not find an available port after ${MAX_PORT_ATTEMPTS} attempts starting from ${startPort}`
+    `Could not find an available port after ${MAX_PORT_ATTEMPTS} attempts starting from ${startPort}${hostInfo}`
   );
 }
 
@@ -725,7 +763,8 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
 
   actualPort = await findAvailablePort(defaultPort);
 
-  let serverArgs: string[] = ['--listen-addr=localhost', `--port=${actualPort}`];
+  console.info(`Using host address: ${actualHost}`);
+  let serverArgs: string[] = [`--listen-addr=${actualHost}`, `--port=${actualPort}`];
   if (!!args.kubeconfig) {
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);
   }
@@ -1547,10 +1586,10 @@ function startElectron() {
       mainWindow = null;
     });
 
-    // Workaround to cookies to be saved, since file:// protocal and localhost:port
+    // Workaround to cookies to be saved, since file:// protocal and host:port
     // are treated as a cross site request.
     mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-      if (details.url.startsWith(`http://localhost:${actualPort}`)) {
+      if (details.url.startsWith(`http://${actualHost}:${actualPort}`)) {
         callback({
           responseHeaders: {
             ...details.responseHeaders,
@@ -1812,7 +1851,7 @@ if (isHeadlessMode) {
       attachServerEventHandlers(serverProcess);
 
       // Give 1s for backend to start
-      setTimeout(() => shell.openExternal(`http://localhost:${actualPort}`), 1000);
+      setTimeout(() => shell.openExternal(`http://${actualHost}:${actualPort}`), 1000);
     }
   );
 } else {
