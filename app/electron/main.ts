@@ -1547,7 +1547,7 @@ function startElectron() {
       mainWindow = null;
     });
 
-    // Workaround to cookies to be saved, since file:// protocal and 127.0.0.1:port
+    // Workaround to cookies to be saved, since file:// protocol and 127.0.0.1:port
     // are treated as a cross site request.
     mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
       if (details.url.startsWith(`http://127.0.0.1:${actualPort}`)) {
