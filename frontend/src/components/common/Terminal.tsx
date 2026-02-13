@@ -140,7 +140,10 @@ export default function Terminal(props: TerminalProps) {
   }
 
   function send(channel: number, data: string) {
-    const socket = execOrAttachRef.current!.getSocket();
+    if (!execOrAttachRef.current) {
+      return;
+    }
+    const socket = execOrAttachRef.current.getSocket();
 
     // We should only send data if the socket is ready.
     if (!socket || socket.readyState !== 1) {
@@ -155,6 +158,7 @@ export default function Terminal(props: TerminalProps) {
   }
 
   function onData(xtermc: XTerminalConnected, bytes: ArrayBuffer) {
+    if (!execOrAttachRef.current) return;
     const xterm = xtermc.xterm;
     // Only show data from stdout, stderr and server error channel.
     const channel: Channel = new Int8Array(bytes.slice(0, 1))[0];
@@ -325,6 +329,7 @@ export default function Terminal(props: TerminalProps) {
       return function cleanup() {
         xtermRef.current?.xterm.dispose();
         execOrAttachRef.current?.cancel();
+        execOrAttachRef.current = null;
         window.removeEventListener('resize', handler);
       };
     },
