@@ -186,12 +186,16 @@ class Pod extends KubeObject<KubePod> {
         .replace(/\\\\/g, '\\'); // Backslash
     }
 
-    function prettifyLogLine(logLine: string): string {
-      try {
-        const jsonMatch = logLine.match(/(\{.*\})/);
-        if (!jsonMatch) return logLine;
+    function findJsonBounds(line: string): { start: number; end: number } | null {
+      const start = line.indexOf('{');
+      const end = line.lastIndexOf('}');
+      if (start === -1 || end <= start) return null;
+      return { start, end };
+    }
 
-        const jsonStr = jsonMatch[1];
+    function prettifyLogLine(logLine: string, jsonBounds: { start: number; end: number }): string {
+      try {
+        const jsonStr = logLine.substring(jsonBounds.start, jsonBounds.end + 1);
         const jsonObj = JSON.parse(jsonStr);
 
         const valueReplacer = formatJsonValues
@@ -205,13 +209,13 @@ class Pod extends KubeObject<KubePod> {
           : prettyJson;
 
         if (showTimestamps) {
-          const timestamp = logLine.slice(0, jsonMatch.index).trim();
+          const timestamp = logLine.slice(0, jsonBounds.start).trim();
           return timestamp ? `${timestamp}\n${terminalReadyJson}\n` : `${terminalReadyJson}\n`;
         } else {
           return `${terminalReadyJson}\n`;
         }
       } catch {
-        return logLine; // Return original log line if parsing fails
+        return logLine;
       }
     }
 
@@ -221,9 +225,12 @@ class Pod extends KubeObject<KubePod> {
       const decodedLog = Base64.decode(item);
       if (!decodedLog || decodedLog.trim() === '') return;
       const trimmedLog = decodedLog.trim();
-      const jsonMatch = trimmedLog.match(/(\{.*\})/);
-      if (jsonMatch) hasJsonLogs = true;
-      const processedLog = hasJsonLogs && prettifyLogs ? prettifyLogLine(decodedLog) : decodedLog;
+      const jsonBounds = findJsonBounds(trimmedLog);
+
+      const processedLog =
+        !!jsonBounds && prettifyLogs ? prettifyLogLine(decodedLog, jsonBounds) : decodedLog;
+
+      hasJsonLogs = !!jsonBounds;
       logs.push(processedLog);
       onLogs({ logs, hasJsonLogs });
     }
