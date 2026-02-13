@@ -31,7 +31,6 @@ import {
 import { IpcMainEvent, MenuItemConstructorOptions } from 'electron/main';
 import find_process from 'find-process';
 import * as fsPromises from 'fs/promises';
-import * as net from 'net';
 import fs from 'node:fs';
 import { userInfo } from 'node:os';
 import { promisify } from 'node:util';
@@ -50,6 +49,11 @@ import {
   getPluginBinDirectories,
   PluginManager,
 } from './plugin-management';
+import {
+  checkPortAvailability,
+  createLocalhostErrorMessage,
+  createNoPortsAvailableMessage,
+} from './portUtils';
 import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
 import windowSize from './windowSize';
 
@@ -662,67 +666,13 @@ async function getShellEnv(): Promise<NodeJS.ProcessEnv> {
 }
 
 /**
- * Check if a port is available by attempting to create a server on it
- */
-/**
- * Check if a port is available on a specific host
- * @param port Port number to check
- * @param host Host address to bind to (e.g., 'localhost' or '127.0.0.1')
- * @returns Promise that resolves to true if port is available, false otherwise
- */
-async function isPortAvailableOnHost(port: number, host: string): Promise<boolean> {
-  return new Promise(resolve => {
-    const server = net.createServer();
-
-    server.once('error', () => {
-      resolve(false);
-    });
-
-    server.once('listening', () => {
-      server.close(() => resolve(true));
-    });
-
-    try {
-      server.listen({ port, host, exclusive: true });
-    } catch (err) {
-      server.emit('error', err as NodeJS.ErrnoException);
-    }
-  });
-}
-
-/**
- * Check if a port is available, trying localhost first and 127.0.0.1 as fallback
- * Updates the actualHost variable to the working host address
- * @param port Port number to check
- * @returns Promise that resolves to true if port is available on any host, false otherwise
- */
-async function isPortAvailable(port: number): Promise<boolean> {
-  // Try localhost first
-  const localhostAvailable = await isPortAvailableOnHost(port, 'localhost');
-  if (localhostAvailable) {
-    actualHost = 'localhost';
-    return true;
-  }
-
-  // If localhost doesn't work, try 127.0.0.1 as fallback
-  console.warn(
-    `Port ${port} check failed on 'localhost', trying '127.0.0.1' as fallback...`
-  );
-  const fallbackAvailable = await isPortAvailableOnHost(port, '127.0.0.1');
-  if (fallbackAvailable) {
-    actualHost = '127.0.0.1';
-    return true;
-  }
-
-  return false;
-}
-
-/**
  * Find an available port starting from the default port
  * Tries to find a free port, skipping all occupied ports (including Headlamp)
  * @returns Available port number, or throws if no port found after MAX_PORT_ATTEMPTS
  */
 async function findAvailablePort(startPort: number): Promise<number> {
+  let localhostFailedOnce = false;
+
   for (let i = 0; i < MAX_PORT_ATTEMPTS; i++) {
     const port = startPort + i;
     // Skip ports already used by another Headlamp instance.
@@ -735,25 +685,40 @@ async function findAvailablePort(startPort: number): Promise<number> {
       );
       continue;
     }
-    const available = await isPortAvailable(port);
 
-    if (available) {
+    const result = await checkPortAvailability(port);
+
+    if (result.available) {
+      actualHost = result.host;
+      if (result.localhostFailed && !localhostFailedOnce) {
+        localhostFailedOnce = true;
+        console.warn(
+          `Note: 'localhost' resolution failed, using '${result.host}' as fallback for all subsequent checks.`
+        );
+      }
       if (port !== startPort) {
         console.info(`Port ${startPort} is in use, using port ${port} instead`);
       }
       return port;
     }
 
+    if (result.localhostFailed && !localhostFailedOnce) {
+      localhostFailedOnce = true;
+    }
+
     console.info(`Port ${port} is occupied by another process, trying next port...`);
   }
 
-  const hostInfo =
-    actualHost === 'localhost'
-      ? " (tried 'localhost' and '127.0.0.1')"
-      : ` (using fallback '127.0.0.1' as 'localhost' was not available)`;
-  throw new Error(
-    `Could not find an available port after ${MAX_PORT_ATTEMPTS} attempts starting from ${startPort}${hostInfo}`
-  );
+  // If we exhausted all attempts, provide a helpful error message
+  if (localhostFailedOnce) {
+    // Localhost resolution issues detected
+    const errorMsg = createLocalhostErrorMessage(startPort, startPort + MAX_PORT_ATTEMPTS - 1);
+    throw new Error(errorMsg);
+  } else {
+    // Normal case - all ports occupied
+    const errorMsg = createNoPortsAvailableMessage(startPort, MAX_PORT_ATTEMPTS, false);
+    throw new Error(errorMsg);
+  }
 }
 
 async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNullStreams> {
