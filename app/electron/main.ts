@@ -723,6 +723,18 @@ async function findAvailablePort(startPort: number): Promise<number> {
   }
 }
 
+/**
+ * Format a host address for use in URLs
+ * IPv6 addresses need to be wrapped in brackets for URL syntax
+ */
+function formatHostForURL(host: string): string {
+  // Check if it's an IPv6 address (contains colons)
+  if (host.includes(':')) {
+    return `[${host}]`;
+  }
+  return host;
+}
+
 async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNullStreams> {
   const serverFilePath = isDev
     ? path.resolve('../backend/headlamp-server')
@@ -1556,7 +1568,7 @@ function startElectron() {
     // Workaround to cookies to be saved, since file:// protocol and host:port
     // are treated as a cross site request.
     mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-      if (details.url.startsWith(`http://${actualHost}:${actualPort}`)) {
+      if (details.url.startsWith(`http://${formatHostForURL(actualHost)}:${actualPort}`)) {
         callback({
           responseHeaders: {
             ...details.responseHeaders,
@@ -1818,7 +1830,10 @@ if (isHeadlessMode) {
       attachServerEventHandlers(serverProcess);
 
       // Give 1s for backend to start
-      setTimeout(() => shell.openExternal(`http://${actualHost}:${actualPort}`), 1000);
+      setTimeout(
+        () => shell.openExternal(`http://${formatHostForURL(actualHost)}:${actualPort}`),
+        1000
+      );
     }
   );
 } else {

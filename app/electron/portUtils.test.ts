@@ -95,10 +95,10 @@ describe('portUtils', () => {
     });
 
     it('should return unavailable without fallback when port is occupied (EADDRINUSE)', async () => {
-      // Occupy a port on all interfaces
+      // Occupy a port on localhost specifically
       const server = net.createServer();
       const port = await new Promise<number>(resolve => {
-        server.listen(0, '0.0.0.0', () => {
+        server.listen(0, 'localhost', () => {
           const addr = server.address() as net.AddressInfo;
           resolve(addr.port);
         });
@@ -163,4 +163,3 @@ describe('portUtils', () => {
     });
   });
 });
-
