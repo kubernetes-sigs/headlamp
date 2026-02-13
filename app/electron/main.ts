@@ -31,7 +31,6 @@ import {
 import { IpcMainEvent, MenuItemConstructorOptions } from 'electron/main';
 import find_process from 'find-process';
 import * as fsPromises from 'fs/promises';
-import * as net from 'net';
 import fs from 'node:fs';
 import { userInfo } from 'node:os';
 import { promisify } from 'node:util';
@@ -50,6 +49,11 @@ import {
   getPluginBinDirectories,
   PluginManager,
 } from './plugin-management';
+import {
+  checkPortAvailability,
+  createLocalhostErrorMessage,
+  createNoPortsAvailableMessage,
+} from './portUtils';
 import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
 import windowSize from './windowSize';
 
@@ -133,6 +137,7 @@ const isHeadlessMode = args.headless === true;
 let disableGPU = args['disable-gpu'] === true;
 const defaultPort = args.port || 4466;
 let actualPort = defaultPort; // Will be updated when backend starts
+let actualHost = 'localhost'; // Will be updated to '127.0.0.1' if localhost doesn't work
 const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS) || 100); // Maximum number of ports to try
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
@@ -661,34 +666,13 @@ async function getShellEnv(): Promise<NodeJS.ProcessEnv> {
 }
 
 /**
- * Check if a port is available by attempting to create a server on it
- */
-async function isPortAvailable(port: number): Promise<boolean> {
-  return new Promise(resolve => {
-    const server = net.createServer();
-
-    server.once('error', () => {
-      resolve(false);
-    });
-
-    server.once('listening', () => {
-      server.close(() => resolve(true));
-    });
-
-    try {
-      server.listen({ port, host: '127.0.0.1', exclusive: true });
-    } catch (err) {
-      server.emit('error', err as NodeJS.ErrnoException);
-    }
-  });
-}
-
-/**
  * Find an available port starting from the default port
  * Tries to find a free port, skipping all occupied ports (including Headlamp)
  * @returns Available port number, or throws if no port found after MAX_PORT_ATTEMPTS
  */
 async function findAvailablePort(startPort: number): Promise<number> {
+  let localhostFailedOnce = false;
+
   for (let i = 0; i < MAX_PORT_ATTEMPTS; i++) {
     const port = startPort + i;
     // Skip ports already used by another Headlamp instance.
@@ -701,21 +685,40 @@ async function findAvailablePort(startPort: number): Promise<number> {
       );
       continue;
     }
-    const available = await isPortAvailable(port);
 
-    if (available) {
+    const result = await checkPortAvailability(port);
+
+    if (result.available) {
+      actualHost = result.host;
+      if (result.localhostFailed && !localhostFailedOnce) {
+        localhostFailedOnce = true;
+        console.warn(
+          `Note: 'localhost' resolution failed, using '${result.host}' as fallback for all subsequent checks.`
+        );
+      }
       if (port !== startPort) {
         console.info(`Port ${startPort} is in use, using port ${port} instead`);
       }
       return port;
     }
 
+    if (result.localhostFailed && !localhostFailedOnce) {
+      localhostFailedOnce = true;
+    }
+
     console.info(`Port ${port} is occupied by another process, trying next port...`);
   }
 
-  throw new Error(
-    `Could not find an available port after ${MAX_PORT_ATTEMPTS} attempts starting from ${startPort}`
-  );
+  // If we exhausted all attempts, provide a helpful error message
+  if (localhostFailedOnce) {
+    // Localhost resolution issues detected
+    const errorMsg = createLocalhostErrorMessage(startPort, startPort + MAX_PORT_ATTEMPTS - 1);
+    throw new Error(errorMsg);
+  } else {
+    // Normal case - all ports occupied
+    const errorMsg = createNoPortsAvailableMessage(startPort, MAX_PORT_ATTEMPTS, false);
+    throw new Error(errorMsg);
+  }
 }
 
 async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNullStreams> {
@@ -725,7 +728,8 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
 
   actualPort = await findAvailablePort(defaultPort);
 
-  let serverArgs: string[] = ['--listen-addr=127.0.0.1', `--port=${actualPort}`];
+  console.info(`Using host address: ${actualHost}`);
+  let serverArgs: string[] = [`--listen-addr=${actualHost}`, `--port=${actualPort}`];
   if (!!args.kubeconfig) {
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);
   }
@@ -1547,10 +1551,10 @@ function startElectron() {
       mainWindow = null;
     });
 
-    // Workaround to cookies to be saved, since file:// protocol and 127.0.0.1:port
+    // Workaround to cookies to be saved, since file:// protocol and host:port
     // are treated as a cross site request.
     mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-      if (details.url.startsWith(`http://127.0.0.1:${actualPort}`)) {
+      if (details.url.startsWith(`http://${actualHost}:${actualPort}`)) {
         callback({
           responseHeaders: {
             ...details.responseHeaders,
@@ -1812,7 +1816,7 @@ if (isHeadlessMode) {
       attachServerEventHandlers(serverProcess);
 
       // Give 1s for backend to start
-      setTimeout(() => shell.openExternal(`http://127.0.0.1:${actualPort}`), 1000);
+      setTimeout(() => shell.openExternal(`http://${actualHost}:${actualPort}`), 1000);
     }
   );
 } else {
