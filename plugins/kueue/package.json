@@ -1,8 +1,10 @@
 {
   "name": "kueue-plugin",
   "version": "0.1.0",
-  "description": "Your Headlamp plugin",
+  "description": "Headlamp plugin for Kueue - A cloud-native job queueing system",
   "main": "main.js",
+  "author": "Latish705",
+  "license": "Apache-2.0",
   "scripts": {
     "start": "headlamp-plugin start",
     "build": "headlamp-plugin build",
@@ -20,9 +22,9 @@
     "headlamp",
     "headlamp-plugin",
     "kubernetes",
-    "kubernetes-ui",
-    "kubernetes-debugging",
-    "plugins"
+    "kueue",
+    "batch",
+    "job-queue"
   ],
   "prettier": "@headlamp-k8s/eslint-config/prettier-config",
   "eslintConfig": {

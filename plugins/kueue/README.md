@@ -1,15 +1,34 @@
-# kueue-plugin
+# Kueue Headlamp Plugin
 
-This is the default template README for [Headlamp Plugins](https://github.com/kubernetes-sigs/headlamp).
+A [Headlamp](https://github.com/kubernetes-sigs/headlamp) plugin for [Kueue](https://kueue.sigs.k8s.io/), a cloud-native job queueing system that manages quotas and how jobs consume them.
 
-- The description of your plugin should go here.
-- You should also edit the package.json file meta data (like name and description).
+## Features
 
-## Developing Headlamp plugins
+- **Queue Dashboard**: Visualize ClusterQueues and their status.
+- **Workload Monitoring**: Track pending workloads and understand why they are queued.
+- **Resource Usage**: View quota usage across different queues.
 
-For more information on developing Headlamp plugins, please refer to:
+## Installation
 
-- [Getting Started](https://headlamp.dev/docs/latest/development/plugins/), How to create a new Headlamp plugin.
-- [API Reference](https://headlamp.dev/docs/latest/development/api/), API documentation for what you can do
-- [UI Component Storybook](https://headlamp.dev/docs/latest/development/frontend/#storybook), pre-existing components you can use when creating your plugin.
-- [Plugin Examples](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples), Example plugins you can look at to see how it's done.
+This plugin can be installed in Headlamp by placing it in the plugins directory.
+
+### Development
+
+1.  Clone the repository.
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+3.  Build the plugin:
+    ```bash
+    npm run build
+    ```
+4.  Start the plugin in development mode:
+    ```bash
+    npm start
+    ```
+
+## Screenshot
+
+![Kueue Dashboard](https://raw.githubusercontent.com/kubernetes-sigs/kueue/main/docs/images/kueue-logo.png)
+*(Note: Add actual screenshot of the plugin here)*
