@@ -43,6 +43,9 @@ export default {
           http.get('http://localhost:4466/apis/extensions/v1beta1/ingresses', () =>
             HttpResponse.error()
           ),
+          http.get('http://localhost:4466/apis/extensions/v1beta1/ingresses/my-ingress', () =>
+            HttpResponse.error()
+          ),
           http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
             HttpResponse.json({
               kind: 'EventList',
