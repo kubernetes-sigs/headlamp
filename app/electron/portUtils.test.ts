@@ -25,30 +25,49 @@ import {
 
 describe('portUtils', () => {
   describe('isPortAvailableOnHost', () => {
-    it('should return true for an available port on localhost', async () => {
-      // Use a high port that's likely to be available
-      const port = 50000 + Math.floor(Math.random() * 1000);
-      const result = await isPortAvailableOnHost(port, 'localhost');
-      expect(result).toBe(true);
-    });
-
-    it('should return true for an available port on 127.0.0.1', async () => {
-      const port = 50000 + Math.floor(Math.random() * 1000);
-      const result = await isPortAvailableOnHost(port, '127.0.0.1');
-      expect(result).toBe(true);
-    });
-
-    it('should return false for a port that is in use', async () => {
-      // Create a server to occupy a port
-      const port = 50000 + Math.floor(Math.random() * 1000);
+    it('should return available=true for an available port on localhost', async () => {
+      // Let OS choose a free port
       const server = net.createServer();
-      await new Promise<void>(resolve => {
-        server.listen(port, 'localhost', () => resolve());
+      const port = await new Promise<number>(resolve => {
+        server.listen(0, 'localhost', () => {
+          const addr = server.address() as net.AddressInfo;
+          server.close(() => resolve(addr.port));
+        });
+      });
+
+      const result = await isPortAvailableOnHost(port, 'localhost');
+      expect(result.available).toBe(true);
+      expect(result.errorCode).toBeUndefined();
+    });
+
+    it('should return available=true for an available port on 127.0.0.1', async () => {
+      const server = net.createServer();
+      const port = await new Promise<number>(resolve => {
+        server.listen(0, '127.0.0.1', () => {
+          const addr = server.address() as net.AddressInfo;
+          server.close(() => resolve(addr.port));
+        });
+      });
+
+      const result = await isPortAvailableOnHost(port, '127.0.0.1');
+      expect(result.available).toBe(true);
+      expect(result.errorCode).toBeUndefined();
+    });
+
+    it('should return available=false with EADDRINUSE for a port that is in use', async () => {
+      // Create a server to occupy a port
+      const server = net.createServer();
+      const port = await new Promise<number>(resolve => {
+        server.listen(0, 'localhost', () => {
+          const addr = server.address() as net.AddressInfo;
+          resolve(addr.port);
+        });
       });
 
       try {
         const result = await isPortAvailableOnHost(port, 'localhost');
-        expect(result).toBe(false);
+        expect(result.available).toBe(false);
+        expect(result.errorCode).toBe('EADDRINUSE');
       } finally {
         await new Promise<void>(resolve => {
           server.close(() => resolve());
@@ -59,40 +78,38 @@ describe('portUtils', () => {
 
   describe('checkPortAvailability', () => {
     it('should return localhost when port is available on localhost', async () => {
-      const port = 50000 + Math.floor(Math.random() * 1000);
+      const server = net.createServer();
+      const port = await new Promise<number>(resolve => {
+        server.listen(0, 'localhost', () => {
+          const addr = server.address() as net.AddressInfo;
+          server.close(() => resolve(addr.port));
+        });
+      });
+
       const result = await checkPortAvailability(port);
 
       expect(result.available).toBe(true);
       expect(result.host).toBe('localhost');
-      expect(result.localhostFailed).toBe(false);
+      expect(result.resolutionFailed).toBe(false);
       expect(result.error).toBeUndefined();
     });
 
-    it('should return 127.0.0.1 when localhost fails but 127.0.0.1 succeeds', async () => {
-      // This test is hard to simulate without mocking, so we'll test the logic indirectly
-      // by checking that the function handles both hosts
-      const port = 50000 + Math.floor(Math.random() * 1000);
-      const result = await checkPortAvailability(port);
-
-      expect(result.available).toBe(true);
-      expect(['localhost', '127.0.0.1']).toContain(result.host);
-    });
-
-    it('should return unavailable when port is occupied on both hosts', async () => {
-      const port = 50000 + Math.floor(Math.random() * 1000);
-
-      // Occupy the port on all interfaces
+    it('should return unavailable without fallback when port is occupied (EADDRINUSE)', async () => {
+      // Occupy a port on all interfaces
       const server = net.createServer();
-      await new Promise<void>(resolve => {
-        server.listen(port, '0.0.0.0', () => resolve());
+      const port = await new Promise<number>(resolve => {
+        server.listen(0, '0.0.0.0', () => {
+          const addr = server.address() as net.AddressInfo;
+          resolve(addr.port);
+        });
       });
 
       try {
         const result = await checkPortAvailability(port);
 
         expect(result.available).toBe(false);
-        expect(result.localhostFailed).toBe(true);
-        expect(result.error).toContain('not available');
+        expect(result.resolutionFailed).toBe(false); // Port occupied, not resolution failure
+        expect(result.errorCode).toBe('EADDRINUSE');
       } finally {
         await new Promise<void>(resolve => {
           server.close(() => resolve());
@@ -108,6 +125,7 @@ describe('portUtils', () => {
       expect(message).toContain('4466-4565');
       expect(message).toContain('localhost');
       expect(message).toContain('127.0.0.1');
+      expect(message).toContain('::1');
       expect(message).toContain('Troubleshooting steps');
       expect(message).toContain('/etc/hosts');
       expect(message).toContain('ping localhost');
@@ -117,24 +135,23 @@ describe('portUtils', () => {
   });
 
   describe('createNoPortsAvailableMessage', () => {
-    it('should create error message without localhost failure note', () => {
+    it('should create error message without resolution failure note', () => {
       const message = createNoPortsAvailableMessage(4466, 100, false);
 
       expect(message).toContain('4466');
       expect(message).toContain('4565'); // 4466 + 100 - 1
       expect(message).toContain('100 attempts');
-      expect(message).not.toContain('localhost');
+      expect(message).not.toContain('resolution failed');
       expect(message).not.toContain('fallback');
     });
 
-    it('should create error message with localhost failure note', () => {
+    it('should create error message with resolution failure note', () => {
       const message = createNoPortsAvailableMessage(4466, 100, true);
 
       expect(message).toContain('4466');
       expect(message).toContain('4565');
       expect(message).toContain('100 attempts');
-      expect(message).toContain('localhost');
-      expect(message).toContain('127.0.0.1');
+      expect(message).toContain('resolution failed');
       expect(message).toContain('fallback');
     });
 
@@ -146,3 +163,4 @@ describe('portUtils', () => {
     });
   });
 });
+

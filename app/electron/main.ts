@@ -671,7 +671,7 @@ async function getShellEnv(): Promise<NodeJS.ProcessEnv> {
  * @returns Available port number, or throws if no port found after MAX_PORT_ATTEMPTS
  */
 async function findAvailablePort(startPort: number): Promise<number> {
-  let localhostFailedOnce = false;
+  let resolutionFailedOnce = false;
 
   for (let i = 0; i < MAX_PORT_ATTEMPTS; i++) {
     const port = startPort + i;
@@ -690,10 +690,11 @@ async function findAvailablePort(startPort: number): Promise<number> {
 
     if (result.available) {
       actualHost = result.host;
-      if (result.localhostFailed && !localhostFailedOnce) {
-        localhostFailedOnce = true;
+      // Only warn once when we first detect resolution failure and use fallback
+      if (result.resolutionFailed && !resolutionFailedOnce) {
+        resolutionFailedOnce = true;
         console.warn(
-          `Note: 'localhost' resolution failed, using '${result.host}' as fallback for all subsequent checks.`
+          `Note: 'localhost' resolution failed (${result.errorCode}), using '${result.host}' as fallback for all subsequent checks.`
         );
       }
       if (port !== startPort) {
@@ -702,15 +703,16 @@ async function findAvailablePort(startPort: number): Promise<number> {
       return port;
     }
 
-    if (result.localhostFailed && !localhostFailedOnce) {
-      localhostFailedOnce = true;
+    // Track if we've seen resolution failures (not just port occupied)
+    if (result.resolutionFailed && !resolutionFailedOnce) {
+      resolutionFailedOnce = true;
     }
 
     console.info(`Port ${port} is occupied by another process, trying next port...`);
   }
 
   // If we exhausted all attempts, provide a helpful error message
-  if (localhostFailedOnce) {
+  if (resolutionFailedOnce) {
     // Localhost resolution issues detected
     const errorMsg = createLocalhostErrorMessage(startPort, startPort + MAX_PORT_ATTEMPTS - 1);
     throw new Error(errorMsg);

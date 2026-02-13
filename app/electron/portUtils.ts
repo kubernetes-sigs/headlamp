@@ -22,30 +22,35 @@ import * as net from 'net';
 export interface PortCheckResult {
   /** Whether the port is available */
   available: boolean;
-  /** The host address that worked ('localhost' or '127.0.0.1') */
+  /** The host address that worked ('localhost', '127.0.0.1', or '::1') */
   host: string;
-  /** Whether localhost resolution failed */
-  localhostFailed: boolean;
-  /** Error message if both localhost and 127.0.0.1 failed */
+  /** Whether there was a resolution/configuration failure (not just port occupied) */
+  resolutionFailed: boolean;
+  /** Error code from the bind attempt, if any */
+  errorCode?: string;
+  /** Error message if all hosts failed */
   error?: string;
 }
 
 /**
  * Check if a port is available on a specific host
  * @param port Port number to check
- * @param host Host address to bind to (e.g., 'localhost' or '127.0.0.1')
- * @returns Promise that resolves to true if port is available, false otherwise
+ * @param host Host address to bind to (e.g., 'localhost', '127.0.0.1', or '::1')
+ * @returns Promise with availability status and error code
  */
-export async function isPortAvailableOnHost(port: number, host: string): Promise<boolean> {
+export async function isPortAvailableOnHost(
+  port: number,
+  host: string
+): Promise<{ available: boolean; errorCode?: string }> {
   return new Promise(resolve => {
     const server = net.createServer();
 
-    server.once('error', () => {
-      resolve(false);
+    server.once('error', (err: NodeJS.ErrnoException) => {
+      resolve({ available: false, errorCode: err.code });
     });
 
     server.once('listening', () => {
-      server.close(() => resolve(true));
+      server.close(() => resolve({ available: true }));
     });
 
     try {
@@ -57,41 +62,68 @@ export async function isPortAvailableOnHost(port: number, host: string): Promise
 }
 
 /**
- * Check if a port is available, trying localhost first and 127.0.0.1 as fallback
+ * Check if a port is available, trying localhost first with IPv4 and IPv6 fallbacks
  * This handles the case where localhost may not resolve correctly (e.g., macOS 15.5)
  * @param port Port number to check
  * @returns Promise with detailed result about port availability
  */
 export async function checkPortAvailability(port: number): Promise<PortCheckResult> {
   // Try localhost first
-  const localhostAvailable = await isPortAvailableOnHost(port, 'localhost');
-  if (localhostAvailable) {
+  const localhostResult = await isPortAvailableOnHost(port, 'localhost');
+  if (localhostResult.available) {
     return {
       available: true,
       host: 'localhost',
-      localhostFailed: false,
+      resolutionFailed: false,
     };
   }
 
-  // If localhost doesn't work, try 127.0.0.1 as fallback
-  console.warn(
-    `Port ${port} check failed on 'localhost', trying '127.0.0.1' as fallback...`
-  );
-  const fallbackAvailable = await isPortAvailableOnHost(port, '127.0.0.1');
-  if (fallbackAvailable) {
+  // Check if this is a resolution/configuration error or just port occupied
+  const isResolutionError =
+    localhostResult.errorCode &&
+    ['ENOTFOUND', 'EADDRNOTAVAIL', 'EAFNOSUPPORT', 'ENETUNREACH'].includes(
+      localhostResult.errorCode
+    );
+
+  // If localhost failed due to resolution error, try IPv4 fallback
+  if (isResolutionError) {
+    const ipv4Result = await isPortAvailableOnHost(port, '127.0.0.1');
+    if (ipv4Result.available) {
+      return {
+        available: true,
+        host: '127.0.0.1',
+        resolutionFailed: true,
+        errorCode: localhostResult.errorCode,
+      };
+    }
+
+    // If IPv4 also failed, try IPv6 as last resort
+    const ipv6Result = await isPortAvailableOnHost(port, '::1');
+    if (ipv6Result.available) {
+      return {
+        available: true,
+        host: '::1',
+        resolutionFailed: true,
+        errorCode: localhostResult.errorCode,
+      };
+    }
+
+    // All failed with resolution errors
     return {
-      available: true,
-      host: '127.0.0.1',
-      localhostFailed: true,
+      available: false,
+      host: 'localhost',
+      resolutionFailed: true,
+      errorCode: localhostResult.errorCode,
+      error: `Port ${port} is not available on 'localhost', '127.0.0.1', or '::1'`,
     };
   }
 
-  // Both failed - port is occupied or there's a network configuration issue
+  // Port is simply occupied (EADDRINUSE), no need for fallback
   return {
     available: false,
-    host: 'localhost', // Default to localhost for error reporting
-    localhostFailed: true,
-    error: `Port ${port} is not available on 'localhost' or '127.0.0.1'`,
+    host: 'localhost',
+    resolutionFailed: false,
+    errorCode: localhostResult.errorCode,
   };
 }
 
@@ -103,11 +135,11 @@ export function createLocalhostErrorMessage(startPort: number, endPort: number):
 
 This may indicate a network configuration issue:
 - 'localhost' does not resolve correctly on your system
-- All fallback attempts to '127.0.0.1' also failed
+- All fallback attempts to '127.0.0.1' and '::1' also failed
 
 Troubleshooting steps:
 1. Check that 'localhost' resolves correctly: ping localhost
-2. Verify /etc/hosts contains: 127.0.0.1 localhost
+2. Verify /etc/hosts contains: 127.0.0.1 localhost and ::1 localhost
 3. Check if ports ${startPort}-${endPort} are occupied: lsof -i :${startPort}-${endPort}
 4. Try setting a different port range with --port flag
 
@@ -120,11 +152,11 @@ For more information, see: https://headlamp.dev/docs/latest/installation/desktop
 export function createNoPortsAvailableMessage(
   startPort: number,
   attempts: number,
-  localhostFailed: boolean
+  resolutionFailed: boolean
 ): string {
   const endPort = startPort + attempts - 1;
-  const hostInfo = localhostFailed
-    ? " Note: 'localhost' resolution failed, used '127.0.0.1' as fallback."
+  const hostInfo = resolutionFailed
+    ? " Note: 'localhost' resolution failed, used fallback addresses."
     : '';
 
   return `Could not find an available port after ${attempts} attempts starting from ${startPort} (range: ${startPort}-${endPort}).${hostInfo}`;
