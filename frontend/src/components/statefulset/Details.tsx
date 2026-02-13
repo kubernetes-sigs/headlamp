@@ -23,6 +23,7 @@ import {
   DetailsGrid,
   MetadataDictGrid,
   OwnedPodsSection,
+  RevisionHistorySection,
   RollbackButton,
 } from '../common/Resource';
 
@@ -72,6 +73,10 @@ export default function StatefulSetDetails(props: {
           {
             id: 'headlamp.statefulset-containers',
             section: <ContainersSection resource={item} />,
+          },
+          {
+            id: 'headlamp.statefulset-revision-history',
+            section: <RevisionHistorySection resource={item} />,
           },
         ]
       }

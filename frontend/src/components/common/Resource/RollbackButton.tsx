@@ -21,7 +21,7 @@ import { useLocation } from 'react-router';
 import DaemonSet from '../../../lib/k8s/daemonSet';
 import Deployment from '../../../lib/k8s/deployment';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-import { RollbackResult } from '../../../lib/k8s/rollback';
+import type { RevisionInfo, RollbackResult } from '../../../lib/k8s/rollback';
 import StatefulSet from '../../../lib/k8s/statefulSet';
 import { clusterAction } from '../../../redux/clusterActionSlice';
 import {
@@ -31,14 +31,15 @@ import {
 } from '../../../redux/headlampEventSlice';
 import { AppDispatch } from '../../../redux/stores/store';
 import ActionButton, { ButtonStyle } from '../ActionButton';
-import ConfirmDialog from '../ConfirmDialog';
 import AuthVisible from './AuthVisible';
+import RollbackDialog from './RollbackDialog';
 
 /**
  * Interface for resources that support rollback.
  */
 export interface RollbackableResource extends KubeObject {
-  rollback: () => Promise<RollbackResult>;
+  rollback: (toRevision?: number) => Promise<RollbackResult>;
+  getRevisionHistory: () => Promise<RevisionInfo[]>;
 }
 
 /**
@@ -59,10 +60,10 @@ export interface RollbackButtonProps {
 }
 
 /**
- * RollbackButton component for rolling back Workloads to their previous revision.
+ * RollbackButton component for rolling back Workloads to a selected revision.
  *
- * This component provides a button that, when clicked, shows a confirmation dialog
- * and then initiates a rollback operation.
+ * This component provides a button that, when clicked, shows a revision selection
+ * dialog where the user can pick a specific revision to rollback to.
  *
  * Supported Resources:
  * - Deployment (via ReplicaSets)
@@ -85,19 +86,19 @@ export function RollbackButton(props: RollbackButtonProps) {
   const resource = item;
   const resourceKind = resource.kind;
 
-  async function performRollback() {
-    const result = await resource.rollback();
+  async function performRollback(toRevision?: number) {
+    const result = await resource.rollback(toRevision);
     if (!result.success) {
       throw new Error(result.message);
     }
     return result;
   }
 
-  function handleConfirm() {
+  function handleConfirm(toRevision?: number) {
     const itemName = resource.metadata.name;
 
     dispatch(
-      clusterAction(() => performRollback(), {
+      clusterAction(() => performRollback(toRevision), {
         startMessage: t('Rolling back {{ itemName }} to previous version…', { itemName }),
         cancelledMessage: t('Cancelled rollback of {{ itemName }}.', { itemName }),
         successMessage: t('Rolled back {{ itemName }} to previous version.', { itemName }),
@@ -137,19 +138,13 @@ export function RollbackButton(props: RollbackButtonProps) {
         }}
         icon="mdi:undo-variant"
       />
-      <ConfirmDialog
+      <RollbackDialog
         open={openDialog}
-        title={t('translation|Rollback {{ kind }}', { kind: resourceKind })}
-        description={t(
-          'translation|Are you sure you want to rollback "{{ name }}" to the previous version? This will replace the current pod template with the one from the previous revision.',
-          {
-            name: resource.metadata.name,
-          }
-        )}
-        handleClose={() => setOpenDialog(false)}
+        resourceKind={resourceKind}
+        resourceName={resource.metadata.name}
+        getRevisionHistory={() => resource.getRevisionHistory()}
+        onClose={() => setOpenDialog(false)}
         onConfirm={handleConfirm}
-        cancelLabel={t('Cancel')}
-        confirmLabel={t('Rollback')}
       />
     </AuthVisible>
   );

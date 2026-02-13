@@ -86,7 +86,6 @@
                       class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                     />
                   </button>
-                  <div />
                 </div>
                 <div
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
@@ -379,6 +378,47 @@
                   </dd>
                 </dl>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-p0cik4"
+        >
+          <div
+            class="MuiBox-root css-j1fy4m"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+            >
+              <div
+                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              >
+                <div
+                  class="MuiBox-root css-70qvj9"
+                >
+                  <h2
+                    class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+                  >
+                    Revision History
+                  </h2>
+                  <div
+                    class="MuiBox-root css-ldp2l3"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="MuiBox-root css-1txv3mw"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-7oje3w-MuiTypography-root"
+              >
+                No revision history available.
+              </p>
             </div>
           </div>
         </div>

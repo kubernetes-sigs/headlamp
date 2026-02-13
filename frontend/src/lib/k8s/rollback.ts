@@ -24,3 +24,23 @@ export interface RollbackResult {
   message: string;
   previousRevision?: number;
 }
+
+/**
+ * Represents a single revision in the history of a rollbackable resource.
+ * Used by RevisionHistorySection and RollbackDialog to display revision details.
+ */
+export interface RevisionInfo {
+  /** Revision number */
+  revision: number;
+  /** When this revision was created */
+  createdAt: string;
+  /** Container images in this revision's pod template */
+  images: string[];
+  /** Whether this is the current (active) revision */
+  isCurrent: boolean;
+  /** The raw pod template spec from this revision, for diffing */
+  podTemplate?: {
+    metadata?: { [key: string]: any };
+    spec?: { [key: string]: any };
+  };
+}

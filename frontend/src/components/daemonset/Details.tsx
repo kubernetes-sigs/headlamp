@@ -22,6 +22,7 @@ import {
   DetailsGrid,
   MetadataDictGrid,
   OwnedPodsSection,
+  RevisionHistorySection,
   RollbackButton,
 } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
@@ -136,6 +137,10 @@ export default function DaemonSetDetails(props: {
         {
           id: 'headlamp.daemonset-containers',
           section: <ContainersSection resource={item} />,
+        },
+        {
+          id: 'headlamp.daemonset-revision-history',
+          section: <RevisionHistorySection resource={item} />,
         },
       ]}
     />

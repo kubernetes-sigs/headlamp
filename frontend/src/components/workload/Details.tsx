@@ -25,6 +25,7 @@ import {
   LogsButton,
   MetadataDictGrid,
   OwnedPodsSection,
+  RevisionHistorySection,
   RollbackButton,
 } from '../common/Resource';
 
@@ -159,8 +160,9 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
           },
         ]
       }
-      extraSections={item =>
-        item && [
+      extraSections={item => {
+        if (!item) return [];
+        const sections = [
           {
             id: 'headlamp.workload-conditions',
             section: <ConditionsSection resource={item?.jsonData} />,
@@ -173,8 +175,21 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
             id: 'headlamp.workload-containers',
             section: <ContainersSection resource={item} />,
           },
-        ]
-      }
+        ];
+
+        // Add revision history for rollbackable workloads
+        const isRollbackable = ['Deployment', 'DaemonSet', 'StatefulSet'].includes(
+          workloadKind.kind
+        );
+        if (isRollbackable) {
+          sections.push({
+            id: 'headlamp.workload-revision-history',
+            section: <RevisionHistorySection resource={item} />,
+          });
+        }
+
+        return sections;
+      }}
     />
   );
 }
