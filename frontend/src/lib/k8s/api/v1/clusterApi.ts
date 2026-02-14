@@ -28,17 +28,55 @@ import { clusterRequest, post, request } from './clusterRequests';
 import { JSON_HEADERS } from './constants';
 
 /**
- * Test authentication for the given cluster.
- * Will throw an error if the user is not authenticated.
+ * Options for testAuth function
  */
-export async function testAuth(cluster = '', namespace = 'default') {
-  const spec = { namespace };
+interface TestAuthOptions {
+  /** Namespace to use for authorization check (default: 'default') */
+  namespace?: string;
+  /** Auth type ('exec', 'client-cert', 'oidc', 'tsh', etc.) */
+  authType?: string;
+}
+
+/**
+ * Test authentication for the given cluster.
+ * Will throw an error if the user is not authenticated (401).
+ * Returns success for 403 since that means auth succeeded but user lacks permissions.
+ * @param cluster - The cluster to test auth for
+ * @param options - Can be a string (legacy: treated as namespace) or TestAuthOptions object
+ */
+export async function testAuth(cluster = '', options?: string | TestAuthOptions) {
   const clusterName = cluster || getCluster();
 
-  return post('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', { spec }, false, {
-    timeout: 5 * 1000,
-    cluster: clusterName,
-  });
+  // Backward compatibility: if options is a string, treat it as namespace (legacy behavior)
+  const resolvedOptions: TestAuthOptions =
+    typeof options === 'string' ? { namespace: options } : options ?? {};
+
+  const { namespace = 'default', authType } = resolvedOptions;
+
+  try {
+    // For tsh/exec auth (e.g., Teleport), use the cluster version endpoint
+    // which is accessible to any authenticated user without RBAC restrictions
+    if (authType === 'tsh' || authType === 'exec' || authType === 'client-cert') {
+      return clusterRequest('/version', {
+        timeout: 5 * 1000, // Longer timeout for exec auth plugins like tsh
+        cluster: clusterName,
+      });
+    }
+
+    // For standard auth types (token, oidc), use selfsubjectrulesreviews
+    const spec = { namespace };
+    return post('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', { spec }, false, {
+      timeout: 5 * 1000,
+      cluster: clusterName,
+    });
+  } catch (err: any) {
+    // 403 (Forbidden) means authentication worked, but user lacks permissions.
+    if (err.status === 403) {
+      return { authenticated: true, status: err.status };
+    }
+    // Re-throw 401 and other errors - those are real auth failures
+    throw err;
+  }
 }
 
 /**
