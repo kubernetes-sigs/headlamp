@@ -125,24 +125,26 @@ export default function DaemonSetDetails(props: {
           },
         ]
       }
-      extraSections={item => [
-        {
-          id: 'headlamp.daemonset-owned-pods',
-          section: <OwnedPodsSection resource={item} />,
-        },
-        {
-          id: 'headlamp.daemonset-tolerations',
-          section: <TolerationsSection resource={item} />,
-        },
-        {
-          id: 'headlamp.daemonset-containers',
-          section: <ContainersSection resource={item} />,
-        },
-        {
-          id: 'headlamp.daemonset-revision-history',
-          section: <RevisionHistorySection resource={item} />,
-        },
-      ]}
+      extraSections={item =>
+        item && [
+          {
+            id: 'headlamp.daemonset-owned-pods',
+            section: <OwnedPodsSection resource={item} />,
+          },
+          {
+            id: 'headlamp.daemonset-tolerations',
+            section: <TolerationsSection resource={item} />,
+          },
+          {
+            id: 'headlamp.daemonset-containers',
+            section: <ContainersSection resource={item} />,
+          },
+          {
+            id: 'headlamp.daemonset-revision-history',
+            section: <RevisionHistorySection resource={item} />,
+          },
+        ]
+      }
     />
   );
 }

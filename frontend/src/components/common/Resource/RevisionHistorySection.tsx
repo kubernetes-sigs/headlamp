@@ -62,20 +62,39 @@ export default function RevisionHistorySection(props: RevisionHistorySectionProp
   const getHistory = getRevisionHistoryFn(resource);
 
   useEffect(() => {
-    if (!getHistory) {
+    const historyGetter = getRevisionHistoryFn(resource);
+    let isActive = true;
+
+    if (!historyGetter) {
+      setRevisions([]);
+      setError(null);
       setLoading(false);
-      return;
+      return () => {
+        isActive = false;
+      };
     }
+
     setLoading(true);
-    getHistory()
+    setError(null);
+    historyGetter()
       .then(history => {
+        if (!isActive) {
+          return;
+        }
         setRevisions(history);
         setLoading(false);
       })
       .catch(err => {
+        if (!isActive) {
+          return;
+        }
         setError(err instanceof Error ? err.message : String(err));
         setLoading(false);
       });
+
+    return () => {
+      isActive = false;
+    };
   }, [resource?.metadata?.uid, resource?.metadata?.resourceVersion]);
 
   if (!getHistory) {

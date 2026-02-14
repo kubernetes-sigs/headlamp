@@ -60,25 +60,39 @@ export default function RollbackDialog(props: RollbackDialogProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) {
-      setLoading(true);
-      setError(null);
-      setSelectedRevision(undefined);
-      getRevisionHistory()
-        .then(history => {
-          setRevisions(history);
-          const nonCurrent = history.filter(r => !r.isCurrent);
-          if (nonCurrent.length > 0) {
-            setSelectedRevision(nonCurrent[0].revision);
-          }
-          setLoading(false);
-        })
-        .catch(err => {
-          setError(err instanceof Error ? err.message : String(err));
-          setLoading(false);
-        });
+    if (!open) {
+      return;
     }
-  }, [open]);
+
+    let isActive = true;
+    setLoading(true);
+    setError(null);
+    setSelectedRevision(undefined);
+
+    getRevisionHistory()
+      .then(history => {
+        if (!isActive) {
+          return;
+        }
+        setRevisions(history);
+        const nonCurrent = history.filter(r => !r.isCurrent);
+        if (nonCurrent.length > 0) {
+          setSelectedRevision(nonCurrent[0].revision);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        if (!isActive) {
+          return;
+        }
+        setError(err instanceof Error ? err.message : String(err));
+        setLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [open, getRevisionHistory]);
 
   function handleConfirm() {
     onConfirm(selectedRevision);

@@ -173,6 +173,12 @@ class DaemonSet extends KubeObject<KubeDaemonSet> {
             message: `Revision ${toRevision} not found in history`,
           };
         }
+        if (targetRev.revision === sortedRevisions[0].revision) {
+          return {
+            success: false,
+            message: 'Cannot rollback to current revision',
+          };
+        }
       } else {
         targetRev = sortedRevisions[1];
       }

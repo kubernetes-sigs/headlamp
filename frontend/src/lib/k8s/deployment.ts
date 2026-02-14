@@ -155,6 +155,12 @@ class Deployment extends KubeObject<KubeDeployment> {
             message: `Revision ${toRevision} not found in history`,
           };
         }
+        if (targetEntry.revision === sortedRS[0].revision) {
+          return {
+            success: false,
+            message: 'Cannot rollback to current revision',
+          };
+        }
       } else {
         targetEntry = sortedRS[1];
       }
