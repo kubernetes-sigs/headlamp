@@ -50,6 +50,7 @@ class StatefulSet extends KubeObject<KubeStatefulSet> {
   static apiVersion = 'apps/v1';
   static isNamespaced = true;
   static isScalable = true;
+  private revisionHistoryCache?: { resourceVersion?: string; history: RevisionInfo[] };
 
   get spec() {
     return this.jsonData.spec;
@@ -151,13 +152,6 @@ class StatefulSet extends KubeObject<KubeStatefulSet> {
         .filter(rev => rev.revision > 0)
         .sort((a, b) => b.revision - a.revision);
 
-      if (sortedRevisions.length < 2) {
-        return {
-          success: false,
-          message: 'No previous revision available to rollback to',
-        };
-      }
-
       // Find target revision: specific or previous (second in sorted list)
       let targetRev;
       if (toRevision !== undefined && toRevision > 0) {
@@ -175,6 +169,12 @@ class StatefulSet extends KubeObject<KubeStatefulSet> {
           };
         }
       } else {
+        if (sortedRevisions.length < 2) {
+          return {
+            success: false,
+            message: 'No previous revision available to rollback to',
+          };
+        }
         targetRev = sortedRevisions[1];
       }
 
@@ -206,6 +206,7 @@ class StatefulSet extends KubeObject<KubeStatefulSet> {
       const url = `${apiRoot}/namespaces/${this.getNamespace()}/statefulsets/${this.getName()}`;
 
       await jsonPatch(url, patchOperations, true, { cluster: this.cluster });
+      this.revisionHistoryCache = undefined;
 
       return {
         success: true,
@@ -226,6 +227,12 @@ class StatefulSet extends KubeObject<KubeStatefulSet> {
    * Returns a list of RevisionInfo objects sorted by revision number (descending).
    */
   async getRevisionHistory(): Promise<RevisionInfo[]> {
+    const resourceVersion = this.metadata?.resourceVersion;
+    const cachedHistory = this.revisionHistoryCache;
+    if (cachedHistory && cachedHistory.resourceVersion === resourceVersion) {
+      return cachedHistory.history;
+    }
+
     const revisions = await this.getOwnedControllerRevisions();
 
     // Determine the current revision (highest revision number)
@@ -235,7 +242,7 @@ class StatefulSet extends KubeObject<KubeStatefulSet> {
 
     const highestRevision = sortedRevisions.length > 0 ? sortedRevisions[0].revision : 0;
 
-    return sortedRevisions.map(rev => {
+    const history = sortedRevisions.map(rev => {
       const template = rev.data?.spec?.template;
       const images = (template?.spec?.containers || []).map(
         (c: { image?: string }) => c.image || ''
@@ -248,6 +255,13 @@ class StatefulSet extends KubeObject<KubeStatefulSet> {
         podTemplate: template,
       };
     });
+
+    this.revisionHistoryCache = {
+      resourceVersion,
+      history,
+    };
+
+    return history;
   }
 }
 

@@ -48,6 +48,7 @@ class DaemonSet extends KubeObject<KubeDaemonSet> {
   static apiName = 'daemonsets';
   static apiVersion = 'apps/v1';
   static isNamespaced = true;
+  private revisionHistoryCache?: { resourceVersion?: string; history: RevisionInfo[] };
 
   get spec() {
     return this.jsonData.spec;
@@ -156,13 +157,6 @@ class DaemonSet extends KubeObject<KubeDaemonSet> {
         .filter(rev => rev.revision > 0)
         .sort((a, b) => b.revision - a.revision);
 
-      if (sortedRevisions.length < 2) {
-        return {
-          success: false,
-          message: 'No previous revision available to rollback to',
-        };
-      }
-
       // Find target revision: specific or previous (second in sorted list)
       let targetRev;
       if (toRevision !== undefined && toRevision > 0) {
@@ -180,6 +174,12 @@ class DaemonSet extends KubeObject<KubeDaemonSet> {
           };
         }
       } else {
+        if (sortedRevisions.length < 2) {
+          return {
+            success: false,
+            message: 'No previous revision available to rollback to',
+          };
+        }
         targetRev = sortedRevisions[1];
       }
 
@@ -211,6 +211,7 @@ class DaemonSet extends KubeObject<KubeDaemonSet> {
       const url = `${apiRoot}/namespaces/${this.getNamespace()}/daemonsets/${this.getName()}`;
 
       await jsonPatch(url, patchOperations, true, { cluster: this.cluster });
+      this.revisionHistoryCache = undefined;
 
       return {
         success: true,
@@ -231,6 +232,12 @@ class DaemonSet extends KubeObject<KubeDaemonSet> {
    * Returns a list of RevisionInfo objects sorted by revision number (descending).
    */
   async getRevisionHistory(): Promise<RevisionInfo[]> {
+    const resourceVersion = this.metadata?.resourceVersion;
+    const cachedHistory = this.revisionHistoryCache;
+    if (cachedHistory && cachedHistory.resourceVersion === resourceVersion) {
+      return cachedHistory.history;
+    }
+
     const revisions = await this.getOwnedControllerRevisions();
 
     // Determine the current revision (highest revision number)
@@ -240,7 +247,7 @@ class DaemonSet extends KubeObject<KubeDaemonSet> {
 
     const highestRevision = sortedRevisions.length > 0 ? sortedRevisions[0].revision : 0;
 
-    return sortedRevisions.map(rev => {
+    const history = sortedRevisions.map(rev => {
       const template = rev.data?.spec?.template;
       const images = (template?.spec?.containers || []).map(
         (c: { image?: string }) => c.image || ''
@@ -253,6 +260,13 @@ class DaemonSet extends KubeObject<KubeDaemonSet> {
         podTemplate: template,
       };
     });
+
+    this.revisionHistoryCache = {
+      resourceVersion,
+      history,
+    };
+
+    return history;
   }
 }
 

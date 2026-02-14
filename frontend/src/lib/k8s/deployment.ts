@@ -50,6 +50,7 @@ class Deployment extends KubeObject<KubeDeployment> {
   static apiVersion = 'apps/v1';
   static isNamespaced = true;
   static isScalable = true;
+  private revisionHistoryCache?: { resourceVersion?: string; history: RevisionInfo[] };
 
   get spec() {
     return this.getValue('spec');
@@ -138,13 +139,6 @@ class Deployment extends KubeObject<KubeDeployment> {
         .filter(r => r.revision > 0)
         .sort((a, b) => b.revision - a.revision);
 
-      if (sortedRS.length < 2) {
-        return {
-          success: false,
-          message: 'No previous revision available to rollback to',
-        };
-      }
-
       // Find target revision: specific or previous (second in sorted list)
       let targetEntry;
       if (toRevision !== undefined && toRevision > 0) {
@@ -162,6 +156,12 @@ class Deployment extends KubeObject<KubeDeployment> {
           };
         }
       } else {
+        if (sortedRS.length < 2) {
+          return {
+            success: false,
+            message: 'No previous revision available to rollback to',
+          };
+        }
         targetEntry = sortedRS[1];
       }
 
@@ -187,6 +187,7 @@ class Deployment extends KubeObject<KubeDeployment> {
       const url = `${apiRoot}/namespaces/${this.getNamespace()}/deployments/${this.getName()}`;
 
       await jsonPatch(url, patchOperations, true, { cluster: this.cluster });
+      this.revisionHistoryCache = undefined;
 
       return {
         success: true,
@@ -207,10 +208,16 @@ class Deployment extends KubeObject<KubeDeployment> {
    * Returns a list of RevisionInfo objects sorted by revision number (descending).
    */
   async getRevisionHistory(): Promise<RevisionInfo[]> {
+    const resourceVersion = this.metadata?.resourceVersion;
+    const cachedHistory = this.revisionHistoryCache;
+    if (cachedHistory && cachedHistory.resourceVersion === resourceVersion) {
+      return cachedHistory.history;
+    }
+
     const replicaSets = await this.getOwnedReplicaSets();
     const currentRevision = this.getCurrentRevision();
 
-    return replicaSets
+    const history = replicaSets
       .map(rs => {
         const revision = parseInt(
           rs.metadata.annotations?.['deployment.kubernetes.io/revision'] || '0',
@@ -229,6 +236,13 @@ class Deployment extends KubeObject<KubeDeployment> {
       })
       .filter(r => r.revision > 0)
       .sort((a, b) => b.revision - a.revision);
+
+    this.revisionHistoryCache = {
+      resourceVersion,
+      history,
+    };
+
+    return history;
   }
 
   static getBaseObject(): KubeDeployment {
