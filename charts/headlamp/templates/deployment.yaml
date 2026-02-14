@@ -325,6 +325,7 @@ spec:
             {{- with .Values.config.tlsKeyPath }}
             - "-tls-key-path={{ . }}"
             {{- end }}
+            - "-filters-warnings-only={{ dig "events" "warningsOnly" true .Values.config }}"
             {{- with .Values.config.extraArgs }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
