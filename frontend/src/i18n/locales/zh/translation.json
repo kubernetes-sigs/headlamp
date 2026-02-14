@@ -401,7 +401,7 @@
   "Created": "",
   "Images": "",
   "Current": "当前",
-  "Previous": "上一页",
+  "Previous": "上一个",
   "Rolling back {{ itemName }} to previous version…": "",
   "Cancelled rollback of {{ itemName }}.": "",
   "Rolled back {{ itemName }} to previous version.": "",

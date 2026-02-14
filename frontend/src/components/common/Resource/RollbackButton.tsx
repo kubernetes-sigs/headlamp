@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router';
@@ -85,6 +85,7 @@ export function RollbackButton(props: RollbackButtonProps) {
 
   const resource = item;
   const resourceKind = resource.kind;
+  const getRevisionHistory = useCallback(() => resource.getRevisionHistory(), [resource]);
 
   async function performRollback(toRevision?: number) {
     const result = await resource.rollback(toRevision);
@@ -142,7 +143,7 @@ export function RollbackButton(props: RollbackButtonProps) {
         open={openDialog}
         resourceKind={resourceKind}
         resourceName={resource.metadata.name}
-        getRevisionHistory={() => resource.getRevisionHistory()}
+        getRevisionHistory={getRevisionHistory}
         onClose={() => setOpenDialog(false)}
         onConfirm={handleConfirm}
       />

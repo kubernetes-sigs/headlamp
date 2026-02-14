@@ -98,7 +98,7 @@ export default function RollbackDialog(props: RollbackDialogProps) {
     onConfirm(selectedRevision);
   }
 
-  const hasMultipleRevisions = revisions.filter(r => !r.isCurrent).length > 0;
+  const hasPreviousRevisions = revisions.filter(r => !r.isCurrent).length > 0;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -122,7 +122,7 @@ export default function RollbackDialog(props: RollbackDialogProps) {
                 { name: resourceName }
               )}
             </Typography>
-            {!hasMultipleRevisions ? (
+            {!hasPreviousRevisions ? (
               <Typography variant="body2" color="text.secondary">
                 {t('translation|No previous revisions available to rollback to.')}
               </Typography>
@@ -204,7 +204,7 @@ export default function RollbackDialog(props: RollbackDialogProps) {
           onClick={handleConfirm}
           variant="contained"
           color="primary"
-          disabled={!hasMultipleRevisions || selectedRevision === undefined || loading}
+          disabled={!hasPreviousRevisions || selectedRevision === undefined || loading}
         >
           {t('translation|Rollback')}
         </Button>
