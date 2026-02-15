@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -314,12 +313,55 @@ func createTempKubeconfig(t *testing.T, content string) string {
 	return tempFile.Name()
 }
 
+// setupMockK8sServer creates a test HTTP server and a temporary kubeconfig pointing to it.
+// Returns the server, temp kubeconfig path, and a cleanup function.
+func setupMockK8sServer(t *testing.T) (*httptest.Server, string) {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/version" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"major": "1", "minor": "20"}`))
+
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+
+	kubeConfigContent := fmt.Sprintf(`apiVersion: v1
+clusters:
+- cluster:
+    server: %s
+    insecure-skip-tls-verify: true
+  name: minikube
+contexts:
+- context:
+    cluster: minikube
+    namespace: default
+    user: minikube
+  name: minikube
+current-context: minikube
+kind: Config
+users:
+- name: minikube
+  user:
+    token: test-token
+`, server.URL)
+
+	tempFile := createTempKubeconfig(t, kubeConfigContent)
+
+	return server, tempFile
+}
+
 func TestContext(t *testing.T) {
-	kubeConfigFile := config.GetDefaultKubeConfigPath()
+	server, tempFile := setupMockK8sServer(t)
+	defer server.Close()
+	defer os.Remove(tempFile)
 
 	configStore := kubeconfig.NewContextStore()
 
-	err := kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
+	err := kubeconfig.LoadAndStoreKubeConfigs(configStore, tempFile, kubeconfig.KubeConfig, nil)
 	require.NoError(t, err)
 
 	testContext, err := configStore.GetContext("minikube")
@@ -333,8 +375,6 @@ func TestContext(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, restConf)
 
-	// Test proxy request handler
-
 	request, err := http.NewRequestWithContext(context.Background(), "GET", "/version", nil)
 	require.NoError(t, err)
 
@@ -342,9 +382,8 @@ func TestContext(t *testing.T) {
 
 	err = testContext.ProxyRequest(rr, request)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, rr.Code)
 
-	t.Logf("Proxy request Response: %s", rr.Body.String())
+	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), "major")
 	assert.Contains(t, rr.Body.String(), "minor")
 }
