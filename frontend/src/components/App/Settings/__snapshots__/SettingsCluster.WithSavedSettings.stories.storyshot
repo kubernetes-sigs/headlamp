@@ -1,0 +1,703 @@
+<body>
+  <div>
+    <button
+      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+      tabindex="0"
+      type="button"
+    >
+      <span
+        class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+      />
+      <p
+        class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+        style="padding-top: 3px;"
+      >
+        Back
+      </p>
+      <span
+        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+      />
+    </button>
+    <div
+      class="MuiBox-root css-j1fy4m"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+      >
+        <div
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        >
+          <div
+            class="MuiBox-root css-70qvj9"
+          >
+            <h2
+              class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+            >
+              Cluster Settings
+            </h2>
+            <div
+              class="MuiBox-root css-ldp2l3"
+            />
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiBox-root css-1txv3mw"
+      >
+        <div
+          class="MuiBox-root css-69i1ev"
+        >
+          <div
+            class="MuiFormControl-root MuiFormControl-marginNormal css-1gtduw2-MuiFormControl-root"
+          >
+            <label
+              class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
+              data-shrink="true"
+              id="settings--cluster-selector"
+            >
+              Cluster
+            </label>
+            <div
+              aria-label="Cluster selector"
+              class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall  css-uwmwwo-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
+            >
+              <div
+                aria-controls=":mock-test-id:"
+                aria-expanded="false"
+                aria-haspopup="listbox"
+                aria-labelledby="settings--cluster-selector"
+                class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
+                role="combobox"
+                tabindex="0"
+              >
+                my-cluster
+              </div>
+              <input
+                aria-hidden="true"
+                aria-invalid="false"
+                class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+                tabindex="-1"
+                value="my-cluster"
+              />
+              <svg
+                aria-hidden="true"
+                class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiSelect-icon MuiSelect-iconOutlined css-hfutr2-MuiSvgIcon-root-MuiSelect-icon"
+                data-testid="ArrowDropDownIcon"
+                focusable="false"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M7 10l5 5 5-5z"
+                />
+              </svg>
+              <fieldset
+                aria-hidden="true"
+                class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+              >
+                <legend
+                  class="css-14lo706"
+                >
+                  <span>
+                    Cluster
+                  </span>
+                </legend>
+              </fieldset>
+            </div>
+          </div>
+          <a
+            aria-label="Go to cluster"
+            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+            data-mui-internal-clone-element="true"
+            href="/c/my-cluster/"
+          >
+            Go to cluster
+          </a>
+        </div>
+        <dl
+          class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+        >
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+          >
+            <div
+              class="MuiBox-root css-0"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                id="cluster-appearance-label"
+              >
+                Appearance
+              </p>
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+              >
+                Stored in your browser's localStorage (per-browser setting).
+              </p>
+            </div>
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+          >
+            <div
+              class="MuiBox-root css-14i20fo"
+            >
+              <div
+                class="MuiBox-root css-0"
+              >
+                <h6
+                  class="MuiTypography-root MuiTypography-subtitle2 css-14jjanu-MuiTypography-root"
+                >
+                  Accent color
+                </h6>
+                <div
+                  class="MuiBox-root css-axw7ok"
+                >
+                  <div
+                    class="MuiBox-root css-7mxbmx"
+                  />
+                  <button
+                    class="MuiButtonBase-root MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-irzb5y-MuiButtonBase-root-MuiButton-root"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+                    />
+                    Change Color
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                  <button
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-0"
+              >
+                <h6
+                  class="MuiTypography-root MuiTypography-subtitle2 css-14jjanu-MuiTypography-root"
+                >
+                  Cluster icon
+                </h6>
+                <div
+                  class="MuiBox-root css-axw7ok"
+                >
+                  <button
+                    class="MuiButtonBase-root MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-irzb5y-MuiButtonBase-root-MuiButton-root"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+                    />
+                    Change Icon
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                  <button
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-s2uf1z"
+              >
+                <button
+                  class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
+                  tabindex="0"
+                  type="button"
+                >
+                  Apply
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </button>
+                <div />
+              </div>
+            </div>
+          </dd>
+        </dl>
+        <dl
+          class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+        >
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+            id="default-namespace-label"
+          >
+            Default namespace
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          >
+            <div
+              aria-labelledby="default-namespace-label"
+              class="MuiFormControl-root MuiTextField-root css-1u3bzj6-MuiFormControl-root-MuiTextField-root"
+            >
+              <div
+                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd css-8secpz-MuiInputBase-root-MuiOutlinedInput-root"
+              >
+                <input
+                  aria-describedby=":mock-test-id:"
+                  aria-invalid="false"
+                  class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                  id=":mock-test-id:"
+                  placeholder="default"
+                  type="text"
+                  value="my-app"
+                />
+                <fieldset
+                  aria-hidden="true"
+                  class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                >
+                  <legend
+                    class="css-ihdtdm"
+                  >
+                    <span
+                      class="notranslate"
+                    >
+                      ​
+                    </span>
+                  </legend>
+                </fieldset>
+              </div>
+              <p
+                class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained MuiFormHelperText-filled css-153yz37-MuiFormHelperText-root"
+                id=":mock-test-id:"
+              >
+                The default namespace for e.g. when applying resources (when not specified directly).
+              </p>
+            </div>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+          >
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+              id="allowed-namespace-label"
+            >
+              Allowed namespaces
+            </p>
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+          >
+            <div
+              class="MuiFormControl-root MuiTextField-root css-1u3bzj6-MuiFormControl-root-MuiTextField-root"
+            >
+              <div
+                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd css-8secpz-MuiInputBase-root-MuiOutlinedInput-root"
+              >
+                <input
+                  aria-describedby=":mock-test-id:"
+                  aria-invalid="false"
+                  autocomplete="off"
+                  class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                  form="[object Object]"
+                  id=":mock-test-id:"
+                  placeholder="namespace"
+                  type="text"
+                  value=""
+                />
+                <button
+                  aria-label="Add namespace"
+                  class="MuiButtonBase-root Mui-disabled MuiIconButton-root Mui-disabled MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                  disabled=""
+                  tabindex="-1"
+                  type="button"
+                />
+                <fieldset
+                  aria-hidden="true"
+                  class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                >
+                  <legend
+                    class="css-ihdtdm"
+                  >
+                    <span
+                      class="notranslate"
+                    >
+                      ​
+                    </span>
+                  </legend>
+                </fieldset>
+              </div>
+              <p
+                class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained css-153yz37-MuiFormHelperText-root"
+                id=":mock-test-id:"
+              >
+                The list of namespaces you are allowed to access in this cluster.
+              </p>
+            </div>
+            <div
+              class="MuiBox-root css-pcdvu3"
+            >
+              <div
+                class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-deletable MuiChip-deletableColorDefault MuiChip-filledDefault css-1nlmohg-MuiButtonBase-root-MuiChip-root"
+                role="button"
+                tabindex="0"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                >
+                  default
+                </span>
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiChip-deleteIcon MuiChip-deleteIconSmall MuiChip-deleteIconColorDefault MuiChip-deleteIconFilledColorDefault css-i4bv87-MuiSvgIcon-root"
+                  data-testid="CancelIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"
+                  />
+                </svg>
+              </div>
+              <div
+                class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-deletable MuiChip-deletableColorDefault MuiChip-filledDefault css-1nlmohg-MuiButtonBase-root-MuiChip-root"
+                role="button"
+                tabindex="0"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                >
+                  kube-system
+                </span>
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiChip-deleteIcon MuiChip-deleteIconSmall MuiChip-deleteIconColorDefault MuiChip-deleteIconFilledColorDefault css-i4bv87-MuiSvgIcon-root"
+                  data-testid="CancelIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"
+                  />
+                </svg>
+              </div>
+              <div
+                class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-deletable MuiChip-deletableColorDefault MuiChip-filledDefault css-1nlmohg-MuiButtonBase-root-MuiChip-root"
+                role="button"
+                tabindex="0"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                >
+                  my-app
+                </span>
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiChip-deleteIcon MuiChip-deleteIconSmall MuiChip-deleteIconColorDefault MuiChip-deleteIconFilledColorDefault css-i4bv87-MuiSvgIcon-root"
+                  data-testid="CancelIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"
+                  />
+                </svg>
+              </div>
+            </div>
+          </dd>
+        </dl>
+      </div>
+    </div>
+    <div
+      class="MuiBox-root css-j1fy4m"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+      >
+        <div
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        >
+          <div
+            class="MuiBox-root css-70qvj9"
+          >
+            <h4
+              class="MuiTypography-root MuiTypography-h4 MuiTypography-noWrap css-15onnfg-MuiTypography-root"
+            >
+              Node Shell Settings
+            </h4>
+            <div
+              class="MuiBox-root css-ldp2l3"
+            />
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiBox-root css-1txv3mw"
+      >
+        <dl
+          class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+        >
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+          >
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+              id="node-shell-enabled-label"
+            >
+              Enable Node Shell
+            </p>
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          >
+            <span
+              class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
+            >
+              <span
+                class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
+              >
+                <input
+                  aria-labelledby="node-shell-enabled-label"
+                  checked=""
+                  class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
+                  type="checkbox"
+                />
+                <span
+                  class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
+                />
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+              <span
+                class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
+              />
+            </span>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+          >
+            Linux Image
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          >
+            <div
+              class="MuiFormControl-root MuiTextField-root css-1u3bzj6-MuiFormControl-root-MuiTextField-root"
+            >
+              <div
+                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd css-14f1a7d-MuiInputBase-root-MuiOutlinedInput-root"
+              >
+                <input
+                  aria-describedby=":mock-test-id:"
+                  aria-invalid="false"
+                  aria-label="Linux image"
+                  class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                  id=":mock-test-id:"
+                  placeholder="docker.io/library/busybox:latest"
+                  type="text"
+                  value="busybox:1.28"
+                />
+                <fieldset
+                  aria-hidden="true"
+                  class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                >
+                  <legend
+                    class="css-ihdtdm"
+                  >
+                    <span
+                      class="notranslate"
+                    >
+                      ​
+                    </span>
+                  </legend>
+                </fieldset>
+              </div>
+              <p
+                class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained MuiFormHelperText-filled css-153yz37-MuiFormHelperText-root"
+                id=":mock-test-id:"
+              >
+                The default image is used for dropping a shell into a node (when not specified directly).
+              </p>
+            </div>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+          >
+            Namespace
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+          >
+            <div
+              class="MuiFormControl-root MuiTextField-root css-1u3bzj6-MuiFormControl-root-MuiTextField-root"
+            >
+              <div
+                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd css-8secpz-MuiInputBase-root-MuiOutlinedInput-root"
+              >
+                <input
+                  aria-describedby=":mock-test-id:"
+                  aria-invalid="false"
+                  aria-label="Namespace"
+                  class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                  id=":mock-test-id:"
+                  placeholder="default"
+                  type="text"
+                  value="kube-system"
+                />
+                <fieldset
+                  aria-hidden="true"
+                  class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                >
+                  <legend
+                    class="css-ihdtdm"
+                  >
+                    <span
+                      class="notranslate"
+                    >
+                      ​
+                    </span>
+                  </legend>
+                </fieldset>
+              </div>
+              <p
+                class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained MuiFormHelperText-filled css-153yz37-MuiFormHelperText-root"
+                id=":mock-test-id:"
+              >
+                The default namespace is default.
+              </p>
+            </div>
+          </dd>
+        </dl>
+      </div>
+    </div>
+    <div
+      class="MuiBox-root css-j1fy4m"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+      >
+        <div
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        >
+          <div
+            class="MuiBox-root css-70qvj9"
+          >
+            <h4
+              class="MuiTypography-root MuiTypography-h4 MuiTypography-noWrap css-15onnfg-MuiTypography-root"
+            >
+              Pod Debug Settings
+            </h4>
+            <div
+              class="MuiBox-root css-ldp2l3"
+            />
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiBox-root css-1txv3mw"
+      >
+        <dl
+          class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+        >
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+          >
+            <p
+              aria-label="Ephemeral debug containers cannot be removed via Kubernetes API. They will remain in the pod specification even after the terminal closes. To remove them, the pod must be recreated."
+              class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+              data-mui-internal-clone-element="true"
+            >
+              <span
+                id="pod-debug-enabled-label"
+              >
+                Enable Pod Debug
+              </span>
+            </p>
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          >
+            <span
+              class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
+            >
+              <span
+                class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
+              >
+                <input
+                  aria-labelledby="pod-debug-enabled-label"
+                  checked=""
+                  class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
+                  type="checkbox"
+                />
+                <span
+                  class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
+                />
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+              <span
+                class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
+              />
+            </span>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+          >
+            Debug Image
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+          >
+            <div
+              class="MuiFormControl-root MuiTextField-root css-1u3bzj6-MuiFormControl-root-MuiTextField-root"
+            >
+              <div
+                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd css-14f1a7d-MuiInputBase-root-MuiOutlinedInput-root"
+              >
+                <input
+                  aria-describedby=":mock-test-id:"
+                  aria-invalid="false"
+                  class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                  id=":mock-test-id:"
+                  placeholder="docker.io/library/busybox:latest"
+                  type="text"
+                  value="docker.io/library/busybox:latest"
+                />
+                <fieldset
+                  aria-hidden="true"
+                  class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                >
+                  <legend
+                    class="css-ihdtdm"
+                  >
+                    <span
+                      class="notranslate"
+                    >
+                      ​
+                    </span>
+                  </legend>
+                </fieldset>
+              </div>
+              <p
+                class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained MuiFormHelperText-filled css-153yz37-MuiFormHelperText-root"
+                id=":mock-test-id:"
+              >
+                The default image is used for creating ephemeral debug containers.
+              </p>
+            </div>
+          </dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</body>
