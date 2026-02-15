@@ -133,6 +133,7 @@ spec:
             - "-oidc-validator-idp-issuer-url=$(OIDC_VALIDATOR_ISSUER_URL)"
             # Check if useAccessToken is non false either from env or oidc.config
             - "-oidc-use-access-token=$(OIDC_USE_ACCESS_TOKEN)"
+            - "-filters-warnings-only=true"
           ports:
             - name: http
               containerPort: 4466

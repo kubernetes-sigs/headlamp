@@ -104,7 +104,8 @@ export default function Overview() {
 
 function EventsSection() {
   const EVENT_WARNING_SWITCH_FILTER_STORAGE_KEY = 'EVENT_WARNING_SWITCH_FILTER_STORAGE_KEY';
-  const EVENT_WARNING_SWITCH_DEFAULT = true;
+  const filtersWarningsOnly = useTypedSelector(state => state.config.filtersWarningsOnly);
+  const EVENT_WARNING_SWITCH_DEFAULT = filtersWarningsOnly;
   const { t } = useTranslation(['translation', 'glossary']);
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);

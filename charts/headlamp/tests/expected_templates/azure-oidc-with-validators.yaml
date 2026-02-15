@@ -129,6 +129,7 @@ spec:
             - "-oidc-validator-client-id=$(OIDC_VALIDATOR_CLIENT_ID)"
             # Check if validatorIssuerURL is non empty either from env or oidc.config
             - "-oidc-validator-idp-issuer-url=$(OIDC_VALIDATOR_ISSUER_URL)"
+            - "-filters-warnings-only=true"
           ports:
             - name: http
               containerPort: 4466

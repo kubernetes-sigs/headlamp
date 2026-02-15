@@ -114,6 +114,7 @@ spec:
             - "-plugins-dir=/headlamp/plugins"
             - "-session-ttl=86400"
             # Check if externalSecret is disabled
+            - "-filters-warnings-only=true"
             - -insecure-ssl
           ports:
             - name: http
