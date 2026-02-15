@@ -6,7 +6,7 @@ metadata:
   name: headlamp
   namespace: mynamespace
   labels:
-    helm.sh/chart: headlamp-0.40.0
+    helm.sh/chart: headlamp-0.40.1
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
     app.kubernetes.io/version: "0.40.0"
@@ -27,7 +27,7 @@ kind: ClusterRoleBinding
 metadata:
   name: headlamp-admin
   labels:
-    helm.sh/chart: headlamp-0.40.0
+    helm.sh/chart: headlamp-0.40.1
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
     app.kubernetes.io/version: "0.40.0"
@@ -48,7 +48,7 @@ metadata:
   name: headlamp
   namespace: mynamespace
   labels:
-    helm.sh/chart: headlamp-0.40.0
+    helm.sh/chart: headlamp-0.40.1
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
     app.kubernetes.io/version: "0.40.0"
@@ -75,13 +75,14 @@ metadata:
   name: headlamp
   namespace: mynamespace
   labels:
-    helm.sh/chart: headlamp-0.40.0
+    helm.sh/chart: headlamp-0.40.1
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
     app.kubernetes.io/version: "0.40.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
+  revisionHistoryLimit: 10
   selector:
     matchLabels:
       app.kubernetes.io/name: headlamp

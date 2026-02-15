@@ -20,7 +20,7 @@ sources:
 maintainers:
   - name: kinvolk
     url: https://kinvolk.io/
-version: 0.40.0
+version: 0.40.1
 appVersion: 0.40.0
 annotations:
   artifacthub.io/signKey: |
