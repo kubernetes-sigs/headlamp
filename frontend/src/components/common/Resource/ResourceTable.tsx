@@ -36,6 +36,7 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { loadTableSettings, storeTableSettings } from '../../../helpers/tableSettings';
 import { useSelectedClusters } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
@@ -207,44 +208,6 @@ function TableFromResourceClass<KubeClass extends KubeObjectClass>(
       data={throttledItems}
     />
   );
-}
-
-/**
- * Store the table settings in local storage.
- *
- * @param tableId - The ID of the table.
- * @param columns - The columns to store.
- * @returns void
- */
-function storeTableSettings(tableId: string, columns: { id?: string; show: boolean }[]) {
-  if (!tableId) {
-    console.debug('storeTableSettings: tableId is empty!', new Error().stack);
-    return;
-  }
-
-  const columnsWithIds = columns.map((c, i) => ({ id: i.toString(), ...c }));
-  // Delete the entry if there are no settings to store.
-  if (columnsWithIds.length === 0) {
-    localStorage.removeItem(`table_settings.${tableId}`);
-    return;
-  }
-  localStorage.setItem(`table_settings.${tableId}`, JSON.stringify(columnsWithIds));
-}
-
-/**
- * Load the table settings from local storage for a given table ID.
- *
- * @param tableId - The ID of the table.
- * @returns The table settings for the given table ID.
- */
-function loadTableSettings(tableId: string): { id: string; show: boolean }[] {
-  if (!tableId) {
-    console.debug('loadTableSettings: tableId is empty!', new Error().stack);
-    return [];
-  }
-
-  const settings = JSON.parse(localStorage.getItem(`table_settings.${tableId}`) || '[]');
-  return settings;
 }
 
 /**
