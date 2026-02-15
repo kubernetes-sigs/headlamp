@@ -65,6 +65,7 @@ type Config struct {
 	OidcValidatorIdpIssuerURL string `koanf:"oidc-validator-idp-issuer-url"`
 	OidcScopes                string `koanf:"oidc-scopes"`
 	OidcUseAccessToken        bool   `koanf:"oidc-use-access-token"`
+	OidcUseCookie             bool   `koanf:"oidc-use-cookie"`
 	OidcSkipTLSVerify         bool   `koanf:"oidc-skip-tls-verify"`
 	OidcCAFile                string `koanf:"oidc-ca-file"`
 	MeUsernamePath            string `koanf:"me-username-path"`
@@ -88,10 +89,11 @@ type Config struct {
 }
 
 func (c *Config) Validate() error {
-	if !c.InCluster && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
+	if !c.InCluster && !c.OidcUseCookie && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
 		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
-		return errors.New(`oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, oidc-validator-client-id,
-		oidc-validator-idp-issuer-url, flags are only meant to be used in inCluster mode`)
+		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
+			"oidc-validator-client-id, oidc-validator-idp-issuer-url, flags are only " +
+			"meant to be used in inCluster mode or with --oidc-use-cookie")
 	}
 
 	// OIDC TLS verification warning.
@@ -461,6 +463,7 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.Bool("oidc-skip-tls-verify", false, "Skip TLS verification for OIDC")
 	f.String("oidc-ca-file", "", "CA file for OIDC")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
+	f.Bool("oidc-use-cookie", false, "Enable OIDC cookie usage even when not running in-cluster")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")
