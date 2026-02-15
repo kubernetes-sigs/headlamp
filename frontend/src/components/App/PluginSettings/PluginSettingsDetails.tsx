@@ -194,6 +194,10 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
 
   function onDataChange(data: { [key: string]: any }) {
     setData(data);
+
+    if (!plugin.displaySettingsComponentWithSaveButton && onSave) {
+      void onSave(data);
+    }
   }
 
   async function handleSave() {
