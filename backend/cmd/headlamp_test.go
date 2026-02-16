@@ -1769,6 +1769,49 @@ func TestCacheMiddleware_CacheHitAndCacheMiss_RealK8s(t *testing.T) {
 	assert.Equal(t, "true", secondFromCache, "second request should be from cache")
 }
 
+// Integration test to verify CacheMiddleware does not cause excessive goroutine usage with a real K8s API server.
+func TestCacheMiddleware_GoRoutines(t *testing.T) {
+	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
+		t.Skip("skipping integration test")
+	}
+
+	start := runtime.NumGoroutine()
+
+	c, clusterName := newRealK8sHeadlampConfig(t)
+	handler := createHeadlampHandler(c)
+
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	apiPath := "/clusters/" + clusterName + "/api/v1/pods"
+	ctx := context.Background()
+
+	resp, err := httpRequestWithContext(ctx, ts.URL+apiPath, "GET")
+	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
+	time.Sleep(3 * time.Second)
+
+	running := runtime.NumGoroutine()
+
+	time.Sleep(3 * time.Second)
+
+	after := runtime.NumGoroutine()
+
+	expected := false
+	afterExpected := false
+
+	if (running >= 50 && running < 200) && (after >= 50 && after < 200) {
+		expected = true
+		afterExpected = true
+	}
+
+	assert.Equal(t, 3, start)
+	assert.Equal(t, running >= 50 && running < 200, expected)
+	assert.Equal(t, after >= 50 && after < 200, afterExpected)
+}
+
 // TestCacheMiddleware_CacheInvalidation_RealK8s tests cache invalidation with a
 // real Kubernetes API server. Creates a ConfigMap, invalidates via DELETE, then
 // verifies the next GET fetches fresh data. Requires HEADLAMP_RUN_INTEGRATION_TESTS=true
