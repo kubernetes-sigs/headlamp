@@ -46,6 +46,8 @@ const makeStore = () => {
           timezone: 'UTC',
           useEvict: true,
         },
+        isDynamicClusterEnabled: false,
+        allowKubeconfigRemoval: false,
       },
       projects: {
         headerActions: {},

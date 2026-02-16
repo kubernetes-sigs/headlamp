@@ -755,6 +755,14 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   process.env.HEADLAMP_CONFIG_ENABLE_HELM = 'true';
   process.env.HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS = 'true';
 
+  // In headless mode the app runs in the browser (not Electron), so the
+  // frontend's isElectron() check won't apply. We explicitly enable
+  // kubeconfig removal here because headless shares the same single-user
+  // security context as the desktop app.
+  if (isHeadlessMode) {
+    process.env.HEADLAMP_CONFIG_ALLOW_KUBECONFIG_REMOVAL = 'true';
+  }
+
   // Pass a token to the backend that can be used for auth on some routes
   process.env.HEADLAMP_BACKEND_TOKEN = backendToken;
 

@@ -43,6 +43,17 @@ export interface ConfigState {
     [clusterName: string]: Cluster;
   } | null;
   /**
+   * Whether dynamic clusters are enabled.
+   * When true, users can add and delete clusters dynamically.
+   */
+  isDynamicClusterEnabled: boolean;
+  /**
+   * Whether users are allowed to remove clusters from their kubeconfig.
+   * When true, the UI will show options to delete kubeconfig-sourced clusters.
+   * Defaults to false to prevent accidental removal in company-deployed environments.
+   */
+  allowKubeconfigRemoval: boolean;
+  /**
    * Settings is a map of settings names to settings values.
    */
   settings: {
@@ -71,6 +82,8 @@ export const initialState: ConfigState = {
   clusters: null,
   statelessClusters: null,
   allClusters: null,
+  isDynamicClusterEnabled: false,
+  allowKubeconfigRemoval: false,
   settings: {
     tableRowsPerPageOptions:
       storedSettings.tableRowsPerPageOptions || defaultTableRowsPerPageOptions,
@@ -89,8 +102,21 @@ const configSlice = createSlice({
      * @param state - The current state.
      * @param action - The payload action containing the config.
      */
-    setConfig(state, action: PayloadAction<{ clusters: ConfigState['clusters'] }>) {
+    setConfig(
+      state,
+      action: PayloadAction<{
+        clusters: ConfigState['clusters'];
+        isDynamicClusterEnabled?: boolean;
+        allowKubeconfigRemoval?: boolean;
+      }>
+    ) {
       state.clusters = action.payload.clusters;
+      if (action.payload.isDynamicClusterEnabled !== undefined) {
+        state.isDynamicClusterEnabled = action.payload.isDynamicClusterEnabled;
+      }
+      if (action.payload.allowKubeconfigRemoval !== undefined) {
+        state.allowKubeconfigRemoval = action.payload.allowKubeconfigRemoval;
+      }
     },
     /**
      * Save the config. To both the store, and localStorage.
