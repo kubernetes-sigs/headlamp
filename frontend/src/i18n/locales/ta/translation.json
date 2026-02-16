@@ -157,6 +157,7 @@
   "Timezone to display for dates": "தேதிகளுக்கு காட்ட வேண்டிய நேர மண்டலம்",
   "Sort sidebar items alphabetically": "பக்கப்பட்டி உருப்படிகளை அகரவரிசையில் வரிசைப்படுத்து",
   "Use evict for pod deletion": "பாட் நீக்குவதற்கு evict பயன்படுத்து",
+  "Keep Large Graph Groups Expanded": "",
   "Theme": "தீம்",
   "Keyboard Shortcuts": "",
   "Configure keyboard shortcuts for quick access to various parts of the application.": "",

@@ -157,6 +157,7 @@
   "Timezone to display for dates": "顯示日期的時區",
   "Sort sidebar items alphabetically": "側邊欄項目按字母順序排序",
   "Use evict for pod deletion": "刪除 Pod 時使用 evict",
+  "Keep Large Graph Groups Expanded": "",
   "Theme": "主題",
   "Keyboard Shortcuts": "",
   "Configure keyboard shortcuts for quick access to various parts of the application.": "",

@@ -157,6 +157,7 @@
   "Timezone to display for dates": "날짜 표시용 시간대",
   "Sort sidebar items alphabetically": "사이드바 항목을 가나다순으로 정렬",
   "Use evict for pod deletion": "",
+  "Keep Large Graph Groups Expanded": "",
   "Theme": "테마",
   "Keyboard Shortcuts": "",
   "Configure keyboard shortcuts for quick access to various parts of the application.": "",
