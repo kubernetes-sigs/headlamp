@@ -17,6 +17,7 @@
 import { Icon } from '@iconify/react';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
+import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
@@ -24,8 +25,9 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 import Toolbar from '@mui/material/Toolbar';
+import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueries } from '@tanstack/react-query';
 import { has } from 'lodash';
 import React, { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -33,8 +35,8 @@ import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { getProductName, getVersion } from '../../helpers/getProductInfo';
 import { logout } from '../../lib/auth';
-import { useCluster, useClustersConf } from '../../lib/k8s';
-import { clusterRequest } from '../../lib/k8s/api/v1/clusterRequests';
+import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
+import { ClusterUserInfo, getClusterUserInfo } from '../../lib/k8s/api/v1/clusterApi';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import {
   AppBarAction,
@@ -51,6 +53,7 @@ import { GlobalSearch } from '../globalSearch/GlobalSearch';
 import HeadlampButton from '../Sidebar/HeadlampButton';
 import { setWhetherSidebarOpen } from '../Sidebar/sidebarSlice';
 import { AppLogo } from './AppLogo';
+import { handleLogoutPathUpdate } from './TopBar.utils';
 
 export interface TopBarProps {}
 
@@ -76,6 +79,26 @@ export function processAppBarActions(
   return appBarActionsProcessed;
 }
 
+export { handleLogoutPathUpdate } from './TopBar.utils';
+
+/**
+ * Gets the display name for a user in a cluster.
+ *
+ * @param clusterName - The name of the cluster.
+ * @param clusterUserInfoMap - A map of cluster names to user info objects.
+ * @returns The username if available, otherwise the cluster name.
+ */
+function getUserDisplayName(
+  clusterName: string,
+  clusterUserInfoMap: Record<string, ClusterUserInfo | undefined>
+): string {
+  const userInfo = clusterUserInfoMap[clusterName];
+  if (userInfo?.username) {
+    return userInfo.username;
+  }
+  return clusterName;
+}
+
 export default function TopBar({}: TopBarProps) {
   const dispatch = useDispatch();
   const isMedium = useMediaQuery('(max-width:960px)');
@@ -88,74 +111,33 @@ export default function TopBar({}: TopBarProps) {
 
   const clustersConfig = useClustersConf();
   const cluster = useCluster();
+  const selectedClusters = useSelectedClusters();
   const history = useHistory();
   const { appBarActions, appBarActionsProcessors } = useAppBarActionsProcessed();
-  const queryClient = useQueryClient();
-  const clusterName = cluster ?? undefined;
-  const { data: me } = useQuery<{ username?: string; email?: string } | null>({
-    queryKey: ['clusterMe', clusterName],
-    queryFn: async () => {
-      if (!clusterName) {
-        return null;
+
+  // The logout callback
+  const logoutCallback = useCallback(
+    async (clusterToLogout?: string) => {
+      if (clusterToLogout) {
+        await logout(clusterToLogout);
+      } else {
+        if (selectedClusters.length > 0) {
+          await Promise.all(
+            selectedClusters.map(async c => {
+              await logout(c);
+            })
+          );
+        } else if (cluster) {
+          await logout(cluster);
+        }
       }
 
-      try {
-        const res = await clusterRequest('/me', {
-          cluster: clusterName,
-          autoLogoutOnAuthError: false,
-        });
-
-        if (!res) {
-          return null;
-        }
-
-        if (!(typeof res.userInfoURL === 'string' && res.userInfoURL.length > 0)) {
-          return { username: res.username, email: res.email };
-        }
-
-        const ui: {
-          preferredUsername?: string;
-          email?: string;
-        } = await fetch(res.userInfoURL, {
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }).then(r => {
-          if (!r.ok) {
-            throw new Error(`Could not fetch user info from ${res.userInfoURL}`);
-          }
-          return r.json();
-        });
-
-        if (!ui || (!ui.preferredUsername && !ui.email)) {
-          return null;
-        }
-
-        return {
-          username: ui.preferredUsername,
-          email: ui.email,
-        };
-      } catch {
-        return null;
-      }
+      handleLogoutPathUpdate(clusterToLogout, history.location.pathname, (path: string) =>
+        history.push(path)
+      );
     },
-    enabled: Boolean(clusterName),
-    retry: false,
-    staleTime: 0,
-    refetchOnMount: 'always',
-  });
-
-  const logoutCallback = useCallback(async () => {
-    if (!!cluster) {
-      await logout(cluster);
-      queryClient.removeQueries({
-        queryKey: ['clusterMe', cluster],
-        exact: true,
-      });
-    }
-    history.push('/');
-  }, [cluster, history, queryClient]);
+    [cluster, selectedClusters, history]
+  );
 
   const handletoggleOpen = useCallback(() => {
     // For medium view we default to closed if they have not made a selection.
@@ -180,8 +162,8 @@ export default function TopBar({}: TopBarProps) {
       isSidebarOpenUserSelected={isSidebarOpenUserSelected}
       onToggleOpen={handletoggleOpen}
       cluster={cluster || undefined}
+      selectedClusters={selectedClusters}
       clusters={clustersConfig || undefined}
-      userInfo={me || undefined}
     />
   );
 }
@@ -191,14 +173,14 @@ export interface PureTopBarProps {
   appBarActions: AppBarAction[];
   /** functions which filter the app bar action buttons */
   appBarActionsProcessors?: AppBarActionsProcessor[];
-  logout: () => Promise<any> | void;
+  logout: (cluster?: string) => Promise<any> | void;
   clusters?: {
     [clusterName: string]: any;
   };
   cluster?: string;
+  selectedClusters?: string[];
   isSidebarOpen?: boolean;
   isSidebarOpenUserSelected?: boolean;
-  userInfo?: { username?: string; email?: string };
 
   /** Called when sidebar toggles between open and closed. */
   onToggleOpen: () => void;
@@ -271,11 +253,11 @@ export const PureTopBar = memo(
     appBarActionsProcessors = [],
     logout,
     cluster,
+    selectedClusters,
     clusters,
     isSidebarOpen,
     isSidebarOpenUserSelected,
     onToggleOpen,
-    userInfo,
   }: PureTopBarProps) => {
     const { t } = useTranslation();
     const theme = useTheme();
@@ -309,13 +291,29 @@ export const PureTopBar = memo(
       setMobileMoreAnchorEl(event.currentTarget);
     };
     const userMenuId = 'primary-user-menu';
-    const userDisplayName = userInfo?.username || userInfo?.email || '';
-    const userSecondaryInfo =
-      userInfo?.username && userInfo?.email && userInfo.username !== userInfo.email
-        ? userInfo.email
-        : undefined;
 
-    const renderUserMenu = !!isClusterContext && (
+    const clustersToQuery =
+      selectedClusters && selectedClusters.length > 0 ? selectedClusters : cluster ? [cluster] : [];
+
+    const userInfoQueries = useQueries({
+      queries: clustersToQuery.map(clusterName => ({
+        queryKey: ['clusterMe', clusterName],
+        queryFn: () => getClusterUserInfo(clusterName),
+        staleTime: 5 * 60 * 1000,
+        retry: 1,
+      })),
+    });
+
+    const clusterUserInfoMap: Record<string, ClusterUserInfo | undefined> = {};
+    clustersToQuery.forEach((clusterName, index) => {
+      if (userInfoQueries[index]?.data) {
+        clusterUserInfoMap[clusterName] = userInfoQueries[index].data;
+      }
+    });
+
+    const showUserMenu = (!!selectedClusters && selectedClusters.length > 0) || isClusterContext;
+
+    const renderUserMenu = showUserMenu && (
       <Menu
         anchorEl={anchorEl}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
@@ -333,28 +331,7 @@ export const PureTopBar = memo(
           },
         }}
       >
-        {!!userDisplayName && (
-          <MenuItem
-            disableRipple
-            sx={{
-              pointerEvents: 'none',
-              cursor: 'default',
-              '&:hover': { backgroundColor: 'inherit' },
-            }}
-          >
-            <ListItemIcon>
-              <Icon icon="mdi:account" />
-            </ListItemIcon>
-            <ListItemText
-              primaryTypographyProps={{ variant: 'subtitle2' }}
-              secondaryTypographyProps={{ variant: 'body2' }}
-              primary={userDisplayName}
-              secondary={userSecondaryInfo}
-            />
-          </MenuItem>
-        )}
         <MenuItem
-          component="a"
           onClick={async () => {
             await logout();
             handleMenuClose();
@@ -363,8 +340,28 @@ export const PureTopBar = memo(
           <ListItemIcon>
             <Icon icon="mdi:logout" />
           </ListItemIcon>
-          <ListItemText primary={t('Log out')} />
+          <ListItemText
+            primary={
+              selectedClusters && selectedClusters.length > 1 ? (
+                t('Log out from all')
+              ) : cluster ? (
+                <Box display="flex" flexDirection="column">
+                  <Typography variant="body2" component="span">
+                    {t('Log out')}: {getUserDisplayName(cluster, clusterUserInfoMap)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" component="span">
+                    {cluster}
+                  </Typography>
+                </Box>
+              ) : (
+                t('Log out')
+              )
+            }
+          />
         </MenuItem>
+
+        <Divider />
+
         <MenuItem
           component="a"
           onClick={() => {
@@ -413,7 +410,7 @@ export const PureTopBar = memo(
       },
       {
         id: DefaultAppBarAction.USER,
-        action: !!isClusterContext && (
+        action: showUserMenu && (
           <IconButton
             aria-label={t('Account of current user')}
             aria-controls={userMenuId}
@@ -470,7 +467,7 @@ export const PureTopBar = memo(
       },
       {
         id: DefaultAppBarAction.USER,
-        action: !!isClusterContext && (
+        action: showUserMenu && (
           <IconButton
             aria-label={t('Account of current user')}
             aria-controls={userMenuId}
