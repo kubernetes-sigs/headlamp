@@ -328,7 +328,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     hideColumns = [],
     filterFunction,
     errorMessage,
-    reflectInURL,
+    reflectInURL = true,
     data,
     defaultGlobalFilter,
     actions,
