@@ -5,6 +5,8 @@ sidebar_label: OIDC
 
 Headlamp supports OIDC for cluster users to effortlessly log in using a "Sign in" button.
 
+> **⚠️ Important:** For Headlamp's OIDC authentication to work, your Kubernetes cluster's API server **must** also be configured to accept OIDC tokens. Headlamp handles the user login flow, but the cluster validates the resulting token. See the [Kubernetes documentation on OIDC tokens](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#openid-connect-tokens) for details.
+
 ![screenshot the login dialog for a cluster](./oidc_button.png)
 
 To use OIDC, Headlamp needs to know how to configure it, so you have to provide the following OIDC-related arguments to Headlamp from your OIDC provider:
@@ -100,7 +102,6 @@ For quick reference if you are already familiar with setting up Entra ID,
 - Set `--oidc-validator-idp-issuer-url` to `https://sts.windows.net/<Your Directory (tenant) ID>/`
 - Set `-oidc-validator-client-id` to `6dae42f8-4368-4678-94ff-3960e28e3630`
 - Set `-oidc-use-access-token=true`
-
 
 ### Example: OIDC with Dex
 
