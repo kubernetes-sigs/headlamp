@@ -1,0 +1,85 @@
+---
+title: Building the KEDA Plugin
+sidebar_label: Building the KEDA Plugin
+sidebar_position: 2
+---
+
+# Building the KEDA Plugin
+
+Apply everything you've learned to build a production-ready plugin for [KEDA](https://keda.sh/) (Kubernetes Event-driven Autoscaling).
+
+## What is KEDA?
+
+KEDA extends Kubernetes with event-driven autoscaling. It introduces Custom Resource Definitions (CRDs) like:
+
+- **ScaledObject** — Scales deployments based on event triggers
+- **ScaledJob** — Creates jobs based on events
+- **TriggerAuthentication** — Securely connects to event sources
+- **ClusterTriggerAuthentication** — Cluster-wide authentication
+
+## What You'll Build
+
+A complete KEDA management plugin featuring:
+
+- ✅ Custom resource classes for KEDA CRDs
+- ✅ List views with status columns
+- ✅ Detail pages with trigger information
+- ✅ Map visualization showing resource relationships
+- ✅ Installation detection and user guidance
+
+## Prerequisites
+
+Before starting this section, complete the [Getting Started](../getting-started/) tutorials (1-10).
+
+You should also have:
+- A Kubernetes cluster with KEDA installed ([KEDA installation guide](https://keda.sh/docs/latest/deploy/))
+- Basic understanding of KEDA concepts
+
+## Tutorials
+
+| # | Tutorial | Time | What You'll Build |
+|---|----------|------|-------------------|
+| 11 | Introduction & Setup | TBD | TBD |
+| 12 | Custom Resource Classes | TBD | TBD |
+| 13 | List & Detail Views | TBD | TBD |
+| 14 | Map Visualization | TBD | TBD |
+| 15 | Polish & Installation Checks | TBD | TBD |
+| 16 | Testing Your Plugin (E2E) | TBD | *(Planned - awaiting framework release)* |
+
+## Start Here
+
+👉 **Tutorial 11: Introduction & Setup** *(Coming Soon)*
+
+---
+
+## Sneak Peek: What the KEDA Plugin Looks Like
+
+The finished plugin provides:
+
+### ScaledObject List View
+
+A table showing all ScaledObjects with their status, triggers, and target deployments.
+
+<!-- SCREENSHOT_PLACEHOLDER: ScaledObject list view -->
+
+### ScaledObject Detail View
+
+Detailed information including trigger configuration, status conditions, and related pods.
+
+<!-- SCREENSHOT_PLACEHOLDER: ScaledObject detail view -->
+
+### Map Visualization
+
+Visual representation of ScaledObjects and their relationships to deployments and pods.
+
+<!-- SCREENSHOT_PLACEHOLDER: KEDA resources in Headlamp Map -->
+
+---
+
+## Reference Implementation
+
+For reference, check out the complete KEDA plugin in the Headlamp repository:
+
+- [plugins/keda](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/keda)
+
+This is what we'll build together in these tutorials!
