@@ -137,8 +137,13 @@ export default function ClusterTable({
       return sourcePath ? `Kubeconfig: ${sourcePath}` : 'Kubeconfig';
     } else if (cluster?.meta_data?.source === 'dynamic_cluster') {
       return t('translation|Plugin');
-    } else if (cluster?.meta_data?.source === 'in_cluster') {
+    } else if (
+      cluster?.meta_data?.source === 'in_cluster' ||
+      cluster?.meta_data?.source === 'incluster'
+    ) {
       return t('translation|In-cluster');
+    } else if (cluster?.meta_data?.source === 'cluster-inventory') {
+      return t('translation|Cluster Inventory');
     }
     return 'Unknown';
   }
