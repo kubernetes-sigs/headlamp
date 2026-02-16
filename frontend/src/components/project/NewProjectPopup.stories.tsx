@@ -46,6 +46,7 @@ const makeStore = () => {
           timezone: 'UTC',
           useEvict: true,
         },
+        filtersWarningsOnly: true,
       },
       projects: {
         headerActions: {},
