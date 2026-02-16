@@ -19,6 +19,7 @@ import { createSlice } from '@reduxjs/toolkit';
 import type { Cluster } from '../lib/k8s/cluster';
 
 export interface ConfigState {
+  prometheusEndpoint?: string;
   /**
    * Clusters is a map of cluster names to cluster objects.
    * Null indicates that the clusters have not been loaded yet.
@@ -89,8 +90,14 @@ const configSlice = createSlice({
      * @param state - The current state.
      * @param action - The payload action containing the config.
      */
-    setConfig(state, action: PayloadAction<{ clusters: ConfigState['clusters'] }>) {
+    setConfig(
+      state,
+      action: PayloadAction<{ clusters: ConfigState['clusters']; prometheusEndpoint?: string }>
+    ) {
       state.clusters = action.payload.clusters;
+      if (action.payload.prometheusEndpoint !== undefined) {
+        state.prometheusEndpoint = action.payload.prometheusEndpoint;
+      }
     },
     /**
      * Save the config. To both the store, and localStorage.

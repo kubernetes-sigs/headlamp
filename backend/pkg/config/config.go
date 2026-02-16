@@ -83,8 +83,9 @@ type Config struct {
 	StdoutTraceEnabled *bool    `koanf:"stdout-trace-enabled"`
 	SamplingRate       *float64 `koanf:"sampling-rate"`
 	// TLS config
-	TLSCertPath string `koanf:"tls-cert-path"`
-	TLSKeyPath  string `koanf:"tls-key-path"`
+	TLSCertPath        string  `koanf:"tls-cert-path"`
+	TLSKeyPath         string  `koanf:"tls-key-path"`
+	PrometheusEndpoint *string `koanf:"prometheus-endpoint"`
 }
 
 func (c *Config) Validate() error {
@@ -141,6 +142,16 @@ func (c *Config) Validate() error {
 		if (c.UseOTLPHTTP != nil && *c.UseOTLPHTTP) &&
 			(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
 			return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
+		}
+	}
+
+	return c.validatePrometheusEndpoint()
+}
+
+func (c *Config) validatePrometheusEndpoint() error {
+	if c.PrometheusEndpoint != nil && *c.PrometheusEndpoint != "" {
+		if !strings.HasPrefix(*c.PrometheusEndpoint, "http://") && !strings.HasPrefix(*c.PrometheusEndpoint, "https://") {
+			return errors.New("prometheus-endpoint must start with http:// or https://")
 		}
 	}
 
@@ -448,6 +459,7 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
 	f.Bool("enable-helm", false, "Enable Helm operations")
+	f.String("prometheus-endpoint", "", "Prometheus endpoint for the cluster")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {
