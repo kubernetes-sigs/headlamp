@@ -31,6 +31,7 @@ import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import { visuallyHidden } from '@mui/utils';
 import _ from 'lodash';
 import React, { isValidElement, PropsWithChildren } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -340,6 +341,9 @@ export function ClusterDialog(props: ClusterDialogProps) {
             width: 'auto',
           }}
         />
+        <Box component="span" sx={visuallyHidden}>
+          Headlamp
+        </Box>
       </DialogTitle>
       <DialogContent
         dividers
