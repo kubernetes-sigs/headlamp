@@ -43,6 +43,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1853,6 +1854,13 @@ func TestCacheMiddleware_CacheInvalidation_RealK8s(t *testing.T) {
 
 //nolint:funlen
 func TestHandleClusterServiceProxy(t *testing.T) {
+	// Use test client without SSRF protection for this test
+	// (the test uses local httptest servers which resolve to 127.0.0.1)
+	serviceproxy.SetHTTPClientFactory(func(timeout time.Duration) *http.Client {
+		return &http.Client{Timeout: timeout}
+	})
+	t.Cleanup(serviceproxy.ResetHTTPClientFactory)
+
 	cfg := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: kubeconfig.NewContextStore()},
