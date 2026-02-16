@@ -86,6 +86,8 @@ config:
     useAccessToken: false
     # -- Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow
     usePKCE: false
+    # -- Enable automatic redirect to the OIDC provider
+    autoLogin: false
 
     # Option 3:
     # @param config.oidc - External OIDC secret configuration
