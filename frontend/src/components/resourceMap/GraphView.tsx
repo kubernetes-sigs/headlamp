@@ -64,10 +64,9 @@ import {
 } from './graph/graphSimplification';
 import { GraphControlButton } from './GraphControls';
 import { GraphRenderer } from './GraphRenderer';
+import { GraphViewDefinitions } from './GraphViewDefinitions';
 import { PerformanceStats } from './PerformanceStats';
 import { SelectionBreadcrumbs } from './SelectionBreadcrumbs';
-import { useGetAllRelations } from './sources/definitions/relations';
-import { useGetAllSources } from './sources/definitions/sources';
 import { GraphSourceManager, useSources } from './sources/GraphSources';
 import { GraphSourcesView } from './sources/GraphSourcesView';
 import { useGraphViewport } from './useGraphViewport';
@@ -697,13 +696,15 @@ function CustomThemeProvider({ children }: { children: ReactNode }) {
  * @param params - Map parameters
  * @returns
  */
-export function GraphView(props: GraphViewContentProps) {
-  const allSources = useGetAllSources();
-  const allRelations = useGetAllRelations();
-
-  const propsSources = props.defaultSources ?? allSources;
-  const propsRelations = props.defaultRelations ?? allRelations;
-
+function GraphViewWithDefinitions({
+  props,
+  sources: propsSources,
+  relations,
+}: {
+  props: GraphViewContentProps;
+  sources: GraphSource[];
+  relations: Relation[];
+}) {
   // Load plugin defined sources
   const pluginGraphSources = useTypedSelector(state => state.graphView.graphSources);
 
@@ -715,10 +716,23 @@ export function GraphView(props: GraphViewContentProps) {
   return (
     <StrictMode>
       <ReactFlowProvider>
-        <GraphSourceManager sources={sources} relations={propsRelations}>
+        <GraphSourceManager sources={sources} relations={relations}>
           <GraphViewContent {...props} sources={sources} />
         </GraphSourceManager>
       </ReactFlowProvider>
     </StrictMode>
+  );
+}
+
+export function GraphView(props: GraphViewContentProps) {
+  return (
+    <GraphViewDefinitions
+      defaultSources={props.defaultSources}
+      defaultRelations={props.defaultRelations}
+    >
+      {({ sources, relations }) => (
+        <GraphViewWithDefinitions props={props} sources={sources} relations={relations} />
+      )}
+    </GraphViewDefinitions>
   );
 }
