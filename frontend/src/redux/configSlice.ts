@@ -43,6 +43,10 @@ export interface ConfigState {
     [clusterName: string]: Cluster;
   } | null;
   /**
+   * Whether to filter events by warnings only by default.
+   */
+  filtersWarningsOnly: boolean;
+  /**
    * Settings is a map of settings names to settings values.
    */
   settings: {
@@ -71,6 +75,7 @@ export const initialState: ConfigState = {
   clusters: null,
   statelessClusters: null,
   allClusters: null,
+  filtersWarningsOnly: true,
   settings: {
     tableRowsPerPageOptions:
       storedSettings.tableRowsPerPageOptions || defaultTableRowsPerPageOptions,
@@ -89,8 +94,14 @@ const configSlice = createSlice({
      * @param state - The current state.
      * @param action - The payload action containing the config.
      */
-    setConfig(state, action: PayloadAction<{ clusters: ConfigState['clusters'] }>) {
+    setConfig(
+      state,
+      action: PayloadAction<{ clusters: ConfigState['clusters']; filtersWarningsOnly?: boolean }>
+    ) {
       state.clusters = action.payload.clusters;
+      if (action.payload.filtersWarningsOnly !== undefined) {
+        state.filtersWarningsOnly = action.payload.filtersWarningsOnly;
+      }
     },
     /**
      * Save the config. To both the store, and localStorage.
