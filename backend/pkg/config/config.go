@@ -46,6 +46,7 @@ type Config struct {
 	CacheEnabled              bool   `koanf:"cache-enabled"`
 	EnableHelm                bool   `koanf:"enable-helm"`
 	EnableDynamicClusters     bool   `koanf:"enable-dynamic-clusters"`
+	AllowKubeconfigChanges    bool   `koanf:"allow-kubeconfig-changes"`
 	ListenAddr                string `koanf:"listen-addr"`
 	WatchPluginsChanges       bool   `koanf:"watch-plugins-changes"`
 	Port                      uint   `koanf:"port"`
@@ -433,6 +434,9 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
 	f.String("log-level", "info", "Set backend log verbosity. Options: debug, info (default), warn, error")
 	f.Bool("enable-dynamic-clusters", false, "Enable dynamic clusters, which stores stateless clusters in the frontend.")
+	f.Bool("allow-kubeconfig-changes", false,
+		"Allow Headlamp to make changes to the known kubeconfigs when needed. "+
+			"E.g. to remove a cluster via the UI. May not be recommendable when Headlamp is deployed as a service.")
 	// Note: When running in-cluster and if not explicitly set, this flag defaults to false.
 	f.Bool("watch-plugins-changes", true, "Reloads plugins when there are changes to them or their directory")
 

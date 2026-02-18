@@ -53,6 +53,7 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
   const dialogs = useTypedSelector(state => state.clusterProvider.dialogs);
   const menuItems = useTypedSelector(state => state.clusterProvider.menuItems);
   const isDynamicClusterEnabled = useTypedSelector(state => state.config.isDynamicClusterEnabled);
+  const allowKubeconfigChanges = useTypedSelector(state => state.config.allowKubeconfigChanges);
 
   const kubeconfigOrigin = cluster.meta_data?.origin?.kubeconfig;
   const deleteFromKubeconfig = cluster.meta_data?.source === 'kubeconfig';
@@ -155,9 +156,10 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
           <ListItemText>{t('translation|Settings')}</ListItemText>
         </MenuItem>
         {(!menuItems || menuItems.length === 0) &&
-          (helpers.isElectron() || isDynamicClusterEnabled) &&
-          (cluster.meta_data?.source === 'dynamic_cluster' ||
-            cluster.meta_data?.source === 'kubeconfig') && (
+          ((cluster.meta_data?.source === 'dynamic_cluster' &&
+            (helpers.isElectron() || isDynamicClusterEnabled)) ||
+            (cluster.meta_data?.source === 'kubeconfig' &&
+              (helpers.isElectron() || allowKubeconfigChanges))) && (
             <MenuItem
               onClick={() => {
                 setOpenConfirmDialog('deleteDynamic');

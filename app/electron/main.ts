@@ -755,6 +755,11 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   process.env.HEADLAMP_CONFIG_ENABLE_HELM = 'true';
   process.env.HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS = 'true';
 
+  // Always allow kubeconfig changes (remove, rename clusters) when running
+  // as the app — both in regular Electron mode and headless browser mode share
+  // the same single-user security context.
+  process.env.HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES = 'true';
+
   // Pass a token to the backend that can be used for auth on some routes
   process.env.HEADLAMP_BACKEND_TOKEN = backendToken;
 
