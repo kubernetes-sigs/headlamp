@@ -141,4 +141,24 @@ describe('runA11yScan', () => {
     );
     expect(toEqual).toHaveBeenCalledWith([]);
   });
+
+  test('reports isolated landmark violations regardless of severity', async () => {
+    const regionViolation = makeViolation('region', 'moderate');
+    analyze
+      .mockResolvedValueOnce({ violations: [] })
+      .mockResolvedValueOnce({ violations: [regionViolation] });
+    const toEqual = vi.fn();
+    const expectFn = vi.fn(() => ({ toEqual }));
+
+    await runA11yScan({} as Page, expectFn as unknown as typeof import('@playwright/test').expect, [
+      '[role="tooltip"]',
+    ]);
+
+    expect(expectFn).toHaveBeenCalledWith(
+      [regionViolation],
+      'Found 1 accessibility violation:\n\n' +
+        '[region] (moderate): region help\n  - Targets: #region'
+    );
+    expect(toEqual).toHaveBeenCalledWith([]);
+  });
 });
