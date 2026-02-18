@@ -1,0 +1,33 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-0"
+    >
+      <div
+        class="MuiBox-root css-yi3mkw"
+      >
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          NODE_ENV
+          : 
+          production
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          DEBUG
+          : 
+          true
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          PLAINTEXT
+          : 
+          127.0.0.1
+        </span>
+      </div>
+    </div>
+  </div>
+</body>
