@@ -31,6 +31,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -228,6 +229,45 @@ func TestDialWebSocket_Errors(t *testing.T) {
 	ws, err = m.dialWebSocket("ws://localhost:12345", tlsConfig, "", nil)
 	assert.Error(t, err)
 	assert.Nil(t, ws)
+}
+
+// TestDialWebSocket_BadHandshakeLogging verifies that when a WebSocket dial fails
+// due to a bad handshake (e.g., connecting to an HTTP server instead of a WebSocket),
+// the error logging doesn't cause JSON marshaling errors from function fields in the response.
+func TestDialWebSocket_BadHandshakeLogging(t *testing.T) {
+	// Create an HTTP server that returns a non-WebSocket response
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Return a normal HTTP response instead of upgrading to WebSocket
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("Not a WebSocket server"))
+	}))
+	defer server.Close()
+
+	// Capture log calls to verify no marshaling errors occur
+	var marshalingError bool
+
+	originalLogFunc := logger.SetLogFunc(func(level uint, str map[string]string, err interface{}, msg string) {
+		// Verify that if err is not nil, it's not an *http.Response
+		if _, isHTTPResp := err.(*http.Response); isHTTPResp {
+			marshalingError = true
+		}
+	})
+	defer logger.SetLogFunc(originalLogFunc)
+
+	contextStore := kubeconfig.NewContextStore()
+	m := NewMultiplexer(contextStore)
+
+	// Convert HTTP URL to WebSocket URL
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+
+	// This should fail with a "bad handshake" error and log the response
+	ws, err := m.dialWebSocket(wsURL, tlsConfig, "", nil)
+
+	assert.Error(t, err)
+	assert.Nil(t, ws)
+	assert.Contains(t, err.Error(), "bad handshake")
+	assert.False(t, marshalingError, "Logger should not receive non-serializable *http.Response")
 }
 
 func TestMonitorConnection(t *testing.T) {
