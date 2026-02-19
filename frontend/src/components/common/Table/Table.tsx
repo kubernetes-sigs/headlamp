@@ -48,7 +48,7 @@ import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
 import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
 import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
+import { setTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { useShortcut } from '../../../lib/useShortcut';
 import { useURLState } from '../../../lib/util';
 import { useSettings } from '../../App/Settings/hook';
@@ -203,9 +203,8 @@ export default function Table<RowItem extends Record<string, any>>({
 
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = rowsPerPage || storeRowsPerPageOptions;
-  const defaultRowsPerPage = useMemo(() => getTablesRowsPerPage(rowsPerPageOptions[0]), []);
   const [pageSize, setPageSize] = useURLState(shouldReflectInURL ? 'perPage' : '', {
-    defaultValue: defaultRowsPerPage,
+    defaultValue: storeRowsPerPageOptions[0],
     prefix,
   });
 
@@ -272,6 +271,7 @@ export default function Table<RowItem extends Record<string, any>>({
       const pagination = updater({ pageIndex: Number(page) - 1, pageSize: Number(pageSize) });
       setPage(pagination.pageIndex + 1);
       setPageSize(pagination.pageSize);
+      setTablesRowsPerPage(pagination.pageSize);
     },
     onGlobalFilterChange: setGlobalFilter,
     renderToolbarInternalActions: props => {
