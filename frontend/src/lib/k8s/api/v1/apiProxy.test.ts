@@ -847,6 +847,47 @@ describe('apiProxy', () => {
     );
   });
 
+  describe('getClusterUserInfo', () => {
+    const apiPath = '/apis/authentication.k8s.io/v1/selfsubjectreviews';
+    const mockUserInfo = {
+      username: 'test-user',
+      uid: 'test-uid',
+      groups: ['test-group'],
+    };
+    const mockSuccessResponse = {
+      status: {
+        userInfo: mockUserInfo,
+      },
+    };
+
+    afterEach(() => {
+      nock.cleanAll();
+    });
+
+    it('Successfully returns user info when API is available', async () => {
+      nock(baseApiUrl).post(`/clusters/${clusterName}${apiPath}`).reply(200, mockSuccessResponse);
+
+      const userInfo = await apiProxy.getClusterUserInfo(clusterName);
+      expect(userInfo).toEqual(mockUserInfo);
+    });
+
+    it('Falls back to cluster name when API returns error', async () => {
+      nock(baseApiUrl)
+        .post(`/clusters/${clusterName}${apiPath}`)
+        .reply(404, { message: 'Not Found' });
+
+      const userInfo = await apiProxy.getClusterUserInfo(clusterName);
+      expect(userInfo).toEqual({ username: clusterName });
+    });
+
+    it('Falls back to cluster name when API returns no user info', async () => {
+      nock(baseApiUrl).post(`/clusters/${clusterName}${apiPath}`).reply(200, {});
+
+      const userInfo = await apiProxy.getClusterUserInfo(clusterName);
+      expect(userInfo).toEqual({ username: clusterName });
+    });
+  });
+
   describe('testClusterHealth', () => {
     const apiPath = '/healthz';
 
