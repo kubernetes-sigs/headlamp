@@ -137,6 +137,10 @@
         "to": "frontend"
       },
       {
+        "from": "../frontend/src/i18n/locales",
+        "to": "frontend/i18n/locales"
+      },
+      {
         "from": "../.plugins",
         "to": ".plugins"
       },
