@@ -50,6 +50,7 @@ import LightTooltip from '../common/Tooltip/TooltipLight';
 import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
+import { PodCopyDialog } from './PodCopyDialog';
 import { PodDebugAction } from './PodDebugAction';
 
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
@@ -493,7 +494,7 @@ export interface PodDetailsProps {
 export default function PodDetails(props: PodDetailsProps) {
   const params = useParams<{ namespace: string; name: string }>();
   const { name = params.name, namespace = params.namespace, cluster } = props;
-  const { t } = useTranslation('glossary');
+  const { t } = useTranslation(['glossary', 'translation']);
   const dispatchHeadlampEvent = useEventCallback();
 
   const lastAutoLaunchedPod = React.useRef<string | null>(null);
@@ -501,6 +502,7 @@ export default function PodDetails(props: PodDetailsProps) {
   const queryParams = new URLSearchParams(location.search);
   const autoLaunchView = queryParams.get('view');
   const [podItem, setPodItem] = React.useState<Pod | null>(null);
+  const [copyDialogOpen, setCopyDialogOpen] = React.useState(false);
 
   const launchLogs = React.useCallback(
     (item: Pod) => {
@@ -630,114 +632,135 @@ export default function PodDetails(props: PodDetailsProps) {
   }
 
   return (
-    <DetailsGrid
-      resourceType={Pod}
-      name={name}
-      namespace={namespace}
-      cluster={cluster}
-      withEvents
-      onResourceUpdate={item => {
-        setPodItem(item);
-      }}
-      actions={item =>
-        item && [
-          {
-            id: DefaultHeaderAction.POD_LOGS,
-            action: (
-              <AuthVisible item={item} authVerb="get" subresource="log">
-                <ActionButton
-                  description={t('Show Logs')}
-                  icon="mdi:file-document-box-outline"
-                  onClick={() => launchLogs(item)}
-                />
-              </AuthVisible>
-            ),
-          },
-          {
-            id: DefaultHeaderAction.POD_TERMINAL,
-            action: (
-              <AuthVisible item={item} authVerb="create" subresource="exec">
-                <ActionButton
-                  description={t('Terminal / Exec')}
-                  icon="mdi:console"
-                  onClick={() => {
-                    Activity.launch({
-                      id: 'terminal-' + item.metadata.uid,
-                      title: item.metadata.name,
-                      cluster: item.cluster,
-                      icon: <Icon icon="mdi:console" width="100%" height="100%" />,
-                      location: 'full',
-                      content: (
-                        <Terminal noDialog open item={item} onClose={() => {}} isAttach={false} />
-                      ),
-                    });
-                    dispatchHeadlampEvent({
-                      type: HeadlampEventType.TERMINAL,
-                      data: {
-                        resource: item,
-                        status: EventStatus.CLOSED,
-                      },
-                    });
-                  }}
-                />
-              </AuthVisible>
-            ),
-          },
-          {
-            id: DefaultHeaderAction.POD_DEBUG,
-            action: <PodDebugAction item={item} />,
-          },
-          {
-            id: DefaultHeaderAction.POD_ATTACH,
-            action: (
-              <AuthVisible item={item} authVerb="get" subresource="attach">
-                <ActionButton
-                  description={t('Attach')}
-                  icon="mdi:connection"
-                  onClick={() => {
-                    dispatchHeadlampEvent({
-                      type: HeadlampEventType.POD_ATTACH,
-                      data: {
-                        resource: item,
-                        status: EventStatus.OPENED,
-                      },
-                    });
-                    Activity.launch({
-                      id: 'attach-' + item.metadata.uid,
-                      title: item.metadata.name,
-                      cluster: item.cluster,
-                      icon: <Icon icon="mdi:console" width="100%" height="100%" />,
-                      location: 'full',
-                      content: <Terminal noDialog open item={item} onClose={() => {}} isAttach />,
-                    });
-                  }}
-                />
-              </AuthVisible>
-            ),
-          },
-        ]
-      }
-      extraInfo={item => prepareExtraInfo(item)}
-      extraSections={item =>
-        item && [
-          {
-            id: 'headlamp.pod-tolerations',
-            section: <TolerationsSection tolerations={item?.spec?.tolerations || []} />,
-          },
-          {
-            id: 'headlamp.pod-conditions',
-            section: <ConditionsSection resource={item?.jsonData} />,
-          },
-          {
-            id: 'headlamp.pod-containers',
-            section: <ContainersSection resource={item} />,
-          },
-          {
-            id: 'headlamp.pod-volumes',
-            section: <VolumeSection resource={item?.jsonData} />,
-          },
-        ]
-      }
-    />
+    <>
+      <DetailsGrid
+        resourceType={Pod}
+        name={name}
+        namespace={namespace}
+        cluster={cluster}
+        withEvents
+        onResourceUpdate={item => {
+          setPodItem(item);
+        }}
+        actions={item =>
+          item && [
+            {
+              id: DefaultHeaderAction.POD_LOGS,
+              action: (
+                <AuthVisible item={item} authVerb="get" subresource="log">
+                  <ActionButton
+                    description={t('Show Logs')}
+                    icon="mdi:file-document-box-outline"
+                    onClick={() => launchLogs(item)}
+                  />
+                </AuthVisible>
+              ),
+            },
+            {
+              id: DefaultHeaderAction.POD_TERMINAL,
+              action: (
+                <AuthVisible item={item} authVerb="create" subresource="exec">
+                  <ActionButton
+                    description={t('Terminal / Exec')}
+                    icon="mdi:console"
+                    onClick={() => {
+                      Activity.launch({
+                        id: 'terminal-' + item.metadata.uid,
+                        title: item.metadata.name,
+                        cluster: item.cluster,
+                        icon: <Icon icon="mdi:console" width="100%" height="100%" />,
+                        location: 'full',
+                        content: (
+                          <Terminal noDialog open item={item} onClose={() => {}} isAttach={false} />
+                        ),
+                      });
+                      dispatchHeadlampEvent({
+                        type: HeadlampEventType.TERMINAL,
+                        data: {
+                          resource: item,
+                          status: EventStatus.CLOSED,
+                        },
+                      });
+                    }}
+                  />
+                </AuthVisible>
+              ),
+            },
+            {
+              id: DefaultHeaderAction.POD_DEBUG,
+              action: <PodDebugAction item={item} />,
+            },
+            {
+              id: 'pod-copy-files',
+              action: (
+                <AuthVisible item={item} authVerb="create" subresource="exec">
+                  <ActionButton
+                    description={t('translation|Copy files')}
+                    icon="mdi:folder-upload-outline"
+                    onClick={() => setCopyDialogOpen(true)}
+                  />
+                </AuthVisible>
+              ),
+            },
+            {
+              id: DefaultHeaderAction.POD_ATTACH,
+              action: (
+                <AuthVisible item={item} authVerb="get" subresource="attach">
+                  <ActionButton
+                    description={t('Attach')}
+                    icon="mdi:connection"
+                    onClick={() => {
+                      dispatchHeadlampEvent({
+                        type: HeadlampEventType.POD_ATTACH,
+                        data: {
+                          resource: item,
+                          status: EventStatus.OPENED,
+                        },
+                      });
+                      Activity.launch({
+                        id: 'attach-' + item.metadata.uid,
+                        title: item.metadata.name,
+                        cluster: item.cluster,
+                        icon: <Icon icon="mdi:console" width="100%" height="100%" />,
+                        location: 'full',
+                        content: <Terminal noDialog open item={item} onClose={() => {}} isAttach />,
+                      });
+                    }}
+                  />
+                </AuthVisible>
+              ),
+            },
+          ]
+        }
+        extraInfo={item => prepareExtraInfo(item)}
+        extraSections={item =>
+          item && [
+            {
+              id: 'headlamp.pod-tolerations',
+              section: <TolerationsSection tolerations={item?.spec?.tolerations || []} />,
+            },
+            {
+              id: 'headlamp.pod-conditions',
+              section: <ConditionsSection resource={item?.jsonData} />,
+            },
+            {
+              id: 'headlamp.pod-containers',
+              section: <ContainersSection resource={item} />,
+            },
+            {
+              id: 'headlamp.pod-volumes',
+              section: <VolumeSection resource={item?.jsonData} />,
+            },
+          ]
+        }
+      />
+      {podItem && (
+        <PodCopyDialog
+          open={copyDialogOpen}
+          onClose={() => setCopyDialogOpen(false)}
+          pod={podItem}
+        />
+      )}
+    </>
   );
 }

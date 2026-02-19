@@ -537,6 +537,15 @@ const mdiIcons = {
     'message-notification': {
       parent: 'message-badge',
     },
+    'file-upload': {
+      parent: 'upload',
+    },
+    'folder-upload': {
+      parent: 'folder-plus',
+    },
+    'folder-upload-outline': {
+      parent: 'folder-plus',
+    },
   },
   lastModified: 1661493445,
   width: 24,
