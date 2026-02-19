@@ -71,9 +71,19 @@ app-build: frontend/build
 app: app-build
 	cd app && npm run package -- --win --linux --mac
 app-win: app-build
-	cd app && npm run package -- --win
+	cd app && npm run package -- --win --x64 --arm64
+app-win-x64: app-build
+	cd app && npm run package -- --win --x64
+app-win-arm64: app-build
+	cd app && npm run package -- --win --arm64
 app-win-msi: app-build
-	cd app && npm run package-msi
+	make app-win-msi-x64 app-win-msi-arm64
+app-win-msi-x64: app-build
+	cd app && npm run package -- --win --x64
+	cd app && MSI_ARCH="x64" node windows/msi/build.js
+app-win-msi-arm64: app-build
+	cd app && npm run package -- --win --arm64
+	cd app && MSI_ARCH="arm64" node windows/msi/build.js
 app-linux: app-build
 	cd app && npm run package -- --linux
 app-mac: app-build
