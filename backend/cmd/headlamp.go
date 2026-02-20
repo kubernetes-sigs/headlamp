@@ -18,7 +18,6 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"crypto/tls"
@@ -26,7 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"net/http"
 	"net/url"
@@ -40,13 +38,13 @@ import (
 	"time"
 
 	oidc "github.com/coreos/go-oidc/v3/oidc"
-	"github.com/gobwas/glob"
 	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/externalproxy"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 
 	headlampcfg "github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
@@ -104,8 +102,9 @@ type OauthConfig struct {
 	Config       *oauth2.Config
 	Verifier     *oidc.IDTokenVerifier
 	Ctx          context.Context
-	CodeVerifier string // PKCE code verifier
-	Cluster      string // cluster context name this is associated with
+	CodeVerifier string    // PKCE code verifier
+	Cluster      string    // cluster context name this is associated with
+	CreatedAt    time.Time // Time when the entry was created (for TTL cleanup)
 }
 
 // returns True if a file exists.
@@ -526,115 +525,9 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 	config.handleClusterRequests(r)
 
-	r.HandleFunc("/externalproxy", func(w http.ResponseWriter, r *http.Request) {
-		proxyURL := r.Header.Get("proxy-to")
-		if proxyURL == "" && r.Header.Get("Forward-to") != "" {
-			proxyURL = r.Header.Get("Forward-to")
-		}
-
-		if proxyURL == "" {
-			logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL},
-				errors.New("proxy URL is empty"), "proxy URL is empty")
-			http.Error(w, "proxy URL is empty", http.StatusBadRequest)
-
-			return
-		}
-
-		url, err := url.Parse(proxyURL)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL},
-				err, "The provided proxy URL is invalid")
-			http.Error(w, fmt.Sprintf("The provided proxy URL is invalid: %v", err), http.StatusBadRequest)
-
-			return
-		}
-
-		isURLContainedInProxyURLs := false
-
-		for _, proxyURL := range config.ProxyURLs {
-			g := glob.MustCompile(proxyURL)
-			if g.Match(url.String()) {
-				isURLContainedInProxyURLs = true
-				break
-			}
-		}
-
-		if !isURLContainedInProxyURLs {
-			logger.Log(logger.LevelError, nil, err, "no allowed proxy url match, request denied")
-			http.Error(w, "no allowed proxy url match, request denied ", http.StatusBadRequest)
-
-			return
-		}
-
-		ctx := context.Background()
-
-		proxyReq, err := http.NewRequestWithContext(ctx, r.Method, proxyURL, r.Body)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "creating request")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		// We may want to filter some headers, otherwise we could just use a shallow copy
-		proxyReq.Header = make(http.Header)
-		for h, val := range r.Header {
-			proxyReq.Header[h] = val
-		}
-
-		// Disable caching
-		w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
-		w.Header().Set("Expires", time.Unix(0, 0).Format(http.TimeFormat))
-		w.Header().Set("Pragma", "no-cache")
-		w.Header().Set("X-Accel-Expires", "0")
-
-		client := http.Client{}
-
-		resp, err := client.Do(proxyReq)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "making request")
-			http.Error(w, err.Error(), http.StatusBadGateway)
-
-			return
-		}
-
-		defer resp.Body.Close()
-
-		// Check that the server actually sent compressed data
-		var reader io.ReadCloser
-
-		switch resp.Header.Get("Content-Encoding") {
-		case "gzip":
-			reader, err = gzip.NewReader(resp.Body)
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "reading gzip response")
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-
-				return
-			}
-			defer reader.Close()
-		default:
-			reader = resp.Body
-		}
-
-		respBody, err := io.ReadAll(reader)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "reading response")
-			http.Error(w, err.Error(), http.StatusBadGateway)
-
-			return
-		}
-
-		_, err = w.Write(respBody)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "writing response")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		defer resp.Body.Close()
-	})
+	// External proxy handler
+	externalProxyHandler := externalproxy.NewHandler(config.ProxyURLs)
+	r.HandleFunc("/externalproxy", externalProxyHandler.ServeHTTP)
 
 	// Configuration
 	r.HandleFunc("/config", config.getConfig).Methods("GET")
@@ -649,10 +542,46 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 	config.addClusterSetupRoute(r)
 
-	var (
-		oauthRequestMap = make(map[string]*OauthConfig)
-		oauthMu         sync.Mutex
-	)
+	// Initialize OAuth request map if not already initialized
+	if config.oauthRequestMap == nil {
+		config.oauthRequestMap = make(map[string]*OauthConfig)
+	}
+
+	// Initialize OAuth cleanup done channel if not already initialized
+	if config.oauthCleanupDone == nil {
+		config.oauthCleanupDone = make(chan struct{})
+	}
+
+	// Start background goroutine to clean up expired OAuth entries (prevents unbounded memory growth)
+	go func() {
+		const oauthTTL = 15 * time.Minute
+
+		ticker := time.NewTicker(5 * time.Minute)
+
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-config.oauthCleanupDone:
+				logger.Log(logger.LevelInfo, nil, nil, "OAuth cleanup goroutine stopped")
+				return
+			case <-ticker.C:
+				config.oauthMu.Lock()
+
+				now := time.Now()
+
+				for state, entry := range config.oauthRequestMap {
+					if now.Sub(entry.CreatedAt) > oauthTTL {
+						delete(config.oauthRequestMap, state)
+						logger.Log(logger.LevelInfo, map[string]string{"state": state},
+							nil, "Cleaned up expired OAuth entry")
+					}
+				}
+
+				config.oauthMu.Unlock()
+			}
+		}
+	}()
 
 	r.HandleFunc("/oidc", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
@@ -728,10 +657,11 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		}()
 
 		entry := &OauthConfig{
-			Config:   oauthConfig,
-			Verifier: verifier,
-			Ctx:      ctx,
-			Cluster:  cluster,
+			Config:    oauthConfig,
+			Verifier:  verifier,
+			Ctx:       ctx,
+			Cluster:   cluster,
+			CreatedAt: time.Now(),
 		}
 
 		var authURL string
@@ -744,9 +674,9 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		}
 
 		// Store the request config keyed by state for callback handling
-		oauthMu.Lock()
-		oauthRequestMap[state] = entry
-		oauthMu.Unlock()
+		config.oauthMu.Lock()
+		config.oauthRequestMap[state] = entry
+		config.oauthMu.Unlock()
 
 		http.Redirect(w, r, authURL, http.StatusFound)
 	}).Queries("cluster", "{cluster}")
@@ -765,15 +695,15 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			return
 		}
 
-		oauthMu.Lock()
+		config.oauthMu.Lock()
 
-		oauthConfig, ok := oauthRequestMap[state]
+		oauthConfig, ok := config.oauthRequestMap[state]
 		if ok {
 			// We have a copy of the oauthConfig, we can delete the map entry now
-			delete(oauthRequestMap, state)
+			delete(config.oauthRequestMap, state)
 		}
 
-		oauthMu.Unlock()
+		config.oauthMu.Unlock()
 
 		if !ok {
 			http.Error(w, "invalid request", http.StatusBadRequest)
