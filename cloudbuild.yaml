@@ -12,7 +12,7 @@ steps:
       - DOCKER_CMD= # Because we are using a custom entrypoint, we need to set DOCKER_CMD to empty
       - DOCKER_BUILDX_CMD=/buildx-entrypoint
       - DOCKER_PUSH=true
-      - DOCKER_REPO=gcr.io/k8s-staging-images
+      - DOCKER_REPO=us-central1-docker.pkg.dev/k8s-staging-images/headlamp
       - DOCKER_IMAGE_NAME=headlamp
       - DOCKER_IMAGE_VERSION=$_PULL_BASE_REF
 substitutions:
