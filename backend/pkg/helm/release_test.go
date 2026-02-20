@@ -383,7 +383,7 @@ func TestSafeRequestWrapper(t *testing.T) {
 			var clientConfig clientcmd.ClientConfig = nil
 
 			// Call HandleRequest
-			wrapper.HandleRequest(w, "test_request", clientConfig, tt.requestFunc)
+			wrapper.HandleRequest(w, "test_request", clientConfig, "default", tt.requestFunc)
 
 			// Check response
 			resp := w.Result()

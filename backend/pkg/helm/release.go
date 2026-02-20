@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/schema"
@@ -76,23 +77,9 @@ func (w *SafeRequestWrapper) HandleRequest(
 	writer http.ResponseWriter,
 	requestName string,
 	clientConfig clientcmd.ClientConfig,
+	namespace string,
 	requestFunc func(*action.Configuration) (interface{}, error),
 ) {
-	// Extract namespace from client config or use default
-	namespace := "default"
-	if clientConfig != nil {
-		rawConfig, err := clientConfig.RawConfig()
-		if err == nil && len(rawConfig.Contexts) > 0 {
-			contextName := rawConfig.CurrentContext
-			if context, exists := rawConfig.Contexts[contextName]; exists {
-				namespace = context.Namespace
-				if namespace == "" {
-					namespace = "default"
-				}
-			}
-		}
-	}
-
 	// Create action configuration
 	actionConfig, err := NewActionConfig(clientConfig, namespace)
 	if err != nil {
@@ -103,7 +90,12 @@ func (w *SafeRequestWrapper) HandleRequest(
 	// Execute the request function
 	result, err := requestFunc(actionConfig)
 	if err != nil {
-		w.handleError(writer, requestName, fmt.Sprintf("executing request: %v", err), http.StatusInternalServerError)
+		// Check for specific error types to preserve API semantics
+		if strings.Contains(err.Error(), "not found") {
+			w.handleError(writer, requestName, err.Error(), http.StatusNotFound)
+		} else {
+			w.handleError(writer, requestName, fmt.Sprintf("executing request: %v", err), http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -236,7 +228,11 @@ func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.Respon
 	}
 
 	// Use safe request wrapper to handle the request
-	wrapper.HandleRequest(w, "list_releases", clientConfig, func(actionConfig *action.Configuration) (interface{}, error) {
+	namespace := "default"
+	if req.Namespace != nil {
+		namespace = *req.Namespace
+	}
+	wrapper.HandleRequest(w, "list_releases", clientConfig, namespace, func(actionConfig *action.Configuration) (interface{}, error) {
 		releases, err := getReleases(req, actionConfig)
 		if err != nil {
 			return nil, err
@@ -284,7 +280,7 @@ func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.Respons
 	}
 
 	// Use safe request wrapper to handle the request
-	wrapper.HandleRequest(w, "get_release", clientConfig, func(actionConfig *action.Configuration) (interface{}, error) {
+	wrapper.HandleRequest(w, "get_release", clientConfig, req.Namespace, func(actionConfig *action.Configuration) (interface{}, error) {
 		// Check if release exists
 		_, err := actionConfig.Releases.Deployed(req.Name)
 		if err == driver.ErrReleaseNotFound {
@@ -328,7 +324,7 @@ func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.
 	}
 
 	// Use safe request wrapper to handle the request
-	wrapper.HandleRequest(w, "get_release_history", clientConfig, func(actionConfig *action.Configuration) (interface{}, error) {
+	wrapper.HandleRequest(w, "get_release_history", clientConfig, req.Namespace, func(actionConfig *action.Configuration) (interface{}, error) {
 		// Check if release exists
 		_, err := actionConfig.Releases.Deployed(req.Name)
 		if err == driver.ErrReleaseNotFound {
