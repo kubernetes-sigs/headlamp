@@ -695,8 +695,8 @@ Your pages are currently static. In the next tutorial, you'll learn how to make 
 
 **Coming up:**
 
-- **Tutorial 4: Working with Kubernetes Data** — Fetch pods, deployments, and other resources
-- **Tutorial 5: Building List & Detail Pages** — Create professional resource views
+- **Tutorial 4: Working with Kubernetes Data** — Fetch cluster info, namespaces using built-in resource classes and ApiProxy
+- **Tutorial 5: Advanced Kubernetes Interactions** — Create custom resource classes, modify resources via API
 
 ---
 
