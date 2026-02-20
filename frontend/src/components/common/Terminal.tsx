@@ -360,7 +360,7 @@ export default function Terminal(props: TerminalProps) {
     const selector = item.spec?.nodeSelector || {};
     const os = selector['kubernetes.io/os'] || selector['beta.kubernetes.io/os'];
     if (os === 'linux') {
-      return ['bash', '/bin/bash', 'sh', '/bin/sh'];
+      return ['bash', '/bin/bash', 'sh', '/bin/sh', '/bin/ash'];
     } else if (os === 'windows') {
       return ['powershell.exe', 'cmd.exe'];
     }
