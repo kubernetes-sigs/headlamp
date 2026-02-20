@@ -25,7 +25,7 @@ import { NODE_DUMMY_DATA } from '../src/components/node/storyHelper';
  *
  */
 export const baseMocks = [
-  http.get('http://localhost:4466/wsMultiplexer', () => HttpResponse.error()),
+  http.get('http://localhost:4466/wsMultiplexer', () => HttpResponse.json({})),
   http.get('https://api.iconify.design/mdi.json', () => HttpResponse.json({})),
   http.post('http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectaccessreviews', () =>
     HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
