@@ -236,6 +236,8 @@
   "Provisioner": "Provisioner",
   "Volume Binding Mode": "Volume Binding Mode",
   "Allow Volume Expansion": "Allow Volume Expansion",
+  "Allowed Topologies": "Allowed Topologies",
+  "Mount Options": "Mount Options",
   "Claim": "Claim",
   "Update Policy": "Update Policy",
   "Update Mode": "Update Mode",
