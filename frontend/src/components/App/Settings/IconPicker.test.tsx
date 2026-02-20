@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { fireEvent,render, screen } from '@testing-library/react';
-import { beforeEach,describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import IconPicker, { PRESET_ICONS } from './IconPicker';
 
 // Mock i18n
@@ -36,13 +36,7 @@ describe('IconPicker Component', () => {
 
   const renderComponent = (props = {}) =>
     render(
-      <IconPicker
-        open
-        currentIcon=""
-        onClose={onClose}
-        onSelectIcon={onSelectIcon}
-        {...props}
-      />
+      <IconPicker open currentIcon="" onClose={onClose} onSelectIcon={onSelectIcon} {...props} />
     );
 
   it('renders dialog title', () => {
@@ -52,24 +46,32 @@ describe('IconPicker Component', () => {
 
   it('renders all preset icons', () => {
     renderComponent();
-    const buttons = screen.getAllByRole('button');
-    expect(buttons.length).toBeGreaterThanOrEqual(PRESET_ICONS.length);
+
+    PRESET_ICONS.forEach(icon => {
+      expect(screen.getByRole('button', { name: icon.name })).toBeInTheDocument();
+    });
   });
 
   it('highlights selected preset icon', () => {
     renderComponent({ currentIcon: PRESET_ICONS[0].value });
 
-    const selectedButton = screen.getAllByRole('button')[0];
+    const selectedButton = screen.getByRole('button', {
+      name: PRESET_ICONS[0].name,
+    });
+
     expect(selectedButton).toHaveClass('Mui-selected');
   });
 
   it('calls onSelectIcon and onClose when preset icon clicked', () => {
     renderComponent();
 
-    const firstButton = screen.getAllByRole('button')[0];
-    fireEvent.click(firstButton);
+    const button = screen.getByRole('button', {
+      name: PRESET_ICONS[0].name,
+    });
 
-    expect(onSelectIcon).toHaveBeenCalled();
+    fireEvent.click(button);
+
+    expect(onSelectIcon).toHaveBeenCalledWith(PRESET_ICONS[0].value);
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -85,37 +87,37 @@ describe('IconPicker Component', () => {
   it('Apply button is disabled when custom input is empty', () => {
     renderComponent();
 
-    const checkbox = screen.getByRole('checkbox');
-    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole('checkbox'));
 
-    const applyButton = screen.getByText('Apply');
+    const applyButton = screen.getByRole('button', { name: 'Apply' });
     expect(applyButton).toBeDisabled();
   });
 
   it('Apply button becomes enabled when custom input has value', () => {
     renderComponent();
 
-    const checkbox = screen.getByRole('checkbox');
-    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole('checkbox'));
 
     const input = screen.getByPlaceholderText('mdi:shield-alert');
-    fireEvent.change(input, { target: { value: 'mdi:cloud-outline' } });
+    fireEvent.change(input, {
+      target: { value: 'mdi:cloud-outline' },
+    });
 
-    const applyButton = screen.getByText('Apply');
+    const applyButton = screen.getByRole('button', { name: 'Apply' });
     expect(applyButton).not.toBeDisabled();
   });
 
   it('calls onSelectIcon with custom icon value when Apply clicked', () => {
     renderComponent();
 
-    const checkbox = screen.getByRole('checkbox');
-    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole('checkbox'));
 
     const input = screen.getByPlaceholderText('mdi:shield-alert');
-    fireEvent.change(input, { target: { value: 'mdi:cloud-outline' } });
+    fireEvent.change(input, {
+      target: { value: 'mdi:cloud-outline' },
+    });
 
-    const applyButton = screen.getByText('Apply');
-    fireEvent.click(applyButton);
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
 
     expect(onSelectIcon).toHaveBeenCalledWith('mdi:cloud-outline');
     expect(onClose).toHaveBeenCalled();
@@ -124,8 +126,7 @@ describe('IconPicker Component', () => {
   it('calls onClose when Cancel clicked', () => {
     renderComponent();
 
-    const cancelButton = screen.getByText('Cancel');
-    fireEvent.click(cancelButton);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(onClose).toHaveBeenCalled();
   });

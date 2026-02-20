@@ -47,7 +47,8 @@ export const SelectedPresetIcon: Story = {
 export const CustomIconModeEnabled: Story = {
   args: {
     open: true,
-    currentIcon: '',
+    // Use a value NOT in presets to simulate custom mode
+    currentIcon: 'mdi:custom-icon',
     onClose: () => {},
     onSelectIcon: () => {},
   },
