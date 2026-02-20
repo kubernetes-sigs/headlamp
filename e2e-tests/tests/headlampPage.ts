@@ -25,9 +25,71 @@ export class HeadlampPage {
     this.testURL = process.env.HEADLAMP_TEST_URL || '/';
   }
 
+  /**
+   * Run an accessibility audit against the current Playwright page using AxeBuilder.
+   *
+   * Summary:
+   * - Executes axe-core analysis on this.page.
+   * - If any violations are found, creates an output directory
+   *   (<GITHUB_WORKSPACE> or cwd)/a11y-artifacts and saves:
+   *   - a full-page screenshot: a11y-<timestamp>.png
+   *   - violations JSON: a11y-<timestamp>-violations.json
+   *   - page HTML: a11y-<timestamp>.html
+   * - Logs the saved artifact paths and the violations to stderr.
+   * - Fails the test by asserting that there are no accessibility violations.
+   *
+   * Notes:
+   * - Timestamp uses ISO format with ":" and "." replaced by "-" to make filenames safe.
+   * - The workspace path is resolved from process.env.GITHUB_WORKSPACE or falling back to process.cwd().
+   * - This method performs file I/O and may throw if the runner/user has no write permissions.
+   *
+   * How to view the screenshot from a GitHub Actions run:
+   *
+   * After the workflow completes, open the workflow run in the GitHub Actions UI,
+   *    download the "a11y-artifacts" artifact, extract it, and open the PNG file locally.
+   *
+   * @remarks
+   * - Intended to be used inside an e2e test/page object where `this.page` is a Playwright Page.
+   * - The final expect will cause the test to fail when violations are present, making CI fail fast.
+   *
+   * @returns Promise<void> resolving when analysis, artifact creation, and the assertion complete.
+   */
   async a11y() {
     const axeBuilder = new AxeBuilder({ page: this.page });
     const accessibilityResults = await axeBuilder.analyze();
+
+    if (accessibilityResults.violations && accessibilityResults.violations.length > 0) {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
+      const { join } = await import('path');
+      const fs = await import('fs/promises');
+
+      const outDir = join(workspace, 'a11y-artifacts');
+      await fs.mkdir(outDir, { recursive: true });
+
+      const screenshotPath = join(outDir, `a11y-${timestamp}.png`);
+      await this.page.screenshot({ path: screenshotPath, fullPage: true });
+
+      const violationsPath = join(outDir, `a11y-${timestamp}-violations.json`);
+      await fs.writeFile(
+        violationsPath,
+        JSON.stringify(accessibilityResults.violations, null, 2),
+        'utf8'
+      );
+
+      const html = await this.page.content();
+      const htmlPath = join(outDir, `a11y-${timestamp}.html`);
+      await fs.writeFile(htmlPath, html, 'utf8');
+
+      console.error(`Accessibility violations saved to: ${violationsPath}`);
+      console.error(`Screenshot saved to: ${screenshotPath}`);
+      console.error(`Page HTML saved to: ${htmlPath}`);
+      console.error(
+        'Accessibility violations:',
+        JSON.stringify(accessibilityResults.violations, null, 2)
+      );
+    }
+
     expect(accessibilityResults.violations).toStrictEqual([]);
   }
 
