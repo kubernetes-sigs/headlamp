@@ -25,6 +25,8 @@ import {
   LogsButton,
   MetadataDictGrid,
   OwnedPodsSection,
+  RevisionHistorySection,
+  RollbackButton,
 } from '../common/Resource';
 
 interface WorkloadDetailsProps<T extends WorkloadClass> {
@@ -106,15 +108,27 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
       withEvents
       actions={item => {
         if (!item) return [];
-        const isLoggable = ['Deployment', 'ReplicaSet', 'DaemonSet'].includes(workloadKind.kind);
-        if (!isLoggable) return [];
+        const actions = [];
 
-        return [
-          {
+        const isLoggable = ['Deployment', 'ReplicaSet', 'DaemonSet'].includes(workloadKind.kind);
+        if (isLoggable) {
+          actions.push({
             id: 'logs',
             action: <LogsButton key="logs" item={item} />,
-          },
-        ];
+          });
+        }
+
+        const isRollbackable = ['Deployment', 'DaemonSet', 'StatefulSet'].includes(
+          workloadKind.kind
+        );
+        if (isRollbackable) {
+          actions.push({
+            id: 'rollback',
+            action: <RollbackButton key="rollback" item={item} />,
+          });
+        }
+
+        return actions;
       }}
       extraInfo={item =>
         item && [
@@ -146,8 +160,9 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
           },
         ]
       }
-      extraSections={item =>
-        item && [
+      extraSections={item => {
+        if (!item) return [];
+        const sections = [
           {
             id: 'headlamp.workload-conditions',
             section: <ConditionsSection resource={item?.jsonData} />,
@@ -160,8 +175,21 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
             id: 'headlamp.workload-containers',
             section: <ContainersSection resource={item} />,
           },
-        ]
-      }
+        ];
+
+        // Add revision history for rollbackable workloads
+        const isRollbackable = ['Deployment', 'DaemonSet', 'StatefulSet'].includes(
+          workloadKind.kind
+        );
+        if (isRollbackable) {
+          sections.push({
+            id: 'headlamp.workload-revision-history',
+            section: <RevisionHistorySection resource={item} />,
+          });
+        }
+
+        return sections;
+      }}
     />
   );
 }

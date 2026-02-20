@@ -30,12 +30,12 @@
         class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthFalse css-v61m47-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
-        <h2
+        <h1
           class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-q5kqw8-MuiTypography-root-MuiDialogTitle-root"
           id=":mock-test-id:"
         >
           Create a Project
-        </h2>
+        </h1>
         <div
           class="MuiDialogContent-root css-15ohtq7-MuiDialogContent-root"
         >
@@ -58,11 +58,11 @@
               <div
                 class="MuiBox-root css-0"
               >
-                <h6
+                <span
                   class="MuiTypography-root MuiTypography-h6 css-16yif3g-MuiTypography-root"
                 >
                   New Project
-                </h6>
+                </span>
                 <p
                   class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
                 >
@@ -84,11 +84,11 @@
               <div
                 class="MuiBox-root css-0"
               >
-                <h6
+                <span
                   class="MuiTypography-root MuiTypography-h6 css-16yif3g-MuiTypography-root"
                 >
                   New Project from YAML
-                </h6>
+                </span>
                 <p
                   class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
                 >

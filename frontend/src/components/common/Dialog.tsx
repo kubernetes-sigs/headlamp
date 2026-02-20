@@ -44,7 +44,7 @@ export interface OurDialogTitleProps extends DialogTitleProps {
  * reading can begin.
  */
 export function DialogTitle(props: OurDialogTitleProps) {
-  const { children, focusTitle, buttons, disableTypography = false, ...other } = props;
+  const { children, focusTitle, buttons, disableTypography = false, id, ...other } = props;
 
   // Don't render heading if there's no content to avoid empty heading violations
   if (!children && (!buttons || buttons.length === 0)) {
@@ -66,9 +66,10 @@ export function DialogTitle(props: OurDialogTitleProps) {
         {children && (
           <Grid item>
             {disableTypography ? (
-              children
+              <div id={id}>{children}</div>
             ) : (
               <Typography
+                id={id}
                 ref={focusedRef}
                 variant="h1"
                 style={{
@@ -156,11 +157,21 @@ export function Dialog(props: DialogProps) {
       />
     );
   }
+  const generatedId = React.useId();
+  const titleId = titleProps?.id || generatedId;
+  const dialogAriaProps = title ? { 'aria-labelledby': titleId } : {};
 
   return (
-    <MuiDialog maxWidth="lg" scroll="paper" fullWidth fullScreen={fullScreen} {...other}>
+    <MuiDialog
+      maxWidth="lg"
+      scroll="paper"
+      fullWidth
+      fullScreen={fullScreen}
+      {...dialogAriaProps}
+      {...other}
+    >
       {(!!title || withFullScreen) && (
-        <DialogTitle buttons={[<FullScreenButton />, <CloseButton />]} {...titleProps}>
+        <DialogTitle {...titleProps} id={titleId} buttons={[<FullScreenButton />, <CloseButton />]}>
           {title}
         </DialogTitle>
       )}

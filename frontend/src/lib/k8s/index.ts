@@ -16,7 +16,7 @@
 
 import _ from 'lodash';
 import React, { useContext, useMemo } from 'react';
-import { useHistory } from 'react-router-dom';
+import { useHistory, useLocation } from 'react-router-dom';
 import { ConfigState } from '../../redux/configSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { getCluster, getSelectedClusters } from '../cluster';
@@ -26,6 +26,7 @@ import { Cluster, LabelSelector, StringDict } from './cluster';
 import ClusterRole from './clusterRole';
 import ClusterRoleBinding from './clusterRoleBinding';
 import ConfigMap from './configMap';
+import ControllerRevision from './controllerRevision';
 import CustomResourceDefinition from './crd';
 import CronJob from './cronJob';
 import DaemonSet from './daemonSet';
@@ -66,6 +67,7 @@ export const ResourceClasses = {
   ClusterRole,
   ClusterRoleBinding,
   ConfigMap,
+  ControllerRevision,
   CustomResourceDefinition,
   CronJob,
   DaemonSet,
@@ -163,12 +165,12 @@ export function useCluster() {
  */
 export function useSelectedClusters(): string[] {
   const clusterInURL = useCluster();
-  const history = useHistory();
+  const location = useLocation();
   const maybeSelectedClusters = useContext(SelectedClustersContext);
 
   const clusterGroup = React.useMemo(() => {
-    return getSelectedClusters([], history.location.pathname);
-  }, [clusterInURL]);
+    return getSelectedClusters([], location.pathname);
+  }, [clusterInURL, location.pathname]);
 
   return maybeSelectedClusters && maybeSelectedClusters.length > 0
     ? maybeSelectedClusters
@@ -457,6 +459,7 @@ export * as clusterRoleBinding from './clusterRoleBinding';
 export * as configMap from './configMap';
 export * as crd from './crd';
 export * as cronJob from './cronJob';
+export * as controllerRevision from './controllerRevision';
 export * as daemonSet from './daemonSet';
 export * as deployment from './deployment';
 export * as event from './event';

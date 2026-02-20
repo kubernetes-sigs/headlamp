@@ -118,6 +118,7 @@ spec:
             - "-in-cluster"
             - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
+            - "-session-ttl=86400"
             # Check if externalSecret is disabled
             - "-me-user-info-url=$(ME_USER_INFO_URL)"
           ports:

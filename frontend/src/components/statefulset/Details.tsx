@@ -23,6 +23,8 @@ import {
   DetailsGrid,
   MetadataDictGrid,
   OwnedPodsSection,
+  RevisionHistorySection,
+  RollbackButton,
 } from '../common/Resource';
 
 export default function StatefulSetDetails(props: {
@@ -41,6 +43,15 @@ export default function StatefulSetDetails(props: {
       namespace={namespace}
       cluster={cluster}
       withEvents
+      actions={item => {
+        if (!item) return [];
+        return [
+          {
+            id: 'headlamp.statefulset-rollback',
+            action: <RollbackButton key="rollback" item={item} />,
+          },
+        ];
+      }}
       extraInfo={item =>
         item && [
           {
@@ -62,6 +73,10 @@ export default function StatefulSetDetails(props: {
           {
             id: 'headlamp.statefulset-containers',
             section: <ContainersSection resource={item} />,
+          },
+          {
+            id: 'headlamp.statefulset-revision-history',
+            section: <RevisionHistorySection resource={item} />,
           },
         ]
       }

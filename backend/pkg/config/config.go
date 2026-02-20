@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	defaultPort = 4466
-	osWindows   = "windows"
+	defaultPort       = 4466
+	defaultSessionTTL = 86400 // 24 hours in seconds
+	osWindows         = "windows"
 )
 
 const (
@@ -45,6 +46,7 @@ type Config struct {
 	CacheEnabled              bool   `koanf:"cache-enabled"`
 	EnableHelm                bool   `koanf:"enable-helm"`
 	EnableDynamicClusters     bool   `koanf:"enable-dynamic-clusters"`
+	AllowKubeconfigChanges    bool   `koanf:"allow-kubeconfig-changes"`
 	ListenAddr                string `koanf:"listen-addr"`
 	WatchPluginsChanges       bool   `koanf:"watch-plugins-changes"`
 	Port                      uint   `koanf:"port"`
@@ -54,6 +56,7 @@ type Config struct {
 	PluginsDir                string `koanf:"plugins-dir"`
 	UserPluginsDir            string `koanf:"user-plugins-dir"`
 	BaseURL                   string `koanf:"base-url"`
+	SessionTTL                int    `koanf:"session-ttl"`
 	ProxyURLs                 string `koanf:"proxy-urls"`
 	OidcClientID              string `koanf:"oidc-client-id"`
 	OidcValidatorClientID     string `koanf:"oidc-validator-client-id"`
@@ -113,6 +116,16 @@ func (c *Config) Validate() error {
 
 	if c.BaseURL != "" && !strings.HasPrefix(c.BaseURL, "/") {
 		return errors.New("base-url needs to start with a '/' or be empty")
+	}
+
+	if c.SessionTTL <= 0 {
+		return errors.New("session-ttl cannot be negative or equal to zero")
+	}
+
+	const oneYearInSeconds = 31536000
+
+	if c.SessionTTL > oneYearInSeconds {
+		return errors.New("session-ttl cannot be greater than 1 year")
 	}
 
 	if c.TracingEnabled != nil && *c.TracingEnabled {
@@ -421,6 +434,9 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
 	f.String("log-level", "info", "Set backend log verbosity. Options: debug, info (default), warn, error")
 	f.Bool("enable-dynamic-clusters", false, "Enable dynamic clusters, which stores stateless clusters in the frontend.")
+	f.Bool("allow-kubeconfig-changes", false,
+		"Allow Headlamp to make changes to the known kubeconfigs when needed. "+
+			"E.g. to remove a cluster via the UI. May not be recommendable when Headlamp is deployed as a service.")
 	// Note: When running in-cluster and if not explicitly set, this flag defaults to false.
 	f.Bool("watch-plugins-changes", true, "Reloads plugins when there are changes to them or their directory")
 
@@ -430,6 +446,8 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.String("plugins-dir", defaultPluginDir(), "Specify the plugins directory to build the backend with")
 	f.String("user-plugins-dir", defaultUserPluginDir(), "Specify the user-installed plugins directory")
 	f.String("base-url", "", "Base URL path. eg. /headlamp")
+	f.Int("session-ttl", defaultSessionTTL, "The time in seconds for the session to be valid"+
+		"(Default: 86400/24h, Min: 1 , Max: 31536000/1yr )")
 	f.String("listen-addr", "", "Address to listen on; default is empty, which means listening to any address")
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")

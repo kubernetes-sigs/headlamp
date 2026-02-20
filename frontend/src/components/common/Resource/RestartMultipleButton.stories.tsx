@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import MenuList from '@mui/material/MenuList';
 import { Meta, StoryFn } from '@storybook/react';
 import { getTestDate } from '../../../helpers/testHelpers';
 import { TestContext } from '../../../test';
@@ -62,3 +63,10 @@ MenuButtonStyle.args = {
   ] as RestartableResource[],
   buttonStyle: 'menu',
 };
+MenuButtonStyle.decorators = [
+  Story => (
+    <MenuList>
+      <Story />
+    </MenuList>
+  ),
+];

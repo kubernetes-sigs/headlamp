@@ -112,8 +112,8 @@ export class HeadlampPage {
     await this.page.click('button[aria-label="Account of current user"]');
 
     // Wait for the logout option to be visible and click on it
-    await this.page.waitForSelector('a.MuiMenuItem-root:has-text("Log out")');
-    await this.page.click('a.MuiMenuItem-root:has-text("Log out")');
+    await this.page.waitForSelector('.MuiMenuItem-root:has-text("Log out")');
+    await this.page.click('.MuiMenuItem-root:has-text("Log out")');
     await this.page.waitForLoadState('load');
 
     // Expects the URL to contain c/test/token

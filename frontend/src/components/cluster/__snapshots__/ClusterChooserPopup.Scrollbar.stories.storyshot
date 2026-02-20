@@ -68,18 +68,20 @@
         <ul
           class="MuiList-root MuiList-padding MuiList-dense css-1k1lw4j-MuiList-root"
           id="cluster-chooser-list"
-          role="menu"
-          tabindex="-1"
+          role="listbox"
+          tabindex="0"
         >
           <li
             class="MuiListSubheader-root MuiListSubheader-gutters css-1ac4l9u-MuiListSubheader-root"
+            role="presentation"
           >
             Recent clusters
           </li>
           <li
+            aria-selected="true"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster2"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -105,9 +107,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster3"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -124,9 +127,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster4"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -144,11 +148,13 @@
           </li>
           <hr
             class="MuiDivider-root MuiDivider-fullWidth css-9mgopn-MuiDivider-root"
+            role="separator"
           />
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster0"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -165,9 +171,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster1"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -184,9 +191,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster10"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -203,9 +211,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster11"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -222,9 +231,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster12"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -241,9 +251,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster13"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -260,9 +271,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster14"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -279,9 +291,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster15"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -298,9 +311,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster16"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -317,9 +331,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster17"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -336,9 +351,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster18"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -355,9 +371,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster19"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -374,9 +391,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster5"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -393,9 +411,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster6"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -412,9 +431,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster7"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -431,9 +451,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster8"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div
@@ -450,9 +471,10 @@
             />
           </li>
           <li
+            aria-selected="false"
             class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-aom5s3-MuiButtonBase-root-MuiMenuItem-root"
             id="cluster9"
-            role="menuitem"
+            role="option"
             tabindex="-1"
           >
             <div

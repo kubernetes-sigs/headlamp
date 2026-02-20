@@ -112,6 +112,7 @@ spec:
             - "-in-cluster"
             - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
+            - "-session-ttl=86400"
             # Check if externalSecret is disabled
             - "-tls-cert-path=/headlamp-cert/headlamp-ca.crt"
             - "-tls-key-path=/headlamp-cert/headlamp-tls.key"

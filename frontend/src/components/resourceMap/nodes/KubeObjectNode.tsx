@@ -151,6 +151,11 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
   const mainNode = node?.nodes ? getMainNode(node.nodes) : undefined;
   const kubeObject = node?.kubeObject ?? mainNode?.kubeObject;
 
+  const apiGroup =
+    kubeObject?.jsonData?.apiVersion && kubeObject.jsonData.apiVersion.includes('/')
+      ? kubeObject.jsonData.apiVersion.split('/')[0]
+      : 'core';
+
   const isSelected = id === graph.nodeSelection;
   const isCollapsed = node?.nodes?.length ? node?.collapsed : true;
 
@@ -186,7 +191,7 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
   }, [isHovered]);
 
   const icon = kubeObject ? (
-    <KubeIcon width="42px" height="42px" kind={kubeObject.kind} />
+    <KubeIcon width="42px" height="42px" kind={kubeObject.kind} apiGroup={apiGroup} />
   ) : (
     node?.icon ?? null
   );
@@ -207,7 +212,7 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
       cluster: node.kubeObject?.cluster,
       hideTitleInHeader: true,
       icon: node.kubeObject ? (
-        <KubeIcon kind={node.kubeObject.kind} width="100%" height="100%" />
+        <KubeIcon kind={node.kubeObject.kind} apiGroup={apiGroup} width="100%" height="100%" />
       ) : null,
       title: node.label ?? node.kubeObject?.metadata?.name,
       content: <GraphNodeDetails node={node} />,

@@ -6,8 +6,7 @@
       <div
         class="MuiBox-root css-k008qs"
       >
-        <label
-          aria-expanded="false"
+        <span
           id="label-id"
           style="word-break: break-all; white-space: normal;"
         >
@@ -15,7 +14,8 @@
           …
           <button
             aria-controls="label-id"
-            arial-label="Expand"
+            aria-expanded="false"
+            aria-label="Expand"
             class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-z81te2-MuiButtonBase-root-MuiIconButton-root"
             tabindex="0"
             type="button"
@@ -24,7 +24,7 @@
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
             />
           </button>
-        </label>
+        </span>
       </div>
     </div>
   </div>

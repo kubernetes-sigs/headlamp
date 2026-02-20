@@ -48,39 +48,54 @@ import SvcIcon from './img/svc.svg?react';
 import UserIcon from './img/user.svg?react';
 import VolIcon from './img/vol.svg?react';
 
-const kindToIcon = {
-  ClusterRole: CRoleIcon,
-  ClusterRoleBinding: CrbIcon,
-  CronJob: CronjobIcon,
-  DaemonSet: DsIcon,
-  Group: GroupIcon,
-  Ingress: IngIcon,
-  LimitRange: LimitsIcon,
+const kindToIcon: Record<string, React.FC<any>> = {
+  // core group
   Namespace: NsIcon,
+  Pod: PodIcon,
+  Service: SvcIcon,
+  Endpoints: EpIcon,
+  Endpoint: EpIcon,
+  EndpointSlice: EpIcon,
+  ConfigMap: CmIcon,
+  Secret: SecretIcon,
+  PersistentVolume: PvIcon,
   PodSecurityPolicy: PspIcon,
   PersistentVolumeClaim: PvcIcon,
-  RoleBinding: RbIcon,
-  ReplicaSet: RsIcon,
-  StorageClass: ScIcon,
-  StatefulSet: StsIcon,
-  User: UserIcon,
-  ConfigMap: CmIcon,
-  CustomResourceDefinition: CrdIcon,
-  Deployment: DeployIcon,
-  Endpoint: EpIcon,
-  Endpoints: EpIcon,
-  EndpointSlice: EpIcon,
-  HorizontalPodAutoscaler: HpaIcon,
-  Job: JobIcon,
-  NetworkPolicy: NetpolIcon,
-  Pod: PodIcon,
-  PersistentVolume: PvIcon,
-  ResourceQuota: QuotaIcon,
-  Role: RoleIcon,
   ServiceAccount: SaIcon,
-  Secret: SecretIcon,
-  Service: SvcIcon,
+  ResourceQuota: QuotaIcon,
+  LimitRange: LimitsIcon,
   Volume: VolIcon,
+  User: UserIcon,
+  Group: GroupIcon,
+
+  // apps
+  'apps/Deployment': DeployIcon,
+  'apps/ReplicaSet': RsIcon,
+  'apps/StatefulSet': StsIcon,
+  'apps/DaemonSet': DsIcon,
+
+  // batch
+  'batch/Job': JobIcon,
+  'batch/CronJob': CronjobIcon,
+
+  // rbac
+  'rbac.authorization.k8s.io/Role': RoleIcon,
+  'rbac.authorization.k8s.io/RoleBinding': RbIcon,
+  'rbac.authorization.k8s.io/ClusterRole': CRoleIcon,
+  'rbac.authorization.k8s.io/ClusterRoleBinding': CrbIcon,
+
+  // networking
+  'networking.k8s.io/Ingress': IngIcon,
+  'networking.k8s.io/NetworkPolicy': NetpolIcon,
+
+  // autoscaling
+  'autoscaling/HorizontalPodAutoscaler': HpaIcon,
+
+  // storage
+  'storage.k8s.io/StorageClass': ScIcon,
+
+  // apiextensions
+  'apiextensions.k8s.io/CustomResourceDefinition': CrdIcon,
 } as const;
 
 const kindGroups = {
@@ -141,26 +156,37 @@ export const getKindGroupColor = (group: keyof typeof kindGroupColors) =>
  * https://github.com/kubernetes/community/tree/master/icons
  *
  * @param params.kind - Resource kind
+ * @param params.apiGroup - Resource API group
  * @param params.width - width in css units
  * @param params.height - width in css units
  * @returns
  */
 export function KubeIcon({
   kind,
+  apiGroup,
   width,
   height,
 }: {
-  kind: keyof typeof kindToIcon;
+  kind: string;
+  apiGroup?: string;
   width?: string;
   height?: string;
 }) {
   const pluginDefinedIcons = useTypedSelector(state => state.graphView.kindIcons);
 
-  const IconComponent = kindToIcon[kind] ?? kindToIcon['Pod'];
-  const icon = pluginDefinedIcons[kind]?.icon ?? (
+  const apiGroupKey = apiGroup ? `${apiGroup}/${kind}` : null;
+
+  const pluginIcon = (apiGroupKey && pluginDefinedIcons[apiGroupKey]) || pluginDefinedIcons[kind];
+
+  const IconComponent =
+    (apiGroupKey && kindToIcon[apiGroupKey as keyof typeof kindToIcon]) ||
+    kindToIcon[kind as keyof typeof kindToIcon] ||
+    kindToIcon['Pod'];
+
+  const icon = pluginIcon?.icon ?? (
     <IconComponent style={{ scale: '1.1', width: '100%', height: '100%' }} />
   );
-  const color = pluginDefinedIcons[kind]?.color ?? getKindColor(kind);
+  const color = pluginIcon?.color ?? getKindColor(kind);
 
   return (
     <Box

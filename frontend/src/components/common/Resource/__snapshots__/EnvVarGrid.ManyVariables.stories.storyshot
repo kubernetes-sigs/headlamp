@@ -1,0 +1,167 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-0"
+    >
+      <div
+        class="MuiBox-root css-yi3mkw"
+      >
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_0
+          : 
+          value-0
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_1
+          : 
+          value-1
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_2
+          : 
+          value-2
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_3
+          : 
+          value-3
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_4
+          : 
+          value-4
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_5
+          : 
+          value-5
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_6
+          : 
+          value-6
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_7
+          : 
+          value-7
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_8
+          : 
+          value-8
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_9
+          : 
+          value-9
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_10
+          : 
+          value-10
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_11
+          : 
+          value-11
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_12
+          : 
+          value-12
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_13
+          : 
+          value-13
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_14
+          : 
+          value-14
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_15
+          : 
+          value-15
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_16
+          : 
+          value-16
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_17
+          : 
+          value-17
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_18
+          : 
+          value-18
+        </span>
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
+        >
+          VAR_19
+          : 
+          value-19
+        </span>
+      </div>
+      <button
+        aria-expanded="false"
+        aria-label="Show all environment variables"
+        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-15swmp6-MuiButtonBase-root-MuiButton-root"
+        tabindex="0"
+        type="button"
+      >
+        <span
+          class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+        />
+        Show all environment variables (+15 more)
+        <span
+          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+        />
+      </button>
+    </div>
+  </div>
+</body>

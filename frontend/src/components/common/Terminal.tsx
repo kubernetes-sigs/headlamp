@@ -27,6 +27,7 @@ import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getDefaultContainer } from '../../helpers/podContainer';
 import Pod from '../../lib/k8s/pod';
 import { Dialog } from './Dialog';
 
@@ -60,7 +61,7 @@ type execReturn = ReturnType<Pod['exec']>;
 export default function Terminal(props: TerminalProps) {
   const { item, onClose, isAttach, noDialog, ...other } = props;
   const [terminalContainerRef, setTerminalContainerRef] = React.useState<HTMLElement | null>(null);
-  const [container, setContainer] = useState<string | null>(getDefaultContainer());
+  const [container, setContainer] = useState<string | null>(() => getDefaultContainer(item));
   const execOrAttachRef = React.useRef<execReturn | null>(null);
   const fitAddonRef = React.useRef<FitAddon | null>(null);
   const xtermRef = React.useRef<XTerminalConnected | null>(null);
@@ -69,10 +70,6 @@ export default function Terminal(props: TerminalProps) {
     currentIdx: 0,
   });
   const { t } = useTranslation(['translation', 'glossary']);
-
-  function getDefaultContainer() {
-    return item.spec.containers.length > 0 ? item.spec.containers[0].name : '';
-  }
 
   // @todo: Give the real exec type when we have it.
   function setupTerminal(containerRef: HTMLElement, xterm: XTerminal, fitAddon: FitAddon) {
@@ -143,7 +140,10 @@ export default function Terminal(props: TerminalProps) {
   }
 
   function send(channel: number, data: string) {
-    const socket = execOrAttachRef.current!.getSocket();
+    if (!execOrAttachRef.current) {
+      return;
+    }
+    const socket = execOrAttachRef.current.getSocket();
 
     // We should only send data if the socket is ready.
     if (!socket || socket.readyState !== 1) {
@@ -158,6 +158,7 @@ export default function Terminal(props: TerminalProps) {
   }
 
   function onData(xtermc: XTerminalConnected, bytes: ArrayBuffer) {
+    if (!execOrAttachRef.current) return;
     const xterm = xtermc.xterm;
     // Only show data from stdout, stderr and server error channel.
     const channel: Channel = new Int8Array(bytes.slice(0, 1))[0];
@@ -328,6 +329,7 @@ export default function Terminal(props: TerminalProps) {
       return function cleanup() {
         xtermRef.current?.xterm.dispose();
         execOrAttachRef.current?.cancel();
+        execOrAttachRef.current = null;
         window.removeEventListener('resize', handler);
       };
     },
@@ -338,7 +340,7 @@ export default function Terminal(props: TerminalProps) {
   React.useEffect(
     () => {
       if (props.open && container === null) {
-        setContainer(getDefaultContainer());
+        setContainer(getDefaultContainer(item));
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -430,7 +432,7 @@ export default function Terminal(props: TerminalProps) {
           <Select
             labelId="container-name-chooser-label"
             id="container-name-chooser"
-            value={container !== null ? container : getDefaultContainer()}
+            value={container !== null ? container : getDefaultContainer(item)}
             onChange={handleContainerChange}
           >
             {item?.spec?.containers && (
