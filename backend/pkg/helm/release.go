@@ -21,7 +21,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/schema"
@@ -49,6 +51,88 @@ const (
 	failed     = "failed"
 	processing = "processing"
 )
+
+// HelmAPIError represents a structured error response for Helm API calls
+type HelmAPIError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Details string `json:"details,omitempty"`
+}
+
+func (e *HelmAPIError) Error() string {
+	return e.Message
+}
+
+// SafeRequestWrapper provides a centralized error handling mechanism for Helm API calls
+type SafeRequestWrapper struct {
+	handler *Handler
+}
+
+func NewSafeRequestWrapper(handler *Handler) *SafeRequestWrapper {
+	return &SafeRequestWrapper{handler: handler}
+}
+
+// HandleRequest safely executes a Helm API request with consistent error handling
+func (w *SafeRequestWrapper) HandleRequest(
+	writer http.ResponseWriter,
+	requestName string,
+	clientConfig clientcmd.ClientConfig,
+	namespace string,
+	requestFunc func(*action.Configuration) (interface{}, error),
+) {
+	// Create action configuration
+	actionConfig, err := NewActionConfig(clientConfig, namespace)
+	if err != nil {
+		w.handleError(writer, requestName, fmt.Sprintf("creating action config: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Execute the request function
+	result, err := requestFunc(actionConfig)
+	if err != nil {
+		// Check for specific error types to preserve API semantics
+		if strings.Contains(err.Error(), "not found") {
+			w.handleError(writer, requestName, err.Error(), http.StatusNotFound)
+		} else {
+			w.handleError(writer, requestName, fmt.Sprintf("executing request: %v", err), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Validate result is not nil or empty
+	if result == nil {
+		w.handleError(writer, requestName, "request returned empty result", http.StatusNotFound)
+		return
+	}
+
+	// Encode and send response
+	writer.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(writer).Encode(result); err != nil {
+		w.handleError(writer, requestName, fmt.Sprintf("encoding response: %v", err), http.StatusInternalServerError)
+		return
+	}
+}
+
+// HandleError logs the error and sends a structured error response
+func (w *SafeRequestWrapper) handleError(writer http.ResponseWriter, requestName, message string, statusCode int) {
+	logger.Log(logger.LevelError, map[string]string{"request": requestName},
+		errors.New(message), message)
+
+	errorResponse := HelmAPIError{
+		Code:    statusCode,
+		Message: message,
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(statusCode)
+	json.NewEncoder(writer).Encode(errorResponse)
+}
+
+// ValidateRequest validates common request parameters
+func (w *SafeRequestWrapper) ValidateRequest(request interface{}) error {
+	validate := validator.New()
+	return validate.Struct(request)
+}
 
 type ListReleaseRequest struct {
 	AllNamespaces *bool   `json:"allNamespaces,omitempty"`
@@ -131,62 +215,36 @@ func getReleases(req ListReleaseRequest, config *action.Configuration) ([]*relea
 }
 
 func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+	// Create safe request wrapper
+	wrapper := NewSafeRequestWrapper(h)
+
 	// Parse request
 	var req ListReleaseRequest
-
 	decoder := schema.NewDecoder()
 
-	err := decoder.Decode(&req, r.URL.Query())
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "list_releases"},
-			err, "parsing request")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
+	if err := decoder.Decode(&req, r.URL.Query()); err != nil {
+		wrapper.handleError(w, "list_releases", fmt.Sprintf("parsing request: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	namespace := ""
-	if req.Namespace != nil && *req.Namespace != "" {
+	// Use safe request wrapper to handle the request
+	namespace := "default"
+	if req.Namespace != nil {
 		namespace = *req.Namespace
 	}
+	wrapper.HandleRequest(w, "list_releases", clientConfig, namespace, func(actionConfig *action.Configuration) (interface{}, error) {
+		releases, err := getReleases(req, actionConfig)
+		if err != nil {
+			return nil, err
+		}
 
-	actionConfig, err := NewActionConfig(clientConfig, namespace)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "list_releases"},
-			err, "creating action config")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		// Ensure releases is not nil to prevent null responses
+		if releases == nil {
+			releases = []*release.Release{}
+		}
 
-		return
-	}
-
-	releases, err := getReleases(req, actionConfig)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "list_releases"},
-			err, "fetching releases")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	if releases == nil {
-		releases = []*release.Release{}
-	}
-
-	// Return response
-	res := ListReleaseResponse{
-		Releases: releases,
-	}
-
-	err = json.NewEncoder(w).Encode(res)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "list_releases"},
-			err, "encoding response")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
+		return ListReleaseResponse{Releases: releases}, nil
+	})
 }
 
 type GetReleaseRequest struct {
@@ -211,58 +269,36 @@ func decodeGetReleaseRequest(r *http.Request) (GetReleaseRequest, error) {
 }
 
 func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+	// Create safe request wrapper
+	wrapper := NewSafeRequestWrapper(h)
+
 	// Parse request
 	req, err := decodeGetReleaseRequest(r)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release"},
-			err, "validating request")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
+		wrapper.handleError(w, "get_release", fmt.Sprintf("validating request: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release"},
-			err, "creating action config")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	// Use safe request wrapper to handle the request
+	wrapper.HandleRequest(w, "get_release", clientConfig, req.Namespace, func(actionConfig *action.Configuration) (interface{}, error) {
+		// Check if release exists
+		_, err := actionConfig.Releases.Deployed(req.Name)
+		if err == driver.ErrReleaseNotFound {
+			return nil, fmt.Errorf("release '%s' not found", req.Name)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("checking release existence: %v", err)
+		}
 
-		return
-	}
+		// Get the release
+		getClient := action.NewGet(actionConfig)
+		result, err := getClient.Run(req.Name)
+		if err != nil {
+			return nil, fmt.Errorf("getting release: %v", err)
+		}
 
-	// check if release exists
-	_, err = actionConfig.Releases.Deployed(req.Name)
-	if err == driver.ErrReleaseNotFound {
-		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "request": "get_release"},
-			err, "release not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-
-		return
-	}
-
-	getClient := action.NewGet(actionConfig)
-
-	result, err := getClient.Run(req.Name)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release", "releaseName": req.Name},
-			err, "getting release")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-
-	err = json.NewEncoder(w).Encode(result)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release", "releaseName": req.Name},
-			err, "encoding response")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
+		return result, nil
+	})
 }
 
 type GetReleaseHistoryRequest struct {
@@ -275,66 +311,38 @@ type GetReleaseHistoryResponse struct {
 }
 
 func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+	// Create safe request wrapper
+	wrapper := NewSafeRequestWrapper(h)
+
 	// Parse request
 	var req GetReleaseHistoryRequest
-
 	decoder := schema.NewDecoder()
 
-	err := decoder.Decode(&req, r.URL.Query())
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release_history"},
-			err, "decoding request")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
+	if err := decoder.Decode(&req, r.URL.Query()); err != nil {
+		wrapper.handleError(w, "get_release_history", fmt.Sprintf("decoding request: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release_history"},
-			err, "creating action config")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	// Use safe request wrapper to handle the request
+	wrapper.HandleRequest(w, "get_release_history", clientConfig, req.Namespace, func(actionConfig *action.Configuration) (interface{}, error) {
+		// Check if release exists
+		_, err := actionConfig.Releases.Deployed(req.Name)
+		if err == driver.ErrReleaseNotFound {
+			return nil, fmt.Errorf("release '%s' not found", req.Name)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("checking release existence: %v", err)
+		}
 
-		return
-	}
+		// Get release history
+		getClient := action.NewHistory(actionConfig)
+		result, err := getClient.Run(req.Name)
+		if err != nil {
+			return nil, fmt.Errorf("getting release history: %v", err)
+		}
 
-	// check if release exists
-	_, err = actionConfig.Releases.Deployed(req.Name)
-	if err == driver.ErrReleaseNotFound {
-		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "request": "get_release_history"},
-			err, "release not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-
-		return
-	}
-
-	getClient := action.NewHistory(actionConfig)
-
-	result, err := getClient.Run(req.Name)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release_history", "releaseName": req.Name},
-			err, "getting release history")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	resp := GetReleaseHistoryResponse{
-		Releases: result,
-	}
-
-	w.WriteHeader(http.StatusOK)
-
-	err = json.NewEncoder(w).Encode(resp)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release_history", "releaseName": req.Name},
-			err, "encoding response")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
+		return GetReleaseHistoryResponse{Releases: result}, nil
+	})
 }
 
 type UninstallReleaseRequest struct {
@@ -359,41 +367,38 @@ func decodeUninstallReleaseRequest(r *http.Request) (UninstallReleaseRequest, er
 }
 
 func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+	// Create safe request wrapper
+	wrapper := NewSafeRequestWrapper(h)
+
 	// Parse request
 	req, err := decodeUninstallReleaseRequest(r)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release"},
-			err, "validating request")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
+		wrapper.handleError(w, "uninstall_release", fmt.Sprintf("validating request: %v", err), http.StatusBadRequest)
 		return
 	}
 
+	// Create action config for validation
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release"},
-			err, "creating action config")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
+		wrapper.handleError(w, "uninstall_release", fmt.Sprintf("creating action config: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// check if release exists
+	// Check if release exists
 	_, err = actionConfig.Releases.Deployed(req.Name)
 	if err == driver.ErrReleaseNotFound {
-		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "request": "uninstall_release"},
-			err, "release not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-
+		wrapper.handleError(w, "uninstall_release", fmt.Sprintf("release '%s' not found", req.Name), http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		wrapper.handleError(w, "uninstall_release", fmt.Sprintf("checking release existence: %v", err), http.StatusInternalServerError)
 		return
 	}
 
+	// Set status and start async uninstall
 	err = h.setReleaseStatus("uninstall", req.Name, processing, nil)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release", "releaseName": req.Name},
-			err, "setting status")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
+		wrapper.handleError(w, "uninstall_release", fmt.Sprintf("setting status: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -401,22 +406,11 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 		h.uninstallRelease(req, actionConfig)
 	}(h)
 
-	response := map[string]string{
-		"message": "uninstall request accepted",
-	}
-
-	w.WriteHeader(http.StatusAccepted)
-
-	err = json.NewEncoder(w).Encode(response)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release", "releaseName": req.Name},
-			err, "encoding response")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
+	// Return acceptance response
+	response := map[string]string{"message": "uninstall request accepted"}
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(response)
 }
 
 func (h *Handler) uninstallRelease(req UninstallReleaseRequest, actionConfig *action.Configuration) {
@@ -458,39 +452,38 @@ func decodeRollbackReleaseRequest(r *http.Request) (RollbackReleaseRequest, erro
 }
 
 func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+	// Create safe request wrapper
+	wrapper := NewSafeRequestWrapper(h)
+
 	// Parse request and validate
 	req, err := decodeRollbackReleaseRequest(r)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "validating request for rollback")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
+		wrapper.handleError(w, "rollback_release", fmt.Sprintf("validating request: %v", err), http.StatusBadRequest)
 		return
 	}
 
+	// Create action config for validation
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "rollback_release"},
-			err, "creating action config")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
+		wrapper.handleError(w, "rollback_release", fmt.Sprintf("creating action config: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// check if release exists
+	// Check if release exists
 	_, err = actionConfig.Releases.Deployed(req.Name)
 	if err == driver.ErrReleaseNotFound {
-		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name},
-			err, "release not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-
+		wrapper.handleError(w, "rollback_release", fmt.Sprintf("release '%s' not found", req.Name), http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		wrapper.handleError(w, "rollback_release", fmt.Sprintf("checking release existence: %v", err), http.StatusInternalServerError)
 		return
 	}
 
+	// Set status and start async rollback
 	err = h.setReleaseStatus("rollback", req.Name, processing, nil)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "setting status")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
+		wrapper.handleError(w, "rollback_release", fmt.Sprintf("setting status: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -498,21 +491,11 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 		h.rollbackRelease(req, actionConfig)
 	}(h)
 
-	response := map[string]string{
-		"message": "rollback request accepted",
-	}
-
-	w.WriteHeader(http.StatusAccepted)
-
-	err = json.NewEncoder(w).Encode(response)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "encoding response")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
+	// Return acceptance response
+	response := map[string]string{"message": "rollback request accepted"}
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(response)
 }
 
 func (h *Handler) rollbackRelease(req RollbackReleaseRequest, actionConfig *action.Configuration) {
@@ -552,11 +535,6 @@ func (req *InstallRequest) Validate() error {
 	return validate.Struct(req)
 }
 
-func handleError(w http.ResponseWriter, releaseName string, err error, message string, status int) {
-	logger.Log(logger.LevelError, map[string]string{"releaseName": releaseName}, err, message)
-	http.Error(w, err.Error(), status)
-}
-
 func (h *Handler) returnResponse(w http.ResponseWriter, reqName string, statusCode int, message string) {
 	response := map[string]string{
 		"message": message,
@@ -566,7 +544,15 @@ func (h *Handler) returnResponse(w http.ResponseWriter, reqName string, statusCo
 
 	err := json.NewEncoder(w).Encode(response)
 	if err != nil {
-		handleError(w, reqName, err, "encoding response", http.StatusInternalServerError)
+		// Use structured error response for consistency
+		errorResponse := HelmAPIError{
+			Code:    http.StatusInternalServerError,
+			Message: "encoding response: " + err.Error(),
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(errorResponse)
 		return
 	}
 
@@ -574,44 +560,40 @@ func (h *Handler) returnResponse(w http.ResponseWriter, reqName string, statusCo
 }
 
 func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
-	// parse request
+	// Create safe request wrapper
+	wrapper := NewSafeRequestWrapper(h)
+
+	// Parse request
 	var req InstallRequest
-
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "parsing request for install")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		wrapper.handleError(w, "install_release", fmt.Sprintf("parsing request: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	err = req.Validate()
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "validating request for install")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
+	if err := req.Validate(); err != nil {
+		wrapper.handleError(w, "install_release", fmt.Sprintf("validating request: %v", err), http.StatusBadRequest)
 		return
 	}
 
+	// Create action config for validation
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "install_release"},
-			err, "creating action config")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
+		wrapper.handleError(w, "install_release", fmt.Sprintf("creating action config: %v", err), http.StatusInternalServerError)
 		return
 	}
 
+	// Set status and start async install
 	err = h.setReleaseStatus("install", req.Name, processing, nil)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "setting status")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		wrapper.handleError(w, "install_release", fmt.Sprintf("setting status: %v", err), http.StatusInternalServerError)
+		return
 	}
 
 	go func(h *Handler) {
 		h.installRelease(req, actionConfig)
 	}(h)
 
+	// Return acceptance response
 	h.returnResponse(w, req.Name, http.StatusAccepted, "install request accepted")
 }
 
@@ -760,40 +742,43 @@ func (req *UpgradeReleaseRequest) Validate() error {
 }
 
 func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+	// Create safe request wrapper
+	wrapper := NewSafeRequestWrapper(h)
+
 	// Parse request and validate
 	var req UpgradeReleaseRequest
-
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		handleError(w, req.Name, err, "parsing request for upgrade release", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		wrapper.handleError(w, "upgrade_release", fmt.Sprintf("parsing request: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	err = req.Validate()
-	if err != nil {
-		handleError(w, req.Name, err, "validating request for upgrade release", http.StatusBadRequest)
+	if err := req.Validate(); err != nil {
+		wrapper.handleError(w, "upgrade_release", fmt.Sprintf("validating request: %v", err), http.StatusBadRequest)
 		return
 	}
 
+	// Create action config for validation
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "upgrade_release"},
-			err, "creating action config")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
+		wrapper.handleError(w, "upgrade_release", fmt.Sprintf("creating action config: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// check if release exists
+	// Check if release exists
 	_, err = actionConfig.Releases.Deployed(req.Name)
 	if err == driver.ErrReleaseNotFound {
-		handleError(w, req.Name, err, "release not found", http.StatusNotFound)
+		wrapper.handleError(w, "upgrade_release", fmt.Sprintf("release '%s' not found", req.Name), http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		wrapper.handleError(w, "upgrade_release", fmt.Sprintf("checking release existence: %v", err), http.StatusInternalServerError)
 		return
 	}
 
+	// Set status and start async upgrade
 	err = h.setReleaseStatus("upgrade", req.Name, processing, nil)
 	if err != nil {
-		handleError(w, req.Name, err, "setting status", http.StatusInternalServerError)
+		wrapper.handleError(w, "upgrade_release", fmt.Sprintf("setting status: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -801,6 +786,7 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		h.upgradeRelease(req, actionConfig)
 	}(h)
 
+	// Return acceptance response
 	h.returnResponse(w, req.Name, http.StatusAccepted, "upgrade request accepted")
 }
 
@@ -888,53 +874,38 @@ func (a *ActionStatusRequest) Validate() error {
 }
 
 func (h *Handler) GetActionStatus(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+	// Create safe request wrapper
+	wrapper := NewSafeRequestWrapper(h)
+
+	// Parse request
 	var request ActionStatusRequest
-
-	err := schema.NewDecoder().Decode(&request, r.URL.Query())
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "parsing request for status")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
+	if err := schema.NewDecoder().Decode(&request, r.URL.Query()); err != nil {
+		wrapper.handleError(w, "get_action_status", fmt.Sprintf("parsing request: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	err = request.Validate()
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "validating request for status")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
+	if err := request.Validate(); err != nil {
+		wrapper.handleError(w, "get_action_status", fmt.Sprintf("validating request: %v", err), http.StatusBadRequest)
 		return
 	}
 
+	// Get status from cache
 	stat, err := h.getReleaseStatus(request.Action, request.Name)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "getting status")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
+		wrapper.handleError(w, "get_action_status", fmt.Sprintf("getting status: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	response := map[string]string{
-		"status": stat.Status,
-	}
-
+	// Build response
+	response := map[string]string{"status": stat.Status}
 	if stat.Status == success {
 		response["message"] = "action completed successfully"
-	}
-
-	if stat.Status == failed {
+	} else if stat.Status == failed && stat.Err != nil {
 		response["message"] = "action failed with error: " + *stat.Err
 	}
 
-	w.WriteHeader(http.StatusAccepted)
-
-	err = json.NewEncoder(w).Encode(response)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "encoding response")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
+	// Send response
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(response)
 }
