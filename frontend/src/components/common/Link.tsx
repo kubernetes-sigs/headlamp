@@ -39,8 +39,8 @@ export interface LinkProps extends LinkBaseProps {
   routeName: string;
   /** An object with corresponding params for the pattern to use. */
   params?: RouteURLProps;
-  /** A string representation of query parameters. */
-  search?: string;
+  /** Query parameters as a string or object. Objects are converted via URLSearchParams. */
+  search?: string | Record<string, string>;
   /** Cluster name of the resource. Set this parameter to not override selected clusters param */
   activeCluster?: string;
   /** State to persist to the location. */
@@ -120,12 +120,14 @@ function PureLink(
     params.cluster = formatClusterPathParam(getSelectedClusters(), activeCluster);
   }
 
+  const searchString = typeof search === 'object' ? new URLSearchParams(search).toString() : search;
+
   return (
     <MuiLink
       component={RouterLink}
       to={{
         pathname: createRouteURL(routeName, params),
-        search,
+        search: searchString,
         state,
       }}
       {...otherProps}

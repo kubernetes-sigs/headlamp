@@ -303,7 +303,7 @@ export function PureAuthChooser({
                 <ColorButton onClick={handleTokenAuth}>{t('Use A Token')}</ColorButton>
               </Box>
               <Box m={2} textAlign="center">
-                <Link routeName="settingsCluster" params={{ clusterID: clusterName }}>
+                <Link routeName="settingsClusterHomeContext" search={{ c: clusterName }}>
                   {t('translation|Cluster settings')}
                 </Link>
               </Box>
@@ -321,7 +321,7 @@ export function PureAuthChooser({
                         errorMessage: error!.message,
                       })}
                 </Empty>
-                <Link routeName="settingsClusterHomeContext">
+                <Link routeName="settingsClusterHomeContext" search={{ c: clusterName }}>
                   {t('translation|Cluster settings')}
                 </Link>
               </Box>
