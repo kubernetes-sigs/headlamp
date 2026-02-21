@@ -18,8 +18,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { getCluster } from '../../../cluster';
 import type { QueryParameters } from '../../api/v1/queryParameters';
-import type { ApiError } from '../../api/v2/ApiError';
 import type { KubeObject, KubeObjectInterface } from '../../KubeObject';
+import type { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
 import type { KubeListUpdateEvent } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
@@ -118,7 +118,9 @@ export function useKubeObject<K extends KubeObject>({
   type Instance = K;
   const { endpoint, error: endpointError } = useEndpoints(
     kubeObjectClass.apiEndpoint.apiInfo,
-    cluster
+    cluster,
+    namespace,
+    name
   );
 
   const cleanedUpQueryParams = Object.fromEntries(
@@ -214,25 +216,35 @@ export function useKubeObject<K extends KubeObject>({
 }
 
 /**
- * Test different endpoints to see which one is working.
+ * Probes the provided endpoints and returns the first one that works.
  *
- * @params endpoints - List of possible endpoints
- * @returns Endpoint that works
+ * @param endpoints - List of possible endpoints
+ * @param cluster - Target cluster name
+ * @param namespace - Optional namespace scope
+ * @param name - Resource name. When provided, uses GET-by-name probing
+ * @returns The first endpoint that responds with an OK status
  *
- * @throws Error
+ * @throws {ApiError}
  * When no endpoints are working
  */
 const getWorkingEndpoint = async (
   endpoints: KubeObjectEndpoint[],
   cluster: string,
-  namespace?: string
+  namespace?: string,
+  name?: string
 ) => {
   const promises = endpoints.map(endpoint => {
-    return clusterFetch(KubeObjectEndpoint.toUrl(endpoint, namespace), {
+    const resourceUrl = KubeObjectEndpoint.toUrl(endpoint, namespace);
+    // If a name is provided, we probe for that specific resource.
+    // Otherwise we probe for the list of resources.
+    const url = name ? makeUrl([resourceUrl, name]) : resourceUrl;
+
+    return clusterFetch(url, {
       method: 'GET',
       cluster: cluster ?? getCluster() ?? '',
     }).then(() => endpoint);
   });
+
   return Promise.any(promises).catch((aggregateError: AggregateError) => {
     // when no endpoint is available, throw an error
     throw aggregateError.errors[0];
@@ -240,20 +252,32 @@ const getWorkingEndpoint = async (
 };
 
 /**
- * Checks and returns an endpoint that works from the list
+ * Returns a working endpoint for the given resource.
  *
- * @params endpoints - List of possible endpoints
+ * It tries to find a working endpoint by probing the provided list.
+ *
+ * @param endpoints - List of possible endpoints
+ * @param cluster - Cluster name
+ * @param namespace - Optional namespace scope
+ * @param name - Resource name. When provided, uses GET-by-name probing
  */
 export const useEndpoints = (
   endpoints: KubeObjectEndpoint[],
   cluster: string,
-  namespace?: string
+  namespace?: string,
+  name?: string
 ) => {
+  const endpointsKey = useMemo(
+    () => endpoints.map(ep => `${ep.group ?? ''}/${ep.version}/${ep.resource}`),
+    [endpoints]
+  );
+
   const { data: endpoint, error } = useQuery<KubeObjectEndpoint, ApiError>({
     enabled: endpoints.length > 1,
-    queryKey: ['endpoints', endpoints],
-    queryFn: () => getWorkingEndpoint(endpoints, cluster!, namespace),
+    queryKey: ['endpoints', cluster, namespace, name ?? '', endpointsKey],
+    queryFn: () => getWorkingEndpoint(endpoints, cluster!, namespace, name),
   });
+
   if (endpoints.length === 1) return { endpoint: endpoints[0], error: null };
 
   return { endpoint, error };

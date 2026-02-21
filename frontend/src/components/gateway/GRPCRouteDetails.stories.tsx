@@ -44,6 +44,10 @@ export default {
           http.get('http://localhost:4466/apis/gateway.networking.k8s.io/v1beta1/grpcroutes', () =>
             HttpResponse.error()
           ),
+          http.get(
+            'http://localhost:4466/apis/gateway.networking.k8s.io/v1beta1/grpcroutes/default-grpcroute',
+            () => HttpResponse.error()
+          ),
           http.get('http://localhost:4466/apis/gateway.networking.k8s.io/v1/grpcroutes', () =>
             HttpResponse.error()
           ),
