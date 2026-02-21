@@ -27,6 +27,7 @@ import Paper from '@mui/material/Paper';
 import { BaseTextFieldProps } from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/system';
+import { useQueries } from '@tanstack/react-query';
 import { Location } from 'history';
 import { Base64 } from 'js-base64';
 import { JSONPath } from 'jsonpath-plus';
@@ -38,6 +39,10 @@ import { generatePath, NavLinkProps, useLocation } from 'react-router-dom';
 import YAML from 'yaml';
 import { labelSelectorToQuery, ResourceClasses, useCluster } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
+import { clusterFetch } from '../../../lib/k8s/api/v2/fetch';
+import { useEndpoints } from '../../../lib/k8s/api/v2/hooks';
+import { KubeObjectEndpoint } from '../../../lib/k8s/api/v2/KubeObjectEndpoint';
+import { makeUrl } from '../../../lib/k8s/api/v2/makeUrl';
 import { KubeCondition, KubeContainer, KubeContainerStatus } from '../../../lib/k8s/cluster';
 import ConfigMap from '../../../lib/k8s/configMap';
 import { KubeEvent } from '../../../lib/k8s/event';
@@ -751,46 +756,45 @@ function extractEnvVarReferences(container: KubeContainer): EnvVarReference[] {
 }
 
 /**
- * Component that fetches a Secret and reports the result.
- * This properly calls hooks at the top level.
+ * Fetches a list of KubeObjects by name using useQueries (fetch-only, no WebSocket watches).
+ * Returns a Map<name, FetchedResource> compatible with buildEnvironmentVariables.
  */
-function SecretFetcher(props: {
-  name: string;
-  namespace: string;
-  onResult: (name: string, resource: KubeObject | null, error: ApiError | null) => void;
-}) {
-  const { name, namespace, onResult } = props;
-  const [secret, error] = Secret.useGet(name, namespace);
+function useResourcesFetchOnly(
+  kubeObjectClass: typeof Secret | typeof ConfigMap,
+  names: string[],
+  namespace: string,
+  cluster: string
+): Map<string, FetchedResource> {
+  const { endpoint } = useEndpoints(kubeObjectClass.apiEndpoint.apiInfo, cluster);
 
-  React.useEffect(() => {
-    // Only call onResult when we have a definitive result (either data or error)
-    if (secret || error) {
-      onResult(name, secret, error);
-    }
-  }, [secret, error, name, onResult]);
+  const results = useQueries({
+    queries: names.map(name => ({
+      queryKey: ['env-resource', cluster, namespace, kubeObjectClass.apiName, name],
+      enabled: !!endpoint,
+      staleTime: 30_000,
+      queryFn: async (): Promise<FetchedResource> => {
+        try {
+          const url = makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace), name]);
+          const obj = await clusterFetch(url, { cluster }).then(r => r.json());
+          return { resource: new kubeObjectClass(obj) as KubeObject, error: null };
+        } catch (err) {
+          return { resource: null, error: err as ApiError };
+        }
+      },
+    })),
+  });
 
-  return null;
-}
-
-/**
- * Component that fetches a ConfigMap and reports the result.
- * This properly calls hooks at the top level.
- */
-function ConfigMapFetcher(props: {
-  name: string;
-  namespace: string;
-  onResult: (name: string, resource: KubeObject | null, error: ApiError | null) => void;
-}) {
-  const { name, namespace, onResult } = props;
-  const [configMap, error] = ConfigMap.useGet(name, namespace);
-
-  React.useEffect(() => {
-    if (configMap || error) {
-      onResult(name, configMap, error);
-    }
-  }, [configMap, error, name, onResult]);
-
-  return null;
+  return React.useMemo(() => {
+    const map = new Map<string, FetchedResource>();
+    names.forEach((name, idx) => {
+      const result = results[idx];
+      if (result?.data) {
+        map.set(name, result.data);
+      }
+    });
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [names, ...results.map(r => r.data)]);
 }
 
 /**
@@ -1027,36 +1031,10 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
   const { pod, container } = props;
   const { t } = useTranslation();
   const { enqueueSnackbar } = useSnackbar();
-
-  // State to store fetched resources
-  const [fetchedSecrets, setFetchedSecrets] = React.useState<Map<string, FetchedResource>>(
-    new Map()
-  );
-  const [fetchedConfigMaps, setFetchedConfigMaps] = React.useState<Map<string, FetchedResource>>(
-    new Map()
-  );
-
-  // Early return if no env vars
-  if (
-    (!container?.env && !container?.envFrom) ||
-    !pod?.status?.containerStatuses ||
-    !pod?.metadata?.namespace
-  ) {
-    return null;
-  }
-
-  const namespace = pod.metadata.namespace;
-  const containerStartTimestamp = (() => {
-    let timestamp = pod.metadata?.creationTimestamp;
-    const containerStatus = pod.status?.containerStatuses?.find(c => c.name === container?.name);
-    if (containerStatus?.started && containerStatus.state?.running?.startedAt) {
-      timestamp = containerStatus.state.running.startedAt;
-    }
-    return timestamp;
-  })();
+  const cluster = useCluster() ?? '';
 
   // Extract all references upfront (pure function, no hooks)
-  const references = extractEnvVarReferences(container);
+  const references = extractEnvVarReferences(container as KubeContainer);
 
   // Get unique resource names to fetch
   const secretsToFetch = React.useMemo(() => {
@@ -1079,28 +1057,29 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
     return Array.from(configMaps);
   }, [references]);
 
-  // Callbacks to handle fetched resources
-  const handleSecretFetched = React.useCallback(
-    (name: string, resource: KubeObject | null, error: ApiError | null) => {
-      setFetchedSecrets(prev => {
-        const next = new Map(prev);
-        next.set(name, { resource, error });
-        return next;
-      });
-    },
-    []
-  );
+  const namespace = pod?.metadata?.namespace ?? '';
 
-  const handleConfigMapFetched = React.useCallback(
-    (name: string, resource: KubeObject | null, error: ApiError | null) => {
-      setFetchedConfigMaps(prev => {
-        const next = new Map(prev);
-        next.set(name, { resource, error });
-        return next;
-      });
-    },
-    []
-  );
+  // Fetch secrets and configmaps in parallel — no WebSocket watchers
+  const fetchedSecrets = useResourcesFetchOnly(Secret, secretsToFetch, namespace, cluster);
+  const fetchedConfigMaps = useResourcesFetchOnly(ConfigMap, configMapsToFetch, namespace, cluster);
+
+  // Early return if no env vars
+  if (
+    (!container?.env && !container?.envFrom) ||
+    !pod?.status?.containerStatuses ||
+    !pod?.metadata?.namespace
+  ) {
+    return null;
+  }
+
+  const containerStartTimestamp = (() => {
+    let timestamp = pod.metadata?.creationTimestamp;
+    const containerStatus = pod.status?.containerStatuses?.find(c => c.name === container?.name);
+    if (containerStatus?.started && containerStatus.state?.running?.startedAt) {
+      timestamp = containerStatus.state.running.startedAt;
+    }
+    return timestamp;
+  })();
 
   // Copy handler using notistack
   const handleCopy = React.useCallback(
@@ -1229,28 +1208,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
     },
   ];
 
-  return (
-    <>
-      {/* Render fetcher components - these call hooks properly at top level */}
-      {secretsToFetch.map(name => (
-        <SecretFetcher
-          key={`secret-${name}`}
-          name={name}
-          namespace={namespace}
-          onResult={handleSecretFetched}
-        />
-      ))}
-      {configMapsToFetch.map(name => (
-        <ConfigMapFetcher
-          key={`configmap-${name}`}
-          name={name}
-          namespace={namespace}
-          onResult={handleConfigMapFetched}
-        />
-      ))}
-      <InnerTable columns={columns} data={variables} />
-    </>
-  );
+  return <InnerTable columns={columns} data={variables} />;
 }
 
 export interface VolumeMountsProps {
