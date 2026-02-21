@@ -182,6 +182,7 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 		Clusters:                contexts,
 		IsDynamicClusterEnabled: c.EnableDynamicClusters,
 		AllowKubeconfigChanges:  c.AllowKubeconfigChanges,
+		OidcAutoLogin:           c.OidcAutoLogin,
 	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {
