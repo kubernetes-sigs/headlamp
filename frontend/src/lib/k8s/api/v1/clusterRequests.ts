@@ -195,14 +195,34 @@ export async function clusterRequest(
     }
 
     let message = statusText;
+    const maxBodyLen = 2000;
     try {
-      if (isJSON) {
-        const json = await response.json();
-        message += ` - ${json.message}`;
+      const bodyText = (await response.text()).trim();
+      if (bodyText) {
+        if (isJSON) {
+          try {
+            const parsed = JSON.parse(bodyText);
+            const parsedMessage =
+              parsed && typeof parsed === 'object' && 'message' in parsed
+                ? (parsed as any).message
+                : undefined;
+
+            if (typeof parsedMessage === 'string' && parsedMessage.trim()) {
+              message += ` - ${parsedMessage}`;
+            } else {
+              message += ` - ${bodyText.slice(0, maxBodyLen)}`;
+            }
+          } catch (err) {
+            // Backend may return plain-text (e.g. Bad Gateway from proxy); include it for debugging.
+            message += ` - ${bodyText.slice(0, maxBodyLen)}`;
+          }
+        } else {
+          message += ` - ${bodyText.slice(0, maxBodyLen)}`;
+        }
       }
     } catch (err) {
       console.error(
-        'Unable to parse error json at url:',
+        'Unable to read error response body at url:',
         url,
         { err },
         'with request data:',

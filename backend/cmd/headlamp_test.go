@@ -200,7 +200,7 @@ func TestDynamicClusters(t *testing.T) {
 					TelemetryHandler: &telemetry.RequestHandler{},
 				},
 			}
-			handler := createHeadlampHandler(&c)
+			handler := createHeadlampHandler(context.Background(), &c)
 
 			var resp *httptest.ResponseRecorder
 
@@ -293,7 +293,7 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 			TelemetryHandler: &telemetry.RequestHandler{},
 		},
 	}
-	handler := createHeadlampHandler(&c)
+	handler := createHeadlampHandler(context.Background(), &c)
 
 	r, err := getResponseFromRestrictedEndpoint(handler, "POST", "/cluster", req)
 	if err != nil {
@@ -385,7 +385,7 @@ func TestExternalProxy(t *testing.T) {
 
 	tests := []test{
 		{
-			handler: createHeadlampHandler(&HeadlampConfig{
+			handler: createHeadlampHandler(context.Background(), &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:    false,
@@ -398,7 +398,7 @@ func TestExternalProxy(t *testing.T) {
 			useForwardedHeaders: true,
 		},
 		{
-			handler: createHeadlampHandler(&HeadlampConfig{
+			handler: createHeadlampHandler(context.Background(), &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:    false,
@@ -411,7 +411,7 @@ func TestExternalProxy(t *testing.T) {
 			useNoProxyURL: true,
 		},
 		{
-			handler: createHeadlampHandler(&HeadlampConfig{
+			handler: createHeadlampHandler(context.Background(), &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:    false,
@@ -474,7 +474,7 @@ func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
 	kubeConfigStore := kubeconfig.NewContextStore()
 	tests := []test{
 		{
-			handler: createHeadlampHandler(&HeadlampConfig{
+			handler: createHeadlampHandler(context.Background(), &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:    false,
@@ -577,7 +577,7 @@ func TestDeletePlugin(t *testing.T) {
 		},
 	}
 
-	handler := createHeadlampHandler(&c)
+	handler := createHeadlampHandler(context.Background(), &c)
 
 	rr, err := getResponseFromRestrictedEndpoint(handler, "DELETE", "/plugins/test-plugin", nil)
 	require.NoError(t, err)
@@ -625,7 +625,7 @@ func TestHandleClusterAPI_XForwardedHost(t *testing.T) {
 		},
 	}
 
-	handler := createHeadlampHandler(&c)
+	handler := createHeadlampHandler(context.Background(), &c)
 
 	// Create a test request to the cluster API endpoint
 	ctx := context.Background()
@@ -745,7 +745,7 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 			TelemetryHandler: &telemetry.RequestHandler{},
 		},
 	}
-	handler := createHeadlampHandler(&c)
+	handler := createHeadlampHandler(context.Background(), &c)
 
 	r, err := getResponseFromRestrictedEndpoint(handler, "POST", "/cluster", req)
 	if err != nil {
@@ -1744,7 +1744,7 @@ func TestCacheMiddleware_CacheHitAndCacheMiss_RealK8s(t *testing.T) {
 	}
 
 	c, clusterName := newRealK8sHeadlampConfig(t)
-	handler := createHeadlampHandler(c)
+	handler := createHeadlampHandler(context.Background(), c)
 	ts := httptest.NewServer(handler)
 	t.Cleanup(ts.Close)
 
@@ -1781,7 +1781,7 @@ func TestCacheMiddleware_CacheInvalidation_RealK8s(t *testing.T) {
 	}
 
 	c, clusterName := newRealK8sHeadlampConfig(t)
-	handler := createHeadlampHandler(c)
+	handler := createHeadlampHandler(context.Background(), c)
 	ts := httptest.NewServer(handler)
 	t.Cleanup(ts.Close)
 
