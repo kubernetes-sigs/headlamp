@@ -194,6 +194,10 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
 
   function onDataChange(data: { [key: string]: any }) {
     setData(data);
+
+    if (!plugin.displaySettingsComponentWithSaveButton && onSave) {
+      void onSave(data);
+    }
   }
 
   async function handleSave() {
@@ -223,11 +227,7 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
       component = plugin.settingsComponent;
     } else if (typeof plugin.settingsComponent === 'function') {
       const Comp = plugin.settingsComponent;
-      if (plugin.displaySettingsComponentWithSaveButton) {
-        component = <Comp onDataChange={onDataChange} data={data} />;
-      } else {
-        component = <Comp />;
-      }
+      component = <Comp onDataChange={onDataChange} data={data} />;
     } else {
       component = null;
     }
