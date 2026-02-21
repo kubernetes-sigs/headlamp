@@ -191,8 +191,15 @@ func runWatcher(
 	discoveryClient := discovery.NewDiscoveryClientForConfigOrDie(config)
 
 	apiResourceLists, err := discoveryClient.ServerPreferredResources()
-	if apiResourceLists == nil && err != nil {
-		logger.Log(logger.LevelError, nil, err, "error fetching resource list for context: "+contextKey)
+	if err != nil {
+		if discovery.IsGroupDiscoveryFailedError(err) {
+			logger.Log(logger.LevelWarn, nil, err, "partial resource list returned for context: "+contextKey)
+		} else {
+			logger.Log(logger.LevelError, nil, err, "error fetching resource list for context: "+contextKey)
+		}
+	}
+
+	if apiResourceLists == nil {
 		return
 	}
 
