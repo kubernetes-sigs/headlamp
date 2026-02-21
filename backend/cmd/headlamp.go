@@ -244,6 +244,7 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 	}
 
 	addPluginListRoute(config, r)
+	addPluginRefreshRoute(config, r)
 
 	// Serve development plugins
 	pluginHandler := http.StripPrefix(config.BaseURL+"/plugins/", http.FileServer(http.Dir(config.PluginDir)))
@@ -366,6 +367,31 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 			} else if config.Telemetry != nil {
 				span.SetStatus(codes.Ok, "Plugin list retrieved successfully")
 			}
+		}
+	}).Methods("GET")
+}
+
+// addPluginRefreshRoute registers a GET endpoint handler at "/plugin-refresh" that checks
+// if plugins need to be reloaded. This allows non-cluster pages (like Settings)
+// to poll this endpoint for plugin changes or reload signals.
+func addPluginRefreshRoute(config *HeadlampConfig, r *mux.Router) {
+	r.HandleFunc("/plugin-refresh", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		var span trace.Span
+
+		if config.Telemetry != nil {
+			_, span = telemetry.CreateSpan(ctx, r, "plugins", "checkPluginRefresh")
+
+			defer span.End()
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		plugins.HandlePluginReload(config.cache, w)
+		response := map[string]bool{"ok": true}
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			logger.Log(logger.LevelError, nil, err, "encoding plugin refresh response")
+		} else if config.Telemetry != nil {
+			span.SetStatus(codes.Ok, "Plugin refresh check completed")
 		}
 	}).Methods("GET")
 }
