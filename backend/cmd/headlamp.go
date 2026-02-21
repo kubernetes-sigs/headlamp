@@ -1756,12 +1756,9 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 	clientConfig := clientConfig{
 		Clusters:                c.getClusters(),
 		IsDynamicClusterEnabled: c.EnableDynamicClusters,
-<<<<<<< HEAD
 		AllowKubeconfigChanges:  c.AllowKubeconfigChanges,
-=======
 		PrometheusEndpoint:      c.PrometheusEndpoint,
 		FiltersWarningsOnly:     c.FiltersWarningsOnly,
->>>>>>> 25817145d (feat: make default event severity filter configurable)
 	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {
