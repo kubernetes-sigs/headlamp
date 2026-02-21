@@ -123,7 +123,31 @@ func buildTelemetryConfig(conf *config.Config) config.Config {
 func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
-	multiplexer := NewMultiplexer(kubeConfigStore)
+
+	// Parse allowed hosts for WebSocket DNS rebinding protection
+	var allowedHosts []string
+
+	if conf.AllowedHosts != "" {
+		for _, host := range strings.Split(conf.AllowedHosts, ",") {
+			host = strings.TrimSpace(host)
+			if host != "" {
+				allowedHosts = append(allowedHosts, host)
+			}
+		}
+	}
+
+	var trustedProxies []string
+
+	if conf.TrustedProxies != "" {
+		for _, proxy := range strings.Split(conf.TrustedProxies, ",") {
+			proxy = strings.TrimSpace(proxy)
+			if proxy != "" {
+				trustedProxies = append(trustedProxies, proxy)
+			}
+		}
+	}
+
+	multiplexer := NewMultiplexer(kubeConfigStore, allowedHosts, trustedProxies, conf.WebSocketRequireOrigin)
 
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),

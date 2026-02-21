@@ -18,6 +18,10 @@ import (
 
 //nolint:funlen
 func TestHandleServiceProxy(t *testing.T) {
+	// Use test client without SSRF protection for these tests
+	SetHTTPClientFactory(newTestClient)
+	t.Cleanup(ResetHTTPClientFactory)
+
 	tests := []struct {
 		name           string
 		proxyService   *proxyService
@@ -107,8 +111,9 @@ func TestHandleServiceProxy(t *testing.T) {
 			mockResponse:   "",
 			mockStatusCode: http.StatusOK,
 			expectedCode:   http.StatusInternalServerError,
-			expectedBody:   "invalid request uri: parse \"://invalid-request-uri\": missing protocol scheme\n",
-			useMockServer:  false,
+			expectedBody: "invalid request URI: invalid URI format: " +
+				"parse \"://invalid-request-uri\": missing protocol scheme\n",
+			useMockServer: false,
 		},
 	}
 

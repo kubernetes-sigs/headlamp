@@ -84,7 +84,7 @@ describe('WebSocket Multiplexer', () => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
     WebSocketManager.socketMultiplexer = null;
-    WebSocketManager.connecting = false;
+    WebSocketManager.connectionPromise = null;
     WebSocketManager.isReconnecting = false;
     WebSocketManager.listeners.clear();
     WebSocketManager.completedPaths.clear();
@@ -242,7 +242,7 @@ describe('WebSocket Multiplexer', () => {
 
       // Verify error was handled
       expect(WebSocketManager.socketMultiplexer).toBeNull();
-      expect(WebSocketManager.connecting).toBe(false);
+      expect(WebSocketManager.connectionPromise).toBeNull();
     });
 
     it('should handle duplicate subscriptions', async () => {
@@ -451,7 +451,7 @@ describe('WebSocket Multiplexer', () => {
       // Verify WebSocketManager state after close
       expect(WebSocketManager.socketMultiplexer).toBeNull();
       expect(WebSocketManager.isReconnecting).toBe(true);
-      expect(WebSocketManager.connecting).toBe(false);
+      expect(WebSocketManager.connectionPromise).toBeNull();
 
       // Try to use connection again to trigger reconnect
       const newServer = new WS(`${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`);
@@ -486,7 +486,7 @@ describe('WebSocket Multiplexer', () => {
 
       // Verify WebSocket state after close
       expect(WebSocketManager.socketMultiplexer).toBeNull();
-      expect(WebSocketManager.connecting).toBe(false);
+      expect(WebSocketManager.connectionPromise).toBeNull();
       expect(WebSocketManager.completedPaths.size).toBe(0);
       expect(WebSocketManager.isReconnecting).toBe(true); // Should be true since we have active subscriptions
     });

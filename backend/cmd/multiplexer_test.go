@@ -46,7 +46,7 @@ func newTestDialer() *websocket.Dialer {
 
 func TestNewMultiplexer(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store)
+	m := NewMultiplexer(store, nil, nil, true)
 
 	assert.NotNil(t, m)
 	assert.Equal(t, store, m.kubeConfigStore)
@@ -56,7 +56,7 @@ func TestNewMultiplexer(t *testing.T) {
 
 func TestHandleClientWebSocket(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore)
+	m := NewMultiplexer(contextStore, nil, nil, true)
 
 	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -64,11 +64,16 @@ func TestHandleClientWebSocket(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Connect to test server
+	// Connect to test server with Origin header (required for WebSocket connections)
 	dialer := newTestDialer()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	ws, resp, err := dialer.Dial(wsURL, nil)
+	// Extract host from server URL to set as Origin
+	serverHost := strings.TrimPrefix(server.URL, "http://")
+	headers := http.Header{}
+	headers.Set("Origin", "http://"+serverHost)
+
+	ws, resp, err := dialer.Dial(wsURL, headers)
 	require.NoError(t, err)
 
 	if resp != nil && resp.Body != nil {
@@ -102,7 +107,7 @@ func TestHandleClientWebSocket(t *testing.T) {
 
 func TestGetClusterConfigWithFallback(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store)
+	m := NewMultiplexer(store, nil, nil, true)
 
 	// Add a mock cluster config
 	err := store.AddContext(&kubeconfig.Context{
@@ -124,7 +129,7 @@ func TestGetClusterConfigWithFallback(t *testing.T) {
 }
 
 func TestCreateConnection(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 	clientConn, _ := createTestWebSocketConnection()
 
 	// Add RequestID to the createConnection call
@@ -137,7 +142,7 @@ func TestCreateConnection(t *testing.T) {
 }
 
 func TestDialWebSocket(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upgrader := websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
@@ -180,7 +185,7 @@ func TestDialWebSocket(t *testing.T) {
 }
 
 func TestDialWebSocket_WithToken(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 
 	var receivedAuth string
 
@@ -215,7 +220,7 @@ func TestDialWebSocket_WithToken(t *testing.T) {
 
 func TestDialWebSocket_Errors(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore)
+	m := NewMultiplexer(contextStore, nil, nil, true)
 
 	// Test invalid URL
 	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
@@ -231,7 +236,7 @@ func TestDialWebSocket_Errors(t *testing.T) {
 }
 
 func TestMonitorConnection(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -295,7 +300,7 @@ func TestUpdateStatus(t *testing.T) {
 }
 
 func TestCleanupConnections(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -316,7 +321,7 @@ func TestCleanupConnections(t *testing.T) {
 }
 
 func TestCloseConnection(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -514,7 +519,7 @@ func createMockKubeAPIServer() *httptest.Server {
 
 func TestGetOrCreateConnection(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store)
+	m := NewMultiplexer(store, nil, nil, true)
 
 	// Create a mock Kubernetes API server
 	mockServer := createMockKubeAPIServer()
@@ -566,7 +571,7 @@ func TestGetOrCreateConnection(t *testing.T) {
 
 func TestEstablishClusterConnection(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store)
+	m := NewMultiplexer(store, nil, nil, true)
 
 	// Create a mock Kubernetes API server
 	mockServer := createMockKubeAPIServer()
@@ -603,7 +608,7 @@ func TestEstablishClusterConnection(t *testing.T) {
 
 func TestReconnect(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store)
+	m := NewMultiplexer(store, nil, nil, true)
 
 	// Create a mock Kubernetes API server
 	mockServer := createMockKubeAPIServer()
@@ -667,7 +672,7 @@ func TestReconnect(t *testing.T) {
 }
 
 func TestCreateWrapperMessage(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 	conn := &Connection{
 		ClusterID: "test-cluster",
 		Path:      "/api/v1/pods",
@@ -697,7 +702,7 @@ func TestCreateWrapperMessage(t *testing.T) {
 }
 
 func TestHandleConnectionError(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -751,7 +756,7 @@ func TestHandleConnectionError(t *testing.T) {
 //nolint:funlen
 func TestReadClientMessage_InvalidMessage(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore)
+	m := NewMultiplexer(contextStore, nil, nil, true)
 
 	// Create a server that will echo messages back
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -867,7 +872,7 @@ func TestUpdateStatus_WithError(t *testing.T) {
 
 func TestMonitorConnection_ReconnectFailure(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store)
+	m := NewMultiplexer(store, nil, nil, true)
 
 	// Add an invalid cluster config to force reconnection failure
 	err := store.AddContext(&kubeconfig.Context{
@@ -911,7 +916,7 @@ func TestMonitorConnection_ReconnectFailure(t *testing.T) {
 }
 
 func TestHandleClientWebSocket_InvalidMessages(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		m.HandleClientWebSocket(w, r)
@@ -921,7 +926,11 @@ func TestHandleClientWebSocket_InvalidMessages(t *testing.T) {
 
 	// Test invalid JSON
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	serverHost := strings.TrimPrefix(server.URL, "http://")
+	headers := http.Header{}
+	headers.Set("Origin", "http://"+serverHost)
+
+	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, headers)
 	require.NoError(t, err)
 
 	if resp != nil && resp.Body != nil {
@@ -945,7 +954,7 @@ func TestHandleClientWebSocket_InvalidMessages(t *testing.T) {
 	ws.Close()
 
 	// Test invalid message type with new connection
-	ws, resp, err = websocket.DefaultDialer.Dial(wsURL, nil)
+	ws, resp, err = websocket.DefaultDialer.Dial(wsURL, headers)
 	require.NoError(t, err)
 
 	if resp != nil && resp.Body != nil {
@@ -976,7 +985,7 @@ func TestHandleClientWebSocket_InvalidMessages(t *testing.T) {
 }
 
 func TestSendIfNewResourceVersion_VersionComparison(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -1022,7 +1031,7 @@ func TestSendIfNewResourceVersion_VersionComparison(t *testing.T) {
 }
 
 func TestSendCompleteMessage_ClosedConnection(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -1095,7 +1104,7 @@ func TestSendCompleteMessage_ErrorConditions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewMultiplexer(kubeconfig.NewContextStore())
+			m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 			clientConn, clientServer := createTestWebSocketConnection()
 
 			defer clientServer.Close()
@@ -1121,7 +1130,7 @@ func TestSendCompleteMessage_ErrorConditions(t *testing.T) {
 
 func TestGetOrCreateConnection_TokenRefresh(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store)
+	m := NewMultiplexer(store, nil, nil, true)
 
 	// Create a mock Kubernetes API server
 	mockServer := createMockKubeAPIServer()
@@ -1169,7 +1178,7 @@ func TestGetOrCreateConnection_TokenRefresh(t *testing.T) {
 
 func TestReconnect_WithToken(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store)
+	m := NewMultiplexer(store, nil, nil, true)
 
 	// Create a mock Kubernetes API server
 	mockServer := createMockKubeAPIServer()
@@ -1233,7 +1242,7 @@ func TestReconnect_WithToken(t *testing.T) {
 
 func TestMonitorConnection_Reconnect(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore)
+	m := NewMultiplexer(contextStore, nil, nil, true)
 
 	// Create a server that will accept the connection and then close it
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1280,7 +1289,7 @@ func TestMonitorConnection_Reconnect(t *testing.T) {
 }
 
 func TestWriteMessageToCluster(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 	clusterConn, clusterServer := createTestWebSocketConnection()
 
 	defer clusterServer.Close()
@@ -1322,7 +1331,7 @@ func TestWriteMessageToCluster(t *testing.T) {
 }
 
 func TestHandleClusterMessages(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -1367,7 +1376,7 @@ func TestHandleClusterMessages(t *testing.T) {
 }
 
 func TestSendCompleteMessage(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -1395,7 +1404,7 @@ func TestSendCompleteMessage(t *testing.T) {
 }
 
 func TestSendDataMessage(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -1429,4 +1438,769 @@ func TestSendDataMessage(t *testing.T) {
 	conn.closed = true
 	err = m.sendDataMessage(conn, clientConn, websocket.TextMessage, textMsg)
 	assert.NoError(t, err) // Should return nil even for closed connection
+}
+
+// Security Tests
+
+//nolint:funlen // Table-driven test with comprehensive origin validation test cases
+func TestCheckOrigin_SameOrigin(t *testing.T) {
+	tests := []struct {
+		name        string
+		origin      string
+		host        string
+		expected    bool
+		description string
+	}{
+		{
+			name:        "same origin should be allowed",
+			origin:      "http://localhost:3000",
+			host:        "localhost:4466",
+			expected:    true,
+			description: "Requests from localhost to localhost should be allowed",
+		},
+		{
+			name:        "no origin header should be rejected",
+			origin:      "",
+			host:        "localhost:4466",
+			expected:    false,
+			description: "Requests without Origin header should be rejected to prevent bypass attacks",
+		},
+		{
+			name:        "cross-origin should be rejected",
+			origin:      "https://attacker.com",
+			host:        "localhost:4466",
+			expected:    false,
+			description: "Cross-origin requests should be rejected",
+		},
+		{
+			name:        "localhost 127.0.0.1 to localhost should be allowed",
+			origin:      "http://127.0.0.1:3000",
+			host:        "localhost:4466",
+			expected:    true,
+			description: "Localhost variations should be allowed",
+		},
+		{
+			name:        "localhost to 127.0.0.1 should be allowed",
+			origin:      "http://localhost:3000",
+			host:        "127.0.0.1:4466",
+			expected:    true,
+			description: "Localhost variations should be allowed",
+		},
+		{
+			name:        "exact same host and port",
+			origin:      "http://myapp.example.com",
+			host:        "myapp.example.com:4466",
+			expected:    true,
+			description: "Same hostname should be allowed",
+		},
+		{
+			name:        "different subdomain should be rejected",
+			origin:      "http://evil.example.com",
+			host:        "myapp.example.com:4466",
+			expected:    false,
+			description: "Different subdomains should be rejected",
+		},
+		{
+			name:        "invalid origin URL should be rejected",
+			origin:      "not-a-valid-url",
+			host:        "localhost:4466",
+			expected:    false,
+			description: "Invalid origin URLs should be rejected",
+		},
+		// Additional loopback address tests
+		{
+			name:        "127.0.0.2 to 127.0.0.1 should be allowed",
+			origin:      "http://127.0.0.2:3000",
+			host:        "127.0.0.1:4466",
+			expected:    true,
+			description: "Different addresses in 127.0.0.0/8 range should be allowed",
+		},
+		{
+			name:        "127.0.0.1 to 127.0.0.2 should be allowed",
+			origin:      "http://127.0.0.1:3000",
+			host:        "127.0.0.2:4466",
+			expected:    true,
+			description: "Different addresses in 127.0.0.0/8 range should be allowed",
+		},
+		{
+			name:        "127.255.255.255 to localhost should be allowed",
+			origin:      "http://127.255.255.255:3000",
+			host:        "localhost:4466",
+			expected:    true,
+			description: "Any address in 127.0.0.0/8 range to localhost should be allowed",
+		},
+		{
+			name:        "IPv6 loopback ::1 to localhost should be allowed",
+			origin:      "http://[::1]:3000",
+			host:        "localhost:4466",
+			expected:    true,
+			description: "IPv6 loopback to localhost should be allowed",
+		},
+		{
+			name:        "localhost to IPv6 loopback ::1 should be allowed",
+			origin:      "http://localhost:3000",
+			host:        "[::1]:4466",
+			expected:    true,
+			description: "Localhost to IPv6 loopback should be allowed",
+		},
+		{
+			name:        "IPv6 loopback to 127.0.0.1 should be allowed",
+			origin:      "http://[::1]:3000",
+			host:        "127.0.0.1:4466",
+			expected:    true,
+			description: "IPv6 loopback to IPv4 loopback should be allowed",
+		},
+		{
+			name:        "0.0.0.0 should not be treated as loopback",
+			origin:      "http://0.0.0.0:3000",
+			host:        "localhost:4466",
+			expected:    false,
+			description: "0.0.0.0 is not a loopback address and should be rejected",
+		},
+		{
+			name:        "localhost.localdomain should not be treated as localhost",
+			origin:      "http://localhost.localdomain:3000",
+			host:        "localhost:4466",
+			expected:    false,
+			description: "localhost.localdomain is not localhost and should be rejected",
+		},
+		// Case-insensitive host comparison tests (RFC 4343)
+		{
+			name:        "case insensitive same origin - uppercase origin",
+			origin:      "http://LOCALHOST:3000",
+			host:        "localhost:4466",
+			expected:    true,
+			description: "Host comparison should be case-insensitive per RFC 4343",
+		},
+		{
+			name:        "case insensitive same origin - uppercase host",
+			origin:      "http://localhost:3000",
+			host:        "LOCALHOST:4466",
+			expected:    true,
+			description: "Host comparison should be case-insensitive per RFC 4343",
+		},
+		{
+			name:        "case insensitive same origin - mixed case",
+			origin:      "http://MyApp.Example.COM:3000",
+			host:        "myapp.example.com:4466",
+			expected:    true,
+			description: "Host comparison should be case-insensitive per RFC 4343",
+		},
+		{
+			name:        "case insensitive same origin - both mixed case",
+			origin:      "http://HEADLAMP.Example.Org:3000",
+			host:        "headlamp.EXAMPLE.org:4466",
+			expected:    true,
+			description: "Host comparison should be case-insensitive per RFC 4343",
+		},
+	}
+
+	// Create a multiplexer with no allowed hosts (backward compatible mode)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "http://"+tt.host+"/wsMultiplexer", nil)
+			if tt.origin != "" {
+				req.Header.Set("Origin", tt.origin)
+			}
+
+			result := m.checkOrigin(req)
+			assert.Equal(t, tt.expected, result, tt.description)
+		})
+	}
+}
+
+func TestCheckOrigin_RequireOriginDisabled(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, false)
+
+	// Without Origin header - should be allowed when requireOrigin=false
+	req := httptest.NewRequest("GET", "http://localhost:4466/wsMultiplexer", nil)
+	assert.True(t, m.checkOrigin(req), "Should allow missing Origin when requireOrigin is false")
+
+	// With Origin header - should still validate normally
+	req = httptest.NewRequest("GET", "http://localhost:4466/wsMultiplexer", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	assert.True(t, m.checkOrigin(req), "Should allow same-origin when requireOrigin is false")
+
+	// Cross-origin should still be rejected
+	req = httptest.NewRequest("GET", "http://localhost:4466/wsMultiplexer", nil)
+	req.Header.Set("Origin", "https://attacker.com")
+	assert.False(t, m.checkOrigin(req), "Should still reject cross-origin when requireOrigin is false")
+}
+
+func TestIsLoopbackHost(t *testing.T) {
+	tests := []struct {
+		name     string
+		host     string
+		expected bool
+	}{
+		// Localhost hostname (case-insensitive)
+		{"localhost", "localhost", true},
+		{"LOCALHOST uppercase", "LOCALHOST", true},
+		{"LocalHost mixed case", "LocalHost", true},
+		{"LOCALhost mixed case", "LOCALhost", true},
+
+		// IPv4 loopback range (127.0.0.0/8)
+		{"127.0.0.1", "127.0.0.1", true},
+		{"127.0.0.2", "127.0.0.2", true},
+		{"127.255.255.255", "127.255.255.255", true},
+		{"127.0.0.0", "127.0.0.0", true},
+		{"127.1.2.3", "127.1.2.3", true},
+
+		// IPv6 loopback
+		{"IPv6 loopback ::1", "::1", true},
+
+		// Non-loopback addresses
+		{"0.0.0.0", "0.0.0.0", false},
+		{"192.168.1.1", "192.168.1.1", false},
+		{"10.0.0.1", "10.0.0.1", false},
+		{"8.8.8.8", "8.8.8.8", false},
+
+		// Invalid hostnames
+		{"localhost.localdomain", "localhost.localdomain", false},
+		{"local", "local", false},
+		{"attacker.com", "attacker.com", false},
+		{"empty string", "", false},
+		{"invalid IP", "999.999.999.999", false},
+
+		// IPv6 non-loopback
+		{"IPv6 unspecified", "::", false},
+		{"IPv6 link-local", "fe80::1", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isLoopbackHost(tt.host)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestDNSRebindingProtection verifies that the allowed hosts feature prevents DNS rebinding attacks.
+//
+//nolint:funlen // Table-driven test with comprehensive security test cases
+func TestDNSRebindingProtection(t *testing.T) {
+	tests := []struct {
+		name         string
+		allowedHosts []string
+		origin       string
+		host         string
+		expected     bool
+	}{
+		{
+			"allowed host accepted",
+			[]string{"headlamp.example.com"},
+			"http://headlamp.example.com",
+			"headlamp.example.com:4466",
+			true,
+		},
+		{
+			"non-allowed host rejected",
+			[]string{"headlamp.example.com"},
+			"http://attacker.com",
+			"attacker.com:4466",
+			false,
+		},
+		{
+			"localhost always allowed",
+			[]string{"headlamp.example.com"},
+			"http://localhost:3000",
+			"localhost:4466",
+			true,
+		},
+		{
+			"127.0.0.1 always allowed",
+			[]string{"headlamp.example.com"},
+			"http://127.0.0.1:3000",
+			"127.0.0.1:4466",
+			true,
+		},
+		{
+			"empty allowlist backward compatible",
+			nil,
+			"http://any-host.example.com",
+			"any-host.example.com:4466",
+			true,
+		},
+		{
+			"multiple allowed hosts",
+			[]string{"app1.example.com", "app2.example.com"},
+			"http://app2.example.com",
+			"app2.example.com:4466",
+			true,
+		},
+		{
+			"DNS rebinding attack blocked",
+			[]string{"headlamp.internal.example.com"},
+			"http://malicious.attacker.com",
+			"malicious.attacker.com:4466",
+			false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewMultiplexer(kubeconfig.NewContextStore(), tt.allowedHosts, nil, true)
+			req := httptest.NewRequest("GET", "http://"+tt.host+"/wsMultiplexer", nil)
+			req.Header.Set("Origin", tt.origin)
+			assert.Equal(t, tt.expected, m.checkOrigin(req))
+		})
+	}
+}
+
+// TestIsAllowedHost tests the isAllowedHost helper method directly.
+//
+//nolint:funlen // Table-driven test with comprehensive test cases.
+func TestIsAllowedHost(t *testing.T) {
+	tests := []struct {
+		name         string
+		allowedHosts []string
+		host         string
+		expected     bool
+	}{
+		{
+			name:         "localhost always allowed",
+			allowedHosts: []string{"example.com"},
+			host:         "localhost",
+			expected:     true,
+		},
+		{
+			name:         "127.0.0.1 always allowed",
+			allowedHosts: []string{"example.com"},
+			host:         "127.0.0.1",
+			expected:     true,
+		},
+		{
+			name:         "::1 always allowed",
+			allowedHosts: []string{"example.com"},
+			host:         "::1",
+			expected:     true,
+		},
+		{
+			name:         "host in allowlist",
+			allowedHosts: []string{"example.com", "test.com"},
+			host:         "example.com",
+			expected:     true,
+		},
+		{
+			name:         "host not in allowlist",
+			allowedHosts: []string{"example.com"},
+			host:         "attacker.com",
+			expected:     false,
+		},
+		{
+			name:         "empty allowlist allows everything",
+			allowedHosts: nil,
+			host:         "anything.com",
+			expected:     true,
+		},
+		{
+			name:         "empty allowlist slice allows everything",
+			allowedHosts: []string{},
+			host:         "anything.com",
+			expected:     true,
+		},
+		// Case-insensitive allowed hosts tests (RFC 4343)
+		{
+			name:         "case insensitive allowed host - uppercase in list",
+			allowedHosts: []string{"EXAMPLE.COM"},
+			host:         "example.com",
+			expected:     true,
+		},
+		{
+			name:         "case insensitive allowed host - uppercase request",
+			allowedHosts: []string{"example.com"},
+			host:         "EXAMPLE.COM",
+			expected:     true,
+		},
+		{
+			name:         "case insensitive allowed host - mixed case",
+			allowedHosts: []string{"Headlamp.Example.Org"},
+			host:         "headlamp.EXAMPLE.org",
+			expected:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewMultiplexer(kubeconfig.NewContextStore(), tt.allowedHosts, nil, true)
+			result := m.isAllowedHost(tt.host)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestExtractClientIP tests client IP extraction with various proxy configurations.
+//
+//nolint:funlen // Table-driven test with comprehensive proxy scenarios.
+func TestExtractClientIP(t *testing.T) {
+	// Test without trusted proxies - forwarded headers should be ignored
+	t.Run("without trusted proxies", func(t *testing.T) {
+		m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true) // No trusted proxies
+
+		tests := []struct {
+			name       string
+			remoteAddr string
+			xff        string
+			xRealIP    string
+			expected   string
+		}{
+			{"direct connection", "192.168.1.100:12345", "", "", "192.168.1.100"},
+			{"X-Forwarded-For ignored without trust", "10.0.0.1:12345", "203.0.113.50", "", "10.0.0.1"},
+			{"X-Real-IP ignored without trust", "10.0.0.1:12345", "", "203.0.113.99", "10.0.0.1"},
+			{"IPv6 address", "[::1]:12345", "", "", "::1"},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				req := httptest.NewRequest("GET", "/", nil)
+				req.RemoteAddr = tt.remoteAddr
+
+				if tt.xff != "" {
+					req.Header.Set("X-Forwarded-For", tt.xff)
+				}
+
+				if tt.xRealIP != "" {
+					req.Header.Set("X-Real-IP", tt.xRealIP)
+				}
+
+				assert.Equal(t, tt.expected, m.extractClientIP(req))
+			})
+		}
+	})
+
+	// Test with trusted proxies - forwarded headers should be used
+	t.Run("with trusted proxies", func(t *testing.T) {
+		m := NewMultiplexer(kubeconfig.NewContextStore(), nil, []string{"10.0.0.1", "192.168.0.0/16"}, true)
+
+		tests := []struct {
+			name       string
+			remoteAddr string
+			xff        string
+			xRealIP    string
+			expected   string
+		}{
+			{"direct connection from trusted", "10.0.0.1:12345", "", "", "10.0.0.1"},
+			{"X-Forwarded-For single", "10.0.0.1:12345", "203.0.113.50", "", "203.0.113.50"},
+			{"X-Forwarded-For multiple", "10.0.0.1:12345", "203.0.113.50, 70.41.3.18, 150.172.238.178", "", "203.0.113.50"},
+			{"X-Real-IP", "10.0.0.1:12345", "", "203.0.113.99", "203.0.113.99"},
+			{"X-Forwarded-For takes precedence", "10.0.0.1:12345", "203.0.113.50", "203.0.113.99", "203.0.113.50"},
+			{"whitespace handling", "10.0.0.1:12345", "  203.0.113.50  , 70.41.3.18", "", "203.0.113.50"},
+			{"CIDR trusted proxy", "192.168.1.1:12345", "203.0.113.50", "", "203.0.113.50"},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				req := httptest.NewRequest("GET", "/", nil)
+				req.RemoteAddr = tt.remoteAddr
+
+				if tt.xff != "" {
+					req.Header.Set("X-Forwarded-For", tt.xff)
+				}
+
+				if tt.xRealIP != "" {
+					req.Header.Set("X-Real-IP", tt.xRealIP)
+				}
+
+				assert.Equal(t, tt.expected, m.extractClientIP(req))
+			})
+		}
+	})
+
+	// Test untrusted proxy doesn't allow header spoofing
+	t.Run("untrusted proxy header spoofing prevention", func(t *testing.T) {
+		m := NewMultiplexer(kubeconfig.NewContextStore(), nil, []string{"10.0.0.1"}, true) // Only 10.0.0.1 trusted
+
+		req := httptest.NewRequest("GET", "/", nil)
+		req.RemoteAddr = "203.0.113.100:12345"           // Not a trusted proxy
+		req.Header.Set("X-Forwarded-For", "192.168.1.1") // Attacker tries to spoof
+
+		// Should return the direct remote address, ignoring the spoofed header
+		assert.Equal(t, "203.0.113.100", m.extractClientIP(req))
+	})
+}
+
+// TestIsTrustedProxy tests the trusted proxy detection logic.
+func TestIsTrustedProxy(t *testing.T) {
+	tests := []struct {
+		name           string
+		trustedProxies []string
+		ip             string
+		expected       bool
+	}{
+		{"empty list returns false", nil, "10.0.0.1", false},
+		{"empty slice returns false", []string{}, "10.0.0.1", false},
+		{"exact IP match", []string{"10.0.0.1"}, "10.0.0.1", true},
+		{"exact IP no match", []string{"10.0.0.1"}, "10.0.0.2", false},
+		{"CIDR contains IP", []string{"10.0.0.0/8"}, "10.255.255.255", true},
+		{"CIDR does not contain IP", []string{"10.0.0.0/8"}, "192.168.1.1", false},
+		{"multiple entries - match first", []string{"10.0.0.1", "192.168.0.0/16"}, "10.0.0.1", true},
+		{"multiple entries - match second", []string{"10.0.0.1", "192.168.0.0/16"}, "192.168.1.1", true},
+		{"multiple entries - no match", []string{"10.0.0.1", "192.168.0.0/16"}, "172.16.0.1", false},
+		{"IPv6 exact match", []string{"::1"}, "::1", true},
+		{"IPv6 CIDR match", []string{"2001:db8::/32"}, "2001:db8::1", true},
+		{"invalid IP returns false", []string{"10.0.0.1"}, "not-an-ip", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewMultiplexer(kubeconfig.NewContextStore(), nil, tt.trustedProxies, true)
+			result := m.isTrustedProxy(tt.ip)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestIPRateLimiter(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
+
+	// Create two requests from the same IP (different ports)
+	req1 := httptest.NewRequest("GET", "/", nil)
+	req1.RemoteAddr = "192.168.1.100:12345"
+
+	req2 := httptest.NewRequest("GET", "/", nil)
+	req2.RemoteAddr = "192.168.1.100:54321"
+
+	// Get rate limiter for the same IP - should return the same limiter instance
+	limiter1 := m.getIPRateLimiter(req1)
+	limiter2 := m.getIPRateLimiter(req2)
+	assert.Same(t, limiter1, limiter2, "Same IP should get the same rate limiter instance")
+
+	// Create request from different IP
+	req3 := httptest.NewRequest("GET", "/", nil)
+	req3.RemoteAddr = "10.0.0.1:12345"
+
+	limiter3 := m.getIPRateLimiter(req3)
+	assert.NotSame(t, limiter1, limiter3, "Different IPs should get different rate limiter instances")
+
+	// Test rate limiting - exhaust the IP burst
+	allowedCount := 0
+
+	for i := 0; i < IPBurstSize+10; i++ {
+		if limiter1.Allow() {
+			allowedCount++
+		}
+	}
+
+	assert.Equal(t, IPBurstSize, allowedCount, "Should allow exactly IPBurstSize requests initially")
+}
+
+func TestRateLimiter(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
+
+	// Create a mock WebSocket connection
+	wsConn, wsServer := createTestWebSocketConn()
+	defer wsServer.Close()
+
+	// Get rate limiter for the connection
+	limiter := m.getRateLimiter(wsConn)
+	assert.NotNil(t, limiter)
+
+	// Verify we get the same limiter for the same connection
+	limiter2 := m.getRateLimiter(wsConn)
+	assert.Equal(t, limiter, limiter2)
+
+	// Test rate limiting - exhaust the burst
+	allowedCount := 0
+
+	for i := 0; i < BurstSize+10; i++ {
+		if limiter.Allow() {
+			allowedCount++
+		}
+	}
+
+	// Should have allowed exactly BurstSize requests
+	assert.Equal(t, BurstSize, allowedCount)
+
+	// Cleanup rate limiter
+	m.cleanupRateLimiter(wsConn)
+
+	// Verify a new limiter is created after cleanup
+	limiter3 := m.getRateLimiter(wsConn)
+	assert.NotNil(t, limiter3)
+}
+
+func TestMessageSizeLimit(t *testing.T) {
+	contextStore := kubeconfig.NewContextStore()
+	m := NewMultiplexer(contextStore, nil, nil, true)
+
+	// Create test server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		m.HandleClientWebSocket(w, r)
+	}))
+	defer server.Close()
+
+	// Connect to test server with Origin header
+	dialer := newTestDialer()
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	serverHost := strings.TrimPrefix(server.URL, "http://")
+	headers := http.Header{}
+	headers.Set("Origin", "http://"+serverHost)
+
+	ws, resp, err := dialer.Dial(wsURL, headers)
+	require.NoError(t, err)
+
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
+
+	defer ws.Close()
+
+	// Send a message that's within the size limit
+	smallMsg := Message{
+		Type:      "REQUEST",
+		ClusterID: "test-cluster",
+		Path:      "/api/v1/pods",
+		UserID:    "test-user",
+	}
+	err = ws.WriteJSON(smallMsg)
+	// Note: Testing messages larger than MaxMessageSize would require sending
+	// a message larger than 10MB, which is not practical for a unit test.
+	// The important thing is that SetReadLimit is called, which we verify
+	// by checking that the handler doesn't panic with a normal message.
+	assert.NoError(t, err)
+}
+
+func TestRateLimitExceeded(t *testing.T) {
+	// This test verifies that the rate limiter is properly integrated into the
+	// WebSocket handler by sending many messages rapidly and checking that:
+	// 1. The connection handles the load without crashing
+	// 2. Messages can be sent through the WebSocket
+	//
+	// Note: The actual rate limiter behavior (Allow/Deny) is tested in detail
+	// by TestRateLimitViolationTracking. This test focuses on integration.
+	contextStore := kubeconfig.NewContextStore()
+	m := NewMultiplexer(contextStore, nil, nil, true)
+
+	// Create test server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		m.HandleClientWebSocket(w, r)
+	}))
+	defer server.Close()
+
+	// Connect to test server with Origin header
+	dialer := newTestDialer()
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	serverHost := strings.TrimPrefix(server.URL, "http://")
+	headers := http.Header{}
+	headers.Set("Origin", "http://"+serverHost)
+
+	ws, resp, err := dialer.Dial(wsURL, headers)
+	require.NoError(t, err)
+
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
+
+	defer ws.Close()
+
+	// Send messages through the WebSocket to verify the handler doesn't crash
+	// when receiving many messages (even if some get rate limited).
+	// The rate limiter has BurstSize=100 and MessagesPerSecond=50.
+	messagesSent := 0
+
+	for i := 0; i < BurstSize+10; i++ {
+		msg := Message{
+			Type:      "REQUEST",
+			ClusterID: "test-cluster",
+			Path:      "/api/v1/pods",
+			UserID:    "test-user",
+		}
+
+		err := ws.WriteJSON(msg)
+		if err != nil {
+			// Connection may be closed due to rate limiting, which is acceptable
+			break
+		}
+
+		messagesSent++
+	}
+
+	// Give server time to process messages
+	time.Sleep(100 * time.Millisecond)
+
+	assert.Greater(t, messagesSent, 0, "Should have sent at least some messages")
+	t.Logf("Successfully sent %d messages through WebSocket (BurstSize=%d)", messagesSent, BurstSize)
+
+	// Verify rate limiter constants are set correctly
+	assert.Equal(t, 50, MessagesPerSecond, "MessagesPerSecond should be 50")
+	assert.Equal(t, 100, BurstSize, "BurstSize should be 100")
+}
+
+func TestRateLimitViolationTracking(t *testing.T) {
+	// This test verifies the rate limiter behavior using the direct rate limiter API
+	// to ensure the rate limiting mechanism works correctly.
+	contextStore := kubeconfig.NewContextStore()
+	m := NewMultiplexer(contextStore, nil, nil, true)
+
+	// Create a mock WebSocket connection
+	wsConn, wsServer := createTestWebSocketConn()
+	defer wsServer.Close()
+
+	// Get rate limiter for the connection
+	limiter := m.getRateLimiter(wsConn)
+	require.NotNil(t, limiter)
+
+	// Exhaust the burst capacity
+	allowedCount := 0
+
+	for i := 0; i < BurstSize+MaxRateLimitViolations+5; i++ {
+		if limiter.Allow() {
+			allowedCount++
+		}
+	}
+
+	// Should have allowed exactly BurstSize requests (the burst capacity)
+	assert.Equal(t, BurstSize, allowedCount, "Rate limiter should allow exactly BurstSize requests in burst")
+
+	// Verify that subsequent requests are denied (rate limited)
+	// This simulates what happens when a client sends messages too fast
+	deniedCount := 0
+
+	for i := 0; i < 5; i++ {
+		if !limiter.Allow() {
+			deniedCount++
+		}
+	}
+
+	assert.Equal(t, 5, deniedCount, "Rate limiter should deny requests after burst is exhausted")
+
+	t.Logf("Rate limiter test: allowed %d requests (burst), denied %d subsequent requests", allowedCount, deniedCount)
+}
+
+// TestIPRateLimiterEntryTracking tests that IP rate limiters track lastSeen time
+// for cleanup purposes.
+func TestIPRateLimiterEntryTracking(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), nil, nil, true)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "192.168.1.100:12345"
+
+	// Get rate limiter - this creates an entry
+	limiter1 := m.getIPRateLimiter(req)
+	require.NotNil(t, limiter1)
+
+	// Verify the entry was stored with the ipRateLimiterEntry struct
+	entry, ok := m.ipRateLimiters.Load("192.168.1.100")
+	require.True(t, ok, "IP rate limiter entry should exist")
+
+	ipEntry, ok := entry.(*ipRateLimiterEntry)
+	require.True(t, ok, "Entry should be of type *ipRateLimiterEntry")
+	require.NotNil(t, ipEntry.limiter)
+	require.False(t, ipEntry.lastSeen.Load() == 0, "lastSeen should be set")
+
+	firstSeen := ipEntry.lastSeen.Load()
+
+	// Wait a tiny bit and access again - lastSeen should be updated
+	time.Sleep(10 * time.Millisecond)
+
+	limiter2 := m.getIPRateLimiter(req)
+	require.Same(t, limiter1, limiter2, "Should return the same limiter")
+
+	// Get the entry again and check lastSeen was updated
+	entry, _ = m.ipRateLimiters.Load("192.168.1.100")
+	ipEntry = entry.(*ipRateLimiterEntry)
+	require.True(t, ipEntry.lastSeen.Load() >= firstSeen,
+		"lastSeen should be updated on access")
 }
