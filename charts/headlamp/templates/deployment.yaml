@@ -336,10 +336,22 @@ spec:
             httpGet:
               path: "{{ .Values.config.baseURL }}/"
               port: http
+              scheme: {{ .Values.probes.scheme | default "HTTP" }}
+            initialDelaySeconds: {{ .Values.probes.livenessProbe.initialDelaySeconds | default 0 }}
+            periodSeconds: {{ .Values.probes.livenessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.probes.livenessProbe.timeoutSeconds | default 1 }}
+            successThreshold: 1
+            failureThreshold: {{ .Values.probes.livenessProbe.failureThreshold | default 3 }}
           readinessProbe:
             httpGet:
               path: "{{ .Values.config.baseURL }}/"
               port: http
+              scheme: {{ .Values.probes.scheme | default "HTTP" }}
+            initialDelaySeconds: {{ .Values.probes.readinessProbe.initialDelaySeconds | default 0 }}
+            periodSeconds: {{ .Values.probes.readinessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.probes.readinessProbe.timeoutSeconds | default 1 }}
+            successThreshold: {{ .Values.probes.readinessProbe.successThreshold | default 1 }}
+            failureThreshold: {{ .Values.probes.readinessProbe.failureThreshold | default 3 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           {{- if or .Values.pluginsManager.enabled .Values.volumeMounts }}
