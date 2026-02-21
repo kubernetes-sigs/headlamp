@@ -157,6 +157,7 @@
   "Timezone to display for dates": "Timezone to display for dates",
   "Sort sidebar items alphabetically": "Sort sidebar items alphabetically",
   "Use evict for pod deletion": "Use evict for pod deletion",
+  "Keep Large Graph Groups Expanded": "Keep Large Graph Groups Expanded",
   "Theme": "Theme",
   "Keyboard Shortcuts": "Keyboard Shortcuts",
   "Configure keyboard shortcuts for quick access to various parts of the application.": "Configure keyboard shortcuts for quick access to various parts of the application.",

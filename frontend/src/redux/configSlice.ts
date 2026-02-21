@@ -66,6 +66,8 @@ export interface ConfigState {
      */
     timezone: string;
     useEvict: boolean;
+    sidebarSortAlphabetically: boolean;
+    expandLargeGraph: boolean;
     [key: string]: any;
   };
 }
@@ -89,7 +91,8 @@ export const initialState: ConfigState = {
       storedSettings.tableRowsPerPageOptions || defaultTableRowsPerPageOptions,
     timezone: storedSettings.timezone || defaultTimezone(),
     sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically || false,
-    useEvict: storedSettings.useEvict || true,
+    expandLargeGraph: storedSettings.expandLargeGraph || false,
+    useEvict: storedSettings.useEvict ?? true,
   },
 };
 
