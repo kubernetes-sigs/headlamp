@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
@@ -312,6 +313,37 @@ func createTempKubeconfig(t *testing.T, content string) string {
 	require.NoError(t, err, "Failed to close temp file")
 
 	return tempFile.Name()
+}
+
+func TestExportToTempFile(t *testing.T) {
+	ctx := &kubeconfig.Context{
+		Name: "test-context",
+		KubeContext: &api.Context{
+			Cluster:  "test-cluster",
+			AuthInfo: "test-user",
+		},
+		Cluster: &api.Cluster{
+			Server: "https://localhost:6643",
+		},
+		AuthInfo: &api.AuthInfo{},
+	}
+
+	testToken := "secret-terminal-token"
+
+	tmpPath, cleanup, err := ctx.ExportToTempFile(testToken)
+	require.NoError(t, err)
+	defer cleanup()
+
+	assert.FileExists(t, tmpPath)
+
+	config, err := clientcmd.LoadFromFile(tmpPath)
+	require.NoError(t, err)
+
+	assert.Equal(t, "test-context", config.CurrentContext)
+	assert.Equal(t, testToken, config.AuthInfos["test-user"].Token)
+
+	cleanup()
+	assert.NoFileExists(t, tmpPath)
 }
 
 func TestContext(t *testing.T) {

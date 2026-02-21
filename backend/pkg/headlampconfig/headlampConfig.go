@@ -12,6 +12,7 @@ import (
 // WebSocketMultiplexer handles client websocket connections. Implemented in cmd to avoid circular import.
 type WebSocketMultiplexer interface {
 	HandleClientWebSocket(http.ResponseWriter, *http.Request)
+	HandleTerminal(http.ResponseWriter, *http.Request)
 }
 
 // HeadlampConfig holds full server config. Lives here so packages (e.g. k8cache) can import without cmd.
