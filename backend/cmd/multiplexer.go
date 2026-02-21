@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,6 +52,8 @@ const (
 	HandshakeTimeout = 45 * time.Second
 	// CleanupRoutineInterval is the interval at which the multiplexer cleans up unused connections.
 	CleanupRoutineInterval = 5 * time.Minute
+	// SecureWebSocketScheme is the secure WebSocket scheme.
+	SecureWebSocketScheme = "wss"
 )
 
 // ConnectionState represents the current state of a connection.
@@ -372,11 +375,20 @@ func (m *Multiplexer) dialWebSocket(
 	)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "dialing WebSocket")
-		logger.Log(logger.LevelError, nil, resp, "WebSocket response")
 		// We only attempt to close the response body if there was an error and resp is not nil.
 		// In the successful case (when err is nil), the resp will actually be nil for WebSocket connections,
 		// so we don't need to close anything.
 		if resp != nil {
+			// Log only serializable fields from the response to avoid JSON marshaling errors
+			logger.Log(
+				logger.LevelError,
+				map[string]string{
+					"status":     resp.Status,
+					"statusCode": fmt.Sprintf("%d", resp.StatusCode),
+				},
+				nil,
+				"WebSocket response",
+			)
 			defer resp.Body.Close()
 		}
 
@@ -863,9 +875,36 @@ func (m *Multiplexer) createConnectionKey(clusterID, path, userID string) string
 }
 
 // createWebSocketURL creates a WebSocket URL from the given parameters.
+// It converts HTTP schemes to WebSocket schemes: https:// -> wss://, http:// -> ws://.
+// If url.Parse fails, a warning is logged and a fallback invalid WebSocket URL is returned,
+// which will cause the connection attempt to fail with a clear error.
 func createWebSocketURL(host, path, query string) string {
-	u, _ := url.Parse(host)
-	u.Scheme = "wss"
+	// If host doesn't have a scheme, prepend https:// for proper parsing
+	if !strings.Contains(host, "://") {
+		host = "https://" + host
+	}
+
+	u, err := url.Parse(host)
+	if err != nil {
+		// Log a warning but continue with best effort - the connection will fail anyway
+		logger.Log(logger.LevelWarn, nil, err, "parsing cluster host URL")
+		// Return a fallback URL that will cause a clear connection error
+		return SecureWebSocketScheme + "://invalid-url" + path
+	}
+
+	// Convert HTTP/HTTPS scheme to WebSocket scheme and preserve existing ws/wss schemes.
+	switch u.Scheme {
+	case "https":
+		u.Scheme = SecureWebSocketScheme
+	case "http":
+		u.Scheme = "ws"
+	case "ws", SecureWebSocketScheme:
+		// Preserve existing WebSocket scheme
+	default:
+		// For unknown schemes, default to secure WebSocket.
+		u.Scheme = SecureWebSocketScheme
+	}
+
 	u.Path = path
 	u.RawQuery = query
 
