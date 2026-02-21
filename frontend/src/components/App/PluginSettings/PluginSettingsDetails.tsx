@@ -20,7 +20,7 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import _ from 'lodash';
-import { isValidElement, useEffect, useMemo, useState } from 'react';
+import { isValidElement, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useParams } from 'react-router-dom';
@@ -76,6 +76,15 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   const config = pluginConf() as { [key: string]: any };
   const dispatch: AppDispatch = useDispatch();
   const history = useHistory();
+  const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (deleteTimeoutRef.current) {
+        clearTimeout(deleteTimeoutRef.current);
+      }
+    };
+  }, []);
 
   function handleSave(data: { [key: string]: any }) {
     store.set(data);
@@ -90,19 +99,33 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
     const pluginType =
       plugin.type === 'development' || plugin.type === 'user' ? plugin.type : undefined;
 
+    let deleteSucceeded = false;
+
     dispatch(
-      clusterAction(() => deletePlugin(pluginFolderName, pluginType), {
-        startMessage: t('Deleting plugin {{ itemName }}...', { itemName: pluginFolderName }),
-        cancelledMessage: t('Cancelled deletion of {{ itemName }}.', {
-          itemName: pluginFolderName,
-        }),
-        successMessage: t('Deleted plugin {{ itemName }}.', { itemName: pluginFolderName }),
-        errorMessage: t('Error deleting plugin {{ itemName }}.', { itemName: pluginFolderName }),
-      })
+      clusterAction(
+        () =>
+          deletePlugin(pluginFolderName, pluginType).then(() => {
+            deleteSucceeded = true;
+          }),
+        {
+          startMessage: t('Deleting plugin {{ itemName }}...', { itemName: pluginFolderName }),
+          cancelledMessage: t('Cancelled deletion of {{ itemName }}.', {
+            itemName: pluginFolderName,
+          }),
+          successMessage: t('Deleted plugin {{ itemName }}.', { itemName: pluginFolderName }),
+          errorMessage: t('Error deleting plugin {{ itemName }}.', { itemName: pluginFolderName }),
+        }
+      )
     ).then(() => {
-      // Navigate to plugins list page, then reload to refresh plugin list from backend
-      history.push('/settings/plugins');
-      dispatch(reloadPage());
+      // Delay to let user see the snackbar notification before full page reload.
+      // The timeout is stored in a ref so it can be cleared if the component unmounts.
+      deleteTimeoutRef.current = setTimeout(() => {
+        if (deleteSucceeded) {
+          history.push('/settings/plugins');
+          dispatch(reloadPage());
+        }
+        // On error, don't reload - let user read the error message
+      }, 2000);
     });
   }
 
