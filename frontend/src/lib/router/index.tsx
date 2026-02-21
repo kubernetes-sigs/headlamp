@@ -29,6 +29,7 @@ import SettingsClusters from '../../components/App/Settings/SettingsClusters';
 import AuthChooser from '../../components/authchooser';
 import KubeConfigLoader from '../../components/cluster/KubeConfigLoader';
 import Overview from '../../components/cluster/Overview';
+import { ClusterTerminal } from '../../components/common/ClusterTerminal';
 import { PageGrid } from '../../components/common/Resource/Resource';
 import ConfigDetails from '../../components/configmap/Details';
 import ConfigMapList from '../../components/configmap/List';
@@ -195,6 +196,14 @@ const defaultRoutes: { [routeName: string]: Route } = {
         default: it.AdvancedSearch,
       }))
     ),
+  },
+  terminal: {
+    path: '/terminal',
+    exact: true,
+    name: 'Terminal',
+    sidebar: 'terminal',
+    useClusterURL: true,
+    component: () => <ClusterTerminal />,
   },
   namespaces: {
     path: '/namespaces',
