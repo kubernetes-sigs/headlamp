@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import ReleaseNotes from './ReleaseNotes';
@@ -52,6 +53,12 @@ export default {
   },
 } as Meta;
 
-const Template: StoryFn = () => <ReleaseNotes />;
+const Template: StoryFn = () => (
+  <Box>
+    <h1>Application</h1>
+    <h2>Release Information</h2>
+    <ReleaseNotes />
+  </Box>
+);
 
 export const Default = Template.bind({});
