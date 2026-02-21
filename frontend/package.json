@@ -48,7 +48,7 @@
     "cronstrue": "^2.50.0",
     "cross-env": "^7.0.3",
     "elkjs": "^0.9.3",
-    "eslint": "^8.57.0",
+    "eslint": "^9.26.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.24.2",
     "eslint-plugin-jsx-a11y": "^6.9.0",
