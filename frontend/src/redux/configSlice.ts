@@ -43,7 +43,6 @@ export interface ConfigState {
     [clusterName: string]: Cluster;
   } | null;
   /**
-  /**
    * Whether dynamic clusters are enabled.
    * When true, users can add and delete clusters dynamically.
    */
