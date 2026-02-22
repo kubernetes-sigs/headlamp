@@ -15,6 +15,7 @@
  */
 
 import '@xterm/xterm/css/xterm.css';
+import { Button, DialogActions, TextField } from '@mui/material';
 import Box from '@mui/material/Box';
 import { DialogProps } from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
@@ -25,11 +26,13 @@ import Select from '@mui/material/Select';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getDefaultContainer } from '../../helpers/podContainer';
+import { backendFetch } from '../../lib/k8s/api/v2/fetch';
 import Pod from '../../lib/k8s/pod';
-import { Dialog } from './Dialog';
+import ActionButton from './ActionButton';
+import { Dialog, DialogTitle } from './Dialog';
 
 const decoder = new TextDecoder('utf-8');
 const encoder = new TextEncoder();
@@ -70,6 +73,11 @@ export default function Terminal(props: TerminalProps) {
     currentIdx: 0,
   });
   const { t } = useTranslation(['translation', 'glossary']);
+  const [transferType, setTransferType] = useState<'upload' | 'download' | null>(null);
+  const [isPathDialogOpen, setIsPathDialogOpen] = useState(false);
+  const [pathInput, setPathInput] = useState('/tmp');
+  const [pendingUploadFile, setPendingUploadFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // @todo: Give the real exec type when we have it.
   function setupTerminal(containerRef: HTMLElement, xterm: XTerminal, fitAddon: FitAddon) {
@@ -403,6 +411,90 @@ export default function Terminal(props: TerminalProps) {
     return false;
   }
 
+  const handleTransferAction = async () => {
+    if (!pathInput) {
+      xtermRef.current?.xterm.writeln('>>> Please enter a path before starting the transfer.');
+
+      return;
+    }
+
+    const baseUrl = `/clusters/${item.cluster}/namespace/${item.metadata.namespace}/pod/${item.metadata.name}/container/${container}/copy`;
+    let urlWithParams = `${baseUrl}?path=${encodeURIComponent(pathInput)}`;
+
+    if (transferType === 'download') {
+      try {
+        xtermRef.current?.xterm.writeln(`\r\n>>> Initiating download for ${pathInput}`);
+        const response = await backendFetch(urlWithParams);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Download failed: ${errorText}`);
+        }
+
+        const blob = await response.blob();
+        if (blob.size === 0) {
+          throw new Error('Received empty file from server.');
+        }
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+
+        // Extract filename from Content-Disposition header, fall back to path basename.
+        const disposition = response.headers.get('Content-Disposition') || '';
+        let resolvedFilename = `${pathInput.split('/').pop() || 'download'}.tar`;
+
+        if (disposition) {
+          const filenameMatch = disposition.match(/filename=(?:"([^"]+)"|([^;]+))/);
+          if (filenameMatch) {
+            resolvedFilename = (filenameMatch[1] || filenameMatch[2]).trim();
+          }
+        }
+
+        a.href = url;
+        a.download = resolvedFilename;
+        a.click();
+
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        xtermRef.current?.xterm.writeln(
+          `\r\n>>> Error: ${err instanceof Error ? err.message : err}`
+        );
+      }
+    } else if (transferType === 'upload' && pendingUploadFile) {
+      urlWithParams += `&filename=${encodeURIComponent(pendingUploadFile.name)}`;
+      try {
+        xtermRef.current?.xterm.writeln(
+          `\r\n>>> Uploading ${pendingUploadFile.name} to ${pathInput}`
+        );
+        const response = await backendFetch(urlWithParams, {
+          method: 'POST',
+          body: pendingUploadFile,
+        });
+
+        if (response.ok) {
+          xtermRef.current?.xterm.writeln(`\r\n>>> Upload successful!`);
+          const lsCommand = `ls -l ${pathInput}\r`;
+          send(0, lsCommand);
+        } else {
+          const errorText = await response.text();
+          throw new Error(`Upload failed: ${errorText}`);
+        }
+      } catch (err) {
+        xtermRef.current?.xterm.writeln(
+          `\r\n>>> Error: ${err instanceof Error ? err.message : err}`
+        );
+      }
+    }
+    setIsPathDialogOpen(false);
+    setPendingUploadFile(null);
+  };
+
+  const handleFileSelected = (file: File) => {
+    setPendingUploadFile(file);
+    setTransferType('upload');
+    setPathInput('/tmp');
+    setIsPathDialogOpen(true);
+  };
+
   const content = (
     <DialogContent
       sx={theme => ({
@@ -424,7 +516,7 @@ export default function Terminal(props: TerminalProps) {
         },
       })}
     >
-      <Box>
+      <Box display="flex" alignItems="center">
         <FormControl sx={{ minWidth: '11rem' }}>
           <InputLabel shrink id="container-name-chooser-label">
             {t('glossary|Container')}
@@ -467,7 +559,62 @@ export default function Terminal(props: TerminalProps) {
             ))}
           </Select>
         </FormControl>
+
+        <ActionButton
+          description={t('Download Files from Container')}
+          icon="mdi:download"
+          onClick={() => {
+            setTransferType('download');
+            setPathInput('');
+            setIsPathDialogOpen(true);
+          }}
+        />
+
+        <input
+          type="file"
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          onChange={e => {
+            if (e.target.files && e.target.files[0]) {
+              handleFileSelected(e.target.files[0]);
+            }
+            e.target.value = '';
+          }}
+        />
+        <ActionButton
+          description={t('Upload Files to Container')}
+          icon="mdi:upload"
+          onClick={() => fileInputRef.current?.click()}
+        />
       </Box>
+
+      <Dialog open={isPathDialogOpen} onClose={() => setIsPathDialogOpen(false)}>
+        <DialogTitle>
+          {transferType === 'download'
+            ? t('Download File')
+            : t('Upload File: {{fileName}}', { fileName: pendingUploadFile?.name })}
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            margin="dense"
+            label={
+              transferType === 'download' ? t('Absolute Remote Path') : t('Destination Directory')
+            }
+            type="text"
+            fullWidth
+            variant="outlined"
+            value={pathInput}
+            onChange={e => setPathInput(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsPathDialogOpen(false)}>{t('translation|Cancel')}</Button>
+          <Button onClick={handleTransferAction} variant="contained" color="primary">
+            {transferType === 'download' ? t('translation|Download') : t('translation|Upload')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Box
         sx={theme => ({
           paddingTop: theme.spacing(1),
