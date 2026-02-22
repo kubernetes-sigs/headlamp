@@ -48,6 +48,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/transfer"
 
 	headlampcfg "github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
@@ -1599,6 +1600,10 @@ func (c *HeadlampConfig) handleClusterRequests(router *mux.Router) {
 		handleClusterHelm(c, router)
 	}
 
+	router.HandleFunc("/clusters/{clusterName}/namespace/{namespace}/pod/{pod}/container/{container}/copy",
+		transfer.DownloadHandler(c.KubeConfigStore)).Methods("GET")
+	router.HandleFunc("/clusters/{clusterName}/namespace/{namespace}/pod/{pod}/container/{container}/copy",
+		transfer.UploadHandler(c.KubeConfigStore)).Methods("POST")
 	handleClusterServiceProxy(c, router)
 	handleClusterAPI(c, router)
 }
