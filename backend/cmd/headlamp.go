@@ -31,6 +31,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -371,7 +372,7 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 }
 
 //nolint:gocognit,funlen,gocyclo
-func createHeadlampHandler(config *HeadlampConfig) http.Handler {
+func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
 
 	config.StaticPluginDir = os.Getenv("HEADLAMP_STATIC_PLUGINS_DIR")
@@ -403,12 +404,12 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	if !config.UseInCluster || config.WatchPluginsChanges {
 		// in-cluster mode is unlikely to want reloading plugins.
 		pluginEventChan := make(chan string)
-		go plugins.Watch(config.PluginDir, pluginEventChan)
+		go plugins.Watch(ctx, config.PluginDir, pluginEventChan)
 
 		// Watch user-plugins directory for catalog-installed plugins
 		if config.UserPluginDir != "" {
 			userPluginEventChan := make(chan string)
-			go plugins.Watch(config.UserPluginDir, userPluginEventChan)
+			go plugins.Watch(ctx, config.UserPluginDir, userPluginEventChan)
 			// Merge both event channels into one
 			go func() {
 				for event := range userPluginEventChan {
@@ -425,7 +426,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			config.Cache,
 		)
 		// in-cluster mode is unlikely to want reloading kubeconfig.
-		go kubeconfig.LoadAndWatchFiles(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
+		go kubeconfig.LoadAndWatchFiles(ctx, config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	}
 
 	// In-cluster
@@ -1097,9 +1098,8 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 }
 
 func StartHeadlampServer(config *HeadlampConfig) {
-	tel, err := telemetry.NewTelemetry(config.TelemetryConfig)
+	tel, err := initTelemetry(config)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "Failed to initialize telemetry")
 		os.Exit(1)
 	}
 
@@ -1112,6 +1112,56 @@ func StartHeadlampServer(config *HeadlampConfig) {
 		}
 	}()
 
+	router := mux.NewRouter()
+
+	if config.Telemetry != nil && config.Metrics != nil {
+		router.Use(telemetry.TracingMiddleware("headlamp-server"))
+		router.Use(config.Metrics.RequestCounterMiddleware)
+	}
+
+	if config.StaticDir != "" {
+		if err := copyStaticFiles(config); err != nil {
+			return
+		}
+	}
+
+	// Create a cancellable context for watcher goroutines
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	handler := createHeadlampHandler(ctx, config)
+	handler = config.OIDCTokenRefreshMiddleware(handler)
+
+	addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
+
+	server := &http.Server{Addr: addr, Handler: handler} //nolint:gosec
+
+	serverDone := make(chan struct{})
+	setupGracefulShutdown(server, cancel, serverDone)
+
+	if config.TLSCertPath != "" && config.TLSKeyPath != "" {
+		err = server.ListenAndServeTLS(config.TLSCertPath, config.TLSKeyPath)
+	} else {
+		err = server.ListenAndServe()
+	}
+
+	close(serverDone)
+
+	if err != nil && err != http.ErrServerClosed {
+		logger.Log(logger.LevelError, nil, err, "Failed to start server")
+		HandleServerStartError(&err)
+	}
+}
+
+// initTelemetry initializes telemetry and metrics for the server.
+func initTelemetry(config *HeadlampConfig) (*telemetry.Telemetry, error) {
+	tel, err := telemetry.NewTelemetry(config.TelemetryConfig)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to initialize telemetry")
+
+		return nil, err
+	}
+
 	metrics, err := telemetry.NewMetrics()
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to initialize metrics")
@@ -1121,45 +1171,60 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	config.Metrics = metrics
 	config.TelemetryHandler = telemetry.NewRequestHandler(tel, metrics)
 
-	router := mux.NewRouter()
+	return tel, nil
+}
 
-	if config.Telemetry != nil && config.Metrics != nil {
-		router.Use(telemetry.TracingMiddleware("headlamp-server"))
-		router.Use(config.Metrics.RequestCounterMiddleware)
-	}
-
-	// Copy static files as squashFS is read-only (AppImage)
-	if config.StaticDir != "" {
-		dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to create static dir")
-			return
-		}
-
-		err = os.CopyFS(dir, os.DirFS(config.StaticDir))
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to copy files from static dir")
-			return
-		}
-
-		config.StaticDir = dir
-	}
-
-	handler := createHeadlampHandler(config)
-	handler = config.OIDCTokenRefreshMiddleware(handler)
-
-	addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
-
-	if config.TLSCertPath != "" && config.TLSKeyPath != "" {
-		err = http.ListenAndServeTLS(addr, config.TLSCertPath, config.TLSKeyPath, handler) //nolint:gosec
-	} else {
-		err = http.ListenAndServe(addr, handler) //nolint:gosec
-	}
-
+// copyStaticFiles copies static files to a temporary directory.
+// This is needed because squashFS is read-only (AppImage).
+func copyStaticFiles(config *HeadlampConfig) error {
+	dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "Failed to start server")
-		HandleServerStartError(&err)
+		logger.Log(logger.LevelError, nil, err, "Failed to create static dir")
+
+		return err
 	}
+
+	err = os.CopyFS(dir, os.DirFS(config.StaticDir))
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to copy files from static dir")
+
+		return err
+	}
+
+	config.StaticDir = dir
+
+	return nil
+}
+
+// setupGracefulShutdown starts a goroutine that listens for OS signals
+// (SIGINT, SIGTERM) and gracefully shuts down the server. It cancels
+// the context to stop all watcher goroutines. The serverDone channel
+// is used to stop this goroutine if the server exits for a non-signal reason.
+func setupGracefulShutdown(server *http.Server, cancel context.CancelFunc, serverDone <-chan struct{}) {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		defer signal.Stop(sigChan)
+
+		select {
+		case <-sigChan:
+			logger.Log(logger.LevelInfo, nil, nil, "Received shutdown signal, stopping watchers...")
+
+			cancel() // Cancel context to stop all watcher goroutines
+
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutdownCancel()
+
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				logger.Log(logger.LevelError, nil, err, "Failed to gracefully shutdown server")
+			}
+		case <-serverDone:
+			// Server exited on its own, clean up watchers and stop the signal goroutine
+			cancel()
+			return
+		}
+	}()
 }
 
 // Handle common server startup errors.
