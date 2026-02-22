@@ -239,6 +239,9 @@ spec:
             {{- with .Values.config.enableHelm }}
             - "-enable-helm"
             {{- end }}
+            {{- with .Values.config.enableWebsocketMultiplexer }}
+            - "-enable-websocket-multiplexer"
+            {{- end }}
             {{- if .Values.config.watchPlugins }}
             - "-watch-plugins-changes"
             {{- end }}
