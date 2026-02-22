@@ -60,7 +60,7 @@
           style="flex: 1; display: flex; flex-direction: column-reverse;"
         >
           <div
-            class="terminal xterm xterm-dom-renderer-owner"
+            class="terminal xterm xterm-dom-renderer-owner focus"
             dir="ltr"
           >
             <div
@@ -131,7 +131,7 @@
               </style>
               <div
                 aria-hidden="true"
-                class="xterm-rows"
+                class="xterm-rows xterm-focus"
                 style="line-height: normal; letter-spacing: 0px;"
               >
                 <div
@@ -140,7 +140,9 @@
                   <span>
                     user@mock-pod:~$ 
                   </span>
-                  <span>
+                  <span
+                    class="xterm-cursor xterm-cursor-blink xterm-cursor-underline"
+                  >
                      
                   </span>
                 </div>

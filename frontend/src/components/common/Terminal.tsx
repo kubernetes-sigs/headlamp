@@ -78,6 +78,7 @@ export default function Terminal(props: TerminalProps) {
     }
 
     xterm.open(containerRef);
+    xterm.focus();
 
     let lastKeyPressEvent: KeyboardEvent | null = null;
     xterm.onData(data => {
