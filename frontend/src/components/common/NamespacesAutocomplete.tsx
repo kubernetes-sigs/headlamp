@@ -110,6 +110,7 @@ export function PureNamespacesAutocomplete({
       id="namespaces-filter"
       autoComplete
       openOnFocus
+      disableCloseOnSelect
       options={namespaceNames}
       onChange={onChange}
       onInputChange={onInputChange}
