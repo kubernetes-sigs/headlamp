@@ -48,6 +48,7 @@ const makeStore = () => {
         },
         isDynamicClusterEnabled: false,
         allowKubeconfigChanges: false,
+        isWebsocketMultiplexerEnabled: null,
       },
       projects: {
         headerActions: {},
