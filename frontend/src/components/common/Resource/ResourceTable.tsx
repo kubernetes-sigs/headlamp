@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
@@ -52,6 +53,7 @@ import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import { DateLabel } from '../Label';
 import Link from '../Link';
 import Table, { TableColumn } from '../Table';
+import { LightTooltip } from '../Tooltip';
 import DeleteButton from './DeleteButton';
 import EditButton from './EditButton';
 import ResourceTableMultiActions from './ResourceTableMultiActions';
@@ -406,8 +408,31 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               header: t('translation|Name'),
               gridTemplate: 'auto',
               accessorFn: (item: RowItem) => item.metadata.name,
-              Cell: ({ row }: { row: MRT_Row<RowItem> }) =>
-                row.original && <Link kubeObject={row.original} />,
+              Cell: ({ row }: { row: MRT_Row<RowItem> }) => {
+                if (!row.original) {
+                  return null;
+                }
+
+                const isDeleting = !!row.original.metadata?.deletionTimestamp;
+
+                return (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {isDeleting && (
+                      <LightTooltip title={t('translation|Deleting')}>
+                        <Box component="span" sx={{ display: 'flex', color: 'text.secondary' }}>
+                          <Icon
+                            icon="mdi:trash-can-outline"
+                            width="1rem"
+                            height="1rem"
+                            color={theme.palette.error.main}
+                          />
+                        </Box>
+                      </LightTooltip>
+                    )}
+                    <Link kubeObject={row.original} />
+                  </Box>
+                );
+              },
             };
           case 'age':
             return {
