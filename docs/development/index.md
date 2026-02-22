@@ -194,6 +194,16 @@ to more folders.
 docker run --network="host" -p 127.0.0.1:4466:4466/tcp --mount type=bind,source="/home/rene/.minikube",target=$HOME/.minikube --mount type=bind,source="$HOME/.kube",target=/root/.kube ghcr.io/headlamp-k8s/headlamp:latest /headlamp/headlamp-server -html-static-dir /headlamp/frontend -plugins-dir=/headlamp/plugins
 ```
 
+#### Enabling experimental WebSocket multiplexer
+
+The WebSocket multiplexer is an **experimental feature** that improves performance by reusing WebSocket connections for multiple Kubernetes API watch requests. 
+
+This can be configured at runtime without rebuilding (image or app).
+
+```bash
+HEADLAMP_CONFIG_ENABLE_WEBSOCKET_MULTIPLEXER=true npm run start
+```
+
 If you want to make a new container image called `headlamp-k8s/headlamp:development`
 you can run it like this:
 
