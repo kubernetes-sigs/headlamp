@@ -68,6 +68,11 @@ export interface ConfigState {
     useEvict: boolean;
     [key: string]: any;
   };
+  /**
+   * isWebsocketMultiplexerEnabled indicates whether the WebSocket multiplexer is enabled.
+   * Null indicates that the config has not been loaded yet.
+   */
+  isWebsocketMultiplexerEnabled: boolean | null;
 }
 
 export const defaultTableRowsPerPageOptions = [15, 25, 50];
@@ -91,6 +96,7 @@ export const initialState: ConfigState = {
     sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically || false,
     useEvict: storedSettings.useEvict || true,
   },
+  isWebsocketMultiplexerEnabled: null,
 };
 
 const configSlice = createSlice({
@@ -108,6 +114,7 @@ const configSlice = createSlice({
         clusters: ConfigState['clusters'];
         isDynamicClusterEnabled?: boolean;
         allowKubeconfigChanges?: boolean;
+        isWebsocketMultiplexerEnabled?: boolean;
       }>
     ) {
       state.clusters = action.payload.clusters;
@@ -116,6 +123,9 @@ const configSlice = createSlice({
       }
       if (action.payload.allowKubeconfigChanges !== undefined) {
         state.allowKubeconfigChanges = action.payload.allowKubeconfigChanges;
+      }
+      if (action.payload.isWebsocketMultiplexerEnabled !== undefined) {
+        state.isWebsocketMultiplexerEnabled = action.payload.isWebsocketMultiplexerEnabled;
       }
     },
     /**
