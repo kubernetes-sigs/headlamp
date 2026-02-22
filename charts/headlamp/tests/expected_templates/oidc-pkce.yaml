@@ -124,6 +124,7 @@ spec:
             # Check if scopes are non empty either from env or oidc.config
             - "-oidc-scopes=$(OIDC_SCOPES)"
             - "-oidc-use-pkce=$(OIDC_USE_PKCE)"
+            - "-filters-warnings-only=true"
           ports:
             - name: http
               containerPort: 4466

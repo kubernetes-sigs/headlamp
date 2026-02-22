@@ -182,6 +182,8 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 		Clusters:                contexts,
 		IsDynamicClusterEnabled: c.EnableDynamicClusters,
 		AllowKubeconfigChanges:  c.AllowKubeconfigChanges,
+		PrometheusEndpoint:      c.PrometheusEndpoint,
+		FiltersWarningsOnly:     c.FiltersWarningsOnly,
 	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {

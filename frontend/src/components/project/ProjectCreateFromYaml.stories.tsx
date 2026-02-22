@@ -42,6 +42,7 @@ const makeStore = () => {
         } as any,
         isDynamicClusterEnabled: true,
         allowKubeconfigChanges: false,
+        filtersWarningsOnly: true,
         settings: {
           tableRowsPerPageOptions: [15, 25, 50],
           timezone: 'UTC',
