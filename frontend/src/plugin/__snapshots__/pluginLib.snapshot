@@ -69,6 +69,7 @@
     "InfoLabel": [Function],
     "InnerTable": [Function],
     "LabelListItem": [Function],
+    "LabelSelectorInput": [Function],
     "LightTooltip": [Function],
     "Link": [Function],
     "LivenessProbes": [Function],
