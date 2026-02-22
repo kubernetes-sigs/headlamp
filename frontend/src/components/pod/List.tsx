@@ -25,7 +25,7 @@ import Pod from '../../lib/k8s/pod';
 import { METRIC_REFETCH_INTERVAL_MS, PodMetrics } from '../../lib/k8s/PodMetrics';
 import { parseCpu, parseRam, unparseCpu, unparseRam } from '../../lib/units';
 import { timeAgo } from '../../lib/util';
-import { useNamespaces } from '../../redux/filterSlice';
+import { useLabelSelector, useNamespaces } from '../../redux/filterSlice';
 import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { CreateResourceButton } from '../common';
 import { StatusLabel, StatusLabelProps } from '../common/Label';
@@ -484,9 +484,14 @@ export function PodListRenderer(props: PodListProps) {
 }
 
 export default function PodList() {
-  const { items, errors } = Pod.useList({ namespace: useNamespaces() });
+  const labelSelector = useLabelSelector();
+  const namespaces = useNamespaces();
+  const { items, errors } = Pod.useList({
+    namespace: namespaces,
+    labelSelector: labelSelector || undefined,
+  });
   const { items: podMetrics } = PodMetrics.useList({
-    namespace: useNamespaces(),
+    namespace: namespaces,
     refetchInterval: METRIC_REFETCH_INTERVAL_MS,
   });
 
