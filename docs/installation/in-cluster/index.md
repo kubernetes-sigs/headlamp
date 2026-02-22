@@ -43,6 +43,52 @@ you can run:
 kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/headlamp/main/kubernetes-headlamp.yaml
 ```
 
+### Enabling experimental WebSocket multiplexer
+
+The WebSocket multiplexer is an **experimental feature** that improves performance. To enable it in your YAML deployment, add the `-enable-websocket-multiplexer` flag to the container args or set the `HEADLAMP_CONFIG_ENABLE_WEBSOCKET_MULTIPLEXER` environment variable:
+
+**Using args:**
+
+```yaml
+spec:
+  containers:
+    - name: headlamp
+      image: ghcr.io/headlamp-k8s/headlamp:latest
+      args:
+        - "-in-cluster"
+        - "-plugins-dir=/headlamp/plugins"
+        - "-enable-websocket-multiplexer"
+```
+
+**Using environment variable:**
+
+```yaml
+spec:
+  containers:
+    - name: headlamp
+      image: ghcr.io/headlamp-k8s/headlamp:latest
+      args:
+        - "-in-cluster"
+        - "-plugins-dir=/headlamp/plugins"
+      env:
+        - name: HEADLAMP_CONFIG_ENABLE_WEBSOCKET_MULTIPLEXER
+          value: "true"
+```
+
+**Using Helm:**
+
+```bash
+helm install my-headlamp headlamp/headlamp --namespace kube-system \
+  --set config.enableWebsocketMultiplexer=true
+```
+
+Or in your values.yaml:
+
+```yaml
+config:
+  enableWebsocketMultiplexer: true
+```
+
 ## Optional TLS Backend Termination
 
 Headlamp supports optional TLS termination at the backend server. The default is to terminate at the ingress (default) or optionally directly at the Headlamp container. This enables use cases such as NGINX TLS passthrough and transport server. See [tls](./tls.md) for details and usage.
