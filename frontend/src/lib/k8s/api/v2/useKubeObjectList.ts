@@ -17,6 +17,9 @@
 import type { QueryObserverOptions } from '@tanstack/react-query';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../../../redux/stores/store';
+import store from '../../../../redux/stores/store';
 import type { KubeObject, KubeObjectClass } from '../../KubeObject';
 import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
@@ -31,11 +34,41 @@ import { WebSocketManager } from './multiplexer';
 import { BASE_WS_URL, useWebSockets } from './webSocket';
 
 /**
- * @returns true if the websocket multiplexer is enabled.
- * defaults to true. This is a feature flag to enable the websocket multiplexer.
+ * React hook that returns whether the WebSocket multiplexer is enabled.
+ * Checks build-time environment variable first (for backwards compatibility and testing),
+ * then falls back to runtime configuration from backend.
+ *
+ * This must be a hook to avoid violating Rules of Hooks when used in conditional hook calls.
+ * The value is stable for the component lifecycle after config loads.
+ *
+ * @returns true if the WebSocket multiplexer is enabled.
+ */
+export function useWebsocketMultiplexerEnabled(): boolean {
+  // Read runtime configuration from backend via Redux.
+  const isWebsocketMultiplexerEnabledFromConfig = useSelector(
+    (state: RootState) => state.config.isWebsocketMultiplexerEnabled
+  );
+  // Check build-time environment variable (supports testing and build-time config).
+  // If the env var is explicitly enabled, it overrides runtime config.
+  const isEnvEnabled = import.meta.env.REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER === 'true';
+  return isEnvEnabled || (isWebsocketMultiplexerEnabledFromConfig ?? false);
+}
+
+/**
+ * Non-hook version for use outside React components.
+ * @returns true if the WebSocket multiplexer is enabled.
+ * Checks build-time environment variable first (for backwards compatibility and testing),
+ * then falls back to runtime configuration from backend.
  */
 export function getWebsocketMultiplexerEnabled(): boolean {
-  return import.meta.env.REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER === 'true';
+  // Check build-time environment variable first (supports testing and build-time config)
+  if (import.meta.env.REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER === 'true') {
+    return true;
+  }
+
+  // Fall back to runtime configuration from backend
+  const state = store.getState();
+  return state.config.isWebsocketMultiplexerEnabled ?? false;
 }
 
 /**
@@ -140,21 +173,25 @@ export function useWatchKubeObjectLists<K extends KubeObject>({
   /** Which clusters and namespaces to watch */
   lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
 }) {
-  if (getWebsocketMultiplexerEnabled()) {
-    return useWatchKubeObjectListsMultiplexed({
-      kubeObjectClass,
-      endpoint,
-      lists,
-      queryParams,
-    });
-  } else {
-    return useWatchKubeObjectListsLegacy({
-      kubeObjectClass,
-      endpoint,
-      lists,
-      queryParams,
-    });
-  }
+  const isMultiplexerEnabled = useWebsocketMultiplexerEnabled();
+
+  // Call both hooks unconditionally to comply with Rules of Hooks,
+  // but return only the result from the enabled one
+  const multiplexedResult = useWatchKubeObjectListsMultiplexed({
+    kubeObjectClass,
+    endpoint,
+    lists: isMultiplexerEnabled ? lists : [],
+    queryParams,
+  });
+
+  const legacyResult = useWatchKubeObjectListsLegacy({
+    kubeObjectClass,
+    endpoint,
+    lists: !isMultiplexerEnabled ? lists : [],
+    queryParams,
+  });
+
+  return isMultiplexerEnabled ? multiplexedResult : legacyResult;
 }
 
 /**
