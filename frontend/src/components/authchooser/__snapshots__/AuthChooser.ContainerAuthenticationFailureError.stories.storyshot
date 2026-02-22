@@ -1,7 +1,14 @@
 <body>
   <div
     aria-hidden="true"
-  />
+  >
+    <div
+      data-testid="current-route"
+    >
+      Current route: 
+      /c/some-cluster/login
+    </div>
+  </div>
   <div
     class="MuiDialog-root MuiModal-root css-1ixaqad-MuiModal-root-MuiDialog-root"
     role="presentation"
@@ -94,52 +101,43 @@
                     style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
                     tabindex="-1"
                   >
-                    Sign in with OpenID Connect
+                    Authentication
                   </h1>
                 </div>
               </div>
             </h2>
             <div
-              class="MuiBox-root css-0"
+              class="MuiBox-root css-164mdc"
             >
               <div
                 class="MuiBox-root css-1c5ij41"
               >
-                <button
-                  class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-cupaeb-MuiButtonBase-root-MuiButton-root"
-                  tabindex="0"
-                  type="button"
+                <div
+                  class="MuiBox-root css-19midj6"
                 >
-                  Sign In
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
-                </button>
-              </div>
-              <div
-                class="MuiBox-root css-1c5ij41"
-              >
-                <button
-                  class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-cupaeb-MuiButtonBase-root-MuiButton-root"
-                  tabindex="0"
-                  type="button"
-                >
-                  Use A Token
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
-                </button>
-              </div>
-              <div
-                class="MuiBox-root css-r2ygw3"
-              >
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                  >
+                    Failed to get authentication information: Bad Gateway - Bad Gateway
+                  </p>
+                </div>
                 <a
                   class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                  href="/"
+                  href="/settings/cluster"
                 >
                   Cluster settings
                 </a>
               </div>
+              <button
+                class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
+                tabindex="0"
+                type="button"
+              >
+                Try Again
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
             </div>
           </main>
           <div
