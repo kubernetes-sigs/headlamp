@@ -98,6 +98,14 @@ Once Headlamp is up and running, be sure to enable access to it either by creati
 a [service account](../#create-a-service-account-token) or by setting up
 [OIDC](./oidc).
 
+### Cloud Provider Specific Guides
+
+For detailed instructions on setting up Headlamp with OIDC on specific cloud providers:
+
+- **[EKS with Cognito](./eks/)** - AWS EKS with Amazon Cognito
+- **[GKE with OIDC](./gke/)** - Google Kubernetes Engine with OIDC providers
+- **[AKS with Entra ID](./azure-entra-id/)** - Azure Kubernetes Service with Microsoft Entra ID
+
 ## Plugin Management
 
 Headlamp supports managing plugins through a sidecar container when deployed in-cluster.
