@@ -449,6 +449,45 @@ func (c *Context) AuthType() string {
 	return ""
 }
 
+func (c *Context) ExportToTempFile(token string) (string, func(), error) {
+	clientConfig := c.ClientConfig()
+	if clientConfig == nil {
+		return "", nil, fmt.Errorf("failed to get client config for context %s", c.Name)
+	}
+
+	rawConfig, err := clientConfig.RawConfig()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get raw config: %w", err)
+	}
+
+	rawConfig.CurrentContext = c.Name
+
+	if token != "" {
+		if authInfo, ok := rawConfig.AuthInfos[c.KubeContext.AuthInfo]; ok {
+			authInfo.Token = token
+		}
+	}
+
+	tmpFile, err := os.CreateTemp("", "headlamp-terminal-conf-*.yaml")
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to write temp kubeconfig: %w", err)
+	}
+
+	tmpPath := tmpFile.Name()
+
+	if err = clientcmd.WriteToFile(rawConfig, tmpPath); err != nil {
+		_ = os.Remove(tmpPath)
+
+		return "", nil, fmt.Errorf("failed to write temp kubeconfig: %w", err)
+	}
+
+	cleanup := func() {
+		_ = os.Remove(tmpPath)
+	}
+
+	return tmpPath, cleanup, nil
+}
+
 // ContextLoadError represents an error associated with a specific context.
 type ContextLoadError struct {
 	ContextName string

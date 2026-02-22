@@ -21,11 +21,16 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
+	"runtime"
 	"sync"
 	"time"
 
+	"github.com/creack/pty"
 	"github.com/gorilla/websocket"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -799,6 +804,101 @@ func (m *Multiplexer) cleanupConnections() {
 
 		delete(m.connections, key)
 	}
+}
+
+func (m *Multiplexer) HandleTerminal(w http.ResponseWriter, r *http.Request) {
+	clusterID := r.URL.Query().Get("cluster")
+
+	ctxProxy, err := m.kubeConfigStore.GetContext(clusterID)
+	if err != nil {
+		http.Error(w, "Cluster not found", http.StatusNotFound)
+
+		return
+	}
+
+	token, _ := auth.GetTokenFromCookie(r, clusterID)
+
+	configPath, cleanup, err := ctxProxy.ExportToTempFile(token)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	defer cleanup()
+
+	conn, err := m.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+
+	defer conn.Close()
+
+	runTerminalSession(conn, configPath)
+}
+
+func runTerminalSession(conn *websocket.Conn, configPath string) {
+	shell := "bash"
+	if runtime.GOOS == "windows" {
+		shell = "powershell.exe"
+	}
+
+	env := os.Environ()
+	env = append(env, "KUBECONFIG="+configPath)
+
+	cmd := exec.Command(shell)
+	cmd.Env = env
+
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		return
+	}
+
+	defer ptmx.Close()
+
+	go func() {
+		for {
+			_, message, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+
+			if len(message) > 0 {
+				channel := message[0]
+				data := message[1:]
+
+				switch channel {
+				case 4:
+					var size struct {
+						Width, Height uint16
+					}
+
+					if err := json.Unmarshal(data, &size); err == nil {
+						_ = pty.Setsize(ptmx, &pty.Winsize{Rows: size.Height, Cols: size.Width})
+					}
+				case 0:
+					_, err = ptmx.Write(data)
+					if err != nil {
+						return
+					}
+				}
+			}
+		}
+	}()
+
+	_, err = io.Copy(writerOnly{conn}, ptmx)
+	if err != nil {
+		return
+	}
+}
+
+type writerOnly struct {
+	*websocket.Conn
+}
+
+func (w writerOnly) Write(p []byte) (n int, err error) {
+	err = w.WriteMessage(websocket.BinaryMessage, p)
+	return len(p), err
 }
 
 // getClusterConfig retrieves the REST config for a given cluster.
