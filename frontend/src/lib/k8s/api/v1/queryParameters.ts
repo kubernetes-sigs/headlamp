@@ -124,4 +124,6 @@ export interface QueryParameters {
    * @see https://kubernetes.io/docs/reference/using-api/api-concepts/#efficient-detection-of-changes
    */
   watch?: string;
+
+  page?: number;
 }

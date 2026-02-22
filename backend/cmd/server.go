@@ -235,12 +235,25 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 
 	k8cache.CheckForChanges(k8sResponseCache, contextKey, *kContext)
 
-	next.ServeHTTP(rcw, r)
+	query := r.URL.Query()
 
-	if err := k8cache.StoreK8sResponseInCache(k8sResponseCache, r.URL, rcw, r, key); err != nil {
-		// Response was already written to client via rcw; just log the cache storage error
-		logger.Log(logger.LevelError, nil, err, "failed to store response in cache")
-	}
+	r.URL.RawQuery = query.Encode()
+
+	next.ServeHTTP(w, r)
+	cleanReq := r.Clone(r.Context())
+	cleanURL := *cleanReq.URL
+	q := cleanURL.Query()
+	q.Del("limit")
+	cleanURL.RawQuery = q.Encode()
+	cleanReq.URL = &cleanURL
+	next.ServeHTTP(rcw, cleanReq)
+	go func() {
+		err = k8cache.StoreK8sResponseInCache(k8sResponseCache, r.URL, rcw, r, key)
+		if err != nil {
+			c.handleError(w, ctx, span, errors.New(kContext.Error), "error while storing into cache", http.StatusBadRequest)
+			return
+		}
+	}()
 }
 
 func handleCacheAuthorization(

@@ -40,11 +40,7 @@ func (r *ResponseCapture) WriteHeader(code int) {
 
 // Write stores the response body and writes it to the underlying ResponseWriter.
 func (r *ResponseCapture) Write(b []byte) (int, error) {
-	if _, err := r.Body.Write(b); err != nil {
-		return 0, err
-	}
-
-	return r.ResponseWriter.Write(b)
+	return r.Body.Write(b)
 }
 
 // NewResponseCapture initializes ResponseCapture with a http.ResponseWriter and empty bytes.Buffer for the body.

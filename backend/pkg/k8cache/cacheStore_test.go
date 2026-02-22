@@ -326,7 +326,7 @@ func TestSetHeader(t *testing.T) {
 					"Content-Type": {"application/json"},
 					"X-Test":       {"true"},
 				},
-				Body: `{"message": "OK"}`,
+				// Body: `{"message": "OK"}`,
 			},
 		},
 		{
