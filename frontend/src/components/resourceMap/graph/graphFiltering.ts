@@ -15,6 +15,7 @@
  */
 
 import { getGraphNodeStatus } from '../nodes/KubeObjectStatus';
+import { addPerformanceMetric } from '../PerformanceStats';
 import { makeGraphLookup } from './graphLookup';
 import { GraphEdge, GraphNode } from './graphModel';
 
@@ -48,11 +49,15 @@ export type GraphFilter =
  * @param filters - List of fitlers to apply
  */
 export function filterGraph(nodes: GraphNode[], edges: GraphEdge[], filters: GraphFilter[]) {
+  const perfStart = performance.now();
+
   if (filters.length === 0) {
     return { nodes, edges };
   }
 
+  const lookupStart = performance.now();
   const graphLookup = makeGraphLookup(nodes, edges);
+  const lookupTime = performance.now() - lookupStart;
   const visibleNodeIds = new Set<string>();
 
   function nodeMatchesFilters(node: GraphNode): boolean {
@@ -90,17 +95,45 @@ export function filterGraph(nodes: GraphNode[], edges: GraphEdge[], filters: Gra
     });
   }
 
+  const filterStart = performance.now();
   nodes.forEach(node => {
     if (nodeMatchesFilters(node)) {
       addRelatedNode(node);
     }
   });
+  const filterTime = performance.now() - filterStart;
 
   const filteredNodes = nodes.filter(node => visibleNodeIds.has(node.id));
 
   const filteredEdges = edges.filter(
     edge => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)
   );
+
+  const totalTime = performance.now() - perfStart;
+
+  if (typeof window !== 'undefined' && (window as any).__HEADLAMP_DEBUG_PERFORMANCE__) {
+    console.log(
+      `[ResourceMap Performance] filterGraph: ${totalTime.toFixed(
+        2
+      )}ms (lookup: ${lookupTime.toFixed(2)}ms, filter: ${filterTime.toFixed(2)}ms, nodes: ${
+        nodes.length
+      } -> ${filteredNodes.length}, edges: ${edges.length} -> ${filteredEdges.length})`
+    );
+  }
+
+  addPerformanceMetric({
+    operation: 'filterGraph',
+    duration: totalTime,
+    timestamp: Date.now(),
+    details: {
+      lookupMs: lookupTime.toFixed(1),
+      filterMs: filterTime.toFixed(1),
+      nodesIn: nodes.length,
+      nodesOut: filteredNodes.length,
+      edgesIn: edges.length,
+      edgesOut: filteredEdges.length,
+    },
+  });
 
   return {
     nodes: filteredNodes,

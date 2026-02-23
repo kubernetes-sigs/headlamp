@@ -18,6 +18,7 @@ import { groupBy } from 'lodash';
 import Namespace from '../../../lib/k8s/namespace';
 import Node from '../../../lib/k8s/node';
 import Pod from '../../../lib/k8s/pod';
+import { addPerformanceMetric } from '../PerformanceStats';
 import { makeGraphLookup } from './graphLookup';
 import { forEachNode, getNodeWeight, GraphEdge, GraphNode } from './graphModel';
 
@@ -47,9 +48,12 @@ export const getGraphSize = (graph: GraphNode) => {
  *          or a group node containing multiple nodes and edges
  */
 const getConnectedComponents = (nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] => {
+  const perfStart = performance.now();
   const components: GraphNode[] = [];
 
+  const lookupStart = performance.now();
   const graphLookup = makeGraphLookup(nodes, edges);
+  const lookupTime = performance.now() - lookupStart;
 
   const visitedNodes = new Set<string>();
   const visitedEdges = new Set<string>();
@@ -106,6 +110,7 @@ const getConnectedComponents = (nodes: GraphNode[], edges: GraphEdge[]): GraphNo
   };
 
   // Iterate over each node and find connected components
+  const componentStart = performance.now();
   nodes.forEach(node => {
     if (!visitedNodes.has(node.id)) {
       const componentNodes: GraphNode[] = [];
@@ -120,6 +125,32 @@ const getConnectedComponents = (nodes: GraphNode[], edges: GraphEdge[]): GraphNo
         edges: componentEdges,
       });
     }
+  });
+
+  const componentTime = performance.now() - componentStart;
+  const totalTime = performance.now() - perfStart;
+
+  // Only log to console if debug flag is set
+  if (typeof window !== 'undefined' && (window as any).__HEADLAMP_DEBUG_PERFORMANCE__) {
+    console.log(
+      `[ResourceMap Performance] getConnectedComponents: ${totalTime.toFixed(
+        2
+      )}ms (lookup: ${lookupTime.toFixed(2)}ms, component detection: ${componentTime.toFixed(
+        2
+      )}ms, nodes: ${nodes.length}, components: ${components.length})`
+    );
+  }
+
+  addPerformanceMetric({
+    operation: 'getConnectedComponents',
+    duration: totalTime,
+    timestamp: Date.now(),
+    details: {
+      lookupMs: lookupTime.toFixed(1),
+      componentMs: componentTime.toFixed(1),
+      nodes: nodes.length,
+      components: components.length,
+    },
   });
 
   return components.map(it => (it.nodes?.length === 1 ? it.nodes[0] : it));
@@ -221,6 +252,8 @@ export function groupGraph(
     k8sNodes,
   }: { groupBy?: GroupBy; namespaces: Namespace[]; k8sNodes: Node[] }
 ): GraphNode {
+  const perfStart = performance.now();
+
   const root: GraphNode = {
     id: 'root',
     label: 'root',
@@ -229,6 +262,8 @@ export function groupGraph(
   };
 
   let components: GraphNode[] = getConnectedComponents(nodes, edges);
+
+  const groupingStart = performance.now();
 
   if (groupBy === 'namespace') {
     // Create groups based on the Kube resource namespace
@@ -299,7 +334,10 @@ export function groupGraph(
 
   root.nodes?.push(...components);
 
+  const groupingTime = performance.now() - groupingStart;
+
   // Sort nodes within each group node using weight-based sorting
+  const sortStart = performance.now();
   forEachNode(root, node => {
     /**
      * Sort elements, giving priority to both weight and bigger groups
@@ -327,6 +365,33 @@ export function groupGraph(
     if (node.nodes) {
       node.nodes.sort((a, b) => getNodeSortedWeight(b) - getNodeSortedWeight(a));
     }
+  });
+
+  const sortTime = performance.now() - sortStart;
+  const totalTime = performance.now() - perfStart;
+
+  // Only log to console if debug flag is set
+  if (typeof window !== 'undefined' && (window as any).__HEADLAMP_DEBUG_PERFORMANCE__) {
+    console.log(
+      `[ResourceMap Performance] groupGraph: ${totalTime.toFixed(
+        2
+      )}ms (grouping: ${groupingTime.toFixed(2)}ms, sorting: ${sortTime.toFixed(2)}ms, groupBy: ${
+        groupBy || 'none'
+      })`
+    );
+  }
+
+  addPerformanceMetric({
+    operation: 'groupGraph',
+    duration: totalTime,
+    timestamp: Date.now(),
+    details: {
+      groupingMs: groupingTime.toFixed(1),
+      sortingMs: sortTime.toFixed(1),
+      groupBy: groupBy || 'none',
+      nodes: nodes.length,
+      edges: edges.length,
+    },
   });
 
   return root;

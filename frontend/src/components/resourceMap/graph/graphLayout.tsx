@@ -18,6 +18,7 @@ import { Edge, EdgeMarker, Node } from '@xyflow/react';
 import { ElkExtendedEdge, ElkNode } from 'elkjs';
 import ELK, { type ELK as ELKInterface } from 'elkjs/lib/elk-api';
 import elkWorker from 'elkjs/lib/elk-worker.min.js?url';
+import { addPerformanceMetric } from '../PerformanceStats';
 import { forEachNode, getNodeWeight, GraphNode } from './graphModel';
 
 type ElkNodeWithData = Omit<ElkNode, 'edges'> & {
@@ -225,22 +226,52 @@ function convertToReactFlowGraph(elkGraph: ElkNodeWithData) {
 
 /**
  * Takes a graph and returns a graph with layout applied
- * Layout will set size and poisiton for all the elements
+ * Layout will set size and position for all the elements
  *
  * @param graph - root node of the graph
  * @param aspectRatio - aspect ratio of the container
  * @returns
  */
-export const applyGraphLayout = (graph: GraphNode, aspectRatio: number) => {
+export const applyGraphLayout = async (graph: GraphNode, aspectRatio: number) => {
+  if (!elk) return { nodes: [], edges: [] };
+
+  const perfStart = performance.now();
+
+  const conversionStart = performance.now();
   const elkGraph = convertToElkNode(graph, aspectRatio);
+  const conversionTime = performance.now() - conversionStart;
 
-  if (!elk) return Promise.resolve({ nodes: [], edges: [] });
+  // Count nodes for performance logging
+  let nodeCount = 0;
+  forEachNode(graph, () => nodeCount++);
 
-  return elk
-    .layout(elkGraph, {
-      layoutOptions: {
-        'elk.aspectRatio': String(aspectRatio),
-      },
-    })
-    .then(elkGraph => convertToReactFlowGraph(elkGraph as ElkNodeWithData));
+  const layoutStart = performance.now();
+  const layoutResult = await elk.layout(elkGraph, {
+    layoutOptions: {
+      'elk.aspectRatio': String(aspectRatio),
+    },
+  });
+  const layoutTime = performance.now() - layoutStart;
+
+  const conversionBackStart = performance.now();
+  const result = convertToReactFlowGraph(layoutResult as ElkNodeWithData);
+  const conversionBackTime = performance.now() - conversionBackStart;
+
+  const totalTime = performance.now() - perfStart;
+
+  addPerformanceMetric({
+    operation: 'applyGraphLayout',
+    duration: totalTime,
+    timestamp: Date.now(),
+    details: {
+      conversionMs: conversionTime.toFixed(1),
+      elkLayoutMs: layoutTime.toFixed(1),
+      conversionBackMs: conversionBackTime.toFixed(1),
+      nodes: nodeCount,
+      resultNodes: result.nodes.length,
+      resultEdges: result.edges.length,
+    },
+  });
+
+  return result;
 };
