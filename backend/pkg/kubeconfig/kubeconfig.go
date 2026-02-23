@@ -405,7 +405,7 @@ func (c *Context) SourceStr() string {
 	case DynamicCluster:
 		return "dynamic_cluster"
 	case InCluster:
-		return "incluster"
+		return "in_cluster"
 	default:
 		return "unknown"
 	}
