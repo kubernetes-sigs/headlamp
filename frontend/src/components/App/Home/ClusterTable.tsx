@@ -196,6 +196,8 @@ export default function ClusterTable({
       return t('translation|Plugin');
     } else if (cluster?.meta_data?.source === 'in_cluster') {
       return t('translation|In-cluster');
+    } else if (cluster?.meta_data?.source === 'cluster_inventory') {
+      return t('translation|Cluster Inventory');
     }
     return 'Unknown';
   }

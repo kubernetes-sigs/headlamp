@@ -2,6 +2,7 @@ package headlampconfig
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -39,29 +40,33 @@ type HeadlampConfig struct {
 }
 
 type HeadlampCFG struct {
-	UseInCluster           bool
-	InClusterContextName   string
-	ListenAddr             string
-	CacheEnabled           bool
-	DevMode                bool
-	Insecure               bool
-	EnableHelm             bool
-	EnableDynamicClusters  bool
-	AllowKubeconfigChanges bool
-	WatchPluginsChanges    bool
-	Port                   uint
-	KubeConfigPath         string
-	SkippedKubeContexts    string
-	StaticDir              string
-	PluginDir              string
-	UserPluginDir          string
-	StaticPluginDir        string
-	KubeConfigStore        kubeconfig.ContextStore
-	Telemetry              *telemetry.Telemetry
-	Metrics                *telemetry.Metrics
-	BaseURL                string
-	ProxyURLs              []string
-	TLSCertPath            string
-	TLSKeyPath             string
-	SessionTTL             int
+	UseInCluster                   bool
+	InClusterContextName           string
+	ListenAddr                     string
+	CacheEnabled                   bool
+	DevMode                        bool
+	Insecure                       bool
+	EnableHelm                     bool
+	EnableDynamicClusters          bool
+	EnableClusterInventory         bool
+	ClusterInventoryProviderFile   string
+	ClusterInventoryRescanInterval time.Duration
+	ClusterInventoryNoCRDCacheTTL  time.Duration
+	AllowKubeconfigChanges         bool
+	WatchPluginsChanges            bool
+	Port                           uint
+	KubeConfigPath                 string
+	SkippedKubeContexts            string
+	StaticDir                      string
+	PluginDir                      string
+	UserPluginDir                  string
+	StaticPluginDir                string
+	KubeConfigStore                kubeconfig.ContextStore
+	Telemetry                      *telemetry.Telemetry
+	Metrics                        *telemetry.Metrics
+	BaseURL                        string
+	ProxyURLs                      []string
+	TLSCertPath                    string
+	TLSKeyPath                     string
+	SessionTTL                     int
 }
