@@ -181,8 +181,8 @@ func TestStartPortForward(t *testing.T) {
 	pfRespData, err := io.ReadAll(pfResp.Body)
 	require.NoError(t, err)
 
-	if !assert.Contains(t, string(pfRespData), "incluster") {
-		t.Logf("Warning: Response from forwarded port did not contain 'incluster'. Content: %s", string(pfRespData))
+	if !assert.Contains(t, string(pfRespData), "clusters") {
+		t.Logf("Warning: Response from forwarded port did not contain expected content. Content: %s", string(pfRespData))
 	}
 
 	stopReq := &http.Request{
