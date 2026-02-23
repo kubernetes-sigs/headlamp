@@ -15,17 +15,12 @@
  */
 
 import '@testing-library/jest-dom';
-import { fireEvent,render, screen } from '@testing-library/react';
-import i18n from 'i18next';
+import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { I18nextProvider } from 'react-i18next';
 import { describe, expect, test, vi } from 'vitest';
+import i18n from '../../../i18n/config';
 import ColorPicker from './ColorPicker';
-
-i18n.init({
-  lng: 'en',
-  resources: { en: { translation: {} } },
-});
 
 const renderComponent = (props = {}) => {
   const defaultProps = {
@@ -55,8 +50,11 @@ describe('ColorPicker', () => {
 
     renderComponent({ onSelectColor, onClose });
 
-    const buttons = screen.getAllByRole('button');
-    fireEvent.click(buttons[1]);
+    const presetButtons = screen.getAllByRole('button').filter(btn => btn.getAttribute('value'));
+
+    expect(presetButtons.length).toBeGreaterThan(0);
+
+    fireEvent.click(presetButtons[0]);
 
     expect(onSelectColor).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
@@ -79,7 +77,6 @@ describe('ColorPicker', () => {
     fireEvent.change(input, { target: { value: 'invalid' } });
 
     const applyButton = screen.getByRole('button', { name: /apply/i });
-
     expect(applyButton).toBeDisabled();
   });
 
@@ -89,11 +86,10 @@ describe('ColorPicker', () => {
     fireEvent.click(screen.getByRole('checkbox'));
 
     const applyButton = screen.getByRole('button', { name: /apply/i });
-
     expect(applyButton).toBeDisabled();
   });
 
-  test('applies valid custom color and closes dialog', () => {
+  test('applies valid hex custom color and closes dialog', () => {
     const onSelectColor = vi.fn();
     const onClose = vi.fn();
 
@@ -105,10 +101,110 @@ describe('ColorPicker', () => {
     fireEvent.change(input, { target: { value: '#123456' } });
 
     const applyButton = screen.getByRole('button', { name: /apply/i });
-
     fireEvent.click(applyButton);
 
     expect(onSelectColor).toHaveBeenCalledWith('#123456');
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  test('calls onClose when Cancel is clicked without selecting color', () => {
+    const onSelectColor = vi.fn();
+    const onClose = vi.fn();
+    const onError = vi.fn();
+
+    renderComponent({ onSelectColor, onClose, onError });
+
+    const cancelButton = screen.getByRole('button', { name: /cancel/i });
+    fireEvent.click(cancelButton);
+
+    expect(onClose).toHaveBeenCalled();
+    expect(onSelectColor).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  test('highlights preset color when it matches currentColor', () => {
+    const onClose = vi.fn();
+    const onSelectColor = vi.fn();
+    const onError = vi.fn();
+
+    const { rerender } = render(
+      <I18nextProvider i18n={i18n}>
+        <ColorPicker
+          open
+          currentColor=""
+          onClose={onClose}
+          onSelectColor={onSelectColor}
+          onError={onError}
+        />
+      </I18nextProvider>
+    );
+
+    const presetButtons = screen.getAllByRole('button').filter(btn => btn.getAttribute('value'));
+
+    expect(presetButtons.length).toBeGreaterThan(0);
+
+    const presetButton = presetButtons[0];
+    const presetColor = presetButton.getAttribute('value') as string;
+
+    expect(presetColor).toBeTruthy();
+
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <ColorPicker
+          open
+          currentColor={presetColor}
+          onClose={onClose}
+          onSelectColor={onSelectColor}
+          onError={onError}
+        />
+      </I18nextProvider>
+    );
+
+    const matchedButton = screen
+      .getAllByRole('button')
+      .find(btn => btn.getAttribute('value') === presetColor);
+
+    expect(matchedButton).toBeDefined();
+    expect(matchedButton).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('applies valid rgb custom color and closes dialog', () => {
+    const onSelectColor = vi.fn();
+    const onClose = vi.fn();
+
+    renderComponent({ onSelectColor, onClose });
+
+    fireEvent.click(screen.getByRole('checkbox'));
+
+    const input = screen.getByPlaceholderText('#ff0000');
+    fireEvent.change(input, { target: { value: 'rgb(255, 0, 0)' } });
+
+    const applyButton = screen.getByRole('button', { name: /apply/i });
+    expect(applyButton).not.toBeDisabled();
+
+    fireEvent.click(applyButton);
+
+    expect(onSelectColor).toHaveBeenCalledWith('rgb(255, 0, 0)');
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  test('applies valid rgba custom color and closes dialog', () => {
+    const onSelectColor = vi.fn();
+    const onClose = vi.fn();
+
+    renderComponent({ onSelectColor, onClose });
+
+    fireEvent.click(screen.getByRole('checkbox'));
+
+    const input = screen.getByPlaceholderText('#ff0000');
+    fireEvent.change(input, { target: { value: 'rgba(255, 0, 0, 0.5)' } });
+
+    const applyButton = screen.getByRole('button', { name: /apply/i });
+    expect(applyButton).not.toBeDisabled();
+
+    fireEvent.click(applyButton);
+
+    expect(onSelectColor).toHaveBeenCalledWith('rgba(255, 0, 0, 0.5)');
     expect(onClose).toHaveBeenCalled();
   });
 });

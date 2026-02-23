@@ -14,20 +14,11 @@
  * limitations under the License.
  */
 
-import type { Meta, StoryObj } from '@storybook/react';
-import i18n from 'i18next';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import React, { useState } from 'react';
 import { I18nextProvider } from 'react-i18next';
+import i18n from '../../../i18n/config';
 import ColorPicker, { PRESET_COLORS } from './ColorPicker';
-
-i18n.init({
-  lng: 'en',
-  resources: {
-    en: {
-      translation: {},
-    },
-  },
-});
 
 const meta: Meta<typeof ColorPicker> = {
   title: 'App/Settings/ColorPicker',
@@ -44,7 +35,7 @@ const meta: Meta<typeof ColorPicker> = {
 export default meta;
 type Story = StoryObj<typeof ColorPicker>;
 
-const StatefulWrapper = (args: any) => {
+const StatefulWrapper = (args: React.ComponentProps<typeof ColorPicker>) => {
   const [color, setColor] = useState(args.currentColor || '');
   const [, setError] = useState('');
 
@@ -52,14 +43,8 @@ const StatefulWrapper = (args: any) => {
     <ColorPicker
       {...args}
       currentColor={color}
-      onSelectColor={(newColor: string) => {
-        console.log('Selected color:', newColor);
-        setColor(newColor);
-      }}
-      onError={(err: string) => {
-        console.log('Error:', err);
-        setError(err);
-      }}
+      onSelectColor={(newColor: string) => setColor(newColor)}
+      onError={(err: string) => setError(err)}
     />
   );
 };
@@ -69,7 +54,7 @@ export const Default: Story = {
   args: {
     open: true,
     currentColor: '',
-    onClose: () => console.log('Dialog closed'),
+    onClose: () => {},
   },
 };
 
@@ -78,7 +63,7 @@ export const PresetSelected: Story = {
   args: {
     open: true,
     currentColor: PRESET_COLORS[5].value,
-    onClose: () => console.log('Dialog closed'),
+    onClose: () => {},
   },
 };
 
@@ -87,14 +72,7 @@ export const CustomColorMode: Story = {
   args: {
     open: true,
     currentColor: '',
-    onClose: () => console.log('Dialog closed'),
-  },
-  play: async ({ canvasElement }) => {
-    const checkbox = canvasElement.querySelector('input[type="checkbox"]') as HTMLInputElement;
-
-    if (checkbox) {
-      checkbox.click();
-    }
+    onClose: () => {},
   },
 };
 
@@ -103,19 +81,7 @@ export const InvalidCustomColor: Story = {
   args: {
     open: true,
     currentColor: '',
-    onClose: () => console.log('Dialog closed'),
-  },
-  play: async ({ canvasElement }) => {
-    const checkbox = canvasElement.querySelector('input[type="checkbox"]') as HTMLInputElement;
-
-    if (checkbox) checkbox.click();
-
-    const input = canvasElement.querySelector('input[placeholder="#ff0000"]') as HTMLInputElement;
-
-    if (input) {
-      input.value = 'invalid-color';
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    }
+    onClose: () => {},
   },
 };
 
@@ -124,18 +90,6 @@ export const ValidCustomColor: Story = {
   args: {
     open: true,
     currentColor: '',
-    onClose: () => console.log('Dialog closed'),
-  },
-  play: async ({ canvasElement }) => {
-    const checkbox = canvasElement.querySelector('input[type="checkbox"]') as HTMLInputElement;
-
-    if (checkbox) checkbox.click();
-
-    const input = canvasElement.querySelector('input[placeholder="#ff0000"]') as HTMLInputElement;
-
-    if (input) {
-      input.value = '#123456';
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    }
+    onClose: () => {},
   },
 };
