@@ -1279,6 +1279,35 @@ func TestMonitorConnection_Reconnect(t *testing.T) {
 	close(conn.Done)
 }
 
+func TestHandleTerminal_Handshake(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store)
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name:        "minikube",
+		Cluster:     &api.Cluster{Server: "https://localhost/6443"},
+		KubeContext: &api.Context{Cluster: "minikube", AuthInfo: "minikube"},
+	})
+	require.NoError(t, err)
+
+	server := httptest.NewServer(http.HandlerFunc(m.HandleTerminal))
+	defer server.Close()
+
+	dialer := websocket.Dialer{}
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "?cluster=minikube"
+
+	ws, resp, err := dialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+
+	defer ws.Close()
+
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
+
+	assert.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
+}
+
 func TestWriteMessageToCluster(t *testing.T) {
 	m := NewMultiplexer(kubeconfig.NewContextStore())
 	clusterConn, clusterServer := createTestWebSocketConnection()

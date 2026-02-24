@@ -17,15 +17,21 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
+	"runtime"
 	"sync"
 	"time"
 
+	"github.com/creack/pty"
 	"github.com/gorilla/websocket"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -799,6 +805,140 @@ func (m *Multiplexer) cleanupConnections() {
 
 		delete(m.connections, key)
 	}
+}
+
+// HandleTerminal handles cluster shell-terminal.
+func (m *Multiplexer) HandleTerminal(w http.ResponseWriter, r *http.Request) {
+	clusterID := r.URL.Query().Get("cluster")
+
+	ctxProxy, err := m.kubeConfigStore.GetContext(clusterID)
+	if err != nil {
+		http.Error(w, "Cluster not found", http.StatusNotFound)
+
+		return
+	}
+
+	token, _ := auth.GetTokenFromCookie(r, clusterID)
+
+	configPath, cleanup, err := ctxProxy.ExportToTempFile(token)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	conn, err := m.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+
+	defer conn.Close()
+
+	runTerminalSession(conn, configPath, cleanup)
+}
+
+// runTerminalSession initializes and runs terminal session.
+func runTerminalSession(conn *websocket.Conn, configPath string, cleanup func()) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer cleanup()
+
+	shell := getShell()
+
+	env := os.Environ()
+	env = append(env, "KUBECONFIG="+configPath)
+
+	cmd := exec.Command(shell)
+	cmd.Env = env
+
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		_ = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr,
+			"Failed to start shell"))
+
+		return
+	}
+
+	defer func() {
+		_ = ptmx.Close()
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	}()
+
+	go handleTerminalInput(conn, ptmx, cancel)
+
+	go func() {
+		_, _ = io.Copy(writerOnly{conn}, ptmx)
+
+		cancel()
+	}()
+
+	<-ctx.Done()
+}
+
+// getShell gets the correct shell depending on the system.
+func getShell() string {
+	if runtime.GOOS == "windows" {
+		return "powershell.exe"
+	}
+
+	shell := os.Getenv("SHELL")
+	if shell != "" {
+		return shell
+	}
+
+	if _, err := exec.LookPath("bash"); err == nil {
+		return "bash"
+	}
+
+	return "sh"
+}
+
+// handleTerminalInput handles stdin and resize .
+func handleTerminalInput(conn *websocket.Conn, ptmx *os.File, cancel context.CancelFunc) {
+	defer cancel()
+
+	for {
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			return
+		}
+
+		if len(message) == 0 {
+			continue
+		}
+
+		channel := message[0]
+		data := message[1:]
+
+		switch channel {
+		case 4: // Resize
+			var size struct {
+				Width, Height uint16
+			}
+
+			if err := json.Unmarshal(data, &size); err == nil {
+				_ = pty.Setsize(ptmx, &pty.Winsize{Rows: size.Height, Cols: size.Width})
+			}
+		case 0: // Stdin
+			if _, err = ptmx.Write(data); err != nil {
+				return
+			}
+		}
+	}
+}
+
+type writerOnly struct {
+	*websocket.Conn
+}
+
+func (w writerOnly) Write(p []byte) (n int, err error) {
+	err = w.WriteMessage(websocket.BinaryMessage, p)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(p), nil
 }
 
 // getClusterConfig retrieves the REST config for a given cluster.
