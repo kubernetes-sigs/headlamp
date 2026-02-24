@@ -1,0 +1,18 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1s7f9ap"
+    >
+      <h6
+        class="MuiTypography-root MuiTypography-h6 css-k6p83p-MuiTypography-root"
+      >
+        No cluster selected
+      </h6>
+      <p
+        class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+      >
+        Choose a cluster to open a terminal.
+      </p>
+    </div>
+  </div>
+</body>
