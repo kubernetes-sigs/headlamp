@@ -244,10 +244,15 @@
   "Node Port": "",
   "App Protocol": "",
   "Services": "Services",
+<<<<<<< HEAD
   "No role bindings reference this service account.": "",
   "Unable to list the role bindings for this service account.": "",
   "Image Pull Secrets": "",
   "Automount Service Account Token": "",
+=======
+  "Owner": "",
+  "Terminal": "",
+>>>>>>> 797f14013 (frontend: components: sidebar: Add component for terminal and sidebar entry)
   "Map": "资源全景图",
   "Workloads": "Workloads",
   "Stateful Sets": "Stateful Sets",

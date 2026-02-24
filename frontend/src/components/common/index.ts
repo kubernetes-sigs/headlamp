@@ -18,6 +18,7 @@ export * from './ActionButton';
 export { default as ActionButton } from './ActionButton';
 export * from './BackLink';
 export * from './Chart';
+export * from './ClusterTerminal';
 export * from './Dialog';
 export * from './EmptyContent';
 export { default as EmptyContent } from './EmptyContent';

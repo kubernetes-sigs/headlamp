@@ -39,6 +39,7 @@ const checkExports = [
   'ActionButton',
   'BackLink',
   'Chart',
+  'ClusterTerminal',
   'ConfirmDialog',
   'ConfirmButton',
   'CreateResourceButton',

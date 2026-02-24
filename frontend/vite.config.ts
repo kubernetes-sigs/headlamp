@@ -68,6 +68,11 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
       },
+      '/wsTerminal': {
+        target: backendTarget,
+        changeOrigin: true,
+        ws: true,
+      },
       '/externalproxy': {
         target: backendTarget,
         changeOrigin: true,
