@@ -1,0 +1,350 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-j1fy4m"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+      >
+        <div
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        >
+          <div
+            class="MuiBox-root css-70qvj9"
+          >
+            <h2
+              class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+            >
+              Cluster Settings
+            </h2>
+            <div
+              class="MuiBox-root css-ldp2l3"
+            />
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiBox-root css-1txv3mw"
+      >
+        <div
+          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-onzayo-MuiPaper-root-MuiTableContainer-root"
+          tabindex="0"
+        >
+          <table
+            class="MuiTable-root css-1ml9dpn-MuiTable-root"
+          >
+            <thead
+              class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
+            >
+              <tr
+                class="MuiTableRow-root MuiTableRow-head css-13jktim-MuiTableRow-root"
+              >
+                <th
+                  class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                  scope="col"
+                >
+                  Name
+                </th>
+                <th
+                  class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                  scope="col"
+                >
+                  Server
+                </th>
+              </tr>
+            </thead>
+            <tbody
+              class="MuiTableBody-root css-apqrd9-MuiTableBody-root"
+            >
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    href="/settings/cluster?c=cluster-1"
+                  >
+                    cluster-1
+                  </a>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  https://cluster-1.k8s.example.com:6443
+                </td>
+              </tr>
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    href="/settings/cluster?c=cluster-2"
+                  >
+                    cluster-2
+                  </a>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  https://cluster-2.k8s.example.com:6443
+                </td>
+              </tr>
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    href="/settings/cluster?c=cluster-3"
+                  >
+                    cluster-3
+                  </a>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  https://cluster-3.k8s.example.com:6443
+                </td>
+              </tr>
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    href="/settings/cluster?c=cluster-4"
+                  >
+                    cluster-4
+                  </a>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  https://cluster-4.k8s.example.com:6443
+                </td>
+              </tr>
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    href="/settings/cluster?c=cluster-5"
+                  >
+                    cluster-5
+                  </a>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  https://cluster-5.k8s.example.com:6443
+                </td>
+              </tr>
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    href="/settings/cluster?c=cluster-6"
+                  >
+                    cluster-6
+                  </a>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  https://cluster-6.k8s.example.com:6443
+                </td>
+              </tr>
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    href="/settings/cluster?c=cluster-7"
+                  >
+                    cluster-7
+                  </a>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  https://cluster-7.k8s.example.com:6443
+                </td>
+              </tr>
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    href="/settings/cluster?c=cluster-8"
+                  >
+                    cluster-8
+                  </a>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  https://cluster-8.k8s.example.com:6443
+                </td>
+              </tr>
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    href="/settings/cluster?c=cluster-9"
+                  >
+                    cluster-9
+                  </a>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  https://cluster-9.k8s.example.com:6443
+                </td>
+              </tr>
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    href="/settings/cluster?c=cluster-10"
+                  >
+                    cluster-10
+                  </a>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  https://cluster-10.k8s.example.com:6443
+                </td>
+              </tr>
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    href="/settings/cluster?c=cluster-11"
+                  >
+                    cluster-11
+                  </a>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  https://cluster-11.k8s.example.com:6443
+                </td>
+              </tr>
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    href="/settings/cluster?c=cluster-12"
+                  >
+                    cluster-12
+                  </a>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  https://cluster-12.k8s.example.com:6443
+                </td>
+              </tr>
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    href="/settings/cluster?c=cluster-13"
+                  >
+                    cluster-13
+                  </a>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  https://cluster-13.k8s.example.com:6443
+                </td>
+              </tr>
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    href="/settings/cluster?c=cluster-14"
+                  >
+                    cluster-14
+                  </a>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  https://cluster-14.k8s.example.com:6443
+                </td>
+              </tr>
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <a
+                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    href="/settings/cluster?c=cluster-15"
+                  >
+                    cluster-15
+                  </a>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  https://cluster-15.k8s.example.com:6443
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

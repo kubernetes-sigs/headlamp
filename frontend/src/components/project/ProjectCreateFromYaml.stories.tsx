@@ -40,6 +40,8 @@ const makeStore = () => {
           'cluster-a': { name: 'cluster-a' },
           'cluster-b': { name: 'cluster-b' },
         } as any,
+        isDynamicClusterEnabled: true,
+        allowKubeconfigChanges: false,
         settings: {
           tableRowsPerPageOptions: [15, 25, 50],
           timezone: 'UTC',

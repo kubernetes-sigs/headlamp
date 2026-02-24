@@ -20,9 +20,9 @@ import { LabelSelector } from './cluster';
 import { KubeObjectClass } from './KubeObject';
 import Namespace from './namespace';
 
-// Remove NetworkPolicy since we don't use it.
+// Remove NetworkPolicy and ControllerRevision since we don't have list/details pages for them.
 const k8sClassesToTest = Object.values(ResourceClasses).filter(
-  cls => cls.className !== 'NetworkPolicy'
+  cls => cls.className !== 'NetworkPolicy' && cls.className !== 'ControllerRevision'
 );
 
 const mockK8sObject = (className: string) => ({
@@ -238,6 +238,7 @@ const notNamespacedClasses = [
 
 const namespacedClasses = [
   'ConfigMap',
+  'ControllerRevision',
   'CronJob',
   'DaemonSet',
   'Deployment',

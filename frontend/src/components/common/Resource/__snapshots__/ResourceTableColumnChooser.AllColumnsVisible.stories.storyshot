@@ -1,0 +1,274 @@
+<body>
+  <div
+    aria-hidden="true"
+  >
+    <button
+      class="MuiButtonBase-root MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeMedium MuiButton-outlinedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeMedium MuiButton-outlinedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-1ftyvt9-MuiButtonBase-root-MuiButton-root"
+      tabindex="0"
+      type="button"
+    >
+      Choose Columns
+      <span
+        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+      />
+    </button>
+  </div>
+  <div
+    class="MuiPopover-root MuiModal-root css-1i0e6f3-MuiModal-root-MuiPopover-root"
+    role="presentation"
+  >
+    <div
+      aria-hidden="true"
+      class="MuiBackdrop-root MuiBackdrop-invisible MuiModal-backdrop css-g3hgs1-MuiBackdrop-root-MuiModal-backdrop"
+      style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+    />
+    <div
+      data-testid="sentinelStart"
+      tabindex="0"
+    />
+    <div
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiPopover-paper css-qmfbpu-MuiPaper-root-MuiPopover-paper"
+      style="opacity: 1; transform: none; transition: opacity 0ms cubic-bezier(0.4, 0, 0.2, 1) 0ms,transform 0ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; top: 16px; left: 16px; transform-origin: -16px -16px;"
+      tabindex="-1"
+    >
+      <ul
+        class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
+      >
+        <div
+          class="MuiButtonBase-root MuiListItem-root MuiListItem-dense MuiListItem-gutters MuiListItem-padding MuiListItem-button css-97b0kf-MuiButtonBase-root-MuiListItem-root"
+          role="button"
+          tabindex="0"
+        >
+          <div
+            class="MuiBox-root css-0"
+          >
+            <span
+              class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium Mui-checked PrivateSwitchBase-edgeStart MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium css-1xy1w9p-MuiButtonBase-root-MuiCheckbox-root"
+            >
+              <input
+                aria-labelledby="column-index-0"
+                checked=""
+                class="PrivateSwitchBase-input css-1m9pwf3"
+                data-indeterminate="false"
+                tabindex="-1"
+                type="checkbox"
+              />
+              <svg
+                aria-hidden="true"
+                class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                data-testid="CheckBoxIcon"
+                focusable="false"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2V5c0-1.1-.89-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+                />
+              </svg>
+            </span>
+          </div>
+          <div
+            class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
+            id="column-index-0-label"
+          >
+            <span
+              class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+            >
+              Name
+            </span>
+          </div>
+          <span
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+          />
+        </div>
+        <div
+          class="MuiButtonBase-root MuiListItem-root MuiListItem-dense MuiListItem-gutters MuiListItem-padding MuiListItem-button css-97b0kf-MuiButtonBase-root-MuiListItem-root"
+          role="button"
+          tabindex="0"
+        >
+          <div
+            class="MuiBox-root css-0"
+          >
+            <span
+              class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium Mui-checked PrivateSwitchBase-edgeStart MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium css-1xy1w9p-MuiButtonBase-root-MuiCheckbox-root"
+            >
+              <input
+                aria-labelledby="column-index-1"
+                checked=""
+                class="PrivateSwitchBase-input css-1m9pwf3"
+                data-indeterminate="false"
+                tabindex="-1"
+                type="checkbox"
+              />
+              <svg
+                aria-hidden="true"
+                class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                data-testid="CheckBoxIcon"
+                focusable="false"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2V5c0-1.1-.89-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+                />
+              </svg>
+            </span>
+          </div>
+          <div
+            class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
+            id="column-index-1-label"
+          >
+            <span
+              class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+            >
+              Namespace
+            </span>
+          </div>
+          <span
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+          />
+        </div>
+        <div
+          class="MuiButtonBase-root MuiListItem-root MuiListItem-dense MuiListItem-gutters MuiListItem-padding MuiListItem-button css-97b0kf-MuiButtonBase-root-MuiListItem-root"
+          role="button"
+          tabindex="0"
+        >
+          <div
+            class="MuiBox-root css-0"
+          >
+            <span
+              class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium Mui-checked PrivateSwitchBase-edgeStart MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium css-1xy1w9p-MuiButtonBase-root-MuiCheckbox-root"
+            >
+              <input
+                aria-labelledby="column-index-2"
+                checked=""
+                class="PrivateSwitchBase-input css-1m9pwf3"
+                data-indeterminate="false"
+                tabindex="-1"
+                type="checkbox"
+              />
+              <svg
+                aria-hidden="true"
+                class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                data-testid="CheckBoxIcon"
+                focusable="false"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2V5c0-1.1-.89-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+                />
+              </svg>
+            </span>
+          </div>
+          <div
+            class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
+            id="column-index-2-label"
+          >
+            <span
+              class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+            >
+              Age
+            </span>
+          </div>
+          <span
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+          />
+        </div>
+        <div
+          class="MuiButtonBase-root MuiListItem-root MuiListItem-dense MuiListItem-gutters MuiListItem-padding MuiListItem-button css-97b0kf-MuiButtonBase-root-MuiListItem-root"
+          role="button"
+          tabindex="0"
+        >
+          <div
+            class="MuiBox-root css-0"
+          >
+            <span
+              class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium Mui-checked PrivateSwitchBase-edgeStart MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium css-1xy1w9p-MuiButtonBase-root-MuiCheckbox-root"
+            >
+              <input
+                aria-labelledby="column-index-3"
+                checked=""
+                class="PrivateSwitchBase-input css-1m9pwf3"
+                data-indeterminate="false"
+                tabindex="-1"
+                type="checkbox"
+              />
+              <svg
+                aria-hidden="true"
+                class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                data-testid="CheckBoxIcon"
+                focusable="false"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2V5c0-1.1-.89-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+                />
+              </svg>
+            </span>
+          </div>
+          <div
+            class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
+            id="column-index-3-label"
+          >
+            <span
+              class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+            >
+              Status
+            </span>
+          </div>
+          <span
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+          />
+        </div>
+        <div
+          class="MuiButtonBase-root MuiListItem-root MuiListItem-dense MuiListItem-gutters MuiListItem-padding MuiListItem-button css-97b0kf-MuiButtonBase-root-MuiListItem-root"
+          role="button"
+          tabindex="0"
+        >
+          <div
+            class="MuiBox-root css-0"
+          >
+            <span
+              class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium Mui-checked PrivateSwitchBase-edgeStart MuiCheckbox-root MuiCheckbox-colorDefault MuiCheckbox-sizeMedium css-1xy1w9p-MuiButtonBase-root-MuiCheckbox-root"
+            >
+              <input
+                aria-labelledby="column-index-4"
+                checked=""
+                class="PrivateSwitchBase-input css-1m9pwf3"
+                data-indeterminate="false"
+                tabindex="-1"
+                type="checkbox"
+              />
+              <svg
+                aria-hidden="true"
+                class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                data-testid="CheckBoxIcon"
+                focusable="false"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2V5c0-1.1-.89-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+                />
+              </svg>
+            </span>
+          </div>
+          <div
+            class="MuiListItemText-root MuiListItemText-dense css-tlelie-MuiListItemText-root"
+            id="column-index-4-label"
+          >
+            <span
+              class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+            >
+              Labels
+            </span>
+          </div>
+          <span
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+          />
+        </div>
+      </ul>
+    </div>
+    <div
+      data-testid="sentinelEnd"
+      tabindex="0"
+    />
+  </div>
+</body>

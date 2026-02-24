@@ -109,7 +109,7 @@
     "spacetime": "^7.4.0",
     "storybook": "^9.1.17",
     "table": "^6.8.2",
-    "tar": "^7.5.7",
+    "tar": "^7.5.9",
     "ts-loader": "^9.5.2",
     "typescript": "5.6.2",
     "validate-npm-package-name": "^3.0.0",

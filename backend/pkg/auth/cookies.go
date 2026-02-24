@@ -75,7 +75,7 @@ func IsSecureContext(r *http.Request) bool {
 }
 
 // SetTokenCookie sets an authentication cookie for a specific cluster.
-func SetTokenCookie(w http.ResponseWriter, r *http.Request, cluster, token, baseURL string) {
+func SetTokenCookie(w http.ResponseWriter, r *http.Request, cluster, token, baseURL string, sessionTTL int) {
 	// Validate inputs
 	if cluster == "" || token == "" {
 		return
@@ -101,7 +101,7 @@ func SetTokenCookie(w http.ResponseWriter, r *http.Request, cluster, token, base
 			Secure:   secure,
 			SameSite: http.SameSiteStrictMode,
 			Path:     GetCookiePath(baseURL, cluster),
-			MaxAge:   86400, // 24 hours
+			MaxAge:   sessionTTL,
 		}
 
 		http.SetCookie(w, cookie)

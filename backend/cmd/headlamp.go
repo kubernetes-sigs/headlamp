@@ -97,6 +97,7 @@ const (
 type clientConfig struct {
 	Clusters                []Cluster `json:"clusters"`
 	IsDynamicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
+	AllowKubeconfigChanges  bool      `json:"allowKubeconfigChanges"`
 }
 
 type OauthConfig struct {
@@ -311,12 +312,23 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 			config.TelemetryHandler.RecordError(span, err, "Failed to delete plugin")
 
 			logger.Log(logger.LevelError, nil, err, "Error deleting plugin: "+pluginName)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+
+			if err := json.NewEncoder(w).Encode(map[string]any{"success": false, "message": err.Error()}); err != nil {
+				logger.Log(logger.LevelError, nil, err, "Error writing delete error response")
+			}
+
 			return
 		}
 		logger.Log(logger.LevelInfo, nil, nil, "Plugin deleted successfully: "+pluginName)
 
-		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+
+		if err := json.NewEncoder(w).Encode(map[string]any{"success": true}); err != nil {
+			logger.Log(logger.LevelError, nil, err, "Error writing delete response")
+		}
 	}).Methods("DELETE")
 }
 
@@ -391,6 +403,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	logger.Log(logger.LevelInfo, nil, nil, "me Groups Paths: "+config.MeGroupsPaths)
 	logger.Log(logger.LevelInfo, nil, nil, "me User Info URL: "+config.MeUserInfoURL)
 	logger.Log(logger.LevelInfo, nil, nil, "Base URL: "+config.BaseURL)
+	logger.Log(logger.LevelInfo, nil, nil, "Session TTL: "+fmt.Sprint(config.SessionTTL))
 	logger.Log(logger.LevelInfo, nil, nil, "Use In Cluster: "+fmt.Sprint(config.UseInCluster))
 	logger.Log(logger.LevelInfo, nil, nil, "Watch Plugins Changes: "+fmt.Sprint(config.WatchPluginsChanges))
 
@@ -859,7 +872,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		}
 
 		// Set auth cookie
-		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL)
+		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
 
 		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
 
@@ -942,7 +955,7 @@ func (c *HeadlampConfig) refreshAndSetToken(oidcAuthConfig *kubeconfig.OidcConfi
 		}
 
 		// Set refreshed token in cookie
-		auth.SetTokenCookie(w, r, cluster, newTokenString, c.BaseURL)
+		auth.SetTokenCookie(w, r, cluster, newTokenString, c.BaseURL, c.SessionTTL)
 
 		c.TelemetryHandler.RecordEvent(span, "Token refreshed successfully")
 	}
@@ -1749,7 +1762,11 @@ func parseClusterFromKubeConfig(kubeConfigs []string) ([]Cluster, []error) {
 func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	clientConfig := clientConfig{c.getClusters(), c.EnableDynamicClusters}
+	clientConfig := clientConfig{
+		Clusters:                c.getClusters(),
+		IsDynamicClusterEnabled: c.EnableDynamicClusters,
+		AllowKubeconfigChanges:  c.AllowKubeconfigChanges,
+	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {
 		logger.Log(logger.LevelError, nil, err, "encoding config")
@@ -2534,7 +2551,7 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	if req.Token == "" {
 		auth.ClearTokenCookie(w, r, cluster, c.BaseURL)
 	} else {
-		auth.SetTokenCookie(w, r, cluster, req.Token, c.BaseURL)
+		auth.SetTokenCookie(w, r, cluster, req.Token, c.BaseURL, c.SessionTTL)
 	}
 
 	w.WriteHeader(http.StatusOK)

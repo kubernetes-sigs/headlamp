@@ -88,7 +88,7 @@ function ProjectTypeButton({
     >
       <Box sx={{ width: '52px', height: '52px', alignSelf: 'center' }}>{icon}</Box>
       <Box>
-        <Typography variant="h6" sx={{ display: 'flex' }}>
+        <Typography variant="h6" component="span" sx={{ display: 'flex' }}>
           {title}
         </Typography>
         <Typography variant="body2" color="text.secondary">
@@ -346,7 +346,9 @@ export function NewProjectPopup({ open, onClose }: { open: boolean; onClose: () 
     <Dialog open={open} maxWidth={false} onClose={onClose}>
       {projectStep === undefined && (
         <>
-          <DialogTitle sx={{ display: 'flex' }}>{t('Create a Project')}</DialogTitle>
+          <DialogTitle component="h1" sx={{ display: 'flex' }}>
+            {t('Create a Project')}
+          </DialogTitle>
           <DialogContent sx={{ maxWidth: '540px' }}>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               <Trans>

@@ -42,22 +42,5 @@ import { request } from './clusterRequests';
  */
 export async function deletePlugin(name: string, type?: 'development' | 'user') {
   const url = type ? `/plugins/${name}?type=${type}` : `/plugins/${name}`;
-  const res = (await request(
-    url,
-    { method: 'DELETE', headers: { ...getHeadlampAPIHeaders() } },
-    false,
-    false
-  )) as any;
-
-  // Handle real fetch Response
-  if (res && typeof res.ok === 'boolean' && typeof res.text === 'function') {
-    const text = await res.text().catch(() => '');
-    if (!res.ok) {
-      throw new Error(text.trim() || `HTTP ${res.status}`);
-    }
-    return text ? JSON.parse(text) : undefined;
-  }
-
-  // Otherwise request() already returned the parsed payload
-  return res;
+  return request(url, { method: 'DELETE', headers: { ...getHeadlampAPIHeaders() } }, false, false);
 }

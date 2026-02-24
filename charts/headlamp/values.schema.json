@@ -173,6 +173,13 @@
           "type": "string",
           "description": "Base URL of the application"
         },
+        "sessionTTL": {
+          "type": "integer",
+          "description": "The time in seconds for the session to be valid",
+          "default": 86400,
+          "minimum": 1,
+          "maximum": 31536000
+        },
         "oidc": {
           "type": "object",
           "description": "OIDC configuration",

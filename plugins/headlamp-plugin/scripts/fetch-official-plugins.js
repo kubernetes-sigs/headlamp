@@ -24,7 +24,7 @@
 
 const fs = require('fs-extra');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const { getRemoteGitHash, storeHash, shouldSkipBasedOnHash } = require('./git-hash-utils');
 
 const scriptDir = __dirname;
@@ -64,12 +64,12 @@ if (fs.existsSync(tempDir)) {
 
 try {
   console.log('Cloning official plugins repository...');
-  execSync(`git clone --depth 1 ${officialPluginsRepo} ${tempDir}`, {
+  execFileSync('git', ['clone', '--depth', '1', officialPluginsRepo, tempDir], {
     stdio: 'inherit',
   });
 
   // Get the current commit hash
-  const currentHash = execSync('git rev-parse HEAD', {
+  const currentHash = execFileSync('git', ['rev-parse', 'HEAD'], {
     cwd: tempDir,
     encoding: 'utf8',
   }).trim();
