@@ -1,0 +1,545 @@
+<body>
+  <div>
+    <div
+      style="display: flex; flex-direction: column; height: 100vh;"
+    >
+      <div
+        style="padding: 16px; background: rgb(245, 245, 245); border-bottom: 1px solid #ddd; display: flex; gap: 16px; align-items: center; flex-wrap: wrap;"
+      >
+        <h3
+          style="margin: 0px; color: rgb(211, 47, 47); font-weight: bold;"
+        >
+          🚨 ULTIMATE STRESS TEST: 100,000 Pods + Full Cluster 🚨
+        </h3>
+        <div
+          style="display: flex; gap: 8px; align-items: center;"
+        >
+          <button
+            style="padding: 8px 16px; cursor: pointer;"
+          >
+            Trigger Update (#
+            0
+            )
+          </button>
+          <label
+            style="display: flex; align-items: center; gap: 4px;"
+          >
+            <input
+              type="checkbox"
+            />
+            Auto-update
+          </label>
+          <label
+            style="display: flex; align-items: center; gap: 4px;"
+          >
+            Interval:
+            <select>
+              <option
+                value="30000"
+              >
+                30s
+              </option>
+              <option
+                value="60000"
+              >
+                60s
+              </option>
+              <option
+                value="120000"
+              >
+                2min
+              </option>
+              <option
+                value="300000"
+              >
+                5min
+              </option>
+            </select>
+          </label>
+          <label
+            style="display: flex; align-items: center; gap: 4px;"
+          >
+            Change %:
+            <select
+              style="background-color: rgb(232, 245, 233); padding: 4px;"
+              title="Small change - incremental"
+            >
+              <option
+                value="0.5"
+              >
+                0.5% (~715 resources) - Incremental
+              </option>
+              <option
+                value="1"
+              >
+                1% (~1430 resources) - Incremental
+              </option>
+              <option
+                value="2"
+              >
+                2% (~2860 resources) - Incremental
+              </option>
+              <option
+                value="5"
+              >
+                5% (~7150 resources) - Incremental
+              </option>
+              <option
+                value="10"
+              >
+                10% (~14300 resources) - Incremental
+              </option>
+              <option
+                value="20"
+              >
+                20% (~28600 resources) - Threshold
+              </option>
+              <option
+                value="25"
+              >
+                25% (~35750 resources) - Full
+              </option>
+            </select>
+          </label>
+        </div>
+        <div
+          style="font-size: 14px; color: rgb(102, 102, 102);"
+        >
+          Pods: 
+          61200
+           | Deployments: 
+          20400
+           | ReplicaSets:
+           
+          20400
+           | Services: 
+          3060
+           | Total: 
+          105060
+           nodes | Update #
+          0
+           (
+          0.5
+          % = ~
+          525
+           resources)
+        </div>
+        <div
+          style="font-size: 13px; color: rgb(211, 47, 47); font-weight: bold; border: 2px solid #d32f2f; padding: 8px; border-radius: 4px; background-color: rgb(255, 235, 238);"
+        >
+          🚨 ULTIMATE STRESS TEST: 
+          105060
+           resources (~
+          173400
+           edges).
+          <br />
+          Realistic 100k pod cluster: 50 namespaces, 20k Deployments (avg 5 replicas), 3k Services (1 per 33 pods).
+          <br />
+          Extreme simplification reduces to 200 most critical nodes for visualization.
+          <br />
+          Initial data generation: 60-120s. Performance Stats shows actual render timings.
+          <br />
+          ✅ Validates architecture scales to largest real-world clusters!
+        </div>
+      </div>
+      <div
+        style="flex: 1;"
+      >
+        <div
+          class="MuiBox-root css-g0s7c9"
+        >
+          <div
+            class="MuiBox-root css-2gjmrx"
+          >
+            <div
+              class="MuiBox-root css-pb8oes"
+            >
+              <div
+                class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-1x6bjyf-MuiAutocomplete-root"
+              >
+                <div
+                  class="MuiBox-root css-1dipl1t"
+                >
+                  <div
+                    class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                    style="margin-top: 0px;"
+                  >
+                    <label
+                      class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-81cxhg-MuiFormLabel-root-MuiInputLabel-root"
+                      data-shrink="true"
+                      for="namespaces-filter"
+                      id="namespaces-filter-label"
+                    >
+                      Namespaces
+                    </label>
+                    <div
+                      class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-b1xigt-MuiInputBase-root-MuiOutlinedInput-root"
+                    >
+                      <input
+                        aria-autocomplete="both"
+                        aria-expanded="false"
+                        aria-invalid="false"
+                        autocapitalize="none"
+                        autocomplete="off"
+                        class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                        id="namespaces-filter"
+                        placeholder="Filter"
+                        role="combobox"
+                        spellcheck="false"
+                        type="text"
+                        value=""
+                      />
+                      <div
+                        class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
+                      >
+                        <button
+                          aria-label="Open"
+                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-qzbt6i-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
+                          tabindex="-1"
+                          title="Open"
+                          type="button"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                            data-testid="ArrowDropDownIcon"
+                            focusable="false"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              d="M7 10l5 5 5-5z"
+                            />
+                          </svg>
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
+                      </div>
+                      <fieldset
+                        aria-hidden="true"
+                        class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                      >
+                        <legend
+                          class="css-14lo706"
+                        >
+                          <span>
+                            Namespaces
+                          </span>
+                        </legend>
+                      </fieldset>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorPrimary MuiChip-clickable MuiChip-clickableColorPrimary MuiChip-filledPrimary css-qsy4j-MuiButtonBase-root-MuiChip-root"
+                role="button"
+                tabindex="0"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelMedium css-6od3lo-MuiChip-label"
+                >
+                  <div
+                    class="MuiStack-root css-1qxw92a-MuiStack-root"
+                  >
+                     
+                    Resources (105060)
+                     
+                  </div>
+                </span>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </div>
+              <div
+                class="MuiBox-root css-19ideir"
+              >
+                Group By
+              </div>
+              <div
+                class="MuiBox-root css-esugir"
+              >
+                <div
+                  class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorPrimary MuiChip-clickable MuiChip-clickableColorPrimary MuiChip-filledPrimary css-661vdt-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelMedium css-6od3lo-MuiChip-label"
+                  >
+                    Namespace
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+                <div
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-1b73nf-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelMedium css-1jzq0dw-MuiChip-label"
+                  >
+                    Instance
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+                <div
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-1b73nf-MuiButtonBase-root-MuiChip-root"
+                  role="button"
+                  tabindex="0"
+                >
+                  <span
+                    class="MuiChip-label MuiChip-labelMedium css-1jzq0dw-MuiChip-label"
+                  >
+                    Node
+                  </span>
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </div>
+              </div>
+              <div
+                class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-1b73nf-MuiButtonBase-root-MuiChip-root"
+                role="button"
+                tabindex="0"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelMedium css-1jzq0dw-MuiChip-label"
+                >
+                  Status: Error or Warning
+                </span>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </div>
+              <div
+                class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorPrimary MuiChip-clickable MuiChip-clickableColorPrimary MuiChip-filledPrimary css-661vdt-MuiButtonBase-root-MuiChip-root"
+                role="button"
+                tabindex="0"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelMedium css-6od3lo-MuiChip-label"
+                >
+                  Simplify (300 most important)
+                </span>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </div>
+              <div
+                class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorWarning MuiChip-outlinedWarning css-1s6vxc4-MuiChip-root"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                >
+                  Showing 300 of 105060 nodes
+                </span>
+              </div>
+              <div
+                class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorPrimary MuiChip-clickable MuiChip-clickableColorPrimary MuiChip-filledPrimary css-661vdt-MuiButtonBase-root-MuiChip-root"
+                role="button"
+                tabindex="0"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelMedium css-6od3lo-MuiChip-label"
+                >
+                  Incremental Updates
+                </span>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </div>
+              <div
+                class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-1b73nf-MuiButtonBase-root-MuiChip-root"
+                role="button"
+                tabindex="0"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelMedium css-1jzq0dw-MuiChip-label"
+                >
+                  Performance Stats
+                </span>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </div>
+            </div>
+            <div
+              style="flex-grow: 1;"
+            >
+              <div
+                class="react-flow light"
+                data-testid="rf__wrapper"
+                style="width: 100%; height: 100%; overflow: hidden; position: relative; z-index: 0;"
+              >
+                <div
+                  class="react-flow__renderer"
+                  style="position: absolute; width: 100%; height: 100%; top: 0px; left: 0px;"
+                >
+                  <div
+                    class="react-flow__pane draggable"
+                    style="position: absolute; width: 100%; height: 100%; top: 0px; left: 0px;"
+                  >
+                    <div
+                      class="react-flow__viewport xyflow__viewport react-flow__container"
+                      style="transform: translate(0px,0px) scale(1);"
+                    >
+                      <div
+                        class="react-flow__edges"
+                      />
+                      <div
+                        class="react-flow__edgelabel-renderer"
+                      />
+                      <div
+                        class="react-flow__nodes"
+                        style="position: absolute; width: 100%; height: 100%; top: 0px; left: 0px;"
+                      />
+                      <div
+                        class="react-flow__viewport-portal"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <svg
+                  class="react-flow__background"
+                  data-testid="rf__background"
+                  style="position: absolute; width: 100%; height: 100%; top: 0px; left: 0px; --xy-background-pattern-color-props: rgba(0, 0, 0, 0.12);"
+                >
+                  <pattern
+                    height="20"
+                    id="pattern-1"
+                    patternTransform="translate(-11,-11)"
+                    patternUnits="userSpaceOnUse"
+                    width="20"
+                    x="0"
+                    y="0"
+                  >
+                    <circle
+                      class="react-flow__background-pattern dots"
+                      cx="1"
+                      cy="1"
+                      r="1"
+                    />
+                  </pattern>
+                  <rect
+                    fill="url(#pattern-1)"
+                    height="100%"
+                    width="100%"
+                    x="0"
+                    y="0"
+                  />
+                </svg>
+                <div
+                  aria-label="React Flow controls"
+                  class="react-flow__panel react-flow__controls vertical bottom left"
+                  data-testid="rf__controls"
+                  style="pointer-events: all;"
+                >
+                  <div
+                    class="MuiBox-root css-1u72um6"
+                  >
+                    <div
+                      aria-label="Vertical button group"
+                      class="MuiButtonGroup-root MuiButtonGroup-contained MuiButtonGroup-vertical css-126jwi2-MuiButtonGroup-root"
+                      role="group"
+                    >
+                      <button
+                        class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButtonGroup-firstButton css-14951ov-MuiButtonBase-root-MuiButton-root"
+                        tabindex="0"
+                        title="Zoom in"
+                        type="button"
+                      >
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                      <button
+                        class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButtonGroup-lastButton css-14951ov-MuiButtonBase-root-MuiButton-root"
+                        tabindex="0"
+                        title="Zoom out"
+                        type="button"
+                      >
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                    </div>
+                    <button
+                      class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary css-14951ov-MuiButtonBase-root-MuiButton-root"
+                      tabindex="0"
+                      title="Fit to screen"
+                      type="button"
+                    >
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                    <button
+                      class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary css-14951ov-MuiButtonBase-root-MuiButton-root"
+                      tabindex="0"
+                      title="Zoom to 100%"
+                      type="button"
+                    >
+                      100%
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                  </div>
+                </div>
+                <p
+                  class="MuiTypography-root MuiTypography-body1 css-17ewocx-MuiTypography-root"
+                >
+                  No data to be shown. Try to change filters or select a different namespace.
+                </p>
+                <div
+                  class="react-flow__panel top left"
+                  style="pointer-events: all;"
+                />
+                <div
+                  class="react-flow__panel react-flow__attribution bottom right"
+                  data-message="Please only hide this attribution when you are subscribed to React Flow Pro: https://pro.reactflow.dev"
+                  style="pointer-events: all;"
+                >
+                  <a
+                    aria-label="React Flow attribution"
+                    href="https://reactflow.dev"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    React Flow
+                  </a>
+                </div>
+                <div
+                  id="react-flow__node-desc-1"
+                  style="display: none;"
+                >
+                  Press enter or space to select a node.
+                  You can then use the arrow keys to move the node around.
+                   Press delete to remove it and escape to cancel.
+                   
+                </div>
+                <div
+                  id="react-flow__edge-desc-1"
+                  style="display: none;"
+                >
+                  Press enter or space to select an edge. You can then press delete to remove it or escape to cancel.
+                </div>
+                <div
+                  aria-atomic="true"
+                  aria-live="assertive"
+                  id="react-flow__aria-live-1"
+                  style="position: absolute; width: 1px; height: 1px; margin: -1px; border: 0px; padding: 0px; overflow: hidden; clip: rect(0px, 0px, 0px, 0px); clip-path: inset(100%);"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

@@ -108,6 +108,9 @@ const mdiIcons = {
     'chevron-right': {
       body: '\u003Cpath fill="currentColor" d="M8.59 16.58L13.17 12L8.59 7.41L10 6l6 6l-6 6z"/\u003E',
     },
+    'chevron-up': {
+      body: '\u003Cpath fill="currentColor" d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6l-6 6z"/\u003E',
+    },
     'shield-alert': {
       body: '\u003Cpath fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12c5.16-1.26 9-6.45 9-12V5M11 7h2v6h-2m0 2h2v2h-2"/\u003E',
     },
