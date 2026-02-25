@@ -536,9 +536,26 @@ export function useKubeObjectList<K extends KubeObject>({
 
   const errors = query.errors.filter(it => it !== null);
 
+  // When multiple classes share the same API endpoint (e.g. a plugin's custom Pod class
+  // and the built-in Pod class), they produce identical query keys and share the cache.
+  // Items may have been instantiated with a different class than what the caller expects.
+  // Re-instantiate with the correct class so that _class() returns the right constructor
+  // and instance getters like detailsRoute resolve correctly.
+  const items = useMemo(() => {
+    if (!query.items || query.items.length === 0) return query.items;
+    if (query.items[0]._class() === kubeObjectClass) return query.items;
+
+    return query.items.map(item => {
+      if (item._class() === kubeObjectClass) return item;
+      const corrected = new kubeObjectClass(item.jsonData);
+      corrected.cluster = item.cluster;
+      return corrected as K;
+    });
+  }, [query.items, kubeObjectClass]);
+
   // @ts-ignore - TS compiler gets confused with iterators
   return {
-    items: endpointError ? [] : query.items,
+    items: endpointError ? [] : items,
     errors: endpointError ? [endpointError] : errors.length > 0 ? errors : null,
     error: endpointError ?? query.errors.find(it => it !== null) ?? null,
     clusterResults: query.clusterResults,
@@ -547,7 +564,7 @@ export function useKubeObjectList<K extends KubeObject>({
     isFetching: query.isFetching,
     isSuccess: query.isSuccess,
     *[Symbol.iterator](): ArrayIterator<ApiError | K[] | null> {
-      yield query.items;
+      yield items;
       yield endpointError ?? query.errors.find(it => it !== null) ?? null;
     },
   };
