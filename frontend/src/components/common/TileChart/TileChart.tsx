@@ -40,6 +40,7 @@ export function TileChart(props: TileChartProps) {
         height: '100%',
         maxWidth: '300px',
         margin: '0 auto',
+        overflow: 'hidden',
       })}
     >
       <Box
