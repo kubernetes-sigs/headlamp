@@ -22,7 +22,7 @@ import type { KubeMetadata } from './KubeMetadata';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 import type { KubePodSpec } from './pod';
-import type { RevisionInfo, RollbackResult } from './rollback';
+import type { RevisionInfo, RollbackOptions, RollbackResult } from './rollback';
 
 export interface KubeStatefulSet extends KubeObjectInterface {
   spec: {
@@ -139,12 +139,14 @@ class StatefulSet extends KubeObject<KubeStatefulSet> {
    *
    * This mirrors the behavior of `kubectl rollout undo statefulset/<name>`.
    *
-   * @param toRevision - Optional revision number to rollback to. Defaults to the previous revision.
+   * @param options - Rollback options including target revision and dry-run mode.
    *
    * @see {@link https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#rolling-back-a-statefulset | K8s: Rolling Back a StatefulSet}
    * @see {@link https://github.com/kubernetes/kubectl/blob/master/pkg/polymorphichelpers/rollback.go | kubectl rollback implementation}
    */
-  async rollback(toRevision?: number): Promise<RollbackResult> {
+  async rollback(options: RollbackOptions = {}): Promise<RollbackResult> {
+    const { toRevision, dryRun } = options;
+
     try {
       const revisions = await this.getOwnedControllerRevisions();
 
@@ -203,15 +205,24 @@ class StatefulSet extends KubeObject<KubeStatefulSet> {
       ];
 
       const apiRoot = getApiRoot('apps', 'v1');
-      const url = `${apiRoot}/namespaces/${this.getNamespace()}/statefulsets/${this.getName()}`;
+      let url = `${apiRoot}/namespaces/${this.getNamespace()}/statefulsets/${this.getName()}`;
+      if (dryRun) {
+        url += '?dryRun=All';
+      }
 
-      await jsonPatch(url, patchOperations, true, { cluster: this.cluster });
-      this.revisionHistoryCache = undefined;
+      const result = await jsonPatch(url, patchOperations, true, { cluster: this.cluster });
+
+      if (!dryRun) {
+        this.revisionHistoryCache = undefined;
+      }
 
       return {
         success: true,
-        message: `Rolled back to revision ${targetRevision}`,
+        message: dryRun
+          ? `Dry-run: would rollback to revision ${targetRevision}`
+          : `Rolled back to revision ${targetRevision}`,
         previousRevision: targetRevision,
+        dryRunResult: dryRun ? result : undefined,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

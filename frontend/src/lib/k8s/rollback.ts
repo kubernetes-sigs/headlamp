@@ -14,6 +14,24 @@
  * limitations under the License.
  */
 
+import { KubeObjectInterface } from './KubeObject';
+
+/**
+ * Options for a rollback operation.
+ */
+export interface RollbackOptions {
+  /** Target revision number. If omitted, rolls back to the previous revision. */
+  toRevision?: number;
+  /**
+   * If true, performs a server-side dry-run: the API server validates and processes
+   * the patch but does not persist it. The resulting resource is returned in
+   * dryRunResult.
+   *
+   * @see {@link https://kubernetes.io/docs/reference/using-api/api-concepts/#dry-run | K8s: Dry-Run}
+   */
+  dryRun?: boolean;
+}
+
 /**
  * Result of a rollback operation on a workload resource.
  *
@@ -23,6 +41,11 @@ export interface RollbackResult {
   success: boolean;
   message: string;
   previousRevision?: number;
+  /**
+   * When dryRun is true, this contains the full resource as it would look
+   * after the rollback, as returned by the API server.
+   */
+  dryRunResult?: KubeObjectInterface;
 }
 
 /**
