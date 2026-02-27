@@ -15,11 +15,12 @@
  */
 
 import { Icon } from '@iconify/react';
+import Box from '@mui/material/Box';
 import { useTheme } from '@mui/material/styles';
 import { styled } from '@mui/material/styles';
 import { alpha } from '@mui/system/colorManipulator';
-import { Handle, NodeProps, Position } from '@xyflow/react';
-import { memo, useEffect, useState } from 'react';
+import { Handle, NodeProps, Position, useViewport } from '@xyflow/react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { Activity } from '../../activity/Activity';
 import { GraphNodeDetails } from '../details/GraphNodeDetails';
 import { getMainNode } from '../graph/graphGrouping';
@@ -139,15 +140,28 @@ const Title = styled('div')({
   whiteSpace: 'nowrap',
 });
 
+import { computeGlanceStyle } from './glancePositioning';
+
 const EXPAND_DELAY = 450;
 
 export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
   const node = useNode(id);
-  const [isHovered, setHovered] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isHovered, setHovered] = useState(() => node?.initialGlanceOpen ?? false);
+  const [isExpanded, setIsExpanded] = useState(() => node?.initialGlanceOpen ?? false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  /**
+   * Computed `position:absolute` style for the glance card in node-local units.
+   * Recalculated on hover, expand, and map-zoom changes so the card is always
+   * clamped inside the browser viewport — even when the node itself is partially
+   * off-screen or the map has been zoomed in.
+   *
+   * Clamps to the .react-flow canvas bounds (and only falls back to
+   * window.innerWidth/innerHeight if the canvas isn’t found).
+   */
+  const [glanceStyle, setGlanceStyle] = useState<React.CSSProperties>({});
   const theme = useTheme();
   const graph = useGraphView();
-
+  const { zoom: mapZoom, x: viewportX, y: viewportY } = useViewport();
   const mainNode = node?.nodes ? getMainNode(node.nodes) : undefined;
   const kubeObject = node?.kubeObject ?? mainNode?.kubeObject;
 
@@ -187,8 +201,25 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
     }
 
     const id = setTimeout(() => setIsExpanded(true), EXPAND_DELAY);
-    return () => clearInterval(id);
+    return () => clearTimeout(id);
   }, [isHovered]);
+
+  /**
+   * Recomputes the glance card position whenever hover state, expand state,
+   * zoom, or viewport pan (x/y) changes so the card stays clamped inside
+   * the ReactFlow canvas at all times.
+   */
+  function updateGlancePosition() {
+    if (!isHovered || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const canvasEl = containerRef.current.closest('.react-flow');
+    const clip = canvasEl
+      ? canvasEl.getBoundingClientRect()
+      : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+    setGlanceStyle(computeGlanceStyle(rect, clip, mapZoom));
+  }
+
+  useEffect(updateGlancePosition, [isHovered, isExpanded, mapZoom, viewportX, viewportY]);
 
   const icon = kubeObject ? (
     <KubeIcon width="42px" height="42px" kind={kubeObject.kind} apiGroup={apiGroup} />
@@ -232,12 +263,13 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
 
   return (
     <Container
+      ref={containerRef}
       tabIndex={0}
       role="button"
       isFaded={false}
       childrenCount={node.nodes?.length ?? 0}
       isSelected={isSelected}
-      isExpanded={isExpanded}
+      isExpanded={false}
       onClick={openDetails}
       onFocus={() => setHovered(true)}
       onBlur={() => setHovered(false)}
@@ -286,7 +318,66 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
           </Title>
         </LabelContainer>
       </TextContainer>
-      {isExpanded && <NodeGlance node={node} />}
+      {isExpanded && (
+        <NodeGlance
+          node={node}
+          wrapper={({ children }) => (
+            <GlanceWrapper
+              children={children}
+              glanceStyle={glanceStyle}
+              isSelected={isSelected}
+              setHovered={setHovered}
+            />
+          )}
+        />
+      )}
     </Container>
   );
 });
+
+/**
+ * GlanceWrapper is a styled container for the NodeGlance content.
+ */
+function GlanceWrapper({
+  children,
+  glanceStyle,
+  setHovered,
+  isSelected,
+}: {
+  children: React.ReactNode;
+  glanceStyle?: React.CSSProperties;
+  isSelected?: boolean;
+  setHovered: (hovered: boolean) => void;
+}) {
+  const theme = useTheme();
+
+  /*
+    Glance card: rendered as an absolutely-positioned child of the node
+    so it automatically moves and scales with the ReactFlow viewport
+    (panning, map zoom controls).  Position is fully computed in
+    screen-space and converted to node-local units using `mapZoom`, so
+    the card is always clamped inside the browser viewport — including
+    when the map has been zoomed in or the node is near any edge.
+    Guard: only render when node.kubeObject is set — NodeGlance returns
+    null for group/custom nodes without a kubeObject, which would
+    produce an empty card.
+  */
+  return (
+    <Box
+      sx={{
+        ...glanceStyle,
+        zIndex: 1500,
+        background: theme.palette.background.paper,
+        border: '1px solid',
+        borderColor: isSelected ? theme.palette.action.active : theme.palette.divider,
+        borderRadius: '10px',
+        padding: '10px',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+      }}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+    >
+      {children}
+    </Box>
+  );
+}

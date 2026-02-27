@@ -24,7 +24,7 @@ import { KubeObjectGlance } from './KubeObjectGlance';
  * Generic glance component for rendering node previews in Headlamp's graph view.
  * Renders KubeObjectGlance for Kubernetes objects or a plugin-provided glance for other nodes.
  */
-export const NodeGlance = ({ node }: { node: GraphNode }) => {
+export const NodeGlance = ({ node, wrapper }: { node: GraphNode; wrapper?: React.ElementType }) => {
   const glances = useSelector((state: RootState) => state.graphView.glances);
 
   const glanceResults = Object.values(glances).map(glance => {
@@ -49,5 +49,9 @@ export const NodeGlance = ({ node }: { node: GraphNode }) => {
   /**
    * Render all components (custom glances and KubeObjectGlance) within a fragment.
    */
+  if (wrapper) {
+    const WrapperComponent = wrapper;
+    return <WrapperComponent>{results}</WrapperComponent>;
+  }
   return <>{results}</>;
 };
