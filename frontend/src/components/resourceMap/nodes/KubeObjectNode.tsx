@@ -246,7 +246,9 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
         setHovered(false);
       }}
       onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === 'Space') {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Space' || e.key === 'Spacebar') {
+          e.preventDefault();
+          e.stopPropagation();
           openDetails();
         }
       }}
