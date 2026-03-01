@@ -24,6 +24,7 @@ import {
   DetailsGrid,
   LogsButton,
   MetadataDictGrid,
+  OwnedJobsSection,
   OwnedPodsSection,
   RevisionHistorySection,
   RollbackButton,
@@ -167,6 +168,14 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
             id: 'headlamp.workload-conditions',
             section: <ConditionsSection resource={item?.jsonData} />,
           },
+          ...(workloadKind.kind === 'JobSet'
+            ? [
+                {
+                  id: 'headlamp.workload-owned-jobs',
+                  section: <OwnedJobsSection resource={item} />,
+                },
+              ]
+            : []),
           {
             id: 'headlamp.workload-owned-pods',
             section: <OwnedPodsSection resource={item} />,
