@@ -21,6 +21,7 @@ import CronJob from '../../lib/k8s/cronJob';
 import DaemonSet from '../../lib/k8s/daemonSet';
 import Deployment from '../../lib/k8s/deployment';
 import Job from '../../lib/k8s/job';
+import JobSet from '../../lib/k8s/jobSet';
 import Pod from '../../lib/k8s/pod';
 import ReplicaSet from '../../lib/k8s/replicaSet';
 import StatefulSet from '../../lib/k8s/statefulSet';
@@ -44,6 +45,7 @@ export default function Overview() {
   const [replicaSets] = ReplicaSet.useList();
   const [jobs] = Job.useList();
   const [cronJobs] = CronJob.useList();
+  const [jobSets] = JobSet.useList();
 
   const workloadsData: WorkloadDict = useMemo(
     () => ({
@@ -54,8 +56,9 @@ export default function Overview() {
       ReplicaSet: replicaSets ?? [],
       Job: jobs ?? [],
       CronJob: cronJobs ?? [],
+      JobSet: jobSets ?? [],
     }),
-    [pods, deployments, statefulSets, daemonSets, replicaSets, jobs, cronJobs]
+    [pods, deployments, statefulSets, daemonSets, replicaSets, jobs, cronJobs, jobSets]
   );
 
   const { t } = useTranslation('glossary');
@@ -103,6 +106,7 @@ export default function Overview() {
     ReplicaSet,
     Job,
     CronJob,
+    JobSet,
   ];
 
   const workloadLabel = {
@@ -113,6 +117,7 @@ export default function Overview() {
     [ReplicaSet.className]: t('glossary|Replica Sets'),
     [Job.className]: t('glossary|Jobs'),
     [CronJob.className]: t('glossary|Cron Jobs'),
+    [JobSet.className]: t('glossary|Job Sets'),
   };
 
   function ChartLink({ workload }: { workload: WorkloadClass }) {
