@@ -1651,11 +1651,16 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
   } else {
     namespace = resource.metadata.namespace;
   }
+  let labelSelector = '';
+  if (resource?.jsonData?.spec?.selector) {
+    labelSelector = labelSelectorToQuery(resource?.jsonData?.spec?.selector);
+  } else if (resource.kind === 'JobSet') {
+    labelSelector = `jobset.sigs.k8s.io/jobset-name=${resource.metadata.name}`;
+  }
+
   const queryData = {
     namespace,
-    labelSelector: resource?.jsonData?.spec?.selector
-      ? labelSelectorToQuery(resource?.jsonData?.spec?.selector)
-      : '',
+    labelSelector,
     fieldSelector: resource.kind === 'Node' ? `spec.nodeName=${resource.metadata.name}` : undefined,
     cluster: resource.cluster,
   };
