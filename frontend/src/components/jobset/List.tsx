@@ -38,8 +38,32 @@ export default function JobSetList() {
           getValue: (jobSet: JobSet) => {
             const conditions = jobSet.status?.conditions;
             if (!conditions) return '-';
-            const condition = conditions.find(c => c.status === 'True');
-            return condition?.type ?? '-';
+
+            const trueConditions = conditions.filter(c => c.status === 'True');
+            if (trueConditions.length === 0) {
+              return '-';
+            }
+
+            // Explicit priority to make the rendered condition stable and meaningful.
+            const conditionPriority = [
+              'Failed',
+              'Completed',
+              'Suspended',
+              'StartupPolicyCompleted',
+            ];
+
+            let selected = trueConditions[0];
+            let bestPriorityIndex = conditionPriority.length;
+
+            for (const cond of trueConditions) {
+              const idx = conditionPriority.indexOf(cond.type);
+              if (idx !== -1 && idx < bestPriorityIndex) {
+                bestPriorityIndex = idx;
+                selected = cond;
+              }
+            }
+
+            return selected.type ?? '-';
           },
         },
         'age',

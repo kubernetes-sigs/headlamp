@@ -1693,6 +1693,14 @@ export interface OwnedJobsSectionProps {
 export function OwnedJobsSection(props: OwnedJobsSectionProps) {
   const { resource } = props;
 
+  // Right now we will just return empty
+  // if its not JobSet
+  // Not sure on use cases for listing jobs other
+  // than JobSet.
+  if (resource.kind !== 'JobSet') {
+    return null;
+  }
+
   const { items: jobs, errors } = Job.useList({
     namespace: resource.metadata.namespace,
     labelSelector: `jobset.sigs.k8s.io/jobset-name=${resource.metadata.name}`,
