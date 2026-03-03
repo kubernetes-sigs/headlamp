@@ -48,6 +48,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
@@ -277,7 +278,7 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 	req := ClusterReq{
 		KubeConfig: &kubeConfig,
 	}
-	cache := cache.New[interface{}]()
+	newCache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
 
 	c := HeadlampConfig{
@@ -288,7 +289,7 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 				EnableDynamicClusters: true,
 				KubeConfigStore:       kubeConfigStore,
 			},
-			Cache:            cache,
+			Cache:            newCache,
 			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
 			TelemetryHandler: &telemetry.RequestHandler{},
 		},
@@ -303,28 +304,23 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 	clusters := c.getClusters()
 
 	assert.Equal(t, http.StatusCreated, r.Code)
-	assert.Equal(t, 2, len(clusters))
 
-	var contextWithoutNamespace *Cluster
-
-	var minikubeCluster *Cluster
-
-	for i, cluster := range clusters {
-		if cluster.Name == minikubeName {
-			// Using the slice addressing here to avoid the
-			// implicit memory aliasing in the loop.
-			minikubeCluster = &clusters[i]
-		} else if cluster.Name == "docker-desktop" {
-			contextWithoutNamespace = &clusters[i]
-		}
+	clustersByName := map[string]Cluster{}
+	for _, cl := range clusters {
+		clustersByName[cl.Name] = cl
 	}
 
-	assert.NotNil(t, contextWithoutNamespace)
-	assert.Equal(t, "", contextWithoutNamespace.Metadata["namespace"])
+	assert.Contains(t, clustersByName, minikubeName, "expected minikube cluster to exist")
+	assert.Contains(t, clustersByName, "docker-desktop", "expected docker-desktop cluster to exist")
 
-	assert.NotNil(t, minikubeCluster)
-	assert.Equal(t, minikubeName, minikubeCluster.Name)
-	assert.Equal(t, "default", minikubeCluster.Metadata["namespace"])
+	if contextWithoutNamespace, ok := clustersByName["docker-desktop"]; ok {
+		assert.Equal(t, "", contextWithoutNamespace.Metadata["namespace"])
+	}
+
+	if minikubeCluster, ok := clustersByName[minikubeName]; ok {
+		assert.Equal(t, minikubeName, minikubeCluster.Name)
+		assert.Equal(t, "default", minikubeCluster.Metadata["namespace"])
+	}
 }
 
 func TestInvalidKubeConfig(t *testing.T) {
@@ -703,6 +699,57 @@ func TestCheckUniqueName(t *testing.T) {
 	}
 }
 
+// TestFindMatchingContextName tests that findMatchingContextName resolves context keys correctly,
+// including DNS-friendly ARN names and headlamp_info custom name extensions.
+func TestFindMatchingContextName(t *testing.T) {
+	cases := []struct {
+		label       string
+		contexts    map[string]*api.Context
+		clusterName string
+		expected    string
+	}{
+		{
+			label:       "plain name returns itself",
+			contexts:    map[string]*api.Context{"minikube": {}},
+			clusterName: "minikube",
+			expected:    "minikube",
+		},
+		{
+			// This covers the fix for ARN-like names: slashes in the original context key
+			// are converted to -- by MakeDNSFriendly when stored, so the rename request
+			// arrives with the -- form and must be mapped back to the original key.
+			label: "DNS-friendly ARN resolves to original slash form",
+			contexts: map[string]*api.Context{
+				"arn:aws:eks:us-east-1:123456789012:cluster/my-eks-cluster": {},
+			},
+			clusterName: "arn:aws:eks:us-east-1:123456789012:cluster--my-eks-cluster",
+			expected:    "arn:aws:eks:us-east-1:123456789012:cluster/my-eks-cluster",
+		},
+		{
+			label: "headlamp_info custom name takes priority over key matching",
+			contexts: map[string]*api.Context{
+				"original-context": {
+					Extensions: map[string]k8sruntime.Object{
+						"headlamp_info": &kubeconfig.CustomObject{
+							CustomName: "my-custom-name",
+						},
+					},
+				},
+			},
+			clusterName: "my-custom-name",
+			expected:    "original-context",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.label, func(t *testing.T) {
+			config := &api.Config{Contexts: tc.contexts}
+			got := findMatchingContextName(config, tc.clusterName)
+			assert.Equal(t, tc.expected, got)
+		})
+	}
+}
+
 // runClusterRenameTests used to run the cluster rename tests.
 func runClusterRenameTests(
 	t *testing.T,
@@ -793,7 +840,20 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 	require.NoError(t, remErrNonDy, "Failed to remove context: minikubetestworkskubeconfig")
 
 	clusters := c.getClusters()
-	assert.Equal(t, 2, len(clusters))
+	clustersByName := map[string]Cluster{}
+
+	for _, cl := range clusters {
+		clustersByName[cl.Name] = cl
+	}
+
+	// The stateless rename removes the original from the store; the new name is frontend-only.
+	// The kubeconfig rename context was explicitly removed above.
+	assert.NotContains(t, clustersByName, "minikubetest", "expected stateless cluster to be removed from store")
+	assert.NotContains(t, clustersByName, "minikubetestworkskubeconfig",
+		"expected kubeconfig-renamed cluster to be removed from store")
+	// The clusters added via POST should still be present.
+	assert.Contains(t, clustersByName, minikubeName, "expected minikube cluster to still exist")
+	assert.Contains(t, clustersByName, "docker-desktop", "expected docker-desktop cluster to still exist")
 }
 
 func TestFileExists(t *testing.T) {

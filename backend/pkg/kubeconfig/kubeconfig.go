@@ -932,7 +932,7 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 	authInfo := clientConfig.AuthInfos[context.AuthInfo]
 
 	// Make contextName DNS friendly.
-	contextName = makeDNSFriendly(contextName)
+	contextName = MakeDNSFriendly(contextName)
 
 	newContext := Context{
 		Name:        contextName,
@@ -968,7 +968,7 @@ func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Conte
 		authInfo := config.AuthInfos[context.AuthInfo]
 
 		// Make contextName DNS friendly.
-		contextName = makeDNSFriendly(contextName)
+		contextName = MakeDNSFriendly(contextName)
 
 		context := Context{
 			Name:        contextName,
@@ -1029,7 +1029,7 @@ func GetInClusterContext(
 		Cluster:  contextName,
 		AuthInfo: contextName,
 	}
-	contextName = makeDNSFriendly(contextName)
+	contextName = MakeDNSFriendly(contextName)
 
 	inClusterAuthInfo := &api.AuthInfo{}
 
@@ -1123,8 +1123,8 @@ func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, s
 	return errors.Join(errs...)
 }
 
-// makeDNSFriendly converts a string to a DNS-friendly format.
-func makeDNSFriendly(name string) string {
+// MakeDNSFriendly converts a string to a DNS-friendly format.
+func MakeDNSFriendly(name string) string {
 	name = strings.ReplaceAll(name, "/", "--")
 	name = strings.ReplaceAll(name, " ", "__")
 
