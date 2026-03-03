@@ -9,6 +9,7 @@ DOCKER_EXT_REPO ?= docker.io/headlamp
 DOCKER_IMAGE_NAME ?= headlamp
 DOCKER_PLUGINS_IMAGE_NAME ?= plugins
 DOCKER_IMAGE_VERSION ?= $(shell git describe --tags --always --dirty)
+DOCKER_IMAGE_EXTRA_TAG ?=
 # Detect platform (Windows, macOS, Linux)
 ifeq ($(OS),Windows_NT)
     DOCKER_PLATFORM ?= local
@@ -340,13 +341,19 @@ image:
 	else \
 		BUILD_ARG=""; \
 	fi; \
+	if [ -n "$(DOCKER_IMAGE_EXTRA_TAG)" ]; then \
+		EXTRA_TAG="-t $(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):$(DOCKER_IMAGE_EXTRA_TAG)"; \
+	else \
+		EXTRA_TAG=""; \
+	fi; \
 	$(DOCKER_CMD) $(DOCKER_BUILDX_CMD) build \
 	--pull \
 	--platform=$(DOCKER_PLATFORM) \
 	$$BUILD_ARG \
 	--push=$(DOCKER_PUSH) \
-	-t $(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):$(DOCKER_IMAGE_VERSION) -f \
-	Dockerfile \
+	-t $(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):$(DOCKER_IMAGE_VERSION) \
+	$$EXTRA_TAG \
+	-f Dockerfile \
 	.
 
 .PHONY: image-verify-digests

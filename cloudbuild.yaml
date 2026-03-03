@@ -15,6 +15,8 @@ steps:
       - DOCKER_REPO=us-central1-docker.pkg.dev/k8s-staging-images/headlamp
       - DOCKER_IMAGE_NAME=headlamp
       - DOCKER_IMAGE_VERSION=$_PULL_BASE_REF
+      - DOCKER_IMAGE_EXTRA_TAG=$_GIT_TAG
+      - DOCKER_PLATFORM=linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
 substitutions:
   # _GIT_TAG will be filled with a git-based tag for the image, of the form vYYYYMMDD-hash, and
   # can be used as a substitution
