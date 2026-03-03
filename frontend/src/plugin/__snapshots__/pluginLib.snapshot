@@ -40,6 +40,7 @@
     "AuthVisible": [Function],
     "BackLink": [Function],
     "CircularChart": [Function],
+    "ClusterTerminal": [Function],
     "ConditionsSection": [Function],
     "ConditionsTable": [Function],
     "ConfirmButton": [Function],

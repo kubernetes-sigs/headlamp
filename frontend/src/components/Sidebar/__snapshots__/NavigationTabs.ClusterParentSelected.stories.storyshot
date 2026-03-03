@@ -46,7 +46,7 @@
                 tabindex="-1"
                 type="button"
               >
-                Namespaces
+                Terminal
                 <span
                   class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
@@ -60,7 +60,7 @@
                 tabindex="-1"
                 type="button"
               >
-                Nodes
+                Namespaces
                 <span
                   class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
@@ -70,6 +70,20 @@
                 aria-selected="false"
                 class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-3-NavigationTabs-tabs-id"
+                role="tab"
+                tabindex="-1"
+                type="button"
+              >
+                Nodes
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-controls="full-width-tabpanel-4-NavigationTabs-tabs-id"
+                aria-selected="false"
+                class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
+                id="full-width-tab-4-NavigationTabs-tabs-id"
                 role="tab"
                 tabindex="-1"
                 type="button"
@@ -111,6 +125,13 @@
           class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
           hidden=""
           id="full-width-tabpanel-3-NavigationTabs-tabs-id"
+          role="tabpanel"
+        />
+        <div
+          aria-labelledby="full-width-tab-4-NavigationTabs-tabs-id"
+          class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
+          hidden=""
+          id="full-width-tabpanel-4-NavigationTabs-tabs-id"
           role="tabpanel"
         />
         <hr

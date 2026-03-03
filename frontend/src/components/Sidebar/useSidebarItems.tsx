@@ -193,6 +193,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         icon: 'mdi:hexagon-multiple-outline',
         subList: [
           {
+            name: 'terminal',
+            label: t('glossary|Terminal'),
+          },
+          {
             name: 'namespaces',
             label: t('glossary|Namespaces'),
           },
