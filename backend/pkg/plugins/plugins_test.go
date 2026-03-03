@@ -50,8 +50,11 @@ func TestWatch(t *testing.T) {
 	// create channel to receive events
 	events := make(chan string)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // Ensure the watcher goroutine is stopped when the test ends
+
 	// start watching the directory
-	go plugins.Watch(dirName, events)
+	go plugins.Watch(ctx, dirName, events)
 
 	// wait for the watcher to be setup
 	<-time.After(5 * time.Second)
