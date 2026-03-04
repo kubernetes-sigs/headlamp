@@ -22,7 +22,7 @@ import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 import type { KubePodSpec } from './pod';
 import ReplicaSet, { type KubeReplicaSet } from './replicaSet';
-import { type RevisionInfo, type RollbackOptions, RollbackResult } from './rollback';
+import type { RevisionInfo, RollbackOptions, RollbackResult } from './rollback';
 
 export type { RollbackResult };
 
@@ -117,7 +117,11 @@ class Deployment extends KubeObject<KubeDeployment> {
    *
    * @returns Promise with rollback result containing success status and message.
    */
-  async rollback(options: RollbackOptions = {}): Promise<RollbackResult> {
+  async rollback(revisionOrOptions?: number | RollbackOptions): Promise<RollbackResult> {
+    const options: RollbackOptions =
+      typeof revisionOrOptions === 'number'
+        ? { toRevision: revisionOrOptions }
+        : revisionOrOptions ?? {};
     const { toRevision, dryRun } = options;
 
     if (this.spec?.paused) {

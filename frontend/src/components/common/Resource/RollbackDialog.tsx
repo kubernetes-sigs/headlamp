@@ -30,7 +30,7 @@ import Radio from '@mui/material/Radio';
 import Typography from '@mui/material/Typography';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
+import type { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import type { RevisionInfo } from '../../../lib/k8s/rollback';
 import { DateLabel } from '../Label';
 import DryRunPreviewDialog from './DryRunPreviewDialog';
@@ -77,6 +77,9 @@ export default function RollbackDialog(props: RollbackDialogProps) {
 
   useEffect(() => {
     if (!open) {
+      setPreviewData(null);
+      setPreviewError(null);
+      setPreviewOpen(false);
       return;
     }
 
@@ -157,7 +160,7 @@ export default function RollbackDialog(props: RollbackDialogProps) {
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
         <DialogTitle>{t('translation|Rollback {{ kind }}', { kind: resourceKind })}</DialogTitle>
         <DialogContent>
           {loading && (
@@ -265,9 +268,17 @@ export default function RollbackDialog(props: RollbackDialogProps) {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={onClose}>{t('translation|Cancel')}</Button>
+          <Button
+            onClick={onClose}
+            aria-label="cancel-button"
+            color="secondary"
+            variant="contained"
+          >
+            {t('translation|Cancel')}
+          </Button>
           <Button
             onClick={handlePreview}
+            aria-label="preview-button"
             variant="outlined"
             disabled={
               !hasPreviousRevisions || selectedRevision === undefined || loading || previewLoading
@@ -278,6 +289,7 @@ export default function RollbackDialog(props: RollbackDialogProps) {
           </Button>
           <Button
             onClick={handleConfirm}
+            aria-label="confirm-button"
             variant="contained"
             color="primary"
             disabled={!hasPreviousRevisions || selectedRevision === undefined || loading}

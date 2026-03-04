@@ -22,10 +22,10 @@ import DialogContent from '@mui/material/DialogContent';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Switch from '@mui/material/Switch';
 import * as yaml from 'js-yaml';
-import _ from 'lodash';
+import cloneDeep from 'lodash/cloneDeep';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
+import type { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { useCurrentAppTheme } from '../../App/themeSlice';
 import { Dialog } from '../Dialog';
 
@@ -54,7 +54,7 @@ export default function DryRunPreviewDialog(props: DryRunPreviewDialogProps) {
   const [hideManagedFields, setHideManagedFields] = useState(true);
 
   const yamlContent = useMemo(() => {
-    const cloned = _.cloneDeep(item);
+    const cloned = cloneDeep(item);
     if (hideManagedFields && cloned?.metadata?.managedFields) {
       delete cloned.metadata.managedFields;
     }
@@ -105,7 +105,7 @@ export default function DryRunPreviewDialog(props: DryRunPreviewDialogProps) {
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} color="secondary" variant="contained">
+        <Button onClick={onClose} aria-label="close-button" color="secondary" variant="contained">
           {t('translation|Close')}
         </Button>
       </DialogActions>
