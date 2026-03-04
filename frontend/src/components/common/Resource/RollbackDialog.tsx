@@ -30,7 +30,7 @@ import Radio from '@mui/material/Radio';
 import Typography from '@mui/material/Typography';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
+import type { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import type { RevisionInfo } from '../../../lib/k8s/rollback';
 import { DateLabel } from '../Label';
 import DryRunPreviewDialog from './DryRunPreviewDialog';
@@ -157,7 +157,7 @@ export default function RollbackDialog(props: RollbackDialogProps) {
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
         <DialogTitle>{t('translation|Rollback {{ kind }}', { kind: resourceKind })}</DialogTitle>
         <DialogContent>
           {loading && (

@@ -25,7 +25,7 @@ import * as yaml from 'js-yaml';
 import _ from 'lodash';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
+import type { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { useCurrentAppTheme } from '../../App/themeSlice';
 import { Dialog } from '../Dialog';
 

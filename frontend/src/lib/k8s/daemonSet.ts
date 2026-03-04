@@ -149,7 +149,11 @@ class DaemonSet extends KubeObject<KubeDaemonSet> {
    * @see {@link https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/#rolling-back-a-daemonset | K8s: Rolling Back a DaemonSet}
    * @see {@link https://github.com/kubernetes/kubectl/blob/master/pkg/polymorphichelpers/rollback.go | kubectl rollback implementation}
    */
-  async rollback(options: RollbackOptions = {}): Promise<RollbackResult> {
+  async rollback(revisionOrOptions?: number | RollbackOptions): Promise<RollbackResult> {
+    const options: RollbackOptions =
+      typeof revisionOrOptions === 'number'
+        ? { toRevision: revisionOrOptions }
+        : revisionOrOptions ?? {};
     const { toRevision, dryRun } = options;
 
     try {
