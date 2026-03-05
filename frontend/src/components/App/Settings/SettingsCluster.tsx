@@ -246,6 +246,10 @@ export default function SettingsCluster() {
   const defaultNamespaceLabelID = 'default-namespace-label';
   const allowedNamespaceLabelID = 'allowed-namespace-label';
   const appearanceLabelID = 'cluster-appearance-label';
+  const accentColorLabelID = 'accent-color-label';
+  const clusterIconLabelID = 'cluster-icon-label';
+  const colorButtonID = 'color-picker-button';
+  const iconButtonID = 'icon-picker-button';
 
   return (
     <>
@@ -283,7 +287,12 @@ export default function SettingsCluster() {
                 <Box display="flex" flexDirection="column" gap={2} sx={{ minWidth: 280 }}>
                   {/* Color Picker */}
                   <Box>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    <Typography
+                      id={accentColorLabelID}
+                      variant="subtitle2"
+                      component="span"
+                      sx={{ mb: 1 }}
+                    >
                       {t('translation|Accent color')}
                     </Typography>
                     <Box display="flex" alignItems="center" gap={1}>
@@ -299,17 +308,23 @@ export default function SettingsCluster() {
                         />
                       )}
                       <Button
+                        id={colorButtonID}
                         variant="outlined"
                         size="small"
                         onClick={() => setColorPickerOpen(true)}
                         startIcon={<Icon icon="mdi:palette" />}
+                        aria-labelledby={`${appearanceLabelID} ${colorButtonID}`}
                       >
                         {appearanceAccentColor
                           ? t('translation|Change Color')
                           : t('translation|Choose Color')}
                       </Button>
                       {appearanceAccentColor && (
-                        <IconButton size="small" onClick={() => setAppearanceAccentColor('')}>
+                        <IconButton
+                          size="small"
+                          onClick={() => setAppearanceAccentColor('')}
+                          aria-label={t('translation|Clear accent color')}
+                        >
                           <Icon icon="mdi:close" />
                         </IconButton>
                       )}
@@ -318,23 +333,34 @@ export default function SettingsCluster() {
 
                   {/* Icon Picker */}
                   <Box>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    <Typography
+                      id={clusterIconLabelID}
+                      variant="subtitle2"
+                      component="span"
+                      sx={{ mb: 1 }}
+                    >
                       {t('translation|Cluster icon')}
                     </Typography>
                     <Box display="flex" alignItems="center" gap={1}>
                       {appearanceIcon && <Icon icon={appearanceIcon} width={24} />}
                       <Button
+                        id={iconButtonID}
                         variant="outlined"
                         size="small"
                         onClick={() => setIconPickerOpen(true)}
                         startIcon={<Icon icon="mdi:emoticon-outline" />}
+                        aria-labelledby={`${appearanceLabelID} ${iconButtonID}`}
                       >
                         {appearanceIcon
                           ? t('translation|Change Icon')
                           : t('translation|Choose Icon')}
                       </Button>
                       {appearanceIcon && (
-                        <IconButton size="small" onClick={() => setAppearanceIcon('')}>
+                        <IconButton
+                          size="small"
+                          onClick={() => setAppearanceIcon('')}
+                          aria-label={t('translation|Clear cluster icon')}
+                        >
                           <Icon icon="mdi:close" />
                         </IconButton>
                       )}
@@ -410,9 +436,11 @@ export default function SettingsCluster() {
                     setUserDefaultNamespace(value);
                   }}
                   value={userDefaultNamespace}
-                  aria-labelledby={defaultNamespaceLabelID}
                   placeholder={defaultNamespace}
                   error={!isValidDefaultNamespace}
+                  inputProps={{
+                    'aria-labelledby': defaultNamespaceLabelID,
+                  }}
                   helperText={
                     isValidDefaultNamespace
                       ? t(
@@ -463,6 +491,7 @@ export default function SettingsCluster() {
                     }
                     autoComplete="off"
                     inputProps={{
+                      'aria-labelledby': allowedNamespaceLabelID,
                       form: {
                         autocomplete: 'off',
                       },

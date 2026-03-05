@@ -584,6 +584,12 @@ func TestDeletePlugin(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
+	// Verify JSON response body
+	var response map[string]bool
+	err = json.Unmarshal(rr.Body.Bytes(), &response)
+	require.NoError(t, err, "Response should be valid JSON")
+	assert.True(t, response["success"], "Response should indicate success")
+
 	// check if plugin was deleted
 	_, err = os.Stat(pluginDir)
 	assert.True(t, os.IsNotExist(err))

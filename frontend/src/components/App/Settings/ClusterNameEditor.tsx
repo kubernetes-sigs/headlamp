@@ -125,13 +125,15 @@ export function ClusterNameEditor({
       <>
         {clusterErrorDialogOpen && <ClusterErrorDialog />}
         <Typography>{t('translation|Name')}</Typography>
-        {displayOriginalName && currentName !== displayOriginalName && (
-          <Typography variant="body2" color="textSecondary">
-            {t('translation|Original name: {{ displayName }}', {
-              displayName: displayName,
-            })}
-          </Typography>
-        )}
+        <div>
+          {displayOriginalName && currentName !== displayOriginalName && (
+            <Typography id="cluster-original-name" variant="body2" color="textSecondary">
+              {t('translation|Original name: {{ displayName }}', {
+                displayName: displayName,
+              })}
+            </Typography>
+          )}
+        </div>
       </>
     );
   }
@@ -190,11 +192,18 @@ export function ClusterNameEditor({
   };
   const isValidCurrentName = isValidClusterNameFormat(newClusterName);
 
+  const hasOriginalName =
+    source === 'kubeconfig' && originalName && clusterInfo?.name !== originalName;
+
+  const clusterNameLabelID = 'cluster-name-label';
+  const clusterOriginalNameID = 'cluster-original-name';
+
   return (
     <NameValueTable
       rows={[
         {
           name: <ClusterName />,
+          nameID: clusterNameLabelID,
           value: (
             <TextField
               onChange={event => {
@@ -219,7 +228,8 @@ export function ClusterNameEditor({
                 </Typography>
               }
               inputProps={{
-                'aria-label': t('translation|Cluster name'),
+                'aria-labelledby': clusterNameLabelID,
+                'aria-describedby': hasOriginalName ? clusterOriginalNameID : undefined,
               }}
               InputProps={{
                 endAdornment: (

@@ -34,7 +34,6 @@ Note, it runs the development servers for the backend and the frontend as well. 
 - `npm run i18n`: Extract the translations discovered in the electron/ folder source code.
 - `npm run package`: Creates binary packages for different platforms and outputs them in the dist/ folder.
 - `npm run package-msi`: Creates the windows installer format msi package in the dist/ folder.
-- `npm run prod-deps`: Creates production dependencies for built apps in a prod_deps/ folder.
 - `npm start`: Starts the app in dev mode along with the backend server, and the frontend development server.
-- `npm run test`: Runs the tests. See the \*.test.js files in the electron/ folder.
+- `npm run test`: Runs the tests. See the \*.test.ts files in the electron/ folder.
 - `npm run tsc`: Runs the type checker.

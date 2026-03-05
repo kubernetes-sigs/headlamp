@@ -42,7 +42,7 @@ jobs:
           context: .
           push: true
           pull: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly
           provenance: true
           cache-from: type=gha

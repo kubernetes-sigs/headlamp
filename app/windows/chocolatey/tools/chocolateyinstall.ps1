@@ -2,7 +2,7 @@
 $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 $headlampVersion = '0.40.1'
 $url = "https://github.com/kubernetes-sigs/headlamp/releases/download/v${headlampVersion}/Headlamp-${headlampVersion}-win-x64.exe"
-$checksum = 'e180221f477381dafb81b5d538a00623f78dbeacd4218772bd3160a2eda39ffe'
+$checksum = 'ea8172a5d5902b75019319d86891135295c18366e0148ddabe12917232748f2c'
 
 $packageArgs = @{
   packageName   = $env:ChocolateyPackageName

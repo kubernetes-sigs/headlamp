@@ -20,13 +20,13 @@
  * These tests focus on downloading and installing plugins from local artifacthub pkg files,
  * including testing platform-specific annotations that allow additional binaries to be included.
  */
-import { describe, expect, it } from '@jest/globals';
 import crypto from 'crypto';
 import fs from 'fs';
 import nock from 'nock';
 import os from 'os';
 import path from 'path';
 import * as tar from 'tar';
+import { describe, expect, it } from 'vitest';
 import { PluginManager } from './plugin-management';
 import { getExtraFiles } from './plugin-management';
 
