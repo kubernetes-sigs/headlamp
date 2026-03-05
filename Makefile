@@ -8,7 +8,7 @@ DOCKER_REPO ?= ghcr.io/headlamp-k8s
 DOCKER_EXT_REPO ?= docker.io/headlamp
 DOCKER_IMAGE_NAME ?= headlamp
 DOCKER_PLUGINS_IMAGE_NAME ?= plugins
-DOCKER_IMAGE_VERSION ?= $(shell git describe --tags --always --dirty)
+DOCKER_IMAGE_VERSION ?= $(shell git describe --tags --match 'v*' --always --dirty)
 DOCKER_IMAGE_EXTRA_TAG ?=
 # Detect platform (Windows, macOS, Linux)
 ifeq ($(OS),Windows_NT)
