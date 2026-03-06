@@ -52,6 +52,11 @@ export default {
   },
 } as Meta;
 
-const Template: StoryFn = () => <ReleaseNotes />;
+const Template: StoryFn = () => (
+  <>
+    <h1>Release Notes Component</h1>
+    <ReleaseNotes />
+  </>
+);
 
 export const Default = Template.bind({});
