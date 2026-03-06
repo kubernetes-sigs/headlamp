@@ -123,7 +123,7 @@
             class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
           >
             <div
-              class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorInfo MuiAlert-standardInfo MuiAlert-standard css-s0ueq2-MuiPaper-root-MuiAlert-root"
+              class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorInfo MuiAlert-standardInfo MuiAlert-standard css-9hz0j4-MuiPaper-root-MuiAlert-root"
               role="alert"
             >
               <div
@@ -144,7 +144,7 @@
         </div>
       </div>
       <div
-        class="Mui-ToolbarDropZone MuiBox-root css-1fwjva3"
+        class="Mui-ToolbarDropZone MuiBox-root css-xad10n"
         style="opacity: 0; visibility: hidden;"
       >
         <p
