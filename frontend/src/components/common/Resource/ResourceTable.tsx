@@ -184,8 +184,10 @@ function TableFromResourceClass<KubeClass extends KubeObjectClass>(
 ) {
   const { resourceClass, id, ...otherProps } = props;
   const selectedNamespaces = useNamespaces();
+  const labelSelector = useTypedSelector(state => state.filter.labelSelector);
   const { items, errors } = resourceClass.useList({
     namespace: props.namespaces ?? selectedNamespaces,
+    labelSelector: labelSelector || undefined,
   });
 
   // throttle the update of the table to once per second
