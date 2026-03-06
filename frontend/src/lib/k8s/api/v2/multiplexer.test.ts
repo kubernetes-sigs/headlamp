@@ -89,6 +89,7 @@ describe('WebSocket Multiplexer', () => {
     WebSocketManager.listeners.clear();
     WebSocketManager.completedPaths.clear();
     WebSocketManager.activeSubscriptions.clear();
+    WebSocketManager.pendingUnsubscribes.forEach(clearTimeout);
     WebSocketManager.pendingUnsubscribes.clear();
   });
 
