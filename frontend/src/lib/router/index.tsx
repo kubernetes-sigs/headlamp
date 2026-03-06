@@ -41,6 +41,14 @@ import CronJobDetails from '../../components/cronjob/Details';
 import CronJobList from '../../components/cronjob/List';
 import DaemonSetList from '../../components/daemonset/List';
 import DeploymentsList from '../../components/deployments/List';
+import DeviceClassDetails from '../../components/device/DeviceClassDetails';
+import DeviceClassList from '../../components/device/DeviceClassList';
+import ResourceClaimDetails from '../../components/device/ResourceClaimDetails';
+import ResourceClaimList from '../../components/device/ResourceClaimList';
+import ResourceClaimTemplateDetails from '../../components/device/ResourceClaimTemplateDetails';
+import ResourceClaimTemplateList from '../../components/device/ResourceClaimTemplateList';
+import ResourceSliceDetails from '../../components/device/ResourceSliceDetails';
+import ResourceSliceList from '../../components/device/ResourceSliceList';
 import EndpointDetails from '../../components/endpoints/Details';
 import EndpointList from '../../components/endpoints/List';
 import EndpointSliceDetails from '../../components/endpointSlices/Details';
@@ -259,6 +267,60 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'persistentVolumeClaims',
     exact: true,
     component: () => <PersistentVolumeClaimDetails />,
+  },
+  deviceClasses: {
+    path: '/devices/classes',
+    exact: true,
+    sidebar: 'deviceClasses',
+    name: 'Device Classes',
+    component: () => <DeviceClassList />,
+  },
+  deviceClass: {
+    path: '/devices/classes/:name',
+    sidebar: 'deviceClasses',
+    name: 'Device Class',
+    component: () => <DeviceClassDetails />,
+  },
+  resourceSlices: {
+    path: '/devices/resourceslices',
+    exact: true,
+    sidebar: 'resourceSlices',
+    name: 'Resource Slices',
+    component: () => <ResourceSliceList />,
+  },
+  resourceSlice: {
+    path: '/devices/resourceslices/:name',
+    sidebar: 'resourceSlices',
+    name: 'Resource Slice',
+    component: () => <ResourceSliceDetails />,
+  },
+  resourceClaims: {
+    path: '/devices/resourceclaims',
+    exact: true,
+    sidebar: 'resourceClaims',
+    name: 'Resource Claims',
+    component: () => <ResourceClaimList />,
+  },
+  resourceClaim: {
+    path: '/devices/resourceclaims/:namespace/:name',
+    exact: true,
+    sidebar: 'resourceClaims',
+    name: 'Resource Claim',
+    component: () => <ResourceClaimDetails />,
+  },
+  resourceClaimTemplates: {
+    path: '/devices/resourceclaimtemplates',
+    exact: true,
+    sidebar: 'resourceClaimTemplates',
+    name: 'Resource Claim Templates',
+    component: () => <ResourceClaimTemplateList />,
+  },
+  resourceClaimTemplate: {
+    path: '/devices/resourceclaimtemplates/:namespace/:name',
+    exact: true,
+    sidebar: 'resourceClaimTemplates',
+    name: 'Resource Claim Template',
+    component: () => <ResourceClaimTemplateDetails />,
   },
   workloads: {
     path: '/workloads',
