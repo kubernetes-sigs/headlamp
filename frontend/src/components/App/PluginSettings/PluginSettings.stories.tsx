@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
 import { Meta, StoryFn } from '@storybook/react';
 import type { PluginInfo } from '../../../plugin/pluginsSlice';
 import { TestContext } from '../../../test';
@@ -32,9 +33,13 @@ export default {
 } as Meta;
 
 const Template: StoryFn<PluginSettingsPureProps> = args => (
-  <TestContext>
-    <PluginSettingsPure {...args} />
-  </TestContext>
+  <Box>
+    <h1>Settings</h1>
+    <h2>Plugins</h2>
+    <TestContext>
+      <PluginSettingsPure {...args} />
+    </TestContext>
+  </Box>
 );
 
 /**
