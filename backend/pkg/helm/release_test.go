@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -339,4 +340,74 @@ func TestVerifyUser(t *testing.T) {
 			assert.Equal(t, result, tt.wantResult)
 		})
 	}
+}
+
+// TestSafeRequestWrapper tests the centralized error handling functionality
+func TestSafeRequestWrapper(t *testing.T) {
+	cache := cache.New[interface{}]()
+	handler, err := helm.NewHandler(cache)
+	require.NoError(t, err)
+
+	wrapper := helm.NewSafeRequestWrapper(handler)
+
+	tests := []struct {
+		name           string
+		requestFunc    func(*action.Configuration) (interface{}, error)
+		expectedStatus int
+		expectedError  string
+	}{
+		{
+			name: "request returns nil",
+			requestFunc: func(config *action.Configuration) (interface{}, error) {
+				return nil, nil
+			},
+			expectedStatus: http.StatusNotFound,
+			expectedError:  "request returned empty result",
+		},
+		{
+			name: "request returns error",
+			requestFunc: func(config *action.Configuration) (interface{}, error) {
+				return nil, errors.New("test error")
+			},
+			expectedStatus: http.StatusInternalServerError,
+			expectedError:  "executing request: test error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create test response
+			w := httptest.NewRecorder()
+
+			// Use a nil client config
+			var clientConfig clientcmd.ClientConfig = nil
+
+			// Call HandleRequest
+			wrapper.HandleRequest(w, "test_request", clientConfig, "default", tt.requestFunc)
+
+			// Check response
+			resp := w.Result()
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			var errorResp helm.HelmAPIError
+			err := json.NewDecoder(resp.Body).Decode(&errorResp)
+			require.NoError(t, err)
+			assert.NotEmpty(t, errorResp.Message)
+			assert.Contains(t, errorResp.Message, tt.expectedError)
+		})
+	}
+}
+
+// TestHelmAPIError tests the structured error response
+func TestHelmAPIError(t *testing.T) {
+	err := &helm.HelmAPIError{
+		Code:    http.StatusBadRequest,
+		Message: "test error message",
+		Details: "additional details",
+	}
+
+	assert.Equal(t, "test error message", err.Error())
+	assert.Equal(t, http.StatusBadRequest, err.Code)
+	assert.Equal(t, "test error message", err.Message)
+	assert.Equal(t, "additional details", err.Details)
 }
