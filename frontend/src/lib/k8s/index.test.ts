@@ -251,6 +251,7 @@ const namespacedClasses = [
   'HTTPRoute',
   'Ingress',
   'Job',
+  'JobSet',
   'Lease',
   'LimitRange',
   'NetworkPolicy',

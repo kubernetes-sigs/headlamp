@@ -103,6 +103,7 @@
   "Hosts": "主机",
   "Jobs": "Jobs",
   "Completions": "完成",
+  "Job Sets": "",
   "Lease": "租约",
   "LimitRange": "限制范围",
   "Ingress": "Ingress",

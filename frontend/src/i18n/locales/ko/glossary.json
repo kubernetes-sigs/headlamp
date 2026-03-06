@@ -103,6 +103,7 @@
   "Hosts": "호스트",
   "Jobs": "잡",
   "Completions": "완료 수",
+  "Job Sets": "",
   "Lease": "리스",
   "LimitRange": "리미트 레인지",
   "Ingress": "인그레스",

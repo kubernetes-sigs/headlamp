@@ -103,6 +103,7 @@
   "Hosts": "Hosts",
   "Jobs": "Jobs",
   "Completions": "Completions",
+  "Job Sets": "",
   "Lease": "Lease",
   "LimitRange": "LimitRange",
   "Ingress": "Ingress",

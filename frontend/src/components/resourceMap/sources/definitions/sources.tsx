@@ -33,6 +33,7 @@ import HTTPRoute from '../../../../lib/k8s/httpRoute';
 import Ingress from '../../../../lib/k8s/ingress';
 import IngressClass from '../../../../lib/k8s/ingressClass';
 import Job from '../../../../lib/k8s/job';
+import JobSet from '../../../../lib/k8s/jobSet';
 import { KubeObjectClass } from '../../../../lib/k8s/KubeObject';
 import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
@@ -119,6 +120,7 @@ export function useGetAllSources(): GraphSource[] {
         makeKubeSource(ReplicaSet),
         makeKubeSource(Job),
         makeKubeSource(CronJob),
+        makeKubeSource(JobSet),
       ],
     },
     {
