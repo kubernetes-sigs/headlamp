@@ -26,7 +26,7 @@ Assumes being run within the plugins/pluginctl folder
 const PACKAGE_NAME = "appcatalog_headlamp_plugin";
 const PACKAGE_URL =
   "https://artifacthub.io/packages/headlamp/test-123/appcatalog_headlamp_plugin";
-const PACKAGE_NAME_TO_UNINSTALL = "app-catalog";
+const PACKAGE_NAME_TO_UNINSTALL = "@headlamp-k8s/app-catalog";
 
 function testPluginctl() {
   // remove some temporary files.
