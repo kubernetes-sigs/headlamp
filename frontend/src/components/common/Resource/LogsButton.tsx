@@ -27,13 +27,16 @@ import { Terminal as XTerminal } from '@xterm/xterm';
 import { useSnackbar } from 'notistack';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { labelSelectorToQuery } from '../../../lib/k8s';
 import { clusterFetch } from '../../../lib/k8s/api/v2/fetch';
+import { makeUrl } from '../../../lib/k8s/api/v2/makeUrl';
 import { KubeContainerStatus } from '../../../lib/k8s/cluster';
 import DaemonSet from '../../../lib/k8s/daemonSet';
 import Deployment from '../../../lib/k8s/deployment';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
+import StatefulSet from '../../../lib/k8s/statefulSet';
 import { Activity } from '../../activity/Activity';
 import ActionButton from '../ActionButton';
 import { LogViewer } from '../LogViewer';
@@ -81,16 +84,14 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
   // Fetch related pods.
   async function getRelatedPods(): Promise<Pod[]> {
-    if (item instanceof Deployment || item instanceof ReplicaSet || item instanceof DaemonSet) {
+    if (
+      item instanceof Deployment ||
+      item instanceof ReplicaSet ||
+      item instanceof DaemonSet ||
+      item instanceof StatefulSet
+    ) {
       try {
-        let labelSelector = '';
-        const selector = item.spec.selector;
-
-        if (selector.matchLabels) {
-          labelSelector = Object.entries(selector.matchLabels)
-            .map(([key, value]) => `${key}=${value}`)
-            .join(',');
-        }
+        const labelSelector = labelSelectorToQuery(item.spec.selector);
 
         if (!labelSelector) {
           const resourceType =
@@ -98,14 +99,18 @@ function LogsButtonContent({ item }: LogsButtonProps) {
               ? 'deployment'
               : item instanceof ReplicaSet
               ? 'replicaset'
+              : item instanceof StatefulSet
+              ? 'statefulset'
               : 'daemonset';
           throw new Error(
             t('translation|No label selectors found for this {{type}}', { type: resourceType })
           );
         }
 
+        const queryParams = { labelSelector };
+
         const response = await clusterFetch(
-          `/api/v1/namespaces/${item.metadata.namespace}/pods?labelSelector=${labelSelector}`,
+          makeUrl(`/api/v1/namespaces/${item.metadata.namespace}/pods`, queryParams),
           { cluster: item.cluster }
         ).then(it => it.json());
 
@@ -143,7 +148,12 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
   // Handler for initial logs button click
   async function onMount() {
-    if (item instanceof Deployment || item instanceof ReplicaSet || item instanceof DaemonSet) {
+    if (
+      item instanceof Deployment ||
+      item instanceof ReplicaSet ||
+      item instanceof DaemonSet ||
+      item instanceof StatefulSet
+    ) {
       try {
         const fetchedPods = await getRelatedPods();
         if (fetchedPods.length > 0) {
@@ -535,7 +545,10 @@ export function LogsButton({ item }: LogsButtonProps) {
   return (
     <>
       {/* Show logs button for supported workload types */}
-      {(item instanceof Deployment || item instanceof ReplicaSet || item instanceof DaemonSet) && (
+      {(item instanceof Deployment ||
+        item instanceof ReplicaSet ||
+        item instanceof DaemonSet ||
+        item instanceof StatefulSet) && (
         <ActionButton
           icon="mdi:file-document-box-outline"
           onClick={onClick}
