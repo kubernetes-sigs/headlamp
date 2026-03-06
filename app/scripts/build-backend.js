@@ -8,6 +8,8 @@ exports.default = async context => {
     arch = 'amd64';
   } else if (arch === 'armv7l') {
     arch = 'arm';
+  } else if (arch === 'arm64') {
+    arch = 'arm64';
   }
 
   let osName = '';

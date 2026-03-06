@@ -21,7 +21,14 @@ jobs:
       id-token: write # For fetching an OpenID Connect (OIDC) token
       contents: read
       actions: write # needed to upload artifacts
-    runs-on: windows-2022
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-2022
+          - arch: arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
     steps:
     - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       with:
@@ -75,7 +82,23 @@ jobs:
         nuget.exe sources add -name esrp -source ${{ secrets.ESRP_NUGET_INDEX_URL }} -username headlamp -password ${{ secrets.AZ_DEVOPS_TOKEN }}
         nuget.exe install Microsoft.EsrpClient -Version 1.2.80 -source  ${{ secrets.ESRP_NUGET_INDEX_URL }} | out-null
 
-    - name: App Windows
+    - name: Build Frontend
+      shell: pwsh
+      working-directory: headlamp
+      run: |
+        cd frontend
+        npm ci
+        npm run build
+
+    - name: Install App Dependencies and Setup Plugins
+      shell: pwsh
+      working-directory: headlamp
+      run: |
+        cd app
+        npm ci
+        node scripts/setup-plugins.js
+
+    - name: Build Windows ${{ matrix.arch }} App
       shell: pwsh
       working-directory: headlamp
       run: |
@@ -86,12 +109,22 @@ jobs:
         } else {
           echo "Not signing binaries"
         }
-        make app-win
+        cd app
+        npm run package -- --win --${{ matrix.arch }}
+
+    - name: Create MSI for ${{ matrix.arch }}
+      shell: pwsh
+      working-directory: headlamp
+      env:
+        MSI_ARCH: ${{ matrix.arch }}
+      run: |
+        cd app
+        node windows/msi/build.js
 
     - name: Upload artifact
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
-        name: Win exes
-        path: ./headlamp/app/dist/Headlamp*.*
+        name: Win-${{ matrix.arch }}-exes
+        path: ./headlamp/app/dist/Headlamp*${{ matrix.arch }}*.*
         if-no-files-found: error
         retention-days: 2
