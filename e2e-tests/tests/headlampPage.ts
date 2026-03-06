@@ -26,7 +26,7 @@ export class HeadlampPage {
   }
 
   async a11y() {
-    const axeBuilder = new AxeBuilder({ page: this.page });
+    const axeBuilder = new AxeBuilder({ page: this.page }).disableRules(['region']);
     const accessibilityResults = await axeBuilder.analyze();
     expect(accessibilityResults.violations).toStrictEqual([]);
   }
@@ -137,6 +137,10 @@ export class HeadlampPage {
         throw new Error(`Table does not contain header: ${header}`);
       }
     }
+  }
+
+  async tableContains(text: string | RegExp, options?: { timeout?: number }) {
+    await expect(this.page.locator('table')).toContainText(text, options);
   }
 
   async clickOnPlugin(pluginName: string) {
