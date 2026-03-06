@@ -185,5 +185,5 @@ registerProjectHeaderAction({
     </button>
   ),
   // Only show this action if the project has multiple clusters
-  isEnabled: ({ project }) => project.clusters.length > 0,
+  isEnabled: async ({ project }) => project.clusters.length > 0,
 });
