@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -28,8 +30,11 @@ import Radio from '@mui/material/Radio';
 import Typography from '@mui/material/Typography';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import type { RevisionInfo } from '../../../lib/k8s/rollback';
 import { DateLabel } from '../Label';
+import DryRunPreviewDialog from './DryRunPreviewDialog';
+import type { RollbackableResource } from './RollbackButton';
 
 interface RollbackDialogProps {
   /** Whether the dialog is open */
@@ -38,6 +43,8 @@ interface RollbackDialogProps {
   resourceKind: string;
   /** The name of the resource */
   resourceName: string;
+  /** The resource instance (needed for dry-run) */
+  resource: RollbackableResource;
   /** Function to fetch revision history */
   getRevisionHistory: () => Promise<RevisionInfo[]>;
   /** Callback when dialog is closed (cancelled) */
@@ -49,15 +56,24 @@ interface RollbackDialogProps {
 /**
  * RollbackDialog component that shows revision history and allows
  * the user to select a specific revision to rollback to.
+ *
+ * Includes a "Preview" button that performs a server-side dry-run
+ * and shows the full resulting resource YAML in a read-only editor.
  */
 export default function RollbackDialog(props: RollbackDialogProps) {
-  const { open, resourceKind, resourceName, getRevisionHistory, onClose, onConfirm } = props;
+  const { open, resourceKind, resourceName, resource, getRevisionHistory, onClose, onConfirm } =
+    props;
   const { t } = useTranslation(['translation']);
 
   const [revisions, setRevisions] = useState<RevisionInfo[]>([]);
   const [selectedRevision, setSelectedRevision] = useState<number | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<KubeObjectInterface | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -68,6 +84,9 @@ export default function RollbackDialog(props: RollbackDialogProps) {
     setLoading(true);
     setError(null);
     setSelectedRevision(undefined);
+    setPreviewData(null);
+    setPreviewError(null);
+    setPreviewOpen(false);
 
     getRevisionHistory()
       .then(history => {
@@ -94,121 +113,193 @@ export default function RollbackDialog(props: RollbackDialogProps) {
     };
   }, [open, getRevisionHistory]);
 
+  useEffect(() => {
+    setPreviewData(null);
+    setPreviewError(null);
+    setPreviewOpen(false);
+  }, [selectedRevision]);
+
   function handleConfirm() {
     onConfirm(selectedRevision);
+  }
+
+  async function handlePreview() {
+    if (selectedRevision === undefined) {
+      return;
+    }
+
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewData(null);
+
+    try {
+      const result = await resource.rollback({
+        toRevision: selectedRevision,
+        dryRun: true,
+      });
+
+      if (result.success && result.dryRunResult) {
+        setPreviewData(result.dryRunResult);
+        setPreviewOpen(true);
+      } else if (!result.success) {
+        setPreviewError(result.message);
+      } else {
+        setPreviewError(t('translation|Preview data not available'));
+      }
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPreviewLoading(false);
+    }
   }
 
   const hasPreviousRevisions = revisions.filter(r => !r.isCurrent).length > 0;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{t('translation|Rollback {{ kind }}', { kind: resourceKind })}</DialogTitle>
-      <DialogContent>
-        {loading && (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-            {t('translation|Loading revision history…')}
-          </Typography>
-        )}
-        {error && (
-          <Typography variant="body2" color="error" sx={{ py: 2 }}>
-            {t('translation|Failed to load revision history: {{ error }}', { error })}
-          </Typography>
-        )}
-        {!loading && !error && (
-          <>
-            <Typography variant="body2" sx={{ mb: 2 }}>
-              {t(
-                'translation|Select a revision to rollback "{{ name }}" to. This will replace the current pod template with the one from the selected revision.',
-                { name: resourceName }
-              )}
+    <>
+      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+        <DialogTitle>{t('translation|Rollback {{ kind }}', { kind: resourceKind })}</DialogTitle>
+        <DialogContent>
+          {loading && (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+              {t('translation|Loading revision history…')}
             </Typography>
-            {!hasPreviousRevisions ? (
-              <Typography variant="body2" color="text.secondary">
-                {t('translation|No previous revisions available to rollback to.')}
+          )}
+          {error && (
+            <Typography variant="body2" color="error" sx={{ py: 2 }}>
+              {t('translation|Failed to load revision history: {{ error }}', { error })}
+            </Typography>
+          )}
+          {!loading && !error && (
+            <>
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                {t(
+                  'translation|Select a revision to rollback "{{ name }}" to. This will replace the current pod template with the one from the selected revision.',
+                  { name: resourceName }
+                )}
               </Typography>
-            ) : (
-              <List sx={{ maxHeight: 320, overflow: 'auto' }}>
-                {revisions.map(rev => (
-                  <ListItemButton
-                    key={rev.revision}
-                    selected={selectedRevision === rev.revision}
-                    onClick={() => {
-                      if (!rev.isCurrent) {
-                        setSelectedRevision(rev.revision);
-                      }
-                    }}
-                    disabled={rev.isCurrent}
-                    sx={{
-                      borderRadius: 1,
-                      mb: 0.5,
-                      border: '1px solid',
-                      borderColor: selectedRevision === rev.revision ? 'primary.main' : 'divider',
-                    }}
-                  >
-                    <Radio
-                      checked={selectedRevision === rev.revision}
-                      disabled={rev.isCurrent}
-                      size="small"
-                      sx={{ mr: 1 }}
-                    />
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2" fontWeight="medium">
-                            {t('translation|Revision {{ revision }}', {
-                              revision: rev.revision,
-                            })}
-                          </Typography>
-                          {rev.isCurrent && (
-                            <Chip
-                              label={t('translation|Current')}
-                              size="small"
-                              color="primary"
-                              variant="outlined"
-                            />
-                          )}
-                        </Box>
-                      }
-                      secondary={
-                        <Box component="span">
-                          <Typography variant="caption" color="text.secondary" component="span">
-                            <DateLabel date={rev.createdAt} />
-                          </Typography>
-                          {rev.images.length > 0 && (
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                              component="span"
-                              sx={{ display: 'block' }}
-                            >
-                              {rev.images.map((img, i) => (
-                                <Box key={i} component="span" sx={{ display: 'block' }}>
-                                  {img}
-                                </Box>
-                              ))}
-                            </Typography>
-                          )}
-                        </Box>
-                      }
-                    />
-                  </ListItemButton>
-                ))}
-              </List>
-            )}
-          </>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>{t('translation|Cancel')}</Button>
-        <Button
-          onClick={handleConfirm}
-          variant="contained"
-          color="primary"
-          disabled={!hasPreviousRevisions || selectedRevision === undefined || loading}
-        >
-          {t('translation|Rollback')}
-        </Button>
-      </DialogActions>
-    </Dialog>
+              {!hasPreviousRevisions ? (
+                <Typography variant="body2" color="text.secondary">
+                  {t('translation|No previous revisions available to rollback to.')}
+                </Typography>
+              ) : (
+                <>
+                  <List sx={{ maxHeight: 320, overflow: 'auto' }}>
+                    {revisions.map(rev => (
+                      <ListItemButton
+                        key={rev.revision}
+                        selected={selectedRevision === rev.revision}
+                        onClick={() => {
+                          if (!rev.isCurrent) {
+                            setSelectedRevision(rev.revision);
+                          }
+                        }}
+                        disabled={rev.isCurrent}
+                        sx={{
+                          borderRadius: 1,
+                          mb: 0.5,
+                          border: '1px solid',
+                          borderColor:
+                            selectedRevision === rev.revision ? 'primary.main' : 'divider',
+                        }}
+                      >
+                        <Radio
+                          checked={selectedRevision === rev.revision}
+                          disabled={rev.isCurrent}
+                          size="small"
+                          sx={{ mr: 1 }}
+                        />
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body2" fontWeight="medium">
+                                {t('translation|Revision {{ revision }}', {
+                                  revision: rev.revision,
+                                })}
+                              </Typography>
+                              {rev.isCurrent && (
+                                <Chip
+                                  label={t('translation|Current')}
+                                  size="small"
+                                  color="primary"
+                                  variant="outlined"
+                                />
+                              )}
+                            </Box>
+                          }
+                          secondary={
+                            <Box component="span">
+                              <Typography variant="caption" color="text.secondary" component="span">
+                                <DateLabel date={rev.createdAt} />
+                              </Typography>
+                              {rev.images.length > 0 && (
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  component="span"
+                                  sx={{ display: 'block' }}
+                                >
+                                  {rev.images.map((img, i) => (
+                                    <Box key={i} component="span" sx={{ display: 'block' }}>
+                                      {img}
+                                    </Box>
+                                  ))}
+                                </Typography>
+                              )}
+                            </Box>
+                          }
+                        />
+                      </ListItemButton>
+                    ))}
+                  </List>
+
+                  {/* Dry-run error */}
+                  {previewError && (
+                    <Alert severity="error" sx={{ mt: 2 }}>
+                      {t('translation|Dry-run failed: {{ error }}', { error: previewError })}
+                    </Alert>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>{t('translation|Cancel')}</Button>
+          <Button
+            onClick={handlePreview}
+            variant="outlined"
+            disabled={
+              !hasPreviousRevisions || selectedRevision === undefined || loading || previewLoading
+            }
+            startIcon={previewLoading ? <CircularProgress size={16} /> : undefined}
+          >
+            {previewLoading ? t('translation|Previewing…') : t('translation|Preview')}
+          </Button>
+          <Button
+            onClick={handleConfirm}
+            variant="contained"
+            color="primary"
+            disabled={!hasPreviousRevisions || selectedRevision === undefined || loading}
+          >
+            {t('translation|Rollback')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Full YAML preview using read-only Monaco editor */}
+      {previewOpen && previewData && (
+        <DryRunPreviewDialog
+          open={previewOpen}
+          item={previewData}
+          onClose={() => setPreviewOpen(false)}
+          title={t('translation|Dry-Run Preview: {{ kind }}/{{ name }} → Revision {{ revision }}', {
+            kind: resourceKind,
+            name: resourceName,
+            revision: selectedRevision,
+          })}
+        />
+      )}
+    </>
   );
 }
