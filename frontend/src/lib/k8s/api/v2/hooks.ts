@@ -25,7 +25,7 @@ import type { KubeListUpdateEvent } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { useWebSocket } from './multiplexer';
-import { getWebsocketMultiplexerEnabled } from './useKubeObjectList';
+import { useWebsocketMultiplexerEnabled } from './useKubeObjectList';
 import { useWebSockets } from './webSocket';
 
 export type QueryStatus = 'pending' | 'success' | 'error';
@@ -171,31 +171,30 @@ export function useKubeObject<K extends KubeObject>({
     ];
   }, [endpoint]);
 
-  // Breaking rules of hooks here a little but
-  // getWebsocketMultiplexerEnabled is a feature toggle
-  // and not a variable so this `if` should never change during runtime
-  if (getWebsocketMultiplexerEnabled()) {
-    useWebSocket<KubeListUpdateEvent<K>>({
-      url: () =>
-        makeUrl([KubeObjectEndpoint.toUrl(endpoint!)], {
-          ...cleanedUpQueryParams,
-          watch: 1,
-          fieldSelector: `metadata.name=${name}`,
-        }),
-      enabled: !!endpoint && !!data,
-      cluster,
-      onMessage(update: KubeListUpdateEvent<K>) {
-        if (update.type !== 'ADDED' && update.object) {
-          client.setQueryData(queryKey, new kubeObjectClass(update.object));
-        }
-      },
-    });
-  } else {
-    useWebSockets({
-      enabled: !!endpoint && !!data,
-      connections: connectionsRequests,
-    });
-  }
+  const isMultiplexerEnabled = useWebsocketMultiplexerEnabled();
+
+  // Call both hooks unconditionally to comply with Rules of Hooks,
+  // but only enable the one matching the multiplexer setting
+  useWebSocket<KubeListUpdateEvent<K>>({
+    url: () =>
+      makeUrl([KubeObjectEndpoint.toUrl(endpoint!)], {
+        ...cleanedUpQueryParams,
+        watch: 1,
+        fieldSelector: `metadata.name=${name}`,
+      }),
+    enabled: isMultiplexerEnabled && !!endpoint && !!data,
+    cluster,
+    onMessage(update: KubeListUpdateEvent<K>) {
+      if (update.type !== 'ADDED' && update.object) {
+        client.setQueryData(queryKey, new kubeObjectClass(update.object));
+      }
+    },
+  });
+
+  useWebSockets({
+    enabled: !isMultiplexerEnabled && !!endpoint && !!data,
+    connections: connectionsRequests,
+  });
 
   // @ts-ignore
   return {

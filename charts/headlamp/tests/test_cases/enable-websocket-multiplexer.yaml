@@ -1,0 +1,4 @@
+# Test case: Enable WebSocket multiplexer
+# Should include -enable-websocket-multiplexer flag in deployment args
+config:
+  enableWebsocketMultiplexer: true

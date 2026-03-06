@@ -110,6 +110,8 @@ config:
   # -- directory to look for plugins
   pluginsDir: "/headlamp/plugins"
   enableHelm: false
+  # -- Enable experimental WebSocket multiplexer for improved performance
+  enableWebsocketMultiplexer: false
   watchPlugins: false
   # tlsCertPath: "/headlamp-cert/headlamp-ca.crt"
   # tlsKeyPath: "/headlamp-cert/headlamp-tls.key"
