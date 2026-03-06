@@ -572,6 +572,92 @@
       "items": {
         "type": "string"
       }
+    },
+    "probes": {
+      "type": "object",
+      "description": "Probe configuration for liveness and readiness checks",
+      "properties": {
+        "scheme": {
+          "type": "string",
+          "description": "Scheme for probes (HTTP or HTTPS). Set to HTTPS when TLS is enabled at the backend server.",
+          "enum": ["HTTP", "HTTPS"],
+          "default": "HTTP"
+        },
+        "livenessProbe": {
+          "type": "object",
+          "description": "Liveness probe settings",
+          "properties": {
+            "initialDelaySeconds": {
+              "type": "integer",
+              "description": "Initial delay in seconds before starting liveness probe",
+              "minimum": 0,
+              "default": 0
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "description": "Period in seconds between liveness probe checks",
+              "minimum": 1,
+              "default": 10
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Timeout in seconds for liveness probe",
+              "minimum": 1,
+              "default": 1
+            },
+            "successThreshold": {
+              "type": "integer",
+              "description": "Minimum consecutive successes for the probe to be considered successful (must be 1 for liveness probes per Kubernetes API)",
+              "minimum": 1,
+              "maximum": 1,
+              "const": 1,
+              "default": 1
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "Minimum consecutive failures for the probe to be considered failed",
+              "minimum": 1,
+              "default": 3
+            }
+          }
+        },
+        "readinessProbe": {
+          "type": "object",
+          "description": "Readiness probe settings",
+          "properties": {
+            "initialDelaySeconds": {
+              "type": "integer",
+              "description": "Initial delay in seconds before starting readiness probe",
+              "minimum": 0,
+              "default": 0
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "description": "Period in seconds between readiness probe checks",
+              "minimum": 1,
+              "default": 10
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Timeout in seconds for readiness probe",
+              "minimum": 1,
+              "default": 1
+            },
+            "successThreshold": {
+              "type": "integer",
+              "description": "Minimum consecutive successes for the probe to be considered successful",
+              "minimum": 1,
+              "default": 1
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "Minimum consecutive failures for the probe to be considered failed",
+              "minimum": 1,
+              "default": 3
+            }
+          }
+        }
+      }
     }
   }
 }
