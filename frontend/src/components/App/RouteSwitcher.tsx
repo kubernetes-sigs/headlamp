@@ -150,6 +150,7 @@ interface AuthRouteProps {
   requiresAuth: boolean;
   requiresCluster: boolean;
   requiresToken: () => boolean;
+  clusters: ReturnType<typeof useClustersConf>;
   [otherProps: string]: any;
 }
 
@@ -160,15 +161,24 @@ function AuthRoute(props: AuthRouteProps) {
     requiresAuth = true,
     requiresCluster = true,
     computedMatch = {},
+    clusters,
     ...other
   } = props;
 
   useSidebarItem(sidebar, computedMatch);
   const cluster = useCluster();
+
+  // Get the cluster's auth type - for tsh/exec/client-cert, the backend handles auth
+  const clusterConfig = cluster && clusters ? clusters[cluster] : null;
+  const authType = clusterConfig?.auth_type || '';
+  const isExecOrCertAuth = authType === 'tsh' || authType === 'exec' || authType === 'client-cert';
+
   const query = useQuery({
-    queryKey: ['auth', cluster],
-    queryFn: () => testAuth(cluster!),
-    enabled: !!cluster && requiresAuth,
+    queryKey: ['auth', cluster, authType],
+    queryFn: () => testAuth(cluster!, { authType }),
+    // Run auth test for all auth types including exec/client-cert
+    // Wait for clusters to be loaded to ensure we have the correct authType
+    enabled: !!cluster && requiresAuth && !!clusters,
     retry: 0,
   });
 
@@ -207,6 +217,30 @@ function AuthRoute(props: AuthRouteProps) {
     }
 
     if (query.isError) {
+      // For tsh/exec/client-cert auth, show a helpful error message
+      if (isExecOrCertAuth) {
+        let errorMessage: string;
+        if (authType === 'tsh') {
+          errorMessage =
+            'Teleport authentication failed. Please run `tsh login` to refresh your credentials, then reload this page in your browser.';
+        } else if (authType === 'exec') {
+          errorMessage =
+            'Exec credential plugin authentication failed. Please refresh your credentials and try again.';
+        } else {
+          errorMessage =
+            'Client certificate authentication failed. Please check your certificates.';
+        }
+        return (
+          <ErrorComponent
+            error={{
+              name: 'AuthenticationError',
+              message: errorMessage,
+              stack: query.error instanceof Error ? query.error.message : String(query.error),
+            }}
+          />
+        );
+      }
+
       return (
         <Redirect
           to={{
