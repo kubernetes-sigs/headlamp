@@ -66,7 +66,7 @@ jobs:
             exit 1
           fi
           echo "Setting hash and checksum"
-          read -r hash win_file_name <<< $(grep 'win-x64' ./checksums.txt)
+          read -r hash win_file_name <<< $(grep "$LATEST_HEADLAMP_TAG" ./checksums.txt | grep 'win-x64')
           echo "Hash: $hash"
           echo "Win file name: $win_file_name"
           echo "WIN_FILE_NAME=$win_file_name" >> $GITHUB_ENV
