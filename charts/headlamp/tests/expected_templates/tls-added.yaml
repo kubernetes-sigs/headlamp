@@ -116,6 +116,7 @@ spec:
             # Check if externalSecret is disabled
             - "-tls-cert-path=/headlamp-cert/headlamp-ca.crt"
             - "-tls-key-path=/headlamp-cert/headlamp-tls.key"
+            - "-filters-warnings-only=true"
           ports:
             - name: http
               containerPort: 4466

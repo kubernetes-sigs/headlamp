@@ -64,4 +64,6 @@ type HeadlampCFG struct {
 	TLSCertPath            string
 	TLSKeyPath             string
 	SessionTTL             int
+	PrometheusEndpoint     string
+	FiltersWarningsOnly    bool
 }
