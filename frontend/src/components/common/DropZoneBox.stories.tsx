@@ -34,7 +34,6 @@ UploadFiles.args = {
       <Typography sx={{ m: 2 }}>{'Select a file or drag and drop here'}</Typography>
       <Button
         variant="contained"
-        component="label"
         startIcon={<InlineIcon icon="mdi:upload" width={32} />}
         sx={{ fontWeight: 500 }}
       >
