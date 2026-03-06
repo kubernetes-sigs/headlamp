@@ -31,6 +31,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -228,6 +229,133 @@ func TestDialWebSocket_Errors(t *testing.T) {
 	ws, err = m.dialWebSocket("ws://localhost:12345", tlsConfig, "", nil)
 	assert.Error(t, err)
 	assert.Nil(t, ws)
+}
+
+// TestDialWebSocket_BadHandshakeLogging verifies that when a WebSocket dial fails
+// due to a bad handshake (e.g., connecting to an HTTP server instead of a WebSocket),
+// the error logging doesn't cause JSON marshaling errors from function fields in the response.
+func TestDialWebSocket_BadHandshakeLogging(t *testing.T) {
+	// Create an HTTP server that returns a non-WebSocket response
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Return a normal HTTP response instead of upgrading to WebSocket
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("Not a WebSocket server"))
+	}))
+	defer server.Close()
+
+	// Capture log calls to verify no marshaling errors occur
+	var marshalingError bool
+
+	originalLogFunc := logger.SetLogFunc(func(level uint, str map[string]string, err interface{}, msg string) {
+		// Verify that if err is not nil, it's not an *http.Response
+		if _, isHTTPResp := err.(*http.Response); isHTTPResp {
+			marshalingError = true
+		}
+	})
+	defer logger.SetLogFunc(originalLogFunc)
+
+	contextStore := kubeconfig.NewContextStore()
+	m := NewMultiplexer(contextStore)
+
+	// Convert HTTP URL to WebSocket URL
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+
+	// This should fail with a "bad handshake" error and log the response
+	ws, err := m.dialWebSocket(wsURL, tlsConfig, "", nil)
+
+	assert.Error(t, err)
+	assert.Nil(t, ws)
+	assert.Contains(t, err.Error(), "bad handshake")
+	assert.False(t, marshalingError, "Logger should not receive non-serializable *http.Response")
+}
+
+// TestCreateWebSocketURL verifies that the createWebSocketURL function correctly converts
+// HTTP/HTTPS schemes to WebSocket schemes (ws/wss).
+func TestCreateWebSocketURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		host     string
+		path     string
+		query    string
+		expected string
+	}{
+		{
+			name:     "HTTPS to WSS",
+			host:     "https://kubernetes.default.svc:443",
+			path:     "/api/v1/namespaces/default/pods/test-pod/log",
+			query:    "follow=true&container=test",
+			expected: "wss://kubernetes.default.svc:443/api/v1/namespaces/default/pods/test-pod/log?follow=true&container=test",
+		},
+		{
+			name:     "HTTP to WS",
+			host:     "http://localhost:8080",
+			path:     "/api/v1/pods",
+			query:    "",
+			expected: "ws://localhost:8080/api/v1/pods",
+		},
+		{
+			name:     "HTTPS with path in host",
+			host:     "https://example.com/k8s",
+			path:     "/api/v1/pods",
+			query:    "watch=true",
+			expected: "wss://example.com/api/v1/pods?watch=true",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := createWebSocketURL(tt.host, tt.path, tt.query)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestCreateWebSocketURLEdgeCases tests edge cases for WebSocket URL creation.
+func TestCreateWebSocketURLEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		host     string
+		path     string
+		query    string
+		expected string
+	}{
+		{
+			name:     "WS scheme preserved",
+			host:     "ws://localhost:8080",
+			path:     "/api/v1/pods",
+			query:    "",
+			expected: "ws://localhost:8080/api/v1/pods",
+		},
+		{
+			name:     "WSS scheme preserved",
+			host:     "wss://kubernetes.default.svc:443",
+			path:     "/api/v1/pods",
+			query:    "",
+			expected: "wss://kubernetes.default.svc:443/api/v1/pods",
+		},
+		{
+			name:     "Empty scheme defaults to WSS",
+			host:     "kubernetes.default.svc:443",
+			path:     "/api/v1/pods",
+			query:    "",
+			expected: "wss://kubernetes.default.svc:443/api/v1/pods",
+		},
+		{
+			name:     "Unknown scheme defaults to WSS",
+			host:     "custom://kubernetes.default.svc:443",
+			path:     "/api/v1/pods",
+			query:    "",
+			expected: "wss://kubernetes.default.svc:443/api/v1/pods",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := createWebSocketURL(tt.host, tt.path, tt.query)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }
 
 func TestMonitorConnection(t *testing.T) {
