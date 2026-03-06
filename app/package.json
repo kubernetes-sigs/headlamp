@@ -106,6 +106,10 @@
       "extraResources": [
         {
           "from": "../backend/headlamp-server"
+        },
+        {
+          "from": "assets/",
+          "to": "assets/"
         }
       ]
     },
