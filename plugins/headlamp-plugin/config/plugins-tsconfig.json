@@ -41,5 +41,6 @@
     "rootDirs": ["node_modules/@kinvolk/headlamp-plugin/"],
     "skipLibCheck": true
   },
+  "files": ["./svg.d.ts"],
   "include": ["./../../../../src/**/*"]
 }
