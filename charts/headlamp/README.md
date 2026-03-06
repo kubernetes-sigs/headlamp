@@ -87,6 +87,7 @@ $ helm install my-headlamp headlamp/headlamp \
 | config.oidc.issuerURL | string | `""` | OIDC issuer URL |
 | config.oidc.scopes | string | `""` | OIDC scopes to be used |
 | config.oidc.usePKCE | bool | `false` | Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow |
+| confgi.oidc.autoLogin | bool | `false` | Enable Automatic redirect to OIDC provider |
 | config.oidc.secret.create | bool | `true` | Create OIDC secret using provided values |
 | config.oidc.secret.name | string | `"oidc"` | Name of the OIDC secret |
 | config.oidc.externalSecret.enabled | bool | `false` | Enable using external secret for OIDC |
@@ -103,6 +104,7 @@ config:
     clientSecret: "your-client-secret"
     issuerURL: "https://your-issuer"
     scopes: "openid profile email"
+    autoLogin: true
     meUserInfoURL: "https://headlamp.example.com/oauth2/userinfo"
 ```
 

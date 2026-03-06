@@ -68,6 +68,10 @@ export interface ConfigState {
     useEvict: boolean;
     [key: string]: any;
   };
+  /**
+   * Whether OIDC auto-login is enabled. Null indicates the value hasn't been loaded from the backend yet.
+   */
+  oidcAutoLogin: boolean | null;
 }
 
 export const defaultTableRowsPerPageOptions = [15, 25, 50];
@@ -84,6 +88,7 @@ export const initialState: ConfigState = {
   allClusters: null,
   isDynamicClusterEnabled: false,
   allowKubeconfigChanges: false,
+  oidcAutoLogin: null,
   settings: {
     tableRowsPerPageOptions:
       storedSettings.tableRowsPerPageOptions || defaultTableRowsPerPageOptions,
@@ -108,9 +113,14 @@ const configSlice = createSlice({
         clusters: ConfigState['clusters'];
         isDynamicClusterEnabled?: boolean;
         allowKubeconfigChanges?: boolean;
+        oidcAutoLogin?: boolean;
       }>
     ) {
       state.clusters = action.payload.clusters;
+
+      if (action.payload.oidcAutoLogin !== undefined) {
+        state.oidcAutoLogin = action.payload.oidcAutoLogin;
+      }
       if (action.payload.isDynamicClusterEnabled !== undefined) {
         state.isDynamicClusterEnabled = action.payload.isDynamicClusterEnabled;
       }
