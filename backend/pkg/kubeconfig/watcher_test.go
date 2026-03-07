@@ -1,6 +1,7 @@
 package kubeconfig_test
 
 import (
+	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -14,6 +15,10 @@ import (
 
 //nolint:funlen
 func TestWatchAndLoadFiles(t *testing.T) {
+	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {
+		t.Skip("skipping integration test")
+	}
+
 	paths := []string{"./test_data/kubeconfig1", "./test_data/kubeconfig2"}
 
 	var path string

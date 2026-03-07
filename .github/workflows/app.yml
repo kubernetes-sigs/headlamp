@@ -45,6 +45,8 @@ jobs:
     - name: App linux
       run: |
         make app-linux
+    - name: Verify Linux build
+      run: npm run app:verify-build-linux
   build-windows:
     runs-on: windows-2025
     strategy:
@@ -69,6 +71,9 @@ jobs:
       run: make app-tsc
     - name: App Windows
       run: make app-win
+    - name: Verify Windows build
+      shell: pwsh
+      run: npm run app:verify-build-windows
   build-mac:
     runs-on: macos-latest
     strategy:
@@ -92,3 +97,5 @@ jobs:
     - name: App Mac
       run: |
         make app-mac
+    - name: Verify Mac build
+      run: npm run app:verify-build-mac
