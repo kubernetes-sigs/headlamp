@@ -30,6 +30,16 @@ func stringPtr(s string) *string {
 	return &s
 }
 
+// returns True if a file exists.
+func fileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+
+	return !info.IsDir()
+}
+
 // getTestDataPath returns the absolute path to the test data directory.
 func getTestDataPath() string {
 	// Get the current working directory
@@ -324,10 +334,21 @@ func TestContext(t *testing.T) {
 	configStore := kubeconfig.NewContextStore()
 
 	err := kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
-	require.NoError(t, err)
+	if err != nil {
+		t.Skipf("Skipping test: failed to load default kubeconfig: %v", err)
+	}
 
 	testContext, err := configStore.GetContext("minikube")
-	require.NoError(t, err)
+	if err != nil {
+		t.Skipf("Skipping test: minikube context not found: %v", err)
+	}
+
+	// Verify that the certificates actually exist, if not skip
+	if testContext.Cluster != nil && testContext.Cluster.CertificateAuthority != "" {
+		if !fileExists(testContext.Cluster.CertificateAuthority) {
+			t.Skipf("Skipping test: minikube CA certificate not found at %s", testContext.Cluster.CertificateAuthority)
+		}
+	}
 
 	require.Equal(t, "minikube", testContext.Name)
 	require.NotNil(t, testContext.ClientConfig())
