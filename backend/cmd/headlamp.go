@@ -2099,8 +2099,8 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 	}, nil, "Completed stateless cluster rename")
 }
 
-// customNameToExtenstions writes the custom name to the Extensions map in the kubeconfig.
-func customNameToExtenstions(config *api.Config, contextName, newClusterName, path string) error {
+// customNameToExtensions writes the custom name to the Extensions map in the kubeconfig.
+func customNameToExtensions(config *api.Config, contextName, newClusterName, path string) error {
 	var err error
 
 	// Get the context with the given cluster name
@@ -2249,7 +2249,7 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 
 	contextName := findMatchingContextName(config, clusterName)
 
-	if err := customNameToExtenstions(config, contextName, reqBody.NewClusterName, path); err != nil {
+	if err := customNameToExtensions(config, contextName, reqBody.NewClusterName, path); err != nil {
 		c.handleError(w, ctx, span, err, "failed to write custom extension", http.StatusInternalServerError)
 		return err
 	}
@@ -2266,11 +2266,14 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 }
 
 // findMatchingContextName checks all contexts, returning the key for whichever
-// has a matching customObj.CustomName, if any.
+// has a matching customObj.CustomName, if any. It also handles the case where
+// the clusterName is a DNS-friendly version of the original context key
+// (e.g. slashes replaced with double dashes by MakeDNSFriendly).
 func findMatchingContextName(config *api.Config, clusterName string) string {
 	contextName := clusterName
 
 	for k, v := range config.Contexts {
+		// Check if there's a headlamp_info extension with a matching custom name.
 		info := v.Extensions["headlamp_info"]
 		if info != nil {
 			customObj, err := MarshalCustomObject(info, contextName)
@@ -2281,8 +2284,15 @@ func findMatchingContextName(config *api.Config, clusterName string) string {
 			}
 
 			if customObj.CustomName != "" && customObj.CustomName == clusterName {
-				contextName = k
+				return k
 			}
+		}
+
+		// Check if the DNS-friendly version of this context key matches the clusterName.
+		// This handles cases like AWS ARNs where the original key contains slashes
+		// that were converted to double dashes by MakeDNSFriendly.
+		if kubeconfig.MakeDNSFriendly(k) == clusterName {
+			contextName = k
 		}
 	}
 
