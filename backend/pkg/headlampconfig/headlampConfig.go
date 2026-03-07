@@ -36,6 +36,11 @@ type HeadlampConfig struct {
 	MeEmailPaths              string
 	MeGroupsPaths             string
 	MeUserInfoURL             string
+	ProxyAuthEnabled          bool
+	ProxyAuthUsernameHeader   string
+	ProxyAuthGroupHeader      string
+	ProxyAuthEmailHeader      string
+	ProxyAuthTokenHeader      string
 }
 
 type HeadlampCFG struct {

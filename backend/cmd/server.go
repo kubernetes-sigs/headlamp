@@ -158,7 +158,15 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		cfg.OidcCACert = string(caFileContents)
 	}
 
-	return &HeadlampConfig{HeadlampConfig: cfg}
+	cfg.ProxyAuthEnabled = conf.ProxyAuthEnabled
+	cfg.ProxyAuthUsernameHeader = conf.ProxyAuthUsernameHeader
+	cfg.ProxyAuthGroupHeader = conf.ProxyAuthGroupHeader
+	cfg.ProxyAuthEmailHeader = conf.ProxyAuthEmailHeader
+	cfg.ProxyAuthTokenHeader = conf.ProxyAuthTokenHeader
+
+	return &HeadlampConfig{
+		HeadlampConfig: cfg,
+	}
 }
 
 // GetContextKeyAndContext returns Kcontext , ContextKey for using these in CacheMiddleWare function.

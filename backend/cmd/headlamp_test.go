@@ -2056,11 +2056,13 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 	clusterName := cfg.CurrentContext
 
 	if clusterName == "" {
-		clusters := (&HeadlampConfig{
+		cfgObj := &HeadlampConfig{
 			HeadlampConfig: &headlampconfig.HeadlampConfig{
 				HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
 			},
-		}).getClusters()
+		}
+		clusters := cfgObj.getClusters()
+
 		for _, c := range clusters {
 			if c.Error == "" {
 				clusterName = c.Name

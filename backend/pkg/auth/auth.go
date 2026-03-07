@@ -293,6 +293,11 @@ type MeHandlerOptions struct {
 	GroupsPaths string
 	// UserInfoURL is the URL to fetch additional user info for the /me endpoint.
 	UserInfoURL string
+	// ProxyAuthEnabled indicates if the identity proxy bypass is enabled
+	ProxyAuthEnabled        bool
+	ProxyAuthUsernameHeader string
+	ProxyAuthGroupHeader    string
+	ProxyAuthEmailHeader    string
 }
 
 // HandleMe returns a handler that reads the per-cluster auth cookie and responds with user info.
@@ -311,6 +316,10 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 		clusterName := mux.Vars(r)["clusterName"]
 		if clusterName == "" {
 			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{"message": "cluster not specified"})
+			return
+		}
+
+		if tryProxyAuth(w, r, opts, userInfoURL) {
 			return
 		}
 
@@ -364,7 +373,39 @@ func parseClaimsFromToken(token string) (map[string]interface{}, int, string) {
 	return claims, 0, ""
 }
 
-// writeMeResponse serializes the identity payload with the standard cache-busting headers.
+// tryProxyAuth checks if proxy auth is enabled and a proxy user header exists.
+// If valid, it writes the response and returns true, allowing the caller to return early.
+// Otherwise, it returns false.
+func tryProxyAuth(w http.ResponseWriter, r *http.Request, opts MeHandlerOptions, userInfoURL string) bool {
+	if !opts.ProxyAuthEnabled {
+		return false
+	}
+
+	username := r.Header.Get(opts.ProxyAuthUsernameHeader)
+	if username == "" {
+		return false
+	}
+
+	email := r.Header.Get(opts.ProxyAuthEmailHeader)
+	groupsRaw := r.Header.Get(opts.ProxyAuthGroupHeader)
+
+	var groups []string
+
+	if groupsRaw != "" {
+		for _, group := range strings.Split(groupsRaw, ",") {
+			group = strings.TrimSpace(group)
+			if group != "" {
+				groups = append(groups, group)
+			}
+		}
+	}
+
+	writeMeResponse(w, username, email, groups, userInfoURL)
+
+	return true
+}
+
+// writeMeResponse writes the successful response for HandleMe with the standard cache-busting headers.
 func writeMeResponse(w http.ResponseWriter, username, email string, groups []string, userInfoURL string) {
 	writeMeJSON(w, http.StatusOK, map[string]interface{}{
 		"username":    username,

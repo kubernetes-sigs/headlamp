@@ -47,6 +47,12 @@ func TestParseBasic(t *testing.T) {
 				assert.Equal(t, config.DefaultMeEmailPath, conf.MeEmailPath)
 				assert.Equal(t, config.DefaultMeGroupsPath, conf.MeGroupsPath)
 				assert.Equal(t, "info", conf.LogLevel)
+				// proxy-auth defaults
+				assert.Equal(t, false, conf.ProxyAuthEnabled)
+				assert.Equal(t, "X-Forwarded-User", conf.ProxyAuthUsernameHeader)
+				assert.Equal(t, "X-Forwarded-Group", conf.ProxyAuthGroupHeader)
+				assert.Equal(t, "X-Forwarded-Email", conf.ProxyAuthEmailHeader)
+				assert.Equal(t, "X-Forwarded-Id-Token", conf.ProxyAuthTokenHeader)
 			},
 		},
 		{
@@ -150,6 +156,34 @@ var ParseWithEnvTests = []struct {
 		},
 		verify: func(t *testing.T, conf *config.Config) {
 			assert.Equal(t, "warn", conf.LogLevel)
+		},
+	},
+	{
+		name: "proxy_auth_enabled_from_env",
+		args: []string{"go run ./cmd"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_PROXY_AUTH": "true",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.ProxyAuthEnabled)
+		},
+	},
+	{
+		name: "proxy_auth_headers_from_env",
+		args: []string{"go run ./cmd"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_PROXY_AUTH":                 "true",
+			"HEADLAMP_CONFIG_PROXY_AUTH_USERNAME_HEADER": "X-Env-User",
+			"HEADLAMP_CONFIG_PROXY_AUTH_GROUP_HEADER":    "X-Env-Group",
+			"HEADLAMP_CONFIG_PROXY_AUTH_EMAIL_HEADER":    "X-Env-Email",
+			"HEADLAMP_CONFIG_PROXY_AUTH_TOKEN_HEADER":    "X-Env-Token-Header", // #nosec G101
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.ProxyAuthEnabled)
+			assert.Equal(t, "X-Env-User", conf.ProxyAuthUsernameHeader)
+			assert.Equal(t, "X-Env-Group", conf.ProxyAuthGroupHeader)
+			assert.Equal(t, "X-Env-Email", conf.ProxyAuthEmailHeader)
+			assert.Equal(t, "X-Env-Token-Header", conf.ProxyAuthTokenHeader)
 		},
 	},
 }
@@ -259,6 +293,60 @@ func TestParseFlags(t *testing.T) {
 			args: []string{"go run ./cmd", "--log-level=warn"},
 			verify: func(t *testing.T, conf *config.Config) {
 				assert.Equal(t, "warn", conf.LogLevel)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			require.NoError(t, err)
+			require.NotNil(t, conf)
+
+			tt.verify(t, conf)
+		})
+	}
+}
+
+func TestProxyAuthFlags(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		verify func(*testing.T, *config.Config)
+	}{
+		{
+			name: "proxy_auth_enabled_flag",
+			args: []string{"go run ./cmd", "--proxy-auth"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, true, conf.ProxyAuthEnabled)
+			},
+		},
+		{
+			name: "proxy_auth_username_header_flag",
+			args: []string{"go run ./cmd", "--proxy-auth-username-header=X-Custom-User"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, "X-Custom-User", conf.ProxyAuthUsernameHeader)
+			},
+		},
+		{
+			name: "proxy_auth_group_header_flag",
+			args: []string{"go run ./cmd", "--proxy-auth-group-header=X-Custom-Group"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, "X-Custom-Group", conf.ProxyAuthGroupHeader)
+			},
+		},
+		{
+			name: "proxy_auth_email_header_flag",
+			args: []string{"go run ./cmd", "--proxy-auth-email-header=X-Custom-Email"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, "X-Custom-Email", conf.ProxyAuthEmailHeader)
+			},
+		},
+		{
+			name: "proxy_auth_token_header_flag",
+			args: []string{"go run ./cmd", "--proxy-auth-token-header=X-Custom-Token"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, "X-Custom-Token", conf.ProxyAuthTokenHeader)
 			},
 		},
 	}
@@ -636,4 +724,42 @@ func TestDefaultHeadlampKubeConfigFile(t *testing.T) {
 	info, err := os.Stat(filepath.Dir(path))
 	require.NoError(t, err)
 	assert.True(t, info.IsDir())
+}
+
+func TestProxyAuthFlagOverridesEnv(t *testing.T) {
+	// Single header override.
+	t.Run("flag_overrides_env_username_header", func(t *testing.T) {
+		t.Setenv("HEADLAMP_CONFIG_PROXY_AUTH_USERNAME_HEADER", "X-Env-User")
+
+		conf, err := config.Parse([]string{"go run ./cmd", "--proxy-auth-username-header=X-Flag-User"})
+		require.NoError(t, err)
+		assert.Equal(t, "X-Flag-User", conf.ProxyAuthUsernameHeader)
+	})
+
+	// All proxy auth flags override corresponding env vars.
+	t.Run("flag_overrides_env_all_proxy_auth", func(t *testing.T) {
+		for k, v := range map[string]string{
+			"HEADLAMP_CONFIG_PROXY_AUTH":                 "false",
+			"HEADLAMP_CONFIG_PROXY_AUTH_USERNAME_HEADER": "X-Env-User",
+			"HEADLAMP_CONFIG_PROXY_AUTH_GROUP_HEADER":    "X-Env-Group",
+			"HEADLAMP_CONFIG_PROXY_AUTH_EMAIL_HEADER":    "X-Env-Email",
+			"HEADLAMP_CONFIG_PROXY_AUTH_TOKEN_HEADER":    "X-Env-Token-Header", // #nosec G101
+		} {
+			t.Setenv(k, v)
+		}
+
+		conf, err := config.Parse([]string{
+			"go run ./cmd", "--proxy-auth",
+			"--proxy-auth-username-header=X-Flag-User",
+			"--proxy-auth-group-header=X-Flag-Group",
+			"--proxy-auth-email-header=X-Flag-Email",
+			"--proxy-auth-token-header=X-Flag-Token",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, true, conf.ProxyAuthEnabled)
+		assert.Equal(t, "X-Flag-User", conf.ProxyAuthUsernameHeader)
+		assert.Equal(t, "X-Flag-Group", conf.ProxyAuthGroupHeader)
+		assert.Equal(t, "X-Flag-Email", conf.ProxyAuthEmailHeader)
+		assert.Equal(t, "X-Flag-Token", conf.ProxyAuthTokenHeader)
+	})
 }
