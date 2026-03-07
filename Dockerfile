@@ -6,7 +6,7 @@ FROM ${IMAGE_BASE} AS image-base
 FROM --platform=${BUILDPLATFORM} golang:1.24.13@sha256:c29cdf32d47053ab0d914852d9c2ed2da12b3cf13079aaef1704ef21335e68a3 AS backend-build
 
 WORKDIR /headlamp
-
+ENV TEST_ENV=test
 ARG TARGETOS
 ARG TARGETARCH
 ENV GOPATH=/go \
