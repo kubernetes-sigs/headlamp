@@ -72,6 +72,20 @@ export async function getClusterUserInfo(cluster = ''): Promise<ClusterUserInfo>
   }
 
   try {
+    const res = await clusterRequest('/me', { cluster: clusterName });
+    if (res && res.username) {
+      return {
+        username: res.username,
+        groups: res.groups,
+      };
+    }
+  } catch (error) {
+    if (isDebugVerbose('k8s/api/v1/clusterApi@getClusterUserInfo')) {
+      console.debug('Failed to get user info from /me for cluster', clusterName, error);
+    }
+  }
+
+  try {
     // Try SelfSubjectReview API (available in K8s 1.28+)
     const response = await post(
       '/apis/authentication.k8s.io/v1/selfsubjectreviews',

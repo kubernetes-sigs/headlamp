@@ -47,9 +47,9 @@ import (
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 
-	headlampcfg "github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -70,9 +70,13 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// HeadlampConfig wraps headlampconfig.HeadlampConfig and adds cmd-specific methods.
 type HeadlampConfig struct {
-	*headlampcfg.HeadlampConfig
+	*headlampconfig.HeadlampConfig
+	ProxyAuthEnabled        bool
+	ProxyAuthUsernameHeader string
+	ProxyAuthGroupHeader    string
+	ProxyAuthEmailHeader    string
+	ProxyAuthTokenHeader    string
 }
 
 const DrainNodeCacheTTL = 20 // seconds
@@ -528,10 +532,15 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	// Expose user info so the frontend can show the current user in the top bar using the per-cluster auth cookie.
 	r.HandleFunc("/clusters/{clusterName}/me",
 		auth.HandleMe(auth.MeHandlerOptions{
-			UsernamePaths: config.MeUsernamePaths,
-			EmailPaths:    config.MeEmailPaths,
-			GroupsPaths:   config.MeGroupsPaths,
-			UserInfoURL:   config.MeUserInfoURL,
+			UsernamePaths:           config.MeUsernamePaths,
+			EmailPaths:              config.MeEmailPaths,
+			GroupsPaths:             config.MeGroupsPaths,
+			UserInfoURL:             config.MeUserInfoURL,
+			ProxyAuthEnabled:        config.ProxyAuthEnabled,
+			ProxyAuthUsernameHeader: config.ProxyAuthUsernameHeader,
+			ProxyAuthGroupHeader:    config.ProxyAuthGroupHeader,
+			ProxyAuthEmailHeader:    config.ProxyAuthEmailHeader,
+			ProxyAuthTokenHeader:    config.ProxyAuthTokenHeader,
 		}),
 	).Methods("GET")
 
@@ -1488,8 +1497,15 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 		r.URL.Path = mux.Vars(r)["api"]
 		r.URL.Scheme = clusterURL.Scheme
 
-		token, err := auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
-		if err == nil && token != "" {
+		var token string
+		if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
+			token = r.Header.Get(c.ProxyAuthTokenHeader)
+		}
+		if token == "" {
+			token, _ = auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
+		}
+
+		if token != "" {
 			r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 		}
 

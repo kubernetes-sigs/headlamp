@@ -128,6 +128,10 @@ OneCluster.args = {
 OneCluster.parameters = {
   msw: {
     handlers: [
+      http.get(
+        'http://localhost:4466/clusters/ak8s-desktop/me',
+        () => new HttpResponse(null, { status: 404 })
+      ),
       http.post(
         'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
         () => HttpResponse.json({ status: { userInfo: { username: 'one-cluster-user' } } })
@@ -146,6 +150,10 @@ TwoCluster.args = {
 TwoCluster.parameters = {
   msw: {
     handlers: [
+      http.get(
+        'http://localhost:4466/clusters/ak8s-desktop/me',
+        () => new HttpResponse(null, { status: 404 })
+      ),
       http.post(
         'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
         () => HttpResponse.json({ status: { userInfo: { username: 'two-cluster-user' } } })
@@ -164,6 +172,10 @@ WithUserInfo.args = {
 WithUserInfo.parameters = {
   msw: {
     handlers: [
+      http.get(
+        'http://localhost:4466/clusters/ak8s-desktop/me',
+        () => new HttpResponse(null, { status: 404 })
+      ),
       http.post(
         'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
         () =>
@@ -189,6 +201,10 @@ WithEmailOnly.args = {
 WithEmailOnly.parameters = {
   msw: {
     handlers: [
+      http.get(
+        'http://localhost:4466/clusters/ak8s-desktop/me',
+        () => new HttpResponse(null, { status: 404 })
+      ),
       http.post(
         'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
         () =>
@@ -214,6 +230,10 @@ UndefinedData.args = {
 UndefinedData.parameters = {
   msw: {
     handlers: [
+      http.get(
+        'http://localhost:4466/clusters/ak8s-desktop/me',
+        () => new HttpResponse(null, { status: 404 })
+      ),
       // Return 404 to simulate missing API or data
       http.post(
         'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
@@ -233,6 +253,10 @@ EmptyUserInfo.args = {
 EmptyUserInfo.parameters = {
   msw: {
     handlers: [
+      http.get(
+        'http://localhost:4466/clusters/ak8s-desktop/me',
+        () => new HttpResponse(null, { status: 404 })
+      ),
       http.post(
         'http://localhost:4466/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews',
         () => HttpResponse.json({})
@@ -256,6 +280,14 @@ MultiCluster.args = {
 MultiCluster.parameters = {
   msw: {
     handlers: [
+      http.get(
+        'http://localhost:4466/clusters/admin-cluster/me',
+        () => new HttpResponse(null, { status: 404 })
+      ),
+      http.get(
+        'http://localhost:4466/clusters/view-cluster/me',
+        () => new HttpResponse(null, { status: 404 })
+      ),
       http.post(
         'http://localhost:4466/clusters/admin-cluster/apis/authentication.k8s.io/v1/selfsubjectreviews',
         () =>

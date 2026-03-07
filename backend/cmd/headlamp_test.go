@@ -1401,6 +1401,7 @@ func newHeadlampConfig(fakeK8s *httptest.Server, testName string) *HeadlampConfi
 			TelemetryHandler: &telemetry.RequestHandler{},
 			Cache:            cache.New[interface{}](),
 		},
+		ProxyAuthEnabled: false,
 	}
 }
 
@@ -1689,11 +1690,13 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 	clusterName := cfg.CurrentContext
 
 	if clusterName == "" {
-		clusters := (&HeadlampConfig{
+		cfgObj := &HeadlampConfig{
 			HeadlampConfig: &headlampconfig.HeadlampConfig{
 				HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
 			},
-		}).getClusters()
+			ProxyAuthEnabled: false,
+		}
+		clusters := cfgObj.getClusters()
 		for _, c := range clusters {
 			if c.Error == "" {
 				clusterName = c.Name
@@ -1720,6 +1723,7 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
 			TelemetryHandler: &telemetry.RequestHandler{},
 		},
+		ProxyAuthEnabled: false,
 	}
 
 	return c, clusterName
@@ -1865,6 +1869,7 @@ func TestHandleClusterServiceProxy(t *testing.T) {
 			TelemetryHandler: &telemetry.RequestHandler{},
 			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
 		},
+		ProxyAuthEnabled: false,
 	}
 
 	// Backend service the proxy should call

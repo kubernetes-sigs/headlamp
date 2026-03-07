@@ -283,6 +283,12 @@ type MeHandlerOptions struct {
 	GroupsPaths string
 	// UserInfoURL is the URL to fetch additional user info for the /me endpoint.
 	UserInfoURL string
+	// ProxyAuthEnabled indicates if the identity proxy bypass is enabled
+	ProxyAuthEnabled        bool
+	ProxyAuthUsernameHeader string
+	ProxyAuthGroupHeader    string
+	ProxyAuthEmailHeader    string
+	ProxyAuthTokenHeader    string
 }
 
 // HandleMe returns a handler that reads the per-cluster auth cookie and responds with user info.
@@ -302,6 +308,23 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 		if clusterName == "" {
 			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{"message": "cluster not specified"})
 			return
+		}
+
+		if opts.ProxyAuthEnabled {
+			username := r.Header.Get(opts.ProxyAuthUsernameHeader)
+			if username != "" {
+				email := r.Header.Get(opts.ProxyAuthEmailHeader)
+				groupsRaw := r.Header.Get(opts.ProxyAuthGroupHeader)
+				var groups []string
+				if groupsRaw != "" {
+					groups = strings.Split(groupsRaw, ",")
+					for i := range groups {
+						groups[i] = strings.TrimSpace(groups[i])
+					}
+				}
+				writeMeResponse(w, username, email, groups, userInfoURL)
+				return
+			}
 		}
 
 		requestCluster, token := ParseClusterAndToken(r)

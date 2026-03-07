@@ -958,6 +958,41 @@ func TestHandleMe_HeaderToken(t *testing.T) {
 	assert.Equal(t, []string{"dev", "ops"}, got.Groups)
 }
 
+func TestHandleMe_ProxyAuth(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodGet, "/clusters/test/me", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
+
+	req.Header.Set("X-Forwarded-User", "proxy_alice")
+	req.Header.Set("X-Forwarded-Email", "proxy_alice@example.com")
+	req.Header.Set("X-Forwarded-Group", "dev, ops")
+
+	rr := httptest.NewRecorder()
+
+	handler := auth.HandleMe(auth.MeHandlerOptions{
+		ProxyAuthEnabled:        true,
+		ProxyAuthUsernameHeader: "X-Forwarded-User",
+		ProxyAuthEmailHeader:    "X-Forwarded-Email",
+		ProxyAuthGroupHeader:    "X-Forwarded-Group",
+	})
+
+	handler(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var got struct {
+		Username string   `json:"username"`
+		Email    string   `json:"email"`
+		Groups   []string `json:"groups"`
+	}
+
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.Equal(t, "proxy_alice", got.Username)
+	assert.Equal(t, "proxy_alice@example.com", got.Email)
+	assert.Equal(t, []string{"dev", "ops"}, got.Groups)
+}
+
 func TestHandleMe_ExpiredToken(t *testing.T) {
 	t.Parallel()
 

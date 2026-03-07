@@ -73,6 +73,11 @@ type Config struct {
 	MeGroupsPath              string `koanf:"me-groups-path"`
 	MeUserInfoURL             string `koanf:"me-user-info-url"`
 	OidcUsePKCE               bool   `koanf:"oidc-use-pkce"`
+	ProxyAuthEnabled          bool   `koanf:"proxy-auth"`
+	ProxyAuthUsernameHeader   string `koanf:"proxy-auth-username-header"`
+	ProxyAuthGroupHeader      string `koanf:"proxy-auth-group-header"`
+	ProxyAuthEmailHeader      string `koanf:"proxy-auth-email-header"`
+	ProxyAuthTokenHeader      string `koanf:"proxy-auth-token-header"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -418,6 +423,7 @@ func flagset() *flag.FlagSet {
 
 	addGeneralFlags(f)
 	addOIDCFlags(f)
+	addProxyAuthFlags(f)
 	addTelemetryFlags(f)
 	addTLSFlags(f)
 
@@ -474,6 +480,14 @@ func addOIDCFlags(f *flag.FlagSet) {
 		"Comma separated JMESPath expressions used to read groups from the JWT payload")
 	f.String("me-user-info-url", DefaultMeUserInfoURL,
 		"URL to fetch additional user info for the /me endpoint. For oauth2proxy /oauth2/userinfo can be used.")
+}
+
+func addProxyAuthFlags(f *flag.FlagSet) {
+	f.Bool("proxy-auth", false, "Enable bypass of authentication when identity-aware proxy headers are present")
+	f.String("proxy-auth-username-header", "X-Forwarded-User", "Header name to read the authenticated username from")
+	f.String("proxy-auth-group-header", "X-Forwarded-Group", "Header name to read the authenticated groups from")
+	f.String("proxy-auth-email-header", "X-Forwarded-Email", "Header name to read the authenticated email from")
+	f.String("proxy-auth-token-header", "X-Forwarded-Id-Token", "Header name to read the proxy Id token from")
 }
 
 func addTelemetryFlags(f *flag.FlagSet) {
