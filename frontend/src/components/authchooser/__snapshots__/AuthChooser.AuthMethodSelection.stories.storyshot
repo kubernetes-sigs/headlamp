@@ -94,7 +94,7 @@
                     style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
                     tabindex="-1"
                   >
-                    some title
+                    Select an authentication method
                   </h1>
                 </div>
               </div>
@@ -102,6 +102,20 @@
             <div
               class="MuiBox-root css-0"
             >
+              <div
+                class="MuiBox-root css-1c5ij41"
+              >
+                <button
+                  class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-cupaeb-MuiButtonBase-root-MuiButton-root"
+                  tabindex="0"
+                  type="button"
+                >
+                  Sign In
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </button>
+              </div>
               <div
                 class="MuiBox-root css-1c5ij41"
               >
