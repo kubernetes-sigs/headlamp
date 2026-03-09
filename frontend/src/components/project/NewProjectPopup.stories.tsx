@@ -41,6 +41,7 @@ const makeStore = () => {
           'cluster-a': { name: 'cluster-a' },
           'cluster-b': { name: 'cluster-b' },
         } as any,
+        oidcAutoLogin: null,
         settings: {
           tableRowsPerPageOptions: [15, 25, 50],
           timezone: 'UTC',
