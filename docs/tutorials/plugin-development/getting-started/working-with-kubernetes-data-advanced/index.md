@@ -560,8 +560,9 @@ export class MyPod extends KubeObject<MyPodInterface> {
 }
 ```
 
-> [!NOTE]
-> **Summary**: In this tutorial, we learned how to create custom resource classes and how to use the `ApiProxy` for advanced uses like eviction. This and the previous example together cover Kubernetes data access and changes clearly.
+:::info
+**Summary**: In this tutorial, we learned how to create custom resource classes and how to use the `ApiProxy` for advanced uses like eviction. This and the previous example together cover Kubernetes data access and changes clearly.
+:::
 
 ---
 

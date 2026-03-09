@@ -180,8 +180,9 @@ registerKindIcon('Pod', {
 });
 ```
 
-> [!NOTE]
-> `registerKindIcon` applies to **all** nodes of that kind in the entire map, not just the ones in your source. If you only want a custom icon for your source's nodes, provide it via the source's `icon` property instead (which only affects the source picker entry, not individual nodes).
+:::info
+`registerKindIcon` applies to **all** nodes of that kind in the entire map, not just the ones in your source. If you only want a custom icon for your source's nodes, provide it via the source's `icon` property instead (which only affects the source picker entry, not individual nodes).
+:::
 
 You can also use [Iconify](https://icon-sets.iconify.design/) icons (already bundled with Headlamp via `@iconify/react`):
 
@@ -193,8 +194,9 @@ registerKindIcon('Pod', {
 });
 ```
 
-> [!NOTE]
-> The map also supports providing a `detailsComponent` on individual nodes to customise the side panel that appears when a node is selected. However, avoid doing this for resource kinds that Headlamp already handles natively (like `Pod`, `Deployment`, etc.) — overriding their default detail views can confuse users who expect the standard Headlamp experience. `detailsComponent` is most valuable for **CRDs and custom resources** that Headlamp has no built-in detail view for.
+:::info
+The map also supports providing a `detailsComponent` on individual nodes to customise the side panel that appears when a node is selected. However, avoid doing this for resource kinds that Headlamp already handles natively (like `Pod`, `Deployment`, etc.) — overriding their default detail views can confuse users who expect the standard Headlamp experience. `detailsComponent` is most valuable for **CRDs and custom resources** that Headlamp has no built-in detail view for.
+:::
 
 ---
 
