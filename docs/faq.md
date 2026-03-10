@@ -77,6 +77,10 @@ Headlamp shows controls based on the user's role (RBAC), so if the user has, e.g
 
 By default, Headlamp assumes users can list all namespaces. If you only have the permissions to list resources in certain namespaces, please access the cluster settings and set up the accessible namespaces.
 
+### How do I hide certain sidebar items in the web UI?
+
+When deploying Headlamp in-cluster as a web UI, you can hide specific sidebar items (e.g. Network, Gateway API) via the Helm chart. Set `config.disabledSidebarItems` to a comma-separated list of item names in your `values.yaml`, or use `--set config.disabledSidebarItems="network,gatewayapi"`. This is useful for ISVs and MSPs offering a simplified interface. The desktop app is not affected. See the [in-cluster installation guide](./installation/in-cluster/index.md#hiding-sidebar-items) for details.
+
 ### How do I add or remove plugins in Headlamp?
 
 To add or remove plugins in Headlamp, you can follow the plugin management instructions provided in the [Headlamp plugin documentation](./development/plugins/index.md).

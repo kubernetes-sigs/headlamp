@@ -51,6 +51,22 @@ Run with warning level:
 ./headlamp-server --log-level warn
 ```
 
+## Server configuration
+
+### Hiding sidebar items (web UI only)
+
+When running Headlamp as a web deployment, you can hide specific sidebar items using:
+
+- `--disabled-sidebar-items` — comma-separated list of sidebar item names (e.g. `network,gatewayapi`)
+
+Example:
+
+```bash
+./headlamp-server --disabled-sidebar-items=network,gatewayapi,storage
+```
+
+This has no effect when Headlamp is run as the desktop app.
+
 ## Lint
 
 To lint the backend/ code.

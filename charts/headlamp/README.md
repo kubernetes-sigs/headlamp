@@ -75,8 +75,9 @@ $ helm install my-headlamp headlamp/headlamp \
 | config.pluginsDir  | string | `"/headlamp/plugins"` | Directory to load Headlamp plugins from                                   |
 | config.enableHelm  | bool   | `false`               | Enable Helm operations like install, upgrade and uninstall of Helm charts |
 | config.extraArgs   | array  | `[]`                  | Additional arguments for Headlamp server                                  |
-| config.tlsCertPath | string | `""`                  | Certificate for serving TLS                                               |
-| config.tlsKeyPath  | string | `""`                  | Key for serving TLS                                                       |
+| config.tlsCertPath       | string | `""`                  | Certificate for serving TLS                                               |
+| config.tlsKeyPath        | string | `""`                  | Key for serving TLS                                                       |
+| config.disabledSidebarItems | string | `""`               | Comma-separated list of sidebar item names to hide in the web UI (e.g. `network,gatewayapi`). Only applies when deployed as web. |
 
 ### OIDC Configuration
 

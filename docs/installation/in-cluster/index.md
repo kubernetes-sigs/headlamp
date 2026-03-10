@@ -170,3 +170,23 @@ config:
 ```
 
 When enabled, any plugins' changes (either through Helm upgrades or direct ConfigMap updates) wil update in the main headlamp container by enabling --watch-plugins-changes flag on headlamp server.
+
+## Hiding sidebar items
+
+When deploying Headlamp as a web UI (in-cluster), you can hide specific sidebar items such as Network or Gateway API. This is useful for ISVs and MSPs who want to offer a simplified or scoped interface.
+
+Set `config.disabledSidebarItems` in your `values.yaml` to a comma-separated list of sidebar item names:
+
+```yaml
+config:
+  disabledSidebarItems: "network,gatewayapi,storage"
+```
+
+Or via `--set`:
+
+```bash
+helm install my-headlamp headlamp/headlamp --namespace kube-system \
+  --set config.disabledSidebarItems="network,gatewayapi"
+```
+
+This setting only applies when Headlamp is deployed as web; the desktop app is unchanged. For the full list of config options, see the [Helm chart values](https://github.com/kubernetes-sigs/headlamp/blob/main/charts/headlamp/values.yaml).

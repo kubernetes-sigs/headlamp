@@ -61,9 +61,7 @@ const filterDisabledItems = (
     .filter(item => !disabledSet.has(item.name))
     .map(item => ({
       ...item,
-      subList: item.subList
-        ? filterDisabledItems(item.subList, disabledSet)
-        : undefined,
+      subList: item.subList ? filterDisabledItems(item.subList, disabledSet) : undefined,
     }))
     .filter(item => !item.subList || item.subList.length > 0);
 };
