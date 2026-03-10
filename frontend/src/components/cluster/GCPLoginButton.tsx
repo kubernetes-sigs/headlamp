@@ -56,14 +56,24 @@ export function GCPLoginButton({
 
   // Check if GCP OAuth is enabled on component mount
   React.useEffect(() => {
+    let cancelled = false;
+
     isGCPOAuthEnabled()
       .then(enabled => {
-        setGcpOAuthEnabled(enabled);
+        if (!cancelled) {
+          setGcpOAuthEnabled(enabled);
+        }
       })
       .catch(error => {
-        console.warn('Failed to check GCP OAuth status:', error);
-        setGcpOAuthEnabled(false);
+        if (!cancelled) {
+          console.warn('Failed to check GCP OAuth status:', error);
+          setGcpOAuthEnabled(false);
+        }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Only show button if GCP OAuth is enabled via environment variable

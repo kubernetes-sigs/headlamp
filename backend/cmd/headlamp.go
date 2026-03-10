@@ -455,7 +455,10 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 		context.Source = kubeconfig.InCluster
 
-		// When GCP OAuth is enabled, clear the auth info so users must authenticate via GCP OAuth
+		// When GCP OAuth is enabled, clear the in-cluster auth info (service account token) so
+		// that requests are not automatically authenticated as the pod's service account.
+		// This ensures all Kubernetes API calls go through GCP OAuth, preserving each user's
+		// identity for proper attribution and RBAC enforcement based on their Google account.
 		if config.GCPOAuthEnabled {
 			context.AuthInfo = &api.AuthInfo{}
 

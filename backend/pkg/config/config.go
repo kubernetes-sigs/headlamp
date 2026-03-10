@@ -73,11 +73,20 @@ type Config struct {
 	MeGroupsPath              string `koanf:"me-groups-path"`
 	MeUserInfoURL             string `koanf:"me-user-info-url"`
 	OidcUsePKCE               bool   `koanf:"oidc-use-pkce"`
-	// GCP OAuth configs for GKE
-	GCPOAuthEnabled bool   `koanf:"gcp-oauth-enabled"`
-	GCPClientID     string `koanf:"gcp-client-id"`
+	// GCPOAuthEnabled enables GCP OAuth 2.0 authentication for GKE clusters.
+	// When true, users authenticate via Google OAuth instead of service account tokens,
+	// enabling proper user identity attribution and RBAC enforcement.
+	GCPOAuthEnabled bool `koanf:"gcp-oauth-enabled"`
+	// GCPClientID is the OAuth 2.0 Client ID obtained from Google Cloud Console.
+	// Required when GCPOAuthEnabled is true.
+	GCPClientID string `koanf:"gcp-client-id"`
+	// GCPClientSecret is the OAuth 2.0 Client Secret obtained from Google Cloud Console.
+	// Required when GCPOAuthEnabled is true.
 	GCPClientSecret string `koanf:"gcp-client-secret"`
-	GCPRedirectURL  string `koanf:"gcp-redirect-url"`
+	// GCPRedirectURL is the callback URL registered in Google Cloud Console for the OAuth flow.
+	// Must exactly match one of the authorized redirect URIs configured for the OAuth client.
+	// Required when GCPOAuthEnabled is true.
+	GCPRedirectURL string `koanf:"gcp-redirect-url"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
