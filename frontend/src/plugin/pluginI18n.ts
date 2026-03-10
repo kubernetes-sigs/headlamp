@@ -88,7 +88,8 @@ async function getPluginI18nInstance(
   const instance = createInstance();
 
   // Use supported locales from package.json or fall back to common locales
-  const locales = supportedLocales || ['en', 'es', 'fr', 'de', 'pt', 'it', 'zh', 'ko', 'ja'];
+  const currentLang = i18next.language || 'en';
+  const locales = supportedLocales || [currentLang, 'en'];
   const resources: Record<string, Record<string, Record<string, string>>> = {};
 
   // Load translations for each locale that exists
