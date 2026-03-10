@@ -1,0 +1,27 @@
+name: Kubescape Security Scan
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "charts/**"
+      - ".github/workflows/kubescape-scan.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  kubescape:
+    uses: Anomalous-Ventures/.github/.github/workflows/kubescape-scan.yml@main
+    with:
+      scan-paths: "charts/"
+      frameworks: "NSA,MITRE"
+      severity-threshold: "HIGH"
+      fail-on-violations: false
+      runner: "stax-general"
+    permissions:
+      contents: read
+      security-events: write
+    secrets: inherit
