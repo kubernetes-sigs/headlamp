@@ -52,9 +52,26 @@ const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
   }));
 };
 
+/** Recursively filter out sidebar items whose name is in the disabled set. */
+const filterDisabledItems = (
+  items: SidebarItemProps[],
+  disabledSet: Set<string>
+): SidebarItemProps[] => {
+  return items
+    .filter(item => !disabledSet.has(item.name))
+    .map(item => ({
+      ...item,
+      subList: item.subList
+        ? filterDisabledItems(item.subList, disabledSet)
+        : undefined,
+    }))
+    .filter(item => !item.subList || item.subList.length > 0);
+};
+
 export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER) => {
   const clusters = useTypedSelector(state => state.config.clusters) ?? {};
   const settings = useTypedSelector(state => state.config.settings);
+  const disabledSidebarItems = useTypedSelector(state => state.config.disabledSidebarItems);
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
   const shouldShowHomeItem = isElectron() || Object.keys(clusters).length !== 1;
@@ -504,9 +521,21 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
       });
     }
 
+    // Filter disabled sidebar items (web UI only, not desktop)
+    if (!isElectron() && disabledSidebarItems && disabledSidebarItems.length > 0) {
+      const disabledSet = new Set(disabledSidebarItems);
+      for (const sidebarKey of Object.keys(sidebars)) {
+        const items = sidebars[sidebarKey];
+        if (items) {
+          sidebars[sidebarKey] = filterDisabledItems(items, disabledSet);
+        }
+      }
+    }
+
     return sidebars;
   }, [
     customSidebarEntries,
+    disabledSidebarItems,
     shouldShowHomeItem,
     Object.keys(clusters).join(','),
     selectedClusters.join(','),

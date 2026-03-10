@@ -64,4 +64,5 @@ type HeadlampCFG struct {
 	TLSCertPath            string
 	TLSKeyPath             string
 	SessionTTL             int
+	DisabledSidebarItems   []string
 }

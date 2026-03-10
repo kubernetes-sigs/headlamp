@@ -54,6 +54,11 @@ export interface ConfigState {
    */
   allowKubeconfigChanges: boolean;
   /**
+   * Sidebar item names to hide in the web UI (e.g. network, gatewayapi).
+   * Only applied when running as web, not in the desktop app.
+   */
+  disabledSidebarItems?: string[];
+  /**
    * Settings is a map of settings names to settings values.
    */
   settings: {
@@ -108,6 +113,7 @@ const configSlice = createSlice({
         clusters: ConfigState['clusters'];
         isDynamicClusterEnabled?: boolean;
         allowKubeconfigChanges?: boolean;
+        disabledSidebarItems?: string[];
       }>
     ) {
       state.clusters = action.payload.clusters;
@@ -116,6 +122,9 @@ const configSlice = createSlice({
       }
       if (action.payload.allowKubeconfigChanges !== undefined) {
         state.allowKubeconfigChanges = action.payload.allowKubeconfigChanges;
+      }
+      if (action.payload.disabledSidebarItems !== undefined) {
+        state.disabledSidebarItems = action.payload.disabledSidebarItems;
       }
     },
     /**

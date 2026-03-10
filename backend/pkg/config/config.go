@@ -58,6 +58,7 @@ type Config struct {
 	BaseURL                   string `koanf:"base-url"`
 	SessionTTL                int    `koanf:"session-ttl"`
 	ProxyURLs                 string `koanf:"proxy-urls"`
+	DisabledSidebarItems      string `koanf:"disabled-sidebar-items"`
 	OidcClientID              string `koanf:"oidc-client-id"`
 	OidcValidatorClientID     string `koanf:"oidc-validator-client-id"`
 	OidcClientSecret          string `koanf:"oidc-client-secret"`
@@ -452,6 +453,8 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
 	f.Bool("enable-helm", false, "Enable Helm operations")
+	f.String("disabled-sidebar-items", "",
+		"Comma-separated list of sidebar item names to hide in the web UI (e.g. network,gatewayapi). Only applies when deployed as web, not desktop.")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {

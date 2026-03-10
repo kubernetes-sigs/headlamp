@@ -107,6 +107,9 @@ config:
     # For oauth2proxy /oauth2/userinfo can be used. Empty and it will not be used.
     meUserInfoURL: ""
 
+  # -- Comma-separated list of sidebar item names to hide in the web UI (e.g. network,gatewayapi)
+  # Only applies when deployed as web, not in the desktop app.
+  disabledSidebarItems: ""
   # -- directory to look for plugins
   pluginsDir: "/headlamp/plugins"
   enableHelm: false

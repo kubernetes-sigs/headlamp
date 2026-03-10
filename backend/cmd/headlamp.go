@@ -98,6 +98,7 @@ type clientConfig struct {
 	Clusters                []Cluster `json:"clusters"`
 	IsDynamicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
 	AllowKubeconfigChanges  bool      `json:"allowKubeconfigChanges"`
+	DisabledSidebarItems    []string  `json:"disabledSidebarItems,omitempty"`
 }
 
 type OauthConfig struct {
@@ -1766,6 +1767,7 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 		Clusters:                c.getClusters(),
 		IsDynamicClusterEnabled: c.EnableDynamicClusters,
 		AllowKubeconfigChanges:  c.AllowKubeconfigChanges,
+		DisabledSidebarItems:    c.DisabledSidebarItems,
 	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {

@@ -77,6 +77,21 @@ func main() {
 	StartHeadlampServer(headlampConfig)
 }
 
+// splitDisabledSidebarItems parses a comma-separated string into a slice of trimmed, non-empty names.
+func splitDisabledSidebarItems(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
 // buildHeadlampCFG maps the parsed config into the struct the backend uses.
 func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextStore) *headlampconfig.HeadlampCFG {
 	return &headlampconfig.HeadlampCFG{
@@ -102,6 +117,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		TLSCertPath:            conf.TLSCertPath,
 		TLSKeyPath:             conf.TLSKeyPath,
 		SessionTTL:             conf.SessionTTL,
+		DisabledSidebarItems:   splitDisabledSidebarItems(conf.DisabledSidebarItems),
 	}
 }
 
