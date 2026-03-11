@@ -28,6 +28,7 @@ import {
   loadClusterSettings,
   storeClusterSettings,
 } from '../../../helpers/clusterSettings';
+import { useSetting } from '../../../helpers/useAdminSettings';
 import { NameValueTable } from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
 import { isValidNamespaceFormat } from './util';
@@ -53,6 +54,9 @@ export default function NodeShellSettings(props: SettingsProps) {
 
   const nodeShellLabelID = 'node-shell-enabled-label';
 
+  const adminLinuxImage = useSetting<string>('clusters.*.nodeShellTerminal.linuxImage', cluster);
+  const adminIsEnabled = useSetting<boolean>('clusters.*.nodeShellTerminal.isEnabled', cluster);
+
   useEffect(() => {
     setClusterSettings(!!cluster ? loadClusterSettings(cluster || '') : null);
   }, [cluster]);
@@ -62,18 +66,37 @@ export default function NodeShellSettings(props: SettingsProps) {
       setUserNamespace(clusterSettings?.nodeShellTerminal?.namespace ?? '');
     }
 
-    if (clusterSettings?.nodeShellTerminal?.linuxImage !== userImage) {
-      setUserImage(clusterSettings?.nodeShellTerminal?.linuxImage ?? '');
+    if (adminLinuxImage.disabled || adminLinuxImage.hidden) {
+      setUserImage(adminLinuxImage.value ?? '');
+    } else {
+      setUserImage(clusterSettings?.nodeShellTerminal?.linuxImage ?? adminLinuxImage.value ?? '');
     }
 
-    setUserIsEnabled(clusterSettings?.nodeShellTerminal?.isEnabled ?? true);
+    if (adminIsEnabled.disabled || adminIsEnabled.hidden) {
+      setUserIsEnabled(adminIsEnabled.value ?? true);
+    } else {
+      setUserIsEnabled(
+        clusterSettings?.nodeShellTerminal?.isEnabled ?? adminIsEnabled.value ?? true
+      );
+    }
 
     // Avoid re-initializing settings as {} just because the cluster is not yet set.
     if (clusterSettings !== null) {
       storeClusterSettings(cluster || '', clusterSettings);
     }
+    // Intentionally exclude userNamespace: it is the user-edited value and
+    // including it would overwrite their input on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cluster, clusterSettings]);
+  }, [
+    cluster,
+    clusterSettings,
+    adminLinuxImage.value,
+    adminLinuxImage.disabled,
+    adminLinuxImage.hidden,
+    adminIsEnabled.value,
+    adminIsEnabled.disabled,
+    adminIsEnabled.hidden,
+  ]);
 
   //const selectedClusterData = data?.[selectedCluster] || {};
   //const isEnabled = selectedClusterData.isEnabled ?? true;
@@ -193,11 +216,14 @@ export default function NodeShellSettings(props: SettingsProps) {
                   const newEnabled = e.target.checked;
                   storeNewEnabled(newEnabled);
                 }}
+                disabled={adminIsEnabled.disabled}
               />
             ),
+            hide: adminIsEnabled.hidden,
           },
           {
             name: 'Linux Image',
+            hide: adminLinuxImage.hidden,
             value: (
               <TextField
                 onChange={event => {
@@ -206,6 +232,7 @@ export default function NodeShellSettings(props: SettingsProps) {
                   setUserImage(value);
                 }}
                 value={userImage}
+                disabled={adminLinuxImage.disabled}
                 placeholder={DEFAULT_NODE_SHELL_LINUX_IMAGE}
                 helperText={t(
                   'translation|The default image is used for dropping a shell into a node (when not specified directly).'

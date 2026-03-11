@@ -42,6 +42,7 @@ import * as CommonComponents from '../components/common';
 import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
 import { getAppUrl } from '../helpers/getAppUrl';
 import { isElectron } from '../helpers/isElectron';
+import { PluginSettingsAPI } from '../helpers/pluginSettings';
 import i18next from '../i18n/config';
 import * as K8s from '../lib/k8s';
 import * as ApiProxy from '../lib/k8s/apiProxy';
@@ -102,6 +103,7 @@ window.pluginLib = {
   useTranslation,
   ...registryToExport,
   Activity,
+  Settings: PluginSettingsAPI,
 };
 
 // backwards compat.

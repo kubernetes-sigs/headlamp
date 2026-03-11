@@ -37,9 +37,13 @@ import {
 } from '../../../helpers/tablesRowsPerPage';
 import { defaultTableRowsPerPageOptions, setAppSettings } from '../../../redux/configSlice';
 
-export default function NumRowsInput(props: { defaultValue: number[]; nameLabelID?: string }) {
+export default function NumRowsInput(props: {
+  defaultValue: number[];
+  nameLabelID?: string;
+  disabled?: boolean;
+}) {
   const { t } = useTranslation(['frequent']);
-  const { defaultValue, nameLabelID } = props;
+  const { defaultValue, nameLabelID, disabled } = props;
   const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [options, setOptions] = useState(defaultValue);
   const [minRows, maxRows] = [minTablesRowsPerPage, maxTablesRowsPerPage];
@@ -69,10 +73,22 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
   const [errorMessage, setErrorMessage] = useState('');
   const dispatch = useDispatch();
 
+  // Sync local options when the admin-resolved defaultValue changes
+  // (e.g. after admin settings load asynchronously).
   useEffect(() => {
+    setOptions(defaultValue);
+    setSelectedValue(prev => (defaultValue.includes(prev) || prev === -1 ? prev : defaultValue[0]));
+  }, [defaultValue]);
+
+  useEffect(() => {
+    // Skip persistence when the control is admin-disabled, so the admin's
+    // value does not overwrite the user's stored preference.
+    if (disabled) {
+      return;
+    }
     dispatch(setAppSettings({ tableRowsPerPageOptions: options }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options]);
+  }, [options, disabled]);
 
   // Make sure we update the value in the localStorage when the user selects a new value.
   useEffect(() => {
@@ -155,10 +171,11 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
         </Box>
       </Box>
     ) : (
-      <FormControl>
+      <FormControl disabled={disabled}>
         <Select
           value={selectedValue}
           style={{ width: '100px' }}
+          disabled={disabled}
           open={isSelectOpen}
           onClose={handleClose}
           onOpen={handleOpen}
