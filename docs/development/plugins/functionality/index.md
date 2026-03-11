@@ -312,6 +312,22 @@ registerProjectOverviewSection({
 });
 ```
 
+Add action buttons to the project details header with
+[registerProjectHeaderAction](../../api/plugin/registry/functions/registerProjectHeaderAction).
+The action component receives the current project and an optional
+`setSelectedTab?: (tabId: string) => void` callback. Call it with the ID of a
+registered, enabled tab to select that tab. Unknown tabs and tabs without a
+component are ignored.
+
+```tsx
+registerProjectHeaderAction({
+  id: 'view-metrics',
+  component: ({ setSelectedTab }) => (
+    <Button onClick={() => setSelectedTab?.('my-plugin.metrics')}>View metrics</Button>
+  ),
+});
+```
+
 Register custom API resources (e.g. CRDs) for project resource tracking with
 [registerProjectApiResource](../../api/plugin/registry/functions/registerProjectApiResource).
 Once registered, the CRD resources will appear in the project's resource count,

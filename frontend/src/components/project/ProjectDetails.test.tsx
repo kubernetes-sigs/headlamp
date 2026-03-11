@@ -18,7 +18,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ReactNode } from 'react';
-import { vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
 
 const { MockKubeObject } = vi.hoisted(() => {
   class MockKubeObject {
@@ -39,7 +39,6 @@ const { MockKubeObject } = vi.hoisted(() => {
 
 vi.mock('../../lib/k8s/KubeObject', () => ({ KubeObject: MockKubeObject }));
 vi.mock('./ProjectDeleteButton', () => ({ ProjectDeleteButton: () => null }));
-
 const eventProject = {
   id: 'project-1',
   namespaces: ['ns1'],
@@ -52,7 +51,12 @@ vi.mock('./ProjectList', () => ({
 
 import App from '../../App';
 import { HeadlampEventType } from '../../redux/headlampEventSlice';
-import { addOverviewSection, ProjectDefinition } from '../../redux/projectsSlice';
+import {
+  addDetailsTab,
+  addHeaderAction,
+  addOverviewSection,
+  ProjectDefinition,
+} from '../../redux/projectsSlice';
 import reducers from '../../redux/reducers/reducers';
 import { recordHeadlampEvents, TestContext } from '../../test';
 import ProjectDetails, { ProjectDetailsContent } from './ProjectDetails';
@@ -359,5 +363,146 @@ describe('ProjectDetails overview sections', () => {
     await act(async () => resolveFirstPredicate(true));
 
     expect(screen.queryByText('Stale project section')).not.toBeInTheDocument();
+  });
+});
+
+describe('ProjectDetailsContent', () => {
+  beforeEach(() => {
+    vi.mocked(useProjectItems).mockReturnValue({ items: [], errors: [], isLoading: false });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const actionProject: ProjectDefinition = {
+    id: 'project-one',
+    namespaces: ['project-one'],
+    clusters: ['test'],
+  };
+
+  function createStore() {
+    return configureStore({
+      reducer: reducers,
+      middleware: getDefaultMiddleware =>
+        getDefaultMiddleware({ serializableCheck: false, immutableCheck: false }),
+    });
+  }
+
+  it('lets a project header action select a registered tab', async () => {
+    const store = createStore();
+
+    store.dispatch(
+      addDetailsTab({
+        id: 'metrics',
+        label: 'Metrics',
+        icon: 'mdi:view-dashboard',
+        component: () => <div>Metrics panel</div>,
+      })
+    );
+    store.dispatch(
+      addDetailsTab({
+        id: 'unavailable',
+        label: 'Unavailable',
+        icon: 'mdi:view-dashboard',
+        component: undefined,
+      })
+    );
+    store.dispatch(
+      addHeaderAction({
+        id: 'open-metrics',
+        component: ({ setSelectedTab }) => (
+          <>
+            <button onClick={() => setSelectedTab?.('metrics')}>Open metrics</button>
+            <button onClick={() => setSelectedTab?.('unavailable')}>Open unavailable</button>
+          </>
+        ),
+      })
+    );
+
+    render(
+      <TestContext store={store}>
+        <ProjectDetailsContent project={actionProject} />
+      </TestContext>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open metrics' }));
+
+    expect(await screen.findByText('Metrics panel')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open unavailable' }));
+
+    expect(screen.getByText('Metrics panel')).toBeInTheDocument();
+  });
+
+  it('renders only header actions whose enablement check succeeds', async () => {
+    const store = createStore();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    store.dispatch(
+      addHeaderAction({
+        id: 'enabled',
+        component: () => <button>Enabled action</button>,
+        isEnabled: async () => true,
+      })
+    );
+    store.dispatch(
+      addHeaderAction({
+        id: 'disabled',
+        component: () => <button>Disabled action</button>,
+        isEnabled: async () => false,
+      })
+    );
+    store.dispatch(
+      addHeaderAction({
+        id: 'rejected',
+        component: () => <button>Rejected action</button>,
+        isEnabled: async () => {
+          throw new Error('enablement failed');
+        },
+      })
+    );
+
+    render(
+      <TestContext store={store}>
+        <ProjectDetailsContent project={actionProject} />
+      </TestContext>
+    );
+
+    expect(await screen.findByRole('button', { name: 'Enabled action' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Disabled action' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Rejected action' })).not.toBeInTheDocument();
+    expect(consoleError).toHaveBeenCalledWith(
+      'Failed to check if header action is enabled',
+      expect.objectContaining({ id: 'rejected' }),
+      expect.any(Error)
+    );
+  });
+
+  it('does not update header actions after unmounting', async () => {
+    const store = createStore();
+    let resolveEnablement: (enabled: boolean) => void = () => {};
+
+    store.dispatch(
+      addHeaderAction({
+        id: 'delayed',
+        component: () => <button>Delayed action</button>,
+        isEnabled: () =>
+          new Promise(resolve => {
+            resolveEnablement = resolve;
+          }),
+      })
+    );
+
+    const view = render(
+      <TestContext store={store}>
+        <ProjectDetailsContent project={actionProject} />
+      </TestContext>
+    );
+    view.unmount();
+
+    await act(async () => resolveEnablement(true));
+
+    expect(screen.queryByRole('button', { name: 'Delayed action' })).not.toBeInTheDocument();
   });
 });
