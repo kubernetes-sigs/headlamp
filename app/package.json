@@ -25,7 +25,10 @@
     "start": "node scripts/start.js",
     "star": "node scripts/start.js --star",
     "test": "vitest run",
-    "tsc": "tsc"
+    "tsc": "tsc",
+    "verify-build-linux": "bash scripts/verify-build-linux.sh",
+    "verify-build-mac": "bash scripts/verify-build-mac.sh",
+    "verify-build-windows": "powershell -ExecutionPolicy Bypass -File scripts/verify-build-windows.ps1"
   },
   "build": {
     "appId": "com.microsoft.Headlamp",
@@ -182,7 +185,7 @@
     "mkdirp": "^3.0.1",
     "nock": "^14.0.5",
     "shx": "^0.4.0",
-    "tar": "^7.5.9",
+    "tar": "^7.5.10",
     "yargs": "^17.7.2"
   }
 }

@@ -68,7 +68,7 @@ Use **atomic commits** to keep each commit focused on a single change. Follow th
 
 `<area>: <description of changes>`
 
-- Both the title and the body of the commit message shoud not exceed
+- Both the title and the body of the commit message should not exceed
   72 characters in length.
   i.e. Please keep the title length under 72
   characters, and the wrap the body of the message at 72 characters.

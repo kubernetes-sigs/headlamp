@@ -37,3 +37,36 @@ Note, it runs the development servers for the backend and the frontend as well. 
 - `npm start`: Starts the app in dev mode along with the backend server, and the frontend development server.
 - `npm run test`: Runs the tests. See the \*.test.ts files in the electron/ folder.
 - `npm run tsc`: Runs the type checker.
+- `npm run verify-build-linux`: Verifies the Linux build artifacts and binaries (requires built app in dist/).
+- `npm run verify-build-mac`: Verifies the macOS build artifacts and binaries (requires built app in dist/).
+- `npm run verify-build-windows`: Verifies the Windows build artifacts and binaries (requires built app in dist/).
+
+## Verifying Builds
+
+After building the desktop app with `npm run package`, you can verify that the built binaries work correctly:
+
+**Linux:**
+
+```bash
+npm run verify-build-linux
+```
+
+**macOS:**
+
+```bash
+npm run verify-build-mac
+```
+
+**Windows:**
+
+```powershell
+npm run verify-build-windows
+```
+
+These verification scripts will:
+
+1. Check that build artifacts (AppImage, tar.gz, DMG, or NSIS installer) exist
+2. Extract and test the backend server binary with `--version` flag
+3. Run the Electron app with `list-plugins` command to ensure it executes
+
+The scripts are located in `app/scripts/` and can also be run directly if needed.

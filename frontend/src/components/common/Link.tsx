@@ -154,8 +154,16 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
       ? props.kubeObject?.cluster
       : props.activeCluster ?? getCluster() ?? '';
 
+  // When a class overrides detailsRoute (e.g. a plugin's custom resource class),
+  // the drawer's kindComponentMap won't have the right component for it,
+  // so we skip the drawer and let normal link navigation handle it.
+  const hasCustomDetailsRoute =
+    'kubeObject' in props &&
+    props.kubeObject &&
+    props.kubeObject._class().detailsRoute !== props.kubeObject._class().kind;
+
   const openDrawer =
-    drawerEnabled && canRenderDetails(kind)
+    drawerEnabled && !hasCustomDetailsRoute && canRenderDetails(kind)
       ? () => {
           // Object information can be provided throught kubeObject or route parameters
           const name = 'kubeObject' in props ? props.kubeObject?.getName() : props.params?.name;
