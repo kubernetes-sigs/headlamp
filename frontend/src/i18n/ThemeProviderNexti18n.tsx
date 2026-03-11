@@ -24,6 +24,7 @@ import {
   jaJP,
   koKR,
   ptPT,
+  ruRU,
   zhCN,
   zhTW,
 } from '@mui/material/locale';
@@ -41,6 +42,7 @@ function getLocale(locale: string): typeof enUS {
   const LOCALES = {
     en: enUS,
     pt: ptPT,
+    ru: ruRU,
     es: esES,
     de: deDE,
     ta: enUS, // @todo: material ui needs a translation for this.
@@ -55,6 +57,7 @@ function getLocale(locale: string): typeof enUS {
   type LocalesType =
     | 'en'
     | 'pt'
+    | 'ru'
     | 'es'
     | 'ta'
     | 'de'

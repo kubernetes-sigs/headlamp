@@ -26,6 +26,7 @@ export const supportedLanguages: { [langCode: string]: string } = {
   es: 'Español',
   fr: 'Français',
   pt: 'Português',
+  ru: 'Русский',
   de: 'Deutsch',
   it: 'Italiano',
   'zh-TW': '繁體中文',
