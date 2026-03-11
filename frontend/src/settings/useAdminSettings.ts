@@ -34,8 +34,8 @@ export function useSetting<T = any>(
   path: string,
   clusterName?: string
 ): { value: T | undefined; hidden: boolean; disabled: boolean } {
-  const adminSettings = useTypedSelector(state => state.adminSettings);
-  const userValue = useTypedSelector(state => state.config.settings[path]);
+  const adminSettings = useTypedSelector(state => state.adminSettings ?? null);
+  const userValue = useTypedSelector(state => state.config?.settings?.[path]);
   const builtInDefault = builtInSettings[path];
 
   return useMemo(() => {
@@ -46,7 +46,7 @@ export function useSetting<T = any>(
       adminSettings,
       clusterName
     );
-    const mode = adminSettings.display[path];
+    const mode = adminSettings?.display[path];
     return {
       value: value as T | undefined,
       hidden: mode === 'hidden',
