@@ -160,6 +160,13 @@ function loadStoredSettings(): Partial<ConfigState['settings']> {
 
 const storedSettings = loadStoredSettings();
 
+export const builtInSettings: Record<string, any> = {
+  tableRowsPerPageOptions: defaultTableRowsPerPageOptions,
+  timezone: defaultTimezone(),
+  sidebarSortAlphabetically: false,
+  useEvict: true,
+};
+
 export const initialState: ConfigState = {
   clusters: null,
   statelessClusters: null,
@@ -171,10 +178,11 @@ export const initialState: ConfigState = {
   defaultNodeShellNamespace: '',
   settings: {
     tableRowsPerPageOptions:
-      storedSettings.tableRowsPerPageOptions ?? defaultTableRowsPerPageOptions,
-    timezone: storedSettings.timezone || defaultTimezone(),
-    sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically ?? false,
-    useEvict: storedSettings.useEvict ?? true,
+      storedSettings.tableRowsPerPageOptions ?? builtInSettings.tableRowsPerPageOptions,
+    timezone: storedSettings.timezone ?? builtInSettings.timezone,
+    sidebarSortAlphabetically:
+      storedSettings.sidebarSortAlphabetically ?? builtInSettings.sidebarSortAlphabetically,
+    useEvict: storedSettings.useEvict ?? builtInSettings.useEvict,
   },
 };
 
