@@ -167,6 +167,7 @@
   "Ephemeral debug containers cannot be removed via Kubernetes API. They will remain in the pod specification even after the terminal closes. To remove them, the pod must be recreated.": "Tijdelijke debugcontainers kunnen niet worden verwijderd via de Kubernetes-API. Ze blijven in de podspecificatie staan, zelfs nadat de terminal is gesloten. Om ze te verwijderen, moet de pod opnieuw worden gemaakt.",
   "Debug Image": "Fouten opsporen in installatiekopie",
   "The default image is used for creating ephemeral debug containers.": "De standaardinstallatiekopie wordt gebruikt voor het maken van tijdelijke containers voor fouten opsporen.",
+  "Set by your administrator": "",
   "General Settings": "Algemene instellingen",
   "Version": "Versie",
   "Language": "Taal",
