@@ -16,11 +16,13 @@
 
 import Box from '@mui/material/Box';
 import Switch from '@mui/material/Switch';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { capitalize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
+import { useIsSettingDisabled, useIsSettingHidden } from '../../../helpers/useAdminSettings';
 import LocaleSelect from '../../../i18n/LocaleSelect/LocaleSelect';
 import { setAppSettings } from '../../../redux/configSlice';
 import { defaultTableRowsPerPageOptions } from '../../../redux/configSlice';
@@ -38,6 +40,25 @@ import NumRowsInput from './NumRowsInput';
 import { ShortcutsList } from './ShortcutsSettings';
 import { ThemePreview } from './ThemePreview';
 
+/** Wraps a setting value with a "Set by your administrator" tooltip when disabled. */
+function AdminControlled({
+  disabled,
+  children,
+  t,
+}: {
+  disabled: boolean;
+  children: React.ReactNode;
+  t: (key: string) => string;
+}) {
+  if (!disabled) return <>{children}</>;
+
+  return (
+    <Tooltip title={t('translation|Set by your administrator')} placement="top">
+      <Box sx={{ opacity: 0.6, pointerEvents: 'none' }}>{children}</Box>
+    </Tooltip>
+  );
+}
+
 export default function Settings() {
   const { t } = useTranslation(['translation']);
   const settingsObj = useSettings();
@@ -53,6 +74,17 @@ export default function Settings() {
   const dispatch = useDispatch();
   const themeName = useTypedSelector(state => state.theme.name);
   const appThemes = useAppThemes();
+
+  const timezoneHidden = useIsSettingHidden('timezone');
+  const timezoneDisabled = useIsSettingDisabled('timezone');
+  const tableRowsHidden = useIsSettingHidden('tableRowsPerPage');
+  const tableRowsDisabled = useIsSettingDisabled('tableRowsPerPage');
+  const sidebarSortHidden = useIsSettingHidden('sidebarSortAlphabetically');
+  const sidebarSortDisabled = useIsSettingDisabled('sidebarSortAlphabetically');
+  const useEvictHidden = useIsSettingHidden('useEvict');
+  const useEvictDisabled = useIsSettingDisabled('useEvict');
+  const themeHidden = useIsSettingHidden('theme');
+  const themeDisabled = useIsSettingDisabled('theme');
 
   useEffect(() => {
     dispatch(
@@ -113,137 +145,153 @@ export default function Settings() {
           {
             name: t('translation|Number of rows for tables'),
             value: (
-              <NumRowsInput
-                defaultValue={storedRowsPerPageOptions || defaultTableRowsPerPageOptions}
-                nameLabelID={tableRowsLabelID}
-              />
+              <AdminControlled disabled={tableRowsDisabled} t={t}>
+                <NumRowsInput
+                  defaultValue={storedRowsPerPageOptions || defaultTableRowsPerPageOptions}
+                  nameLabelID={tableRowsLabelID}
+                />
+              </AdminControlled>
             ),
             nameID: tableRowsLabelID,
+            hide: tableRowsHidden,
           },
           {
             name: t('translation|Timezone to display for dates'),
             value: (
-              <Box maxWidth="350px">
-                <TimezoneSelect
-                  initialTimezone={selectedTimezone}
-                  onChange={name => setSelectedTimezone(name)}
-                  nameLabelID={timezoneLabelID}
-                />
-              </Box>
+              <AdminControlled disabled={timezoneDisabled} t={t}>
+                <Box maxWidth="350px">
+                  <TimezoneSelect
+                    initialTimezone={selectedTimezone}
+                    onChange={name => setSelectedTimezone(name)}
+                    nameLabelID={timezoneLabelID}
+                  />
+                </Box>
+              </AdminControlled>
             ),
             nameID: timezoneLabelID,
+            hide: timezoneHidden,
           },
           {
             name: t('translation|Sort sidebar items alphabetically'),
             value: (
-              <Switch
-                color="primary"
-                checked={sortSidebar}
-                onChange={e => setSortSidebar(e.target.checked)}
-                inputProps={{
-                  'aria-labelledby': sidebarLabelID,
-                }}
-              />
+              <AdminControlled disabled={sidebarSortDisabled} t={t}>
+                <Switch
+                  color="primary"
+                  checked={sortSidebar}
+                  onChange={e => setSortSidebar(e.target.checked)}
+                  inputProps={{
+                    'aria-labelledby': sidebarLabelID,
+                  }}
+                />
+              </AdminControlled>
             ),
             nameID: sidebarLabelID,
+            hide: sidebarSortHidden,
           },
           {
             name: t('translation|Use evict for pod deletion'),
             value: (
-              <Switch
-                color="primary"
-                checked={useEvict}
-                onChange={e => setUseEvict(e.target.checked)}
-                inputProps={{
-                  'aria-labelledby': evictLabelID,
-                }}
-              />
+              <AdminControlled disabled={useEvictDisabled} t={t}>
+                <Switch
+                  color="primary"
+                  checked={useEvict}
+                  onChange={e => setUseEvict(e.target.checked)}
+                  inputProps={{
+                    'aria-labelledby': evictLabelID,
+                  }}
+                />
+              </AdminControlled>
             ),
             nameID: evictLabelID,
+            hide: useEvictHidden,
           },
         ]}
       />
-      <Box
-        sx={{
-          mt: '2',
-          borderTop: '1px solid',
-          borderTopColor: 'divider',
-          pt: '2',
-        }}
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'baseline',
-            px: 1.5,
-            py: 1,
-          }}
-        >
-          <Typography
-            variant="body1"
-            sx={theme => ({
-              textAlign: 'left',
-              color: theme.palette.text.secondary,
-              fontSize: '1rem',
-              [theme.breakpoints.down('sm')]: {
-                fontSize: '1.5rem',
-                color: theme.palette.text.primary,
-              },
-            })}
-          >
-            {t('translation|Theme')}
-          </Typography>
-        </Box>
-        <Box
-          sx={{
-            width: '100%',
-            margin: 'auto',
-            pb: 5,
-          }}
-        >
+      {!themeHidden && (
+        <AdminControlled disabled={themeDisabled} t={t}>
           <Box
             sx={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-              gap: 2,
-              justifyContent: 'center',
-              [theme.breakpoints.down('sm')]: {
-                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                gap: 2,
-              },
+              mt: '2',
+              borderTop: '1px solid',
+              borderTopColor: 'divider',
+              pt: '2',
             }}
           >
-            {appThemes.map(it => (
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'baseline',
+                px: 1.5,
+                py: 1,
+              }}
+            >
+              <Typography
+                variant="body1"
+                sx={theme => ({
+                  textAlign: 'left',
+                  color: theme.palette.text.secondary,
+                  fontSize: '1rem',
+                  [theme.breakpoints.down('sm')]: {
+                    fontSize: '1.5rem',
+                    color: theme.palette.text.primary,
+                  },
+                })}
+              >
+                {t('translation|Theme')}
+              </Typography>
+            </Box>
+            <Box
+              sx={{
+                width: '100%',
+                margin: 'auto',
+                pb: 5,
+              }}
+            >
               <Box
-                key={it.name}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') dispatch(setTheme(it.name));
-                }}
                 sx={{
-                  cursor: 'pointer',
-                  border: themeName === it.name ? '2px solid' : '1px solid',
-                  borderColor: themeName === it.name ? 'primary' : 'divider',
-                  borderRadius: 2,
-                  p: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  transition: '0.2 ease',
-                  '&:hover': {
-                    backgroundColor: 'divider',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                  gap: 2,
+                  justifyContent: 'center',
+                  [theme.breakpoints.down('sm')]: {
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                    gap: 2,
                   },
                 }}
-                onClick={() => dispatch(setTheme(it.name))}
               >
-                <ThemePreview theme={it} size={110} />
-                <Box sx={{ mt: 1 }}>{capitalize(it.name)}</Box>
+                {appThemes.map(it => (
+                  <Box
+                    key={it.name}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') dispatch(setTheme(it.name));
+                    }}
+                    sx={{
+                      cursor: 'pointer',
+                      border: themeName === it.name ? '2px solid' : '1px solid',
+                      borderColor: themeName === it.name ? 'primary' : 'divider',
+                      borderRadius: 2,
+                      p: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      transition: '0.2 ease',
+                      '&:hover': {
+                        backgroundColor: 'divider',
+                      },
+                    }}
+                    onClick={() => dispatch(setTheme(it.name))}
+                  >
+                    <ThemePreview theme={it} size={110} />
+                    <Box sx={{ mt: 1 }}>{capitalize(it.name)}</Box>
+                  </Box>
+                ))}
               </Box>
-            ))}
+            </Box>
           </Box>
-        </Box>
-      </Box>
+        </AdminControlled>
+      )}
       <Box sx={{ mt: 4 }}>
         <SectionBox
           title={t('translation|Keyboard Shortcuts')}

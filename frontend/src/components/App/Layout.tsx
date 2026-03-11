@@ -32,6 +32,7 @@ import { useCluster, useClustersConf } from '../../lib/k8s';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
 import { getSavedNamespaces } from '../../lib/storage';
+import { setAdminSettings, setClusterSettings } from '../../redux/adminSettingsSlice';
 import { setConfig } from '../../redux/configSlice';
 import { ConfigState } from '../../redux/configSlice';
 import { setNamespaceFilter } from '../../redux/filterSlice';
@@ -168,6 +169,14 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
           })
         );
       }
+    }
+
+    if (config?.adminSettings) {
+      dispatch(setAdminSettings(config.adminSettings));
+    }
+
+    if (config?.clusterSettings) {
+      dispatch(setClusterSettings(config.clusterSettings));
     }
 
     /**
