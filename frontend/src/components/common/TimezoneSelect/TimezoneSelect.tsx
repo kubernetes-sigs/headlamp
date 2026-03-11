@@ -25,10 +25,11 @@ export interface TimezoneSelectorProps {
   onChange: (timezone: string) => void;
   /** The custom ID to be used when this component is inside NameValueTable for ARIA labelledby */
   nameLabelID?: string;
+  disabled?: boolean;
 }
 
 export default function TimezoneSelect(props: TimezoneSelectorProps) {
-  const { onChange, initialTimezone, nameLabelID } = props;
+  const { onChange, initialTimezone, nameLabelID, disabled } = props;
   const { i18n, t } = useTranslation();
   const timezoneOptions = React.useMemo(() => {
     const timezoneNames = spacetime.timezones();
@@ -45,6 +46,7 @@ export default function TimezoneSelect(props: TimezoneSelectorProps) {
   return (
     <Autocomplete
       id="timezone-selector-autocomplete"
+      disabled={disabled}
       options={timezoneOptions}
       getOptionLabel={option =>
         `(UTC${option.offset >= 0 ? '+' : ''}${option.offset}) ${option.name}`

@@ -164,6 +164,7 @@
   "Pod Debug Settings": "پوڈ ڈیبگ ترتیبات",
   "Ephemeral debug containers cannot be removed via Kubernetes API. They will remain in the pod specification even after the terminal closes. To remove them, the pod must be recreated.": "عارضی ڈیبگ کنٹینرز کو Kubernetes API کے ذریعے حذف نہیں کیا جا سکتا، ٹرمینل بند ہونے کے بعد بھی یہ پوڈ کی تفصیلات میں موجود رہیں گے، انہیں ہٹانے کے لیے پوڈ کو دوبارہ بنانا ہوگا",
   "The default image is used for creating ephemeral debug containers.": "ڈیفالٹ امیج عارضی ڈیبگ کنٹینرز بنانے کے لیے استعمال ہوتی ہے",
+  "Set by your administrator": "",
   "General Settings": "عمومی ترتیبات",
   "Version": "ورژن",
   "Language": "زبان",
