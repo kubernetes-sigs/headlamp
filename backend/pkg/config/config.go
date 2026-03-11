@@ -84,6 +84,8 @@ type Config struct {
 	UseOTLPHTTP        *bool    `koanf:"use-otlp-http"`
 	StdoutTraceEnabled *bool    `koanf:"stdout-trace-enabled"`
 	SamplingRate       *float64 `koanf:"sampling-rate"`
+	// Admin settings file path
+	SettingsPath string `koanf:"settings"`
 	// TLS config
 	TLSCertPath string `koanf:"tls-cert-path"`
 	TLSKeyPath  string `koanf:"tls-key-path"`
@@ -454,6 +456,7 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
 	f.Bool("enable-helm", false, "Enable Helm operations")
+	f.String("settings", "", "Path to an admin settings JSON file for global defaults and display controls")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {

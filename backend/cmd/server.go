@@ -35,6 +35,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/settings"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -155,6 +156,16 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		}
 
 		cfg.OidcCACert = string(caFileContents)
+	}
+
+	if conf.SettingsPath != "" {
+		adminSettings, err := settings.Load(conf.SettingsPath)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "loading admin settings")
+			os.Exit(1)
+		}
+
+		cfg.AdminSettings = adminSettings
 	}
 
 	return &HeadlampConfig{HeadlampConfig: cfg}

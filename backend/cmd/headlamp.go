@@ -50,6 +50,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/settings"
 
 	headlampcfg "github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
@@ -98,9 +99,18 @@ const (
 )
 
 type clientConfig struct {
-	Clusters                []Cluster `json:"clusters"`
-	IsDynamicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
-	AllowKubeconfigChanges  bool      `json:"allowKubeconfigChanges"`
+	Clusters                []Cluster                `json:"clusters"`
+	IsDynamicClusterEnabled bool                     `json:"isDynamicClusterEnabled"`
+	AllowKubeconfigChanges  bool                     `json:"allowKubeconfigChanges"`
+	AdminSettings           *clientAdminSettings     `json:"adminSettings,omitempty"`
+	ClusterSettings         map[string]interface{}   `json:"clusterSettings,omitempty"`
+}
+
+type clientAdminSettings struct {
+	Defaults               map[string]interface{}          `json:"defaults"`
+	Display                map[string]settings.DisplayMode `json:"display"`
+	ClusterDefinedSettings interface{}                     `json:"clusterDefinedSettings"`
+	ClusterDefined         map[string][]string             `json:"clusterDefined"`
 }
 
 type OauthConfig struct {
@@ -1829,13 +1839,22 @@ func parseClusterFromKubeConfig(kubeConfigs []string) ([]Cluster, []error) {
 func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	clientConfig := clientConfig{
+	cc := clientConfig{
 		Clusters:                c.getClusters(),
 		IsDynamicClusterEnabled: c.EnableDynamicClusters,
 		AllowKubeconfigChanges:  c.AllowKubeconfigChanges,
 	}
 
-	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {
+	if c.AdminSettings != nil {
+		cc.AdminSettings = &clientAdminSettings{
+			Defaults:               c.AdminSettings.Defaults,
+			Display:                c.AdminSettings.Display,
+			ClusterDefinedSettings: c.AdminSettings.ClusterDefinedSettings,
+			ClusterDefined:         c.AdminSettings.ClusterDefined,
+		}
+	}
+
+	if err := json.NewEncoder(w).Encode(&cc); err != nil {
 		logger.Log(logger.LevelError, nil, err, "encoding config")
 	}
 }
