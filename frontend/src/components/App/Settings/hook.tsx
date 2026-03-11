@@ -15,11 +15,13 @@
  */
 
 import { useTypedSelector } from '../../../redux/hooks';
+import { selectEffectiveSettings } from '../../../settings/useAdminSettings';
 
 export const useSettings = function (settingName?: string) {
-  const storeSettingEntries = useTypedSelector(state =>
-    settingName ? state.config.settings[settingName] : state.config.settings
-  );
+  const storeSettingEntries = useTypedSelector(state => {
+    const settings = selectEffectiveSettings(state);
+    return settingName ? settings[settingName] : settings;
+  });
 
   return storeSettingEntries;
 };
