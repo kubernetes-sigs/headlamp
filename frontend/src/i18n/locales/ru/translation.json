@@ -164,6 +164,7 @@
   "Pod Debug Settings": "Настройки отладки Pod",
   "Ephemeral debug containers cannot be removed via Kubernetes API. They will remain in the pod specification even after the terminal closes. To remove them, the pod must be recreated.": "Эфемерные отладочные контейнеры невозможно удалить через Kubernetes API. Они останутся в спецификации Pod даже после закрытия терминала. Чтобы удалить их, Pod необходимо пересоздать.",
   "The default image is used for creating ephemeral debug containers.": "Образ по умолчанию используется для создания временных контейнеров отладки.",
+  "Set by your administrator": "",
   "General Settings": "Общие настройки",
   "Version": "Версия",
   "Language": "Язык",

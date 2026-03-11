@@ -626,6 +626,14 @@
     "getRoutePath": [Function],
     "getRouteUseClusterURL": [Function],
   },
+  "Settings": {
+    "get": [Function],
+    "getAdminDefault": [Function],
+    "getClusterSetting": [Function],
+    "getSource": [Function],
+    "isDisabled": [Function],
+    "isHidden": [Function],
+  },
   "Utils": {
     "CLUSTER_ACTION_GRACE_PERIOD": 5000,
     "auth": {

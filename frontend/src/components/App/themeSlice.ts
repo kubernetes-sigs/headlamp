@@ -73,6 +73,18 @@ const themeSlice = createSlice({
       }
     },
     /**
+     * Applies an admin-controlled theme from distributed settings.
+     * Sets the active theme without persisting to localStorage, so the
+     * user's preference is restored when the admin lifts the restriction.
+     * Callers must skip this when a CLI forceTheme is active.
+     */
+    applyAdminTheme(state, action: PayloadAction<string | undefined>) {
+      const themeName = action.payload;
+      if (themeName && themeName !== state.name) {
+        state.name = themeName;
+      }
+    },
+    /**
      * Applies backend theme configuration if set.
      * Should be called after config is loaded from backend.
      */
@@ -140,6 +152,7 @@ export const useCurrentAppTheme = () => {
 export const {
   setBrandingAppLogoComponent,
   setTheme,
+  applyAdminTheme,
   applyBackendThemeConfig,
   ensureValidThemeName,
 } = themeSlice.actions;
