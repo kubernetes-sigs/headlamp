@@ -1180,7 +1180,7 @@ export function registerProjectDeleteButton(projectDeleteButton: ProjectDeleteBu
  *
  * @param projectHeaderAction - The action configuration to register
  * @param projectHeaderAction.id - Unique identifier for the action
- * @param projectHeaderAction.component - React component to render as the action button
+ * @param projectHeaderAction.component - React component to render as the action button; receives an optional callback for selecting a project tab
  * @param projectHeaderAction.isEnabled - Optional function to determine if action is displayed
  *
  * @example

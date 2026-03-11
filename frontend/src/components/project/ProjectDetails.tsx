@@ -382,6 +382,8 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
   >(() => ProjectDeleteButton);
 
   const [headerActions, setHeaderActions] = useState<ReactNode[]>([]);
+  const [selectedTab, setSelectedTab] = useState<string>();
+  const [selectedCategoryName, setSelectedCategoryName] = React.useState<string>();
 
   // Load custom delete button
   useEffect(() => {
@@ -436,7 +438,11 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
 
       if (isCurrent) {
         const actions = enabledActions
-          .map(action => (action ? <action.component key={action.id} project={project} /> : null))
+          .map(action =>
+            action ? (
+              <action.component key={action.id} project={project} setSelectedTab={setSelectedTab} />
+            ) : null
+          )
           .filter(Boolean);
         setHeaderActions(actions);
       }
@@ -448,9 +454,6 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
       isCurrent = false;
     };
   }, [registeredHeaderActions, project]);
-
-  const [selectedTab, setSelectedTab] = useState<string>();
-  const [selectedCategoryName, setSelectedCategoryName] = React.useState<string>();
 
   const { items, isLoading } = useProjectItems(project);
 
