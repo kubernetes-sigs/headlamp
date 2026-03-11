@@ -92,6 +92,11 @@ export interface ConfigState {
     [key: string]: any;
   };
   /**
+   * The subset of `settings` the user has set explicitly. Only these are
+   * persisted, and only these take precedence over admin defaults.
+   */
+  userSettings?: Partial<ConfigState['settings']>;
+  /**
    * Whether OIDC auto-login is enabled. Null indicates the value hasn't been loaded from the backend yet.
    */
   oidcAutoLogin: boolean | null;
@@ -166,7 +171,30 @@ function loadStoredSettings(): Partial<ConfigState['settings']> {
   }
 }
 
-const storedSettings = loadStoredSettings();
+export const builtInSettings: Record<string, any> = {
+  tableRowsPerPageOptions: defaultTableRowsPerPageOptions,
+  timezone: defaultTimezone(),
+  sidebarSortAlphabetically: false,
+  expandLargeGraph: false,
+  useEvict: true,
+};
+
+/**
+ * Drops stored values equal to the built-in default. Older versions persisted
+ * every setting on opening the Settings page, so such values are not taken
+ * as user choices and do not hide admin defaults.
+ */
+function withoutBuiltInValues(
+  settings: Partial<ConfigState['settings']>
+): Partial<ConfigState['settings']> {
+  return Object.fromEntries(
+    Object.entries(settings).filter(
+      ([key, value]) => JSON.stringify(value) !== JSON.stringify(builtInSettings[key])
+    )
+  );
+}
+
+const storedSettings = withoutBuiltInValues(loadStoredSettings());
 
 export const initialState: ConfigState = {
   clusters: null,
@@ -180,12 +208,14 @@ export const initialState: ConfigState = {
   oidcAutoLogin: null,
   settings: {
     tableRowsPerPageOptions:
-      storedSettings.tableRowsPerPageOptions ?? defaultTableRowsPerPageOptions,
-    timezone: storedSettings.timezone || defaultTimezone(),
-    sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically ?? false,
-    expandLargeGraph: storedSettings.expandLargeGraph ?? false,
-    useEvict: storedSettings.useEvict ?? true,
+      storedSettings.tableRowsPerPageOptions ?? builtInSettings.tableRowsPerPageOptions,
+    timezone: storedSettings.timezone ?? builtInSettings.timezone,
+    sidebarSortAlphabetically:
+      storedSettings.sidebarSortAlphabetically ?? builtInSettings.sidebarSortAlphabetically,
+    expandLargeGraph: storedSettings.expandLargeGraph ?? builtInSettings.expandLargeGraph,
+    useEvict: storedSettings.useEvict ?? builtInSettings.useEvict,
   },
+  userSettings: storedSettings,
 };
 
 const configSlice = createSlice({
@@ -256,7 +286,8 @@ const configSlice = createSlice({
       Object.keys(action.payload).forEach(key => {
         state.settings[key] = action.payload[key];
       });
-      localStorage.setItem('settings', JSON.stringify(state.settings));
+      state.userSettings = { ...state.userSettings, ...action.payload };
+      localStorage.setItem('settings', JSON.stringify(state.userSettings));
     },
   },
 });
