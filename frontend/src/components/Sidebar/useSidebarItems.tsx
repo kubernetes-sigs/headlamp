@@ -519,8 +519,8 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     sidebars[sidebarName === '' ? DefaultSidebars.IN_CLUSTER : sidebarName] ?? [];
 
   const sortedItems = useMemo(() => {
-    // Make a deep copy so that we always start from the original (unsorted) order.
-    const itemsCopy = _.cloneDeep(unsortedItems);
+    // Make a copy so that we always start from the original (unsorted) order.
+    const itemsCopy = [...unsortedItems];
     return settings?.sidebarSortAlphabetically ? sortSidebarItems(itemsCopy) : itemsCopy;
   }, [unsortedItems, settings.sidebarSortAlphabetically]);
 

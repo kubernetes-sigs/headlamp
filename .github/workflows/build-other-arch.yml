@@ -1,0 +1,78 @@
+name: Build Container s390x ppc64le
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - Dockerfile
+      - Makefile
+      - '.github/workflows/build-other-arch.yml'
+  push:
+    branches:
+      - main
+      - rc-*
+      - testing-rc-*
+
+permissions:
+  contents: read
+
+jobs:
+  backend-alt-arch:
+    runs-on: ubuntu-latest
+    name: ${{ matrix.arch }} backend image build and test
+    strategy:
+      matrix:
+        arch: [s390x, ppc64le]
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+      - name: Set up Go
+        uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+        with:
+          go-version-file: backend/go.mod
+          cache: false
+      - name: Cache Go module download cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/go/pkg/mod
+          key: go-mod-${{ hashFiles('backend/go.sum') }}
+          restore-keys: go-mod-
+      - name: Cache Go build cache (arch-specific compiled artifacts)
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/go-build
+          key: go-build-${{ matrix.arch }}-${{ hashFiles('backend/go.sum') }}
+          restore-keys: |
+            go-build-${{ matrix.arch }}-
+      - name: Pre-download Go modules on host (avoids slow network inside QEMU)
+        working-directory: backend
+        run: go mod download all
+      - name: Build and test backend for ${{ matrix.arch }}
+        run: |
+          docker run --rm --platform linux/${{ matrix.arch }} \
+            -v "${{ github.workspace }}/backend":/backend \
+            -v "$HOME/go/pkg/mod":/go/pkg/mod \
+            -v "$HOME/.cache/go-build":/root/.cache/go-build \
+            -e GOPROXY=off \
+            -e GONOSUMDB='*' \
+            -w /backend \
+            golang:1.24.13@sha256:c29cdf32d47053ab0d914852d9c2ed2da12b3cf13079aaef1704ef21335e68a3 \
+            sh -c "go build ./... && go test ./..."
+      - name: Build ${{ matrix.arch }} container image
+        uses: docker/build-push-action@0a97817b6ade9f46837855d676c4cca3a2471fc9 # v4.2.1
+        with:
+          context: .
+          push: false
+          load: true
+          platforms: linux/${{ matrix.arch }}
+          tags: headlamp:${{ matrix.arch }}-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Verify ${{ matrix.arch }} container image
+        run: |
+          output=$(docker run --rm --platform linux/${{ matrix.arch }} headlamp:${{ matrix.arch }}-test --version)
+          echo "Version output: $output"
+          echo "$output" | grep -q "linux/${{ matrix.arch }}" || (echo "ERROR: expected 'linux/${{ matrix.arch }}' in version output" && exit 1)

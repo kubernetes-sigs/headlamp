@@ -315,6 +315,10 @@ func createTempKubeconfig(t *testing.T, content string) string {
 }
 
 func TestContext(t *testing.T) {
+	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {
+		t.Skip("skipping integration test")
+	}
+
 	kubeConfigFile := config.GetDefaultKubeConfigPath()
 
 	configStore := kubeconfig.NewContextStore()

@@ -182,6 +182,7 @@ export function useTerminalStream(options: TerminalStreamOptions) {
       }
 
       xterm.open(containerEl);
+      xterm.focus();
 
       let lastKeyPressEvent: KeyboardEvent | null = null;
       xterm.onData(data => {

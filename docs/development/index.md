@@ -122,6 +122,29 @@ npm run app:package:win:msi
 
 See the generated app files in app/dist/ .
 
+### Verifying Builds
+
+After packaging the desktop app using the appropriate `npm run app:package` command (which creates packaged artifacts in `app/dist/`), you can verify that the built binaries work correctly by running the appropriate verification command. This is useful to ensure the built binaries run properly, especially when upgrading packages that build binaries or when updating Electron.
+
+#### Linux
+```bash
+npm run app:verify-build-linux
+```
+
+#### macOS
+```bash
+npm run app:verify-build-mac
+```
+
+#### Windows
+```powershell
+npm run app:verify-build-windows
+```
+
+These verification scripts will check that build artifacts exist, test the backend server binary, and run the Electron app to ensure it executes correctly.
+
+**Note for macOS:** On systems without a display server (like CI environments), the Electron app may timeout. This is expected behavior and is treated as success if the app at least starts.
+
 ### Running the app
 
 If you already have **BOTH** the `backend` and `frontend` up and running, the quickest way to
