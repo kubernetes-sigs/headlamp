@@ -65,7 +65,7 @@ export function runCommand(
   desktopApiReceive?: (
     channel: string,
     listener: (cmdId: string, data: string | number) => void
-  ) => void
+  ) => (() => void) | void
 ): {
   stdout: { on: (event: string, listener: (chunk: any) => void) => void };
   stderr: { on: (event: string, listener: (chunk: any) => void) => void };
@@ -87,24 +87,34 @@ export function runCommand(
   const id = `${new Date().getTime()}-${Math.random().toString(36)}`;
 
   const stdout = new EventTarget();
-  desktopApiReceive('command-stdout', (cmdId: string, data: string | number) => {
-    if (cmdId === id) {
-      const event = new CustomEvent('data', { detail: data });
-      stdout.dispatchEvent(event);
+  const removeStdout = desktopApiReceive(
+    'command-stdout',
+    (cmdId: string, data: string | number) => {
+      if (cmdId === id) {
+        const event = new CustomEvent('data', { detail: data });
+        stdout.dispatchEvent(event);
+      }
     }
-  });
+  );
 
   const stderr = new EventTarget();
-  desktopApiReceive('command-stderr', (cmdId: string, data: string | number) => {
-    if (cmdId === id) {
-      const event = new CustomEvent('data', { detail: data });
-      stderr.dispatchEvent(event);
+  const removeStderr = desktopApiReceive(
+    'command-stderr',
+    (cmdId: string, data: string | number) => {
+      if (cmdId === id) {
+        const event = new CustomEvent('data', { detail: data });
+        stderr.dispatchEvent(event);
+      }
     }
-  });
+  );
 
   const exit = new EventTarget();
-  desktopApiReceive('command-exit', (cmdId: string, code: string | number) => {
+  const removeExit = desktopApiReceive('command-exit', (cmdId: string, code: string | number) => {
     if (cmdId === id) {
+      removeStdout?.();
+      removeStderr?.();
+      removeExit?.();
+
       const event = new CustomEvent('exit', { detail: code });
       exit.dispatchEvent(event);
     }

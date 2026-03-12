@@ -80,4 +80,48 @@ describe('runCommand', () => {
     expect(exit).toHaveBeenCalledOnce();
     expect(exit).toHaveBeenCalledWith(0);
   });
+
+  it('removes command listeners after the matching command exits', () => {
+    const listeners = new Map<string, (id: string, data: string | number) => void>();
+    const removers = new Map<string, ReturnType<typeof vi.fn>>();
+    const send = vi.fn();
+    const receive = vi.fn(
+      (channel: string, listener: (id: string, data: string | number) => void) => {
+        const remove = vi.fn();
+        listeners.set(channel, listener);
+        removers.set(channel, remove);
+        return remove;
+      }
+    );
+
+    runCommand('gh', ['auth', 'status'], {}, {}, send, receive);
+    const commandId = send.mock.calls[0][1].id;
+
+    listeners.get('command-exit')?.(commandId, 0);
+
+    expect([...removers.values()]).toHaveLength(3);
+    for (const remove of removers.values()) {
+      expect(remove).toHaveBeenCalledOnce();
+    }
+  });
+
+  it('keeps listeners for another command exit', () => {
+    const listeners = new Map<string, (id: string, data: string | number) => void>();
+    const removers: Array<ReturnType<typeof vi.fn>> = [];
+    const receive = vi.fn(
+      (channel: string, listener: (id: string, data: string | number) => void) => {
+        const remove = vi.fn();
+        listeners.set(channel, listener);
+        removers.push(remove);
+        return remove;
+      }
+    );
+
+    runCommand('gh', ['auth', 'status'], {}, {}, vi.fn(), receive);
+    listeners.get('command-exit')?.('another-command', 0);
+
+    for (const remove of removers) {
+      expect(remove).not.toHaveBeenCalled();
+    }
+  });
 });
