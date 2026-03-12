@@ -132,6 +132,16 @@ var ParseWithEnvTests = []struct {
 		},
 	},
 	{
+		name: "disabled_sidebar_items_from_env",
+		args: []string{"go run ./cmd"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_DISABLED_SIDEBAR_ITEMS": "storage,network",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, "storage,network", conf.DisabledSidebarItems)
+		},
+	},
+	{
 		name: "log_level_from_env",
 		args: []string{"go run ./cmd"},
 		env: map[string]string{
@@ -248,6 +258,13 @@ func TestParseFlags(t *testing.T) {
 			args: []string{"go run ./cmd", "--log-level=warn"},
 			verify: func(t *testing.T, conf *config.Config) {
 				assert.Equal(t, "warn", conf.LogLevel)
+			},
+		},
+		{
+			name: "disabled_sidebar_items_flag",
+			args: []string{"go run ./cmd", "--disabled-sidebar-items=network,gatewayapi,storage"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, "network,gatewayapi,storage", conf.DisabledSidebarItems)
 			},
 		},
 	}

@@ -50,6 +50,33 @@ describe('configSlice', () => {
     expect(nextState.isDynamicClusterEnabled).toBe(true);
   });
 
+  it('should handle setConfig with disabledSidebarItems', () => {
+    const clusters: ConfigState['clusters'] = {
+      'cluster-1': { name: 'cluster-1' } as Cluster,
+    };
+    const disabledSidebarItems = ['network', 'gatewayapi', 'storage'];
+    const nextState = configReducer(
+      initialState,
+      setConfig({ clusters, disabledSidebarItems })
+    );
+    expect(nextState.clusters).toEqual(clusters);
+    expect(nextState.disabledSidebarItems).toEqual(disabledSidebarItems);
+  });
+
+  it('should clear disabledSidebarItems when setConfig receives empty array', () => {
+    let state = configReducer(
+      initialState,
+      setConfig({
+        clusters: {},
+        disabledSidebarItems: ['network', 'storage'],
+      })
+    );
+    expect(state.disabledSidebarItems).toEqual(['network', 'storage']);
+
+    state = configReducer(state, setConfig({ clusters: {}, disabledSidebarItems: [] }));
+    expect(state.disabledSidebarItems).toEqual([]);
+  });
+
   it('should preserve isDynamicClusterEnabled when setConfig is called without it', () => {
     let state = configReducer(
       initialState,

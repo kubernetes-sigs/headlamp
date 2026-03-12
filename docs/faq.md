@@ -79,7 +79,7 @@ By default, Headlamp assumes users can list all namespaces. If you only have the
 
 ### How do I hide certain sidebar items in the web UI?
 
-When deploying Headlamp in-cluster as a web UI, you can hide specific sidebar items (e.g. Network, Gateway API) via the Helm chart. Set `config.disabledSidebarItems` to a comma-separated list of item names in your `values.yaml`, or use `--set config.disabledSidebarItems="network,gatewayapi"`. This is useful for ISVs and MSPs offering a simplified interface. The desktop app is not affected. See the [in-cluster installation guide](./installation/in-cluster/index.md#hiding-sidebar-items) for details.
+When deploying Headlamp in-cluster as a web UI, you can hide specific sidebar items (e.g. Network, Gateway API) via the Helm chart. Set `config.disabledSidebarItems` to a comma-separated list of item names in your `values.yaml`, or use `--set config.disabledSidebarItems="network,gatewayapi"`. This is useful for ISVs and MSPs offering a simplified interface. The desktop app is not affected. Note that this only affects what is shown in the UI; it does not restrict what resources a user can access. Authorization is still fully governed by Kubernetes RBAC, so this feature should not be relied on as a security or access-control mechanism. For actual access control, configure Role and RoleBinding (or ClusterRole and ClusterRoleBinding) for the identities users log in with. See the [installation guide](./installation/index.mdx#create-a-service-account-token), [in-cluster installation guide](./installation/in-cluster/index.md#hiding-sidebar-items), and [Kubernetes RBAC documentation](https://kubernetes.io/docs/reference/access-authn-authz/rbac).
 
 ### How do I add or remove plugins in Headlamp?
 

@@ -454,7 +454,7 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
 	f.Bool("enable-helm", false, "Enable Helm operations")
 	f.String("disabled-sidebar-items", "",
-		"Comma-separated list of sidebar item names to hide in the web UI (e.g. network,gatewayapi). Only applies when deployed as web, not desktop.")
+		"Comma-separated sidebar item names to hide in web UI (e.g. network,gatewayapi). Web deployment only.")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {

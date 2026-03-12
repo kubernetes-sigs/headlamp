@@ -169,11 +169,13 @@ config:
   watchPlugins: true  # Set to true to enable automatic plugin updates in main headlamp container
 ```
 
-When enabled, any plugins' changes (either through Helm upgrades or direct ConfigMap updates) wil update in the main headlamp container by enabling --watch-plugins-changes flag on headlamp server.
+When enabled, any plugins' changes (either through Helm upgrades or direct ConfigMap updates) will update in the main headlamp container by enabling --watch-plugins-changes flag on headlamp server.
 
 ## Hiding sidebar items
 
 When deploying Headlamp as a web UI (in-cluster), you can hide specific sidebar items such as Network or Gateway API. This is useful for ISVs and MSPs who want to offer a simplified or scoped interface.
+
+Note that this setting only affects what is shown in the UI and is not a security boundary; users can still access any resources allowed by Kubernetes RBAC or other backend permissions, even if their sidebar entries are hidden. For actual access control, configure Kubernetes RBAC for the identities users log in with (e.g. the ServiceAccount whose token they use, or their OIDC user/group). See the [installation guide](../index.mdx#create-a-service-account-token) and [Kubernetes RBAC documentation](https://kubernetes.io/docs/reference/access-authn-authz/rbac) for examples.
 
 Set `config.disabledSidebarItems` in your `values.yaml` to a comma-separated list of sidebar item names:
 

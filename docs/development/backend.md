@@ -59,6 +59,8 @@ When running Headlamp as a web deployment, you can hide specific sidebar items u
 
 - `--disabled-sidebar-items` — comma-separated list of sidebar item names (e.g. `network,gatewayapi`)
 
+This flag only hides navigation entries in the sidebar; it does not restrict API or resource access. Authorization is governed by Kubernetes RBAC. For access control, configure RBAC for the identities users log in with (see the [installation guide](../installation/index.mdx) and [Kubernetes RBAC documentation](https://kubernetes.io/docs/reference/access-authn-authz/rbac)).
+
 Example:
 
 ```bash
