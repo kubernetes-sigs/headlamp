@@ -167,19 +167,47 @@ describe('validateCommandData', () => {
     expect(validateCommandData('string' as any)[0]).toBe(false);
   });
 
+  it('returns false if id is missing, empty, or not a string', () => {
+    const commandData = {
+      command: 'minikube',
+      args: [],
+      options: {},
+      permissionSecrets: {},
+    };
+
+    expect(validateCommandData(commandData)[0]).toBe(false);
+    expect(validateCommandData({ ...commandData, id: '' })[0]).toBe(false);
+    expect(validateCommandData({ ...commandData, id: 123 as any })[0]).toBe(false);
+  });
+
   it('returns false if command is missing or not a string', () => {
-    expect(validateCommandData({ args: [], options: {}, permissionSecrets: {} })[0]).toBe(false);
     expect(
-      validateCommandData({ command: 123 as any, args: [], options: {}, permissionSecrets: {} })[0]
+      validateCommandData({ id: 'test-id', args: [], options: {}, permissionSecrets: {} })[0]
     ).toBe(false);
     expect(
-      validateCommandData({ command: '', args: [], options: {}, permissionSecrets: {} })[0]
+      validateCommandData({
+        id: 'test-id',
+        command: 123 as any,
+        args: [],
+        options: {},
+        permissionSecrets: {},
+      })[0]
+    ).toBe(false);
+    expect(
+      validateCommandData({
+        id: 'test-id',
+        command: '',
+        args: [],
+        options: {},
+        permissionSecrets: {},
+      })[0]
     ).toBe(false);
   });
 
   it('returns false if args is not an array', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'minikube',
         args: 'not-array' as any,
         options: {},
@@ -191,6 +219,7 @@ describe('validateCommandData', () => {
   it('returns false if options is not an object', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'minikube',
         args: [],
         options: null as any,
@@ -199,6 +228,7 @@ describe('validateCommandData', () => {
     ).toBe(false);
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'minikube',
         args: [],
         options: 123 as any,
@@ -210,6 +240,7 @@ describe('validateCommandData', () => {
   it('returns false if permissionSecrets is not an object', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'minikube',
         args: [],
         options: {},
@@ -218,6 +249,7 @@ describe('validateCommandData', () => {
     ).toBe(false);
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'minikube',
         args: [],
         options: {},
@@ -229,6 +261,7 @@ describe('validateCommandData', () => {
   it('returns false if any permissionSecret value is not a number', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'minikube',
         args: [],
         options: {},
@@ -240,6 +273,7 @@ describe('validateCommandData', () => {
   it('returns false if command is not in validCommands', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'invalidcmd',
         args: [],
         options: {},
@@ -251,6 +285,7 @@ describe('validateCommandData', () => {
   it('returns true for valid minikube command', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'minikube',
         args: [],
         options: {},
@@ -262,6 +297,7 @@ describe('validateCommandData', () => {
   it('returns true for valid az command', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'az',
         args: ['arg1'],
         options: {},
@@ -273,6 +309,7 @@ describe('validateCommandData', () => {
   it('returns true for valid scriptjs command', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'scriptjs',
         args: ['myscript.js'],
         options: {},
@@ -317,6 +354,107 @@ describe('handleRunCommand', () => {
     await handleRunCommand(fakeEvent, {}, null, {});
 
     expect(sentMessages).toEqual([]);
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('reports an exit when command data is invalid', async () => {
+    await handleRunCommand(
+      fakeEvent,
+      {
+        id: 'invalid-command',
+        command: 'not-allowed',
+        args: [],
+        options: {},
+        permissionSecrets: {},
+      },
+      { id: 1 } as any,
+      {}
+    );
+
+    expect(sentMessages).toContainEqual(['command-exit', 'invalid-command', -1]);
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('does not report an invalid command exit without a string ID', async () => {
+    await handleRunCommand(
+      fakeEvent,
+      {
+        id: 123 as any,
+        command: 'minikube',
+        args: [],
+        options: {},
+        permissionSecrets: {},
+      },
+      { id: 1 } as any,
+      {}
+    );
+
+    expect(sentMessages).toEqual([]);
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('reports an exit when the permission secret is rejected', async () => {
+    await handleRunCommand(
+      fakeEvent,
+      {
+        id: 'permission-denied',
+        command: 'gh',
+        args: ['auth', 'status'],
+        options: {},
+        permissionSecrets: { 'runCmd-gh': 1 },
+      },
+      { id: 1 } as any,
+      { 'runCmd-gh': 2 }
+    );
+
+    expect(sentMessages).toContainEqual(['command-exit', 'permission-denied', -2]);
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('reports an exit when the user denies command consent', async () => {
+    loadSettingsMock.mockReturnValue({ confirmedCommands: { 'minikube status': false } });
+
+    await handleRunCommand(
+      fakeEvent,
+      {
+        id: 'consent-denied',
+        command: 'minikube',
+        args: ['status'],
+        options: {},
+        permissionSecrets: { 'runCmd-minikube': 1 },
+      },
+      { id: 1 } as any,
+      { 'runCmd-minikube': 1 }
+    );
+
+    expect(sentMessages).toContainEqual(['command-exit', 'consent-denied', -3]);
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('reports an exit when the user denies command consent for the first time', async () => {
+    const { saveSettings } = await import('./settings');
+    dialogMock.mockReturnValue(1);
+    loadSettingsMock.mockReturnValue({});
+    vi.mocked(saveSettings).mockClear();
+
+    await handleRunCommand(
+      fakeEvent,
+      {
+        id: 'consent-denied',
+        command: 'minikube',
+        args: [],
+        options: {},
+        permissionSecrets: { 'runCmd-minikube': 1 },
+      },
+      { id: 1 } as any,
+      { 'runCmd-minikube': 1 }
+    );
+
+    expect(saveSettings).toHaveBeenCalledWith(
+      '/fake/settings.json',
+      expect.objectContaining({ confirmedCommands: { minikube: false } })
+    );
+    expect(sentMessages).toContainEqual(['command-exit', 'consent-denied', -3]);
     expect(spawnMock).not.toHaveBeenCalled();
   });
 

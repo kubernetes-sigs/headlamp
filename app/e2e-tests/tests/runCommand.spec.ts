@@ -51,6 +51,19 @@ test.describe('run command', () => {
   });
 
   test('rejects invalid commands from the renderer', async () => {
+    const exitCode = electronPage.evaluate(() => {
+      return new Promise<number>(resolve => {
+        const removeListener = window.desktopApi.receive(
+          'command-exit',
+          (commandId: string, code: number) => {
+            if (commandId === 'invalid-command-e2e') {
+              removeListener();
+              resolve(code);
+            }
+          }
+        );
+      });
+    });
     const rejection = electronApp.waitForEvent('console', {
       predicate: message => message.text().includes('Invalid command: invalid-command'),
     });
@@ -66,5 +79,6 @@ test.describe('run command', () => {
     });
 
     await expect(rejection).resolves.toBeDefined();
+    await expect(exitCode).resolves.toBe(-1);
   });
 });
