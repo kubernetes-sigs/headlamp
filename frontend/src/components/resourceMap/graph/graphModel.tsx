@@ -53,6 +53,12 @@ export type GraphNode = {
   data?: any;
   /** CustomResourceDefinition for this node */
   customResourceDefinition?: string;
+  /**
+   * When true the glance card is shown immediately on first render, without
+   * requiring a hover interaction.  Intended for Storybook stories and other
+   * contexts where you want to preview the glance in a static state.
+   */
+  initialGlanceOpen?: boolean;
 };
 
 /**
