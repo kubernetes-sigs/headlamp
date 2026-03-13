@@ -31,6 +31,7 @@ export * from './DeleteButton';
 export { default as DeleteButton } from './DeleteButton';
 export * from './DocsViewer';
 export { default as DocsViewer } from './DocsViewer';
+export { default as DryRunPreviewDialog } from './DryRunPreviewDialog';
 export * from './EditButton';
 export { default as EditButton } from './EditButton';
 export * from './EditorDialog';
