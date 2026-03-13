@@ -260,6 +260,8 @@
   "Failed to copy to clipboard": "Failed to copy to clipboard",
   "Copy": "Copy",
   "Open Issue on GitHub": "Open Issue on GitHub",
+  "Label Selector": "Label Selector",
+  "e.g. app=nginx": "e.g. app=nginx",
   "Find": "Find",
   "Download": "Download",
   "No results": "No results",
