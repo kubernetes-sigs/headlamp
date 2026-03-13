@@ -238,6 +238,10 @@
           "type": "string",
           "description": "Directory to load plugins from"
         },
+        "enableWebsocketMultiplexer": {
+          "type": "boolean",
+          "description": "Enable experimental WebSocket multiplexer for improved performance"
+        },
          "tlsCertPath": {
           "type": "string",
           "description": "Path of certificate file for TLS"

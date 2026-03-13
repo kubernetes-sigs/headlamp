@@ -47,6 +47,7 @@ const makeStore = () => {
           timezone: 'UTC',
           useEvict: true,
         },
+        isWebsocketMultiplexerEnabled: null,
       },
       projects: {
         headerActions: {},
