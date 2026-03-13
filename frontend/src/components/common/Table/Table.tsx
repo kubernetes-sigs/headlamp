@@ -48,6 +48,7 @@ import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
 import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
 import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useDispatch } from 'react-redux';
 import { getTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { useShortcut } from '../../../lib/useShortcut';
 import { useURLState } from '../../../lib/util';
@@ -55,6 +56,7 @@ import { useSettings } from '../../App/Settings/hook';
 import { useQueryParamsState } from '../../resourceMap/useQueryParamsState';
 import Empty from '../EmptyContent';
 import Loader from '../Loader';
+import { setPageIndex } from '../paginationSlice';
 
 /**
  * Column definition
@@ -195,6 +197,13 @@ export default function Table<RowItem extends Record<string, any>>({
   const shouldReflectInURL = reflectInURL !== undefined && reflectInURL !== false;
   const prefix = reflectInURL === true ? '' : reflectInURL || '';
   const [page, setPage] = usePageURLState(shouldReflectInURL ? 'p' : '', prefix, initialPage);
+
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    dispatch(setPageIndex(page));
+  }, [page]);
+
   const filterKey = prefix ? `${prefix}filter` : 'filter';
   const [globalFilter, setGlobalFilter] = useQueryParamsState<string | undefined>(
     shouldReflectInURL ? filterKey : '',
