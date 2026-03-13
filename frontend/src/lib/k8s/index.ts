@@ -31,6 +31,7 @@ import CustomResourceDefinition from './crd';
 import CronJob from './cronJob';
 import DaemonSet from './daemonSet';
 import Deployment from './deployment';
+import DeviceClass from './deviceClass';
 import Endpoints from './endpoints';
 import EndpointSlice from './endpointSlices';
 import Gateway from './gateway';
@@ -52,7 +53,10 @@ import Pod from './pod';
 import PodDisruptionBudget from './podDisruptionBudget';
 import PriorityClass from './priorityClass';
 import ReplicaSet from './replicaSet';
+import ResourceClaim from './resourceClaim';
+import ResourceClaimTemplate from './resourceClaimTemplate';
 import ResourceQuota from './resourceQuota';
+import ResourceSlice from './resourceSlice';
 import Role from './role';
 import RoleBinding from './roleBinding';
 import { RuntimeClass } from './runtime';
@@ -103,6 +107,10 @@ export const ResourceClasses = {
   GatewayClass,
   HTTPRoute,
   GRPCRoute,
+  DeviceClass,
+  ResourceSlice,
+  ResourceClaim,
+  ResourceClaimTemplate,
 };
 
 /** Hook for getting or fetching the clusters configuration.

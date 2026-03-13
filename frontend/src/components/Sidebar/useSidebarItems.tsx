@@ -337,6 +337,29 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         ],
       },
       {
+        name: 'devices',
+        label: t('glossary|Devices'),
+        icon: 'mdi:devices',
+        subList: [
+          {
+            name: 'deviceClasses',
+            label: t('glossary|Device Classes'),
+          },
+          {
+            name: 'resourceSlices',
+            label: t('glossary|Resource Slices'),
+          },
+          {
+            name: 'resourceClaims',
+            label: t('glossary|Resource Claims'),
+          },
+          {
+            name: 'resourceClaimTemplates',
+            label: t('glossary|Resource Claim Templates'),
+          },
+        ],
+      },
+      {
         name: 'security',
         label: t('glossary|Security'),
         icon: 'mdi:lock',
