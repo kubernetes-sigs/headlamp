@@ -73,6 +73,20 @@ type Config struct {
 	MeGroupsPath              string `koanf:"me-groups-path"`
 	MeUserInfoURL             string `koanf:"me-user-info-url"`
 	OidcUsePKCE               bool   `koanf:"oidc-use-pkce"`
+	// GCPOAuthEnabled enables GCP OAuth 2.0 authentication for GKE clusters.
+	// When true, users authenticate via Google OAuth instead of service account tokens,
+	// enabling proper user identity attribution and RBAC enforcement.
+	GCPOAuthEnabled bool `koanf:"gcp-oauth-enabled"`
+	// GCPClientID is the OAuth 2.0 Client ID obtained from Google Cloud Console.
+	// Required when GCPOAuthEnabled is true.
+	GCPClientID string `koanf:"gcp-client-id"`
+	// GCPClientSecret is the OAuth 2.0 Client Secret obtained from Google Cloud Console.
+	// Required when GCPOAuthEnabled is true.
+	GCPClientSecret string `koanf:"gcp-client-secret"`
+	// GCPRedirectURL is the callback URL registered in Google Cloud Console for the OAuth flow.
+	// Must exactly match one of the authorized redirect URIs configured for the OAuth client.
+	// Required when GCPOAuthEnabled is true.
+	GCPRedirectURL string `koanf:"gcp-redirect-url"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -128,6 +142,11 @@ func (c *Config) Validate() error {
 		return errors.New("session-ttl cannot be greater than 1 year")
 	}
 
+	// GCP OAuth validation
+	if err := c.validateGCPOAuth(); err != nil {
+		return err
+	}
+
 	if c.TracingEnabled != nil && *c.TracingEnabled {
 		if c.ServiceName == "" {
 			return errors.New("service-name is required when tracing is enabled")
@@ -143,6 +162,27 @@ func (c *Config) Validate() error {
 			(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
 			return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
 		}
+	}
+
+	return nil
+}
+
+// validateGCPOAuth validates GCP OAuth configuration.
+func (c *Config) validateGCPOAuth() error {
+	if !c.GCPOAuthEnabled {
+		return nil
+	}
+
+	if c.GCPClientID == "" {
+		return errors.New("gcp-client-id is required when gcp-oauth-enabled is true")
+	}
+
+	if c.GCPClientSecret == "" {
+		return errors.New("gcp-client-secret is required when gcp-oauth-enabled is true")
+	}
+
+	if c.GCPRedirectURL == "" {
+		return errors.New("gcp-redirect-url is required when gcp-oauth-enabled is true")
 	}
 
 	return nil
