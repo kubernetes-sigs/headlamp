@@ -135,7 +135,43 @@ func returnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.GroupVer
 		}
 	}
 
-	return gvrList
+	// filtering the gvrList to make sure spawning go routines for only important
+	// resources which are required to be watched and cached,
+	// this will help to reduce the performance issue and resource utilization.
+	filtered := filterImportantResources(gvrList)
+
+	return filtered
+}
+
+// filterImportantResources filters the provided list of GroupVersionResources to
+// include only those that are deemed important for caching and watching.
+// This helps reduce the number of resources we watch and cache,
+// improving performance and resource utilization.
+func filterImportantResources(gvrList []schema.GroupVersionResource) []schema.GroupVersionResource {
+	allowed := map[string]struct{}{
+		"pods":         {},
+		"services":     {},
+		"deployments":  {},
+		"replicasets":  {},
+		"statefulsets": {},
+		"daemonsets":   {},
+		"nodes":        {},
+		"configmaps":   {},
+		"secrets":      {},
+		"jobs":         {},
+		"cronjobs":     {},
+	}
+
+	filtered := make([]schema.GroupVersionResource, 0, len(allowed))
+
+	for _, gvr := range gvrList {
+		if _, ok := allowed[gvr.Resource]; ok {
+			filtered = append(filtered, gvr)
+		}
+	}
+
+	// return the filtered list of GroupVersionResources that are important for caching and watching
+	return filtered
 }
 
 // Corrected CheckForChanges.
