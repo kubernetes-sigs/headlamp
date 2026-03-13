@@ -180,38 +180,85 @@ function KubeConfigLoader() {
   const dispatch = useDispatch();
   const { t } = useTranslation(['translation']);
 
-  const onDrop = (acceptedFiles: Blob[]) => {
+  const readFileAsText = (file: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error(t("translation|Couldn't read kubeconfig file")));
+      reader.onload = () => {
+        const decoder = new TextDecoder();
+        const data = decoder.decode(new Uint8Array(reader.result as ArrayBuffer));
+        resolve(data);
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const onDrop = async (acceptedFiles: Blob[]) => {
     setError('');
-    const reader = new FileReader();
-    reader.onerror = () => setError(t("translation|Couldn't read kubeconfig file"));
-    reader.onload = () => {
-      try {
-        const data = String.fromCharCode.apply(null, [
-          ...new Uint8Array(reader.result as ArrayBuffer),
-        ]);
-        const doc = yaml.load(data) as kubeconfig;
-        if (!doc.clusters) {
-          throw new Error(t('translation|No clusters found!'));
-        }
-        if (!doc.contexts) {
-          throw new Error(t('translation|No contexts found!'));
-        }
-        setFileContent(doc);
-      } catch (err) {
-        setError(
-          t(`translation|Invalid kubeconfig file: {{ errorMessage }}`, {
-            errorMessage: (err as Error).message,
-          })
-        );
-        return;
-      }
+
+    const mergedConfig: kubeconfig = {
+      clusters: [],
+      users: [],
+      contexts: [],
+      currentContext: '',
     };
-    reader.readAsArrayBuffer(acceptedFiles[0]);
+
+    const seenClusterNames = new Set<string>();
+    const seenUserNames = new Set<string>();
+    const seenContextNames = new Set<string>();
+    let failedFiles = 0;
+
+    for (const file of acceptedFiles) {
+      try {
+        const data = await readFileAsText(file);
+        const doc = yaml.load(data) as kubeconfig;
+
+        if (!doc.clusters || !doc.contexts) {
+          failedFiles++;
+          continue;
+        }
+
+        for (const cluster of doc.clusters) {
+          if (!seenClusterNames.has(cluster.name)) {
+            seenClusterNames.add(cluster.name);
+            mergedConfig.clusters.push(cluster);
+          }
+        }
+
+        for (const user of doc.users || []) {
+          if (!seenUserNames.has(user.name)) {
+            seenUserNames.add(user.name);
+            mergedConfig.users.push(user);
+          }
+        }
+
+        for (const context of doc.contexts) {
+          if (!seenContextNames.has(context.name)) {
+            seenContextNames.add(context.name);
+            mergedConfig.contexts.push(context);
+          }
+        }
+      } catch (err) {
+        failedFiles++;
+        continue;
+      }
+    }
+
+    if (mergedConfig.contexts.length === 0) {
+      setError(t('translation|No valid clusters found in the selected files'));
+      return;
+    }
+
+    if (failedFiles > 0) {
+      setError(t('translation|{{ count }} file(s) could not be parsed', { count: failedFiles }));
+    }
+
+    setFileContent(mergedConfig);
   };
 
   const { getRootProps, getInputProps, open } = useDropzone({
     onDrop: onDrop,
-    multiple: false,
+    multiple: true,
   });
 
   function handleCheckboxChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -235,15 +282,15 @@ function KubeConfigLoader() {
               <FormControl>
                 <input {...getInputProps()} />
                 <Tooltip
-                  title={t('translation|Drag & drop or choose kubeconfig file here')}
+                  title={t('translation|Drag & drop or choose kubeconfig files here')}
                   placement="top"
                 >
                   <Button
                     variant="contained"
-                    onClick={() => open}
+                    onClick={open}
                     startIcon={<InlineIcon icon="mdi:upload" width={32} />}
                   >
-                    {t('translation|Choose file')}
+                    {t('translation|Choose files')}
                   </Button>
                 </Tooltip>
               </FormControl>
