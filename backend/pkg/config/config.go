@@ -86,6 +86,15 @@ type Config struct {
 	// TLS config
 	TLSCertPath string `koanf:"tls-cert-path"`
 	TLSKeyPath  string `koanf:"tls-key-path"`
+	// WebSocket security
+	AllowedHosts string `koanf:"allowed-hosts"`
+	// TrustedProxies is a list of trusted proxy IPs/CIDRs for X-Forwarded-For header processing.
+	// If empty, forwarded headers are ignored and the direct remote address is used.
+	TrustedProxies string `koanf:"trusted-proxies"`
+	// WebSocketRequireOrigin determines whether WebSocket connections require an Origin header.
+	// When true (default), connections without an Origin header are rejected.
+	// Set to false only for development/testing environments.
+	WebSocketRequireOrigin bool `koanf:"websocket-require-origin"`
 }
 
 func (c *Config) Validate() error {
@@ -420,6 +429,7 @@ func flagset() *flag.FlagSet {
 	addOIDCFlags(f)
 	addTelemetryFlags(f)
 	addTLSFlags(f)
+	addWebSocketSecurityFlags(f)
 
 	return f
 }
@@ -492,6 +502,38 @@ func addTLSFlags(f *flag.FlagSet) {
 	// TLS flags
 	f.String("tls-cert-path", "", "Certificate for serving TLS")
 	f.String("tls-key-path", "", "Key for serving TLS")
+}
+
+// addWebSocketSecurityFlags registers command-line flags for WebSocket security settings.
+// These flags control origin validation, trusted proxy handling, and DNS rebinding protection.
+func addWebSocketSecurityFlags(f *flag.FlagSet) {
+	// allowed-hosts: Controls which Host header values are accepted for WebSocket connections.
+	// This protects against DNS rebinding attacks where a malicious website resolves to the
+	// Headlamp server's IP address. Loopback addresses are always allowed for local development.
+	// Default: empty (only same-origin requests allowed)
+	f.String("allowed-hosts", "",
+		"Comma-separated list of allowed Host header values for WebSocket connections (DNS rebinding protection). "+
+			"Loopback addresses (localhost, 127.0.0.1, ::1) are always allowed. "+
+			"Example: --allowed-hosts=headlamp.example.com,headlamp.internal")
+
+	// trusted-proxies: Controls which upstream proxies are trusted to set X-Forwarded-For headers.
+	// This is critical for accurate client IP detection when Headlamp runs behind a load balancer
+	// or reverse proxy. Without this, attackers could spoof their IP address via headers.
+	// Default: empty (forwarded headers ignored, direct remote address used)
+	f.String("trusted-proxies", "",
+		"Comma-separated list of trusted proxy IPs or CIDRs for X-Forwarded-For header processing. "+
+			"If empty, forwarded headers are ignored and the direct remote address is used. "+
+			"Example: --trusted-proxies=10.0.0.0/8,192.168.1.1")
+
+	// websocket-require-origin: Controls whether WebSocket connections must include an Origin header.
+	// Browsers always send Origin headers for WebSocket connections, so missing Origin headers
+	// typically indicate non-browser clients (CLI tools, scripts). Requiring Origin headers
+	// provides protection against CSRF-style attacks from non-browser automation.
+	// Default: true (Origin header required)
+	f.Bool("websocket-require-origin", true,
+		"Require Origin header for WebSocket connections (default: true). "+
+			"Browsers always send Origin headers; missing headers indicate non-browser clients. "+
+			"Set to false only for development/testing or when using non-browser WebSocket clients.")
 }
 
 // Gets the default plugins-dir depending on platform.

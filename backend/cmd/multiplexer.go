@@ -21,15 +21,19 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"golang.org/x/time/rate"
 	"k8s.io/client-go/rest"
 )
 
@@ -51,7 +55,35 @@ const (
 	HandshakeTimeout = 45 * time.Second
 	// CleanupRoutineInterval is the interval at which the multiplexer cleans up unused connections.
 	CleanupRoutineInterval = 5 * time.Minute
+	// MessagesPerSecond is the maximum number of messages per second per connection.
+	MessagesPerSecond = 50
+	// BurstSize is the burst allowance for rate limiting.
+	BurstSize = 100
+	// IPMessagesPerSecond is the maximum number of messages per second per IP address.
+	// This prevents bypass of per-connection rate limits by opening multiple connections.
+	IPMessagesPerSecond = 200
+	// IPBurstSize is the burst allowance for IP-level rate limiting.
+	IPBurstSize = 400
+	// MaxMessageSize is the maximum message size allowed (10MB).
+	MaxMessageSize = 10 * 1024 * 1024
+	// MaxRateLimitViolations is the maximum number of consecutive rate limit violations before closing connection.
+	MaxRateLimitViolations = 10
+	// InitialBackoffDelay is the initial delay after a rate limit violation.
+	InitialBackoffDelay = 100 * time.Millisecond
+	// MaxBackoffDelay is the maximum delay for exponential backoff.
+	MaxBackoffDelay = 5 * time.Second
+	// IPRateLimiterCleanupInterval is the interval at which stale IP rate limiters are cleaned up.
+	IPRateLimiterCleanupInterval = 5 * time.Minute
+	// IPRateLimiterStaleTimeout is the duration after which an IP rate limiter is considered stale.
+	IPRateLimiterStaleTimeout = 10 * time.Minute
 )
+
+// ipRateLimiterEntry holds an IP rate limiter along with the last time it was accessed.
+// This allows the cleanup goroutine to remove stale entries that haven't been used recently.
+type ipRateLimiterEntry struct {
+	limiter  *rate.Limiter
+	lastSeen atomic.Int64 // stores UnixNano
+}
 
 // ConnectionState represents the current state of a connection.
 type ConnectionState string
@@ -121,6 +153,23 @@ type Multiplexer struct {
 	upgrader websocket.Upgrader
 	// kubeConfigStore is the kubeconfig store.
 	kubeConfigStore kubeconfig.ContextStore
+	// rateLimiters is a map of rate limiters per WebSocket connection.
+	rateLimiters sync.Map
+	// ipRateLimiters is a map of rate limiters per IP address.
+	// This prevents attackers from bypassing per-connection rate limits
+	// by opening multiple WebSocket connections.
+	// Values are *ipRateLimiterEntry to support cleanup of stale entries.
+	ipRateLimiters sync.Map
+	// allowedHosts is a list of allowed Host header values for DNS rebinding protection.
+	// Loopback addresses are always allowed regardless of this list.
+	allowedHosts []string
+	// trustedProxies is a list of trusted proxy IPs/CIDRs for X-Forwarded-For header processing.
+	// If empty, forwarded headers are ignored and the direct remote address is used.
+	trustedProxies []string
+	// requireOrigin controls whether WebSocket connections must include an Origin header.
+	requireOrigin bool
+	// done signals the cleanup goroutine to stop.
+	done chan struct{}
 }
 
 // WSConnLock provides a thread-safe wrapper around a WebSocket connection.
@@ -186,16 +235,290 @@ func (conn *WSConnLock) Close() error {
 }
 
 // NewMultiplexer creates a new Multiplexer instance.
-func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore) *Multiplexer {
-	return &Multiplexer{
+// allowedHosts is a list of allowed Host header values for DNS rebinding protection.
+// Loopback addresses (localhost, 127.0.0.1, ::1, etc.) are always allowed.
+// trustedProxies is a list of trusted proxy IPs/CIDRs for X-Forwarded-For header processing.
+func NewMultiplexer(
+	kubeConfigStore kubeconfig.ContextStore,
+	allowedHosts, trustedProxies []string,
+	requireOrigin bool,
+) *Multiplexer {
+	m := &Multiplexer{
 		connections:     make(map[string]*Connection),
 		kubeConfigStore: kubeConfigStore,
-		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				return true
-			},
-		},
+		allowedHosts:    allowedHosts,
+		trustedProxies:  trustedProxies,
+		requireOrigin:   requireOrigin,
+		done:            make(chan struct{}),
 	}
+	m.upgrader = websocket.Upgrader{
+		CheckOrigin: m.checkOrigin,
+	}
+
+	// Start the IP rate limiter cleanup goroutine
+	go m.cleanupStaleIPRateLimiters()
+
+	return m
+}
+
+// checkOrigin validates Origin and Host headers for WebSocket connections.
+// It allows same-origin requests, loopback variations for development, and configured allowed hosts.
+// Note: Origin validation at connection time does not fully prevent DNS rebinding attacks.
+func (m *Multiplexer) checkOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		if m.requireOrigin {
+			// Reject requests without Origin header - non-browser clients (curl, scripts, attackers)
+			// can bypass origin validation by omitting the header. WebSocket connections already
+			// require authentication via cookies/tokens, so this is safe.
+			logger.Log(logger.LevelWarn, nil, nil,
+				"Rejected WebSocket connection: missing Origin header")
+			return false
+		}
+
+		return true
+	}
+
+	// Parse the origin URL
+	originURL, err := url.Parse(origin)
+	if err != nil {
+		logger.Log(logger.LevelWarn, nil, err,
+			fmt.Sprintf("Failed to parse WebSocket origin: %s", origin))
+		return false
+	}
+
+	// Get the request host (strip port if present)
+	// Use net.SplitHostPort to properly handle both IPv4 and IPv6 addresses
+	requestHost := r.Host
+	if host, _, err := net.SplitHostPort(r.Host); err == nil {
+		requestHost = host
+	}
+
+	originHost := originURL.Hostname()
+
+	// DNS Rebinding Protection: Validate the Host header against allowed hosts.
+	// This prevents attacks where an attacker's domain initially resolves to their server,
+	// establishes a WebSocket connection, then changes DNS to point to the victim's server.
+	// Without this check, the Origin and Host headers would both be the attacker's domain,
+	// passing the same-origin check while the connection actually reaches the victim's server.
+	if !m.isAllowedHost(requestHost) {
+		logger.Log(logger.LevelWarn, nil, nil,
+			fmt.Sprintf("Rejected WebSocket connection: Host %s not in allowed hosts list", requestHost))
+		return false
+	}
+
+	// Allow same-origin requests (case-insensitive host comparison per RFC 4343)
+	if strings.EqualFold(originHost, requestHost) {
+		return true
+	}
+
+	// Check if both origin and request are from loopback addresses
+	// This properly handles all localhost variations including:
+	// - "localhost" hostname
+	// - IPv4 loopback range (127.0.0.0/8): 127.0.0.1, 127.0.0.2, etc.
+	// - IPv6 loopback (::1)
+	// - IPv4-mapped IPv6 loopback (::ffff:127.0.0.1)
+
+	if isLoopbackHost(originHost) && isLoopbackHost(requestHost) {
+		return true
+	}
+
+	// Log rejected origins for debugging
+	logger.Log(logger.LevelWarn, nil, nil,
+		fmt.Sprintf("Rejected WebSocket origin: %s (request host: %s)", origin, r.Host))
+
+	return false
+}
+
+// isAllowedHost checks if the given host is allowed for WebSocket connections.
+// Loopback addresses are always allowed. Additionally, hosts in the allowedHosts list are allowed.
+func (m *Multiplexer) isAllowedHost(host string) bool {
+	// Loopback addresses are always allowed for development/desktop use
+	if isLoopbackHost(host) {
+		return true
+	}
+
+	// Check if host is in the allowed hosts list (case-insensitive per RFC 4343)
+	for _, allowed := range m.allowedHosts {
+		if strings.EqualFold(host, allowed) {
+			return true
+		}
+	}
+
+	// If no allowed hosts are configured (empty list), allow any host that passes origin checks.
+	// This maintains backward compatibility - the origin validation still provides protection
+	// against cross-origin attacks, and DNS rebinding protection requires explicit configuration.
+	if len(m.allowedHosts) == 0 {
+		return true
+	}
+
+	return false
+}
+
+// isLoopbackHost checks if a host string represents a loopback address.
+// It handles "localhost" hostname, IPv4 loopback range (127.0.0.0/8),
+// IPv6 loopback (::1), and IPv4-mapped IPv6 addresses (::ffff:127.0.0.1).
+//
+// Note: This function intentionally does NOT treat "localhost.localdomain"
+// as a loopback address, as it could be configured to resolve to any IP.
+// Only the literal "localhost" hostname and actual loopback IP addresses
+// are considered loopback.
+func isLoopbackHost(host string) bool {
+	// Check for "localhost" hostname (case-insensitive)
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+
+	// Parse as IP address and check if it's a loopback address.
+	// net.IP.IsLoopback() properly handles:
+	// - IPv4 loopback range (127.0.0.0/8): 127.0.0.1, 127.0.0.2, 127.255.255.255, etc.
+	// - IPv6 loopback (::1)
+	// - IPv4-mapped IPv6 loopback (::ffff:127.0.0.1)
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+
+	return ip.IsLoopback()
+}
+
+// getRateLimiter returns the rate limiter for a given WebSocket connection.
+// If no limiter exists, it creates a new one.
+func (m *Multiplexer) getRateLimiter(conn *websocket.Conn) *rate.Limiter {
+	if limiter, ok := m.rateLimiters.Load(conn); ok {
+		return limiter.(*rate.Limiter)
+	}
+
+	limiter := rate.NewLimiter(rate.Limit(MessagesPerSecond), BurstSize)
+	m.rateLimiters.Store(conn, limiter)
+
+	return limiter
+}
+
+// getIPRateLimiter returns the rate limiter for a given IP address.
+// This prevents attackers from bypassing per-connection rate limits
+// by opening multiple WebSocket connections from the same IP.
+func (m *Multiplexer) getIPRateLimiter(r *http.Request) *rate.Limiter {
+	ip := m.extractClientIP(r)
+	now := time.Now().UnixNano()
+
+	entry := &ipRateLimiterEntry{
+		limiter: rate.NewLimiter(rate.Limit(IPMessagesPerSecond), IPBurstSize),
+	}
+	entry.lastSeen.Store(now)
+
+	actual, _ := m.ipRateLimiters.LoadOrStore(ip, entry)
+	e := actual.(*ipRateLimiterEntry)
+	e.lastSeen.Store(now)
+
+	return e.limiter
+}
+
+// cleanupStaleIPRateLimiters periodically removes IP rate limiters that haven't been used recently.
+// This prevents memory leaks from accumulating rate limiters for IPs that are no longer active.
+func (m *Multiplexer) cleanupStaleIPRateLimiters() {
+	ticker := time.NewTicker(IPRateLimiterCleanupInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-m.done:
+			return
+		case <-ticker.C:
+			now := time.Now()
+
+			m.ipRateLimiters.Range(func(key, value interface{}) bool {
+				entry := value.(*ipRateLimiterEntry)
+				// Remove entries not seen in IPRateLimiterStaleTimeout
+				if now.Sub(time.Unix(0, entry.lastSeen.Load())) > IPRateLimiterStaleTimeout {
+					m.ipRateLimiters.Delete(key)
+				}
+
+				return true
+			})
+		}
+	}
+}
+
+// Stop shuts down the cleanup goroutine. It is safe to call multiple times.
+func (m *Multiplexer) Stop() {
+	select {
+	case <-m.done:
+		// Already closed
+	default:
+		close(m.done)
+	}
+}
+
+// extractClientIP extracts the client IP address from the request.
+// It only trusts X-Forwarded-For and X-Real-IP headers if the request
+// comes from a trusted proxy. This prevents IP spoofing attacks where
+// an attacker sets these headers directly to bypass IP-based rate limiting.
+func (m *Multiplexer) extractClientIP(r *http.Request) string {
+	// Get the direct remote address first
+	remoteIP, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		// RemoteAddr might not have a port
+		remoteIP = r.RemoteAddr
+	}
+
+	// Only trust forwarded headers if request comes from a trusted proxy
+	if !m.isTrustedProxy(remoteIP) {
+		return remoteIP
+	}
+
+	// Check X-Forwarded-For header (for proxied requests)
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// X-Forwarded-For can contain multiple IPs; the first one is the client
+		if idx := strings.Index(xff, ","); idx != -1 {
+			return strings.TrimSpace(xff[:idx])
+		}
+
+		return strings.TrimSpace(xff)
+	}
+
+	// Check X-Real-IP header (alternative proxy header)
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return strings.TrimSpace(xri)
+	}
+
+	return remoteIP
+}
+
+// isTrustedProxy checks if the given IP address is in the trusted proxies list.
+// If no trusted proxies are configured, returns false (headers are not trusted).
+func (m *Multiplexer) isTrustedProxy(ip string) bool {
+	if len(m.trustedProxies) == 0 {
+		return false // No trusted proxies = don't trust forwarded headers
+	}
+
+	clientIP := net.ParseIP(ip)
+	if clientIP == nil {
+		return false
+	}
+
+	for _, trusted := range m.trustedProxies {
+		// Check if it's a CIDR range
+		if strings.Contains(trusted, "/") {
+			_, network, err := net.ParseCIDR(trusted)
+			if err == nil && network.Contains(clientIP) {
+				return true
+			}
+		} else {
+			// Direct IP comparison
+			trustedIP := net.ParseIP(trusted)
+			if trustedIP != nil && trustedIP.Equal(clientIP) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// cleanupRateLimiter removes the rate limiter for a given WebSocket connection.
+func (m *Multiplexer) cleanupRateLimiter(conn *websocket.Conn) {
+	m.rateLimiters.Delete(conn)
 }
 
 // updateStatus updates the status of a connection and notifies the client.
@@ -443,7 +766,7 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 }
 
 // HandleClientWebSocket handles incoming WebSocket connections from clients.
-func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Request) {
+func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Request) { //nolint:funlen
 	clientConn, err := m.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "upgrading connection")
@@ -451,14 +774,84 @@ func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Reque
 	}
 
 	defer clientConn.Close()
+	defer m.cleanupRateLimiter(clientConn)
+
+	// Set message size limit to prevent large message attacks
+	clientConn.SetReadLimit(MaxMessageSize)
+
+	// Get rate limiters for this connection and IP address
+	connLimiter := m.getRateLimiter(clientConn)
+	ipLimiter := m.getIPRateLimiter(r)
+	clientIP := m.extractClientIP(r)
 
 	lockClientConn := NewWSConnLock(clientConn)
 
+	// Track consecutive rate limit violations for this connection
+	rateLimitViolations := 0
+	currentBackoff := InitialBackoffDelay
+
 	for {
+		// Read message first - this blocks until a message arrives.
+		// Rate limiting is checked AFTER reading to avoid false violations
+		// that would occur if we checked while waiting for slow clients.
 		msg, err := m.readClientMessage(clientConn)
 		if err != nil {
 			break
 		}
+
+		// Check both per-connection and per-IP rate limits after receiving a message.
+		// The IP rate limiter prevents attackers from bypassing per-connection limits
+		// by opening multiple WebSocket connections from the same IP.
+		connAllowed := connLimiter.Allow()
+		ipAllowed := ipLimiter.Allow()
+
+		if !connAllowed || !ipAllowed {
+			rateLimitViolations++
+
+			rateLimitType := "connection"
+			if !ipAllowed {
+				rateLimitType = "ip"
+			}
+
+			logger.Log(logger.LevelWarn, map[string]string{
+				"violations": fmt.Sprintf("%d", rateLimitViolations),
+				"backoff":    currentBackoff.String(),
+				"type":       rateLimitType,
+				"clientIP":   clientIP,
+			}, nil, "Rate limit exceeded for WebSocket connection")
+
+			// Send rate limit error to client
+			_ = lockClientConn.WriteJSON(map[string]string{
+				"type":  "error",
+				"error": "rate_limit_exceeded",
+			})
+
+			// Close connection after too many consecutive violations
+			if rateLimitViolations >= MaxRateLimitViolations {
+				logger.Log(logger.LevelWarn, map[string]string{
+					"violations": fmt.Sprintf("%d", rateLimitViolations),
+					"type":       rateLimitType,
+					"clientIP":   clientIP,
+				}, nil, "Closing WebSocket connection due to repeated rate limit violations")
+
+				break
+			}
+
+			// Apply exponential backoff
+			time.Sleep(currentBackoff)
+
+			// Double the backoff for next violation, up to the maximum
+			currentBackoff *= 2
+			if currentBackoff > MaxBackoffDelay {
+				currentBackoff = MaxBackoffDelay
+			}
+
+			continue
+		}
+
+		// Reset violation counter and backoff on successful rate limit check
+		rateLimitViolations = 0
+		currentBackoff = InitialBackoffDelay
 
 		// Check if it's a close message
 		if msg.Type == "CLOSE" {
