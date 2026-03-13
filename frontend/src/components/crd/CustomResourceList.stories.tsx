@@ -47,6 +47,10 @@ export default {
             () => HttpResponse.error()
           ),
           http.get(
+            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/mydefinition.phonyresources.io',
+            () => HttpResponse.error()
+          ),
+          http.get(
             'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions',
             () =>
               HttpResponse.json({
