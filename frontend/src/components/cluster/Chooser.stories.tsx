@@ -130,8 +130,8 @@ ManyClusters.args = {
       auth_type: '',
     })),
   open: true,
+  title: 'Choose Cluster',
 };
-
 export const NoClusters = Template.bind({});
 NoClusters.args = {
   clusters: [],
