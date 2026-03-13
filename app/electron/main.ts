@@ -25,8 +25,10 @@ import {
   Menu,
   MenuItem,
   MessageBoxOptions,
+  nativeImage,
   screen,
   shell,
+  Tray,
 } from 'electron';
 import { IpcMainEvent, MenuItemConstructorOptions } from 'electron/main';
 import find_process from 'find-process';
@@ -140,6 +142,8 @@ const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false'
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
+let tray: Tray | null = null;
+let isQuitting = false;
 
 /**
  * `Action` is an interface for an action to be performed by the plugin manager.
@@ -1489,6 +1493,235 @@ function startElectron() {
     }
   }
 
+  /**
+   * Fetches cluster status from the backend API.
+   * Returns an array of clusters with their health status.
+   */
+  async function getClusterStatuses(): Promise<
+    Array<{ name: string; status: 'ok' | 'error' | 'unknown'; error?: string }>
+  > {
+    const clusters: Array<{ name: string; status: 'ok' | 'error' | 'unknown'; error?: string }> =
+      [];
+
+    try {
+      // Fetch cluster config from backend
+      const configResponse = await fetch(`http://localhost:${actualPort}/config`, {
+        headers: { Authorization: `Bearer ${backendToken}` },
+      });
+
+      if (!configResponse.ok) {
+        return clusters;
+      }
+
+      const config = await configResponse.json();
+
+      if (!config.clusters || !Array.isArray(config.clusters)) {
+        return clusters;
+      }
+
+      // Check health for each cluster
+      const healthChecks = config.clusters.map(
+        async (cluster: { name: string; error?: string }) => {
+          if (cluster.error) {
+            return { name: cluster.name, status: 'error' as const, error: cluster.error };
+          }
+
+          try {
+            const healthResponse = await fetch(
+              `http://localhost:${actualPort}/clusters/${cluster.name}/healthz`,
+              {
+                headers: { Authorization: `Bearer ${backendToken}` },
+              }
+            );
+
+            if (healthResponse.ok) {
+              return { name: cluster.name, status: 'ok' as const };
+            } else {
+              return { name: cluster.name, status: 'error' as const, error: 'Unreachable' };
+            }
+          } catch {
+            return { name: cluster.name, status: 'unknown' as const };
+          }
+        }
+      );
+
+      return Promise.all(healthChecks);
+    } catch {
+      return clusters;
+    }
+  }
+
+  /**
+   * Updates the tray context menu with current cluster statuses.
+   */
+  async function updateTrayMenu(): Promise<void> {
+    if (!tray) return;
+
+    let clusterMenuItems: MenuItemConstructorOptions[] = [
+      { label: 'No clusters found', enabled: false },
+    ];
+
+    try {
+      const clusterStatuses = await getClusterStatuses();
+      if (clusterStatuses.length > 0) {
+        clusterMenuItems = clusterStatuses.map(cluster => ({
+          label: `${cluster.status === 'ok' ? '🟢' : cluster.status === 'error' ? '🔴' : '⚪'} ${
+            cluster.name
+          }`,
+          click: () => {
+            if (mainWindow) {
+              mainWindow.show();
+              mainWindow.focus();
+              mainWindow.webContents.executeJavaScript(
+                `window.location.hash = '#/c/${encodeURIComponent(cluster.name)}';`
+              );
+            } else {
+              createWindow();
+            }
+          },
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to get cluster statuses:', error);
+    }
+
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'Open Headlamp',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+          } else {
+            createWindow();
+          }
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Cluster Status',
+        submenu: clusterMenuItems,
+      },
+      {
+        label: 'Settings',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+            mainWindow.webContents.executeJavaScript(
+              "window.location.hash = '#/settings/general';"
+            );
+          } else {
+            createWindow();
+          }
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'About Headlamp',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.webContents.send('open-about-dialog');
+          }
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Quit',
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]);
+
+    tray.setContextMenu(contextMenu);
+  }
+
+  /**
+   * Creates a system tray icon for macOS.
+   * The tray provides quick access to show/hide the app and common actions.
+   */
+  function createTray(): void {
+    if (process.platform !== 'darwin') {
+      return;
+    }
+
+    // macOS tray requires PNG format (SVG not supported by Electron nativeImage)
+    const iconPath = isDev
+      ? path.join(__dirname, '..', 'assets', 'tray-icon.png')
+      : path.join(process.resourcesPath, 'assets', 'tray-icon.png');
+
+    const trayIcon = nativeImage.createFromPath(iconPath);
+    if (trayIcon.isEmpty()) {
+      return;
+    }
+    trayIcon.setTemplateImage(true);
+
+    tray = new Tray(trayIcon);
+    tray.setToolTip('Headlamp');
+
+    // Set initial menu
+    const initialMenu = Menu.buildFromTemplate([
+      {
+        label: 'Open Headlamp',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+          } else {
+            createWindow();
+          }
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Cluster Status',
+        submenu: [{ label: 'Loading...', enabled: false }],
+      },
+      {
+        label: 'Settings',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+            mainWindow.webContents.executeJavaScript(
+              "window.location.hash = '#/settings/general';"
+            );
+          } else {
+            createWindow();
+          }
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'About Headlamp',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.webContents.send('open-about-dialog');
+          }
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Quit',
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]);
+    tray.setContextMenu(initialMenu);
+
+    // Update with cluster status after backend is ready
+    setTimeout(() => {
+      updateTrayMenu();
+      setInterval(updateTrayMenu, 30000);
+    }, 5000);
+  }
+
   async function createWindow() {
     // WSL has a problem with full size window placement, so make it smaller.
     const withMargin = await isWSL();
@@ -1547,6 +1780,16 @@ function startElectron() {
       const currentMenu = JSON.parse(JSON.stringify(defaultMenu));
       mainWindow?.webContents.send('currentMenu', currentMenu);
     });
+
+    // On macOS, hide the window instead of quitting when the user closes it
+    if (process.platform === 'darwin') {
+      mainWindow.on('close', event => {
+        if (!isQuitting) {
+          event.preventDefault();
+          mainWindow?.hide();
+        }
+      });
+    }
 
     mainWindow.on('closed', () => {
       mainWindow = null;
@@ -1738,6 +1981,7 @@ function startElectron() {
 
   app.on('ready', async () => {
     await Promise.all([startServerIfNeeded(), createWindow()]);
+    createTray();
   });
   app.on('activate', async function () {
     if (mainWindow === null) {
@@ -1745,9 +1989,15 @@ function startElectron() {
     }
   });
 
-  app.once('window-all-closed', app.quit);
+  app.on('window-all-closed', () => {
+    // On macOS, don't quit when window closes (tray keeps app alive)
+    if (process.platform !== 'darwin') {
+      app.quit();
+    }
+  });
 
-  app.once('before-quit', () => {
+  app.on('before-quit', () => {
+    isQuitting = true;
     saveZoomFactor(cachedZoom);
     i18n.off('languageChanged');
     if (mainWindow) {
