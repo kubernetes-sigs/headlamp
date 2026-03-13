@@ -209,11 +209,7 @@ function AuthChooser({ children }: AuthChooserProps) {
       handleTryAgain={runTestAuthAgain}
       handleOidcAuth={() => {
         queryClient.invalidateQueries({ queryKey: ['clusterMe', clusterName], exact: true });
-        history.replace({
-          pathname: generatePath(getClusterPrefixedPath(), {
-            cluster: clusterName as string,
-          }),
-        });
+        history.replace(from);
       }}
       handleBackButtonPress={() => {
         numClusters > 1 ? history.goBack() : history.push('/');
