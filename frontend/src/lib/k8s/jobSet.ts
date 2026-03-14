@@ -44,6 +44,43 @@ class JobSet extends KubeObject<KubeJobSet> {
   get status() {
     return this.jsonData.status;
   }
+
+  static getBaseObject(): KubeJobSet {
+    const baseObject = super.getBaseObject() as KubeJobSet;
+    baseObject.metadata = {
+      ...baseObject.metadata,
+      namespace: '',
+      labels: { app: 'headlamp' },
+    };
+    baseObject.spec = {
+      replicatedJobs: [
+        {
+          name: 'workers',
+          replicas: 1,
+          template: {
+            spec: {
+              parallelism: 1,
+              completions: 1,
+              template: {
+                spec: {
+                  containers: [
+                    {
+                      name: '',
+                      image: '',
+                      command: [],
+                      imagePullPolicy: 'Always',
+                    },
+                  ],
+                  restartPolicy: 'Never',
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
+    return baseObject;
+  }
 }
 
 export default JobSet;
