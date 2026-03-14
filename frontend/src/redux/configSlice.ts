@@ -19,6 +19,7 @@ import { createSlice } from '@reduxjs/toolkit';
 import type { Cluster } from '../lib/k8s/cluster';
 
 export interface ConfigState {
+  prometheusEndpoint?: string;
   /**
    * Clusters is a map of cluster names to cluster objects.
    * Null indicates that the clusters have not been loaded yet.
@@ -108,6 +109,7 @@ const configSlice = createSlice({
         clusters: ConfigState['clusters'];
         isDynamicClusterEnabled?: boolean;
         allowKubeconfigChanges?: boolean;
+        prometheusEndpoint?: string;
       }>
     ) {
       state.clusters = action.payload.clusters;
@@ -116,6 +118,9 @@ const configSlice = createSlice({
       }
       if (action.payload.allowKubeconfigChanges !== undefined) {
         state.allowKubeconfigChanges = action.payload.allowKubeconfigChanges;
+      }
+      if (action.payload.prometheusEndpoint) {
+        state.prometheusEndpoint = action.payload.prometheusEndpoint;
       }
     },
     /**
