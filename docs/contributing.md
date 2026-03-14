@@ -185,6 +185,13 @@ dedicated [i18n docs](./development/i18n).
 For general guidelines on making PRs/commits easier to review, please check
 out Kinvolk's
 [contribution guidelines on git](https://github.com/kinvolk/contribution/tree/master/topics/git.md).
+We also use `commitlint` to enforce these guidelines automatically. You can check your commits locally by running:
+
+```bash
+npm run lint:commit
+```
+
+This command checks all commit messages that exist after origin/main against our guidelines. The same check runs in our CI system for every Pull Request.
 
 ## Testing
 
