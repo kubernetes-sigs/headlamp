@@ -182,12 +182,21 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
   getDetailsLink() {
     const selectedClusters = getSelectedClusters();
-
     const cluster = formatClusterPathParam(selectedClusters, this.cluster);
+
+    const name = this.getName();
+    if (!name) {
+      console.warn('Cannot generate details link: object name is undefined', {
+        kind: this.kind,
+        cluster: this.cluster,
+        namespace: this.getNamespace(),
+      });
+      return '';
+    }
 
     const params = {
       namespace: this.getNamespace(),
-      name: this.getName(),
+      name,
       cluster,
     };
     const link = createRouteURL(this.detailsRoute, params);
