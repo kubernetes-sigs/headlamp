@@ -130,6 +130,7 @@ spec:
             - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
             # Check if scopes are non empty either from env or oidc.config
             - "-oidc-scopes=$(OIDC_SCOPES)"
+            - "-filters-warnings-only=true"
           ports:
             - name: http
               containerPort: 4466
