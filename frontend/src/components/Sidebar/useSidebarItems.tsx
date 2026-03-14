@@ -244,6 +244,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'CronJobs',
             label: t('glossary|CronJobs'),
           },
+          {
+            name: 'JobSets',
+            label: t('glossary|Job Sets'),
+          },
         ],
       },
       {

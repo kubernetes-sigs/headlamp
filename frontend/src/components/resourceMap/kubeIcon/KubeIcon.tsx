@@ -78,6 +78,9 @@ const kindToIcon: Record<string, React.FC<any>> = {
   'batch/Job': JobIcon,
   'batch/CronJob': CronjobIcon,
 
+  // jobset
+  'jobset.x-k8s.io/JobSet': JobIcon,
+
   // rbac
   'rbac.authorization.k8s.io/Role': RoleIcon,
   'rbac.authorization.k8s.io/RoleBinding': RbIcon,
@@ -108,6 +111,7 @@ const kindGroups = {
     'ReplicaSet',
     'Job',
     'CronJob',
+    'JobSet',
   ]),
   storage: new Set(['PersistentVolumeClaim']),
   network: new Set([
