@@ -17,6 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import JobSet from '../../lib/k8s/jobSet';
 import { useNamespaces } from '../../redux/filterSlice';
+import { CreateResourceButton } from '../common';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 export default function JobSetList() {
@@ -26,6 +27,12 @@ export default function JobSetList() {
   return (
     <ResourceListView
       title={t('glossary|Job Sets')}
+      headerProps={{
+        noNamespaceFilter: false,
+        titleSideActions: [
+          <CreateResourceButton resourceClass={JobSet} key="create-jobset-button" />,
+        ],
+      }}
       errors={errors}
       columns={[
         'name',
