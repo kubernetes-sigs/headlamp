@@ -22,40 +22,48 @@ import { TestContext } from '../../../test';
 import { LogsButton } from './LogsButton';
 
 // vi.hoisted runs before imports, making values available to vi.mock factories
-const { MockKubeObject, mockClusterFetch, mockEnqueueSnackbar, mockActivityLaunch } = vi.hoisted(
-  () => {
-    class MockKubeObject {
-      jsonData: any;
-      constructor(data: any) {
-        this.jsonData = data;
-      }
-      get metadata() {
-        return this.jsonData?.metadata;
-      }
-      get spec() {
-        return this.jsonData?.spec;
-      }
-      get status() {
-        return this.jsonData?.status;
-      }
-      get cluster() {
-        return '';
-      }
-      getName() {
-        return this.jsonData?.metadata?.name ?? '';
-      }
-      getNamespace() {
-        return this.jsonData?.metadata?.namespace ?? '';
-      }
+const {
+  MockKubeObject,
+  mockClusterFetch,
+  mockEnqueueSnackbar,
+  mockActivityLaunch,
+  mockPodUseList,
+} = vi.hoisted(() => {
+  class MockKubeObject {
+    jsonData: any;
+    constructor(data: any) {
+      this.jsonData = data;
     }
-    return {
-      MockKubeObject,
-      mockClusterFetch: vi.fn(),
-      mockEnqueueSnackbar: vi.fn(),
-      mockActivityLaunch: vi.fn(),
-    };
+    get kind() {
+      return this.jsonData?.kind;
+    }
+    get metadata() {
+      return this.jsonData?.metadata;
+    }
+    get spec() {
+      return this.jsonData?.spec;
+    }
+    get status() {
+      return this.jsonData?.status;
+    }
+    get cluster() {
+      return '';
+    }
+    getName() {
+      return this.jsonData?.metadata?.name ?? '';
+    }
+    getNamespace() {
+      return this.jsonData?.metadata?.namespace ?? '';
+    }
   }
-);
+  return {
+    MockKubeObject,
+    mockClusterFetch: vi.fn(),
+    mockEnqueueSnackbar: vi.fn(),
+    mockActivityLaunch: vi.fn(),
+    mockPodUseList: vi.fn<(...args: any[]) => any>(() => ({ items: [], isLoading: false })),
+  };
+});
 
 // --- K8s module mocks ---
 
@@ -68,14 +76,17 @@ vi.mock('../../../lib/k8s/deployment', () => ({
   __esModule: true,
 }));
 
-vi.mock('../../../lib/k8s/pod', () => ({
-  default: class Pod extends MockKubeObject {
+vi.mock('../../../lib/k8s/pod', () => {
+  class Pod extends MockKubeObject {
     getLogs() {
       return () => {};
     }
-  },
-  __esModule: true,
-}));
+    static useList(...args: any[]) {
+      return mockPodUseList(...args);
+    }
+  }
+  return { default: Pod, __esModule: true };
+});
 
 vi.mock('../../../lib/k8s/daemonSet', () => ({
   default: class DaemonSet extends MockKubeObject {},
@@ -87,7 +98,12 @@ vi.mock('../../../lib/k8s/replicaSet', () => ({
   __esModule: true,
 }));
 
-vi.mock('../../../lib/k8s', () => ({}));
+vi.mock('../../../lib/k8s', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../../lib/k8s')>();
+  return {
+    ...actual,
+  };
+});
 
 vi.mock('../../../lib/k8s/api/v2/fetch', () => ({
   clusterFetch: (...args: any[]) => mockClusterFetch(...args),
@@ -153,6 +169,8 @@ describe('LogsButton', () => {
     mockClusterFetch.mockReset();
     mockEnqueueSnackbar.mockReset();
     mockActivityLaunch.mockReset();
+    mockPodUseList.mockReset();
+    mockPodUseList.mockReturnValue({ items: [], isLoading: false });
   });
 
   afterEach(() => {
@@ -196,10 +214,8 @@ describe('LogsButton', () => {
     );
   });
 
-  it('shows warning snackbar when no pods are available', async () => {
-    mockClusterFetch.mockResolvedValue({
-      json: async () => ({ kind: 'PodList', apiVersion: 'v1', metadata: {}, items: [] }),
-    });
+  it('renders log viewer with empty logs when no pods are available', async () => {
+    mockPodUseList.mockReturnValue({ items: [], isLoading: false });
 
     const { rerender } = render(
       <TestContext>
@@ -209,7 +225,6 @@ describe('LogsButton', () => {
 
     fireEvent.click(screen.getByLabelText('translation|Show logs'));
 
-    // Render the LogsButtonContent
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
     rerender(
       <TestContext>
@@ -219,27 +234,47 @@ describe('LogsButton', () => {
     );
 
     await waitFor(() => {
-      expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
-        expect.stringMatching(/No pods found/i),
-        expect.objectContaining({ variant: 'warning' })
+      expect(mockPodUseList).toHaveBeenCalled();
+    });
+  });
+
+  it('opens log viewer in loading state when pods are loading', async () => {
+    mockPodUseList.mockReturnValue({ items: null as any, isLoading: true });
+
+    const { rerender } = render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData)} />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    rerender(
+      <TestContext>
+        <div id="main" />
+        {activityContent}
+      </TestContext>
+    );
+
+    await waitFor(() => {
+      expect(mockPodUseList).toHaveBeenCalledWith(
+        expect.objectContaining({ labelSelector: 'app=test-app' })
       );
     });
   });
 
-  it('opens log viewer in loading state when getLogs never delivers data', async () => {
+  it('fetches logs for pods returned by useList', async () => {
+    const mockPod = new Pod(mockPodData as any);
+    mockPodUseList.mockReturnValue({ items: [mockPod] as any, isLoading: false });
+
     mockClusterFetch.mockResolvedValue({
-      json: async () => ({
-        kind: 'PodList',
-        apiVersion: 'v1',
-        metadata: {},
-        items: [mockPodData],
+      body: new ReadableStream({
+        start(c) {
+          c.close();
+        },
       }),
     });
-
-    Pod.prototype.getLogs = function () {
-      // Never deliver logs — simulates loading
-      return () => {};
-    };
 
     const { rerender } = render(
       <TestContext>
@@ -257,52 +292,11 @@ describe('LogsButton', () => {
       </TestContext>
     );
 
-    // LogsButtonContent mounts and fetches pods
     await waitFor(() => {
-      expect(mockClusterFetch).toHaveBeenCalled();
-    });
-  });
-
-  it('opens log viewer and streams logs successfully', async () => {
-    mockClusterFetch.mockResolvedValue({
-      json: async () => ({
-        kind: 'PodList',
-        apiVersion: 'v1',
-        metadata: {},
-        items: [mockPodData],
-      }),
-    });
-
-    Pod.prototype.getLogs = function (...args: any[]) {
-      const onLogs = args[1];
-      const mockLogs = [
-        '2023-01-01T00:00:01Z Starting container...\n',
-        '2023-01-01T00:00:02Z Initializing application...\n',
-        '2023-01-01T00:00:03Z Server listening on port 80\n',
-      ];
-      const timeout = setTimeout(() => onLogs({ logs: mockLogs, hasJsonLogs: false }), 50);
-      return () => clearTimeout(timeout);
-    };
-
-    const { rerender } = render(
-      <TestContext>
-        <LogsButton item={new Deployment(deploymentData)} />
-      </TestContext>
-    );
-
-    fireEvent.click(screen.getByLabelText('translation|Show logs'));
-
-    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
-    rerender(
-      <TestContext>
-        <div id="main" />
-        {activityContent}
-      </TestContext>
-    );
-
-    // LogsButtonContent mounts and fetches pods
-    await waitFor(() => {
-      expect(mockClusterFetch).toHaveBeenCalled();
+      expect(mockClusterFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/pods/test-pod-1/log'),
+        expect.objectContaining({ cluster: '' })
+      );
     });
   });
 });

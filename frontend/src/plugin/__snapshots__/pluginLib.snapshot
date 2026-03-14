@@ -75,6 +75,7 @@
     "Loader": [Function],
     "LogViewer": [Function],
     "LogsButton": [Function],
+    "LogsViewer": [Function],
     "MainInfoSection": [Function],
     "MatchExpressions": [Function],
     "MetadataDictGrid": [Function],
