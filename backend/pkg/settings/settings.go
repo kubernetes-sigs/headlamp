@@ -19,8 +19,9 @@ const (
 
 // Source describes where a cluster-defined setting comes from.
 type Source struct {
-	Name string `json:"name"`
-	Type string `json:"type,omitempty"` // "configmap" (default) or "secret"
+	Name      string `json:"name"`
+	Type      string `json:"type,omitempty"`      // "configmap" (default) or "secret"
+	Namespace string `json:"namespace,omitempty"` // default: "headlamp-tools"
 }
 
 // AdminSettings is the parsed, unwrapped representation served to the frontend.
@@ -174,7 +175,7 @@ func resolveClusterDefinedSettings(raw json.RawMessage) ([]string, map[string][]
 
 		sources := map[string][]Source{}
 		for _, name := range shortForm {
-			sources[name] = []Source{{Name: "headlamp-settings", Type: "configmap"}}
+			sources[name] = []Source{{Name: "headlamp-settings", Type: "configmap", Namespace: "headlamp-tools"}}
 		}
 
 		return shortForm, sources
@@ -200,6 +201,10 @@ func resolveClusterDefinedSettings(raw json.RawMessage) ([]string, map[string][]
 		for i := range srcs {
 			if srcs[i].Type == "" {
 				srcs[i].Type = "configmap"
+			}
+
+			if srcs[i].Namespace == "" {
+				srcs[i].Namespace = "headlamp-tools"
 			}
 		}
 
@@ -243,7 +248,7 @@ func deduplicateSources(sources []Source) []Source {
 	result := make([]Source, 0, len(sources))
 
 	for _, s := range sources {
-		key := s.Name + "/" + s.Type
+		key := s.Namespace + "/" + s.Name + "/" + s.Type
 		if !seen[key] {
 			seen[key] = true
 			result = append(result, s)

@@ -99,11 +99,10 @@ const (
 )
 
 type clientConfig struct {
-	Clusters                []Cluster                `json:"clusters"`
-	IsDynamicClusterEnabled bool                     `json:"isDynamicClusterEnabled"`
-	AllowKubeconfigChanges  bool                     `json:"allowKubeconfigChanges"`
-	AdminSettings           *clientAdminSettings     `json:"adminSettings,omitempty"`
-	ClusterSettings         map[string]interface{}   `json:"clusterSettings,omitempty"`
+	Clusters                []Cluster            `json:"clusters"`
+	IsDynamicClusterEnabled bool                 `json:"isDynamicClusterEnabled"`
+	AllowKubeconfigChanges  bool                 `json:"allowKubeconfigChanges"`
+	AdminSettings           *clientAdminSettings `json:"adminSettings,omitempty"`
 }
 
 type clientAdminSettings struct {
@@ -111,6 +110,7 @@ type clientAdminSettings struct {
 	Display                map[string]settings.DisplayMode `json:"display"`
 	ClusterDefinedSettings interface{}                     `json:"clusterDefinedSettings"`
 	ClusterDefined         map[string][]string             `json:"clusterDefined"`
+	Sources                map[string][]settings.Source    `json:"sources,omitempty"`
 }
 
 type OauthConfig struct {
@@ -1851,6 +1851,7 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 			Display:                c.AdminSettings.Display,
 			ClusterDefinedSettings: c.AdminSettings.ClusterDefinedSettings,
 			ClusterDefined:         c.AdminSettings.ClusterDefined,
+			Sources:                c.AdminSettings.ClusterSources,
 		}
 	}
 

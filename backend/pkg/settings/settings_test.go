@@ -113,7 +113,7 @@ func TestParse_ClusterDefinedSettings_ShortForm(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"*"}, s.AllowedClusters)
-	assert.Equal(t, []Source{{Name: "headlamp-settings", Type: "configmap"}}, s.ClusterSources["*"])
+	assert.Equal(t, []Source{{Name: "headlamp-settings", Type: "configmap", Namespace: "headlamp-tools"}}, s.ClusterSources["*"])
 	assert.True(t, s.IsClusterAllowed("any-cluster"))
 }
 
@@ -154,16 +154,37 @@ func TestParse_ClusterDefinedSettings_LongForm(t *testing.T) {
 
 	wildcardSources := s.SourcesForCluster("random")
 	assert.Equal(t, []Source{
-		{Name: "headlamp-settings", Type: "configmap"},
-		{Name: "headlamp-secrets", Type: "secret"},
+		{Name: "headlamp-settings", Type: "configmap", Namespace: "headlamp-tools"},
+		{Name: "headlamp-secrets", Type: "secret", Namespace: "headlamp-tools"},
 	}, wildcardSources)
 
 	prodSources := s.SourcesForCluster("prod-cluster")
 	assert.Equal(t, []Source{
-		{Name: "headlamp-settings", Type: "configmap"},
-		{Name: "headlamp-secrets", Type: "secret"},
-		{Name: "headlamp-prod-secrets", Type: "secret"},
+		{Name: "headlamp-settings", Type: "configmap", Namespace: "headlamp-tools"},
+		{Name: "headlamp-secrets", Type: "secret", Namespace: "headlamp-tools"},
+		{Name: "headlamp-prod-secrets", Type: "secret", Namespace: "headlamp-tools"},
 	}, prodSources)
+}
+
+func TestParse_ClusterDefinedSettings_CustomNamespace(t *testing.T) {
+	input := `{
+		"clusterDefinedSettings": {
+			"prod": [
+				{ "name": "my-settings", "namespace": "custom-ns" },
+				{ "name": "headlamp-settings" }
+			]
+		},
+		"defaults": {}
+	}`
+
+	s, err := Parse([]byte(input))
+	require.NoError(t, err)
+
+	sources := s.SourcesForCluster("prod")
+	assert.Equal(t, []Source{
+		{Name: "my-settings", Type: "configmap", Namespace: "custom-ns"},
+		{Name: "headlamp-settings", Type: "configmap", Namespace: "headlamp-tools"},
+	}, sources)
 }
 
 func TestParse_EmptyClusterDefinedSettings(t *testing.T) {
