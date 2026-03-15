@@ -26,12 +26,14 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
+import { useClusterDefinedSettings } from '../../helpers/fetchClusterSettings';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
 import { useCluster, useClustersConf } from '../../lib/k8s';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
 import { getSavedNamespaces } from '../../lib/storage';
+import { setAdminSettings } from '../../redux/adminSettingsSlice';
 import { setConfig } from '../../redux/configSlice';
 import { ConfigState } from '../../redux/configSlice';
 import { setNamespaceFilter } from '../../redux/filterSlice';
@@ -170,6 +172,10 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
       }
     }
 
+    if (config?.adminSettings) {
+      dispatch(setAdminSettings(config.adminSettings));
+    }
+
     /**
      * Fetches the stateless cluster config from the indexDB and then sends the backend to parse it
      * only if the stateless cluster config is enabled in the backend.
@@ -191,6 +197,8 @@ export default function Layout({}: LayoutProps) {
   const isFullWidth = useTypedSelector(state => state.ui.isFullWidth);
   const { t } = useTranslation();
   const allClusters = useClustersConf();
+
+  useClusterDefinedSettings();
 
   /** This fetches the cluster config from the backend and updates the redux store on an interval.
    * When stateless clusters are enabled, it also fetches the stateless cluster config from the

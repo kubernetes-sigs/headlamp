@@ -6,6 +6,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/settings"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 )
 
@@ -36,6 +37,7 @@ type HeadlampConfig struct {
 	MeEmailPaths              string
 	MeGroupsPaths             string
 	MeUserInfoURL             string
+	AdminSettings             *settings.AdminSettings
 }
 
 type HeadlampCFG struct {
