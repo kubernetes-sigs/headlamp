@@ -38,7 +38,9 @@ import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import store from '../../redux/stores/store';
 import { useUIPanelsGroupedBySide } from '../../redux/uiSlice';
-import { setAdminSettings, setClusterSettings } from '../../settings/adminSettingsSlice';
+import { setAdminSettings } from '../../settings/adminSettingsSlice';
+import { useClusterDefinedSettings } from '../../settings/fetchClusterSettings';
+import { parseAdminSettings } from '../../settings/parseAdminSettings';
 import { useSetting } from '../../settings/useAdminSettings';
 import { fetchStatelessClusterKubeConfigs, isEqualClusterConfigs } from '../../stateless/';
 import { ActivitiesRenderer } from '../activity/Activity';
@@ -174,11 +176,7 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
     }
 
     if (config?.adminSettings) {
-      dispatch(setAdminSettings(config.adminSettings));
-    }
-
-    if (config?.clusterSettings) {
-      dispatch(setClusterSettings(config.clusterSettings));
+      dispatch(setAdminSettings(parseAdminSettings(config.adminSettings)));
     }
 
     // Apply backend theme configuration if provided
@@ -213,6 +211,8 @@ export default function Layout({}: LayoutProps) {
   const isFullWidth = useTypedSelector(state => state.ui.isFullWidth);
   const { t } = useTranslation();
   const allClusters = useClustersConf();
+
+  useClusterDefinedSettings();
 
   // Bridge admin-restricted theme to the active theme state. CLI forceTheme has
   // precedence and is applied via applyBackendThemeConfig; this only kicks in when
