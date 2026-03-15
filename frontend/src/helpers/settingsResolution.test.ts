@@ -42,6 +42,7 @@ describe('resolveSettingValue', () => {
     display: {},
     clusterDefinedSettings: {},
     clusterDefined: {},
+    sources: {},
     clusterSettings: {},
     ...overrides,
   });
