@@ -21,6 +21,12 @@ export type DisplayMode = 'normal' | 'disabled' | 'hidden';
 
 export type SettingSource = 'hidden' | 'disabled' | 'user' | 'cluster' | 'default' | 'built-in';
 
+export interface SettingsSource {
+  name: string;
+  type?: string;
+  namespace?: string;
+}
+
 export interface AdminSettingsState {
   /** Plain values with $value/$display/$clusterDefined unwrapped. */
   defaults: Record<string, any> | null;
@@ -30,7 +36,9 @@ export interface AdminSettingsState {
   clusterDefinedSettings: any;
   /** Maps dotted paths to per-setting cluster allow-lists. */
   clusterDefined: Record<string, string[]>;
-  /** Cluster settings keyed by cluster name. */
+  /** Resolved sources per cluster (cluster name → list of ConfigMap/Secret sources). */
+  sources: Record<string, SettingsSource[]>;
+  /** Cluster settings keyed by cluster name, fetched from cluster resources. */
   clusterSettings: Record<string, any>;
 }
 
@@ -39,6 +47,7 @@ export const initialAdminSettingsState: AdminSettingsState = {
   display: {},
   clusterDefinedSettings: {},
   clusterDefined: {},
+  sources: {},
   clusterSettings: {},
 };
 
@@ -53,12 +62,14 @@ const adminSettingsSlice = createSlice({
         display: Record<string, DisplayMode>;
         clusterDefinedSettings: any;
         clusterDefined: Record<string, string[]>;
+        sources?: Record<string, SettingsSource[]>;
       }>
     ) {
       state.defaults = action.payload.defaults;
       state.display = action.payload.display;
       state.clusterDefinedSettings = action.payload.clusterDefinedSettings;
       state.clusterDefined = action.payload.clusterDefined;
+      state.sources = action.payload.sources ?? {};
     },
     setClusterSettings(state, action: PayloadAction<Record<string, any>>) {
       state.clusterSettings = action.payload;
