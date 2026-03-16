@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -236,10 +237,36 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		os.Exit(1)
 	}
 
+	cfg.AdminSettings, err = loadAdminSettings(conf.SettingsPath)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "loading admin settings")
+		os.Exit(1)
+	}
+
 	return &HeadlampConfig{
 		HeadlampConfig:    cfg,
 		compiledProxyURLs: compiledProxyURLs,
 	}
+}
+
+// loadAdminSettings reads and validates the admin settings JSON file. The path
+// is an operator-supplied CLI flag, not user input, so the gosec G304 warning
+// is suppressed in line with the OidcCAFile read above.
+func loadAdminSettings(path string) (json.RawMessage, error) {
+	if path == "" {
+		return nil, nil
+	}
+
+	data, err := os.ReadFile(path) //nolint:gosec
+	if err != nil {
+		return nil, fmt.Errorf("reading settings file: %w", err)
+	}
+
+	if !json.Valid(data) {
+		return nil, errors.New("settings file is not valid JSON")
+	}
+
+	return data, nil
 }
 
 // GetContextKeyAndContext returns Kcontext , ContextKey for using these in CacheMiddleWare function.
