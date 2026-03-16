@@ -1,0 +1,11 @@
+<body>
+  <div>
+    <p
+      aria-label="2021-01-01T00:00:00.000Z"
+      class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+      data-mui-internal-clone-element="true"
+    >
+      3 months
+    </p>
+  </div>
+</body>

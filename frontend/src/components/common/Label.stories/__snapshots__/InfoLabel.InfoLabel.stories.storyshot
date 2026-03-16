@@ -1,0 +1,27 @@
+<body>
+  <div>
+    <div
+      class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-2 css-4lm93d-MuiGrid-root"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-lc33jo-MuiGrid-root"
+      >
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-1ukuq4j-MuiTypography-root"
+        >
+          name
+        </span>
+         
+      </div>
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1z0dvx8-MuiGrid-root"
+      >
+        <span
+          class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+        >
+          value
+        </span>
+      </div>
+    </div>
+  </div>
+</body>

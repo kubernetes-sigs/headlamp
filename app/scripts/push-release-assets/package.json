@@ -1,0 +1,17 @@
+{
+  "name": "push-release-assets",
+  "version": "1.0.0",
+  "description": "A script to push assets to a release on GitHub.",
+  "main": "push-release-assets.js",
+  "type": "module",
+  "scripts": {
+    "start": "node push-release-assets.js"
+  },
+  "author": "Joaquim Rocha <joaquim.rocha@microsoft.com>",
+  "license": "MIT",
+  "dependencies": {
+    "octokit": "^4.0.2",
+    "mime-types": "^2.1.35",
+    "yargs": "^17.7.2"
+  }
+}

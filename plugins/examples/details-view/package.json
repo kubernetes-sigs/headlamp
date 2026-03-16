@@ -1,0 +1,39 @@
+{
+  "name": "details-view",
+  "version": "0.0.1",
+  "description": "Shows how to make custom sections and actions in particular details views. For example add a section at the bottom of the config map view, along with an action button to the top of the view.",
+  "scripts": {
+    "start": "headlamp-plugin start",
+    "build": "headlamp-plugin build",
+    "format": "headlamp-plugin format",
+    "lint": "headlamp-plugin lint",
+    "lint-fix": "headlamp-plugin lint --fix",
+    "tsc": "headlamp-plugin tsc",
+    "storybook": "headlamp-plugin storybook",
+    "test": "headlamp-plugin test",
+    "storybook-build": "headlamp-plugin storybook-build",
+    "i18n": "headlamp-plugin i18n"
+  },
+  "keywords": [
+    "headlamp",
+    "headlamp-plugin",
+    "kubernetes",
+    "kubernetes-ui",
+    "kubernetes-debugging",
+    "plugins"
+  ],
+  "prettier": "@headlamp-k8s/eslint-config/prettier-config",
+  "eslintConfig": {
+    "extends": [
+      "@headlamp-k8s",
+      "prettier",
+      "plugin:jsx-a11y/recommended"
+    ]
+  },
+  "devDependencies": {
+    "@kinvolk/headlamp-plugin": "^0.13.0-alpha.10"
+  },
+  "overrides": {
+    "typescript": "5.6.2"
+  }
+}

@@ -1,0 +1,26 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1mcn8zw"
+    >
+      <p
+        class="MuiTypography-root MuiTypography-body1 css-3o8n1d-MuiTypography-root"
+      >
+        Select a file or drag and drop here
+      </p>
+      <label
+        class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-17g4n8r-MuiButtonBase-root-MuiButton-root"
+        role="button"
+        tabindex="0"
+      >
+        <span
+          class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeMedium css-1d6wzja-MuiButton-startIcon"
+        />
+        Select File
+        <span
+          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+        />
+      </label>
+    </div>
+  </div>
+</body>

@@ -1,0 +1,578 @@
+package config
+
+import (
+	"crypto/x509"
+	"errors"
+	"flag"
+	"fmt"
+	"io/fs"
+	"os"
+	"os/user"
+	"path/filepath"
+	"runtime"
+	"strings"
+
+	"github.com/knadh/koanf"
+	"github.com/knadh/koanf/providers/basicflag"
+	"github.com/knadh/koanf/providers/env"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
+)
+
+const (
+	defaultPort       = 4466
+	defaultSessionTTL = 86400 // 24 hours in seconds
+	osWindows         = "windows"
+)
+
+const (
+	DefaultMeUsernamePath = "preferred_username,upn,username,name"
+	DefaultMeEmailPath    = "email"
+	DefaultMeGroupsPath   = "groups,realm_access.roles"
+	DefaultMeUserInfoURL  = ""
+)
+
+type Config struct {
+	Version              bool   `koanf:"version"`
+	InCluster            bool   `koanf:"in-cluster"`
+	InClusterContextName string `koanf:"in-cluster-context-name"`
+	DevMode              bool   `koanf:"dev"`
+	InsecureSsl          bool   `koanf:"insecure-ssl"`
+	LogLevel             string `koanf:"log-level"`
+	// NoBrowser disables automatically opening the default browser when running
+	// a locally embedded Headlamp binary (non in-cluster with spa.UseEmbeddedFiles == true).
+	// It has no effect in in-cluster mode or when running without embedded frontend.
+	NoBrowser                 bool   `koanf:"no-browser"`
+	CacheEnabled              bool   `koanf:"cache-enabled"`
+	EnableHelm                bool   `koanf:"enable-helm"`
+	EnableDynamicClusters     bool   `koanf:"enable-dynamic-clusters"`
+	AllowKubeconfigChanges    bool   `koanf:"allow-kubeconfig-changes"`
+	ListenAddr                string `koanf:"listen-addr"`
+	WatchPluginsChanges       bool   `koanf:"watch-plugins-changes"`
+	Port                      uint   `koanf:"port"`
+	KubeConfigPath            string `koanf:"kubeconfig"`
+	SkippedKubeContexts       string `koanf:"skipped-kube-contexts"`
+	StaticDir                 string `koanf:"html-static-dir"`
+	PluginsDir                string `koanf:"plugins-dir"`
+	UserPluginsDir            string `koanf:"user-plugins-dir"`
+	BaseURL                   string `koanf:"base-url"`
+	SessionTTL                int    `koanf:"session-ttl"`
+	ProxyURLs                 string `koanf:"proxy-urls"`
+	OidcClientID              string `koanf:"oidc-client-id"`
+	OidcValidatorClientID     string `koanf:"oidc-validator-client-id"`
+	OidcClientSecret          string `koanf:"oidc-client-secret"`
+	OidcIdpIssuerURL          string `koanf:"oidc-idp-issuer-url"`
+	OidcCallbackURL           string `koanf:"oidc-callback-url"`
+	OidcValidatorIdpIssuerURL string `koanf:"oidc-validator-idp-issuer-url"`
+	OidcScopes                string `koanf:"oidc-scopes"`
+	OidcUseAccessToken        bool   `koanf:"oidc-use-access-token"`
+	OidcUseCookie             bool   `koanf:"oidc-use-cookie"`
+	OidcSkipTLSVerify         bool   `koanf:"oidc-skip-tls-verify"`
+	OidcCAFile                string `koanf:"oidc-ca-file"`
+	MeUsernamePath            string `koanf:"me-username-path"`
+	MeEmailPath               string `koanf:"me-email-path"`
+	MeGroupsPath              string `koanf:"me-groups-path"`
+	MeUserInfoURL             string `koanf:"me-user-info-url"`
+	OidcUsePKCE               bool   `koanf:"oidc-use-pkce"`
+	// telemetry configs
+	ServiceName        string   `koanf:"service-name"`
+	ServiceVersion     *string  `koanf:"service-version"`
+	TracingEnabled     *bool    `koanf:"tracing-enabled"`
+	MetricsEnabled     *bool    `koanf:"metrics-enabled"`
+	JaegerEndpoint     *string  `koanf:"jaeger-endpoint"`
+	OTLPEndpoint       *string  `koanf:"otlp-endpoint"`
+	UseOTLPHTTP        *bool    `koanf:"use-otlp-http"`
+	StdoutTraceEnabled *bool    `koanf:"stdout-trace-enabled"`
+	SamplingRate       *float64 `koanf:"sampling-rate"`
+	// TLS config
+	TLSCertPath string `koanf:"tls-cert-path"`
+	TLSKeyPath  string `koanf:"tls-key-path"`
+}
+
+func (c *Config) Validate() error {
+	if !c.InCluster && !c.OidcUseCookie && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
+		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
+		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
+			"oidc-validator-client-id, oidc-validator-idp-issuer-url, flags are only " +
+			"meant to be used in inCluster mode or with --oidc-use-cookie")
+	}
+
+	// OIDC TLS verification warning.
+	if c.OidcSkipTLSVerify {
+		logger.Log(logger.LevelWarn, nil, nil, "oidc-skip-tls-verify is set, this is not safe for production")
+	}
+
+	// OIDC CA file validation.
+	if c.OidcCAFile != "" {
+		// Check if the file is a valid PEM file.
+		caFileContents, err := os.ReadFile(c.OidcCAFile)
+		if err != nil {
+			return fmt.Errorf("error reading oidc-ca-file: %w", err)
+		}
+
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caFileContents) {
+			return errors.New("invalid oidc-ca-file")
+		}
+	}
+
+	if c.BaseURL != "" && !strings.HasPrefix(c.BaseURL, "/") {
+		return errors.New("base-url needs to start with a '/' or be empty")
+	}
+
+	if c.SessionTTL <= 0 {
+		return errors.New("session-ttl cannot be negative or equal to zero")
+	}
+
+	const oneYearInSeconds = 31536000
+
+	if c.SessionTTL > oneYearInSeconds {
+		return errors.New("session-ttl cannot be greater than 1 year")
+	}
+
+	if c.TracingEnabled != nil && *c.TracingEnabled {
+		if c.ServiceName == "" {
+			return errors.New("service-name is required when tracing is enabled")
+		}
+
+		if (c.JaegerEndpoint != nil && *c.JaegerEndpoint == "") &&
+			(c.OTLPEndpoint != nil && *c.OTLPEndpoint == "") &&
+			(c.StdoutTraceEnabled != nil && *c.StdoutTraceEnabled) {
+			return errors.New("at least one tracing exporter (jaeger, otlp, or stdout) must be configured")
+		}
+
+		if (c.UseOTLPHTTP != nil && *c.UseOTLPHTTP) &&
+			(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
+			return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
+		}
+	}
+
+	return nil
+}
+
+// normalizeArgs skips the first arg for flag parsing.
+func normalizeArgs(args []string) []string {
+	if len(args) == 0 {
+		return []string{}
+	}
+
+	return args[1:]
+}
+
+// loadDefaultsFromFlags loads default flag values into koanf.
+func loadDefaultsFromFlags(k *koanf.Koanf, f *flag.FlagSet) error {
+	if err := k.Load(basicflag.Provider(f, "."), nil); err != nil {
+		logger.Log(logger.LevelError, nil, err, "loading default config from flags")
+
+		return fmt.Errorf("error loading default config from flags: %w", err)
+	}
+
+	return nil
+}
+
+// parseFlags parses command-line flags using the provided flagset.
+func parseFlags(f *flag.FlagSet, args []string) error {
+	if err := f.Parse(args); err != nil {
+		logger.Log(logger.LevelError, nil, err, "parsing flags")
+		return fmt.Errorf("error parsing flags: %w", err)
+	}
+
+	return nil
+}
+
+// recordExplicitFlags reloads only explicitly-set flag values to override env.
+func recordExplicitFlags(f *flag.FlagSet) map[string]bool {
+	explicitFlags := make(map[string]bool)
+
+	f.Visit(func(f *flag.Flag) {
+		explicitFlags[f.Name] = true
+	})
+
+	return explicitFlags
+}
+
+// loadConfigFromEnv loads config values from environment variables into koanf.
+func loadConfigFromEnv(k *koanf.Koanf) error {
+	err := k.Load(env.Provider("HEADLAMP_CONFIG_", ".", func(s string) string {
+		return strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(s, "HEADLAMP_CONFIG_")), "_", "-")
+	}), nil)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "loading config from env")
+		return fmt.Errorf("error loading config from env: %w", err)
+	}
+
+	return nil
+}
+
+// reloadExplicitFlags reloads only explicitly-set flag values to override env.
+func reloadExplicitFlags(k *koanf.Koanf, f *flag.FlagSet, explicitFlags map[string]bool) error {
+	err := k.Load(basicflag.ProviderWithValue(f, ".", func(key, value string) (string, interface{}) {
+		if explicitFlags[key] {
+			return key, value
+		}
+
+		return "", nil
+	}), nil)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "loading config from flags")
+		return fmt.Errorf("error loading config from flags: %w", err)
+	}
+
+	return nil
+}
+
+// unmarshalConfig unmarshals the config from koanf into our struct.
+func unmarshalConfig(k *koanf.Koanf, config *Config) error {
+	if err := k.Unmarshal("", config); err != nil {
+		logger.Log(logger.LevelError, nil, err, "unmarshalling config")
+		return fmt.Errorf("error unmarshal config: %w", err)
+	}
+
+	return nil
+}
+
+// patchWatchPluginsChanges disables plugin watching if running in-cluster and user didn't set the flag.
+func patchWatchPluginsChanges(config *Config, explicitFlags map[string]bool) {
+	if config.InCluster && !explicitFlags["watch-plugins-changes"] {
+		config.WatchPluginsChanges = false
+	}
+}
+
+// setKubeConfigPath sets the kubeconfig path if not set, using env or default.
+func setKubeConfigPath(config *Config) {
+	// If a specific path was set, use it. Otherwise, determine default.
+	if config.KubeConfigPath != "" {
+		return
+	}
+
+	if config.InCluster {
+		return
+	}
+
+	kubeConfigEnv := os.Getenv("KUBECONFIG")
+	if kubeConfigEnv != "" {
+		config.KubeConfigPath = kubeConfigEnv
+	} else {
+		config.KubeConfigPath = GetDefaultKubeConfigPath()
+	}
+}
+
+// ApplyMeDefaults trims and applies defaults to the JMESPath expressions used for the /me endpoint.
+func ApplyMeDefaults(usernamePath, emailPath, groupsPath, userInfoURL string) (string, string, string, string) {
+	username := strings.TrimSpace(usernamePath)
+	if username == "" {
+		username = DefaultMeUsernamePath
+	}
+
+	email := strings.TrimSpace(emailPath)
+	if email == "" {
+		email = DefaultMeEmailPath
+	}
+
+	groups := strings.TrimSpace(groupsPath)
+	if groups == "" {
+		groups = DefaultMeGroupsPath
+	}
+
+	userInfo := strings.TrimSpace(userInfoURL)
+	if userInfo == "" {
+		userInfo = DefaultMeUserInfoURL
+	}
+
+	return username, email, groups, userInfo
+}
+
+// setMeDefaults ensures the /clusters/{clusterName}/me claim paths fall back to defaults when unset.
+func setMeDefaults(config *Config) {
+	config.MeUsernamePath, config.MeEmailPath, config.MeGroupsPath, config.MeUserInfoURL = ApplyMeDefaults(
+		config.MeUsernamePath,
+		config.MeEmailPath,
+		config.MeGroupsPath,
+		config.MeUserInfoURL,
+	)
+}
+
+// Parse Loads the config from flags and env.
+// env vars should start with HEADLAMP_CONFIG_ and use _ as separator
+// If a value is set both in flags and env then flag takes priority.
+// eg:
+// export HEADLAMP_CONFIG_PORT=2344
+// go run ./cmd --port=3456
+// the value of port will be 3456.
+
+func Parse(args []string) (*Config, error) {
+	var config Config
+
+	f := flagset()
+
+	k := koanf.New(".")
+
+	args = normalizeArgs(args)
+
+	// 1. Load default flag values into koanf.
+	if err := loadDefaultsFromFlags(k, f); err != nil {
+		return nil, err
+	}
+
+	// 2. Parse command-line arguments.
+	if err := parseFlags(f, args); err != nil {
+		return nil, err
+	}
+
+	// 3. Track explicitly set flags.
+	explicitFlags := recordExplicitFlags(f)
+
+	// 4. Load config from environment variables.
+	if err := loadConfigFromEnv(k); err != nil {
+		return nil, err
+	}
+
+	// 5. Reload explicitly-set flags to override env values.
+	if err := reloadExplicitFlags(k, f, explicitFlags); err != nil {
+		return nil, err
+	}
+
+	// 6. Unmarshal into config struct.
+	if err := unmarshalConfig(k, &config); err != nil {
+		return nil, err
+	}
+
+	// 7. Post-process: patch plugin flag and kubeconfig path.
+	patchWatchPluginsChanges(&config, explicitFlags)
+	setKubeConfigPath(&config)
+	setMeDefaults(&config)
+
+	// 8. Validate flags that depend on build-time behaviour.
+	if err := validateOpenBrowser(&config, explicitFlags); err != nil {
+		logger.Log(logger.LevelError, nil, err, "validating open-browser flag")
+		return nil, err
+	}
+
+	// 9. Validate parsed config.
+	if err := config.Validate(); err != nil {
+		logger.Log(logger.LevelError, nil, err, "validating config")
+		return nil, err
+	}
+
+	return &config, nil
+}
+
+// MakeHeadlampKubeConfigsDir returns the default directory to store kubeconfig
+// files of clusters that are loaded in Headlamp.
+func MakeHeadlampKubeConfigsDir() (string, error) {
+	userConfigDir, err := os.UserConfigDir()
+
+	if err == nil {
+		kubeConfigDir := filepath.Join(userConfigDir, "Headlamp", "kubeconfigs")
+		if runtime.GOOS == osWindows {
+			// golang is wrong for config folder on windows.
+			// This matches env-paths and headlamp-plugin.
+			kubeConfigDir = filepath.Join(userConfigDir, "Headlamp", "Config", "kubeconfigs")
+		}
+
+		// Create the directory if it doesn't exist.
+		fileMode := 0o755
+
+		err = os.MkdirAll(kubeConfigDir, fs.FileMode(fileMode))
+		if err == nil {
+			return kubeConfigDir, nil
+		}
+	}
+
+	// if any error occurred, fallback to the current directory.
+	ex, err := os.Executable()
+	if err == nil {
+		return filepath.Dir(ex), nil
+	}
+
+	return "", fmt.Errorf("failed to get default kubeconfig persistence directory: %v", err)
+}
+
+func DefaultHeadlampKubeConfigFile() (string, error) {
+	kubeConfigDir, err := MakeHeadlampKubeConfigsDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(kubeConfigDir, "config"), nil
+}
+
+// validateOpenBrowser ensures the open-browser option is only used when the
+// binary was built with embedded static files.
+func validateOpenBrowser(config *Config, explicitFlags map[string]bool) error {
+	// no-browser is only meaningful when running locally (non in-cluster) with
+	// an embedded frontend. Validate explicit usage accordingly.
+	if explicitFlags["no-browser"] {
+		if config.InCluster {
+			return errors.New("no-browser cannot be used in in-cluster mode")
+		}
+
+		if !spa.UseEmbeddedFiles {
+			return errors.New("no-browser cannot be used when running without embedded frontend")
+		}
+	}
+
+	return nil
+}
+
+func flagset() *flag.FlagSet {
+	f := flag.NewFlagSet("config", flag.ContinueOnError)
+
+	addGeneralFlags(f)
+	addOIDCFlags(f)
+	addTelemetryFlags(f)
+	addTLSFlags(f)
+
+	return f
+}
+
+func addGeneralFlags(f *flag.FlagSet) {
+	f.Bool("version", false, "Print version information and exit")
+	f.Bool("in-cluster", false, "Set when running from a k8s cluster")
+	f.String("in-cluster-context-name", "main", "Name to use for the in-cluster Kubernetes context")
+	f.Bool("dev", false, "Allow connections from other origins")
+	f.Bool("cache-enabled", false, "K8s cache in backend")
+	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")
+	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
+	f.String("log-level", "info", "Set backend log verbosity. Options: debug, info (default), warn, error")
+	f.Bool("enable-dynamic-clusters", false, "Enable dynamic clusters, which stores stateless clusters in the frontend.")
+	f.Bool("allow-kubeconfig-changes", false,
+		"Allow Headlamp to make changes to the known kubeconfigs when needed. "+
+			"E.g. to remove a cluster via the UI. May not be recommendable when Headlamp is deployed as a service.")
+	// Note: When running in-cluster and if not explicitly set, this flag defaults to false.
+	f.Bool("watch-plugins-changes", true, "Reloads plugins when there are changes to them or their directory")
+
+	f.String("kubeconfig", "", "Absolute path to the kubeconfig file")
+	f.String("skipped-kube-contexts", "", "Context name which should be ignored in kubeconfig file")
+	f.String("html-static-dir", "", "Static HTML directory to serve")
+	f.String("plugins-dir", defaultPluginDir(), "Specify the plugins directory to build the backend with")
+	f.String("user-plugins-dir", defaultUserPluginDir(), "Specify the user-installed plugins directory")
+	f.String("base-url", "", "Base URL path. eg. /headlamp")
+	f.Int("session-ttl", defaultSessionTTL, "The time in seconds for the session to be valid"+
+		"(Default: 86400/24h, Min: 1 , Max: 31536000/1yr )")
+	f.String("listen-addr", "", "Address to listen on; default is empty, which means listening to any address")
+	f.Uint("port", defaultPort, "Port to listen from")
+	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
+	f.Bool("enable-helm", false, "Enable Helm operations")
+}
+
+func addOIDCFlags(f *flag.FlagSet) {
+	f.String("oidc-client-id", "", "ClientID for OIDC")
+	f.String("oidc-client-secret", "", "ClientSecret for OIDC")
+	f.String("oidc-validator-client-id", "", "Override ClientID for OIDC during validation")
+	f.String("oidc-idp-issuer-url", "", "Identity provider issuer URL for OIDC")
+	f.String("oidc-callback-url", "", "Callback URL for OIDC")
+	f.String("oidc-validator-idp-issuer-url", "", "Override Identity provider issuer URL for OIDC during validation")
+	f.String("oidc-scopes", "profile,email", "A comma separated list of scopes needed from the OIDC provider")
+	f.Bool("oidc-skip-tls-verify", false, "Skip TLS verification for OIDC")
+	f.String("oidc-ca-file", "", "CA file for OIDC")
+	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
+	f.Bool("oidc-use-cookie", false, "Enable OIDC cookie usage even when not running in-cluster")
+	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
+	f.String("me-username-path", DefaultMeUsernamePath,
+		"Comma separated JMESPath expressions used to read username from the JWT payload")
+	f.String("me-email-path", DefaultMeEmailPath,
+		"Comma separated JMESPath expressions used to read email from the JWT payload")
+	f.String("me-groups-path", DefaultMeGroupsPath,
+		"Comma separated JMESPath expressions used to read groups from the JWT payload")
+	f.String("me-user-info-url", DefaultMeUserInfoURL,
+		"URL to fetch additional user info for the /me endpoint. For oauth2proxy /oauth2/userinfo can be used.")
+}
+
+func addTelemetryFlags(f *flag.FlagSet) {
+	// Telemetry flags.
+	f.String("service-name", "headlamp", "Service name for telemetry")
+	f.String("service-version", "0.30.0", "Service version for telemetry")
+	f.Bool("tracing-enabled", false, "Enable distributed tracing")
+	f.Bool("metrics-enabled", false, "Enable metrics collection")
+	f.String("otlp-endpoint", "localhost:4317", "OTLP collector endpoint")
+	f.Bool("use-otlp-http", false, "Use HTTP instead of gRPC for OTLP export")
+	f.Bool("stdout-trace-enabled", false, "Enable tracing output to stdout")
+	f.Float64("sampling-rate", 1.0, "Sampling rate for traces")
+}
+
+func addTLSFlags(f *flag.FlagSet) {
+	// TLS flags
+	f.String("tls-cert-path", "", "Certificate for serving TLS")
+	f.String("tls-key-path", "", "Key for serving TLS")
+}
+
+// Gets the default plugins-dir depending on platform.
+func defaultPluginDir() string {
+	// This is the folder we use for the default plugin-dir:
+	//  - ~/.config/Headlamp/plugins exists or it can be made
+	// Windows: %APPDATA%\Headlamp\Config\plugins
+	//   (for example, C:\Users\USERNAME\AppData\Roaming\Headlamp\Config\plugins)
+	// https://www.npmjs.com/package/env-paths
+	// https://pkg.go.dev/os#UserConfigDir
+	userConfigDir, err := os.UserConfigDir()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "getting user config dir")
+
+		return ""
+	}
+
+	pluginsConfigDir := filepath.Join(userConfigDir, "Headlamp", "plugins")
+	if runtime.GOOS == osWindows {
+		// golang is wrong for config folder on windows.
+		// This matches env-paths and headlamp-plugin.
+		pluginsConfigDir = filepath.Join(userConfigDir, "Headlamp", "Config", "plugins")
+	}
+
+	fileMode := 0o755
+
+	err = os.MkdirAll(pluginsConfigDir, fs.FileMode(fileMode))
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "creating plugins directory")
+
+		return ""
+	}
+
+	return pluginsConfigDir
+}
+
+// Gets the default user-plugins-dir depending on platform.
+func defaultUserPluginDir() string {
+	// This is the folder we use for the default user-plugin-dir:
+	//  - ~/.config/Headlamp/user-plugins exists or it can be made
+	// Windows: %APPDATA%\Headlamp\Config\user-plugins
+	//   (for example, C:\Users\USERNAME\AppData\Roaming\Headlamp\Config\user-plugins)
+	// https://www.npmjs.com/package/env-paths
+	// https://pkg.go.dev/os#UserConfigDir
+	userConfigDir, err := os.UserConfigDir()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "getting user config dir")
+
+		return ""
+	}
+
+	userPluginsConfigDir := filepath.Join(userConfigDir, "Headlamp", "user-plugins")
+	if runtime.GOOS == osWindows {
+		// golang is wrong for config folder on windows.
+		// This matches env-paths and headlamp-plugin.
+		userPluginsConfigDir = filepath.Join(userConfigDir, "Headlamp", "Config", "user-plugins")
+	}
+
+	fileMode := 0o755
+
+	err = os.MkdirAll(userPluginsConfigDir, fs.FileMode(fileMode))
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "creating user-plugins directory")
+
+		return ""
+	}
+
+	return userPluginsConfigDir
+}
+
+func GetDefaultKubeConfigPath() string {
+	user, err := user.Current()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "getting current user")
+		os.Exit(1)
+	}
+
+	homeDirectory := user.HomeDir
+
+	return filepath.Join(homeDirectory, ".kube", "config")
+}

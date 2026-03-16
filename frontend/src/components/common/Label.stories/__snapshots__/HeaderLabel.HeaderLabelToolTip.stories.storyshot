@@ -1,0 +1,33 @@
+<body>
+  <div>
+    <div
+      class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column css-t0zib5-MuiGrid-root"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+      >
+        <p
+          class="MuiTypography-root MuiTypography-body1 css-1vtvfmb-MuiTypography-root"
+        >
+          name
+        </p>
+        <div
+          class="MuiContainer-root MuiContainer-maxWidthLg css-64uahr-MuiContainer-root"
+        />
+      </div>
+      <div
+        class="MuiGrid-root MuiGrid-container MuiGrid-item css-dcx4qa-MuiGrid-root"
+      >
+        <div
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body1 css-l0k1rq-MuiTypography-root"
+          >
+            value
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

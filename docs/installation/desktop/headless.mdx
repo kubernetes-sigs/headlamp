@@ -1,0 +1,42 @@
+---
+title: Running in headless mode
+sidebar_label: Headless Mode
+sidebar_position: 4
+---
+
+Some users prefer running Headlamp using the desktop app, but in their web browser instead of
+Electron's environment. This allows them to leverage the browser's functionality, such as
+bookmarks, groups, etc.
+
+Running Headlamp in the system's browser can be done by using the `--headless` CLI option.
+Assuming you have already downloaded and installed Headlamp on your desktop, you can run it in headless mode as follows:
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<Tabs>
+  <TabItem value="linux" label="Linux" default>
+    ```bash
+    flatpak run io.kinvolk.Headlamp --headless
+    ```
+    or 
+    ```bash
+    ./Headlamp.AppImage --headless # for AppImage
+    ```
+  </TabItem>
+  <TabItem value="macOS" label="MacOS">
+    ```bash
+    ./Headlamp --headless
+    ```
+    
+    If you have installed using brew then,
+    ```bash
+    /Applications/Headlamp.app/Contents/MacOS/Headlamp --headless
+    ```
+  </TabItem>
+  <TabItem value="windows" label="Windows">
+    ```powershell
+    ./Headlamp.exe --headless
+    ```
+  </TabItem>
+</Tabs>
