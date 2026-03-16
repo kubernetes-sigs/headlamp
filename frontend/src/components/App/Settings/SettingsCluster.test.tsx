@@ -118,39 +118,63 @@ describe('SettingsCluster appearance controls', () => {
   it('labels controls with their appearance subsection', () => {
     renderSettings();
 
-    expect(screen.getByRole('button', { name: 'Appearance Choose Color' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Appearance Choose Icon' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Appearance Accent color Choose Color' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Appearance Cluster icon Choose Icon' })
+    ).toBeInTheDocument();
   });
 
   it('updates configured appearance values', async () => {
     renderSettings({ appearance: { accentColor: '#e91e63', icon: 'mdi:cloud-outline' } });
 
-    expect(screen.getByRole('button', { name: 'Appearance Change Color' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Appearance Change Icon' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Appearance Accent color Change Color' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Appearance Cluster icon Change Icon' })
+    ).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Clear accent color' }));
     await userEvent.click(screen.getByRole('button', { name: 'Clear cluster icon' }));
-    expect(screen.getByRole('button', { name: 'Appearance Choose Color' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Appearance Choose Icon' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Appearance Accent color Choose Color' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Appearance Cluster icon Choose Icon' })
+    ).toBeInTheDocument();
   });
 
   it('selects values from the appearance pickers', async () => {
     renderSettings();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Appearance Choose Color' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Appearance Accent color Choose Color' })
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Select test color' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Appearance Choose Icon' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Appearance Cluster icon Choose Icon' })
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Select test icon' }));
 
-    expect(screen.getByRole('button', { name: 'Appearance Change Color' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Appearance Change Icon' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Appearance Accent color Change Color' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Appearance Cluster icon Change Icon' })
+    ).toBeInTheDocument();
   });
 
   it('closes appearance pickers without changing values', async () => {
     renderSettings();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Appearance Choose Color' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Appearance Accent color Choose Color' })
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Close color picker' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Appearance Choose Icon' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Appearance Cluster icon Choose Icon' })
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Close icon picker' }));
 
     expect(screen.queryByRole('button', { name: 'Close color picker' })).not.toBeInTheDocument();
@@ -174,7 +198,9 @@ describe('SettingsCluster states and namespaces', () => {
 
   it('selects the first cluster when the query is missing', () => {
     renderSettings({}, { queryCluster: null });
-    expect(screen.getByRole('button', { name: 'Appearance Choose Color' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Appearance Accent color Choose Color' })
+    ).toBeInTheDocument();
   });
 
   it('shows the empty state when no clusters exist', () => {
