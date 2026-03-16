@@ -85,6 +85,12 @@ describe('PodDebugSettings', () => {
     expect(screen.getByRole('checkbox')).toBeChecked();
   });
 
+  it('labels the debug image textbox', () => {
+    renderSettings();
+
+    expect(screen.getByRole('textbox', { name: /Debug Image$/ })).toBeInTheDocument();
+  });
+
   it('removes whitespace when updating the debug image', () => {
     const setClusterSettings = renderSettings();
 

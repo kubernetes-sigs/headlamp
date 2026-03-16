@@ -602,7 +602,11 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
           >
-            Debug Image
+            <span
+              id="debug-image-label"
+            >
+              Debug Image
+            </span>
           </dt>
           <dd
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
@@ -616,6 +620,7 @@
                 <input
                   aria-describedby=":mock-test-id:"
                   aria-invalid="false"
+                  aria-labelledby="debug-image-label"
                   class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                   id=":mock-test-id:"
                   placeholder="docker.io/library/busybox:latest"
