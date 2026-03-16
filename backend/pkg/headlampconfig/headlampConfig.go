@@ -2,6 +2,7 @@ package headlampconfig
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -46,6 +47,7 @@ type HeadlampConfig struct {
 	ProxyAuthEmailHeader      string
 	ProxyAuthTokenHeader      string
 	ServerCtx                 context.Context
+	AdminSettings             json.RawMessage
 }
 
 type HeadlampCFG struct {
