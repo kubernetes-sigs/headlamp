@@ -36,6 +36,11 @@ type HeadlampConfig struct {
 	MeEmailPaths              string
 	MeGroupsPaths             string
 	MeUserInfoURL             string
+	// GCP OAuth fields for GKE authentication
+	GCPOAuthEnabled bool
+	GCPClientID     string
+	GCPClientSecret string
+	GCPRedirectURL  string
 }
 
 type HeadlampCFG struct {
