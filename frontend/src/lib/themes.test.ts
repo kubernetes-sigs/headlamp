@@ -35,6 +35,18 @@ describe('themes.ts', () => {
       expect(theme.palette.background.default).toBe('#1f1f1f');
     });
 
+    it('should keep warning alerts readable in the dark theme', () => {
+      const theme = createMuiTheme({ base: 'dark', name: 'Dark Theme' });
+
+      expect(theme.components?.MuiAlert?.styleOverrides?.standardWarning).toEqual({
+        backgroundColor: 'rgba(255, 152, 0, 0.12)',
+        color: '#fff3e0',
+        '& .MuiAlert-icon': {
+          color: '#ffb74d',
+        },
+      });
+    });
+
     it('should set searchHint defaults for light and dark themes', () => {
       const lightTheme = createMuiTheme({ base: 'light', name: 'Light Theme' });
       const darkTheme = createMuiTheme({ base: 'dark', name: 'Dark Theme' });

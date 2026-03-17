@@ -534,6 +534,17 @@ export function createMuiTheme(currentTheme: AppTheme) {
             underline: 'hover' as 'always' | 'hover' | 'none',
           },
         },
+        MuiAlert: {
+          styleOverrides: {
+            standardWarning: {
+              backgroundColor: 'rgba(255, 152, 0, 0.12)',
+              color: orange[50],
+              '& .MuiAlert-icon': {
+                color: orange[300],
+              },
+            },
+          },
+        },
         MuiSwitch: {
           styleOverrides: {
             root: {
