@@ -28,8 +28,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -38,9 +41,20 @@ import (
 // CachedResponseData stores information such as StatusCode, Headers, and Body.
 // It helps cache responses efficiently and serve them from the cache.
 type CachedResponseData struct {
-	StatusCode int         `json:"statusCode"`
-	Headers    http.Header `json:"headers"`
-	Body       string      `json:"body"`
+	StatusCode int              `json:"statusCode"`
+	Headers    http.Header      `json:"headers"`
+	Body       ResourceResponse `json:"body"`
+}
+
+type Item struct {
+	Metadata metav1.ObjectMeta `json:"metadata"`
+}
+
+type ResourceResponse struct {
+	Kind     string          `json:"kind"`
+	Version  string          `json:"apiVersion"`
+	Metadata metav1.ListMeta `json:"metadata"`
+	Items    []Item          `json:"items"`
 }
 
 // GetResponseBody decompresses a gzip-encoded response body and returns it as a string.
@@ -172,6 +186,36 @@ func FilterHeaderForCache(responseHeaders http.Header, encoding string) http.Hea
 	return cacheHeader
 }
 
+func sliceTheResponse(page int, pageSize int, sizeOfResponse int) (int, int) {
+	start := (page - 1) * pageSize
+	if start >= sizeOfResponse {
+		return sizeOfResponse, sizeOfResponse // slice empty if page out of range
+	}
+
+	end := start + pageSize
+	if end > sizeOfResponse {
+		end = sizeOfResponse
+	}
+
+	return start, end
+}
+
+func ReturnResponseToClient(rcw *ResponseCapture, v any, w http.ResponseWriter) error {
+	var err error
+
+	if rcw.Header().Get("Content-Encoding") == "gzip" {
+		w.Header().Set("Content-Encoding", "gzip")
+
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+		err = json.NewEncoder(gz).Encode(v)
+	} else {
+		err = json.NewEncoder(w).Encode(v)
+	}
+
+	return err
+}
+
 // LoadFromCache checks if a cached resource exists and the user has permission to view it.
 // If found, it writes the cached data to the ResponseWriter and returns (true, nil).
 // If not found or on error, it returns (false, error).
@@ -179,20 +223,39 @@ func LoadFromCache(k8scache cache.Cache[string], isAllowed bool,
 	key string, w http.ResponseWriter, r *http.Request,
 ) (bool, error) {
 	k8Resource, err := k8scache.Get(context.Background(), key)
-	if err == nil && strings.TrimSpace(k8Resource) != "" && isAllowed {
+	if err == nil && strings.TrimSpace(k8Resource) != "" && isAllowed { //nolint:nestif
 		var cachedData CachedResponseData
 		if err := json.Unmarshal([]byte(k8Resource), &cachedData); err != nil {
 			return false, err
 		}
 
 		SetHeader(cachedData, w)
-		_, writeErr := w.Write([]byte(cachedData.Body))
+		w.Header().Set("Content-Type", "application/json")
 
-		if writeErr != nil {
-			return false, writeErr
+		page := 1
+
+		if pageNo := r.URL.Query().Get("p"); pageNo != "" {
+			if p, err := strconv.Atoi(pageNo); err == nil && p > 0 {
+				page = p
+			}
 		}
 
-		logger.Log(logger.LevelInfo, nil, nil, "serving from the cache with key "+key)
+		limit := 10
+
+		start, end := sliceTheResponse(page, limit, len(cachedData.Body.Items))
+		cachedData.Body.Items = cachedData.Body.Items[start:end]
+
+		bodyBytes, err := json.Marshal(cachedData.Body)
+		if err != nil {
+			return false, err
+		}
+
+		if _, err := w.Write(bodyBytes); err != nil {
+			// fmt.Println("since : ", time.Since(startNow))
+			return false, err
+		}
+
+		logger.Log(logger.LevelInfo, nil, nil, "serving from cache with key "+key)
 
 		return true, nil
 	}
@@ -219,11 +282,18 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 	}
 
 	headersToCache := FilterHeaderForCache(capturedHeaders, encoding)
+
+	var resourceBody ResourceResponse
+	if err := json.Unmarshal([]byte(dcmpBody), &resourceBody); err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to unmarshal resource response body")
+		return err
+	}
+
 	if !strings.Contains(url.Path, "selfsubjectrulesreviews") {
 		cachedData := CachedResponseData{
 			StatusCode: rcw.StatusCode,
 			Headers:    headersToCache,
-			Body:       dcmpBody,
+			Body:       resourceBody,
 		}
 
 		jsonBytes, err := json.Marshal(cachedData)

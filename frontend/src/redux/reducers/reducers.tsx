@@ -18,6 +18,7 @@ import { combineReducers } from 'redux';
 import { activityReducer } from '../../components/activity/activitySlice';
 import notificationsReducer from '../../components/App/Notifications/notificationsSlice';
 import themeReducer from '../../components/App/themeSlice';
+import tablePaginationReducer from '../../components/common/paginationSlice';
 import graphViewReducer from '../../components/resourceMap/graphViewSlice';
 import pluginsReducer from '../../plugin/pluginsSlice';
 import actionButtons from '../actionButtonsSlice';
@@ -60,6 +61,7 @@ const reducers = combineReducers({
   activity: activityReducer,
   projects: projectsReducer,
   shortcuts: shortcutsReducer,
+  tablePagination: tablePaginationReducer,
 });
 
 export type RootState = ReturnType<typeof reducers>;
