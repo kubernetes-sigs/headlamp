@@ -119,7 +119,7 @@ test('project overview renders plugin section cards', async ({ page }) => {
       '.MuiGrid-item:has(> .MuiCard-root > .MuiCardContent-root:empty)'
     );
     await expect(emptySection).toHaveCount(1);
-    await expect(emptySection).toBeVisible();
+    await expect(emptySection).toBeHidden();
   } finally {
     const deleteResponse = await page.request.delete(namespacePath, { headers });
     expect(deleteResponse.ok()).toBe(true);

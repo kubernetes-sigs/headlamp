@@ -38,7 +38,12 @@ export function ProjectOverviewSection({
   section,
 }: ProjectOverviewSectionProps) {
   return (
-    <Grid item xs={12} md={4}>
+    <Grid
+      item
+      xs={12}
+      md={4}
+      sx={{ '&:has(> .MuiCard-root > .MuiCardContent-root:empty)': { display: 'none' } }}
+    >
       <Card sx={{ height: '100%' }}>
         <CardContent>
           <section.component project={project} projectResources={projectResources} />

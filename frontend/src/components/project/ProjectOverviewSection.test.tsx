@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { Card, CardContent } from '@mui/material';
 import { render, screen } from '@testing-library/react';
 import { TestContext } from '../../test';
 import { ProjectOverviewSection } from './ProjectOverviewSection';
@@ -42,7 +43,7 @@ describe('ProjectOverviewSection', () => {
     expect(screen.getByText('Plugin section content')).toBeVisible();
   });
 
-  it('renders an empty card when the plugin section returns null', () => {
+  it('hides an empty card when the plugin section returns null', () => {
     const { container } = render(
       <TestContext>
         <ProjectOverviewSection
@@ -53,6 +54,32 @@ describe('ProjectOverviewSection', () => {
       </TestContext>
     );
 
-    expect(container.querySelector('.MuiCardContent-root')).toBeEmptyDOMElement();
+    const emptyCardContent = container.querySelector('.MuiCardContent-root');
+    expect(emptyCardContent).toBeEmptyDOMElement();
+    expect(emptyCardContent?.closest('.MuiGrid-item')).toHaveStyle({ display: 'none' });
+  });
+
+  it('shows content when a plugin renders an empty nested card', () => {
+    render(
+      <TestContext>
+        <ProjectOverviewSection
+          project={project}
+          projectResources={[]}
+          section={{
+            id: 'nested-empty-card',
+            component: () => (
+              <>
+                <div>Plugin section content</div>
+                <Card>
+                  <CardContent />
+                </Card>
+              </>
+            ),
+          }}
+        />
+      </TestContext>
+    );
+
+    expect(screen.getByText('Plugin section content').closest('.MuiGrid-item')).toBeVisible();
   });
 });
