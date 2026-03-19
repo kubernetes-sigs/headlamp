@@ -1659,10 +1659,15 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
     fieldSelector: resource.kind === 'Node' ? `spec.nodeName=${resource.metadata.name}` : undefined,
     cluster: resource.cluster,
   };
+  const podMetricsQueryData = {
+    ...queryData,
+    // The metrics.k8s.io pod metrics list endpoint does not support spec.nodeName field selectors.
+    fieldSelector: undefined,
+  };
 
   const { items: pods, errors } = Pod.useList(queryData);
   const { items: podMetrics } = PodMetrics.useList({
-    ...queryData,
+    ...podMetricsQueryData,
     refetchInterval: METRIC_REFETCH_INTERVAL_MS,
   });
   const onlyOneNamespace = !!resource.metadata.namespace || resource.kind === 'Namespace';

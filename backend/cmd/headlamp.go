@@ -31,9 +31,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -64,6 +66,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -383,7 +386,7 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 }
 
 //nolint:gocognit,funlen,gocyclo
-func createHeadlampHandler(config *HeadlampConfig) http.Handler {
+func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
 
 	config.StaticPluginDir = os.Getenv("HEADLAMP_STATIC_PLUGINS_DIR")
@@ -415,12 +418,12 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	if !config.UseInCluster || config.WatchPluginsChanges {
 		// in-cluster mode is unlikely to want reloading plugins.
 		pluginEventChan := make(chan string)
-		go plugins.Watch(config.PluginDir, pluginEventChan)
+		go plugins.Watch(ctx, config.PluginDir, pluginEventChan)
 
 		// Watch user-plugins directory for catalog-installed plugins
 		if config.UserPluginDir != "" {
 			userPluginEventChan := make(chan string)
-			go plugins.Watch(config.UserPluginDir, userPluginEventChan)
+			go plugins.Watch(ctx, config.UserPluginDir, userPluginEventChan)
 			// Merge both event channels into one
 			go func() {
 				for event := range userPluginEventChan {
@@ -437,7 +440,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			config.Cache,
 		)
 		// in-cluster mode is unlikely to want reloading kubeconfig.
-		go kubeconfig.LoadAndWatchFiles(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
+		go kubeconfig.LoadAndWatchFiles(ctx, config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	}
 
 	// In-cluster
@@ -1149,9 +1152,8 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 }
 
 func StartHeadlampServer(config *HeadlampConfig) {
-	tel, err := telemetry.NewTelemetry(config.TelemetryConfig)
+	tel, err := initTelemetry(config)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "Failed to initialize telemetry")
 		os.Exit(1)
 	}
 
@@ -1164,6 +1166,56 @@ func StartHeadlampServer(config *HeadlampConfig) {
 		}
 	}()
 
+	router := mux.NewRouter()
+
+	if config.Telemetry != nil && config.Metrics != nil {
+		router.Use(telemetry.TracingMiddleware("headlamp-server"))
+		router.Use(config.Metrics.RequestCounterMiddleware)
+	}
+
+	if config.StaticDir != "" {
+		if err := copyStaticFiles(config); err != nil {
+			return
+		}
+	}
+
+	// Create a cancellable context for watcher goroutines
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	handler := createHeadlampHandler(ctx, config)
+	handler = config.OIDCTokenRefreshMiddleware(handler)
+
+	addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
+
+	server := &http.Server{Addr: addr, Handler: handler} //nolint:gosec
+
+	serverDone := make(chan struct{})
+	setupGracefulShutdown(server, cancel, serverDone)
+
+	if config.TLSCertPath != "" && config.TLSKeyPath != "" {
+		err = server.ListenAndServeTLS(config.TLSCertPath, config.TLSKeyPath)
+	} else {
+		err = server.ListenAndServe()
+	}
+
+	close(serverDone)
+
+	if err != nil && err != http.ErrServerClosed {
+		logger.Log(logger.LevelError, nil, err, "Failed to start server")
+		HandleServerStartError(&err)
+	}
+}
+
+// initTelemetry initializes telemetry and metrics for the server.
+func initTelemetry(config *HeadlampConfig) (*telemetry.Telemetry, error) {
+	tel, err := telemetry.NewTelemetry(config.TelemetryConfig)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to initialize telemetry")
+
+		return nil, err
+	}
+
 	metrics, err := telemetry.NewMetrics()
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to initialize metrics")
@@ -1173,45 +1225,60 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	config.Metrics = metrics
 	config.TelemetryHandler = telemetry.NewRequestHandler(tel, metrics)
 
-	router := mux.NewRouter()
+	return tel, nil
+}
 
-	if config.Telemetry != nil && config.Metrics != nil {
-		router.Use(telemetry.TracingMiddleware("headlamp-server"))
-		router.Use(config.Metrics.RequestCounterMiddleware)
-	}
-
-	// Copy static files as squashFS is read-only (AppImage)
-	if config.StaticDir != "" {
-		dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to create static dir")
-			return
-		}
-
-		err = os.CopyFS(dir, os.DirFS(config.StaticDir))
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to copy files from static dir")
-			return
-		}
-
-		config.StaticDir = dir
-	}
-
-	handler := createHeadlampHandler(config)
-	handler = config.OIDCTokenRefreshMiddleware(handler)
-
-	addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
-
-	if config.TLSCertPath != "" && config.TLSKeyPath != "" {
-		err = http.ListenAndServeTLS(addr, config.TLSCertPath, config.TLSKeyPath, handler) //nolint:gosec
-	} else {
-		err = http.ListenAndServe(addr, handler) //nolint:gosec
-	}
-
+// copyStaticFiles copies static files to a temporary directory.
+// This is needed because squashFS is read-only (AppImage).
+func copyStaticFiles(config *HeadlampConfig) error {
+	dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "Failed to start server")
-		HandleServerStartError(&err)
+		logger.Log(logger.LevelError, nil, err, "Failed to create static dir")
+
+		return err
 	}
+
+	err = os.CopyFS(dir, os.DirFS(config.StaticDir))
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to copy files from static dir")
+
+		return err
+	}
+
+	config.StaticDir = dir
+
+	return nil
+}
+
+// setupGracefulShutdown starts a goroutine that listens for OS signals
+// (SIGINT, SIGTERM) and gracefully shuts down the server. It cancels
+// the context to stop all watcher goroutines. The serverDone channel
+// is used to stop this goroutine if the server exits for a non-signal reason.
+func setupGracefulShutdown(server *http.Server, cancel context.CancelFunc, serverDone <-chan struct{}) {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		defer signal.Stop(sigChan)
+
+		select {
+		case <-sigChan:
+			logger.Log(logger.LevelInfo, nil, nil, "Received shutdown signal, stopping watchers...")
+
+			cancel() // Cancel context to stop all watcher goroutines
+
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutdownCancel()
+
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				logger.Log(logger.LevelError, nil, err, "Failed to gracefully shutdown server")
+			}
+		case <-serverDone:
+			// Server exited on its own, clean up watchers and stop the signal goroutine
+			cancel()
+			return
+		}
+	}()
 }
 
 // Handle common server startup errors.
@@ -1338,8 +1405,8 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 	// Create a copy of the context to avoid modifying the cached context
 	context = context.Copy()
 
-	// If headlamp is running in cluster, use the token from the cookie for oidc auth
-	if c.UseInCluster && context.OidcConf != nil {
+	// If running in cluster or explicitly enabled via flag, use the token from the cookie for oidc auth
+	if (c.UseInCluster || c.OidcUseCookie) && context.OidcConf != nil {
 		setTokenFromCookie(r, clusterName)
 	}
 
@@ -2140,8 +2207,8 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 	}, nil, "Completed stateless cluster rename")
 }
 
-// customNameToExtenstions writes the custom name to the Extensions map in the kubeconfig.
-func customNameToExtenstions(config *api.Config, contextName, newClusterName, path string) error {
+// customNameToExtensions writes the custom name to the Extensions map in the kubeconfig.
+func customNameToExtensions(config *api.Config, contextName, newClusterName, path string) error {
 	var err error
 
 	// Get the context with the given cluster name
@@ -2160,7 +2227,13 @@ func customNameToExtenstions(config *api.Config, contextName, newClusterName, pa
 		CustomName: newClusterName,
 	}
 
-	// Assign the CustomObject to the Extensions map
+	// Assign the CustomObject to the Extensions map.
+	// Extensions is nil for contexts that have never had extensions set; initialize
+	// it before writing to avoid a nil-map panic.
+	if contextConfig.Extensions == nil {
+		contextConfig.Extensions = make(map[string]k8sruntime.Object)
+	}
+
 	contextConfig.Extensions["headlamp_info"] = customObj
 
 	if err := clientcmd.WriteToFile(*config, path); err != nil {
@@ -2290,7 +2363,7 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 
 	contextName := findMatchingContextName(config, clusterName)
 
-	if err := customNameToExtenstions(config, contextName, reqBody.NewClusterName, path); err != nil {
+	if err := customNameToExtensions(config, contextName, reqBody.NewClusterName, path); err != nil {
 		c.handleError(w, ctx, span, err, "failed to write custom extension", http.StatusInternalServerError)
 		return err
 	}
@@ -2307,27 +2380,66 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 }
 
 // findMatchingContextName checks all contexts, returning the key for whichever
-// has a matching customObj.CustomName, if any.
+// has a matching customObj.CustomName, if any. It also handles the case where
+// the clusterName is a DNS-friendly version of the original context key
+// (e.g. slashes replaced with double dashes by MakeDNSFriendly).
+//
+// Resolution order:
+//  1. Custom name match (headlamp_info extension) — highest priority, returns immediately.
+//  2. Exact key match — avoids DNS-friendly ambiguity when the name already exists verbatim.
+//  3. DNS-friendly match — collects all candidates; warns and picks the
+//     lexicographically first one when multiple keys map to the same form.
 func findMatchingContextName(config *api.Config, clusterName string) string {
-	contextName := clusterName
-
+	// 1. Custom name takes priority: return the real context key immediately.
 	for k, v := range config.Contexts {
 		info := v.Extensions["headlamp_info"]
-		if info != nil {
-			customObj, err := MarshalCustomObject(info, contextName)
-			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
-					err, "marshaling custom object")
-				continue
-			}
+		if info == nil {
+			continue
+		}
 
-			if customObj.CustomName != "" && customObj.CustomName == clusterName {
-				contextName = k
-			}
+		customObj, err := MarshalCustomObject(info, k)
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"cluster": k},
+				err, "marshaling custom object")
+			continue
+		}
+
+		if customObj.CustomName != "" && customObj.CustomName == clusterName {
+			return k
 		}
 	}
 
-	return contextName
+	// 2. Exact key match: clusterName is already a verbatim context key.
+	if _, ok := config.Contexts[clusterName]; ok {
+		return clusterName
+	}
+
+	// 3. DNS-friendly match: collect all keys whose DNS-friendly form matches.
+	// Sorting makes the selection deterministic when multiple keys collide.
+	var matches []string
+
+	for k := range config.Contexts {
+		if kubeconfig.MakeDNSFriendly(k) == clusterName {
+			matches = append(matches, k)
+		}
+	}
+
+	switch len(matches) {
+	case 1:
+		return matches[0]
+	case 0:
+		return clusterName
+	default:
+		sort.Strings(matches)
+		logger.Log(logger.LevelWarn,
+			map[string]string{"clusterName": clusterName},
+			nil,
+			fmt.Sprintf("ambiguous DNS-friendly cluster name %q matches multiple context keys %v; using %q",
+				clusterName, matches, matches[0]),
+		)
+
+		return matches[0]
+	}
 }
 
 // checkUniqueName returns false if 'newName' is already in 'names', otherwise returns true.

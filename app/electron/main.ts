@@ -763,7 +763,7 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   // Pass a token to the backend that can be used for auth on some routes
   process.env.HEADLAMP_BACKEND_TOKEN = backendToken;
 
-  // Set the bundled plugins in addition to the the user's plugins.
+  // Set the bundled plugins in addition to the user's plugins.
   try {
     const stat = await fsPromises.stat(bundledPlugins);
     if (stat.isDirectory()) {

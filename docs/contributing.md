@@ -74,7 +74,7 @@ Use **atomic commits** to keep each commit focused on a single change. Follow th
   characters, and the wrap the body of the message at 72 characters.
 
 - Commits should be atomic and self-contained. Divide logically separate changes
-  to separate commits. This principle is best explained in the the Linux Kernel
+  to separate commits. This principle is best explained in the Linux Kernel
   [submitting patches](https://www.kernel.org/doc/html/v4.17/process/submitting-patches.html#separate-your-changes) guide.
 
 - Commit messages should explain the intention, _why_ something is done. This,

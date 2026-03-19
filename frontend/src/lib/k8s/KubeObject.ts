@@ -489,10 +489,12 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     }
     const params: DeleteParameters = {};
 
-    console.log(force);
+    if (this._class().kind === 'Job') {
+      params.propagationPolicy = 'Background';
+    }
+
     if (force) {
       params.gracePeriodSeconds = 0;
-      console.log(params);
     }
 
     // @ts-ignore

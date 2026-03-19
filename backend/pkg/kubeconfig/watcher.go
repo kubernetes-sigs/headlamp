@@ -1,6 +1,7 @@
 package kubeconfig
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,9 +15,17 @@ import (
 const watchInterval = 10 * time.Second
 
 // LoadAndWatchFiles loads kubeconfig files and watches them for changes.
-func LoadAndWatchFiles(kubeConfigStore ContextStore, paths string, source int, ignoreFunc shouldBeSkippedFunc) {
+// It runs until the provided context is cancelled.
+func LoadAndWatchFiles(
+	ctx context.Context,
+	kubeConfigStore ContextStore,
+	paths string,
+	source int,
+	ignoreFunc shouldBeSkippedFunc,
+) {
 	// create ticker
 	ticker := time.NewTicker(watchInterval)
+	defer ticker.Stop()
 
 	// create watcher
 	watcher, err := fsnotify.NewWatcher()
@@ -35,6 +44,10 @@ func LoadAndWatchFiles(kubeConfigStore ContextStore, paths string, source int, i
 
 	for {
 		select {
+		case <-ctx.Done():
+			logger.Log(logger.LevelInfo, nil, nil, "watcher: shutting down kubeconfig watcher")
+
+			return
 		case <-ticker.C:
 			if len(watcher.WatchList()) != len(kubeConfigPaths) {
 				logger.Log(logger.LevelInfo, nil, nil, "watcher: re-adding missing files")

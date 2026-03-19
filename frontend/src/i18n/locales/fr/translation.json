@@ -201,7 +201,7 @@
   "Getting auth info": "Obtenir des informations d'authentification",
   "Testing auth": "Test d'authentification",
   "Headlamp Cluster Authentication": "Authentification du cluster HeadLamp",
-  "Sign In": "S'inscrire",
+  "Sign In": "Se connecter",
   "Use A Token": "Utiliser un jeton",
   "Failed to connect. Please make sure the Kubernetes cluster is running and accessible. Error: {{ errorMessage }}": "Impossible de se connecter. Veuillez vous assurer que le cluster Kubernetes est en cours d'exécution et accessible. Erreur : {{ errorMessage }}",
   "Failed to get authentication information: {{ errorMessage }}": "Impossible d'obtenir les informations d'authentification : {{ errorMessage }}",
