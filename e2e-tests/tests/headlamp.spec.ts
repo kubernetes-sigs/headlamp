@@ -95,7 +95,7 @@ test('headlamp service page should contain port', async ({ page }) => {
     .filter({ has: page.getByRole('columnheader', { name: 'Protocol', exact: true }) });
   await expect(portsTable.getByRole('cell', { name: 'TCP', exact: true })).toHaveCSS(
     'overflow',
-    'hidden'
+    'visible'
   );
   await headlampPage.a11y();
 });

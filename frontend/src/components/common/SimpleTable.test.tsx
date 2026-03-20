@@ -55,14 +55,14 @@ function getBodyCellText() {
 }
 
 describe('SimpleTable', () => {
-  it('hides overflow for body cells and column headers', () => {
+  it('allows body-cell overflow while hiding column-header overflow', () => {
     renderTable({
       columns,
       data: [{ value: 'A long value that should wrap instead of being clipped' }],
       showPagination: false,
     });
 
-    expect(getComputedStyle(screen.getByRole('cell')).overflow).toBe('hidden');
+    expect(getComputedStyle(screen.getByRole('cell')).overflow).not.toBe('hidden');
     expect(getComputedStyle(screen.getByRole('columnheader')).overflow).toBe('hidden');
   });
 
