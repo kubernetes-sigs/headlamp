@@ -23,6 +23,7 @@ import {
   getMainNode,
   getParentNode,
   groupGraph,
+  UNSCHEDULED_GROUP,
 } from './graphGrouping';
 import { GraphEdge, GraphNode } from './graphModel';
 
@@ -211,11 +212,10 @@ describe('groupGraph', () => {
     });
     const nodeNames = groupedGraph.nodes?.map(node => node.id);
 
-    // Node 2 is grouped into Node-node1 group
-    // Nodes 1, 3 and 4 don't have a node and are not grouped
-    // After sorting by weight (descending) and ID (stable sort),
-    // individual nodes come first, then group because no edges are present
-    expect(nodeNames).toEqual(['1', '3', '4', 'Node-node1']);
+    // Pods 1, 3 and 4 have no nodeName and are grouped into Node-Unscheduled
+    // Pod 2 has nodeName 'node1' and is grouped into Node-node1
+    expect(nodeNames).toHaveLength(2);
+    expect(nodeNames).toEqual(expect.arrayContaining(['Node-Unscheduled', 'Node-node1']));
   });
 
   it('groups connected components by the pod node', () => {
@@ -246,6 +246,46 @@ describe('groupGraph', () => {
 
     const nodeGroup = groupedGraph.nodes?.find(node => node.id === 'Node-node2');
     expect(nodeGroup?.nodes?.[0].id).toBe('group-deployment');
+  });
+
+  it('prefers unscheduled pods when grouping mixed connected components', () => {
+    const componentNodes: GraphNode[] = [
+      {
+        id: 'deployment',
+        kubeObject: { kind: 'Deployment', metadata: { name: 'deployment' } } as KubeObject,
+      },
+      {
+        id: 'scheduled-pod',
+        kubeObject: {
+          kind: 'Pod',
+          metadata: { name: 'scheduled-pod' },
+          spec: { nodeName: 'node2' },
+        } as any as KubeObject,
+      },
+      {
+        id: 'unscheduled-pod',
+        kubeObject: {
+          kind: 'Pod',
+          metadata: { name: 'unscheduled-pod' },
+        } as KubeObject,
+      },
+    ];
+
+    const groupedGraph = groupGraph(
+      componentNodes,
+      [
+        { id: 'deployment-pod', source: 'deployment', target: 'scheduled-pod' },
+        { id: 'pod-pod', source: 'scheduled-pod', target: 'unscheduled-pod' },
+      ],
+      {
+        groupBy: 'node',
+        namespaces: [],
+        k8sNodes: [],
+      }
+    );
+
+    const unscheduledGroup = groupedGraph.nodes?.find(node => node.label === UNSCHEDULED_GROUP);
+    expect(unscheduledGroup?.nodes?.[0].id).toBe('group-deployment');
   });
 
   it('leaves non-Pod resources ungrouped when grouping by node', () => {
@@ -296,6 +336,23 @@ describe('groupGraph', () => {
     // Without k8sNodes data, the group should not have a kubeObject
     expect(nodeGroup).toBeDefined();
     expect(nodeGroup?.kubeObject).toBeUndefined();
+  });
+
+  it('does not link a kubeObject to the Unscheduled group', () => {
+    const nodeNamedUnscheduled = {
+      kind: 'Node',
+      metadata: { name: UNSCHEDULED_GROUP, uid: 'unscheduled-node-uid' },
+    } as any;
+    const groupedGraph = groupGraph(nodes, edges, {
+      groupBy: 'node',
+      namespaces: [],
+      k8sNodes: [nodeNamedUnscheduled],
+    });
+
+    const unscheduledGroup = groupedGraph.nodes?.find(node => node.label === UNSCHEDULED_GROUP);
+    expect(unscheduledGroup).toBeDefined();
+    expect(unscheduledGroup?.kubeObject).toBeUndefined();
+    expect(unscheduledGroup?.nodes?.length).toBe(3);
   });
 
   it('groups nodes by instance', () => {

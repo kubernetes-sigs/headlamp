@@ -46,6 +46,18 @@ const pods = Array.from({ length: 1001 }, (_, index) => ({
   },
 }));
 
+const groupingPods = pods.slice(0, 4).map((pod, index) => ({
+  ...pod,
+  spec: index < 2 ? {} : { nodeName: 'worker-1' },
+  status:
+    index < 2
+      ? {
+          phase: 'Pending',
+          conditions: [{ type: 'PodScheduled', status: 'False', reason: 'Unschedulable' }],
+        }
+      : pod.status,
+}));
+
 const emptyCollections: Record<string, string> = {
   cronjobs: 'CronJob',
   daemonsets: 'DaemonSet',
@@ -73,7 +85,15 @@ function list(kind: string, items: unknown[]) {
   };
 }
 
-async function mockResourceMapCollections(page: Page, cluster: string) {
+/**
+ * Mocks the Kubernetes collections used by Resource Map scenarios.
+ *
+ * @param page - Playwright page whose Kubernetes requests should be mocked.
+ * @param cluster - Cluster name included in Headlamp API request paths.
+ * @param podItems - Pods returned by the mocked collection endpoint.
+ * @returns Resource names requested while the scenario runs.
+ */
+async function mockResourceMapCollections(page: Page, cluster: string, podItems: unknown[] = pods) {
   const mockedResources = new Set<string>();
   await page.route(new RegExp(`/clusters/${cluster}/apis?/`), async route => {
     const request = route.request();
@@ -92,7 +112,7 @@ async function mockResourceMapCollections(page: Page, cluster: string) {
     }
     if (resource === 'pods') {
       mockedResources.add(resource);
-      await route.fulfill({ json: list('Pod', pods) });
+      await route.fulfill({ json: list('Pod', podItems) });
       return;
     }
     if (resource === 'customresourcedefinitions') {
@@ -147,11 +167,11 @@ test('keeps a simplified namespace expanded while resizing', async ({ page }) =>
   }
 });
 
-test('groups scheduled pods by node', async ({ page }) => {
+test('groups scheduled and unscheduled pods by node', async ({ page }) => {
   test.setTimeout(60_000);
   const cluster = process.env.HEADLAMP_TEST_CLUSTER || 'test';
   const headlampPage = new HeadlampPage(page);
-  const mockedResources = await mockResourceMapCollections(page, cluster);
+  const mockedResources = await mockResourceMapCollections(page, cluster, groupingPods);
   await headlampPage.navigateToCluster(cluster, process.env.HEADLAMP_TEST_TOKEN);
 
   await headlampPage.navigateTopage(`/c/${cluster}/map`);
@@ -160,4 +180,5 @@ test('groups scheduled pods by node', async ({ page }) => {
   await page.getByRole('button', { name: 'Node', exact: true }).click();
 
   await expect(page.locator('[data-id="Node-worker-1"]')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-id="Node-Unscheduled"]')).toBeVisible();
 });
