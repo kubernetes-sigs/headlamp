@@ -22,6 +22,7 @@ import MuiTable from '@mui/material/Table';
 import { TableCellProps } from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import { alpha, styled } from '@mui/system';
+import { visuallyHidden } from '@mui/utils';
 import {
   MRT_BottomToolbar,
   MRT_Cell,
@@ -491,69 +492,92 @@ export default function Table<RowItem extends Record<string, any>>({
     }
   };
 
+  const emptyMsg = emptyMessage || t('No data to be shown.');
+  const isEmpty = !tableProps.data?.length && !loading;
+  const noSearchResults = !errorMessage && !loading && !isEmpty && rows.length === 0;
+  const statusMsg = isEmpty ? emptyMsg : noSearchResults ? t('No results found') : '';
+
+  // Defer status text by one render so NVDA always sees a change ('' → message).
+  const [announcedStatus, setAnnouncedStatus] = useState<
+    | string
+    | number
+    | true
+    | React.ReactElement<any, string | React.JSXElementConstructor<any>>
+    | Iterable<React.ReactNode>
+  >('');
+  useEffect(() => {
+    setAnnouncedStatus(statusMsg);
+  }, [statusMsg]);
+
+  let content;
   if (!!errorMessage) {
-    return <Empty color="error">{errorMessage}</Empty>;
-  }
-
-  if (loading) {
-    return <Loader title={t('Loading table data')} />;
-  }
-
-  if (!tableProps.data?.length && !loading) {
-    return (
+    content = <Empty color="error">{errorMessage}</Empty>;
+  } else if (loading) {
+    content = <Loader title={t('Loading table data')} />;
+  } else if (!tableProps.data?.length) {
+    content = (
       <Paper variant="outlined">
-        <Empty>{emptyMessage || t('No data to be shown.')}</Empty>
+        <Empty>{emptyMsg}</Empty>
       </Paper>
+    );
+  } else {
+    const headerGroups = table.getHeaderGroups();
+
+    content = (
+      <>
+        <MRT_TopToolbar table={table} />
+        <MuiTable
+          sx={{
+            display: 'grid',
+            border: '1px solid',
+            borderColor: theme.palette.tables.head.borderColor,
+            borderRadius: 1,
+            borderBottom: 'none',
+            overflowX: 'auto',
+            width: '100%',
+            gridTemplateColumns,
+          }}
+        >
+          <TableHead sx={{ display: 'contents' }}>
+            <StyledHeadRow>
+              {headerGroups[0].headers.map(header => (
+                <MemoHeadCell
+                  key={header.id}
+                  header={header as MRT_Header<Record<string, any>>}
+                  table={table as MRT_TableInstance<Record<string, any>>}
+                  isFiltered={header.column.getIsFiltered()}
+                  sorting={header.column.getIsSorted()}
+                  showColumnFilters={table.getState().showColumnFilters}
+                  selected={table.getSelectedRowModel().flatRows.length}
+                  filterValue={header.column.getFilterValue()}
+                />
+              ))}
+            </StyledHeadRow>
+          </TableHead>
+          <StyledBody>
+            {rows.map((row, index) => (
+              <Row
+                key={row.id}
+                rowIndex={index}
+                cells={row.getVisibleCells() as MRT_Cell<Record<string, any>, unknown>[]}
+                table={table as MRT_TableInstance<Record<string, any>>}
+                isSelected={row.getIsSelected()}
+                onRowClick={handleRowClick}
+              />
+            ))}
+          </StyledBody>
+        </MuiTable>
+        <MRT_BottomToolbar table={table} />
+      </>
     );
   }
 
-  const headerGroups = table.getHeaderGroups();
-
   return (
     <>
-      <MRT_TopToolbar table={table} />
-      <MuiTable
-        sx={{
-          display: 'grid',
-          border: '1px solid',
-          borderColor: theme.palette.tables.head.borderColor,
-          borderRadius: 1,
-          borderBottom: 'none',
-          overflowX: 'auto',
-          width: '100%',
-          gridTemplateColumns,
-        }}
-      >
-        <TableHead sx={{ display: 'contents' }}>
-          <StyledHeadRow>
-            {headerGroups[0].headers.map(header => (
-              <MemoHeadCell
-                key={header.id}
-                header={header as MRT_Header<Record<string, any>>}
-                table={table as MRT_TableInstance<Record<string, any>>}
-                isFiltered={header.column.getIsFiltered()}
-                sorting={header.column.getIsSorted()}
-                showColumnFilters={table.getState().showColumnFilters}
-                selected={table.getSelectedRowModel().flatRows.length}
-                filterValue={header.column.getFilterValue()}
-              />
-            ))}
-          </StyledHeadRow>
-        </TableHead>
-        <StyledBody>
-          {rows.map((row, index) => (
-            <Row
-              key={row.id}
-              rowIndex={index}
-              cells={row.getVisibleCells() as MRT_Cell<Record<string, any>, unknown>[]}
-              table={table as MRT_TableInstance<Record<string, any>>}
-              isSelected={row.getIsSelected()}
-              onRowClick={handleRowClick}
-            />
-          ))}
-        </StyledBody>
-      </MuiTable>
-      <MRT_BottomToolbar table={table} />
+      <Box role="status" aria-live="polite" aria-atomic="true" sx={visuallyHidden}>
+        {announcedStatus}
+      </Box>
+      {content}
     </>
   );
 }
