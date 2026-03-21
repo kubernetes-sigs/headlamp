@@ -104,11 +104,11 @@ function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
             render: cr => {
               return (
                 <Link
-                  routeName="customresource"
+                  routeName={cr.metadata.namespace ? 'customresource' : 'clusterCustomResource'}
                   params={{
                     crName: cr.metadata.name,
                     crd: getCRDForCR(cr).metadata.name,
-                    namespace: cr.metadata.namespace ?? '-',
+                    ...(cr.metadata.namespace && { namespace: cr.metadata.namespace }),
                   }}
                   activeCluster={cr.cluster}
                 >
