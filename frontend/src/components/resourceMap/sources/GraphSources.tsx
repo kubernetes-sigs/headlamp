@@ -27,6 +27,7 @@ import {
 } from 'react';
 import { KubeObject } from '../../../lib/k8s/cluster';
 import { GraphEdge, GraphNode, GraphSource, Relation } from '../graph/graphModel';
+import { GraphSourcesConfig } from './GraphSourcesConfig';
 
 /**
  * Map of nodes and edges where the key is source id
@@ -44,6 +45,8 @@ interface GraphSourcesContext {
   toggleSelection: (source: GraphSource) => void;
   setSelectedSources: (sources: Set<string>) => void;
   selectedSources: Set<string>;
+  /** Sources that exceed limits */
+  hiddenSources: Set<string>;
   sourceData?: SourceData;
   isLoading?: boolean;
 }
@@ -270,8 +273,15 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
 
       const nodesPerSource = new Map<string, GraphNode[]>();
 
+      const hiddenSources = new Set<string>();
+
       selectedSources.forEach(id => {
         const data = sourceData.get(id);
+        if ((data?.nodes?.length ?? 0) > GraphSourcesConfig.nodeLimitPerSource) {
+          console.log('exclude', id);
+          hiddenSources.add(id);
+          return;
+        }
         if (data?.nodes) {
           nodes = nodes.concat(data.nodes);
           nodesPerSource.set(id, data.nodes);
@@ -303,12 +313,15 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
         sourceData.size === 0 ||
         selectedSources?.values()?.some?.(source => sourceData.get(source) === null);
 
+      console.log(hiddenSources);
+
       return {
         nodes,
         edges,
         toggleSelection,
         setSelectedSources,
         selectedSources,
+        hiddenSources,
         sourceData,
         isLoading,
       };

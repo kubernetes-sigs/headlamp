@@ -704,6 +704,8 @@
   "Fit to screen": "ஸ்க்ரீனுக்குப் பொருத்து",
   "Zoom to 100%": "100% க்கு பெரிதாக்கு",
   "Home": "முகப்பு",
+  "These items are hidden for performance reasons. The amount exceeded the limit of {{limit}}.": "",
+  "Hidden": "",
   "Used": "பயன்படுத்தப்பட்டது",
   "Hard": "ஹார்ட்",
   "Request": "ரிக்வெஸ்ட்",

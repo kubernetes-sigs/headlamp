@@ -699,6 +699,8 @@
   "Fit to screen": "画面に合わせる",
   "Zoom to 100%": "100% にズーム",
   "Home": "ホーム",
+  "These items are hidden for performance reasons. The amount exceeded the limit of {{limit}}.": "",
+  "Hidden": "",
   "Used": "使用中",
   "Hard": "ハード",
   "Request": "リクエスト",

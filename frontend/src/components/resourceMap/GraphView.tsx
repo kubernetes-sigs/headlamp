@@ -169,7 +169,8 @@ function GraphViewContent({
   const [expandAll, setExpandAll] = useState(false);
 
   // Load source data
-  const { nodes, edges, selectedSources, sourceData, isLoading, toggleSelection } = useSources();
+  const { nodes, edges, selectedSources, hiddenSources, sourceData, isLoading, toggleSelection } =
+    useSources();
 
   // Graph with applied layout, has sizes and positions for all elements
   const [layoutedGraph, setLayoutedGraph] = useState<{ nodes: Node[]; edges: Edge[] }>({
@@ -304,6 +305,7 @@ function GraphViewContent({
                   sources={defaultSources}
                   selectedSources={selectedSources}
                   toggleSource={toggleSelection}
+                  hiddenSources={hiddenSources}
                   sourceData={sourceData ?? new Map()}
                 />
                 <Box sx={{ fontSize: '14px', marginLeft: 1 }}>{t('Group By')}</Box>

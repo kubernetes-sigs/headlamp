@@ -699,6 +699,8 @@
   "Fit to screen": "适合屏幕",
   "Zoom to 100%": "缩放到 100%",
   "Home": "首页",
+  "These items are hidden for performance reasons. The amount exceeded the limit of {{limit}}.": "",
+  "Hidden": "",
   "Used": "已用",
   "Hard": "硬性",
   "Request": "请求",
