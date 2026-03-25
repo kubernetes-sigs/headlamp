@@ -14,3 +14,4 @@ node_modules
 plugins/headlamp-plugin/headlamp-myfancy/
 plugins/examples/*/dist/
 .DS_Store
+scripts/backend/headlamp
