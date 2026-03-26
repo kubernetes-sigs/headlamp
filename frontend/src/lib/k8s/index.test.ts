@@ -223,6 +223,7 @@ describe('Label selector', () => {
 });
 
 const notNamespacedClasses = [
+  'APIService',
   'ClusterRole',
   'ClusterRoleBinding',
   'CustomResourceDefinition',

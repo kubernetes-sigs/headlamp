@@ -283,6 +283,7 @@
   "Iconify": "Present",
   "K8s": {
     "ResourceClasses": {
+      "APIService": [Function],
       "ClusterRole": [Function],
       "ClusterRoleBinding": [Function],
       "ConfigMap": [Function],
@@ -322,6 +323,9 @@
       "ServiceAccount": [Function],
       "StatefulSet": [Function],
       "StorageClass": [Function],
+    },
+    "apiService": {
+      "default": [Function],
     },
     "cluster": {
       "HEADLAMP_ALLOWED_NAMESPACES": "headlamp.allowed-namespaces",
