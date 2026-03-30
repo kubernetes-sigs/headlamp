@@ -31,7 +31,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { getCluster } from '../../../lib/cluster';
-import { apply } from '../../../lib/k8s/api/v1/apply';
+import { apply, ApplyOptions } from '../../../lib/k8s/api/v1/apply';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { useId } from '../../../lib/util';
 import { clusterAction } from '../../../redux/clusterActionSlice';
@@ -304,8 +304,12 @@ export default function EditorDialog(props: EditorDialogProps) {
     setError('');
   }
 
-  const applyFunc = async (newItems: KubeObjectInterface[], clusterName: string) => {
-    await Promise.allSettled(newItems.map(newItem => apply(newItem, clusterName))).then(
+  const applyFunc = async (
+    newItems: KubeObjectInterface[],
+    clusterName: string,
+    options?: ApplyOptions
+  ) => {
+    await Promise.allSettled(newItems.map(newItem => apply(newItem, clusterName, options))).then(
       (values: any) => {
         values.forEach((value: any, index: number) => {
           if (value.status === 'rejected') {
@@ -331,10 +335,13 @@ export default function EditorDialog(props: EditorDialogProps) {
         });
       }
     );
-    onClose();
+
+    if (!options?.dryRun) {
+      onClose();
+    }
   };
 
-  function handleSave() {
+  function handleSave(mode: 'apply' | 'dryRun' = 'apply') {
     // Verify the YAML even means anything before trying to use it.
     const { obj, format, error } = getObjectsFromCode(code);
     if (!!error) {
@@ -353,10 +360,39 @@ export default function EditorDialog(props: EditorDialogProps) {
 
     const newItemDefs = obj!;
 
-    if (typeof onSave === 'string' && onSave === 'default') {
-      const resourceNames = newItemDefs.map(newItemDef => newItemDef.metadata.name);
+    if (mode === 'dryRun') {
+      const resourceNames = newItemDefs.map(
+        newItemDef => newItemDef.metadata?.name || newItemDef.kind || t('translation|resource')
+      );
       const clusterName = cluster || (item as KubeObjectIsh)?.cluster || getCluster() || '';
 
+      setError('');
+      dispatch(
+        clusterAction(() => applyFunc(newItemDefs, clusterName, { dryRun: true }), {
+          startMessage: t('translation|Running dry run for {{ newItemName }}…', {
+            newItemName: resourceNames.join(','),
+          }),
+          cancelledMessage: t('translation|Cancelled dry run for {{ newItemName }}.', {
+            newItemName: resourceNames.join(','),
+          }),
+          successMessage: t('translation|Dry run passed for {{ newItemName }}.', {
+            newItemName: resourceNames.join(','),
+          }),
+          errorMessage: t('translation|Dry run failed for {{ newItemName }}.', {
+            newItemName: resourceNames.join(','),
+          }),
+        })
+      );
+      return;
+    }
+
+    if (typeof onSave === 'string' && onSave === 'default') {
+      const resourceNames = newItemDefs.map(
+        newItemDef => newItemDef.metadata?.name || newItemDef.kind || t('translation|resource')
+      );
+      const clusterName = cluster || (item as KubeObjectIsh)?.cluster || getCluster() || '';
+
+      setError('');
       dispatch(
         clusterAction(() => applyFunc(newItemDefs, clusterName), {
           startMessage: t('translation|Applying {{ newItemName }}…', {
@@ -563,11 +599,25 @@ export default function EditorDialog(props: EditorDialogProps) {
         </Button>
         {!isReadOnly() && (
           <Button
-            onClick={handleSave}
+            onClick={() => handleSave('dryRun')}
+            color="secondary"
+            variant="contained"
+            disabled={originalCodeRef.current.code === code.code || !!error}
+            // @todo: aria-controls should point to the textarea id
+            sx={{ whiteSpace: 'nowrap' }}
+          >
+            {t('translation|Dry Run')}
+          </Button>
+        )}
+        {!isReadOnly() && (
+          <Button
+            onClick={() => handleSave('apply')}
             color="primary"
             variant="contained"
             disabled={originalCodeRef.current.code === code.code || !!error}
             aria-controls={editorId}
+            // @todo: aria-controls should point to the textarea id
+            sx={{ whiteSpace: 'nowrap' }}
           >
             {saveLabel || t('translation|Save & Apply')}
           </Button>

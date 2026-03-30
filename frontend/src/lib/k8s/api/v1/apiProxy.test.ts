@@ -687,6 +687,16 @@ describe('apiProxy', () => {
       expect(response).toEqual(mockConfigMap);
     });
 
+    it('Successfully creates a new resource with POST dry-run query params', async () => {
+      nock(baseApiUrl)
+        .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
+        .query({ dryRun: 'All' })
+        .reply(201, mockConfigMap);
+
+      const response = await apiProxy.apply(mockConfigMap, undefined, { dryRun: true });
+      expect(response).toEqual(mockConfigMap);
+    });
+
     it('Successfully updates an existing resource with PUT', async () => {
       nock(baseApiUrl)
         .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
@@ -699,6 +709,23 @@ describe('apiProxy', () => {
         .reply(200, modifiedConfigMap);
 
       const response = await apiProxy.apply(mockConfigMap);
+      expect(response).toEqual(modifiedConfigMap);
+    });
+
+    it('Successfully updates an existing resource with PUT dry-run query params', async () => {
+      nock(baseApiUrl)
+        .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
+        .query({ dryRun: 'All' })
+        .reply(409, errorMessage);
+
+      nock(baseApiUrl)
+        .put(
+          `/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps/${mockConfigMap.metadata.name}`
+        )
+        .query({ dryRun: 'All' })
+        .reply(200, modifiedConfigMap);
+
+      const response = await apiProxy.apply(mockConfigMap, undefined, { dryRun: true });
       expect(response).toEqual(modifiedConfigMap);
     });
 
