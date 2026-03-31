@@ -260,6 +260,8 @@
   "Failed to copy to clipboard": "复制到剪贴板失败",
   "Copy": "复制",
   "Open Issue on GitHub": "在 GitHub 上创建 Issue",
+  "Label Selector": "",
+  "e.g. app=nginx": "",
   "Find": "查找",
   "Download": "下载",
   "No results": "暂无结果",

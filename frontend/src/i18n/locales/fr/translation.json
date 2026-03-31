@@ -260,6 +260,8 @@
   "Failed to copy to clipboard": "Échec de la copie dans le presse-papiers",
   "Copy": "Copier",
   "Open Issue on GitHub": "Ouvrir un ticket sur GitHub",
+  "Label Selector": "",
+  "e.g. app=nginx": "",
   "Find": "Trouver",
   "Download": "Télécharger",
   "No results": "Aucun résultat",
