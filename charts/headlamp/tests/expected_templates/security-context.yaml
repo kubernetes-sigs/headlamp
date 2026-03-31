@@ -140,6 +140,7 @@ spec:
             - "-plugins-dir=/headlamp/plugins"
             - "-session-ttl=86400"
             # Check if externalSecret is disabled
+            - "-filters-warnings-only=true"
           ports:
             - name: http
               containerPort: 4466

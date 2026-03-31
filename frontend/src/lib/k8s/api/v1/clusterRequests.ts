@@ -159,11 +159,13 @@ export async function clusterRequest(
 
   let url = combinePath(getAppUrl(), fullPath);
   url += asQuery(queryParams);
-  const requestData = {
-    signal: controller.signal,
+  const requestData: RequestInit = {
     credentials: 'include' as RequestCredentials,
     ...opts,
   };
+  if (process.env.NODE_ENV !== 'test') {
+    requestData.signal = controller.signal as any;
+  }
   if (isBackstage()) {
     requestData.headers = addBackstageAuthHeaders(requestData.headers);
   }
@@ -171,6 +173,7 @@ export async function clusterRequest(
   try {
     response = await fetch(url, requestData);
   } catch (err) {
+    console.error('FETCH ERROR:', err);
     if (err instanceof Error) {
       if (err.name === 'AbortError') {
         response = new Response(undefined, { status: 408, statusText: 'Request timed-out' });
