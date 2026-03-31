@@ -22,6 +22,9 @@ import viteConfig from './vite.config';
 export default mergeConfig(
   viteConfig,
   defineConfig({
+    experimental: {
+      bundledDev: false,
+    },
     test: {
       globals: true,
       environment: 'jsdom',
