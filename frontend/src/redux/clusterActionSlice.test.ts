@@ -167,12 +167,43 @@ describe('clusterActionSlice', () => {
         expect.objectContaining({
           type: updateClusterAction.type,
           payload: expect.objectContaining({
-            message: 'Error',
+            message: 'Error. Something went wrong',
           }),
         })
       );
 
       expect(callback).toHaveBeenCalled();
+    });
+
+    it('should show the full error message and avoid double punctuation', async () => {
+      const callback = vi.fn(() => {
+        throw new Error(
+          "error context - Cannot evict pod as it would violate the pod's disruption budget."
+        );
+      });
+
+      const action: CallbackAction = {
+        callback,
+        startMessage: 'Starting',
+        successMessage: 'Success',
+        errorMessage: 'Error deleting item.',
+      };
+
+      vi.useFakeTimers();
+      const dispatchedAction = store.dispatch(executeClusterAction(action));
+      vi.advanceTimersByTime(CLUSTER_ACTION_GRACE_PERIOD);
+      await dispatchedAction;
+
+      const actions = store.getActions();
+      expect(actions).toContainEqual(
+        expect.objectContaining({
+          type: updateClusterAction.type,
+          payload: expect.objectContaining({
+            message:
+              "Error deleting item. error context - Cannot evict pod as it would violate the pod's disruption budget.",
+          }),
+        })
+      );
     });
   });
 

@@ -236,13 +236,29 @@ export const executeClusterAction = createAsyncThunk(
         })
       );
     }
-    function dispatchError() {
+    function dispatchError(err?: unknown) {
+      const originalMessage =
+        err instanceof Error
+          ? err.message
+          : err &&
+            typeof err === 'object' &&
+            'message' in err &&
+            typeof (err as any).message === 'string'
+          ? (err as any).message
+          : '';
+
+      let message = errorMessage;
+      if (originalMessage) {
+        const separator = errorMessage && !errorMessage.trim().endsWith('.') ? '. ' : ' ';
+        message = errorMessage ? `${errorMessage}${separator}${originalMessage}` : originalMessage;
+      }
+
       dispatch(
         updateClusterAction({
           buttons: undefined,
           dismissSnackbar: actionKey,
           id: actionKey,
-          message: errorMessage,
+          message,
           state: 'error',
           snackbarProps: errorOptions,
           url: errorUrl,
@@ -289,7 +305,7 @@ export const executeClusterAction = createAsyncThunk(
             }
           }
         } else {
-          dispatchError();
+          dispatchError(err);
         }
       } finally {
         controllers.delete(actionKey);
