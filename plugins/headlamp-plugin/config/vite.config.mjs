@@ -101,14 +101,11 @@ export default defineConfig({
       fileName: 'main',
       formats: ['umd'],
     },
-    rollupOptions: {
-      // Workaround for https://github.com/vitejs/vite/issues/19410
-      maxParallelFileOps: 500,
+    rolldownOptions: {
       external: Object.keys(externalModules).map(key =>
         noSubmodules.includes(key) ? key : new RegExp(`^${key}`)
       ),
       output: {
-        interop: 'compat',
         entryFileNames: 'main.js',
         globals: request => {
           // For cases like: import { Grid } from '@mui/material'
