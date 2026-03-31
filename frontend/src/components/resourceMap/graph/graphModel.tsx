@@ -122,6 +122,13 @@ export interface Relation {
   fromSource: string;
   toSource?: string;
   predicate: (from: GraphNode, to: GraphNode) => boolean;
+  /**
+   * Optional index-based edge builder. When provided, this is used instead of the
+   * O(fromNodes × toNodes) nested-loop predicate scan. The function receives the
+   * fromNodes array and a Map<uid, GraphNode> index of all candidate target nodes,
+   * and returns edges in O(fromNodes × avgRefs) time instead of O(fromNodes × allNodes).
+   */
+  buildEdgesWithIndex?: (fromNodes: GraphNode[], nodesByUid: Map<string, GraphNode>) => GraphEdge[];
 }
 
 /**

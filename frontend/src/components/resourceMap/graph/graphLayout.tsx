@@ -18,6 +18,7 @@ import { Edge, EdgeMarker, Node } from '@xyflow/react';
 import { ElkExtendedEdge, ElkNode } from 'elkjs';
 import ELK, { type ELK as ELKInterface } from 'elkjs/lib/elk-api';
 import elkWorker from 'elkjs/lib/elk-worker.min.js?url';
+import { addPerformanceMetric } from '../PerformanceStats';
 import { forEachNode, getNodeWeight, GraphNode } from './graphModel';
 
 type ElkNodeWithData = Omit<ElkNode, 'edges'> & {
@@ -30,6 +31,92 @@ type ElkEdgeWithData = ElkExtendedEdge & {
   type: string;
   data: any;
 };
+
+/**
+ * PERFORMANCE: Time-based cache for expensive ELK layout results (60s TTL, 10 entry limit)
+ * - Eviction policy: Oldest insertion time (not LRU - timestamps not updated on hits)
+ * - ELK layout is the most expensive operation in the Resource Map pipeline
+ * - Cache hit avoids re-running ELK entirely
+ */
+const layoutCache = new Map<
+  string,
+  { result: { nodes: Node[]; edges: Edge[] }; timestamp: number }
+>();
+const MAX_CACHE_SIZE = 10;
+const CACHE_TTL = 60000; // 1 minute
+
+/**
+ * Simple string hash (djb2 variant) — O(len) time, O(1) memory.
+ * Produces a 32-bit integer hash suitable for cache key differentiation.
+ */
+/** @internal Exported for testing */
+export function hashString(str: string, seed: number = 5381): number {
+  let hash = seed;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0; // hash * 33 + char
+  }
+  return hash;
+}
+
+/**
+ * Generate a cache key for the graph
+ *
+ * Uses a running hash over ALL nodes/edges in a single O(n) pass.
+ * - Hashes every node ID and every edge (source→target) during forEachNode traversal
+ * - O(n) time proportional to total string length, O(1) extra memory
+ * - No arrays, no sorting, no sampling — processes the full graph
+ */
+/** @internal Exported for testing */
+export function getGraphCacheKey(graph: GraphNode, aspectRatio: number): string {
+  let nodeCount = 0;
+  let edgeCount = 0;
+  let nodeHash = 5381;
+  let edgeHash = 5381;
+
+  forEachNode(graph, node => {
+    nodeCount++;
+    nodeHash = hashString(node.id, nodeHash);
+
+    if (node.edges && node.edges.length > 0) {
+      edgeCount += node.edges.length;
+      for (const edge of node.edges) {
+        edgeHash = hashString(edge.source, edgeHash);
+        edgeHash = hashString(edge.target, edgeHash);
+      }
+    }
+  });
+
+  // Include aspect ratio at full precision since ELK layout depends on exact value
+  return `${nodeCount}-${edgeCount}-${nodeHash}-${edgeHash}-${aspectRatio}`;
+}
+
+/**
+ * Clean up old cache entries
+ *
+ * Two-phase cleanup to maintain cache size limit correctly.
+ * - Phase 1: Remove expired entries (>60s old)
+ * - Phase 2: Re-query remaining entries and evict oldest if still over limit
+ * - Why re-query: Prevents evicting already-deleted keys (would leave cache over limit)
+ */
+function cleanLayoutCache() {
+  const now = Date.now();
+
+  // Phase 1: Remove expired entries
+  Array.from(layoutCache.entries()).forEach(([key, value]) => {
+    if (now - value.timestamp > CACHE_TTL) {
+      layoutCache.delete(key);
+    }
+  });
+
+  // Phase 2: If still too large, remove oldest entries
+  // PERFORMANCE: Re-query entries after expiry cleanup to ensure correct eviction
+  if (layoutCache.size > MAX_CACHE_SIZE) {
+    const currentEntries = Array.from(layoutCache.entries());
+    const sortedEntries = currentEntries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+    const toRemove = sortedEntries.slice(0, layoutCache.size - MAX_CACHE_SIZE);
+    toRemove.forEach(([key]) => layoutCache.delete(key));
+  }
+}
 
 let elk: ELKInterface | undefined;
 try {
@@ -225,22 +312,105 @@ function convertToReactFlowGraph(elkGraph: ElkNodeWithData) {
 
 /**
  * Takes a graph and returns a graph with layout applied
- * Layout will set size and poisiton for all the elements
+ * Layout will set size and position for all the elements
+ * Results are cached to avoid re-computing expensive layouts
  *
  * @param graph - root node of the graph
  * @param aspectRatio - aspect ratio of the container
  * @returns
  */
 export const applyGraphLayout = (graph: GraphNode, aspectRatio: number) => {
-  const elkGraph = convertToElkNode(graph, aspectRatio);
-
+  // Guard against missing ELK instance early
   if (!elk) return Promise.resolve({ nodes: [], edges: [] });
 
+  // Check cache first
+  const cacheKey = getGraphCacheKey(graph, aspectRatio);
+  const cached = layoutCache.get(cacheKey);
+  const now = Date.now();
+
+  if (cached && now - cached.timestamp < CACHE_TTL) {
+    // Only log cache hit if debug flag is set
+    if (typeof window !== 'undefined' && (window as any).__HEADLAMP_DEBUG_PERFORMANCE__) {
+      console.log(`[ResourceMap Performance] applyGraphLayout: CACHE HIT (key: ${cacheKey})`);
+    }
+
+    addPerformanceMetric({
+      operation: 'applyGraphLayout',
+      duration: 0,
+      timestamp: Date.now(),
+      details: {
+        cacheHit: true,
+        cacheKey: cacheKey.substring(0, 50),
+        resultNodes: cached.result.nodes.length,
+        resultEdges: cached.result.edges.length,
+      },
+    });
+
+    // Return cached result by reference.
+    // If downstream code mutates the node/edge objects, those mutations would be
+    // visible to other callers that receive the same cached result within the TTL window.
+    // In practice, the only consumer is setLayoutedGraph() which stores it in React state,
+    // and the useEffect that calls this only fires when [visibleGraph, viewport] changes.
+    return Promise.resolve(cached.result);
+  }
+
+  const perfStart = performance.now();
+
+  const conversionStart = performance.now();
+  const elkGraph = convertToElkNode(graph, aspectRatio);
+  const conversionTime = performance.now() - conversionStart;
+
+  // Count nodes for performance logging
+  let nodeCount = 0;
+  forEachNode(graph, () => nodeCount++);
+
+  const layoutStart = performance.now();
   return elk
     .layout(elkGraph, {
       layoutOptions: {
         'elk.aspectRatio': String(aspectRatio),
       },
     })
-    .then(elkGraph => convertToReactFlowGraph(elkGraph as ElkNodeWithData));
+    .then(elkGraph => {
+      const layoutTime = performance.now() - layoutStart;
+
+      const conversionBackStart = performance.now();
+      const result = convertToReactFlowGraph(elkGraph as ElkNodeWithData);
+      const conversionBackTime = performance.now() - conversionBackStart;
+
+      const totalTime = performance.now() - perfStart;
+
+      // Only log to console if debug flag is set
+      if (typeof window !== 'undefined' && (window as any).__HEADLAMP_DEBUG_PERFORMANCE__) {
+        console.log(
+          `[ResourceMap Performance] applyGraphLayout: ${totalTime.toFixed(
+            2
+          )}ms (conversion: ${conversionTime.toFixed(2)}ms, ELK layout: ${layoutTime.toFixed(
+            2
+          )}ms, conversion back: ${conversionBackTime.toFixed(2)}ms, nodes: ${nodeCount})`
+        );
+      }
+
+      addPerformanceMetric({
+        operation: 'applyGraphLayout',
+        duration: totalTime,
+        timestamp: Date.now(),
+        details: {
+          conversionMs: conversionTime.toFixed(1),
+          elkLayoutMs: layoutTime.toFixed(1),
+          conversionBackMs: conversionBackTime.toFixed(1),
+          nodes: nodeCount,
+          resultNodes: result.nodes.length,
+          resultEdges: result.edges.length,
+          cacheHit: false,
+          cacheKey: cacheKey.substring(0, 50),
+        },
+      });
+
+      // Store in cache
+      layoutCache.set(cacheKey, { result, timestamp: Date.now() });
+      cleanLayoutCache();
+
+      return result;
+    });
 };

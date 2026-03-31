@@ -22,7 +22,7 @@ import { StatusLabel } from '../../common/Label';
 
 export function DeploymentGlance({ deployment }: { deployment: Deployment }) {
   const { t } = useTranslation();
-  const { replicas, availableReplicas } = deployment.status;
+  const { replicas, availableReplicas } = deployment.status ?? {};
   const pods = `${availableReplicas || 0}/${replicas || 0}`;
 
   return (
@@ -30,7 +30,7 @@ export function DeploymentGlance({ deployment }: { deployment: Deployment }) {
       <StatusLabel status="">
         {t('glossary|Pods')}: {pods}
       </StatusLabel>
-      {deployment.status.conditions.map((it: KubeCondition) => (
+      {deployment.status?.conditions?.map((it: KubeCondition) => (
         <StatusLabel status="" key={it.type}>
           {it.type}
         </StatusLabel>

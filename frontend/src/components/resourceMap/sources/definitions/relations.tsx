@@ -44,7 +44,7 @@ import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import StatefulSet from '../../../../lib/k8s/statefulSet';
 import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
 import { useNamespaces } from '../../../../redux/filterSlice';
-import { Relation } from '../../graph/graphModel';
+import { GraphEdge, GraphNode, Relation } from '../../graph/graphModel';
 import { makeKubeSourceId } from './graphDefinitionUtils';
 
 /**
@@ -92,6 +92,21 @@ const makeOwnerRelation = (cl: KubeObjectClass): Relation => ({
       undefined
     );
   },
+  buildEdgesWithIndex(fromNodes, nodesByUid) {
+    const edges: GraphEdge[] = [];
+    for (const from of fromNodes) {
+      const obj = from.kubeObject as KubeObject;
+      const refs = obj.metadata.ownerReferences;
+      if (!refs) continue;
+      for (const owner of refs) {
+        const to = nodesByUid.get(owner.uid);
+        if (to) {
+          edges.push({ id: from.id + '-' + to.id, source: from.id, target: to.id });
+        }
+      }
+    }
+    return edges;
+  },
 });
 
 const makeOwnerRelationReversed = (cl: KubeObjectClass): Relation => ({
@@ -103,6 +118,35 @@ const makeOwnerRelationReversed = (cl: KubeObjectClass): Relation => ({
       obj.metadata.ownerReferences?.find(owner => owner.uid === from.kubeObject?.metadata?.uid) !==
       undefined
     );
+  },
+  buildEdgesWithIndex(fromNodes, nodesByUid) {
+    // Reversed: "from" is the owner, "to" has the ownerReference pointing at "from".
+    // Build a reverse index: for each node with ownerRefs, map ownerUID → [node].
+    const refIndex = new Map<string, GraphNode[]>();
+    for (const [, node] of nodesByUid) {
+      const refs = (node.kubeObject as KubeObject)?.metadata?.ownerReferences;
+      if (!refs) continue;
+      for (const ref of refs) {
+        let list = refIndex.get(ref.uid);
+        if (!list) {
+          list = [];
+          refIndex.set(ref.uid, list);
+        }
+        list.push(node);
+      }
+    }
+
+    const edges: GraphEdge[] = [];
+    for (const from of fromNodes) {
+      const uid = from.kubeObject?.metadata?.uid;
+      if (!uid) continue;
+      const targets = refIndex.get(uid);
+      if (!targets) continue;
+      for (const to of targets) {
+        edges.push({ id: from.id + '-' + to.id, source: from.id, target: to.id });
+      }
+    }
+    return edges;
   },
 });
 
