@@ -29,6 +29,14 @@
         // the syntax of the following line is special - it will be matched and replaced by the server if a base URL is set by the server
         headlampBaseUrl = __baseUrl__;
     </script>
+    <script>
+        (function () {
+          var parts = window.location.pathname.split('/').filter(Boolean);
+          if (parts.length >= 3 && parts[0] === 'v1' && parts[1] === 'tenantApps') {
+            window.headlampBaseUrl = '/v1/tenantApps/' + parts[2];
+          }
+        })();
+    </script>
     <style>
       .splash {
         position: absolute;

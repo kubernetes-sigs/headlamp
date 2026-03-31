@@ -24,12 +24,16 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 const backendPort = process.env.HEADLAMP_PORT || '4466';
 const backendTarget = `http://localhost:${backendPort}`;
 
+const publicUrl = process.env.PUBLIC_URL ?? './';
+
 export default defineConfig({
   define: {
     global: 'globalThis',
+    'import.meta.env.PUBLIC_URL': JSON.stringify(publicUrl),
   },
   envPrefix: 'REACT_APP_',
-  base: process.env.PUBLIC_URL,
+  // Relative base so static assets resolve under path-prefixing reverse proxies (e.g. /v1/tenantApps/<hash>/).
+  base: publicUrl,
   server: {
     port: 3000,
     proxy: {

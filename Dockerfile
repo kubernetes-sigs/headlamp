@@ -45,6 +45,9 @@ COPY ./frontend /headlamp/frontend
 
 WORKDIR /headlamp
 
+ARG PUBLIC_URL=./
+ENV PUBLIC_URL=${PUBLIC_URL}
+
 RUN cd ./frontend && npm run build
 
 RUN echo "*** Built Headlamp with version: ***"

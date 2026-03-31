@@ -157,6 +157,10 @@ func makeBaseURLReplacements(data []byte, baseURL string) []byte {
 		[]byte(fmt.Sprintf("headlampBaseUrl = '%s'", replaceURL)),
 	)
 
+	if baseURL == "" {
+		return data
+	}
+
 	// Replace any resource that has "./" in it
 	data = bytes.ReplaceAll(
 		data,

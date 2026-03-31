@@ -997,10 +997,10 @@ func TestBaseURLReplace(t *testing.T) {
 <html>
 <head>
     <script>var headlampBaseUrl = '/';</script>
-    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-    <img src="/image.png">
+    <img src="./image.png">
 </body>
 </html>`,
 		},
