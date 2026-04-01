@@ -239,11 +239,6 @@ func getOidcCallbackURL(r *http.Request, config *HeadlampConfig) string {
 	return dynamicCallback
 }
 
-// postOidcAuthRedirectPrefixFromCallback returns a path prefix ending with "/" for the SPA after
-// successful OIDC when OidcCallbackURL is a full URL ending in "/oidc-callback" (e.g. tenant app).
-// Example: https://host/v1/tenantApps/id/oidc-callback → "/v1/tenantApps/id/".
-// If BaseURL is unset, a relative redirect of "/auth" would incorrectly resolve to the host root;
-// using this prefix yields "/v1/tenantApps/id/auth?cluster=..." under the tenant path.
 func postOidcAuthRedirectPrefixFromCallback(callbackURL string) (string, bool) {
 	if callbackURL == "" {
 		return "", false
