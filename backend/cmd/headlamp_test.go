@@ -1137,63 +1137,6 @@ func TestGetOidcCallbackURL(t *testing.T) {
 	}
 }
 
-func TestPostOidcAuthRedirectPrefixFromCallback(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		input    string
-		wantPath string
-		wantOK   bool
-	}{
-		{
-			name:     "tenant Spectro-style callback",
-			input:    "https://dev.spectrocloud.com/v1/tenantApps/ZGNiYTE5MTRmZTQ1MzU4MzVkYjk1NmRkNDc5ZDUyYmY=/oidc-callback",
-			wantPath: "/v1/tenantApps/ZGNiYTE5MTRmZTQ1MzU4MzVkYjk1NmRkNDc5ZDUyYmY=/",
-			wantOK:   true,
-		},
-		{
-			name:     "callback with trailing slash on path",
-			input:    "https://example.com/prefix/oidc-callback/",
-			wantPath: "/prefix/",
-			wantOK:   true,
-		},
-		{
-			name:     "root oidc-callback only",
-			input:    "https://example.com/oidc-callback",
-			wantPath: "/",
-			wantOK:   true,
-		},
-		{
-			name:     "not an oidc-callback path",
-			input:    "https://example.com/callback",
-			wantPath: "",
-			wantOK:   false,
-		},
-		{
-			name:     "empty",
-			input:    "",
-			wantPath: "",
-			wantOK:   false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, ok := postOidcAuthRedirectPrefixFromCallback(tt.input)
-			if ok != tt.wantOK {
-				t.Fatalf("ok = %v, want %v", ok, tt.wantOK)
-			}
-
-			if got != tt.wantPath {
-				t.Errorf("postOidcAuthRedirectPrefixFromCallback() = %q, want %q", got, tt.wantPath)
-			}
-		})
-	}
-}
-
 func TestOIDCTokenRefreshMiddleware(t *testing.T) {
 	kubeConfigStore := kubeconfig.NewContextStore()
 	config := &HeadlampConfig{

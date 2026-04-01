@@ -23,22 +23,12 @@ import LogoWithTextDark from '../../resources/logo-dark.svg?react';
 import LogoWithTextLight from '../../resources/logo-light.svg?react';
 
 export interface AuthWorkflowSplashProps {
-  /** Primary message (e.g. “Verifying your session…”). */
   title: string;
-  /** Optional supporting line under the title. */
   subtitle?: string;
-  /**
-   * When false, omit logo and card chrome (e.g. inside {@link ClusterDialog}, which already shows the logo).
-   */
   branding?: boolean;
-  /** Optional `id` for the title heading (e.g. dialog `aria-labelledby`). */
   titleId?: string;
 }
 
-/**
- * Full-width loading state for SSO, session checks, and post-login redirects.
- * Prefer this over a bare {@link Loader} or returning null during auth.
- */
 export function AuthWorkflowSplash({
   title,
   subtitle,

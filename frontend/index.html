@@ -2,12 +2,6 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <!--
-      Tenant-app URLs are often served as .../v1/tenantApps/<id>?query without a trailing slash
-      before the query string. Relative asset URLs in the built bundle (./assets/...) would then
-      resolve to .../v1/tenantApps/assets/... and drop the tenant id segment. A <base href> ending
-      in / keeps ./assets/ under .../v1/tenantApps/<id>/assets/...
-    -->
     <script>
       (function () {
         var parts = window.location.pathname.split('/').filter(Boolean);
