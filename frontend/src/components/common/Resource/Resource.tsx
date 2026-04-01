@@ -603,10 +603,12 @@ export function ConditionsTable(props: ConditionsTableProps) {
       label: string;
       getter: (arg: KubeCondition) => void;
       hide?: boolean;
+      gridTemplate?: number | string;
     }[] = [
       {
         label: t('Condition'),
         getter: makeStatusLabel,
+        gridTemplate: 'min-content',
       },
       {
         label: t('translation|Status'),

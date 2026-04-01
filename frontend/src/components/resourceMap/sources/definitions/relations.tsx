@@ -69,7 +69,16 @@ const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
     const fromObject = fromNode.kubeObject as InstanceType<From>;
     const toObject = toNode.kubeObject as InstanceType<To>;
 
-    return fromObject.cluster === toObject.cluster && Boolean(selector(fromObject, toObject));
+    const hasSameNamespace =
+      !fromObject.metadata?.namespace || !toObject.metadata?.namespace
+        ? true
+        : fromObject.metadata.namespace === toObject.metadata.namespace;
+
+    return (
+      fromObject.cluster === toObject.cluster &&
+      hasSameNamespace &&
+      Boolean(selector(fromObject, toObject))
+    );
   },
 });
 
