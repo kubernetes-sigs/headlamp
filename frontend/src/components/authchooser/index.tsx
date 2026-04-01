@@ -189,6 +189,24 @@ function AuthChooser({ children }: AuthChooserProps) {
     };
   }, []);
 
+  const skipAutoOidc = new URLSearchParams(location.search).get('skip_oidc_auto') === '1';
+  const shouldAutoOidcRedirect =
+    clusterAuthType === 'oidc' && !testingAuth && !error && !skipAutoOidc;
+
+  React.useEffect(() => {
+    if (!shouldAutoOidcRedirect) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      window.location.assign(`${getAppUrl()}oidc?dt=${Date()}&cluster=${getCluster()}`);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [shouldAutoOidcRedirect, clusterName]);
+
   return (
     <PureAuthChooser
       clusterName={clusterName}
@@ -226,6 +244,16 @@ function AuthChooser({ children }: AuthChooserProps) {
           }),
         });
       }}
+      shouldAutoOidcRedirect={shouldAutoOidcRedirect}
+      onSkipAutoOidcRedirect={() => {
+        const params = new URLSearchParams(location.search);
+        params.set('skip_oidc_auto', '1');
+        const qs = params.toString();
+        history.replace({
+          pathname: location.pathname,
+          search: qs ? `?${qs}` : '',
+        });
+      }}
     >
       {children}
     </PureAuthChooser>
@@ -243,6 +271,10 @@ export interface PureAuthChooserProps {
   handleTokenAuth: () => void;
   handleTryAgain: () => void;
   handleBackButtonPress: () => void;
+  /** When true, navigate to /oidc immediately (full-page SSO) instead of showing Sign In. */
+  shouldAutoOidcRedirect?: boolean;
+  /** Cancels auto-redirect and shows manual Sign In / token options (sets ?skip_oidc_auto=1). */
+  onSkipAutoOidcRedirect?: () => void;
   children?: React.ReactNode;
   clusterName: string;
 }
@@ -258,6 +290,8 @@ export function PureAuthChooser({
   handleTokenAuth,
   handleTryAgain,
   handleBackButtonPress,
+  shouldAutoOidcRedirect = false,
+  onSkipAutoOidcRedirect,
   children,
   clusterName,
 }: PureAuthChooserProps) {
@@ -283,7 +317,22 @@ export function PureAuthChooser({
           </DialogTitle>
           {!error ? (
             <Box>
-              {clusterAuthType === 'oidc' ? (
+              {clusterAuthType === 'oidc' && shouldAutoOidcRedirect ? (
+                <Box m={2} textAlign="center">
+                  <Loader title={t('Redirecting to sign in…')} />
+                  <Box mt={2} display="flex" flexDirection="column" gap={1} alignItems="center">
+                    <Button variant="text" onClick={handleTokenAuth}>
+                      {t('Use A Token')}
+                    </Button>
+                    {onSkipAutoOidcRedirect && (
+                      <Button variant="text" onClick={onSkipAutoOidcRedirect}>
+                        {t('Sign in manually')}
+                      </Button>
+                    )}
+                  </Box>
+                </Box>
+              ) : null}
+              {clusterAuthType === 'oidc' && !shouldAutoOidcRedirect ? (
                 <Box m={2}>
                   <OauthPopup
                     onCode={handleOidcAuth}
@@ -295,9 +344,11 @@ export function PureAuthChooser({
                   </OauthPopup>
                 </Box>
               ) : null}
-              <Box m={2}>
-                <ColorButton onClick={handleTokenAuth}>{t('Use A Token')}</ColorButton>
-              </Box>
+              {!(clusterAuthType === 'oidc' && shouldAutoOidcRedirect) && (
+                <Box m={2}>
+                  <ColorButton onClick={handleTokenAuth}>{t('Use A Token')}</ColorButton>
+                </Box>
+              )}
               <Box m={2} textAlign="center">
                 <Link routeName="settingsClusterHomeContext" search={{ c: clusterName }}>
                   {t('translation|Cluster settings')}

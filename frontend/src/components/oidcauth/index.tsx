@@ -17,21 +17,38 @@
 import Typography from '@mui/material/Typography';
 import { FunctionComponent, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation } from 'react-router-dom';
-
-//@todo: needs cleanup.
+import { useHistory, useLocation } from 'react-router-dom';
+import { queryClient } from '../../lib/queryClient';
+import { createRouteURL } from '../../lib/router/createRouteURL';
 
 const OIDCAuth: FunctionComponent<{}> = () => {
   const location = useLocation();
+  const history = useHistory();
   const urlSearchParams = new URLSearchParams(location.search);
   const cluster = urlSearchParams.get('cluster');
   const { t } = useTranslation();
 
   useEffect(() => {
-    if (cluster) {
-      localStorage.setItem('auth_status', 'success');
+    if (!cluster) {
+      return;
     }
-  }, [cluster]);
+
+    // Popup flow: parent listens for this via storage events. Full-page SSO: same tab needs a redirect.
+    localStorage.setItem('auth_status', 'success');
+    queryClient.invalidateQueries({ queryKey: ['clusterMe', cluster], exact: true });
+    const home = createRouteURL('cluster', { cluster });
+    if (home) {
+      history.replace(home);
+    }
+  }, [cluster, history]);
+
+  if (!cluster) {
+    return (
+      <Typography color="textPrimary">
+        {t('Missing cluster in URL. Open Headlamp from your cluster link or try signing in again.')}
+      </Typography>
+    );
+  }
 
   return <Typography color="textPrimary">{t('Redirecting to main page…')}</Typography>;
 };
