@@ -2,6 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <!--
+      Tenant-app URLs are often served as .../v1/tenantApps/<id>?query without a trailing slash
+      before the query string. Relative asset URLs in the built bundle (./assets/...) would then
+      resolve to .../v1/tenantApps/assets/... and drop the tenant id segment. A <base href> ending
+      in / keeps ./assets/ under .../v1/tenantApps/<id>/assets/...
+    -->
+    <script>
+      (function () {
+        var parts = window.location.pathname.split('/').filter(Boolean);
+        if (parts.length >= 3 && parts[0] === 'v1' && parts[1] === 'tenantApps') {
+          var baseEl = document.createElement('base');
+          baseEl.href = '/v1/tenantApps/' + parts[2] + '/';
+          document.head.insertBefore(baseEl, document.currentScript);
+        }
+      })();
+    </script>
     <link rel="icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
@@ -28,8 +44,6 @@
         __baseUrl__ = '%BASE_URL%<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');
         // the syntax of the following line is special - it will be matched and replaced by the server if a base URL is set by the server
         headlampBaseUrl = __baseUrl__;
-    </script>
-    <script>
         (function () {
           var parts = window.location.pathname.split('/').filter(Boolean);
           if (parts.length >= 3 && parts[0] === 'v1' && parts[1] === 'tenantApps') {

@@ -198,6 +198,10 @@ func baseURLReplace(staticDir string, baseURL string) {
 func getOidcCallbackURL(r *http.Request, config *HeadlampConfig) string {
 	// If callback URL is configured, use it
 	if config.OidcCallbackURL != "" {
+		logger.Log(logger.LevelInfo, map[string]string{
+			"callback_source": "oidc-callback-url flag",
+			"callback_url":    config.OidcCallbackURL,
+		}, nil, "getOidcCallbackURL: using fixed redirect URI from config")
 		return config.OidcCallbackURL
 	}
 
@@ -225,7 +229,44 @@ func getOidcCallbackURL(r *http.Request, config *HeadlampConfig) string {
 		hostWithBaseURL = hostWithBaseURL + "/" + baseURL
 	}
 
-	return fmt.Sprintf("%s://%s/oidc-callback", urlScheme, hostWithBaseURL)
+	dynamicCallback := fmt.Sprintf("%s://%s/oidc-callback", urlScheme, hostWithBaseURL)
+	logger.Log(logger.LevelInfo, map[string]string{
+		"callback_source": "dynamic_from_request",
+		"request_host":    r.Host,
+		"callback_url":    dynamicCallback,
+	}, nil, "getOidcCallbackURL: built from request Host and X-Forwarded-Proto")
+
+	return dynamicCallback
+}
+
+// postOidcAuthRedirectPrefixFromCallback returns a path prefix ending with "/" for the SPA after
+// successful OIDC when OidcCallbackURL is a full URL ending in "/oidc-callback" (e.g. tenant app).
+// Example: https://host/v1/tenantApps/id/oidc-callback → "/v1/tenantApps/id/".
+// If BaseURL is unset, a relative redirect of "/auth" would incorrectly resolve to the host root;
+// using this prefix yields "/v1/tenantApps/id/auth?cluster=..." under the tenant path.
+func postOidcAuthRedirectPrefixFromCallback(callbackURL string) (string, bool) {
+	if callbackURL == "" {
+		return "", false
+	}
+
+	u, err := url.Parse(callbackURL)
+	if err != nil || u.Path == "" {
+		return "", false
+	}
+
+	p := strings.TrimSuffix(u.Path, "/")
+	const suffix = "/oidc-callback"
+
+	if !strings.HasSuffix(p, suffix) {
+		return "", false
+	}
+
+	base := strings.TrimSuffix(p, suffix)
+	if base == "" {
+		return "/", true
+	}
+
+	return base + "/", true
 }
 
 func serveWithNoCacheHeader(fs http.Handler) http.HandlerFunc {
@@ -682,6 +723,16 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		ctx := context.Background()
 		cluster := r.URL.Query().Get("cluster")
 
+		logger.Log(logger.LevelInfo, map[string]string{
+			"cluster":           cluster,
+			"host":              r.Host,
+			"path":              r.URL.Path,
+			"remote_addr":       r.RemoteAddr,
+			"x_forwarded_proto": r.Header.Get("X-Forwarded-Proto"),
+			"x_forwarded_host":  r.Header.Get("X-Forwarded-Host"),
+			"x_forwarded_for":   r.Header.Get("X-Forwarded-For"),
+		}, nil, "oidc: authorize request received (browser/popup hitting /oidc)")
+
 		if config.Insecure {
 			tr := &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
@@ -739,11 +790,19 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		verifier := provider.Verifier(oidcConfig)
+
+		redirectURI := getOidcCallbackURL(r, config)
+		logger.Log(logger.LevelInfo, map[string]string{
+			"cluster":      cluster,
+			"redirect_uri": redirectURI,
+			"idp_issuer":   oidcAuthConfig.IdpIssuerURL,
+		}, nil, "oidc: OAuth redirect_uri for IdP (must match IdP app registration)")
+
 		oauthConfig := &oauth2.Config{
 			ClientID:     oidcAuthConfig.ClientID,
 			ClientSecret: oidcAuthConfig.ClientSecret,
 			Endpoint:     provider.Endpoint(),
-			RedirectURL:  getOidcCallbackURL(r, config),
+			RedirectURL:  redirectURI,
 			Scopes:       append([]string{oidc.ScopeOpenID}, oidcAuthConfig.Scopes...),
 		}
 
@@ -769,6 +828,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		if config.OidcUsePKCE {
 			entry.CodeVerifier = oauth2.GenerateVerifier()
 			authURL = oauthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(entry.CodeVerifier))
+			logger.Log(logger.LevelInfo, map[string]string{"cluster": cluster}, nil, "oidc: using PKCE for authorize URL")
 		} else {
 			authURL = oauthConfig.AuthCodeURL(state)
 		}
@@ -778,6 +838,17 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		oauthRequestMap[state] = entry
 		oauthMu.Unlock()
 
+		idpAuthorizeHost := ""
+		if parsed, err := url.Parse(authURL); err == nil {
+			idpAuthorizeHost = parsed.Host
+		}
+
+		logger.Log(logger.LevelInfo, map[string]string{
+			"cluster":            cluster,
+			"idp_authorize_host": idpAuthorizeHost,
+			"state_len":          fmt.Sprintf("%d", len(state)),
+		}, nil, "oidc: state stored; redirecting browser to IdP authorize endpoint")
+
 		http.Redirect(w, r, authURL, http.StatusFound)
 	}).Queries("cluster", "{cluster}")
 
@@ -786,10 +857,20 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		config.handleNodeDrainStatus).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
 
 	r.HandleFunc("/oidc-callback", func(w http.ResponseWriter, r *http.Request) {
+		logger.Log(logger.LevelInfo, map[string]string{
+			"host":              r.Host,
+			"remote_addr":       r.RemoteAddr,
+			"path":              r.URL.Path,
+			"has_code":          fmt.Sprintf("%t", r.URL.Query().Get("code") != ""),
+			"has_state":         fmt.Sprintf("%t", r.URL.Query().Get("state") != ""),
+			"x_forwarded_proto": r.Header.Get("X-Forwarded-Proto"),
+			"x_forwarded_host":  r.Header.Get("X-Forwarded-Host"),
+		}, nil, "oidc-callback: handler invoked (IdP should redirect here after login)")
+
 		state := r.URL.Query().Get("state")
 
 		if state == "" {
-			logger.Log(logger.LevelError, nil, err, "invalid request state is empty")
+			logger.Log(logger.LevelError, nil, errors.New("missing state"), "oidc-callback: invalid request, state query param is empty")
 			http.Error(w, "invalid request state is empty", http.StatusBadRequest)
 
 			return
@@ -806,9 +887,15 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		oauthMu.Unlock()
 
 		if !ok {
+			logger.Log(logger.LevelError, map[string]string{"state": state},
+				nil, "oidc-callback: no matching OAuth state (expired or unknown)")
 			http.Error(w, "invalid request", http.StatusBadRequest)
 			return
 		}
+
+		logger.Log(logger.LevelInfo, map[string]string{
+			"cluster": oauthConfig.Cluster,
+		}, nil, "oidc-callback: state matched; exchanging authorization code for tokens")
 
 		var oauth2Token *oauth2.Token
 
@@ -831,11 +918,15 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to exchange token")
+			logger.Log(logger.LevelError, map[string]string{"cluster": oauthConfig.Cluster},
+				err, "oidc-callback: token exchange failed (check redirect_uri and client credentials)")
 			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
 
 			return
 		}
+
+		logger.Log(logger.LevelInfo, map[string]string{"cluster": oauthConfig.Cluster}, nil,
+			"oidc-callback: token exchange succeeded")
 
 		tokenType := "id_token"
 		if config.OidcUseAccessToken {
@@ -888,12 +979,26 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		baseURL := strings.Trim(config.BaseURL, "/")
 		if baseURL != "" {
 			redirectURL += baseURL + "/"
+		} else if tenantPrefix, ok := postOidcAuthRedirectPrefixFromCallback(config.OidcCallbackURL); ok {
+			redirectURL = tenantPrefix
+		}
+
+		cookieBaseURL := config.BaseURL
+		if cookieBaseURL == "" {
+			if tenantPrefix, ok := postOidcAuthRedirectPrefixFromCallback(config.OidcCallbackURL); ok {
+				cookieBaseURL = strings.Trim(tenantPrefix, "/")
+			}
 		}
 
 		// Set auth cookie
-		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
+		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, cookieBaseURL, config.SessionTTL)
 
-		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
+		redirectURL += fmt.Sprintf("auth?cluster=%s", oauthConfig.Cluster)
+
+		logger.Log(logger.LevelInfo, map[string]string{
+			"cluster":     oauthConfig.Cluster,
+			"redirect_to": redirectURL,
+		}, nil, "oidc-callback: success, auth cookie set, redirecting")
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 	})
