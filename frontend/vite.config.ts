@@ -32,7 +32,7 @@ export default defineConfig({
     'import.meta.env.PUBLIC_URL': JSON.stringify(publicUrl),
   },
   envPrefix: 'REACT_APP_',
-  // Relative base so static assets resolve under path-prefixing reverse proxies (e.g. /v1/tenantApps/<hash>/).
+
   base: publicUrl,
   server: {
     port: 3000,

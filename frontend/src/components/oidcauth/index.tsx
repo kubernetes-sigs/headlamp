@@ -34,7 +34,6 @@ const OIDCAuth: FunctionComponent<{}> = () => {
       return;
     }
 
-    // Popup flow: parent listens for this via storage events. Full-page SSO: same tab needs a redirect.
     localStorage.setItem('auth_status', 'success');
     queryClient.invalidateQueries({ queryKey: ['clusterMe', cluster], exact: true });
     const home = createRouteURL('cluster', { cluster });
