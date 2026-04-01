@@ -18,7 +18,7 @@ import { InlineIcon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import _ from 'lodash';
-import React, { ComponentProps } from 'react';
+import React, { ComponentProps, useLayoutEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation } from 'react-router-dom';
@@ -32,10 +32,10 @@ import { getRoute } from '../../lib/router/getRoute';
 import { getRoutePath } from '../../lib/router/getRoutePath';
 import { setConfig } from '../../redux/configSlice';
 import { ClusterDialog } from '../cluster/Chooser';
+import { AuthWorkflowSplash } from '../common/AuthWorkflowSplash';
 import { DialogTitle } from '../common/Dialog';
 import Empty from '../common/EmptyContent';
 import Link from '../common/Link';
-import Loader from '../common/Loader';
 import OauthPopup from '../oidcauth/OauthPopup';
 
 function ColorButton({ children, ...rest }: ComponentProps<typeof Button>) {
@@ -193,18 +193,12 @@ function AuthChooser({ children }: AuthChooserProps) {
   const shouldAutoOidcRedirect =
     clusterAuthType === 'oidc' && !testingAuth && !error && !skipAutoOidc;
 
-  React.useEffect(() => {
+  useLayoutEffect(() => {
     if (!shouldAutoOidcRedirect) {
       return;
     }
 
-    const timeoutId = window.setTimeout(() => {
-      window.location.assign(`${getAppUrl()}oidc?dt=${Date()}&cluster=${getCluster()}`);
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
+    window.location.assign(`${getAppUrl()}oidc?dt=${Date()}&cluster=${getCluster()}`);
   }, [shouldAutoOidcRedirect, clusterName]);
 
   return (
@@ -245,15 +239,6 @@ function AuthChooser({ children }: AuthChooserProps) {
         });
       }}
       shouldAutoOidcRedirect={shouldAutoOidcRedirect}
-      onSkipAutoOidcRedirect={() => {
-        const params = new URLSearchParams(location.search);
-        params.set('skip_oidc_auto', '1');
-        const qs = params.toString();
-        history.replace({
-          pathname: location.pathname,
-          search: qs ? `?${qs}` : '',
-        });
-      }}
     >
       {children}
     </PureAuthChooser>
@@ -273,8 +258,6 @@ export interface PureAuthChooserProps {
   handleBackButtonPress: () => void;
   /** When true, navigate to /oidc immediately (full-page SSO) instead of showing Sign In. */
   shouldAutoOidcRedirect?: boolean;
-  /** Cancels auto-redirect and shows manual Sign In / token options (sets ?skip_oidc_auto=1). */
-  onSkipAutoOidcRedirect?: () => void;
   children?: React.ReactNode;
   clusterName: string;
 }
@@ -291,7 +274,6 @@ export function PureAuthChooser({
   handleTryAgain,
   handleBackButtonPress,
   shouldAutoOidcRedirect = false,
-  onSkipAutoOidcRedirect,
   children,
   clusterName,
 }: PureAuthChooserProps) {
@@ -305,31 +287,30 @@ export function PureAuthChooser({
     <ClusterDialog useCover onClose={onClose} aria-labelledby="authchooser-dialog-title">
       {testingAuth ? (
         <Box component="main" textAlign="center">
-          <DialogTitle id="authchooser-dialog-title" focusTitle>
-            {testingTitle}
-          </DialogTitle>
-          <Loader title={t('Testing auth')} />
+          <AuthWorkflowSplash
+            title={testingTitle}
+            titleId="authchooser-dialog-title"
+            subtitle={t('Checking how you connect to the cluster.')}
+            branding={false}
+          />
         </Box>
       ) : (
         <Box component="main" display="flex" flexDirection="column" alignItems="center">
-          <DialogTitle id="authchooser-dialog-title" focusTitle>
-            {title}
-          </DialogTitle>
+          {!(clusterAuthType === 'oidc' && shouldAutoOidcRedirect) && (
+            <DialogTitle id="authchooser-dialog-title" focusTitle>
+              {title}
+            </DialogTitle>
+          )}
           {!error ? (
             <Box>
               {clusterAuthType === 'oidc' && shouldAutoOidcRedirect ? (
                 <Box m={2} textAlign="center">
-                  <Loader title={t('Redirecting to sign in…')} />
-                  <Box mt={2} display="flex" flexDirection="column" gap={1} alignItems="center">
-                    <Button variant="text" onClick={handleTokenAuth}>
-                      {t('Use A Token')}
-                    </Button>
-                    {onSkipAutoOidcRedirect && (
-                      <Button variant="text" onClick={onSkipAutoOidcRedirect}>
-                        {t('Sign in manually')}
-                      </Button>
-                    )}
-                  </Box>
+                  <AuthWorkflowSplash
+                    title={t('Redirecting to sign in…')}
+                    subtitle={t('You will be redirected to your identity provider.')}
+                    branding={false}
+                    titleId="authchooser-dialog-title"
+                  />
                 </Box>
               ) : null}
               {clusterAuthType === 'oidc' && !shouldAutoOidcRedirect ? (
@@ -349,11 +330,13 @@ export function PureAuthChooser({
                   <ColorButton onClick={handleTokenAuth}>{t('Use A Token')}</ColorButton>
                 </Box>
               )}
-              <Box m={2} textAlign="center">
-                <Link routeName="settingsClusterHomeContext" search={{ c: clusterName }}>
-                  {t('translation|Cluster settings')}
-                </Link>
-              </Box>
+              {!(clusterAuthType === 'oidc' && shouldAutoOidcRedirect) && (
+                <Box m={2} textAlign="center">
+                  <Link routeName="settingsClusterHomeContext" search={{ c: clusterName }}>
+                    {t('translation|Cluster settings')}
+                  </Link>
+                </Box>
+              )}
             </Box>
           ) : (
             <Box alignItems="center" textAlign="center">

@@ -30,6 +30,7 @@ import { getRouteUseClusterURL } from '../../lib/router/getRouteUseClusterURL';
 import { Route as RouteType } from '../../lib/router/Route';
 import { useTypedSelector } from '../../redux/hooks';
 import { uiSlice } from '../../redux/uiSlice';
+import { AuthWorkflowSplash } from '../common/AuthWorkflowSplash';
 import ErrorBoundary from '../common/ErrorBoundary';
 import ErrorComponent from '../common/ErrorPage';
 import { useSidebarItem } from '../Sidebar';
@@ -163,6 +164,8 @@ function AuthRoute(props: AuthRouteProps) {
     ...other
   } = props;
 
+  const { t } = useTranslation();
+
   useSidebarItem(sidebar, computedMatch);
   const cluster = useCluster();
   const query = useQuery({
@@ -213,6 +216,16 @@ function AuthRoute(props: AuthRouteProps) {
             pathname: createRouteURL(redirectRoute),
             state: { from: location },
           }}
+        />
+      );
+    }
+
+    if (requiresAuth && cluster && query.isLoading) {
+      return (
+        <AuthWorkflowSplash
+          title={t('Verifying your session…')}
+          subtitle={t('Securing your connection to the cluster.')}
+          branding={false}
         />
       );
     }

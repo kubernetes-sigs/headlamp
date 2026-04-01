@@ -30,6 +30,7 @@ export * from './Link';
 export { default as Link } from './Link';
 export * from './Loader';
 export { default as Loader } from './Loader';
+export * from './AuthWorkflowSplash';
 export * from './LogViewer';
 export * from './NameValueTable';
 export { default as NameValueTable } from './NameValueTable';

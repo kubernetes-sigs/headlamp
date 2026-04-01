@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 import { useHistory, useLocation } from 'react-router-dom';
 import { queryClient } from '../../lib/queryClient';
 import { createRouteURL } from '../../lib/router/createRouteURL';
+import { AuthWorkflowSplash } from '../common/AuthWorkflowSplash';
 
 const OIDCAuth: FunctionComponent<{}> = () => {
   const location = useLocation();
@@ -50,7 +51,13 @@ const OIDCAuth: FunctionComponent<{}> = () => {
     );
   }
 
-  return <Typography color="textPrimary">{t('Redirecting to main page…')}</Typography>;
+  return (
+    <AuthWorkflowSplash
+      title={t('Redirecting to main page…')}
+      subtitle={t('Taking you to the cluster overview.')}
+      branding={false}
+    />
+  );
 };
 
 export default OIDCAuth;
