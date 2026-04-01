@@ -23,9 +23,10 @@
                 >
                   <div
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-6 MuiGrid-grid-md-4 MuiGrid-grid-lg-3 css-10tsekr-MuiGrid-root"
+                    style="min-width: 0;"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
                     >
                       <div
                         class="MuiBox-root css-qrw4x1"
@@ -146,9 +147,10 @@
                   </div>
                   <div
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-6 MuiGrid-grid-md-4 MuiGrid-grid-lg-3 css-10tsekr-MuiGrid-root"
+                    style="min-width: 0;"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
                     >
                       <div
                         class="MuiBox-root css-qrw4x1"
@@ -269,9 +271,10 @@
                   </div>
                   <div
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-6 MuiGrid-grid-md-4 MuiGrid-grid-lg-3 css-10tsekr-MuiGrid-root"
+                    style="min-width: 0;"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
                     >
                       <div
                         class="MuiBox-root css-qrw4x1"
@@ -392,9 +395,10 @@
                   </div>
                   <div
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-6 MuiGrid-grid-md-4 MuiGrid-grid-lg-3 css-10tsekr-MuiGrid-root"
+                    style="min-width: 0;"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
                     >
                       <div
                         class="MuiBox-root css-qrw4x1"
@@ -515,9 +519,10 @@
                   </div>
                   <div
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-6 MuiGrid-grid-md-4 MuiGrid-grid-lg-3 css-10tsekr-MuiGrid-root"
+                    style="min-width: 0;"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
                     >
                       <div
                         class="MuiBox-root css-qrw4x1"
@@ -638,9 +643,10 @@
                   </div>
                   <div
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-6 MuiGrid-grid-md-4 MuiGrid-grid-lg-3 css-10tsekr-MuiGrid-root"
+                    style="min-width: 0;"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
                     >
                       <div
                         class="MuiBox-root css-qrw4x1"
@@ -761,9 +767,10 @@
                   </div>
                   <div
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-6 MuiGrid-grid-md-4 MuiGrid-grid-lg-3 css-10tsekr-MuiGrid-root"
+                    style="min-width: 0;"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
                     >
                       <div
                         class="MuiBox-root css-qrw4x1"
