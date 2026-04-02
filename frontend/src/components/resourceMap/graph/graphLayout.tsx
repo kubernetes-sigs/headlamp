@@ -29,6 +29,7 @@ type ElkNodeWithData = Omit<ElkNode, 'edges'> & {
 type ElkEdgeWithData = ElkExtendedEdge & {
   type: string;
   data: any;
+  label?: string;
 };
 
 let elk: ELKInterface | undefined;
@@ -175,7 +176,6 @@ function convertToReactFlowGraph(elkGraph: ElkNodeWithData) {
         data: {
           data: edge.data,
           sections: edge.sections,
-          // @ts-ignore
           label: edge?.label,
           labels: edge.labels,
           parentOffset: {
