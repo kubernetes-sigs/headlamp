@@ -1,0 +1,11 @@
+config:
+  # IMPORTANT: Must be false when using kubeconfigSecrets
+  # The in-cluster mode and external kubeconfigs are mutually exclusive
+  inCluster: false
+
+  kubeconfigSecrets:
+    - secretName: prod-cluster-kubeconfig
+      key: kubeconfig
+    - secretName: dev-cluster-kubeconfig
+      key: kubeconfig
+    - secretName: staging-cluster-kubeconfig

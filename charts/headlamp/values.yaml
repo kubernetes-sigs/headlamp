@@ -132,6 +132,19 @@ config:
   # Extra arguments that can be given to the container. See charts/headlamp/README.md for more information.
   extraArgs: []
 
+  # -- Kubeconfig secrets configuration for multi-cluster access
+  # Allows mounting multiple Kubernetes secrets containing kubeconfig files
+  # IMPORTANT: When using kubeconfigSecrets, you must set config.inCluster to false
+  # The in-cluster mode and external kubeconfig loading are mutually exclusive
+  # Example:
+  # kubeconfigSecrets:
+  #   - secretName: prod-cluster-kubeconfig
+  #     key: config  # optional, defaults to "config"
+  #   - secretName: dev-cluster-kubeconfig
+  #     key: kubeconfig
+  #   - secretName: staging-cluster-kubeconfig
+  kubeconfigSecrets: []
+
 # -- An optional list of environment variables
 # env:
 #   - name: KUBERNETES_SERVICE_HOST

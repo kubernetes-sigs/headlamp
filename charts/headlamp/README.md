@@ -148,6 +148,34 @@ config:
       name: your-oidc-secret
 ```
 
+### Multi-Cluster Configuration
+
+Headlamp supports managing multiple Kubernetes clusters by mounting kubeconfig files from secrets. This is ideal for fleet management scenarios where you want to access multiple clusters from a single Headlamp installation.
+
+#### Using Kubeconfig Secrets
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| config.kubeconfigSecrets | list | `[]` | List of secrets containing kubeconfig files |
+| config.kubeconfigSecrets[].secretName | string | required | Name of the secret containing kubeconfig |
+| config.kubeconfigSecrets[].key | string | `"config"` | Key within the secret data (optional, defaults to "config") |
+
+**Example: Multiple Clusters with Custom Keys**
+```yaml
+config:
+  kubeconfigSecrets:
+    - secretName: prod-cluster-kubeconfig
+      key: config
+    - secretName: dev-cluster-kubeconfig
+      key: kubeconfig
+    - secretName: staging-cluster-kubeconfig
+```
+#### Important Limitations
+
+**In-Cluster Mode and Kubeconfig Secrets are Mutually Exclusive**
+
+When `config.inCluster: true` (the default), Headlamp's backend explicitly skips loading external kubeconfig files. This is by design in the Headlamp backend code. If you want to use kubeconfig secrets to manage multiple clusters, you must set `config.inCluster: false`. This allows Headlamp to load the specified kubeconfig secrets and provide access to those clusters.
+
 ### Deployment Configuration
 
 | Key | Type | Default | Description |
