@@ -1,0 +1,51 @@
+<body>
+  <div>
+    <nav
+      aria-label="Navigation"
+      class="MuiBox-root css-qnyptn"
+    >
+      <div
+        class="MuiDrawer-root MuiDrawer-docked css-651cp8-MuiDrawer-docked"
+      >
+        <div
+          class="MuiPaper-root MuiPaper-outlined MuiDrawer-paper MuiDrawer-paperAnchorLeft MuiDrawer-paperAnchorDockedLeft css-2vc5z5-MuiPaper-root-MuiDrawer-paper"
+        >
+          <div
+            class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column MuiGrid-wrap-xs-nowrap css-tf9pd2-MuiGrid-root"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-item css-67yy8h-MuiGrid-root"
+            >
+              <ul
+                class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
+              />
+            </div>
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            >
+              <div
+                class="MuiBox-root css-xi606m"
+              >
+                <div
+                  class="MuiBox-root css-phsv6y"
+                >
+                  <button
+                    aria-label="Shrink sidebar"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-lr7sro-MuiButtonBase-root-MuiIconButton-root"
+                    data-mui-internal-clone-element="true"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </nav>
+  </div>
+</body>

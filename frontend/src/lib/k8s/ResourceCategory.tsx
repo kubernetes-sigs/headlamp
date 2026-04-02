@@ -15,6 +15,7 @@
  */
 
 import { memoize } from 'lodash';
+import type { ApiResource } from './api/v2/ApiResource';
 import { type KubeObject } from './KubeObject';
 
 /**
@@ -59,7 +60,7 @@ export const categoriesConfig: ResourceCategory[] = [
     icon: 'mdi:database',
     description: 'Persistent data storage',
     resources: [
-      { apiGroup: 'storage.k8s.io', excludeKinds: ['CSIStorageCapacity'] },
+      { apiGroup: 'storage.k8s.io', includeKinds: ['StorageClass'] },
       { apiGroup: 'core', includeKinds: ['PersistentVolumeClaim', 'PersistentVolume'] },
     ],
   },
@@ -71,6 +72,12 @@ export const categoriesConfig: ResourceCategory[] = [
       { apiGroup: 'networking.k8s.io' },
       { apiGroup: 'core', includeKinds: ['Service', 'Endpoints', 'EndpointSlice'] },
     ],
+  },
+  {
+    label: 'Gateway',
+    icon: 'mdi:lan-connect',
+    description: 'Gateway API resources',
+    resources: [{ apiGroup: 'gateway.networking.k8s.io' }],
   },
   {
     label: 'Security',
@@ -92,6 +99,7 @@ export const categoriesConfig: ResourceCategory[] = [
       { apiGroup: 'coordination.k8s.io' },
       { apiGroup: 'admissionregistration.k8s.io' },
       { apiGroup: 'core', includeKinds: ['ConfigMap', 'Secret', 'ResourceQuota', 'LimitRange'] },
+      { apiGroup: 'node.k8s.io', includeKinds: ['RuntimeClass'] },
     ],
   },
 ];
@@ -101,6 +109,23 @@ const makeCategoryForApiGroup = memoize((apiGroup: string) => ({
   icon: 'mdi:puzzle-outline',
   description: `Resources from the ${apiGroup} API group`,
 }));
+
+/**
+ * Find which predefined category matches the given API group and kind.
+ * Returns null if no category matches.
+ */
+export function findCategoryForResource(apiGroup: string, kind: string): ResourceCategory | null {
+  for (const category of categoriesConfig) {
+    if (!category.resources) continue;
+    for (const selector of category.resources) {
+      if (selector.apiGroup !== apiGroup) continue;
+      if ('includeKinds' in selector && !selector.includeKinds.includes(kind)) continue;
+      if ('excludeKinds' in selector && selector.excludeKinds?.includes(kind)) continue;
+      return category;
+    }
+  }
+  return null;
+}
 
 /**
  * Get category of the given kubernetes object
@@ -113,17 +138,65 @@ export const getKubeObjectCategory = (resource: KubeObject): ResourceCategory =>
   const kind = resource.jsonData.kind;
   const apiGroup = apiVersion.includes('/') ? apiVersion.split('/')[0] : 'core';
 
-  for (const category of categoriesConfig) {
-    if (!category.resources) continue;
+  return findCategoryForResource(apiGroup, kind) ?? makeCategoryForApiGroup(apiGroup);
+};
 
-    for (const selector of category.resources) {
-      if (selector.apiGroup !== apiGroup) continue;
-      if ('includeKinds' in selector && !selector.includeKinds.includes(kind)) continue;
-      if ('excludeKinds' in selector && selector.excludeKinds?.includes(kind)) continue;
-      return category;
+/** The "Custom Resources" category for resources that don't match any predefined category. */
+export const customResourcesCategory: ResourceCategory = {
+  label: 'Custom Resources',
+  icon: 'mdi:puzzle-outline',
+  description: 'Custom resource definitions',
+};
+
+/**
+ * Groups API resources by ResourceCategory.
+ *
+ * Each resource is either:
+ * - Placed in a predefined category (from categoriesConfig via findCategoryForResource)
+ * - Placed in "Custom Resources" if it's a known CRD
+ * - Skipped otherwise
+ *
+ * Resources within each category are sorted alphabetically by kind.
+ */
+export function groupByCategory(
+  resources: ApiResource[],
+  crdNames?: Set<string>
+): Map<ResourceCategory, ApiResource[]> {
+  // Pre-seed with categoriesConfig to preserve defined order
+  const result = new Map<ResourceCategory, ApiResource[]>();
+  for (const cat of categoriesConfig) {
+    result.set(cat, []);
+  }
+
+  const otherResources: ApiResource[] = [];
+
+  for (const resource of resources) {
+    const category = findCategoryForResource(resource.groupName ?? 'core', resource.kind);
+
+    if (category) {
+      result.get(category)!.push(resource);
+    } else if (resource.groupName) {
+      const crdName = `${resource.pluralName}.${resource.groupName}`;
+      if (!crdNames || crdNames.has(crdName)) {
+        otherResources.push(resource);
+      }
     }
   }
 
-  // Fallback to automatically generated category for the API group
-  return makeCategoryForApiGroup(apiGroup);
-};
+  // Remove empty predefined categories
+  for (const [cat, items] of result) {
+    if (items.length === 0) {
+      result.delete(cat);
+    } else {
+      items.sort((a, b) => a.kind.localeCompare(b.kind));
+    }
+  }
+
+  // Append Custom Resources last
+  if (otherResources.length > 0) {
+    otherResources.sort((a, b) => a.kind.localeCompare(b.kind));
+    result.set(customResourcesCategory, otherResources);
+  }
+
+  return result;
+}
