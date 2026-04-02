@@ -31,10 +31,12 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { getCluster } from '../../../lib/cluster';
+import { ResourceClasses } from '../../../lib/k8s';
 import { apply, ApplyOptions } from '../../../lib/k8s/api/v1/apply';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { useId } from '../../../lib/util';
 import { clusterAction } from '../../../redux/clusterActionSlice';
+import { useNamespaces } from '../../../redux/filterSlice';
 import {
   EventStatus,
   HeadlampEventType,
@@ -44,6 +46,7 @@ import { AppDispatch } from '../../../redux/stores/store';
 import { useCurrentAppTheme } from '../../App/themeSlice';
 import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import ConfirmButton from '../ConfirmButton';
+import ConfirmDialog from '../ConfirmDialog';
 import { Dialog, DialogProps } from '../Dialog';
 import Loader from '../Loader';
 import Tabs from '../Tabs';
@@ -140,6 +143,8 @@ export default function EditorDialog(props: EditorDialogProps) {
 
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
+  const filteredNamespaces = useNamespaces();
+  const [showNamespaceConfirm, setShowNamespaceConfirm] = React.useState(false);
 
   function isKubeObjectIsh(item: any): item is KubeObjectIsh {
     return item && typeof item === 'object' && !Array.isArray(item) && 'metadata' in item;
@@ -341,7 +346,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     }
   };
 
-  function handleSave(mode: 'apply' | 'dryRun' = 'apply') {
+  function handleSave(mode: 'apply' | 'dryRun' = 'apply', forceSave = false) {
     // Verify the YAML even means anything before trying to use it.
     const { obj, format, error } = getObjectsFromCode(code);
     if (!!error) {
@@ -359,6 +364,27 @@ export default function EditorDialog(props: EditorDialogProps) {
     }
 
     const newItemDefs = obj!;
+
+    if (!forceSave && filteredNamespaces.length > 0 && mode !== 'dryRun') {
+      const itemsOutsideFilter = newItemDefs.filter(item => {
+        let namespace = item.metadata?.namespace;
+        if (!namespace) {
+          const kind = item.kind;
+          const resourceClass = kind ? (ResourceClasses as Record<string, any>)[kind] : undefined;
+          if (resourceClass && resourceClass.isNamespaced) {
+            namespace = 'default';
+          } else {
+            return false;
+          }
+        }
+
+        return !filteredNamespaces.includes(namespace);
+      });
+      if (itemsOutsideFilter.length > 0) {
+        setShowNamespaceConfirm(true);
+        return;
+      }
+    }
 
     if (mode === 'dryRun') {
       const resourceNames = newItemDefs.map(
@@ -623,6 +649,15 @@ export default function EditorDialog(props: EditorDialogProps) {
           </Button>
         )}
       </DialogActions>
+      <ConfirmDialog
+        open={showNamespaceConfirm}
+        title={t('translation|Namespace Mismatch')}
+        description={t(
+          'translation|The resource(s) you are creating/updating are in a namespace that is not currently filtered, so they will not be visible once created/updated. You might want to remove the filter in order to see the resource. Do you want to proceed?'
+        )}
+        onConfirm={() => handleSave('apply', true)}
+        handleClose={() => setShowNamespaceConfirm(false)}
+      />
     </React.Fragment>
   );
 

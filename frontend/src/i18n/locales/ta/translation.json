@@ -370,6 +370,8 @@
   "This will discard your changes in the editor. Do you want to proceed?": "இது எடிட்டரில் உங்கள் மாற்றங்களை நிராகரிக்கும். தொடர விரும்புகிறீர்களா?",
   "Undo Changes": "மாற்றங்களை செயல்தவிர்",
   "Dry Run": "",
+  "Namespace Mismatch": "",
+  "The resource(s) you are creating/updating are in a namespace that is not currently filtered, so they will not be visible once created/updated. You might want to remove the filter in order to see the resource. Do you want to proceed?": "",
   "Invalid Secret Reference": "",
   "Invalid Config Map Reference": "",
   "Invalid fieldRef": "",
