@@ -1593,11 +1593,12 @@ export function ContainerInfo(props: ContainerInfoProps) {
         name: t('Ports'),
         value: (
           <Grid container>
-            {container.ports?.map(({ containerPort, protocol }, index) => (
+            {container.ports?.map(({ containerPort, protocol, name }, index) => (
               <>
                 <Grid item xs={12} key={`port_line_${index}`}>
                   <Box display="flex" alignItems={'center'}>
                     <Box px={0.5} minWidth={120}>
+                      {name && <ValueLabel>{`${name} `}</ValueLabel>}
                       <ValueLabel>{`${protocol}:`}</ValueLabel>
                       <ValueLabel>{containerPort}</ValueLabel>
                     </Box>
