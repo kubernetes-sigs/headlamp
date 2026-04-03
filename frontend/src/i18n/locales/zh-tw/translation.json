@@ -532,7 +532,7 @@
   "No data in this config map": "此設定對映中無資料",
   "Error getting custom resource definition {{ crdName }}: {{ errorMessage }}": "獲取自訂資源定義 {{ crdName }} 時出錯：{{ errorMessage }}",
   "Loading custom resource details": "讀取自訂資源詳情",
-  "Error getting custom resource {{ crName }}: {{ errorMessage }}": "獲取自訂資源 {{ crName }} 時出錯：{{ errorMessage }}",
+  "Custom Resource": "",
   "Loading custom resource instances": "讀取自訂資源實例",
   "No custom resources instances found.": "未找到自訂資源實例。",
   "Failed to load custom resource instances": "讀取自訂資源實例失敗",

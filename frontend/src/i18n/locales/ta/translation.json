@@ -537,7 +537,7 @@
   "No data in this config map": "இந்த கன்ஃபிக் மேப்பில் டேட்டா இல்லை",
   "Error getting custom resource definition {{ crdName }}: {{ errorMessage }}": "{{ crdName }} கஸ்டம் ரிசோர்ஸ் டெஃபினிஷனைப் பெறுவதில் பிழை: {{ errorMessage }}",
   "Loading custom resource details": "கஸ்டம் ரிசோர்ஸ் விவரங்களை ஏற்றுகிறது",
-  "Error getting custom resource {{ crName }}: {{ errorMessage }}": "{{ crName }} கஸ்டம் ரிசோர்ஸைப் பெறுவதில் பிழை: {{ errorMessage }}",
+  "Custom Resource": "",
   "Loading custom resource instances": "கஸ்டம் ரிசோர்ஸ் இன்ஸ்டன்ஸ்களை ஏற்றுகிறது",
   "No custom resources instances found.": "கஸ்டம் ரிசோர்ஸ் இன்ஸ்டன்ஸ்கள் எதுவும் காணப்படவில்லை.",
   "Failed to load custom resource instances": "கஸ்டம் ரிசோர்ஸ் இன்ஸ்டன்ஸ்களை ஏற்றுவதில் தோல்வி",

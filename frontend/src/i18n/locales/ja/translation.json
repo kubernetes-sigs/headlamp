@@ -532,7 +532,7 @@
   "No data in this config map": "このコンフィグマップにデータがありません",
   "Error getting custom resource definition {{ crdName }}: {{ errorMessage }}": "カスタムリソース定義 {{ crdName }} の取得エラー: {{ errorMessage }}",
   "Loading custom resource details": "カスタムリソースの詳細を読み込み中",
-  "Error getting custom resource {{ crName }}: {{ errorMessage }}": "カスタムリソース {{ crName }} の取得エラー: {{ errorMessage }}",
+  "Custom Resource": "",
   "Loading custom resource instances": "カスタムリソースインスタンスを読み込み中",
   "No custom resources instances found.": "カスタムリソースインスタンスが見つかりません。",
   "Failed to load custom resource instances": "カスタムリソースインスタンスの読み込みに失敗しました",

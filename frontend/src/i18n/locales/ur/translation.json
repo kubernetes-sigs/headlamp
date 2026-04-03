@@ -537,7 +537,7 @@
   "No data in this config map": "اس کنفگ میپ میں کوئی ڈیٹا نہیں ہے",
   "Error getting custom resource definition {{ crdName }}: {{ errorMessage }}": "کسٹم ریسورس ڈیفینیشن {{ crdName }} حاصل کرنے میں خرابی: {{ errorMessage }}",
   "Loading custom resource details": "کسٹم ریسورس کی تفصیلات لوڈ ہو رہی ہیں",
-  "Error getting custom resource {{ crName }}: {{ errorMessage }}": "کسٹم ریسورس {{ crName }} حاصل کرنے میں خرابی: {{ errorMessage }}",
+  "Custom Resource": "",
   "Loading custom resource instances": "کسٹم ریسورس انسٹینسز لوڈ ہو رہے ہیں",
   "No custom resources instances found.": "کوئی کسٹم ریسورس انسٹینسز نہیں ملے",
   "Failed to load custom resource instances": "کسٹم ریسورس انسٹینسز لوڈ کرنے میں ناکامی",
