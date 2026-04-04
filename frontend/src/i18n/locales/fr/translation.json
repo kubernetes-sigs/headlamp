@@ -50,6 +50,7 @@
   "Load from KubeConfig": "Charger à partir d'un KubeConfig",
   "Providers": "Fournisseurs",
   "Add Local Cluster Provider": "Ajouter un fournisseur de cluster local",
+  "Failed to delete cluster \"{{ clusterName }}\": {{ error }}": "",
   "This action will delete cluster \"{{ clusterName }}\" from \"{{ source }}\"": "Cette action supprimera le cluster \"{{ clusterName }}\" de \"{{ source }}\"",
   "This action will remove cluster \"{{ clusterName }}\".": "Cette action supprimera le cluster \"{{ clusterName }}\".",
   "This action cannot be undone! Do you want to proceed?": "Cette action ne peut pas être annulée ! Voulez-vous continuer ?",

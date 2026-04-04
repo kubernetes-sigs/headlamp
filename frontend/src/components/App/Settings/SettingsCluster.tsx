@@ -42,6 +42,7 @@ import Link from '../../common/Link';
 import Loader from '../../common/Loader';
 import NameValueTable from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
+import { Notification, setNotifications } from '../Notifications/notificationsSlice';
 import { ClusterNameEditor } from './ClusterNameEditor';
 import ClusterSelector from './ClusterSelector';
 import ColorPicker from './ColorPicker';
@@ -83,9 +84,14 @@ export default function SettingsCluster() {
         history.push('/');
       })
       .catch((err: Error) => {
-        if (err.message === 'Not Found') {
-          // TODO: create notification with error message
-        }
+        const notification = new Notification({
+          message: t('translation|Failed to delete cluster "{{ clusterName }}": {{ error }}', {
+            clusterName: cluster,
+            error: err.message,
+          }),
+          cluster: cluster || '',
+        });
+        dispatch(setNotifications(notification.toJSON()));
       });
   };
 

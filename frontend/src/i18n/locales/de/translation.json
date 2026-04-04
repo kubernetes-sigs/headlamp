@@ -50,6 +50,7 @@
   "Load from KubeConfig": "Laden aus KubeConfig",
   "Providers": "",
   "Add Local Cluster Provider": "",
+  "Failed to delete cluster \"{{ clusterName }}\": {{ error }}": "",
   "This action will delete cluster \"{{ clusterName }}\" from \"{{ source }}\"": "",
   "This action will remove cluster \"{{ clusterName }}\".": "",
   "This action cannot be undone! Do you want to proceed?": "",
