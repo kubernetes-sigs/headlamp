@@ -15,6 +15,8 @@
  */
 
 import { Icon } from '@iconify/react';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
 import { useTheme } from '@mui/material/styles';
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
@@ -22,6 +24,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ClusterSettings,
+  type DebugProfile,
   DEFAULT_POD_DEBUG_IMAGE,
   loadClusterSettings,
   storeClusterSettings,
@@ -56,10 +59,12 @@ export default function PodDebugSettings(props: SettingsProps) {
   const [clusterSettings, setClusterSettings] = useState<ClusterSettings | null>(null);
   const [userImage, setUserImage] = useState('');
   const [userIsEnabled, setUserIsEnabled] = useState<boolean | null>(null);
+  const [debugProfile, setDebugProfile] = useState<DebugProfile>('restricted');
   const defaultPodDebugImage =
     useTypedSelector(state => state.config?.defaultPodDebugImage) || DEFAULT_POD_DEBUG_IMAGE;
 
   const podDebugLabelID = 'pod-debug-enabled-label';
+  const debugProfileLabelID = 'debug-profile-label';
 
   useEffect(() => {
     setClusterSettings(!!cluster ? loadClusterSettings(cluster) : null);
@@ -71,6 +76,7 @@ export default function PodDebugSettings(props: SettingsProps) {
     }
 
     setUserIsEnabled(clusterSettings?.podDebugTerminal?.isEnabled ?? true);
+    setDebugProfile(clusterSettings?.podDebugTerminal?.debugProfile ?? 'restricted');
 
     // Avoid re-initializing settings as {} just because the cluster is not yet set.
     if (clusterSettings !== null) {
@@ -115,6 +121,18 @@ export default function PodDebugSettings(props: SettingsProps) {
       }
       newSettings.podDebugTerminal.isEnabled = enabled;
 
+      return newSettings;
+    });
+  }
+  function storeNewDebugProfile(profile: DebugProfile) {
+    setDebugProfile(profile);
+
+    setClusterSettings((settings: ClusterSettings | null) => {
+      const newSettings = { ...(settings || {}) };
+      if (newSettings.podDebugTerminal === null || newSettings.podDebugTerminal === undefined) {
+        newSettings.podDebugTerminal = {};
+      }
+      newSettings.podDebugTerminal.debugProfile = profile;
       return newSettings;
     });
   }
@@ -189,6 +207,32 @@ export default function PodDebugSettings(props: SettingsProps) {
                   sx: { maxWidth: 300 },
                 }}
               />
+            ),
+          },
+          {
+            name: (
+              <HoverInfoLabel
+                label={<span id={debugProfileLabelID}>{t('translation|Debug Profile')}</span>}
+                hoverInfo={t(
+                  'translation|Security profile for the ephemeral debug container. Mirrors kubectl debug --profile. Use "restricted" for namespaces enforcing the restricted PodSecurity policy.'
+                )}
+              />
+            ),
+            value: (
+              <Select
+                labelId={debugProfileLabelID}
+                value={debugProfile}
+                onChange={e => storeNewDebugProfile(e.target.value as DebugProfile)}
+                size="small"
+                sx={{ minWidth: 150 }}
+              >
+                <MenuItem value="legacy">legacy</MenuItem>
+                <MenuItem value="general">general</MenuItem>
+                <MenuItem value="baseline">baseline</MenuItem>
+                <MenuItem value="restricted">restricted</MenuItem>
+                <MenuItem value="netadmin">netadmin</MenuItem>
+                <MenuItem value="sysadmin">sysadmin</MenuItem>
+              </Select>
             ),
           },
         ]}

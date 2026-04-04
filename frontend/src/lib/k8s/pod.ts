@@ -15,6 +15,7 @@
  */
 
 import { Base64 } from 'js-base64';
+import type { DebugProfile } from '../../helpers/clusterSettings';
 import { patch, post } from './api/v1/clusterRequests';
 import type { StreamArgs, StreamResultsCb } from './api/v1/streamingApi';
 import { stream } from './api/v1/streamingApi';
@@ -110,6 +111,39 @@ type PodDetailedStatus = {
   readyContainers: number;
   lastRestartDate: Date;
 };
+
+function getSecurityContextForProfile(
+  profile: DebugProfile
+): KubeContainer['securityContext'] | null {
+  switch (profile) {
+    case 'restricted':
+      return {
+        allowPrivilegeEscalation: false,
+        capabilities: { drop: ['ALL'] },
+        runAsNonRoot: true,
+        runAsUser: 1000,
+        runAsGroup: 1000,
+        seccompProfile: { type: 'RuntimeDefault' },
+      };
+    case 'baseline':
+      return {};
+    case 'netadmin':
+      return {
+        capabilities: { add: ['NET_ADMIN', 'NET_RAW'] },
+      };
+    case 'sysadmin':
+      return {
+        privileged: true,
+      };
+    case 'general':
+      return {
+        capabilities: { add: ['SYS_PTRACE'] },
+      };
+    case 'legacy':
+    default:
+      return null;
+  }
+}
 
 class Pod extends KubeObject<KubePod> {
   static kind = 'Pod';
@@ -300,13 +334,19 @@ class Pod extends KubeObject<KubePod> {
    * @param containerName - The name of the ephemeral container to add
    * @param image - The container image to use
    * @param command - Optional command to run in the container (defaults to ['sh'])
+   * @param debugProfile - Security profile to apply, mirrors kubectl debug --profile.
+   * Defaults to 'restricted' which sets allowPrivilegeEscalation=false, drops all capabilities,
+   * requires non-root user, and sets seccompProfile=RuntimeDefault. Use 'legacy' to apply no
+   * securityContext for clusters that do not enforce PodSecurity restrictions.
    * @returns Promise that resolves when the ephemeral container is added
    */
   async addEphemeralContainer(
     containerName: string,
     image: string,
-    command: string[] = ['sh']
+    command: string[] = ['sh'],
+    debugProfile: DebugProfile = 'restricted'
   ): Promise<void> {
+    const securityContext = getSecurityContextForProfile(debugProfile);
     const ephemeralContainer: KubeContainer = {
       name: containerName,
       image,
@@ -315,12 +355,12 @@ class Pod extends KubeObject<KubePod> {
       stdinOnce: true,
       command,
       imagePullPolicy: 'IfNotPresent',
+      ...(securityContext && { securityContext }),
     };
 
     // Get current ephemeral containers
     const currentEphemeralContainers = this.spec.ephemeralContainers || [];
 
-    // Prepare the patch body
     const patchBody = {
       spec: {
         ephemeralContainers: [...currentEphemeralContainers, ephemeralContainer],
