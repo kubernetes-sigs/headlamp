@@ -5,3 +5,5 @@ approvers:
 reviewers:
 - headlamp-maintainers
 - headlamp-reviewers
+labels:
+- sig/ui
