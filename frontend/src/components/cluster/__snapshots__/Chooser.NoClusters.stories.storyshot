@@ -42,7 +42,7 @@
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
-              <h1
+              <div
                 class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
                 style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
               >
@@ -102,7 +102,7 @@
                 >
                   Headlamp
                 </span>
-              </h1>
+              </div>
             </div>
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
@@ -127,28 +127,6 @@
         <div
           class="MuiDialogContent-root MuiDialogContent-dividers css-gl9hfx-MuiDialogContent-root"
         >
-          <h2
-            class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
-            id="chooser-dialog-title"
-            style="display: flex;"
-          >
-            <div
-              class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
-            >
-              <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-              >
-                <h1
-                  class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
-                  id="chooser-dialog-title"
-                  style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
-                  tabindex="-1"
-                >
-                  Choose a cluster
-                </h1>
-              </div>
-            </div>
-          </h2>
           <p
             class="MuiTypography-root MuiDialogContentText-root MuiTypography-body1 MuiDialogContentText-root css-1tmyuhs-MuiTypography-root-MuiDialogContentText-root"
           >

@@ -314,6 +314,7 @@ export function ClusterDialog(props: ClusterDialogProps) {
       {...otherProps}
     >
       <DialogTitle
+        disableTypography
         sx={{
           textAlign: 'center',
           alignItems: 'center',
@@ -432,9 +433,11 @@ function Chooser(props: ClusterDialogProps) {
         aria-busy={clusterList.length === 0 && clusters === null}
         {...otherProps}
       >
-        <DialogTitle id="chooser-dialog-title" focusTitle>
-          {t('Choose a cluster')}
-        </DialogTitle>
+        {clusterList.length > 0 && (
+          <DialogTitle id="chooser-dialog-title" focusTitle>
+            {t('Choose a cluster')}
+          </DialogTitle>
+        )}
 
         {clusterList.length === 0 ? (
           <React.Fragment>

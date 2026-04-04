@@ -1,0 +1,23 @@
+--- COMMENT BY k8s-ci-robot ---
+[APPROVALNOTIFIER] This PR is **NOT APPROVED**
+
+This pull-request has been approved by: *<a href="https://github.com/kubernetes-sigs/headlamp/pull/5049#" title="Author self-approved">oindrilakha12-ui</a>*
+**Once this PR has been reviewed and has the lgtm label**, please assign [sniok](https://github.com/sniok) for approval. For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
+
+The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=kubernetes-sigs%2Fheadlamp).
+
+<details open>
+Needs approval from an approver in each of these files:
+
+- **[OWNERS](https://github.com/kubernetes-sigs/headlamp/blob/main/OWNERS)**
+
+Approvers can indicate their approval by writing `/approve` in a comment
+Approvers can cancel approval by writing `/approve cancel` in a comment
+</details>
+<!-- META={"approvers":["sniok"]} -->
+
+--- COMMENT BY linux-foundation-easycla[bot] ---
+ <a href="https://api.easycla.lfx.linuxfoundation.org/v2/repository-provider/github/sign/20677499/220546758/5049/#/?version=2"><img src="https://s3.amazonaws.com/cla-project-logo-prod/cla-not-signed.svg?v=2" alt="CLA Not Signed" align="left" height="28" width="328"></a><br/><br /><ul><li><a href='https://api.easycla.lfx.linuxfoundation.org/v2/repository-provider/github/sign/20677499/220546758/5049/#/?version=2' target='_blank'>:x:</a> - login: @oindrilakha12-ui / name: oindrilakha12-ui . The commit (e9e536d7a7f971010278b20e697f9a3ad79621e9) is not authorized under a signed CLA. <a href='https://api.easycla.lfx.linuxfoundation.org/v2/repository-provider/github/sign/20677499/220546758/5049/#/?version=2' target='_blank'>Please click here to be authorized</a>. For further assistance with EasyCLA, <a href='https://jira.linuxfoundation.org/servicedesk/customer/portal/4' target='_blank'>please submit a support request ticket</a>.</li></ul>
+
+--- COMMENT BY k8s-ci-robot ---
+Welcome @oindrilakha12-ui! <br><br>It looks like this is your first PR to <a href='https://github.com/kubernetes-sigs/headlamp'>kubernetes-sigs/headlamp</a> 🎉. Please refer to our [pull request process documentation](https://www.kubernetes.dev/docs/guide/pull-requests/) to help your PR have a smooth ride to approval. <br><br>You will be prompted by a bot to use commands during the review process. Do not be afraid to follow the prompts! It is okay to experiment. [Here is the bot commands documentation](https://go.k8s.io/bot-commands). <br><br>You can also check if kubernetes-sigs/headlamp has [its own contribution guidelines](https://github.com/kubernetes-sigs/headlamp/tree/master/CONTRIBUTING.md). <br><br>You may want to refer to our [testing guide](https://git.k8s.io/community/contributors/devel/sig-testing/testing.md) if you run into trouble with your tests not passing. <br><br>If you are having difficulty getting your pull request seen, please follow the [recommended escalation practices](https://www.kubernetes.dev/docs/guide/pull-requests/#why-is-my-pull-request-not-getting-reviewed). Also, for tips and tricks in the contribution process you may want to read the [Kubernetes contributor cheat sheet](https://www.kubernetes.dev/docs/contributor-cheatsheet/). We want to make sure your contribution gets all the attention it needs! <br><br>Thank you, and welcome to Kubernetes. :smiley:

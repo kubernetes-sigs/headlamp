@@ -1,0 +1,7 @@
+fix: address accessibility violation in Chooser component
+
+- Conditionally render Choose a cluster title only if clusters exist
+- Use disableTypography on AppLogo to improve heading hierarchy
+- Update storybook snapshots to match changes
+
+Signed-off-by: oindrilakha12-ui <oindrilakha12@gmail.com>
