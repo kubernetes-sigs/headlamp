@@ -185,6 +185,20 @@
                     class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                   />
                 </button>
+                <button
+                  aria-controls="full-width-tabpanel-2-Editor-tabs-id"
+                  aria-selected="false"
+                  class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
+                  id="full-width-tab-2-Editor-tabs-id"
+                  role="tab"
+                  tabindex="-1"
+                  type="button"
+                >
+                  Review Changes
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </button>
               </div>
               <span
                 class="MuiTabs-indicator css-1s2zz1g-MuiTabs-indicator"
@@ -227,6 +241,13 @@
               </div>
             </div>
           </div>
+          <div
+            aria-labelledby="full-width-tab-2-Editor-tabs-id"
+            class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
+            hidden=""
+            id="full-width-tabpanel-2-Editor-tabs-id"
+            role="tabpanel"
+          />
         </div>
         <div
           class="MuiDialogActions-root MuiDialogActions-spacing css-knqc4i-MuiDialogActions-root"

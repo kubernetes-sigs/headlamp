@@ -15,7 +15,7 @@
  */
 
 import '../../../i18n/config';
-import Editor from '@monaco-editor/react';
+import { DiffEditor, Editor } from '@monaco-editor/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import DialogActions from '@mui/material/DialogActions';
@@ -121,6 +121,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     false
   );
   const [uploadFiles, setUploadFiles] = React.useState(false);
+  const [hasOpenedDiffEditor, setHasOpenedDiffEditor] = React.useState(false);
 
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
@@ -266,6 +267,10 @@ export default function EditorDialog(props: EditorDialogProps) {
   }
 
   function handleTabChange(tabIndex: number) {
+    if (tabIndex === 2) {
+      setHasOpenedDiffEditor(true);
+    }
+
     // Check if the docs tab has been selected.
     if (tabIndex !== 1) {
       return;
@@ -377,6 +382,27 @@ export default function EditorDialog(props: EditorDialogProps) {
     );
   }
 
+  function makeDiffEditor() {
+    const language = code.format || originalCodeRef.current.format || 'yaml';
+
+    return (
+      <Box height="100%">
+        <DiffEditor
+          original={originalCodeRef.current.code}
+          modified={code.code}
+          language={language}
+          theme={theme.base === 'dark' ? 'vs-dark' : 'light'}
+          height="100%"
+          options={{
+            automaticLayout: true,
+            readOnly: true,
+            renderSideBySide: true,
+          }}
+        />
+      </Box>
+    );
+  }
+
   const errorLabel = error || errorMessage;
   let dialogTitle = title;
   if (!dialogTitle && item) {
@@ -468,6 +494,10 @@ export default function EditorDialog(props: EditorDialogProps) {
                     <DocsViewer docSpecs={docSpecs} />
                   </Box>
                 ),
+              },
+              {
+                label: t('translation|Review Changes'),
+                component: hasOpenedDiffEditor ? makeDiffEditor() : null,
               },
             ]}
           />
