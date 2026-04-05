@@ -42,10 +42,7 @@
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
-              <div
-                class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
-                style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
-              >
+              <div>
                 <svg
                   fill="none"
                   height="38"
@@ -138,14 +135,14 @@
               <div
                 class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
               >
-                <div
+                <h1
                   class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
                   id="chooser-dialog-title"
                   style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
                   tabindex="-1"
                 >
                   Choose a cluster
-                </div>
+                </h1>
               </div>
             </div>
           </h2>
