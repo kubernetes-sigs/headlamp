@@ -329,6 +329,8 @@ export default function EditorDialog(props: EditorDialogProps) {
         });
       }
     );
+    // reset the ref so next time editor opens it loads fresh data from kubernetes
+    originalCodeRef.current = { code: '', format: '' };
     onClose();
   };
 
