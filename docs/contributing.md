@@ -11,7 +11,7 @@ license ([Apache 2.0](https://github.com/kubernetes-sigs/headlamp/blob/main/LICE
 
 ## Code of Conduct
 
-Please refer to the Kinvolk [Code of Conduct](https://github.com/kinvolk/contribution/blob/master/CODE_OF_CONDUCT.md).
+Please refer to the [Kubernetes Community Code of Conduct](https://kubernetes.io/community/code-of-conduct/).
 
 ## Development practices
 
@@ -44,8 +44,7 @@ When submitting an issue, follow these guidelines to help maintainers address it
 
 ### Security issues
 
-For filing security issues that are sensitive and should not be public, please
-send an email to <security@headlamp.dev> .
+For filing security issues that are sensitive and should not be public, please see our [SECURITY.md](https://github.com/kubernetes-sigs/headlamp/blob/main/SECURITY.md).
 
 ## Submitting a Pull Request (PR)
 

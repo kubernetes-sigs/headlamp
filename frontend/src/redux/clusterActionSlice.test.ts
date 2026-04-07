@@ -167,7 +167,7 @@ describe('clusterActionSlice', () => {
         expect.objectContaining({
           type: updateClusterAction.type,
           payload: expect.objectContaining({
-            message: 'Error',
+            message: 'Error. Something went wrong',
           }),
         })
       );
