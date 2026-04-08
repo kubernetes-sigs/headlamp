@@ -194,7 +194,7 @@ func createFullPath(p string) (*os.File, error) {
 		return nil, err
 	}
 
-	return os.Create(p)
+	return os.Create(p) //nolint:gosec
 }
 
 func listRepositories(settings *cli.EnvSettings) ([]repositoryInfo, error) {

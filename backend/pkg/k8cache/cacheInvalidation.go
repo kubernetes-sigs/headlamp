@@ -69,7 +69,7 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 
 	freshURL := *r.URL
 
-	freshReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, freshURL.String(), nil)
+	freshReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, freshURL.String(), nil) //nolint:gosec
 	if err != nil {
 		return err
 	}

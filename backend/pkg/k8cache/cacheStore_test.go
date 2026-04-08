@@ -54,6 +54,7 @@ func (m *MockCache) Set(ctx context.Context, key, value string) error {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.store[key] = value
 
 	return nil
@@ -68,6 +69,7 @@ func (m *MockCache) SetWithTTL(ctx context.Context, key, value string, ttl time.
 func (m *MockCache) Delete(ctx context.Context, key string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	delete(m.store, key)
 
 	return nil
@@ -81,6 +83,7 @@ func (m *MockCache) Get(ctx context.Context, key string) (string, error) {
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
 	val, ok := m.store[key]
 
 	if !ok {
@@ -114,10 +117,12 @@ func TestGetResponseBody(t *testing.T) {
 			name: "valid gzip response",
 			bodyBytes: func() []byte {
 				var buf bytes.Buffer
+
 				gz := gzip.NewWriter(&buf)
 
 				_, _ = gz.Write([]byte("test-response"))
-				gz.Close()
+				_ = gz.Close()
+
 				return buf.Bytes()
 			}(),
 			contentEncoding: "gzip",
@@ -128,8 +133,10 @@ func TestGetResponseBody(t *testing.T) {
 			name: "empty gzip response",
 			bodyBytes: func() []byte {
 				var buf bytes.Buffer
+
 				gz := gzip.NewWriter(&buf)
-				gz.Close()
+				_ = gz.Close()
+
 				return buf.Bytes()
 			}(),
 			contentEncoding: "gzip",
@@ -415,7 +422,7 @@ func TestLoadFromCache(t *testing.T) {
 			assert.NoError(t, err)
 
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodGet, tc.urlObj.Path, nil)
+			r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tc.urlObj.Path, nil)
 			isLoaded, err := k8cache.LoadFromCache(mockCache, tc.isLoaded, tc.key, w, r)
 			assert.Equal(t, tc.isLoaded, isLoaded)
 			assert.NoError(t, err)
@@ -442,7 +449,7 @@ func TestStoreK8sResponseInCache(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rw := httptest.NewRecorder()
 			rcw := k8cache.NewResponseCapture(rw)
-			r := httptest.NewRequest(http.MethodGet, tc.urlObj.Path, nil)
+			r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tc.urlObj.Path, nil)
 			newCache := NewMockCache()
 			err := k8cache.StoreK8sResponseInCache(newCache, tc.urlObj, rcw, r, tc.key)
 			assert.NoError(t, err)

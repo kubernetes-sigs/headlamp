@@ -37,7 +37,7 @@ jobs:
         node-version: ${{ matrix.node-version }}
     - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
-        go-version: '1.24.*'
+        go-version: '1.25.*'
     - name: Run tests
       run: make app-test
     - name: Run tsc type checker
@@ -60,7 +60,7 @@ jobs:
         node-version: ${{ matrix.node-version }}
     - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
-        go-version: '1.24.*'
+        go-version: '1.25.*'
     - name: Dependencies
       uses: crazy-max/ghaction-chocolatey@e80bd39bb49cae70b67ea53d52d00833a7255c21 # v1.7.0
       with:
@@ -87,7 +87,7 @@ jobs:
         node-version: ${{ matrix.node-version }}
     - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
-        go-version: '1.24.*'
+        go-version: '1.25.*'
     - name: Dependencies
       run: brew install make
     - name: Run tests

@@ -200,7 +200,7 @@ users:
         idp-certificate-authority: "%s"
       name: oidc`, caFilePath))
 
-	defer os.Remove(tempKubeconfig)
+	defer func() { _ = os.Remove(tempKubeconfig) }()
 
 	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(tempKubeconfig, kubeconfig.KubeConfig)
 	require.NoError(t, err, "Expected no error for valid OIDC kubeconfig")
@@ -281,7 +281,7 @@ users:
         scope: "profile,email"
       name: oidc`)
 
-		defer os.Remove(tempFile)
+		defer func() { _ = os.Remove(tempFile) }()
 
 		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(tempFile, kubeconfig.KubeConfig)
 		require.NoError(t, err, "Expected no error for valid OIDC kubeconfig without CA")
@@ -356,7 +356,7 @@ func TestContext(t *testing.T) {
 func TestLoadContextsFromBase64String(t *testing.T) {
 	t.Run("valid_base64", func(t *testing.T) {
 		kubeConfigFile := kubeConfigFilePath
-		kubeConfigContent, err := os.ReadFile(kubeConfigFile)
+		kubeConfigContent, err := os.ReadFile(kubeConfigFile) //nolint:gosec
 		require.NoError(t, err)
 
 		base64String := base64.StdEncoding.EncodeToString(kubeConfigContent)
@@ -686,6 +686,7 @@ func TestCustomObjectDeepCopy(t *testing.T) {
 
 	t.Run("DeepCopy with nil", func(t *testing.T) {
 		var nilObj *kubeconfig.CustomObject
+
 		copied := nilObj.DeepCopy()
 		assert.Nil(t, copied)
 	})

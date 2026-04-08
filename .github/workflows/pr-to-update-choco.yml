@@ -66,7 +66,13 @@ jobs:
             exit 1
           fi
           echo "Setting hash and checksum"
-          read -r hash win_file_name <<< $(grep 'win-x64' ./checksums.txt)
+          expected_win_file_name="Headlamp-${LATEST_HEADLAMP_TAG}-win-x64.exe"
+          mapfile -t matches < <(grep -F "  $expected_win_file_name" ./checksums.txt || true)
+          if [ "${#matches[@]}" -ne 1 ]; then
+            echo "Error: Expected exactly one checksum entry for $expected_win_file_name, found ${#matches[@]}"
+            exit 1
+          fi
+          read -r hash win_file_name <<<"${matches[0]}"
           echo "Hash: $hash"
           echo "Win file name: $win_file_name"
           echo "WIN_FILE_NAME=$win_file_name" >> $GITHUB_ENV

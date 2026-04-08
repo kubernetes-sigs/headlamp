@@ -102,7 +102,7 @@ export default defineConfig({
       },
     }),
     pluginNodePolyfill({
-      include: ['process', 'buffer', 'stream', 'https', 'http', 'require'],
+      include: ['process', 'buffer', 'stream', 'https', 'http', 'require', 'path'],
     }),
     // replaceBaseUrlPlugin(),
   ],

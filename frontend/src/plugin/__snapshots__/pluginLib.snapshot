@@ -36,6 +36,7 @@
     "testClusterHealth": [Function],
   },
   "CommonComponents": {
+    "A8RInfo": [Function],
     "ActionButton": [Function],
     "AuthVisible": [Function],
     "BackLink": [Function],
@@ -93,6 +94,7 @@
     "PortForward": [Function],
     "PureNamespacesAutocomplete": [Function],
     "Resource": {
+      "A8RInfo": [Function],
       "AuthVisible": [Function],
       "CircularChart": [Function],
       "ConditionsSection": [Function],
@@ -143,6 +145,7 @@
       "VolumeMounts": [Function],
       "VolumeSection": [Function],
       "addResourceTableColumnsProcessor": [Function],
+      "getA8RMetadata": [Function],
       "isRestartableResource": [Function],
       "isRollbackableResource": [Function],
       "metadataStyles": [Function],
@@ -202,6 +205,7 @@
     "VolumeMounts": [Function],
     "VolumeSection": [Function],
     "addResourceTableColumnsProcessor": [Function],
+    "getA8RMetadata": [Function],
     "isRestartableResource": [Function],
     "isRollbackableResource": [Function],
     "makeStatusLabel": [Function],

@@ -55,6 +55,14 @@ func TestParseBasic(t *testing.T) {
 				assert.Equal(t, config.DefaultMeUsernamePath, conf.MeUsernamePath)
 			},
 		},
+		{
+			name: "oidc_use_cookie",
+			args: []string{"go run ./cmd", "--oidc-use-cookie", "--oidc-client-id=my-id"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, true, conf.OidcUseCookie)
+				assert.Equal(t, "my-id", conf.OidcClientID)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -147,11 +155,11 @@ func TestParseWithEnv(t *testing.T) {
 	for _, tt := range ParseWithEnvTests {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, value := range tt.env {
-				os.Setenv(key, value)
+				require.NoError(t, os.Setenv(key, value))
 			}
 			defer func(env map[string]string) {
 				for key := range env {
-					os.Unsetenv(key)
+					require.NoError(t, os.Unsetenv(key))
 				}
 			}(tt.env)
 
@@ -173,7 +181,7 @@ func TestParseErrors(t *testing.T) {
 		{
 			name:          "oidc_settings_without_incluster",
 			args:          []string{"go run ./cmd", "-oidc-client-id=noClient"},
-			errorContains: "are only meant to be used in inCluster mode",
+			errorContains: "flags are only meant to be used in inCluster mode or with --oidc-use-cookie",
 		},
 		{
 			name:          "invalid_base_url",
@@ -362,11 +370,11 @@ func TestOIDCTLSEnvironmentVariables(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, value := range tt.env {
-				os.Setenv(key, value)
+				require.NoError(t, os.Setenv(key, value))
 			}
 			defer func(env map[string]string) {
 				for key := range env {
-					os.Unsetenv(key)
+					require.NoError(t, os.Unsetenv(key))
 				}
 			}(tt.env)
 

@@ -449,7 +449,10 @@ export function SingleActivityRenderer({
               {cluster && (
                 <Box
                   sx={theme => ({
+                    display: 'flex',
+                    alignItems: 'center',
                     fontSize: '0.875rem',
+                    gap: 0.25,
                     paddingX: 0.5,
                     color: theme.palette.text.secondary,
                   })}
@@ -1152,7 +1155,7 @@ export const ActivityBar = React.memo(function ({
           })}
         >
           <Button
-            sx={{
+            sx={theme => ({
               height: '100%',
               padding: '0px 5px 0 10px',
               lineHeight: 1,
@@ -1160,7 +1163,8 @@ export const ActivityBar = React.memo(function ({
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               justifyContent: 'start',
-            }}
+              color: theme.palette.text.primary,
+            })}
             onClick={() => {
               // Minimize or show Activity, unless it's not active then bring it to front
               Activity.update(it.id, { minimized: it.id !== lastElement ? false : !it.minimized });
@@ -1184,7 +1188,9 @@ export const ActivityBar = React.memo(function ({
                 overflow: 'hidden',
               }}
             >
-              {it.cluster && <Box sx={{ opacity: 0.7 }}>{it.cluster}</Box>}{' '}
+              {it.cluster && (
+                <Box sx={theme => ({ color: theme.palette.text.secondary })}>{it.cluster}</Box>
+              )}
               <Box
                 sx={{
                   whiteSpace: 'nowrap',

@@ -214,6 +214,7 @@ var berlinLocation = func() *time.Location {
 	if err != nil {
 		panic(err)
 	}
+
 	return loc
 }()
 
@@ -739,7 +740,7 @@ func TestRefreshAndCacheNewToken_Success(t *testing.T) {
 
 	fc := &fakeCache{store: map[string]interface{}{oldKey: "REFRESH_OLD"}}
 	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, r.ParseForm())
+		require.NoError(t, r.ParseForm()) //nolint:gosec
 		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
 		require.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
 
@@ -780,6 +781,7 @@ func TestRefreshAndCacheNewToken_ProviderError(t *testing.T) {
 
 func TestRefreshAndCacheNewToken_TokenError(t *testing.T) {
 	const oldToken = "OLD"
+
 	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
 	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -882,7 +884,7 @@ func TestHandleMe_Success(t *testing.T) {
 
 	token := makeTestToken(t, claims)
 
-	req := httptest.NewRequest(http.MethodGet, "/clusters/test/me", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
 	req.AddCookie(&http.Cookie{
 		Name:  fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName("test")),
@@ -930,7 +932,7 @@ func TestHandleMe_HeaderToken(t *testing.T) {
 
 	token := makeTestToken(t, claims)
 
-	req := httptest.NewRequest(http.MethodGet, "/clusters/test/me", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
 	req.Header.Set("Authorization", "Bearer "+token)
 
@@ -971,7 +973,7 @@ func TestHandleMe_ExpiredToken(t *testing.T) {
 
 	token := makeTestToken(t, claims)
 
-	req := httptest.NewRequest(http.MethodGet, "/clusters/test/me", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
 	req.AddCookie(&http.Cookie{
 		Name:  fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName("test")),
@@ -1004,7 +1006,7 @@ func TestHandleMe_ExpiredToken(t *testing.T) {
 func TestHandleMe_MissingCookie(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, "/clusters/test/me", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
 
 	rr := httptest.NewRecorder()

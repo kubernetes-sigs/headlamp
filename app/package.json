@@ -1,6 +1,6 @@
 {
   "name": "headlamp",
-  "version": "0.40.0",
+  "version": "0.41.0",
   "description": "Easy-to-use and extensible Kubernetes web UI",
   "main": "build/main.js",
   "homepage": "https://github.com/kubernetes-sigs/headlamp/#readme",
@@ -174,6 +174,7 @@
     "js-yaml": "^4.1.1"
   },
   "dependencies": {
+    "@langchain/mcp-adapters": "^1.0.0",
     "copyfiles": "^2.4.1",
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.5",
@@ -185,7 +186,7 @@
     "mkdirp": "^3.0.1",
     "nock": "^14.0.5",
     "shx": "^0.4.0",
-    "tar": "^7.5.10",
+    "tar": "^7.5.11",
     "yargs": "^17.7.2"
   }
 }

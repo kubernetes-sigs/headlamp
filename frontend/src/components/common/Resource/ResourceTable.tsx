@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
 import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 import { TableCellProps } from '@mui/material/TableCell';
@@ -26,7 +29,7 @@ import {
   MRT_TableInstance,
   MRT_VisibilityState,
 } from 'material-react-table';
-import {
+import React, {
   ComponentProps,
   ReactNode,
   useCallback,
@@ -52,6 +55,7 @@ import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import { DateLabel } from '../Label';
 import Link from '../Link';
 import Table, { TableColumn } from '../Table';
+import { getA8RMetadata } from './A8RInfo';
 import DeleteButton from './DeleteButton';
 import EditButton from './EditButton';
 import ResourceTableMultiActions from './ResourceTableMultiActions';
@@ -341,8 +345,40 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     !!id ? loadTableSettings(id) : []
   );
 
+  // Determine if any item in the current dataset carries a8r.io/owner
+  const hasA8rOwner = useMemo(
+    () => (data ?? []).some(item => !!item?.metadata?.annotations?.['a8r.io/owner']),
+    [data]
+  );
+
+  const columnsWithA8rOwner = useMemo<ResourceTableProps<RowItem>['columns']>(() => {
+    if (!hasA8rOwner) return columns;
+    const alreadyDefined = columns.some(
+      c => typeof c !== 'string' && (c as ResourceTableColumn<RowItem>).id === 'a8r-owner'
+    );
+    if (alreadyDefined) return columns;
+
+    const standardOrder = ['cluster', 'namespace', 'name'] as const;
+    let insertAt = 1;
+    for (const sc of standardOrder) {
+      const idx = columns.findIndex(c => c === sc);
+      if (idx !== -1) {
+        insertAt = idx + 1;
+        break;
+      }
+    }
+
+    const ownerCol: ResourceTableColumn<RowItem> = {
+      id: 'a8r-owner',
+      label: t('Owner'),
+      gridTemplate: 'auto',
+      getValue: item => item?.metadata?.annotations?.['a8r.io/owner'] ?? '-',
+    };
+    return [...columns.slice(0, insertAt), ownerCol, ...columns.slice(insertAt)];
+  }, [columns, hasA8rOwner, t]);
+
   const [allColumns] = useMemo(() => {
-    let processedColumns = columns;
+    let processedColumns = columnsWithA8rOwner;
 
     if (!noProcessing) {
       tableProcessors.forEach(processorInfo => {
@@ -479,7 +515,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
 
     return [allColumns];
   }, [
-    columns,
+    columnsWithA8rOwner,
     hideColumns,
     id,
     noProcessing,
@@ -520,7 +556,34 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     hAccs = actions;
   }
 
-  const actionsProcessed: RowAction[] = [...hAccs, ...defaultActions];
+  const a8rAction: RowAction = {
+    id: 'a8r-actions',
+    action: ({ item, closeMenu }: { item: RowItem; closeMenu: () => void }) => {
+      const annotations = item?.metadata?.annotations ?? {};
+      const metadata = getA8RMetadata(annotations).filter(m => m.isLink);
+      if (metadata.length === 0) return null;
+      return (
+        <React.Fragment key="a8r-actions">
+          {metadata.map(meta => (
+            <MenuItem
+              key={meta.key}
+              onClick={() => {
+                window.open(meta.value, '_blank', 'noopener,noreferrer');
+                closeMenu();
+              }}
+            >
+              <ListItemIcon>
+                <Icon icon={meta.icon} width="20" />
+              </ListItemIcon>
+              <ListItemText>{t(meta.labelKey)}</ListItemText>
+            </MenuItem>
+          ))}
+        </React.Fragment>
+      );
+    },
+  };
+
+  const actionsProcessed: RowAction[] = [...hAccs, a8rAction, ...defaultActions];
 
   const renderRowActionMenuItems = useMemo(() => {
     if (actionsProcessed.length === 0) {

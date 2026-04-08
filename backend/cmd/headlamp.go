@@ -31,9 +31,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -63,6 +65,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -119,7 +122,7 @@ func fileExists(filename string) bool {
 }
 
 func mustReadFile(path string) []byte {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec
 	if err != nil {
 		// Error Reading the file
 		logger.Log(logger.LevelError, nil, err, "reading file")
@@ -279,7 +282,9 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 	r.HandleFunc("/plugins/{name}", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+
 		var span trace.Span
+
 		pluginName := mux.Vars(r)["name"]
 
 		// Get plugin type from query parameter (optional)
@@ -304,6 +309,7 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 		if err := config.checkHeadlampBackendToken(w, r); err != nil {
 			config.TelemetryHandler.RecordError(span, err, " Invalid backend token")
 			logger.Log(logger.LevelWarn, nil, err, "Invalid backend token for DELETE /plugins/{name}")
+
 			return
 		}
 
@@ -322,6 +328,7 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 
 			return
 		}
+
 		logger.Log(logger.LevelInfo, nil, nil, "Plugin deleted successfully: "+pluginName)
 
 		w.Header().Set("Content-Type", "application/json")
@@ -337,6 +344,7 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 	r.HandleFunc("/plugins", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+
 		var span trace.Span
 
 		// Start tracing for listPlugins.
@@ -354,6 +362,7 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 		logger.Log(logger.LevelInfo, nil, nil, "Received GET request for plugin list")
 
 		w.Header().Set("Content-Type", "application/json")
+
 		pluginsList, err := config.Cache.Get(context.Background(), plugins.PluginListKey)
 		if err != nil && err == cache.ErrNotFound {
 			pluginsList = []plugins.PluginMetadata{}
@@ -366,6 +375,7 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 				span.SetAttributes(attribute.Int("plugins.count", len(list)))
 			}
 		}
+
 		if err := json.NewEncoder(w).Encode(pluginsList); err != nil {
 			logger.Log(logger.LevelError, nil, err, "encoding plugins base paths list")
 		} else {
@@ -382,7 +392,7 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 }
 
 //nolint:gocognit,funlen,gocyclo
-func createHeadlampHandler(config *HeadlampConfig) http.Handler {
+func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
 
 	config.StaticPluginDir = os.Getenv("HEADLAMP_STATIC_PLUGINS_DIR")
@@ -414,12 +424,12 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	if !config.UseInCluster || config.WatchPluginsChanges {
 		// in-cluster mode is unlikely to want reloading plugins.
 		pluginEventChan := make(chan string)
-		go plugins.Watch(config.PluginDir, pluginEventChan)
+		go plugins.Watch(ctx, config.PluginDir, pluginEventChan)
 
 		// Watch user-plugins directory for catalog-installed plugins
 		if config.UserPluginDir != "" {
 			userPluginEventChan := make(chan string)
-			go plugins.Watch(config.UserPluginDir, userPluginEventChan)
+			go plugins.Watch(ctx, config.UserPluginDir, userPluginEventChan)
 			// Merge both event channels into one
 			go func() {
 				for event := range userPluginEventChan {
@@ -436,7 +446,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			config.Cache,
 		)
 		// in-cluster mode is unlikely to want reloading kubeconfig.
-		go kubeconfig.LoadAndWatchFiles(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
+		go kubeconfig.LoadAndWatchFiles(ctx, config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	}
 
 	// In-cluster
@@ -579,7 +589,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 		ctx := context.Background()
 
-		proxyReq, err := http.NewRequestWithContext(ctx, r.Method, proxyURL, r.Body)
+		proxyReq, err := http.NewRequestWithContext(ctx, r.Method, proxyURL, r.Body) //nolint:gosec
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "creating request")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -601,7 +611,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 		client := http.Client{}
 
-		resp, err := client.Do(proxyReq)
+		resp, err := client.Do(proxyReq) //nolint:gosec
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "making request")
 			http.Error(w, err.Error(), http.StatusBadGateway)
@@ -609,7 +619,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			return
 		}
 
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		// Check that the server actually sent compressed data
 		var reader io.ReadCloser
@@ -623,7 +633,8 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 				return
 			}
-			defer reader.Close()
+
+			defer func() { _ = reader.Close() }()
 		default:
 			reader = resp.Body
 		}
@@ -643,8 +654,6 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 			return
 		}
-
-		defer resp.Body.Close()
 	})
 
 	// Configuration
@@ -668,6 +677,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	r.HandleFunc("/oidc", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 		cluster := r.URL.Query().Get("cluster")
+
 		if config.Insecure {
 			tr := &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
@@ -682,6 +692,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 				err, "failed to get context")
 
 			http.NotFound(w, r)
+
 			return
 		}
 
@@ -694,6 +705,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			}
 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+
 			return
 		}
 
@@ -709,6 +721,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 				err, "failed to get provider")
 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+
 			return
 		}
 
@@ -716,6 +729,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		if config.OidcValidatorClientID != "" {
 			validatorClientID = config.OidcValidatorClientID
 		}
+
 		oidcConfig := &oidc.Config{
 			ClientID: validatorClientID,
 		}
@@ -735,6 +749,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			if _, err := rand.Read(b); err != nil {
 				panic(err)
 			}
+
 			return base64.RawURLEncoding.EncodeToString(b)
 		}()
 
@@ -1108,9 +1123,8 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 }
 
 func StartHeadlampServer(config *HeadlampConfig) {
-	tel, err := telemetry.NewTelemetry(config.TelemetryConfig)
+	tel, err := initTelemetry(config)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "Failed to initialize telemetry")
 		os.Exit(1)
 	}
 
@@ -1123,6 +1137,56 @@ func StartHeadlampServer(config *HeadlampConfig) {
 		}
 	}()
 
+	router := mux.NewRouter()
+
+	if config.Telemetry != nil && config.Metrics != nil {
+		router.Use(telemetry.TracingMiddleware("headlamp-server"))
+		router.Use(config.Metrics.RequestCounterMiddleware)
+	}
+
+	if config.StaticDir != "" {
+		if err := copyStaticFiles(config); err != nil {
+			return
+		}
+	}
+
+	// Create a cancellable context for watcher goroutines
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	handler := createHeadlampHandler(ctx, config)
+	handler = config.OIDCTokenRefreshMiddleware(handler)
+
+	addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
+
+	server := &http.Server{Addr: addr, Handler: handler} //nolint:gosec
+
+	serverDone := make(chan struct{})
+	setupGracefulShutdown(server, cancel, serverDone)
+
+	if config.TLSCertPath != "" && config.TLSKeyPath != "" {
+		err = server.ListenAndServeTLS(config.TLSCertPath, config.TLSKeyPath)
+	} else {
+		err = server.ListenAndServe()
+	}
+
+	close(serverDone)
+
+	if err != nil && err != http.ErrServerClosed {
+		logger.Log(logger.LevelError, nil, err, "Failed to start server")
+		HandleServerStartError(&err)
+	}
+}
+
+// initTelemetry initializes telemetry and metrics for the server.
+func initTelemetry(config *HeadlampConfig) (*telemetry.Telemetry, error) {
+	tel, err := telemetry.NewTelemetry(config.TelemetryConfig)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to initialize telemetry")
+
+		return nil, err
+	}
+
 	metrics, err := telemetry.NewMetrics()
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to initialize metrics")
@@ -1132,45 +1196,60 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	config.Metrics = metrics
 	config.TelemetryHandler = telemetry.NewRequestHandler(tel, metrics)
 
-	router := mux.NewRouter()
+	return tel, nil
+}
 
-	if config.Telemetry != nil && config.Metrics != nil {
-		router.Use(telemetry.TracingMiddleware("headlamp-server"))
-		router.Use(config.Metrics.RequestCounterMiddleware)
-	}
-
-	// Copy static files as squashFS is read-only (AppImage)
-	if config.StaticDir != "" {
-		dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to create static dir")
-			return
-		}
-
-		err = os.CopyFS(dir, os.DirFS(config.StaticDir))
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to copy files from static dir")
-			return
-		}
-
-		config.StaticDir = dir
-	}
-
-	handler := createHeadlampHandler(config)
-	handler = config.OIDCTokenRefreshMiddleware(handler)
-
-	addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
-
-	if config.TLSCertPath != "" && config.TLSKeyPath != "" {
-		err = http.ListenAndServeTLS(addr, config.TLSCertPath, config.TLSKeyPath, handler) //nolint:gosec
-	} else {
-		err = http.ListenAndServe(addr, handler) //nolint:gosec
-	}
-
+// copyStaticFiles copies static files to a temporary directory.
+// This is needed because squashFS is read-only (AppImage).
+func copyStaticFiles(config *HeadlampConfig) error {
+	dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "Failed to start server")
-		HandleServerStartError(&err)
+		logger.Log(logger.LevelError, nil, err, "Failed to create static dir")
+
+		return err
 	}
+
+	err = os.CopyFS(dir, os.DirFS(config.StaticDir))
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to copy files from static dir")
+
+		return err
+	}
+
+	config.StaticDir = dir
+
+	return nil
+}
+
+// setupGracefulShutdown starts a goroutine that listens for OS signals
+// (SIGINT, SIGTERM) and gracefully shuts down the server. It cancels
+// the context to stop all watcher goroutines. The serverDone channel
+// is used to stop this goroutine if the server exits for a non-signal reason.
+func setupGracefulShutdown(server *http.Server, cancel context.CancelFunc, serverDone <-chan struct{}) {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		defer signal.Stop(sigChan)
+
+		select {
+		case <-sigChan:
+			logger.Log(logger.LevelInfo, nil, nil, "Received shutdown signal, stopping watchers...")
+
+			cancel() // Cancel context to stop all watcher goroutines
+
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutdownCancel()
+
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				logger.Log(logger.LevelError, nil, err, "Failed to gracefully shutdown server")
+			}
+		case <-serverDone:
+			// Server exited on its own, clean up watchers and stop the signal goroutine
+			cancel()
+			return
+		}
+	}()
 }
 
 // Handle common server startup errors.
@@ -1192,6 +1271,7 @@ func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (
 	c.TelemetryHandler.RecordEvent(span, "Get helm handler started")
 
 	defer span.End()
+
 	c.TelemetryHandler.RecordRequestCount(ctx, r)
 
 	clusterName := mux.Vars(r)["clusterName"]
@@ -1253,6 +1333,7 @@ func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 		_, span := telemetry.CreateSpan(ctx, r, "helm", "handleClusterHelm",
 			attribute.String("cluster", clusterName),
 		)
+
 		c.TelemetryHandler.RecordEvent(span, "Starting Helm operation request")
 		defer span.End()
 
@@ -1297,8 +1378,8 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 	// Create a copy of the context to avoid modifying the cached context
 	context = context.Copy()
 
-	// If headlamp is running in cluster, use the token from the cookie for oidc auth
-	if c.UseInCluster && context.OidcConf != nil {
+	// If running in cluster or explicitly enabled via flag, use the token from the cookie for oidc auth
+	if (c.UseInCluster || c.OidcUseCookie) && context.OidcConf != nil {
 		setTokenFromCookie(r, clusterName)
 	}
 
@@ -1643,6 +1724,7 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 		if context.KubeContext == nil {
 			logger.Log(logger.LevelError, map[string]string{"context": context.Name},
 				errors.New("context.KubeContext is nil"), "error adding context")
+
 			continue
 		}
 
@@ -1774,15 +1856,17 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // addCluster adds cluster to store and updates the kubeconfig file.
-func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) {
+func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) { //nolint:funlen
 	ctx := r.Context()
 	start := time.Now()
 
 	_, span := telemetry.CreateSpan(ctx, r, "cluster-management", "addCluster")
+
 	c.TelemetryHandler.RecordEvent(span, "Add cluster request started")
 	defer span.End()
 	// Defer recording the duration and logging when the request is complete.
 	defer recordRequestCompletion(c, ctx, start, r)
+
 	c.TelemetryHandler.RecordRequestCount(ctx, r)
 
 	if err := c.checkHeadlampBackendToken(w, r); err != nil {
@@ -1927,7 +2011,7 @@ func (c *HeadlampConfig) processManualConfig(clusterReq ClusterReq) ([]kubeconfi
 
 // handleLoadErrors handles the load errors.
 func (c *HeadlampConfig) handleLoadErrors(err error, contextLoadErrors []kubeconfig.ContextLoadError) []error {
-	var setupErrors []error //nolint:prealloc
+	var setupErrors []error
 
 	if err != nil {
 		setupErrors = append(setupErrors, err)
@@ -1979,6 +2063,7 @@ func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
 
 	_, span := telemetry.CreateSpan(ctx, r, "cluster-management", "deleteCluster")
 	defer span.End()
+
 	c.TelemetryHandler.RecordRequestCount(ctx, r)
 
 	defer func() {
@@ -2099,8 +2184,8 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 	}, nil, "Completed stateless cluster rename")
 }
 
-// customNameToExtenstions writes the custom name to the Extensions map in the kubeconfig.
-func customNameToExtenstions(config *api.Config, contextName, newClusterName, path string) error {
+// customNameToExtensions writes the custom name to the Extensions map in the kubeconfig.
+func customNameToExtensions(config *api.Config, contextName, newClusterName, path string) error {
 	var err error
 
 	// Get the context with the given cluster name
@@ -2119,7 +2204,13 @@ func customNameToExtenstions(config *api.Config, contextName, newClusterName, pa
 		CustomName: newClusterName,
 	}
 
-	// Assign the CustomObject to the Extensions map
+	// Assign the CustomObject to the Extensions map.
+	// Extensions is nil for contexts that have never had extensions set; initialize
+	// it before writing to avoid a nil-map panic.
+	if contextConfig.Extensions == nil {
+		contextConfig.Extensions = make(map[string]k8sruntime.Object)
+	}
+
 	contextConfig.Extensions["headlamp_info"] = customObj
 
 	if err := clientcmd.WriteToFile(*config, path); err != nil {
@@ -2249,7 +2340,7 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 
 	contextName := findMatchingContextName(config, clusterName)
 
-	if err := customNameToExtenstions(config, contextName, reqBody.NewClusterName, path); err != nil {
+	if err := customNameToExtensions(config, contextName, reqBody.NewClusterName, path); err != nil {
 		c.handleError(w, ctx, span, err, "failed to write custom extension", http.StatusInternalServerError)
 		return err
 	}
@@ -2266,27 +2357,67 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 }
 
 // findMatchingContextName checks all contexts, returning the key for whichever
-// has a matching customObj.CustomName, if any.
+// has a matching customObj.CustomName, if any. It also handles the case where
+// the clusterName is a DNS-friendly version of the original context key
+// (e.g. slashes replaced with double dashes by MakeDNSFriendly).
+//
+// Resolution order:
+//  1. Custom name match (headlamp_info extension) — highest priority, returns immediately.
+//  2. Exact key match — avoids DNS-friendly ambiguity when the name already exists verbatim.
+//  3. DNS-friendly match — collects all candidates; warns and picks the
+//     lexicographically first one when multiple keys map to the same form.
 func findMatchingContextName(config *api.Config, clusterName string) string {
-	contextName := clusterName
-
+	// 1. Custom name takes priority: return the real context key immediately.
 	for k, v := range config.Contexts {
 		info := v.Extensions["headlamp_info"]
-		if info != nil {
-			customObj, err := MarshalCustomObject(info, contextName)
-			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
-					err, "marshaling custom object")
-				continue
-			}
+		if info == nil {
+			continue
+		}
 
-			if customObj.CustomName != "" && customObj.CustomName == clusterName {
-				contextName = k
-			}
+		customObj, err := MarshalCustomObject(info, k)
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"cluster": k},
+				err, "marshaling custom object")
+
+			continue
+		}
+
+		if customObj.CustomName != "" && customObj.CustomName == clusterName {
+			return k
 		}
 	}
 
-	return contextName
+	// 2. Exact key match: clusterName is already a verbatim context key.
+	if _, ok := config.Contexts[clusterName]; ok {
+		return clusterName
+	}
+
+	// 3. DNS-friendly match: collect all keys whose DNS-friendly form matches.
+	// Sorting makes the selection deterministic when multiple keys collide.
+	var matches []string
+
+	for k := range config.Contexts {
+		if kubeconfig.MakeDNSFriendly(k) == clusterName {
+			matches = append(matches, k)
+		}
+	}
+
+	switch len(matches) {
+	case 1:
+		return matches[0]
+	case 0:
+		return clusterName
+	default:
+		sort.Strings(matches)
+		logger.Log(logger.LevelWarn,
+			map[string]string{"clusterName": clusterName},
+			nil,
+			fmt.Sprintf("ambiguous DNS-friendly cluster name %q matches multiple context keys %v; using %q",
+				clusterName, matches, matches[0]),
+		)
+
+		return matches[0]
+	}
 }
 
 // checkUniqueName returns false if 'newName' is already in 'names', otherwise returns true.
@@ -2448,7 +2579,7 @@ func (c *HeadlampConfig) drainNode(clientset *kubernetes.Clientset, nodeName str
 
 		for _, pod := range pods.Items {
 			// ignore daemonsets
-			if pod.ObjectMeta.Labels["kubernetes.io/created-by"] == "daemonset-controller" {
+			if pod.Labels["kubernetes.io/created-by"] == "daemonset-controller" {
 				continue
 			}
 

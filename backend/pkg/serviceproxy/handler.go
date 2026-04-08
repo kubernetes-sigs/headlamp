@@ -117,7 +117,7 @@ func handleServiceProxy(conn ServiceConnection, requestURI string, w http.Respon
 		return
 	}
 
-	_, err = w.Write(resp)
+	_, err = w.Write(resp) //nolint:gosec
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "writing response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)

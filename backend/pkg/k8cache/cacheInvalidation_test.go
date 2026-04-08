@@ -126,7 +126,7 @@ func TestSkipWebSocket(t *testing.T) {
 				handlerCalled = true
 			})
 
-			req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ws", nil)
 			if tt.connectionHdr != "" {
 				req.Header.Set("Connection", tt.connectionHdr)
 			}
@@ -312,7 +312,6 @@ func TestRunInformerToWatch(t *testing.T) { //nolint: funlen
 				}
 
 				_, err := mockCache.Get(context.Background(), podKey)
-
 				if err == nil {
 					return false
 				}

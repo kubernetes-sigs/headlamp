@@ -124,7 +124,7 @@ export default function Overview() {
       <SectionBox py={2} mt={1}>
         <Grid container justifyContent="flex-start" alignItems="flex-start" spacing={2}>
           {workloads.map(workload => (
-            <Grid item lg={3} md={4} xs={6} key={workload.className}>
+            <Grid item lg={3} md={4} xs={6} key={workload.className} style={{ minWidth: 0 }}>
               <WorkloadCircleChart
                 workloadData={workloadsData[workload.className] || null}
                 title={<ChartLink workload={workload} />}

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+export * from './A8RInfo';
+export { default as A8RInfo } from './A8RInfo';
 export * from './CircularChart';
 export * from './MetadataDisplay';
 export * from './EnvVarGrid';

@@ -2,8 +2,8 @@
 version: 1
 default_agent: "@dev-agent"
 
-> **Consulted files (agent must populate before committing):**  
-> 
+> **Consulted files (agent must populate before committing):**
+>
 > **README.md files:**
 > - `/README.md` - Main project README
 > - `/frontend/README.md` - Frontend-specific README
@@ -46,7 +46,7 @@ default_agent: "@dev-agent"
 >
 > **Build/Config files:**
 > - `/package.json` - Root package with all npm scripts and Node.js version (>=20.11.1)
-> - `/backend/go.mod` - Go version (1.24.13)
+> - `/backend/go.mod` - Go version (1.25.8)
 > - `/CONTRIBUTING.md` - Contributing guidelines
 > - `/OWNERS` - Code reviewers and approvers
 
@@ -71,10 +71,10 @@ should NOT unless explicitly requested or strictly necessary for the change
 
 ### Tech stack and environment
 - **Languages:** TypeScript (frontend), Go (backend).
-- **Runtimes/tools:** 
+- **Runtimes/tools:**
   - Node.js >=20.11.1 (specified in `/package.json` engines field)
   - npm >=10.0.0 (specified in `/package.json` engines field)
-  - Go 1.24.13 (specified in `/backend/go.mod`)
+  - Go 1.25.8 (specified in `/backend/go.mod`)
 - **Reproduce locally:** Use commands from `/package.json` scripts section and documentation files listed above.
 
 ---
@@ -136,11 +136,11 @@ should NOT unless explicitly requested or strictly necessary for the change
 ---
 
 ### Allowed commands and CI interactions
-- **Permitted to suggest/run locally:** 
+- **Permitted to suggest/run locally:**
   - All npm scripts from `/package.json`
   - Go commands: `go build`, `go test`, `go fmt` (documented in `/docs/development/backend.md`)
   - Node/npm commands: `npm install`, `npm run build`, `npm run test`, `npm start`
-- **Require human approval:** 
+- **Require human approval:**
   - Pushing container images (references in `/docs/development/index.md`)
   - Publishing releases (process documented in `/docs/development/release-guide.md`)
   - Modifying `.github/workflows/*`
@@ -152,7 +152,7 @@ should NOT unless explicitly requested or strictly necessary for the change
 ---
 
 ### Change rules and safety constraints
-- **Manual-review-only:** 
+- **Manual-review-only:**
   - `.github/workflows/*` - CI workflows
   - `Dockerfile`, `Dockerfile.plugins` - container definitions
   - `charts/` - Helm charts
@@ -161,7 +161,7 @@ should NOT unless explicitly requested or strictly necessary for the change
   - `OWNERS`, `OWNERS_ALIASES` - maintainer lists (documented in `/OWNERS`)
   - `LICENSE`, `NOTICE` - license files
   - `code-of-conduct.md` - code of conduct
-- **Pre-change checks:** 
+- **Pre-change checks:**
   - Run `npm run lint` (from `/package.json`)
   - Run `npm test` (from `/package.json`)
   - Run `npm run backend:test` for backend changes (from `/package.json`)
@@ -170,18 +170,18 @@ should NOT unless explicitly requested or strictly necessary for the change
   - Run `npm run frontend:lint:fix` for frontend code formatting (from `/package.json`)
   - Run TypeScript compiler: `npm run frontend:tsc` (from `/package.json`) or `npm run app:tsc` (from `/package.json`)
   - Run e2e tests for UI changes: `npm run app:test:e2e` (from `/package.json`)
-- **Dependency updates:** 
+- **Dependency updates:**
   - Run full test suite: `npm test`
   - Tag maintainers from `/OWNERS` (headlamp-maintainers, headlamp-reviewers)
   - Do not bump major versions without approval
-- **Licenses/copyright:** 
+- **Licenses/copyright:**
   - Do not alter `/LICENSE` or `/NOTICE` files
   - Do not modify copyright headers
 
 ---
 
 ### Best practices and coding guidelines
-- **Reduce solution size:** 
+- **Reduce solution size:**
   - Make minimal, surgical changes - modify as few lines as possible to achieve the goal
   - Prefer focused, single-purpose changes over large refactors
   - Break down complex changes into smaller, reviewable increments
@@ -258,9 +258,12 @@ should NOT unless explicitly requested or strictly necessary for the change
 
 ---
 
-### PR description & commit message format
+### PR review and authoring policy
 
-Reference: `/docs/contributing.md` and `/.github/pull_request_template.md`
+Reference sources:
+- `/.github/copilot-instructions.md` for Copilot PR review rules.
+- `/docs/contributing.md` for commit message and PR description guidance.
+- `/.github/pull_request_template.md` for PR body structure.
 
 #### Commit message format (from `/docs/contributing.md`):
 - **Format:** `<area>: <description of changes>`
@@ -283,7 +286,7 @@ Reference: `/docs/contributing.md` and `/.github/pull_request_template.md`
 - **Screenshots:** Include for UI changes
 - **Notes for the Reviewer:** Any relevant context or areas to focus on
 
-#### PR guidelines (from `/docs/contributing.md`):
+#### PR authoring guidelines (from `/docs/contributing.md`):
 - Run tests: `npm run frontend:test`, `npm run backend:test`
 - Run linters: `npm run frontend:lint`, `npm run backend:lint`
 - Summarize changes and explain _why_ they are needed
@@ -297,19 +300,19 @@ Reference: `/docs/contributing.md` and `/.github/pull_request_template.md`
 - **Sources:** list consulted README/docs file paths with specific line numbers
 - **Files changed:** explicit file list with rationale for each
 - **Diff/patch:** minimal unified diff showing only necessary changes
-- **Tests:** 
+- **Tests:**
   - List tests added/updated
   - Exact commands to run them (from `/package.json`)
   - Test results showing pass status
-- **Local validation:** 
+- **Local validation:**
   - Exact commands to reproduce build/test results
   - Output showing successful execution
   - For frontend: verify in browser at `localhost:3000` (from `/docs/development/frontend.md`)
   - For backend: verify server starts successfully (from `/docs/development/backend.md`)
-- **CI expectations:** 
+- **CI expectations:**
   - Which workflows in `.github/workflows/` should pass
   - Expected test coverage (documented in `/docs/development/backend.md` lines 60-67)
-- **Reviewers:** 
+- **Reviewers:**
   - Suggested reviewers from `/OWNERS`: headlamp-maintainers, headlamp-reviewers
   - Tag specific maintainers for specialized areas if needed
 
@@ -374,7 +377,7 @@ Reference: `/docs/contributing.md` and `/.github/pull_request_template.md`
 **Version Information:**
 - Node.js: >=20.11.1 (from `/package.json`)
 - npm: >=10.0.0 (from `/package.json`)
-- Go: 1.24.13 (from `/backend/go.mod`)
+- Go: 1.25.8 (from `/backend/go.mod`)
 
 **Key Command Sources:**
 - Build/test commands: `/package.json`

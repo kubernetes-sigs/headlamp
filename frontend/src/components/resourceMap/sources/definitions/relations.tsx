@@ -69,7 +69,16 @@ const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
     const fromObject = fromNode.kubeObject as InstanceType<From>;
     const toObject = toNode.kubeObject as InstanceType<To>;
 
-    return fromObject.cluster === toObject.cluster && Boolean(selector(fromObject, toObject));
+    const hasSameNamespace =
+      !fromObject.metadata?.namespace || !toObject.metadata?.namespace
+        ? true
+        : fromObject.metadata.namespace === toObject.metadata.namespace;
+
+    return (
+      fromObject.cluster === toObject.cluster &&
+      hasSameNamespace &&
+      Boolean(selector(fromObject, toObject))
+    );
   },
 });
 
@@ -266,38 +275,37 @@ const backendTrafficPolicyToService = makeRelation(
     trafficPolicy.spec.targetRef?.kind === 'Service'
 );
 
+const staticRelations = [
+  configMapUsedInPods,
+  configMapUsedInJobs,
+  secretsUsedInPods,
+  secretsUsedInJobs,
+  hpaToDeployment,
+  hpaToStatefulSet,
+  vwcToService,
+  mwcToService,
+  serviceToPods,
+  endpointsToServices,
+  endpointSlicesToServices,
+  ingressToService,
+  ingressToSecret,
+  networkPolicyToPod,
+  roleBindingsToRole,
+  roleBindingToServiceAccount,
+  serviceAccountToDeployments,
+  serviceAccountToDaemonSets,
+  pvcToPods,
+  podToOwner,
+  repliaceSetToOwner,
+  jobToCronJob,
+  gatewayToGatewayClass,
+  httpRouteToGateway,
+  httpRouteToService,
+  backendTLSPolicyToService,
+  backendTrafficPolicyToService,
+];
 export function useGetAllRelations(): Relation[] {
-  const staticRelations = [
-    configMapUsedInPods,
-    configMapUsedInJobs,
-    secretsUsedInPods,
-    secretsUsedInJobs,
-    hpaToDeployment,
-    hpaToStatefulSet,
-    vwcToService,
-    mwcToService,
-    serviceToPods,
-    endpointsToServices,
-    endpointSlicesToServices,
-    ingressToService,
-    ingressToSecret,
-    networkPolicyToPod,
-    roleBindingsToRole,
-    roleBindingToServiceAccount,
-    serviceAccountToDeployments,
-    serviceAccountToDaemonSets,
-    pvcToPods,
-    podToOwner,
-    repliaceSetToOwner,
-    jobToCronJob,
-    gatewayToGatewayClass,
-    httpRouteToGateway,
-    httpRouteToService,
-    backendTLSPolicyToService,
-    backendTrafficPolicyToService,
-  ];
-
   const crdRelations = useGetCRToOwnerRelations();
 
-  return [...staticRelations, ...crdRelations];
+  return useMemo(() => [...staticRelations, ...crdRelations], [crdRelations, staticRelations]);
 }

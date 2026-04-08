@@ -1,5 +1,7 @@
+version: "2"
+
 linters:
-  disable-all: false
+  default: none
   enable:
     - asciicheck
     - bodyclose
@@ -14,16 +16,11 @@ linters:
     - gocritic
     - gocyclo
     - godot
-    - gofmt
-    - gofumpt
-    - goimports
     - goprintffuncname
     - gosec
-    - gosimple
     - govet
     - ineffassign
     - lll
-    - govet
     - misspell
     - nakedret
     - nestif
@@ -32,17 +29,13 @@ linters:
     - prealloc
     - rowserrcheck
     - staticcheck
-    - unused
-    - stylecheck
     - testpackage
-    - typecheck
     - unconvert
     - unparam
     - unused
     - whitespace
-    - wsl
+    - wsl_v5
   disable:
-    - gci
     - gochecknoglobals
     - godox
     - err113
@@ -52,6 +45,11 @@ linters:
     - sqlclosecheck
     - depguard
 
-linters-settings:
-  gofmt:
-    simplify: true
+formatters:
+  enable:
+    - gofmt
+    - gofumpt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true

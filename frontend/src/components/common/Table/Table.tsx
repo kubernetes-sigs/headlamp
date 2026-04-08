@@ -48,7 +48,7 @@ import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
 import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
 import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
+import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { useShortcut } from '../../../lib/useShortcut';
 import { useURLState } from '../../../lib/util';
 import { useSettings } from '../../App/Settings/hook';
@@ -272,6 +272,9 @@ export default function Table<RowItem extends Record<string, any>>({
       const pagination = updater({ pageIndex: Number(page) - 1, pageSize: Number(pageSize) });
       setPage(pagination.pageIndex + 1);
       setPageSize(pagination.pageSize);
+      if (pagination.pageSize !== Number(pageSize)) {
+        setTablesRowsPerPage(pagination.pageSize);
+      }
     },
     onGlobalFilterChange: setGlobalFilter,
     renderToolbarInternalActions: props => {

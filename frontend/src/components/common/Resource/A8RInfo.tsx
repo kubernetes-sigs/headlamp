@@ -79,7 +79,7 @@ function isValidHttpUrl(value: string) {
 }
 
 /**
- * Parses Kubernetes service annotations and extracts a8r.io metadata items.
+ * Parses Kubernetes resource annotations and extracts a8r.io metadata items.
  *
  * Filters annotations starting with 'a8r.io/', maps them to display-friendly
  * metadata items with icons and labels, and sorts by preferred display order.
@@ -111,8 +111,8 @@ export function getA8RMetadata(annotations: Record<string, string> = {}): A8RMet
     });
 }
 
-export default function A8RServiceInfo({ annotations }: { annotations?: Record<string, string> }) {
-  const { t } = useTranslation();
+export default function A8RInfo({ annotations }: { annotations?: Record<string, string> }) {
+  const { t } = useTranslation(['glossary', 'translation']);
 
   const metadata = React.useMemo(() => getA8RMetadata(annotations), [annotations]);
 

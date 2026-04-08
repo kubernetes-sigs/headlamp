@@ -3,7 +3,7 @@
 ARG IMAGE_BASE=alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
 FROM ${IMAGE_BASE} AS image-base
 
-FROM --platform=${BUILDPLATFORM} golang:1.24.13@sha256:c29cdf32d47053ab0d914852d9c2ed2da12b3cf13079aaef1704ef21335e68a3 AS backend-build
+FROM --platform=${BUILDPLATFORM} golang:1.25.8@sha256:f55a6ec7f24aedc1ed66e2641fdc52de01f2d24d6e49d1fa38582c07dd5f601d AS backend-build
 
 WORKDIR /headlamp
 
@@ -11,10 +11,10 @@ ARG TARGETOS
 ARG TARGETARCH
 ENV GOPATH=/go \
     GOPROXY=https://proxy.golang.org \
-	GO111MODULE=on\
-	CGO_ENABLED=0\ 
-	GOOS=${TARGETOS}\
-	GOARCH=${TARGETARCH}
+    GO111MODULE=on\
+    CGO_ENABLED=0\ 
+    GOOS=${TARGETOS}\
+    GOARCH=${TARGETARCH}
 
 # Keep go mod download separated so source changes don't trigger install
 COPY ./backend/go.* /headlamp/backend/
@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     cd ./backend && go build -o ./headlamp-server ./cmd/
 
-FROM --platform=${BUILDPLATFORM} node:22@sha256:379c51ac7bbf9bffe16769cfda3eb027d59d9c66ac314383da3fcf71b46d026c AS frontend-build
+FROM --platform=${BUILDPLATFORM} node:22@sha256:f90672bf4c76dfc077d17be4c115b1ae7731d2e8558b457d86bca42aeb193866 AS frontend-build
 
 # We need .git and app/ in order to get the version and git version for the frontend/.env file
 # that's generated when building the frontend.
@@ -75,13 +75,13 @@ RUN ./fetch-plugins.sh /plugins/
 FROM image-base AS final
 
 RUN if command -v apt-get > /dev/null; then \
-        apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates \
-        && addgroup --system headlamp \
-        && adduser --system --ingroup headlamp headlamp \
-        && rm -rf /var/lib/apt/lists/*; \
+    apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && addgroup --system headlamp \
+    && adduser --system --ingroup headlamp headlamp \
+    && rm -rf /var/lib/apt/lists/*; \
     else \
-        addgroup -S headlamp && adduser -S headlamp -G headlamp; \
+    addgroup -S headlamp && adduser -S headlamp -G headlamp; \
     fi
 
 COPY --from=backend-build --link /headlamp/backend/headlamp-server /headlamp/headlamp-server

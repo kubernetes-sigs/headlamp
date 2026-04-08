@@ -102,6 +102,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		TLSCertPath:            conf.TLSCertPath,
 		TLSKeyPath:             conf.TLSKeyPath,
 		SessionTTL:             conf.SessionTTL,
+		OidcUseCookie:          conf.OidcUseCookie,
 	}
 }
 
@@ -147,7 +148,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	}
 
 	if conf.OidcCAFile != "" {
-		caFileContents, err := os.ReadFile(conf.OidcCAFile)
+		caFileContents, err := os.ReadFile(conf.OidcCAFile) //nolint:gosec
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "reading oidc ca file")
 			os.Exit(1)

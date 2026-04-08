@@ -105,7 +105,7 @@ func getFreePort() (int, error) {
 		return 0, err
 	}
 
-	defer l.Close()
+	defer func() { _ = l.Close() }()
 
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
@@ -432,10 +432,12 @@ func runAndMonitorPortForward(
 			pfDetails.Error = err.Error()
 
 			portforwardstore(cache, *pfDetails)
+
 			select {
 			case forwardErrChan <- err:
 			default:
 			}
+
 			safeCloseChan(pfDetails.closeChan)
 		} else {
 			logger.Log(logger.LevelInfo, logParams, nil, "ForwardPorts() exited.")

@@ -28,7 +28,9 @@ const BACKSTAGE_TOKEN_STORAGE_KEY = 'backstage_token';
  * @param token - the token to set
  */
 function setBackstageToken(token: string) {
-  localStorage.setItem(BACKSTAGE_TOKEN_STORAGE_KEY, token);
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(BACKSTAGE_TOKEN_STORAGE_KEY, token);
+  }
 }
 
 /**
@@ -37,7 +39,10 @@ function setBackstageToken(token: string) {
  * @returns the backstage token
  */
 export function getBackstageToken(): string | null {
-  return localStorage.getItem(BACKSTAGE_TOKEN_STORAGE_KEY);
+  if (typeof localStorage !== 'undefined') {
+    return localStorage.getItem(BACKSTAGE_TOKEN_STORAGE_KEY);
+  }
+  return null;
 }
 
 /**

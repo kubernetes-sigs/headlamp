@@ -29,6 +29,7 @@ const avoidCheck = [
 ];
 
 const checkExports = [
+  'A8RInfo',
   'CircularChart',
   'CreateButton',
   'CopyButton',

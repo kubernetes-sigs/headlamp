@@ -41,6 +41,7 @@ import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import i18n from './i18next.config';
+import MCPClient from './mcp/MCPClient';
 import {
   addToPath,
   ArtifactHubHeadlampPkg,
@@ -53,11 +54,18 @@ import {
 import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
 import windowSize from './windowSize';
 
+if (process.env.APPIMAGE) {
+  app.commandLine.appendSwitch('disable-setuid-sandbox');
+}
+
 let isRunningScript = false;
 if (process.env.HEADLAMP_RUN_SCRIPT) {
   isRunningScript = true;
   runScript();
 }
+
+// Enabled by default, set HEADLAMP_MCP_ENABLE=false to disable MCP features
+const ENABLE_MCP = process.env.HEADLAMP_MCP_ENABLE !== 'false';
 
 dotenv.config({ path: path.join(process.resourcesPath, '.env') });
 
@@ -140,6 +148,7 @@ const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false'
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
+let mcpClient: MCPClient | null = null;
 
 /**
  * `Action` is an interface for an action to be performed by the plugin manager.
@@ -763,7 +772,7 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   // Pass a token to the backend that can be used for auth on some routes
   process.env.HEADLAMP_BACKEND_TOKEN = backendToken;
 
-  // Set the bundled plugins in addition to the the user's plugins.
+  // Set the bundled plugins in addition to the user's plugins.
   try {
     const stat = await fsPromises.stat(bundledPlugins);
     if (stat.isDirectory()) {
@@ -1717,6 +1726,14 @@ function startElectron() {
     if (userPluginBinDirs.length > 0) {
       addToPath(userPluginBinDirs, 'userPluginBinDirs plugin');
     }
+
+    if (ENABLE_MCP) {
+      const configPath = path.join(app.getPath('userData'), 'mcp-tools-config.json');
+      const settingsPath = path.join(app.getPath('userData'), 'mcp-tools-settings.json');
+      mcpClient = new MCPClient(configPath, settingsPath);
+      await mcpClient.initialize();
+      mcpClient.setMainWindow(mainWindow);
+    }
   }
 
   if (disableGPU) {
@@ -1747,11 +1764,20 @@ function startElectron() {
 
   app.once('window-all-closed', app.quit);
 
-  app.once('before-quit', () => {
+  app.once('before-quit', async () => {
     saveZoomFactor(cachedZoom);
     i18n.off('languageChanged');
     if (mainWindow) {
       mainWindow.removeAllListeners('close');
+    }
+
+    if (mcpClient) {
+      try {
+        await mcpClient.cleanup();
+        mcpClient = null;
+      } catch (err) {
+        console.error('Failed to clean up mcpClient:', err);
+      }
     }
   });
 }

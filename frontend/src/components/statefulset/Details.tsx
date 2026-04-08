@@ -21,6 +21,7 @@ import StatefulSet from '../../lib/k8s/statefulSet';
 import {
   ContainersSection,
   DetailsGrid,
+  LogsButton,
   MetadataDictGrid,
   OwnedPodsSection,
   RevisionHistorySection,
@@ -46,6 +47,10 @@ export default function StatefulSetDetails(props: {
       actions={item => {
         if (!item) return [];
         return [
+          {
+            id: 'headlamp.statefulset-logs',
+            action: <LogsButton key="logs" item={item} />,
+          },
           {
             id: 'headlamp.statefulset-rollback',
             action: <RollbackButton key="rollback" item={item} />,

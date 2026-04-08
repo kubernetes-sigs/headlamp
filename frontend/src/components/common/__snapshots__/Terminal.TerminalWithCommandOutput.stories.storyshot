@@ -9,7 +9,7 @@
     <div
       aria-hidden="true"
       class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
-      style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+      style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
     />
     <div
       data-testid="sentinelStart"
@@ -18,7 +18,7 @@
     <div
       class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
       role="presentation"
-      style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+      style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
       tabindex="-1"
     >
       <div
@@ -94,7 +94,7 @@
                 Container
               </label>
               <div
-                class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary MuiInputBase-formControl  css-m7fptp-MuiInputBase-root-MuiInput-root-MuiSelect-root"
+                class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary MuiInputBase-formControl css-m7fptp-MuiInputBase-root-MuiInput-root-MuiSelect-root"
               >
                 <div
                   aria-controls=":mock-test-id:"
@@ -134,10 +134,10 @@
           >
             <div
               id="xterm-container"
-              style="flex: 1; display: flex; flex-direction: column-reverse;"
+              style="flex: 1 1 0%; display: flex; flex-direction: column-reverse;"
             >
               <div
-                class="terminal xterm xterm-dom-renderer-owner"
+                class="terminal xterm xterm-dom-renderer-owner focus"
                 dir="ltr"
               >
                 <div
@@ -208,7 +208,7 @@
                   </style>
                   <div
                     aria-hidden="true"
-                    class="xterm-rows"
+                    class="xterm-rows xterm-focus"
                     style="line-height: normal; letter-spacing: 0px;"
                   >
                     <div
@@ -259,7 +259,9 @@
                       <span>
                         user@mock-pod:~$ 
                       </span>
-                      <span>
+                      <span
+                        class="xterm-cursor xterm-cursor-blink xterm-cursor-underline"
+                      >
                          
                       </span>
                     </div>

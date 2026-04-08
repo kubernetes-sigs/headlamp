@@ -16,16 +16,17 @@ func HTTPGet(ctx context.Context, uri string) ([]byte, error) {
 
 	logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf("make request to %s", uri))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil) //nolint:gosec
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %v", err)
 	}
 
-	resp, err := cli.Do(req)
+	resp, err := cli.Do(req) //nolint:gosec
 	if err != nil {
 		return nil, fmt.Errorf("failed HTTP GET: %v", err)
 	}
-	defer resp.Body.Close()
+
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed HTTP GET, status code %v", resp.StatusCode)

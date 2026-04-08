@@ -136,7 +136,8 @@ func TestStartPortForward(t *testing.T) {
 	portforward.StartPortForward(kubeConfigStore, ch, resp, req)
 
 	res := resp.Result()
-	defer res.Body.Close()
+
+	defer func() { _ = res.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, res.StatusCode, "StartPortForward API call failed")
 
@@ -146,6 +147,7 @@ func TestStartPortForward(t *testing.T) {
 	require.Contains(t, string(data), targetPort)
 
 	var pfRespPayload map[string]interface{}
+
 	err = json.Unmarshal(data, &pfRespPayload)
 	require.NoError(t, err)
 
@@ -171,7 +173,7 @@ func TestStartPortForward(t *testing.T) {
 	pfResp, err := httpClient.Do(pfReq)
 	require.NoError(t, err, "failed to connect through port-forward to %s. Port-forward might not be active.", targetURL)
 
-	defer pfResp.Body.Close() // Line 181: This defer is now un-cuddled
+	defer func() { _ = pfResp.Body.Close() }() // Line 181: This defer is now un-cuddled
 
 	if pfResp.StatusCode != http.StatusOK {
 		t.Logf("Warning: Received status %d from forwarded port. "+
@@ -205,7 +207,8 @@ func TestStartPortForward(t *testing.T) {
 	portforward.StopOrDeletePortForward(ch, stopResp, stopReq)
 
 	stopRes := stopResp.Result()
-	defer stopRes.Body.Close()
+
+	defer func() { _ = stopRes.Body.Close() }()
 
 	stopRespBody, err := io.ReadAll(stopRes.Body)
 	require.NoError(t, err)
@@ -230,7 +233,9 @@ func TestStartPortForward(t *testing.T) {
 	portforward.GetPortForwards(ch, listResp, listReq)
 
 	listRes := listResp.Result()
-	defer listRes.Body.Close()
+
+	defer func() { _ = listRes.Body.Close() }()
+
 	require.Equal(t, http.StatusOK, listRes.StatusCode)
 
 	listData, err := io.ReadAll(listRes.Body)
@@ -238,6 +243,7 @@ func TestStartPortForward(t *testing.T) {
 	require.NotEmpty(t, listData)
 
 	var pfListRespPayload []map[string]interface{}
+
 	err = json.Unmarshal(listData, &pfListRespPayload)
 	require.NoError(t, err)
 	assert.NotEmpty(t, pfListRespPayload)
@@ -277,13 +283,16 @@ func TestStartPortForward(t *testing.T) {
 	portforward.GetPortForwardByID(ch, getResp, getReq)
 
 	getRes := getResp.Result()
-	defer getRes.Body.Close()
+
+	defer func() { _ = getRes.Body.Close() }()
+
 	require.Equal(t, http.StatusOK, getRes.StatusCode)
 
 	getData, err := io.ReadAll(getRes.Body)
 	require.NoError(t, err)
 
 	var pfRespPayloadByID map[string]interface{}
+
 	err = json.Unmarshal(getData, &pfRespPayloadByID)
 	require.NoError(t, err)
 	assert.NotEmpty(t, pfRespPayloadByID)
@@ -309,7 +318,8 @@ func TestStartPortForward(t *testing.T) {
 	portforward.StopOrDeletePortForward(ch, deleteResp, deleteReq)
 
 	deleteRes := deleteResp.Result()
-	defer deleteRes.Body.Close()
+
+	defer func() { _ = deleteRes.Body.Close() }()
 
 	deleteRespBody, err := io.ReadAll(deleteRes.Body)
 	require.NoError(t, err)

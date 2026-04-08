@@ -1,6 +1,7 @@
 package serviceproxy //nolint
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -181,11 +182,12 @@ func TestGetAuthToken(t *testing.T) {
 			name:        "token from cookie",
 			clusterName: "my-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.AddCookie(&http.Cookie{
 					Name:  "headlamp-auth-my-cluster.0",
 					Value: "cookie-token-xyz",
 				})
+
 				return req
 			},
 			expectedToken: "cookie-token-xyz",
@@ -195,8 +197,9 @@ func TestGetAuthToken(t *testing.T) {
 			name:        "token from Authorization header when no cookie exists",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.Header.Set("Authorization", "Bearer header-token-123")
+
 				return req
 			},
 			expectedToken: "header-token-123",
@@ -206,12 +209,13 @@ func TestGetAuthToken(t *testing.T) {
 			name:        "cookie takes precedence over Authorization header",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.AddCookie(&http.Cookie{
 					Name:  "headlamp-auth-test-cluster.0",
 					Value: "cookie-token-wins",
 				})
 				req.Header.Set("Authorization", "Bearer header-token-loses")
+
 				return req
 			},
 			expectedToken: "cookie-token-wins",
@@ -221,7 +225,7 @@ func TestGetAuthToken(t *testing.T) {
 			name:        "no Authorization header and no cookie returns error",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				return req
 			},
 			expectError: true,
@@ -231,8 +235,9 @@ func TestGetAuthToken(t *testing.T) {
 			name:        "Authorization header with only Bearer keyword",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.Header.Set("Authorization", "Bearer")
+
 				return req
 			},
 			expectedToken: "Bearer",
@@ -242,19 +247,21 @@ func TestGetAuthToken(t *testing.T) {
 			name:        "Authorization header with Bearer and space only - error",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.Header.Set("Authorization", "Bearer ")
+
 				return req
 			},
 			expectError: true,
 			errorMsg:    "unauthorized",
 		},
-		{
+		{ //nolint:gosec
 			name:        "valid token with Bearer prefix",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.Header.Set("Authorization", "Bearer valid-token-value")
+
 				return req
 			},
 			expectedToken: "valid-token-value",
@@ -264,8 +271,9 @@ func TestGetAuthToken(t *testing.T) {
 			name:        "Authorization header without Bearer prefix",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.Header.Set("Authorization", "just-a-token")
+
 				return req
 			},
 			expectedToken: "just-a-token",
@@ -404,7 +412,7 @@ func TestParseInfoFromRequest(t *testing.T) {
 		{
 			name: "standard case with all parameters",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET",
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
 					"/clusters/test-cluster/namespaces/test-namespace/services/test-service/proxy?request=/api/v1/data",
 					nil)
 				req = mux.SetURLVars(req, map[string]string{
@@ -412,6 +420,7 @@ func TestParseInfoFromRequest(t *testing.T) {
 					"namespace":   "test-namespace",
 					"name":        "test-service",
 				})
+
 				return req
 			},
 			expectedClusterName: "test-cluster",
@@ -422,7 +431,7 @@ func TestParseInfoFromRequest(t *testing.T) {
 		{
 			name: "cluster name with hyphens and numbers",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET",
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
 					"/clusters/prod-cluster-123/namespaces/kube-system/services/metrics-server/proxy?request=/metrics",
 					nil)
 				req = mux.SetURLVars(req, map[string]string{
@@ -430,6 +439,7 @@ func TestParseInfoFromRequest(t *testing.T) {
 					"namespace":   "kube-system",
 					"name":        "metrics-server",
 				})
+
 				return req
 			},
 			expectedClusterName: "prod-cluster-123",
@@ -441,12 +451,14 @@ func TestParseInfoFromRequest(t *testing.T) {
 			name: "request URI with query parameters",
 			setupRequest: func() *http.Request {
 				// The & in the request parameter needs to be URL encoded as %26
-				req := httptest.NewRequest("GET", "/proxy?request=/api/endpoint?param1=value1%26param2=value2", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
+					"/proxy?request=/api/endpoint?param1=value1%26param2=value2", nil)
 				req = mux.SetURLVars(req, map[string]string{
 					"clusterName": "my-cluster",
 					"namespace":   "default",
 					"name":        "my-service",
 				})
+
 				return req
 			},
 			expectedClusterName: "my-cluster",
@@ -457,12 +469,13 @@ func TestParseInfoFromRequest(t *testing.T) {
 		{
 			name: "empty request URI parameter",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/proxy", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/proxy", nil)
 				req = mux.SetURLVars(req, map[string]string{
 					"clusterName": "cluster1",
 					"namespace":   "ns1",
 					"name":        "svc1",
 				})
+
 				return req
 			},
 			expectedClusterName: "cluster1",
@@ -473,12 +486,14 @@ func TestParseInfoFromRequest(t *testing.T) {
 		{
 			name: "request URI with special characters encoded",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/proxy?request=/api/v1/users%2F123%2Fprofile", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
+					"/proxy?request=/api/v1/users%2F123%2Fprofile", nil)
 				req = mux.SetURLVars(req, map[string]string{
 					"clusterName": "test",
 					"namespace":   "app",
 					"name":        "backend",
 				})
+
 				return req
 			},
 			expectedClusterName: "test",
@@ -489,7 +504,7 @@ func TestParseInfoFromRequest(t *testing.T) {
 		{
 			name: "missing mux variables returns empty strings",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/proxy?request=/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/proxy?request=/test", nil)
 				// Not setting any mux vars
 				return req
 			},
@@ -501,12 +516,13 @@ func TestParseInfoFromRequest(t *testing.T) {
 		{
 			name: "service name with dots (for headless services)",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/proxy?request=/health", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/proxy?request=/health", nil)
 				req = mux.SetURLVars(req, map[string]string{
 					"clusterName": "cluster",
 					"namespace":   "default",
 					"name":        "my-service.default.svc.cluster.local",
 				})
+
 				return req
 			},
 			expectedClusterName: "cluster",
@@ -518,12 +534,14 @@ func TestParseInfoFromRequest(t *testing.T) {
 			name: "complex request URI with path and multiple query params",
 			setupRequest: func() *http.Request {
 				// The & in the request parameter needs to be URL encoded as %26
-				req := httptest.NewRequest("GET", "/proxy?request=/api/v2/search?q=test%26limit=10%26offset=0", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
+					"/proxy?request=/api/v2/search?q=test%26limit=10%26offset=0", nil)
 				req = mux.SetURLVars(req, map[string]string{
 					"clusterName": "production",
 					"namespace":   "api-namespace",
 					"name":        "search-service",
 				})
+
 				return req
 			},
 			expectedClusterName: "production",

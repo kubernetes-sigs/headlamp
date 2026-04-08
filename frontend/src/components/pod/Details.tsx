@@ -496,7 +496,8 @@ export default function PodDetails(props: PodDetailsProps) {
   const { t } = useTranslation('glossary');
   const dispatchHeadlampEvent = useEventCallback();
 
-  const lastAutoLaunchedPod = React.useRef<string | null>(null);
+  const lastAutoLaunchedPodLogs = React.useRef<string | null>(null);
+  const lastAutoLaunchedPodExec = React.useRef<string | null>(null);
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const autoLaunchView = queryParams.get('view');
@@ -522,21 +523,67 @@ export default function PodDetails(props: PodDetailsProps) {
     [t, dispatchHeadlampEvent]
   );
 
+  const launchTerminal = React.useCallback(
+    (item: Pod) => {
+      const activityId = 'terminal-' + item.metadata.uid;
+      Activity.launch({
+        id: activityId,
+        title: item.metadata.name,
+        cluster: item.cluster,
+        icon: <Icon icon="mdi:console" width="100%" height="100%" />,
+        location: 'full',
+        content: (
+          <Terminal
+            noDialog
+            open
+            item={item}
+            onClose={() => Activity.close(activityId)}
+            isAttach={false}
+          />
+        ),
+      });
+      dispatchHeadlampEvent({
+        type: HeadlampEventType.TERMINAL,
+        data: {
+          resource: item,
+          status: EventStatus.OPENED,
+        },
+      });
+    },
+    [dispatchHeadlampEvent]
+  );
+
   React.useEffect(() => {
     if (autoLaunchView !== 'logs') {
-      lastAutoLaunchedPod.current = null;
+      lastAutoLaunchedPodLogs.current = null;
       return;
     }
 
     if (
       podItem &&
       autoLaunchView === 'logs' &&
-      lastAutoLaunchedPod.current !== podItem.metadata.uid
+      lastAutoLaunchedPodLogs.current !== podItem.metadata.uid
     ) {
-      lastAutoLaunchedPod.current = podItem.metadata.uid;
+      lastAutoLaunchedPodLogs.current = podItem.metadata.uid;
       launchLogs(podItem);
     }
   }, [podItem, launchLogs, autoLaunchView]);
+
+  React.useEffect(() => {
+    if (autoLaunchView !== 'exec') {
+      lastAutoLaunchedPodExec.current = null;
+      return;
+    }
+
+    if (
+      podItem &&
+      autoLaunchView === 'exec' &&
+      lastAutoLaunchedPodExec.current !== podItem.metadata.uid
+    ) {
+      lastAutoLaunchedPodExec.current = podItem.metadata.uid;
+      launchTerminal(podItem);
+    }
+  }, [podItem, launchTerminal, autoLaunchView]);
 
   function prepareExtraInfo(item: Pod | null) {
     let extraInfo: {
@@ -660,25 +707,7 @@ export default function PodDetails(props: PodDetailsProps) {
                 <ActionButton
                   description={t('Terminal / Exec')}
                   icon="mdi:console"
-                  onClick={() => {
-                    Activity.launch({
-                      id: 'terminal-' + item.metadata.uid,
-                      title: item.metadata.name,
-                      cluster: item.cluster,
-                      icon: <Icon icon="mdi:console" width="100%" height="100%" />,
-                      location: 'full',
-                      content: (
-                        <Terminal noDialog open item={item} onClose={() => {}} isAttach={false} />
-                      ),
-                    });
-                    dispatchHeadlampEvent({
-                      type: HeadlampEventType.TERMINAL,
-                      data: {
-                        resource: item,
-                        status: EventStatus.CLOSED,
-                      },
-                    });
-                  }}
+                  onClick={() => launchTerminal(item)}
                 />
               </AuthVisible>
             ),

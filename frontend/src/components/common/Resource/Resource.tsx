@@ -70,6 +70,7 @@ import InnerTable from '../InnerTable';
 import { DateLabel, HoverInfoLabel, StatusLabel, StatusLabelProps, ValueLabel } from '../Label';
 import Link, { LinkProps } from '../Link';
 import { metadataStyles } from '.';
+import A8RInfo from './A8RInfo';
 import { MainInfoSection, MainInfoSectionProps } from './MainInfoSection/MainInfoSection';
 import { MainInfoHeader } from './MainInfoSection/MainInfoSectionHeader';
 import { MetadataDictGrid, MetadataDisplay } from './MetadataDisplay';
@@ -285,6 +286,22 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
         </SectionBox>
       ),
     });
+  }
+
+  // a8r.io Metadata section — rendered for any resource that carries a8r.io/* annotations
+  if (item) {
+    const annotations = item.metadata?.annotations ?? {};
+    const hasA8r = Object.keys(annotations).some(key => key.startsWith('a8r.io/'));
+    if (hasA8r) {
+      sections.push({
+        id: 'headlamp.a8r-info',
+        section: (
+          <SectionBox title={t('a8r.io Metadata')}>
+            <A8RInfo annotations={annotations} />
+          </SectionBox>
+        ),
+      });
+    }
   }
 
   // Other sections
@@ -1591,11 +1608,12 @@ export function ContainerInfo(props: ContainerInfoProps) {
         name: t('Ports'),
         value: (
           <Grid container>
-            {container.ports?.map(({ containerPort, protocol }, index) => (
+            {container.ports?.map(({ containerPort, protocol, name }, index) => (
               <>
                 <Grid item xs={12} key={`port_line_${index}`}>
                   <Box display="flex" alignItems={'center'}>
                     <Box px={0.5} minWidth={120}>
+                      {name && <ValueLabel>{`${name} `}</ValueLabel>}
                       <ValueLabel>{`${protocol}:`}</ValueLabel>
                       <ValueLabel>{containerPort}</ValueLabel>
                     </Box>
@@ -1659,10 +1677,15 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
     fieldSelector: resource.kind === 'Node' ? `spec.nodeName=${resource.metadata.name}` : undefined,
     cluster: resource.cluster,
   };
+  const podMetricsQueryData = {
+    ...queryData,
+    // The metrics.k8s.io pod metrics list endpoint does not support spec.nodeName field selectors.
+    fieldSelector: undefined,
+  };
 
   const { items: pods, errors } = Pod.useList(queryData);
   const { items: podMetrics } = PodMetrics.useList({
-    ...queryData,
+    ...podMetricsQueryData,
     refetchInterval: METRIC_REFETCH_INTERVAL_MS,
   });
   const onlyOneNamespace = !!resource.metadata.namespace || resource.kind === 'Namespace';

@@ -162,7 +162,7 @@ func TestGetKindAndVerb(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(tc.method, tc.urlPath, nil)
+			req := httptest.NewRequestWithContext(context.Background(), tc.method, tc.urlPath, nil)
 			req = mux.SetURLVars(req, tc.muxVars)
 			kind, verb := k8cache.GetKindAndVerb(req)
 			assert.Equal(t, tc.expectedKind, kind)
@@ -202,7 +202,7 @@ func TestIsAllowed(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodGet, tc.urlObj.Path, nil)
+			r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tc.urlObj.Path, nil)
 
 			_, err := tc.mockK.ClientSetWithToken(tc.token)
 			_, _ = tc.mockK.ClientConfig()
@@ -220,7 +220,7 @@ func TestIsAllowed(t *testing.T) {
 func TestServeFromCacheOrForwardToK8s(t *testing.T) {
 	t.Run("stores on miss and serves on hit", func(t *testing.T) {
 		urlObj := url.URL{Path: "/clusters/kind-headlamp-admin/api/v1/pods"}
-		r := httptest.NewRequest(http.MethodGet, urlObj.Path, nil)
+		r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, urlObj.Path, nil)
 		cache := NewMockCache()
 
 		// First call should MISS the cache and invoke next.

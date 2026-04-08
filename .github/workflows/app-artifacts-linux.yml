@@ -27,7 +27,7 @@ jobs:
         node-version: 20.x
     - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
-        go-version: '1.24.*'
+        go-version: '1.25.*'
     - name: App linux
       run: |
         make app-linux

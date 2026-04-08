@@ -11,7 +11,7 @@ license ([Apache 2.0](https://github.com/kubernetes-sigs/headlamp/blob/main/LICE
 
 ## Code of Conduct
 
-Please refer to the Kinvolk [Code of Conduct](https://github.com/kinvolk/contribution/blob/master/CODE_OF_CONDUCT.md).
+Please refer to the [Kubernetes Community Code of Conduct](https://kubernetes.io/community/code-of-conduct/).
 
 ## Development practices
 
@@ -44,8 +44,7 @@ When submitting an issue, follow these guidelines to help maintainers address it
 
 ### Security issues
 
-For filing security issues that are sensitive and should not be public, please
-send an email to <security@headlamp.dev> .
+For filing security issues that are sensitive and should not be public, please see our [SECURITY.md](https://github.com/kubernetes-sigs/headlamp/blob/main/SECURITY.md).
 
 ## Submitting a Pull Request (PR)
 
@@ -68,13 +67,13 @@ Use **atomic commits** to keep each commit focused on a single change. Follow th
 
 `<area>: <description of changes>`
 
-- Both the title and the body of the commit message shoud not exceed
+- Both the title and the body of the commit message should not exceed
   72 characters in length.
   i.e. Please keep the title length under 72
   characters, and the wrap the body of the message at 72 characters.
 
 - Commits should be atomic and self-contained. Divide logically separate changes
-  to separate commits. This principle is best explained in the the Linux Kernel
+  to separate commits. This principle is best explained in the Linux Kernel
   [submitting patches](https://www.kernel.org/doc/html/v4.17/process/submitting-patches.html#separate-your-changes) guide.
 
 - Commit messages should explain the intention, _why_ something is done. This,
