@@ -3,7 +3,7 @@
 ARG IMAGE_BASE=alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
 FROM ${IMAGE_BASE} AS image-base
 
-FROM --platform=${BUILDPLATFORM} golang:1.25.8@sha256:dfae680962532eeea67ab297f1166c2c4e686edb9a8f05f9d02d96fc9191833e AS backend-build
+FROM --platform=${BUILDPLATFORM} golang:1.25.8@sha256:3ac2864710f25e84381bf5d4272261c7ba73ada0339d62034df4de20dabb33ca AS backend-build
 
 WORKDIR /headlamp
 
@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     cd ./backend && go build -o ./headlamp-server ./cmd/
 
-FROM --platform=${BUILDPLATFORM} node:22@sha256:7e791fc54bd02fc89fd4fb39eb37e5bea753c75679c8022478d81679367d995a AS frontend-build
+FROM --platform=${BUILDPLATFORM} node:22@sha256:ecabd1cb6956d7acfffe8af6bbfbe2df42362269fd28c227f36367213d0bb777 AS frontend-build
 
 # We need .git and app/ in order to get the version and git version for the frontend/.env file
 # that's generated when building the frontend.
