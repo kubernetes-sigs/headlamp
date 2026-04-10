@@ -89,6 +89,12 @@ func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) 
 
 	userID := r.Header.Get("X-HEADLAMP-USER-ID")
 	clusterName := mux.Vars(r)["clusterName"]
+	if clusterName == "" {
+		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
+		if len(parts) > 1 && parts[0] == "clusters" {
+			clusterName = parts[1]
+		}
+	}
 	// unique key for the context
 	key = clusterName + userID
 
