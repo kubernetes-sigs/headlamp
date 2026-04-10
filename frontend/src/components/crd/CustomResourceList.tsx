@@ -65,11 +65,11 @@ function CustomResourceLink(props: {
   return (
     <Link
       sx={{ cursor: 'pointer' }}
-      routeName={resource.metadata.namespace ? 'customresource' : 'clusterCustomResource'}
+      routeName="customresource"
       params={{
         crName: resource.metadata.name,
         crd: crd.metadata.name,
-        ...(resource.metadata.namespace && { namespace: resource.metadata.namespace }),
+        namespace: resource.metadata.namespace || '-',
       }}
       activeCluster={resource.cluster}
       {...otherProps}

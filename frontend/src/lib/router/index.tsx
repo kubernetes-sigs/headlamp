@@ -806,13 +806,7 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'crds',
     component: () => <CustomResourceDefinitionDetails />,
   },
-  clusterCustomResource: {
-    path: '/customresources/:crd/:crName',
-    exact: true,
-    name: 'Cluster Custom Resource',
-    sidebar: 'customresources',
-    component: () => <CustomResourceDetails />,
-  },
+
   customresource: {
     path: '/customresources/:crd/:namespace/:crName',
     exact: true,
