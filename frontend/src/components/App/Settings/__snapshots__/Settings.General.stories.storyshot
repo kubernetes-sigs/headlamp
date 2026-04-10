@@ -416,6 +416,83 @@
           </dd>
         </dl>
         <div
+          class="MuiBox-root css-j1fy4m"
+        >
+          <div
+            class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            >
+              <div
+                class="MuiBox-root css-70qvj9"
+              >
+                <h2
+                  class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+                >
+                  Experimental features
+                </h2>
+                <div
+                  class="MuiBox-root css-ldp2l3"
+                />
+              </div>
+            </div>
+          </div>
+          <div
+            class="MuiBox-root css-1txv3mw"
+          >
+            <dl
+              class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+            >
+              <dt
+                class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+                id="websocket-multiplexer-label"
+              >
+                WebSocket multiplexer
+              </dt>
+              <dd
+                class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+              >
+                <div
+                  class="MuiBox-root css-1821gv5"
+                >
+                  <div
+                    class="MuiBox-root css-1qocved"
+                  >
+                    <span
+                      class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
+                    >
+                      <span
+                        class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
+                      >
+                        <input
+                          aria-labelledby="websocket-multiplexer-label"
+                          class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
+                          type="checkbox"
+                        />
+                        <span
+                          class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
+                        />
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </span>
+                      <span
+                        class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
+                      />
+                    </span>
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+                    >
+                      Using the environment default: disabled
+                    </p>
+                  </div>
+                </div>
+              </dd>
+            </dl>
+          </div>
+        </div>
+        <div
           class="MuiBox-root css-1k57ox4"
         >
           <div

@@ -14,10 +14,18 @@
  * limitations under the License.
  */
 
-import { useTypedSelector } from '../../../redux/hooks';
+import { useTypedSelector } from '../redux/hooks';
 
-export const useSettings = function (settingName?: string) {
-  return useTypedSelector(state =>
-    settingName ? state.config.settings[settingName] : state.config.settings
-  );
-};
+export function getDefaultWebsocketMultiplexerEnabled(): boolean {
+  return import.meta.env.REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER === 'true';
+}
+
+export function getWebsocketMultiplexerEnabled(setting?: boolean | null): boolean {
+  return setting ?? getDefaultWebsocketMultiplexerEnabled();
+}
+
+export function useWebsocketMultiplexerEnabled(): boolean {
+  const setting = useTypedSelector(state => state.config.settings.websocketMultiplexerEnabled);
+
+  return getWebsocketMultiplexerEnabled(setting);
+}

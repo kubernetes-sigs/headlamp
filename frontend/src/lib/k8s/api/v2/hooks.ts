@@ -16,6 +16,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { useWebsocketMultiplexerEnabled } from '../../../../helpers/websocketMultiplexer';
 import { getCluster } from '../../../cluster';
 import type { QueryParameters } from '../../api/v1/queryParameters';
 import type { KubeObject, KubeObjectInterface } from '../../KubeObject';
@@ -26,7 +27,6 @@ import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { useWebSocket } from './multiplexer';
 import { kubeRequestRetry } from './retry';
-import { getWebsocketMultiplexerEnabled } from './useKubeObjectList';
 import { useWebSockets } from './webSocket';
 
 export type QueryStatus = 'pending' | 'success' | 'error';
@@ -124,15 +124,21 @@ export function useKubeObject<K extends KubeObject>({
     name
   );
 
-  const cleanedUpQueryParams = Object.fromEntries(
-    Object.entries(queryParams ?? {}).filter(([, value]) => value !== undefined && value !== '')
+  const cleanedUpQueryParamsKey = JSON.stringify(
+    Object.entries(queryParams ?? {})
+      .filter(([, value]) => value !== undefined && value !== '')
+      .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
+  );
+
+  const cleanedUpQueryParams = useMemo(
+    () => Object.fromEntries(JSON.parse(cleanedUpQueryParamsKey)),
+    [cleanedUpQueryParamsKey]
   );
 
   const queryKey = useMemo(
     () =>
       kubeObjectQueryKey({ cluster, name, namespace, endpoint, queryParams: cleanedUpQueryParams }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [endpoint, namespace, name]
+    [cleanedUpQueryParams, cluster, endpoint, name, namespace]
   );
 
   const client = useQueryClient();
@@ -174,10 +180,9 @@ export function useKubeObject<K extends KubeObject>({
         },
       },
     ];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [endpoint]);
+  }, [client, cluster, cleanedUpQueryParams, endpoint, kubeObjectClass, name, namespace, queryKey]);
 
-  const multiplexerEnabled = getWebsocketMultiplexerEnabled();
+  const multiplexerEnabled = useWebsocketMultiplexerEnabled();
 
   useWebSocket<KubeListUpdateEvent<K>>({
     url: () =>

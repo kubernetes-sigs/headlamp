@@ -78,6 +78,11 @@ export interface ConfigState {
     timezone: string;
     sidebarSortAlphabetically: boolean;
     useEvict: boolean;
+    /**
+     * websocketMultiplexerEnabled controls whether list watches use the WebSocket multiplexer.
+     * Undefined means "inherit the environment default".
+     */
+    websocketMultiplexerEnabled?: boolean;
     [key: string]: any;
   };
 }
@@ -141,6 +146,9 @@ function loadStoredSettings(): Partial<ConfigState['settings']> {
     if (isBoolean(parsedSettings.useEvict)) {
       sanitizedSettings.useEvict = parsedSettings.useEvict;
     }
+    if (isBoolean(parsedSettings.websocketMultiplexerEnabled)) {
+      sanitizedSettings.websocketMultiplexerEnabled = parsedSettings.websocketMultiplexerEnabled;
+    }
 
     return sanitizedSettings;
   } catch {
@@ -163,6 +171,7 @@ export const initialState: ConfigState = {
     timezone: storedSettings.timezone || defaultTimezone(),
     sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically ?? false,
     useEvict: storedSettings.useEvict ?? true,
+    websocketMultiplexerEnabled: storedSettings.websocketMultiplexerEnabled ?? undefined,
   },
 };
 

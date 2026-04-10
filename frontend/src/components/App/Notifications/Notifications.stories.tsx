@@ -21,6 +21,10 @@ import React from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { getTestDate } from '../../../helpers/testHelpers';
+import {
+  defaultTableRowsPerPageOptions,
+  initialState as configInitialState,
+} from '../../../redux/configSlice';
 import Notifications from './Notifications';
 import { Notification } from './notificationsSlice';
 
@@ -45,13 +49,26 @@ const createStore = (notifications: Notification[] = [], clusters = {}) =>
   configureStore({
     reducer: {
       notifications: (state = { notifications }) => state,
-      config: (state = { clusters }) => state,
+      config: (state = fixedConfigState(clusters)) => state,
     },
     preloadedState: {
       notifications: { notifications },
-      config: { clusters },
+      config: fixedConfigState(clusters),
     },
   });
+
+const fixedConfigState = (clusters = {}) => ({
+  ...configInitialState,
+  clusters,
+  settings: {
+    ...configInitialState.settings,
+    tableRowsPerPageOptions: defaultTableRowsPerPageOptions,
+    timezone: 'UTC',
+    sidebarSortAlphabetically: false,
+    useEvict: true,
+    websocketMultiplexerEnabled: undefined,
+  },
+});
 
 export default {
   title: 'Notifications',
