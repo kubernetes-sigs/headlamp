@@ -58,10 +58,10 @@ func newMinimalConfig() *HeadlampConfig {
 }
 
 // newNoopSpan returns a trace.Span interface backed by the noop provider.
-// Returning the interface (not the concrete noop.Span) avoids compiler type mismatch
-// when passing to functions that accept trace.Span.
+// Returning the interface avoids the "cannot use noop.Span as trace.Span" compiler error.
 func newNoopSpan() trace.Span {
 	_, sp := noop.NewTracerProvider().Tracer("test").Start(context.Background(), "test")
+
 	return sp
 }
 
@@ -152,7 +152,7 @@ func TestCreateHeadlampConfig_Basic(t *testing.T) {
 	assert.NotNil(t, cfg.Cache)
 	assert.NotNil(t, cfg.KubeConfigStore)
 	assert.NotNil(t, cfg.Multiplexer)
-	assert.Equal(t, uint(19999), cfg.Port)
+	assert.Equal(t, 19999, cfg.Port)
 	assert.Equal(t, "headlamp-test", cfg.TelemetryConfig.ServiceName)
 	assert.Equal(t, []string{"openid", "email"}, cfg.OidcScopes)
 	assert.Equal(t, []string{"http://proxy1.example.com", "http://proxy2.example.com"}, cfg.ProxyURLs)
@@ -161,9 +161,11 @@ func TestCreateHeadlampConfig_Basic(t *testing.T) {
 func TestCreateHeadlampConfig_WithOIDCCAFile(t *testing.T) {
 	tmpCA, err := os.CreateTemp(t.TempDir(), "ca-*.pem")
 	require.NoError(t, err)
+
 	_, err = tmpCA.WriteString("FAKE-CA-CERT")
 	require.NoError(t, err)
-	tmpCA.Close()
+
+	require.NoError(t, tmpCA.Close())
 
 	conf := makeTestConfig()
 	conf.OidcCAFile = tmpCA.Name()
@@ -198,7 +200,7 @@ func TestBuildHeadlampCFG(t *testing.T) {
 	assert.False(t, cfg.UseInCluster)
 	assert.Equal(t, "in-cluster-ctx", cfg.InClusterContextName)
 	assert.Equal(t, "/tmp/kube", cfg.KubeConfigPath)
-	assert.Equal(t, uint(9090), cfg.Port)
+	assert.Equal(t, 9090, cfg.Port)
 	assert.True(t, cfg.DevMode)
 	assert.True(t, cfg.EnableHelm)
 	assert.True(t, cfg.EnableDynamicClusters)
@@ -213,6 +215,7 @@ func TestBuildHeadlampCFG(t *testing.T) {
 func TestHandleServerStartError_NonAddrInUse(t *testing.T) {
 	// Generic error must NOT call os.Exit; function should return normally.
 	err := errors.New("some other error")
+
 	HandleServerStartError(&err)
 }
 
@@ -220,6 +223,7 @@ func TestHandleServerStartError_WrappedEADDRINUSE_DetectedByErrorsIs(t *testing.
 	// Verify errors.Is detects wrapped EADDRINUSE — the same check used inside the function.
 	// We cannot let os.Exit fire in the test process, so we only assert the detection logic.
 	wrapped := fmt.Errorf("bind failed: %w", syscall.EADDRINUSE)
+
 	assert.True(t, errors.Is(wrapped, syscall.EADDRINUSE))
 }
 
@@ -228,7 +232,11 @@ func TestHandleServerStartError_WrappedEADDRINUSE_DetectedByErrorsIs(t *testing.
 // ---------------------------------------------------------------------------
 
 func TestSetupGracefulShutdown_ServerDoneExits(t *testing.T) {
-	server := &http.Server{Addr: "127.0.0.1:0"}
+	server := &http.Server{ //nolint:gosec
+		Addr:              "127.0.0.1:0",
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	serverDone := make(chan struct{})
@@ -236,6 +244,7 @@ func TestSetupGracefulShutdown_ServerDoneExits(t *testing.T) {
 
 	// Simulate server stopping on its own.
 	close(serverDone)
+
 	time.Sleep(50 * time.Millisecond)
 
 	select {
@@ -257,6 +266,7 @@ func TestCacheMiddleWare_Disabled(t *testing.T) {
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
+
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -278,10 +288,12 @@ func TestHandleGetContextError_NoError(t *testing.T) {
 
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true })
+
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	w := httptest.NewRecorder()
 
 	handled := c.handleGetContextError(nil, "cluster", w, req, sp, context.Background(), time.Now(), next)
+
 	assert.False(t, handled)
 	assert.False(t, called)
 }
@@ -292,6 +304,7 @@ func TestHandleGetContextError_WithError(t *testing.T) {
 
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true })
+
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	w := httptest.NewRecorder()
 
@@ -299,6 +312,7 @@ func TestHandleGetContextError_WithError(t *testing.T) {
 		errors.New("context not found"),
 		"cluster", w, req, sp, context.Background(), time.Now(), next,
 	)
+
 	assert.True(t, handled)
 	assert.True(t, called, "next must be called on context error")
 }
@@ -313,10 +327,12 @@ func TestHandleOIDCAuthConfigError_NoError(t *testing.T) {
 
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true })
+
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	w := httptest.NewRecorder()
 
 	handled := c.handleOIDCAuthConfigError(nil, w, req, sp, context.Background(), time.Now(), next)
+
 	assert.False(t, handled)
 	assert.False(t, called)
 }
@@ -327,6 +343,7 @@ func TestHandleOIDCAuthConfigError_WithError(t *testing.T) {
 
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true })
+
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	w := httptest.NewRecorder()
 
@@ -334,6 +351,7 @@ func TestHandleOIDCAuthConfigError_WithError(t *testing.T) {
 		errors.New("no oidc config"),
 		w, req, sp, context.Background(), time.Now(), next,
 	)
+
 	assert.True(t, handled)
 	assert.True(t, called, "next must be called on OIDC config error")
 }
@@ -348,6 +366,7 @@ func TestServeWithNoCacheHeader(t *testing.T) {
 	})
 
 	handler := serveWithNoCacheHeader(inner)
+
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/plugins/foo.js", nil)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -366,6 +385,7 @@ func TestProcessManualConfig_Basic(t *testing.T) {
 	server := "https://manual.example.com"
 
 	contexts, errs := c.processManualConfig(ClusterReq{Name: &name, Server: &server})
+
 	assert.Empty(t, errs)
 	require.NotEmpty(t, contexts)
 	assert.Equal(t, name, contexts[0].Name)
@@ -382,6 +402,7 @@ func TestProcessManualConfig_WithInsecureTLS(t *testing.T) {
 		InsecureSkipTLSVerify:    true,
 		CertificateAuthorityData: []byte("fake-ca"),
 	})
+
 	assert.Empty(t, errs)
 	require.NotEmpty(t, contexts)
 	assert.Equal(t, name, contexts[0].Name)
@@ -394,17 +415,20 @@ func TestProcessManualConfig_WithInsecureTLS(t *testing.T) {
 func TestHandleDeleteCluster_NoRemoveKubeConfig(t *testing.T) {
 	c := newMinimalConfig()
 	sp := newNoopSpan()
+
 	req := httptest.NewRequestWithContext(context.Background(), "DELETE", "/cluster/test-cluster", nil)
 	w := httptest.NewRecorder()
 
 	// removeKubeConfig absent → just logs, no HTTP error written.
 	c.handleDeleteCluster(w, req, context.Background(), sp, "test-cluster")
+
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestHandleDeleteCluster_WithRemoveKubeConfig_BadFile(t *testing.T) {
 	c := newMinimalConfig()
 	sp := newNoopSpan()
+
 	req := httptest.NewRequestWithContext(
 		context.Background(), "DELETE",
 		"/cluster/test-cluster?removeKubeConfig=true&configPath=/nonexistent/file.yaml",
@@ -413,13 +437,15 @@ func TestHandleDeleteCluster_WithRemoveKubeConfig_BadFile(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	c.handleDeleteCluster(w, req, context.Background(), sp, "test-cluster")
+
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestHandleRemoveKubeConfig_UsesOriginalName(t *testing.T) {
 	c := newMinimalConfig()
 	sp := newNoopSpan()
-	// Both originalName and clusterID present → configName = originalName
+
+	// Both originalName and clusterID present → configName = originalName.
 	req := httptest.NewRequestWithContext(
 		context.Background(), "DELETE",
 		"/cluster/test?configPath=/nonexistent/kube.yaml&originalName=original&clusterID=abc",
@@ -428,13 +454,15 @@ func TestHandleRemoveKubeConfig_UsesOriginalName(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	c.handleRemoveKubeConfig(w, req, context.Background(), sp, "test")
+
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestHandleRemoveKubeConfig_FallsBackToClusterName(t *testing.T) {
 	c := newMinimalConfig()
 	sp := newNoopSpan()
-	// No originalName → configName = name arg ("test")
+
+	// No originalName → configName = name arg ("test").
 	req := httptest.NewRequestWithContext(
 		context.Background(), "DELETE",
 		"/cluster/test?configPath=/nonexistent/kube.yaml",
@@ -443,6 +471,7 @@ func TestHandleRemoveKubeConfig_FallsBackToClusterName(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	c.handleRemoveKubeConfig(w, req, context.Background(), sp, "test")
+
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
@@ -454,9 +483,10 @@ func TestHandleSetToken_MissingCluster(t *testing.T) {
 	c := newMinimalConfig()
 	handler := createHeadlampHandler(context.Background(), c)
 
-	// /auth/set-token has no {clusterName} mux var → cluster == "" → 400
+	// /auth/set-token has no {clusterName} mux var → cluster == "" → 400.
 	rr, err := getResponse(handler, "POST", "/auth/set-token", map[string]string{"token": "abc"})
 	require.NoError(t, err)
+
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
@@ -466,6 +496,7 @@ func TestHandleSetToken_ViaClusterRoute_WithToken(t *testing.T) {
 
 	rr, err := getResponse(handler, "POST", "/clusters/mycluster/set-token", map[string]string{"token": "my-token"})
 	require.NoError(t, err)
+
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
@@ -473,9 +504,10 @@ func TestHandleSetToken_ViaClusterRoute_EmptyToken(t *testing.T) {
 	c := newMinimalConfig()
 	handler := createHeadlampHandler(context.Background(), c)
 
-	// Empty token → ClearTokenCookie path
+	// Empty token → ClearTokenCookie path.
 	rr, err := getResponse(handler, "POST", "/clusters/mycluster/set-token", map[string]string{"token": ""})
 	require.NoError(t, err)
+
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
@@ -490,6 +522,7 @@ func TestHandleSetToken_InvalidJSON(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
+
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
@@ -499,11 +532,13 @@ func TestHandleSetToken_InvalidJSON(t *testing.T) {
 
 func TestHandleLoadErrors_NoErrors(t *testing.T) {
 	c := newMinimalConfig()
+
 	assert.Empty(t, c.handleLoadErrors(nil, nil))
 }
 
 func TestHandleLoadErrors_WithMainError(t *testing.T) {
 	c := newMinimalConfig()
+
 	errs := c.handleLoadErrors(errors.New("main error"), nil)
 	require.Len(t, errs, 1)
 	assert.EqualError(t, errs[0], "main error")
@@ -511,17 +546,21 @@ func TestHandleLoadErrors_WithMainError(t *testing.T) {
 
 func TestHandleLoadErrors_WithContextErrors(t *testing.T) {
 	c := newMinimalConfig()
+
 	ctxErrs := []kubeconfig.ContextLoadError{
 		{Error: errors.New("ctx err 1")},
 		{Error: errors.New("ctx err 2")},
 	}
+
 	errs := c.handleLoadErrors(nil, ctxErrs)
 	require.Len(t, errs, 2)
 }
 
 func TestHandleLoadErrors_BothErrors(t *testing.T) {
 	c := newMinimalConfig()
+
 	ctxErrs := []kubeconfig.ContextLoadError{{Error: errors.New("ctx err")}}
+
 	errs := c.handleLoadErrors(errors.New("main"), ctxErrs)
 	require.Len(t, errs, 2)
 }
@@ -536,6 +575,7 @@ func TestHandleSetupErrors_NoErrors(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	result := c.handleSetupErrors(nil, context.Background(), w, sp)
+
 	assert.Nil(t, result)
 	assert.Equal(t, http.StatusOK, w.Code)
 }
@@ -546,7 +586,9 @@ func TestHandleSetupErrors_WithErrors(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	errs := []error{errors.New("setup failed")}
+
 	result := c.handleSetupErrors(errs, context.Background(), w, sp)
+
 	assert.NotNil(t, result)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -570,6 +612,7 @@ func TestDecodeClusterRequest_ValidNameAndServer(t *testing.T) {
 
 func TestDecodeClusterRequest_KubeConfigOnly(t *testing.T) {
 	kc := "base64-data"
+
 	req, err := makeJSONReq("POST", "/cluster", map[string]interface{}{"kubeconfig": kc})
 	require.NoError(t, err)
 
@@ -611,6 +654,7 @@ func TestGetKubeConfigPath_KubeConfigSource(t *testing.T) {
 
 func TestGetKubeConfigPath_OtherSource(t *testing.T) {
 	c := newMinimalConfig()
+
 	// Any non-kubeconfig source calls defaultHeadlampKubeConfigFile(); may error in CI.
 	path, err := c.getKubeConfigPath("dynamic_cluster")
 	if err == nil {
@@ -624,6 +668,7 @@ func TestGetKubeConfigPath_OtherSource(t *testing.T) {
 
 func TestCopyStaticFiles_ValidDir(t *testing.T) {
 	srcDir := t.TempDir()
+
 	require.NoError(t, os.WriteFile(srcDir+"/index.html", []byte("<html></html>"), 0o600))
 
 	c := newMinimalConfig()
@@ -674,6 +719,7 @@ func TestProcessClusterRequest_RoutesToManualConfig(t *testing.T) {
 	server := "https://manual.example.com"
 
 	contexts, errs := c.processClusterRequest(ClusterReq{Name: &name, Server: &server})
+
 	assert.Empty(t, errs)
 	require.NotEmpty(t, contexts)
 	assert.Equal(t, name, contexts[0].Name)
@@ -681,9 +727,12 @@ func TestProcessClusterRequest_RoutesToManualConfig(t *testing.T) {
 
 func TestProcessClusterRequest_RoutesToKubeConfig(t *testing.T) {
 	c := newMinimalConfig()
+
 	// Invalid base64 → processKubeConfig returns errors, no contexts.
 	bad := "!!not-valid-base64!!"
+
 	contexts, errs := c.processClusterRequest(ClusterReq{KubeConfig: &bad})
+
 	assert.Empty(t, contexts)
 	assert.NotEmpty(t, errs)
 }
@@ -705,6 +754,7 @@ func TestParseCustomNameClusters_NoExtensions(t *testing.T) {
 	}
 
 	clusters, errs := parseCustomNameClusters(contexts)
+
 	assert.Empty(t, errs)
 	require.Len(t, clusters, 1)
 	assert.Equal(t, "plain-cluster", clusters[0].Name)
@@ -726,6 +776,7 @@ func TestParseCustomNameClusters_MultipleContexts(t *testing.T) {
 	}
 
 	clusters, errs := parseCustomNameClusters(contexts)
+
 	assert.Empty(t, errs)
 	assert.Len(t, clusters, 2)
 }

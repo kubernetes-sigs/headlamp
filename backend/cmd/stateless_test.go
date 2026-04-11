@@ -324,66 +324,6 @@ func TestWebsocketConnContextKey(t *testing.T) {
 	}
 }
 
-func TestMarshalCustomObject_UnmarshalError(t *testing.T) {
-	mockInfo := &runtime.Unknown{
-		Raw: []byte(`[1,2,3]`),
-	}
-
-	_, err := MarshalCustomObject(mockInfo, "ctx")
-	assert.Error(t, err, "expected unmarshal error for non-object JSON")
-}
-
-func TestMarshalCustomObject_EmptyCustomName(t *testing.T) {
-	mockInfo := &runtime.Unknown{
-		Raw: []byte(`{}`),
-	}
-
-	obj, err := MarshalCustomObject(mockInfo, "ctx")
-	assert.NoError(t, err)
-	assert.Empty(t, obj.CustomName)
-}
-
-func TestSetKeyInCache_NewContext(t *testing.T) {
-	store := kubeconfig.NewContextStore()
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: store,
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	ctx := kubeconfig.Context{
-		Name: "new-context",
-	}
-
-	err := c.setKeyInCache("new-context", ctx)
-	assert.NoError(t, err)
-}
-
-func TestSetKeyInCache_ExistingContext_UpdatesTTL(t *testing.T) {
-	store := kubeconfig.NewContextStore()
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: store,
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	ctx := kubeconfig.Context{Name: "existing"}
-
-	err := c.setKeyInCache("existing", ctx)
-	require.NoError(t, err)
-
-	err = c.setKeyInCache("existing", ctx)
-	assert.NoError(t, err)
-}
-
 func TestHandleStatelessReq_EmptyKubeConfig(t *testing.T) {
 	store := kubeconfig.NewContextStore()
 	c := &HeadlampConfig{
@@ -401,32 +341,6 @@ func TestHandleStatelessReq_EmptyKubeConfig(t *testing.T) {
 
 	_, err := c.handleStatelessReq(req, "not-valid-base64!!")
 	assert.Error(t, err)
-}
-
-func TestHandleStatelessReq_ValidKubeConfig(t *testing.T) {
-	kubeConfigByte, err := os.ReadFile("./headlamp_testdata/kubeconfig")
-	require.NoError(t, err)
-
-	kubeConfig := base64.StdEncoding.EncodeToString(kubeConfigByte)
-
-	store := kubeconfig.NewContextStore()
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore:       store,
-				EnableDynamicClusters: true,
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	req := httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/minikube/api", nil)
-	req.Header.Set("X-HEADLAMP-USER-ID", "user-123")
-
-	key, err := c.handleStatelessReq(req, kubeConfig)
-	assert.NoError(t, err)
-	assert.NotEmpty(t, key)
 }
 
 func TestParseKubeConfig_InvalidJSON(t *testing.T) {
@@ -455,65 +369,183 @@ func TestParseKubeConfig_InvalidJSON(t *testing.T) {
 	assert.True(t, rr.Code == http.StatusOK || rr.Code == http.StatusBadRequest)
 }
 
-func TestParseKubeConfig_EmptyKubeconfigs(t *testing.T) {
-	store := kubeconfig.NewContextStore()
-	c := &HeadlampConfig{
+func TestMarshalCustomObject_UnmarshalError(t *testing.T) {
+	// runtime.Unknown whose Raw is a JSON array — marshals fine but cannot
+	// unmarshal into CustomObject (which expects an object), so Unmarshal errors.
+	mockInfo := &runtime.Unknown{
+		Raw: []byte(`[1,2,3]`),
+	}
+
+	_, err := MarshalCustomObject(mockInfo, "ctx")
+	assert.Error(t, err, "expected unmarshal error for non-object JSON")
+}
+
+func TestMarshalCustomObject_EmptyCustomName(t *testing.T) {
+	mockInfo := &runtime.Unknown{
+		Raw: []byte(`{}`),
+	}
+
+	obj, err := MarshalCustomObject(mockInfo, "ctx")
+	assert.NoError(t, err)
+	assert.Empty(t, obj.CustomName)
+}
+
+// ---------------------------------------------------------------------------
+// setKeyInCache — both branches (currently 50%)
+// ---------------------------------------------------------------------------
+
+func newStatelessTestConfig(store kubeconfig.ContextStore) *HeadlampConfig {
+	return &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore:       store,
+				KubeConfigStore: store,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+}
+
+func TestSetKeyInCache_NewContext(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	c := newStatelessTestConfig(store)
+
+	ctx := kubeconfig.Context{Name: "new-context"}
+
+	// Key does not exist yet → AddContextWithKeyAndTTL path.
+	err := c.setKeyInCache("new-context", ctx)
+	assert.NoError(t, err)
+}
+
+func TestSetKeyInCache_ExistingContext_UpdatesTTL(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	c := newStatelessTestConfig(store)
+
+	ctx := kubeconfig.Context{Name: "existing"}
+
+	// First call: adds the context.
+	err := c.setKeyInCache("existing", ctx)
+	require.NoError(t, err)
+
+	// Second call: key exists → UpdateTTL path.
+	err = c.setKeyInCache("existing", ctx)
+	assert.NoError(t, err)
+}
+
+// ---------------------------------------------------------------------------
+// handleStatelessReq — additional branches (currently 50%)
+// ---------------------------------------------------------------------------
+
+func TestHandleStatelessReq_InvalidKubeConfig(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	c := newStatelessTestConfig(store)
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/test/api", nil)
+
+	_, err := c.handleStatelessReq(req, "!!not-valid-base64!!")
+	assert.Error(t, err)
+}
+
+func TestHandleStatelessReq_ValidKubeConfig(t *testing.T) {
+	kubeConfigByte, err := os.ReadFile("./headlamp_testdata/kubeconfig")
+	require.NoError(t, err)
+
+	kubeConfig := base64.StdEncoding.EncodeToString(kubeConfigByte)
+
+	store := kubeconfig.NewContextStore()
+	c := newStatelessTestConfig(store)
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/minikube/api", nil)
+	req.Header.Set("X-HEADLAMP-USER-ID", "user-123")
+
+	key, err := c.handleStatelessReq(req, kubeConfig)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, key)
+}
+
+// ---------------------------------------------------------------------------
+// parseKubeConfig endpoint — additional branches (currently 75%)
+// ---------------------------------------------------------------------------
+
+func newDynamicConfig() *HeadlampConfig {
+	return &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore:       kubeconfig.NewContextStore(),
 				EnableDynamicClusters: true,
 			},
 			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
 			TelemetryHandler: &telemetry.RequestHandler{},
 		},
 	}
+}
 
-	handler := createHeadlampHandler(context.Background(), c)
+func TestParseKubeConfig_EmptyKubeconfigs(t *testing.T) {
+	handler := createHeadlampHandler(context.Background(), newDynamicConfig())
 
-	rr, err := getResponseFromRestrictedEndpoint(handler, "POST", "/parseKubeConfig",
-		KubeconfigRequest{Kubeconfigs: []string{}})
+	rr, err := getResponseFromRestrictedEndpoint(
+		handler, "POST", "/parseKubeConfig",
+		KubeconfigRequest{Kubeconfigs: []string{}},
+	)
 	require.NoError(t, err)
+
+	// No kubeconfigs → parseClusterFromKubeConfig returns nil, nil → empty cluster list.
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
-func TestGetContextKeyForRequest_PlainRequest(t *testing.T) {
-	store := kubeconfig.NewContextStore()
-	c := &HeadlampConfig{
+func TestParseKubeConfig_InvalidBase64Entry(t *testing.T) {
+	handler := createHeadlampHandler(context.Background(), newDynamicConfig())
+
+	rr, err := getResponseFromRestrictedEndpoint(
+		handler, "POST", "/parseKubeConfig",
+		KubeconfigRequest{Kubeconfigs: []string{"!!not-base64!!"}},
+	)
+	require.NoError(t, err)
+
+	// Invalid base64 → setup errors → 400.
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+// ---------------------------------------------------------------------------
+// getContextKeyForRequest — additional branches (currently 76.9%)
+// ---------------------------------------------------------------------------
+
+func newContextKeyTestConfig(dynamic bool) *HeadlampConfig {
+	return &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore:       store,
-				EnableDynamicClusters: false,
+				KubeConfigStore:       kubeconfig.NewContextStore(),
+				EnableDynamicClusters: dynamic,
 			},
 			Cache:            cache.New[interface{}](),
 			TelemetryHandler: &telemetry.RequestHandler{},
 		},
 	}
+}
 
+func TestGetContextKeyForRequest_PlainRequest(t *testing.T) {
+	c := newContextKeyTestConfig(false)
+
+	// No KUBECONFIG header, dynamic clusters disabled → contextKey = clusterName from mux vars.
+	// Without a real mux router the var is empty — the function must not error.
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/mycluster/api", nil)
 
 	key, err := c.getContextKeyForRequest(req)
 	assert.NoError(t, err)
-	assert.Equal(t, "", key)
+	assert.Equal(t, "", key) // mux vars empty outside a real router
 }
 
 func TestGetContextKeyForRequest_WebSocketUpgrade(t *testing.T) {
-	store := kubeconfig.NewContextStore()
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore:       store,
-				EnableDynamicClusters: false,
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
+	c := newContextKeyTestConfig(false)
 
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/mycluster/api", nil)
 	req.Header.Set("Upgrade", "websocket")
 	req.Header.Set("Sec-Websocket-Protocol",
 		"base64url.headlamp.authorization.k8s.io.user42, v4.channel.k8s.io")
 
+	// WebSocket path: contextKey = clusterName + userID from protocol header.
+	// clusterName is "" (no mux vars), userID = "user42".
 	key, err := c.getContextKeyForRequest(req)
 	assert.NoError(t, err)
 	assert.Equal(t, "user42", key)

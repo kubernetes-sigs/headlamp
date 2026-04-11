@@ -2178,505 +2178,6 @@ func TestOidcUseCookieLogic(t *testing.T) {
 	}
 }
 
-func TestAddPluginListRoute_ReturnsPluginList(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	handler := createHeadlampHandler(context.Background(), c)
-
-	req := httptest.NewRequestWithContext(context.Background(), "GET", "/plugins", nil)
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
-
-	// Should be a valid JSON value (null or array)
-	var body interface{}
-	err := json.Unmarshal(rr.Body.Bytes(), &body)
-	assert.NoError(t, err)
-}
-
-func TestAddPluginDeleteRoute_MissingBackendToken(t *testing.T) {
-	tempDir := t.TempDir()
-	pluginDir := tempDir + "/plugins"
-	require.NoError(t, os.MkdirAll(pluginDir+"/myplugin", 0o750))
-	_, err := os.Create(pluginDir + "/myplugin/main.js") //nolint:gosec
-	require.NoError(t, err)
-
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-				UseInCluster:    false,
-				PluginDir:       pluginDir,
-				UserPluginDir:   tempDir + "/user-plugins",
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	handler := createHeadlampHandler(context.Background(), c)
-
-	// No backend token set → forbidden
-	req := httptest.NewRequestWithContext(context.Background(), "DELETE", "/plugins/myplugin", nil)
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusForbidden, rr.Code)
-}
-
-func TestGetClusters_WithErrorContext(t *testing.T) {
-	store := kubeconfig.NewContextStore()
-
-	// Add a context that carries an error
-	err := store.AddContext(&kubeconfig.Context{
-		Name:  "broken-ctx",
-		Error: "TLS handshake failure",
-	})
-	require.NoError(t, err)
-
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: store},
-			Cache:       cache.New[interface{}](),
-		},
-	}
-
-	clusters := c.getClusters()
-	require.Len(t, clusters, 1)
-	assert.Equal(t, "broken-ctx", clusters[0].Name)
-	assert.Equal(t, "TLS handshake failure", clusters[0].Error)
-}
-
-func TestGetClusters_InternalContextSkipped(t *testing.T) {
-	store := kubeconfig.NewContextStore()
-
-	// Internal contexts (stateless clusters) must not appear in getClusters.
-	err := store.AddContext(&kubeconfig.Context{
-		Name:     "stateless-ctx",
-		Internal: true,
-		KubeContext: &api.Context{
-			Cluster: "stateless-ctx",
-		},
-		Cluster: &api.Cluster{Server: "https://stateless.example.com"},
-	})
-	require.NoError(t, err)
-
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: store},
-			Cache:       cache.New[interface{}](),
-		},
-	}
-
-	clusters := c.getClusters()
-	assert.Empty(t, clusters, "internal contexts must not be returned by getClusters")
-}
-
-func TestGetClusters_NilKubeContext(t *testing.T) {
-	store := kubeconfig.NewContextStore()
-
-	// Context with nil KubeContext → defensive branch, should be skipped with a log.
-	err := store.AddContext(&kubeconfig.Context{
-		Name:        "nil-kubecontext",
-		KubeContext: nil,
-		Cluster:     &api.Cluster{Server: "https://nil.example.com"},
-	})
-	require.NoError(t, err)
-
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: store},
-			Cache:       cache.New[interface{}](),
-		},
-	}
-
-	clusters := c.getClusters()
-	assert.Empty(t, clusters, "context with nil KubeContext must be skipped")
-}
-
-func TestGetConfig_EncodesClusterList(t *testing.T) {
-	store := kubeconfig.NewContextStore()
-	require.NoError(t, store.AddContext(&kubeconfig.Context{
-		Name: "test-cluster",
-		KubeContext: &api.Context{
-			Cluster: "test-cluster",
-		},
-		Cluster: &api.Cluster{Server: "https://test.example.com"},
-	}))
-
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore:       store,
-				EnableDynamicClusters: true,
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	handler := createHeadlampHandler(context.Background(), c)
-
-	rr, err := getResponse(handler, "GET", "/config", nil)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, rr.Code)
-
-	var cfg clientConfig
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &cfg))
-	assert.True(t, cfg.IsDynamicClusterEnabled)
-}
-
-func TestDispatchHelmRoute_UnknownRoute(t *testing.T) {
-	require.NoError(t, os.Setenv("HEADLAMP_BACKEND_TOKEN", "test-token"))
-	defer func() { _ = os.Unsetenv("HEADLAMP_BACKEND_TOKEN") }()
-
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: kubeconfig.NewContextStore(), EnableHelm: true},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	require.NoError(t, c.KubeConfigStore.AddContext(&kubeconfig.Context{
-		Name:     "test-cluster",
-		Cluster:  &api.Cluster{Server: "https://test.example.com"},
-		AuthInfo: &api.AuthInfo{Token: "token"},
-	}))
-
-	handler := createHeadlampHandler(context.Background(), c)
-
-	req := httptest.NewRequestWithContext(
-		context.Background(), "GET", "/clusters/test-cluster/helm/unknown-endpoint", nil,
-	)
-	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "test-token")
-
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-}
-
-func TestHandleNodeDrain_MissingNodeName(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	handler := createHeadlampHandler(context.Background(), c)
-
-	rr, err := getResponse(handler, "POST", "/drain-node",
-		map[string]string{"cluster": "mycluster", "nodeName": ""})
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestHandleNodeDrain_MissingClusterName(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	handler := createHeadlampHandler(context.Background(), c)
-
-	rr, err := getResponse(handler, "POST", "/drain-node",
-		map[string]string{"cluster": "", "nodeName": "mynode"})
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestHandleNodeDrain_ClusterNotFound(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	handler := createHeadlampHandler(context.Background(), c)
-
-	rr, err := getResponse(handler, "POST", "/drain-node",
-		map[string]string{"cluster": "nonexistent", "nodeName": "mynode"})
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-}
-
-func TestHandleNodeDrainStatus_MissingNodeName(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	handler := createHeadlampHandler(context.Background(), c)
-
-	rr, err := getResponse(handler, "GET", "/drain-node-status?cluster=mycluster&nodeName=", nil)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestHandleNodeDrainStatus_MissingCluster(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	handler := createHeadlampHandler(context.Background(), c)
-
-	rr, err := getResponse(handler, "GET", "/drain-node-status?cluster=&nodeName=mynode", nil)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestHandleNodeDrainStatus_CacheKeyNotFound(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	handler := createHeadlampHandler(context.Background(), c)
-
-	// Cache has no entry for this node+cluster → 404
-	rr, err := getResponse(handler, "GET",
-		fmt.Sprintf("/drain-node-status?cluster=%s&nodeName=%s", "mycluster", "mynode"), nil)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-}
-
-func TestAddCluster_SetupErrors_ReturnsBadRequest(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore:       kubeconfig.NewContextStore(),
-				EnableDynamicClusters: true,
-				UseInCluster:          false,
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	handler := createHeadlampHandler(context.Background(), c)
-
-	// Send a kubeconfig that is valid base64 but not a real kubeconfig → setup errors.
-	badKubeConfig := "aGVsbG8=" // base64("hello")
-	rr, err := getResponseFromRestrictedEndpoint(handler, "POST", "/cluster",
-		ClusterReq{KubeConfig: &badKubeConfig})
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestCheckHeadlampBackendToken_InClusterBypass(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-				UseInCluster:    true, // in-cluster → always allowed
-			},
-			Cache: cache.New[interface{}](),
-		},
-	}
-
-	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
-	// No backend token header at all — must still return nil when UseInCluster=true
-	err := c.checkHeadlampBackendToken(httptest.NewRecorder(), req)
-	assert.NoError(t, err)
-}
-
-func TestUpdateCustomContextToCache_NoContexts(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-			},
-			Cache: cache.New[interface{}](),
-		},
-	}
-
-	// Empty api.Config has no contexts → should return error about "no contexts found".
-	errs := c.updateCustomContextToCache(&api.Config{}, "some-cluster")
-	assert.NotEmpty(t, errs)
-}
-
-func TestUpdateCustomContextToCache_ValidContext(t *testing.T) {
-	store := kubeconfig.NewContextStore()
-	require.NoError(t, store.AddContext(&kubeconfig.Context{
-		Name:        "my-cluster",
-		KubeContext: &api.Context{Cluster: "my-cluster"},
-		Cluster:     &api.Cluster{Server: "https://my.example.com"},
-	}))
-
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: store,
-			},
-			Cache: cache.New[interface{}](),
-		},
-	}
-
-	cfg := &api.Config{
-		Clusters: map[string]*api.Cluster{
-			"my-cluster": {Server: "https://my.example.com"},
-		},
-		Contexts: map[string]*api.Context{
-			"my-cluster": {Cluster: "my-cluster"},
-		},
-	}
-
-	errs := c.updateCustomContextToCache(cfg, "my-cluster")
-	assert.Empty(t, errs)
-}
-
-func TestMustReadFile_HappyPath(t *testing.T) {
-	// Write a known file and read it back.
-	tmpFile, err := os.CreateTemp(t.TempDir(), "readtest-*.txt")
-	require.NoError(t, err)
-	_, err = tmpFile.WriteString("hello headlamp")
-	require.NoError(t, err)
-	tmpFile.Close()
-
-	data := mustReadFile(tmpFile.Name())
-	assert.Equal(t, "hello headlamp", string(data))
-}
-
-func TestMustWriteFile_HappyPath(t *testing.T) {
-	path := t.TempDir() + "/writetest.txt"
-	mustWriteFile(path, []byte("written by headlamp"))
-
-	data, err := os.ReadFile(path) //nolint:gosec
-	require.NoError(t, err)
-	assert.Equal(t, "written by headlamp", string(data))
-}
-
-func TestInitTelemetry_Success(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-			},
-			Cache:           cache.New[interface{}](),
-			TelemetryConfig: GetDefaultTestTelemetryConfig(),
-		},
-	}
-
-	tel, err := initTelemetry(c)
-	require.NoError(t, err)
-	require.NotNil(t, tel)
-
-	// Cleanup
-	ctx, cancel := context.WithTimeout(context.Background(), 0)
-	defer cancel()
-	_ = tel.Shutdown(ctx)
-}
-
-func TestWriteKubeConfig_InvalidBase64(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-			},
-			Cache: cache.New[interface{}](),
-		},
-	}
-
-	err := c.writeKubeConfig("!!not-valid-base64!!")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "decoding kubeconfig")
-}
-
-func TestWriteKubeConfig_ValidBase64ButNotKubeConfig(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-			},
-			Cache: cache.New[interface{}](),
-		},
-	}
-
-	// Valid base64, but not a kubeconfig YAML.
-	notKubeConfig := "aGVsbG8gd29ybGQ=" // base64("hello world")
-	err := c.writeKubeConfig(notKubeConfig)
-	assert.Error(t, err)
-}
-
-func TestHelmRouteReleaseHandler_ContextNotFound(t *testing.T) {
-	require.NoError(t, os.Setenv("HEADLAMP_BACKEND_TOKEN", "tok"))
-	defer func() { _ = os.Unsetenv("HEADLAMP_BACKEND_TOKEN") }()
-
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(), // empty store
-				EnableHelm:      true,
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	handler := createHeadlampHandler(context.Background(), c)
-
-	req := httptest.NewRequestWithContext(
-		context.Background(), "GET",
-		"/clusters/nonexistent/helm/releases/list", nil,
-	)
-	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "tok")
-
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-	// Context not found → 404
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-}
-
 func TestGetHelmHandler_Success(t *testing.T) {
 	require.NoError(t, os.Setenv("HEADLAMP_BACKEND_TOKEN", "tok"))
 	defer func() { _ = os.Unsetenv("HEADLAMP_BACKEND_TOKEN") }()
@@ -2714,79 +2215,564 @@ func TestGetHelmHandler_Success(t *testing.T) {
 	// helmHandler.ListRelease will fail (no real cluster) but the handler must not panic.
 	assert.True(t, rr.Code >= 400)
 }
+func newHeadlampTestConfig() *HeadlampConfig {
+	return &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+}
+
+func TestAddPluginListRoute_ReturnsPluginList(t *testing.T) {
+	handler := createHeadlampHandler(context.Background(), newHeadlampTestConfig())
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/plugins", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+
+	// Should be a valid JSON value (null or array).
+	var body interface{}
+
+	err := json.Unmarshal(rr.Body.Bytes(), &body)
+	assert.NoError(t, err)
+}
+
+func TestAddPluginDeleteRoute_MissingBackendToken(t *testing.T) {
+	tempDir := t.TempDir()
+
+	pluginDir := tempDir + "/plugins"
+	require.NoError(t, os.MkdirAll(pluginDir+"/myplugin", 0o750))
+
+	f, err := os.Create(pluginDir + "/myplugin/main.js") //nolint:gosec
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+				UseInCluster:    false,
+				PluginDir:       pluginDir,
+				UserPluginDir:   tempDir + "/user-plugins",
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handler := createHeadlampHandler(context.Background(), c)
+
+	// No backend token set → forbidden.
+	req := httptest.NewRequestWithContext(context.Background(), "DELETE", "/plugins/myplugin", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+}
+
+func TestGetClusters_WithErrorContext(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name:  "broken-ctx",
+		Error: "TLS handshake failure",
+	})
+	require.NoError(t, err)
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: store},
+			Cache:       cache.New[interface{}](),
+		},
+	}
+
+	clusters := c.getClusters()
+	require.Len(t, clusters, 1)
+	assert.Equal(t, "broken-ctx", clusters[0].Name)
+	assert.Equal(t, "TLS handshake failure", clusters[0].Error)
+}
+
+func TestGetClusters_InternalContextSkipped(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name:     "stateless-ctx",
+		Internal: true,
+		KubeContext: &api.Context{
+			Cluster: "stateless-ctx",
+		},
+		Cluster: &api.Cluster{Server: "https://stateless.example.com"},
+	})
+	require.NoError(t, err)
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: store},
+			Cache:       cache.New[interface{}](),
+		},
+	}
+
+	clusters := c.getClusters()
+	assert.Empty(t, clusters, "internal contexts must not be returned by getClusters")
+}
+
+func TestGetClusters_NilKubeContext(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name:        "nil-kubecontext",
+		KubeContext: nil,
+		Cluster:     &api.Cluster{Server: "https://nil.example.com"},
+	})
+	require.NoError(t, err)
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: store},
+			Cache:       cache.New[interface{}](),
+		},
+	}
+
+	clusters := c.getClusters()
+	assert.Empty(t, clusters, "context with nil KubeContext must be skipped")
+}
+
+func TestGetConfig_EncodesClusterList(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		KubeContext: &api.Context{
+			Cluster: "test-cluster",
+		},
+		Cluster: &api.Cluster{Server: "https://test.example.com"},
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore:       store,
+				EnableDynamicClusters: true,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handler := createHeadlampHandler(context.Background(), c)
+
+	rr, err := getResponse(handler, "GET", "/config", nil)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var cfg clientConfig
+
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &cfg))
+	assert.True(t, cfg.IsDynamicClusterEnabled)
+}
+
+func TestDispatchHelmRoute_UnknownRoute(t *testing.T) {
+	require.NoError(t, os.Setenv("HEADLAMP_BACKEND_TOKEN", "test-token"))
+
+	defer func() { _ = os.Unsetenv("HEADLAMP_BACKEND_TOKEN") }()
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+				EnableHelm:      true,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	require.NoError(t, c.KubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:     "test-cluster",
+		Cluster:  &api.Cluster{Server: "https://test.example.com"},
+		AuthInfo: &api.AuthInfo{Token: "token"},
+	}))
+
+	handler := createHeadlampHandler(context.Background(), c)
+
+	req := httptest.NewRequestWithContext(
+		context.Background(), "GET", "/clusters/test-cluster/helm/unknown-endpoint", nil,
+	)
+	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "test-token")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestHandleNodeDrain_MissingNodeName(t *testing.T) {
+	handler := createHeadlampHandler(context.Background(), newHeadlampTestConfig())
+
+	rr, err := getResponse(handler, "POST", "/drain-node",
+		map[string]string{"cluster": "mycluster", "nodeName": ""})
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestHandleNodeDrain_MissingClusterName(t *testing.T) {
+	handler := createHeadlampHandler(context.Background(), newHeadlampTestConfig())
+
+	rr, err := getResponse(handler, "POST", "/drain-node",
+		map[string]string{"cluster": "", "nodeName": "mynode"})
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestHandleNodeDrain_ClusterNotFound(t *testing.T) {
+	handler := createHeadlampHandler(context.Background(), newHeadlampTestConfig())
+
+	rr, err := getResponse(handler, "POST", "/drain-node",
+		map[string]string{"cluster": "nonexistent", "nodeName": "mynode"})
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestHandleNodeDrainStatus_MissingNodeName(t *testing.T) {
+	handler := createHeadlampHandler(context.Background(), newHeadlampTestConfig())
+
+	rr, err := getResponse(handler, "GET", "/drain-node-status?cluster=mycluster&nodeName=", nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestHandleNodeDrainStatus_MissingCluster(t *testing.T) {
+	handler := createHeadlampHandler(context.Background(), newHeadlampTestConfig())
+
+	rr, err := getResponse(handler, "GET", "/drain-node-status?cluster=&nodeName=mynode", nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestHandleNodeDrainStatus_CacheKeyNotFound(t *testing.T) {
+	handler := createHeadlampHandler(context.Background(), newHeadlampTestConfig())
+
+	url := fmt.Sprintf("/drain-node-status?cluster=%s&nodeName=%s", "mycluster", "mynode")
+
+	rr, err := getResponse(handler, "GET", url, nil)
+	require.NoError(t, err)
+
+	// Cache has no entry for this node+cluster → 404.
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestAddCluster_SetupErrors_ReturnsBadRequest(t *testing.T) {
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore:       kubeconfig.NewContextStore(),
+				EnableDynamicClusters: true,
+				UseInCluster:          false,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handler := createHeadlampHandler(context.Background(), c)
+
+	// Valid base64 but not a kubeconfig → setup errors → 400.
+	badKubeConfig := "aGVsbG8=" // base64("hello")
+
+	rr, err := getResponseFromRestrictedEndpoint(handler, "POST", "/cluster",
+		ClusterReq{KubeConfig: &badKubeConfig})
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestCheckHeadlampBackendToken_InClusterBypass(t *testing.T) {
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+				UseInCluster:    true,
+			},
+			Cache: cache.New[interface{}](),
+		},
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
+
+	// No token header at all — must return nil when UseInCluster=true.
+	err := c.checkHeadlampBackendToken(httptest.NewRecorder(), req)
+	assert.NoError(t, err)
+}
+
+func TestUpdateCustomContextToCache_NoContexts(t *testing.T) {
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache: cache.New[interface{}](),
+		},
+	}
+
+	// Empty api.Config has no contexts → error "no contexts found".
+	errs := c.updateCustomContextToCache(&api.Config{}, "some-cluster")
+	assert.NotEmpty(t, errs)
+}
+
+func TestUpdateCustomContextToCache_ValidContext(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:        "my-cluster",
+		KubeContext: &api.Context{Cluster: "my-cluster"},
+		Cluster:     &api.Cluster{Server: "https://my.example.com"},
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: store,
+			},
+			Cache: cache.New[interface{}](),
+		},
+	}
+
+	cfg := &api.Config{
+		Clusters: map[string]*api.Cluster{
+			"my-cluster": {Server: "https://my.example.com"},
+		},
+		Contexts: map[string]*api.Context{
+			"my-cluster": {Cluster: "my-cluster"},
+		},
+	}
+
+	errs := c.updateCustomContextToCache(cfg, "my-cluster")
+	assert.Empty(t, errs)
+}
+
+func TestMustReadFile_HappyPath(t *testing.T) {
+	tmpFile, err := os.CreateTemp(t.TempDir(), "readtest-*.txt")
+	require.NoError(t, err)
+
+	_, err = tmpFile.WriteString("hello headlamp")
+	require.NoError(t, err)
+
+	require.NoError(t, tmpFile.Close())
+
+	data := mustReadFile(tmpFile.Name())
+	assert.Equal(t, "hello headlamp", string(data))
+}
+
+func TestMustWriteFile_HappyPath(t *testing.T) {
+	path := t.TempDir() + "/writetest.txt"
+
+	mustWriteFile(path, []byte("written by headlamp"))
+
+	data, err := os.ReadFile(path) //nolint:gosec
+	require.NoError(t, err)
+	assert.Equal(t, "written by headlamp", string(data))
+}
+
+func TestInitTelemetry_Success(t *testing.T) {
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache:           cache.New[interface{}](),
+			TelemetryConfig: GetDefaultTestTelemetryConfig(),
+		},
+	}
+
+	tel, err := initTelemetry(c)
+	require.NoError(t, err)
+	require.NotNil(t, tel)
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+	defer cancel()
+
+	_ = tel.Shutdown(shutdownCtx)
+}
+
+func TestWriteKubeConfig_InvalidBase64(t *testing.T) {
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache: cache.New[interface{}](),
+		},
+	}
+
+	err := c.writeKubeConfig("!!not-valid-base64!!")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "decoding kubeconfig")
+}
+
+func TestWriteKubeConfig_ValidBase64ButNotKubeConfig(t *testing.T) {
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache: cache.New[interface{}](),
+		},
+	}
+
+	// Valid base64, but not a kubeconfig YAML.
+	notKubeConfig := "aGVsbG8gd29ybGQ=" // base64("hello world")
+
+	err := c.writeKubeConfig(notKubeConfig)
+	assert.Error(t, err)
+}
+
+func TestHelmRouteReleaseHandler_ContextNotFound(t *testing.T) {
+	require.NoError(t, os.Setenv("HEADLAMP_BACKEND_TOKEN", "tok"))
+
+	defer func() { _ = os.Unsetenv("HEADLAMP_BACKEND_TOKEN") }()
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(), // empty store
+				EnableHelm:      true,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handler := createHeadlampHandler(context.Background(), c)
+
+	req := httptest.NewRequestWithContext(
+		context.Background(), "GET",
+		"/clusters/nonexistent/helm/releases/list", nil,
+	)
+	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "tok")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestGetHelmHandler_ReturnsHandlerForKnownCluster(t *testing.T) {
+	require.NoError(t, os.Setenv("HEADLAMP_BACKEND_TOKEN", "tok"))
+
+	defer func() { _ = os.Unsetenv("HEADLAMP_BACKEND_TOKEN") }()
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+				EnableHelm:      true,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	require.NoError(t, c.KubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:     "helm-cluster",
+		Cluster:  &api.Cluster{Server: "https://helm.example.com"},
+		AuthInfo: &api.AuthInfo{Token: "tok"},
+	}))
+
+	handler := createHeadlampHandler(context.Background(), c)
+
+	req := httptest.NewRequestWithContext(
+		context.Background(), "GET", "/clusters/helm-cluster/helm/releases/list", nil,
+	)
+	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "tok")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	// helmHandler.ListRelease will fail (no real cluster) but must not panic.
+	assert.True(t, rr.Code >= 400)
+}
 
 func TestParseClusterFromKubeConfig_InvalidEntry(t *testing.T) {
-	// Invalid (non-base64) kubeconfig string → returns setupErrors, nil clusters
 	clusters, errs := parseClusterFromKubeConfig([]string{"!!invalid-base64!!"})
+
 	assert.Nil(t, clusters)
 	assert.NotEmpty(t, errs)
 }
 
 func TestParseClusterFromKubeConfig_EmptyList(t *testing.T) {
 	clusters, errs := parseClusterFromKubeConfig([]string{})
+
 	assert.Empty(t, clusters)
 	assert.Empty(t, errs)
 }
 
 func TestShouldBypassOIDCRefresh_MissingCluster(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: kubeconfig.NewContextStore()},
-			Cache:            cache.New[interface{}](),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
+	c := newHeadlampTestConfig()
 
 	_, sp := noop.NewTracerProvider().Tracer("t").Start(context.Background(), "s")
 
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true })
+
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/test", nil)
 	w := httptest.NewRecorder()
 
 	bypassed := c.shouldBypassOIDCRefresh("", "sometoken", w, req, sp, context.Background(), time.Now(), next)
+
 	assert.True(t, bypassed, "empty cluster should bypass")
 	assert.True(t, called)
 }
 
 func TestShouldBypassOIDCRefresh_MissingToken(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: kubeconfig.NewContextStore()},
-			Cache:            cache.New[interface{}](),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
+	c := newHeadlampTestConfig()
 
 	_, sp := noop.NewTracerProvider().Tracer("t").Start(context.Background(), "s")
 
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true })
+
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/test", nil)
 	w := httptest.NewRecorder()
 
 	bypassed := c.shouldBypassOIDCRefresh("mycluster", "", w, req, sp, context.Background(), time.Now(), next)
+
 	assert.True(t, bypassed, "empty token should bypass")
 	assert.True(t, called)
 }
 
 func TestShouldBypassOIDCRefresh_BothPresent(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: kubeconfig.NewContextStore()},
-			Cache:            cache.New[interface{}](),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
+	c := newHeadlampTestConfig()
 
 	_, sp := noop.NewTracerProvider().Tracer("t").Start(context.Background(), "s")
 
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true })
+
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/test", nil)
 	w := httptest.NewRecorder()
 
 	bypassed := c.shouldBypassOIDCRefresh("mycluster", "token", w, req, sp, context.Background(), time.Now(), next)
-	assert.False(t, bypassed, "both cluster and token present should not bypass")
+
+	assert.False(t, bypassed, "both cluster and token present — must not bypass")
 	assert.False(t, called)
 }
