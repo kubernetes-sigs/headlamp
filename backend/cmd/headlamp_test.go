@@ -2180,6 +2180,7 @@ func TestOidcUseCookieLogic(t *testing.T) {
 
 func TestGetHelmHandler_Success(t *testing.T) {
 	require.NoError(t, os.Setenv("HEADLAMP_BACKEND_TOKEN", "tok"))
+
 	defer func() { _ = os.Unsetenv("HEADLAMP_BACKEND_TOKEN") }()
 
 	c := &HeadlampConfig{
@@ -2201,7 +2202,7 @@ func TestGetHelmHandler_Success(t *testing.T) {
 	// We test that the route responds (not panics) with a context added.
 	require.NoError(t, c.KubeConfigStore.AddContext(&kubeconfig.Context{
 		Name:     "helm-cluster",
-		Cluster:  &api.Cluster{Server: "https://helm.example.com"},
+		Cluster:  &api.Cluster{Server: "https://127.0.0.1:1"},
 		AuthInfo: &api.AuthInfo{Token: "tok"},
 	}))
 
@@ -2215,6 +2216,7 @@ func TestGetHelmHandler_Success(t *testing.T) {
 	// helmHandler.ListRelease will fail (no real cluster) but the handler must not panic.
 	assert.True(t, rr.Code >= 400)
 }
+
 func newHeadlampTestConfig() *HeadlampConfig {
 	return &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -2694,7 +2696,7 @@ func TestGetHelmHandler_ReturnsHandlerForKnownCluster(t *testing.T) {
 
 	require.NoError(t, c.KubeConfigStore.AddContext(&kubeconfig.Context{
 		Name:     "helm-cluster",
-		Cluster: &api.Cluster{Server: "https://127.0.0.1:1"},
+		Cluster:  &api.Cluster{Server: "https://127.0.0.1:1"},
 		AuthInfo: &api.AuthInfo{Token: "tok"},
 	}))
 

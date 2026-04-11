@@ -232,7 +232,7 @@ func TestHandleServerStartError_WrappedEADDRINUSE_DetectedByErrorsIs(t *testing.
 // ---------------------------------------------------------------------------
 
 func TestSetupGracefulShutdown_ServerDoneExits(t *testing.T) {
-	server := &http.Server{ //nolint:gosec
+	server := &http.Server{
 		Addr:              "127.0.0.1:0",
 		ReadHeaderTimeout: 5 * time.Second,
 	}
@@ -651,18 +651,18 @@ func TestGetKubeConfigPath_KubeConfigSource(t *testing.T) {
 }
 
 func TestGetKubeConfigPath_OtherSource(t *testing.T) {
-    tempDir := t.TempDir()
-    t.Setenv("HOME", tempDir)
-    t.Setenv("XDG_CONFIG_HOME", tempDir)
+	tempDir := t.TempDir()
+	t.Setenv("HOME", tempDir)
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
 
-    c := newMinimalConfig()
+	c := newMinimalConfig()
 
-    expectedPath, err := defaultHeadlampKubeConfigFile()
-    require.NoError(t, err)
+	expectedPath, err := defaultHeadlampKubeConfigFile()
+	require.NoError(t, err)
 
-    path, err := c.getKubeConfigPath("dynamic_cluster")
-    require.NoError(t, err)
-    assert.Equal(t, expectedPath, path)
+	path, err := c.getKubeConfigPath("dynamic_cluster")
+	require.NoError(t, err)
+	assert.Equal(t, expectedPath, path)
 }
 
 // ---------------------------------------------------------------------------
