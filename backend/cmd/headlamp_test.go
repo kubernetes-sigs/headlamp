@@ -1206,32 +1206,7 @@ func TestStartHeadlampServer(t *testing.T) {
 
 	// Wait for the server to be ready
 	<-ready
-
-	// Give the server a moment to start
-	time.Sleep(100 * time.Millisecond)
-
-	// Try to connect to the server
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost:8080/config", nil)
-	if err != nil {
-		t.Fatalf("Failed to create request: %v", err)
-	}
-
-	client := &http.Client{}
-
-	resp, err := client.Do(req)
-	if err == nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-
-	assert.NoError(t, err, "Server should be running and accepting connections")
-
-	// If the server started successfully, we should get a response
-	if resp != nil {
-		assert.Equal(t, http.StatusOK, resp.StatusCode, "Server should return OK status")
-	}
+	waitForHeadlampServer(t, "http://localhost:8080/config", &http.Client{})
 }
 
 func TestStartHeadlampServerTLS(t *testing.T) {
@@ -1256,11 +1231,6 @@ func TestStartHeadlampServerTLS(t *testing.T) {
 
 	go StartHeadlampServer(cfg)
 
-	time.Sleep(200 * time.Millisecond)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	pool, err := x509.SystemCertPool()
 	if pool == nil {
 		pool = x509.NewCertPool()
@@ -1271,17 +1241,31 @@ func TestStartHeadlampServerTLS(t *testing.T) {
 	require.NoError(t, err)
 	pool.AppendCertsFromPEM(crt)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://localhost:8185/config", nil)
-	require.NoError(t, err)
-
-	resp, err := (&http.Client{
+	waitForHeadlampServer(t, "https://localhost:8185/config", &http.Client{
 		Transport: &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: pool}},
-	}).Do(req)
-	require.NoError(t, err)
+	})
+}
 
-	defer func() { _ = resp.Body.Close() }()
+func waitForHeadlampServer(t *testing.T, endpoint string, client *http.Client) {
+	t.Helper()
 
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Eventually(t, func() bool {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return false
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return false
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		return resp.StatusCode == http.StatusOK
+	}, 15*time.Second, 100*time.Millisecond)
 }
 
 //nolint:funlen
