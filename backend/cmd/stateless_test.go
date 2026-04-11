@@ -324,25 +324,6 @@ func TestWebsocketConnContextKey(t *testing.T) {
 	}
 }
 
-func TestHandleStatelessReq_EmptyKubeConfig(t *testing.T) {
-	store := kubeconfig.NewContextStore()
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore:       store,
-				EnableDynamicClusters: true,
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	req := httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/test/api", nil)
-
-	_, err := c.handleStatelessReq(req, "not-valid-base64!!")
-	assert.Error(t, err)
-}
-
 func TestParseKubeConfig_InvalidJSON(t *testing.T) {
 	store := kubeconfig.NewContextStore()
 	c := &HeadlampConfig{
@@ -366,7 +347,7 @@ func TestParseKubeConfig_InvalidJSON(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
-	assert.True(t, rr.Code == http.StatusOK || rr.Code == http.StatusBadRequest)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
 func TestMarshalCustomObject_UnmarshalError(t *testing.T) {

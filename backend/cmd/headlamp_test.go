@@ -2694,7 +2694,7 @@ func TestGetHelmHandler_ReturnsHandlerForKnownCluster(t *testing.T) {
 
 	require.NoError(t, c.KubeConfigStore.AddContext(&kubeconfig.Context{
 		Name:     "helm-cluster",
-		Cluster:  &api.Cluster{Server: "https://helm.example.com"},
+		Cluster: &api.Cluster{Server: "https://127.0.0.1:1"},
 		AuthInfo: &api.AuthInfo{Token: "tok"},
 	}))
 

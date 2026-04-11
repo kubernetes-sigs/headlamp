@@ -80,11 +80,8 @@ func (c *HeadlampConfig) setKeyInCache(key string, context kubeconfig.Context) e
 	return nil
 }
 
-// Handles stateless cluster requests if kubeconfig is set and dynamic clusters are enabled.
-// It returns context key which is used to store the context in the cache.
 // loadContextsOrError wraps kubeconfig.LoadContextsFromBase64String and collapses
 // the contextLoadErrors / empty-context checks so handleStatelessReq stays under
-// the funlen limit.
 func loadContextsOrError(kubeConfig string) ([]kubeconfig.Context, error) {
 	contexts, contextLoadErrors, err := kubeconfig.LoadContextsFromBase64String(kubeConfig, kubeconfig.DynamicCluster)
 	if len(contextLoadErrors) > 0 {
@@ -113,8 +110,7 @@ func loadContextsOrError(kubeConfig string) ([]kubeconfig.Context, error) {
 }
  
 // processStatelessContext resolves the cache key for a single context entry and
-// stores it via setKeyInCache. Returns the resolved key (empty string if the
-// context should be skipped) and any error.
+// stores it via setKeyInCache. Returns the resolved key (empty = skipped) and any error.
 func (c *HeadlampConfig) processStatelessContext(
 	ctx kubeconfig.Context, baseKey, clusterName, userID string,
 ) (string, error) {

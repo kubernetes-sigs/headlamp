@@ -245,13 +245,11 @@ func TestSetupGracefulShutdown_ServerDoneExits(t *testing.T) {
 	// Simulate server stopping on its own.
 	close(serverDone)
 
-	time.Sleep(50 * time.Millisecond)
-
 	select {
 	case <-ctx.Done():
 		// expected: goroutine called cancel()
-	default:
-		t.Error("expected context to be cancelled after serverDone is closed")
+	case <-time.After(time.Second):
+		t.Fatal("expected context to be cancelled after serverDone is closed")
 	}
 }
 
@@ -653,13 +651,18 @@ func TestGetKubeConfigPath_KubeConfigSource(t *testing.T) {
 }
 
 func TestGetKubeConfigPath_OtherSource(t *testing.T) {
-	c := newMinimalConfig()
+    tempDir := t.TempDir()
+    t.Setenv("HOME", tempDir)
+    t.Setenv("XDG_CONFIG_HOME", tempDir)
 
-	// Any non-kubeconfig source calls defaultHeadlampKubeConfigFile(); may error in CI.
-	path, err := c.getKubeConfigPath("dynamic_cluster")
-	if err == nil {
-		assert.NotEmpty(t, path)
-	}
+    c := newMinimalConfig()
+
+    expectedPath, err := defaultHeadlampKubeConfigFile()
+    require.NoError(t, err)
+
+    path, err := c.getKubeConfigPath("dynamic_cluster")
+    require.NoError(t, err)
+    assert.Equal(t, expectedPath, path)
 }
 
 // ---------------------------------------------------------------------------
