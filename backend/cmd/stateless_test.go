@@ -28,6 +28,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -35,6 +36,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 //nolint:funlen
@@ -97,7 +99,6 @@ func TestStatelessClustersKubeConfig(t *testing.T) {
 
 				assert.Equal(t, r.Code, tc.expectedState)
 
-				// Verify if the created cluster matches what we asked to be created
 				if r.Code == http.StatusOK {
 					var config clientConfig
 
@@ -249,12 +250,10 @@ func TestStatelessClusterApiRequest(t *testing.T) {
 			req, err := http.NewRequest("GET", requestPath, nil) //nolint:noctx
 			require.NoError(t, err)
 
-			// Add headers to the request
 			for key, value := range headers {
 				req.Header.Add(key, value)
 			}
 
-			// Perform the request
 			resp := httptest.NewRecorder()
 			handler.ServeHTTP(resp, req)
 
@@ -262,7 +261,6 @@ func TestStatelessClusterApiRequest(t *testing.T) {
 
 			var cluster *Cluster
 
-			// Get cluster we created
 			for i, val := range configuredClusters {
 				if val.Name == tc.name {
 					cluster = &configuredClusters[i]
@@ -270,7 +268,6 @@ func TestStatelessClusterApiRequest(t *testing.T) {
 				}
 			}
 
-			// Assert the response as needed
 			assert.NotNil(t, cluster)
 			assert.Equal(t, tc.name, cluster.Name)
 		})
@@ -278,7 +275,6 @@ func TestStatelessClusterApiRequest(t *testing.T) {
 }
 
 func TestMarshalCustomObject(t *testing.T) {
-	// Create a mock runtime.Unknown object
 	mockInfo := &runtime.Unknown{
 		Raw: []byte(`{"customName": "test-cluster", "otherField": "value"}`),
 	}
@@ -351,8 +347,6 @@ func TestParseKubeConfig_InvalidJSON(t *testing.T) {
 }
 
 func TestMarshalCustomObject_UnmarshalError(t *testing.T) {
-	// runtime.Unknown whose Raw is a JSON array — marshals fine but cannot
-	// unmarshal into CustomObject (which expects an object), so Unmarshal errors.
 	mockInfo := &runtime.Unknown{
 		Raw: []byte(`[1,2,3]`),
 	}
@@ -370,10 +364,6 @@ func TestMarshalCustomObject_EmptyCustomName(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, obj.CustomName)
 }
-
-// ---------------------------------------------------------------------------
-// setKeyInCache — both branches (currently 50%)
-// ---------------------------------------------------------------------------
 
 func newStatelessTestConfig(store kubeconfig.ContextStore) *HeadlampConfig {
 	return &HeadlampConfig{
@@ -393,7 +383,6 @@ func TestSetKeyInCache_NewContext(t *testing.T) {
 
 	ctx := kubeconfig.Context{Name: "new-context"}
 
-	// Key does not exist yet → AddContextWithKeyAndTTL path.
 	err := c.setKeyInCache("new-context", ctx)
 	assert.NoError(t, err)
 }
@@ -404,18 +393,12 @@ func TestSetKeyInCache_ExistingContext_UpdatesTTL(t *testing.T) {
 
 	ctx := kubeconfig.Context{Name: "existing"}
 
-	// First call: adds the context.
 	err := c.setKeyInCache("existing", ctx)
 	require.NoError(t, err)
 
-	// Second call: key exists → UpdateTTL path.
 	err = c.setKeyInCache("existing", ctx)
 	assert.NoError(t, err)
 }
-
-// ---------------------------------------------------------------------------
-// handleStatelessReq — additional branches (currently 50%)
-// ---------------------------------------------------------------------------
 
 func TestHandleStatelessReq_InvalidKubeConfig(t *testing.T) {
 	store := kubeconfig.NewContextStore()
@@ -436,7 +419,8 @@ func TestHandleStatelessReq_ValidKubeConfig(t *testing.T) {
 	store := kubeconfig.NewContextStore()
 	c := newStatelessTestConfig(store)
 
-	req := httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/minikube/api", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/minikube/api/v1/pods", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "minikube"})
 	req.Header.Set("X-HEADLAMP-USER-ID", "user-123")
 
 	key, err := c.handleStatelessReq(req, kubeConfig)
@@ -444,9 +428,39 @@ func TestHandleStatelessReq_ValidKubeConfig(t *testing.T) {
 	assert.NotEmpty(t, key)
 }
 
-// ---------------------------------------------------------------------------
-// parseKubeConfig endpoint — additional branches (currently 75%)
-// ---------------------------------------------------------------------------
+func TestProcessStatelessContext_MultiContext_EachKeyedIndependently(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	c := newStatelessTestConfig(store)
+
+	userID := "user1"
+	clusterName := "cluster-a"
+	baseKey := clusterName + userID
+
+	ctxA := kubeconfig.Context{
+		Name:        "cluster-a",
+		KubeContext: &api.Context{Cluster: "cluster-a"},
+		Cluster:     &api.Cluster{Server: "https://a.example.com"},
+	}
+	ctxB := kubeconfig.Context{
+		Name:        "cluster-b",
+		KubeContext: &api.Context{Cluster: "cluster-b"},
+		Cluster:     &api.Cluster{Server: "https://b.example.com"},
+	}
+
+	keyA, err := c.processStatelessContext(ctxA, baseKey, clusterName, userID)
+	require.NoError(t, err)
+	assert.Equal(t, baseKey, keyA)
+
+	keyB, err := c.processStatelessContext(ctxB, baseKey, clusterName, userID)
+	require.NoError(t, err)
+	assert.Empty(t, keyB, "context not matching clusterName and with no headlamp_info must be skipped")
+
+	_, errA := store.GetContext("cluster-a" + userID)
+	assert.NoError(t, errA)
+
+	_, errB := store.GetContext("cluster-b" + userID)
+	assert.Error(t, errB, "cluster-b must not have been added to the store")
+}
 
 func newDynamicConfig() *HeadlampConfig {
 	return &HeadlampConfig{
@@ -471,7 +485,6 @@ func TestParseKubeConfig_EmptyKubeconfigs(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// No kubeconfigs → parseClusterFromKubeConfig returns nil, nil → empty cluster list.
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
@@ -484,13 +497,8 @@ func TestParseKubeConfig_InvalidBase64Entry(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Invalid base64 → setup errors → 400.
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
-
-// ---------------------------------------------------------------------------
-// getContextKeyForRequest — additional branches (currently 76.9%)
-// ---------------------------------------------------------------------------
 
 func newContextKeyTestConfig(dynamic bool) *HeadlampConfig {
 	return &HeadlampConfig{
@@ -508,26 +516,24 @@ func newContextKeyTestConfig(dynamic bool) *HeadlampConfig {
 func TestGetContextKeyForRequest_PlainRequest(t *testing.T) {
 	c := newContextKeyTestConfig(false)
 
-	// No KUBECONFIG header, dynamic clusters disabled → contextKey = clusterName from mux vars.
-	// Without a real mux router the var is empty — the function must not error.
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/mycluster/api", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "mycluster"})
 
 	key, err := c.getContextKeyForRequest(req)
 	assert.NoError(t, err)
-	assert.Equal(t, "", key) // mux vars empty outside a real router
+	assert.Equal(t, "mycluster", key)
 }
 
 func TestGetContextKeyForRequest_WebSocketUpgrade(t *testing.T) {
 	c := newContextKeyTestConfig(false)
 
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/mycluster/api", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "mycluster"})
 	req.Header.Set("Upgrade", "websocket")
 	req.Header.Set("Sec-Websocket-Protocol",
 		"base64url.headlamp.authorization.k8s.io.user42, v4.channel.k8s.io")
 
-	// WebSocket path: contextKey = clusterName + userID from protocol header.
-	// clusterName is "" (no mux vars), userID = "user42".
 	key, err := c.getContextKeyForRequest(req)
 	assert.NoError(t, err)
-	assert.Equal(t, "user42", key)
+	assert.Equal(t, "myclusteruser42", key)
 }

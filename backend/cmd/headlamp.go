@@ -1613,13 +1613,16 @@ func setupGracefulShutdown(server *http.Server, cancel context.CancelFunc, serve
 	}()
 }
 
-// Handle common server startup errors.
+// HandleServerStartError handles common server startup errors.
 func HandleServerStartError(err *error) {
-	// Check if the reason server failed because the address is already in use
-	// this might be because backend process is already running
+	handleServerStartErrorWithExit(err, func() { os.Exit(int(syscall.EADDRINUSE)) })
+}
+
+// handleServerStartErrorWithExit is the testable core of HandleServerStartError.
+// exitFn is called instead of os.Exit so tests can capture the call without forking.
+func handleServerStartErrorWithExit(err *error, exitFn func()) {
 	if errors.Is(*err, syscall.EADDRINUSE) {
-		// Exit with 98 (address in use) exit code
-		os.Exit(int(syscall.EADDRINUSE))
+		exitFn()
 	}
 }
 

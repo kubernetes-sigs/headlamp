@@ -1262,6 +1262,7 @@ func waitForHeadlampServer(t *testing.T, endpoint string, client *http.Client) {
 		if err != nil {
 			return false
 		}
+
 		defer func() { _ = resp.Body.Close() }()
 
 		return resp.StatusCode == http.StatusOK
