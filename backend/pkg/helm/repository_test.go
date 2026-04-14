@@ -142,14 +142,16 @@ func TestRemoveRepository(t *testing.T) {
 	})
 
 	t.Run("remove_repo_not_found", func(t *testing.T) {
+		// Removing a non-existent repository must return HTTP 404.
 		removeRepoRequest, err := http.NewRequestWithContext(context.Background(), "DELETE",
-			"/clusters/minikube/helm/repositories/?name=repo-that-does-not-exist", nil)
+			"/clusters/minikube/helm/repositories/?name=non_existent_repo", nil)
 		require.NoError(t, err)
 
 		rr := httptest.NewRecorder()
 		helmHandler.RemoveRepo(rr, removeRepoRequest)
 
 		assert.Equal(t, http.StatusNotFound, rr.Code)
+		assert.Contains(t, rr.Body.String(), "repository not found")
 	})
 }
 
