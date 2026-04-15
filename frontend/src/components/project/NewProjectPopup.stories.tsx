@@ -45,6 +45,8 @@ const makeStore = () => {
           tableRowsPerPageOptions: [15, 25, 50],
           timezone: 'UTC',
           useEvict: true,
+          sidebarSortAlphabetically: false,
+          expandLargeGraph: false,
         },
         isDynamicClusterEnabled: false,
         allowKubeconfigChanges: false,

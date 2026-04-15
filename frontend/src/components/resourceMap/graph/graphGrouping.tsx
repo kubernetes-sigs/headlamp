@@ -395,14 +395,21 @@ export function findGroupContaining(
  * @param graph Single graph node
  * @param params.selectedNodeId Graph node that is selected
  * @param params.expandAll Display all the children within all groups
+ * @param params.expandLargeGraph When true, Keeps Large groups expanded
  * @returns Collapsed graph
  */
 export function collapseGraph(
   graph: GraphNode,
-  { selectedNodeId = 'root', expandAll }: { selectedNodeId?: string; expandAll: boolean }
+  {
+    selectedNodeId = 'root',
+    expandAll,
+    expandLargeGraph = false,
+  }: { selectedNodeId?: string; expandAll: boolean; expandLargeGraph?: boolean }
 ) {
   let root = { ...graph };
   let selectedGroup: GraphNode | undefined;
+
+  const primaryNodeIds = new Set(graph.nodes?.map(n => n.id) || []);
 
   if (selectedNodeId) {
     selectedGroup = findGroupContaining(graph, selectedNodeId);
@@ -418,8 +425,9 @@ export function collapseGraph(
     const isBig = (group.nodes?.length ?? 0) > 10 || (group.edges?.length ?? 0) > 0;
     const isSelectedGroup = selectedGroup?.id === group.id;
     const isRoot = group.id === 'root';
-
-    const collapsed = !expandAll && !isRoot && !isSelectedGroup && isBig;
+    const isPrimaryGroup = primaryNodeIds.has(group.id);
+    const shouldExpandPrimary = !expandLargeGraph || !isPrimaryGroup;
+    const collapsed = !expandAll && !isRoot && !isSelectedGroup && isBig && shouldExpandPrimary;
 
     return {
       ...group,
