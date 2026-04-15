@@ -72,6 +72,9 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   const [showReconnectButton, setShowReconnectButton] = useState(false);
 
   const xtermRef = React.useRef<XTerminal | null>(null);
+  const allPodsProcessTimeoutRef = React.useRef<number | null>(null);
+  const allPodsWriteSeqRef = React.useRef(0);
+  const allPodsLastProcessedLenRef = React.useRef<Record<string, number>>({});
   const { t } = useTranslation(['glossary', 'translation']);
   const { enqueueSnackbar } = useSnackbar();
 
@@ -80,6 +83,12 @@ function LogsButtonContent({ item }: LogsButtonProps) {
       xtermRef.current.clear();
     }
     setLogs({ logs: [], lastLineShown: -1 });
+    allPodsLastProcessedLenRef.current = {};
+    allPodsWriteSeqRef.current = 0;
+    if (allPodsProcessTimeoutRef.current !== null) {
+      window.clearTimeout(allPodsProcessTimeoutRef.current);
+      allPodsProcessTimeoutRef.current = null;
+    }
   }, []);
 
   // Fetch related pods.
@@ -141,6 +150,12 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   function handleFollowChange() {
     setFollow(prev => !prev);
   }
+
+  React.useEffect(() => {
+    if (follow) {
+      requestAnimationFrame(() => xtermRef.current?.scrollToBottom());
+    }
+  }, [follow]);
 
   function handlePreviousChange() {
     setShowPrevious(previous => !previous);
@@ -233,15 +248,20 @@ function LogsButtonContent({ item }: LogsButtonProps) {
     });
 
     if (xtermRef.current) {
+      const writeSeq = ++allPodsWriteSeqRef.current;
       xtermRef.current.clear();
-      xtermRef.current.write(allLogs.join('').replaceAll('\n', '\r\n'));
+      xtermRef.current.write(allLogs.join('').replaceAll('\n', '\r\n'), () => {
+        if (follow && writeSeq === allPodsWriteSeqRef.current) {
+          xtermRef.current?.scrollToBottom();
+        }
+      });
     }
 
     setLogs({
       logs: allLogs,
       lastLineShown: allLogs.length - 1,
     });
-  }, [allPodLogs]);
+  }, [allPodLogs, follow]);
 
   // Function to fetch and aggregate logs from all pods
   function fetchAllPodsLogs(pods: Pod[], container: string): () => void {
@@ -373,10 +393,68 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
   // Effect to process logs when allPodLogs changes - only for "All Pods" mode
   React.useEffect(() => {
-    if (selectedPodIndex === 'all' && Object.keys(allPodLogs).length > 0) {
-      processAllLogs();
+    if (allPodsProcessTimeoutRef.current !== null) {
+      window.clearTimeout(allPodsProcessTimeoutRef.current);
+      allPodsProcessTimeoutRef.current = null;
     }
-  }, [allPodLogs, selectedPodIndex, processAllLogs]);
+
+    if (selectedPodIndex === 'all' && Object.keys(allPodLogs).length > 0) {
+      allPodsProcessTimeoutRef.current = window.setTimeout(() => {
+        if (follow) {
+          const newlyAppended: string[] = [];
+
+          for (const [podName, podLogs] of Object.entries(allPodLogs)) {
+            const lastLen = allPodsLastProcessedLenRef.current[podName] ?? 0;
+            if (podLogs.length > lastLen) {
+              newlyAppended.push(...podLogs.slice(lastLen).map(l => `[${podName}] ${l}`));
+              allPodsLastProcessedLenRef.current[podName] = podLogs.length;
+            } else if (podLogs.length < lastLen) {
+              // Pod log buffer reset (reconnect / container restart). Fall back to rebuild once.
+              allPodsLastProcessedLenRef.current = {};
+              processAllLogs();
+              allPodsProcessTimeoutRef.current = null;
+              return;
+            }
+          }
+
+          if (newlyAppended.length > 0) {
+            newlyAppended.sort((a, b) => {
+              const timestampA = a.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)?.[0] || '';
+              const timestampB = b.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)?.[0] || '';
+              return timestampA.localeCompare(timestampB);
+            });
+
+            const terminal = xtermRef.current;
+            if (terminal) {
+              terminal.write(newlyAppended.join('').replaceAll('\n', '\r\n'), () => {
+                terminal.scrollToBottom();
+              });
+            }
+
+            setLogs(current => {
+              const nextLogs = current.logs.concat(newlyAppended);
+              return { logs: nextLogs, lastLineShown: nextLogs.length - 1 };
+            });
+          }
+        } else {
+          processAllLogs();
+          const nextLens: Record<string, number> = {};
+          for (const [podName, podLogs] of Object.entries(allPodLogs)) {
+            nextLens[podName] = podLogs.length;
+          }
+          allPodsLastProcessedLenRef.current = nextLens;
+        }
+        allPodsProcessTimeoutRef.current = null;
+      }, 100);
+    }
+
+    return () => {
+      if (allPodsProcessTimeoutRef.current !== null) {
+        window.clearTimeout(allPodsProcessTimeoutRef.current);
+        allPodsProcessTimeoutRef.current = null;
+      }
+    };
+  }, [allPodLogs, selectedPodIndex, processAllLogs, follow]);
 
   const topActions = [
     <Box
