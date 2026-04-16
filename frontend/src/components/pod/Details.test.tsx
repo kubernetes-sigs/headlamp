@@ -462,3 +462,87 @@ describe('PodDetails auto-launch views', () => {
     });
   });
 });
+
+describe('PodLogViewer prettifyLogs persistence', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('passes prettifyLogs: true to getLogs when localStorage has true stored', async () => {
+    localStorage.setItem('headlamp.logs.prettifyLogs', JSON.stringify(true));
+
+    vi.resetModules();
+    vi.doMock('../globalSearch/useLocalStorageState', () => ({
+      useLocalStorageState: (key: string, defaultValue: any) => {
+        const stored = localStorage.getItem(key);
+        const value = stored !== null ? JSON.parse(stored) : defaultValue;
+        return [value, vi.fn()];
+      },
+    }));
+
+    const { PodLogViewer } = await import('./Details');
+
+    const mockItem = {
+      getName: () => 'test-pod',
+      spec: {
+        containers: [{ name: 'nginx' }],
+        initContainers: [],
+        ephemeralContainers: [],
+      },
+      status: { containerStatuses: [] },
+      getLogs: vi.fn(() => () => {}),
+    };
+
+    await act(async () => {
+      render(
+        <TestContext routerMap={{}} urlPrefix="">
+          <PodLogViewer open item={mockItem as any} onClose={() => {}} />
+        </TestContext>
+      );
+    });
+
+    expect(mockItem.getLogs).toHaveBeenCalled();
+    const callWithPrettify = mockItem.getLogs.mock.calls.find(
+      (args: any[]) => args[2]?.prettifyLogs === true
+    );
+    expect(callWithPrettify).toBeDefined();
+  });
+
+  it('passes prettifyLogs: false to getLogs when localStorage has no stored value', async () => {
+    vi.resetModules();
+    vi.doMock('../globalSearch/useLocalStorageState', () => ({
+      useLocalStorageState: (key: string, defaultValue: any) => {
+        const stored = localStorage.getItem(key);
+        const value = stored !== null ? JSON.parse(stored) : defaultValue;
+        return [value, vi.fn()];
+      },
+    }));
+
+    const { PodLogViewer } = await import('./Details');
+
+    const mockItem = {
+      getName: () => 'test-pod',
+      spec: {
+        containers: [{ name: 'nginx' }],
+        initContainers: [],
+        ephemeralContainers: [],
+      },
+      status: { containerStatuses: [] },
+      getLogs: vi.fn(() => () => {}),
+    };
+
+    await act(async () => {
+      render(
+        <TestContext routerMap={{}} urlPrefix="">
+          <PodLogViewer open item={mockItem as any} onClose={() => {}} />
+        </TestContext>
+      );
+    });
+
+    expect(mockItem.getLogs).toHaveBeenCalled();
+    const anyWithPrettify = mockItem.getLogs.mock.calls.some(
+      (args: any[]) => args[2]?.prettifyLogs === true
+    );
+    expect(anyWithPrettify).toBe(false);
+  });
+});

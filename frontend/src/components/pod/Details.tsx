@@ -82,7 +82,10 @@ export function PodLogViewer(props: PodLogViewerProps) {
     true
   );
   const [follow, setFollow] = React.useState<boolean>(true);
-  const [prettifyLogs, setPrettifyLogs] = React.useState<boolean>(false);
+  const [prettifyLogs, setPrettifyLogs] = useLocalStorageState<boolean>(
+    'headlamp.logs.prettifyLogs',
+    false
+  );
   const [formatJsonValues, setFormatJsonValues] = React.useState<boolean>(false);
   const [hasJsonLogs, setHasJsonLogs] = React.useState<boolean>(false);
   const [lines, setLines] = React.useState<number>(100);
