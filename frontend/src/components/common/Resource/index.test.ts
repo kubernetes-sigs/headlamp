@@ -53,6 +53,7 @@ const checkExports = [
   'RestartButton',
   'RestartMultipleButton',
   'RevisionHistorySection',
+  'DownloadButton',
   'RollbackButton',
   'RollbackDialog',
   'ScaleButton',

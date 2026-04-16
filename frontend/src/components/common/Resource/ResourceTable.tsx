@@ -57,6 +57,7 @@ import Link from '../Link';
 import Table, { TableColumn } from '../Table';
 import { getA8RMetadata } from './A8RInfo';
 import DeleteButton from './DeleteButton';
+import DownloadButton from './DownloadButton';
 import EditButton from './EditButton';
 import ResourceTableMultiActions from './ResourceTableMultiActions';
 import { RestartButton } from './RestartButton';
@@ -556,6 +557,10 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
       action: ({ item, closeMenu }) => (
         <EditButton item={item} buttonStyle="menu" afterConfirm={closeMenu} key="edit" />
       ),
+    },
+    {
+      id: DefaultHeaderAction.DOWNLOAD,
+      action: ({ item }) => <DownloadButton item={item} buttonStyle="menu" key="download" />,
     },
     {
       id: DefaultHeaderAction.VIEW,

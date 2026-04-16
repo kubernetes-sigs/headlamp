@@ -302,7 +302,6 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
           options={uniq(namespaces?.map(it => it.metadata.name)) ?? []}
           value={selectedNamespace}
           onChange={(event, newValue) => {
-            console.log({ newValue });
             setSelectedNamespace(newValue ?? undefined);
           }}
           onInputChange={(e, v) => {

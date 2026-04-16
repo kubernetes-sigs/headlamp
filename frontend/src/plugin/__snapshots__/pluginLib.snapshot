@@ -60,6 +60,7 @@
     "Dialog": [Function],
     "DialogTitle": [Function],
     "DocsViewer": [Function],
+    "DownloadButton": [Function],
     "EditButton": [Function],
     "EditorDialog": [Function],
     "EmptyContent": [Function],
@@ -110,6 +111,7 @@
       "DeleteButton": [Function],
       "DetailsGrid": [Function],
       "DocsViewer": [Function],
+      "DownloadButton": [Function],
       "EditButton": [Function],
       "EditorDialog": [Function],
       "EnvVarGrid": [Function],
@@ -271,6 +273,7 @@
   },
   "DetailsViewDefaultHeaderActions": {
     "DELETE": "DELETE",
+    "DOWNLOAD": "DOWNLOAD",
     "EDIT": "EDIT",
     "NODE_DRAIN": "NODE_DRAIN",
     "NODE_SHELL": "NODE_SHELL",
