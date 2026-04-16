@@ -34,6 +34,7 @@ import { setConfig } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { ConfirmDialog } from '../../common/ConfirmDialog';
 import ErrorBoundary from '../../common/ErrorBoundary/ErrorBoundary';
+import { Notification, setNotifications } from '../Notifications/notificationsSlice';
 
 interface ClusterContextMenuProps {
   /** The cluster for the context menu to act on. */
@@ -68,9 +69,14 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
         dispatch(setConfig(config));
       })
       .catch((err: Error) => {
-        if (err.message === 'Not Found') {
-          // TODO: create notification with error message
-        }
+        const notification = new Notification({
+          message: t('translation|Failed to delete cluster "{{ clusterName }}": {{ error }}', {
+            clusterName,
+            error: err.message,
+          }),
+          cluster: clusterName,
+        });
+        dispatch(setNotifications(notification.toJSON()));
       })
       .finally(() => {
         history.push('/');

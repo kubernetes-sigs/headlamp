@@ -50,6 +50,7 @@
   "Load from KubeConfig": "从 kubeconfig 加载",
   "Providers": "提供者",
   "Add Local Cluster Provider": "添加本地集群提供者",
+  "Failed to delete cluster \"{{ clusterName }}\": {{ error }}": "",
   "This action will delete cluster \"{{ clusterName }}\" from \"{{ source }}\"": "此操作将从 \"{{ source }}\" 中删除集群 \"{{ clusterName }}\"",
   "This action will remove cluster \"{{ clusterName }}\".": "此操作将移除集群 \"{{ clusterName }}\"。",
   "This action cannot be undone! Do you want to proceed?": "此操作无法撤销！是否继续？",
