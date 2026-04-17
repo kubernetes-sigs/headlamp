@@ -48,11 +48,12 @@ jobs:
       env:
         APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
         APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-    - name: Build Signed App Mac
+    - name: Build Signed and Notarized App Mac
       if: ${{ inputs.signBinaries }}
       env:
-        # This will trigger codesign. See app/mac/scripts/codeSign.js
-        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        APPLE_ID: ${{ secrets.APPLEID }}
+        APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLEIDPASS }}
+        APPLE_TEAM_ID: ${{ secrets.APPLETEAMID }}
       run: |
         make app-mac 2>&1 | tee build.log
         if grep -q "Mac codesign: Failed" build.log; then
@@ -69,85 +70,12 @@ jobs:
         name: dmgs
         path: ./app/dist/Headlamp*.dmg
         if-no-files-found: error
-        retention-days: 1
-  notarize:
-    permissions:
-      id-token: write # For fetching an OpenID Connect (OIDC) token
-      contents: read
-    runs-on: windows-latest
-    needs: build-mac
-    if: ${{ inputs.signBinaries }}
-    steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-      with:
-        ref: ${{ github.event.inputs.buildBranch }}
-    - name: Setup nodejs
-      uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
-      with:
-        node-version: 22.x
-        cache: 'npm'
-        cache-dependency-path: |
-          app/package-lock.json
-          frontend/package-lock.json
-    - name: Download artifact
-      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
-      with:
-        name: dmgs
-        path: ./dmgs
-    - name: Azure login
-      if: ${{ inputs.signBinaries }}
-      uses: azure/login@6c251865b4e6290e7b78be643ea2d005bc51f69a # v2.1.1
-      with:
-        client-id: ${{ secrets.WINDOWS_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZ_TENANT_ID }}
-        subscription-id: ${{ secrets.AZ_SUBSCRIPTION_ID }}
-    - name: Fetch certificates
-      if: ${{ inputs.signBinaries }}
-      shell: pwsh
-      run: |
-        az keyvault secret download --subscription ${{ secrets.AZ_SUBSCRIPTION_ID }} --vault-name headlamp --name HeadlampAuthCert --file c:\HeadlampAuthCert.pfx --encoding base64
-        az keyvault secret download --subscription ${{ secrets.AZ_SUBSCRIPTION_ID }} --vault-name headlamp --name ESRPHeadlampReqCert --file c:\HeadlampReqCert.pfx --encoding base64
-    - name: Set up certificates
-      if: ${{ inputs.signBinaries }}
-      shell: pwsh
-      run: |
-        Import-PfxCertificate -FilePath c:\HeadlampAuthCert.pfx -CertStoreLocation Cert:\LocalMachine\My -Exportable
-        Import-PfxCertificate -FilePath c:\HeadlampReqCert.pfx -CertStoreLocation Cert:\LocalMachine\My -Exportable
-    - name: Download and Set up ESRPClient
-      if: ${{ inputs.signBinaries }}
-      shell: pwsh
-      run: |
-        nuget.exe sources add -name esrp -source ${{ secrets.ESRP_NUGET_INDEX_URL }} -username headlamp -password ${{ secrets.AZ_DEVOPS_TOKEN }}
-        nuget.exe install Microsoft.EsrpClient -Version 1.2.127 -source  ${{ secrets.ESRP_NUGET_INDEX_URL }} | out-null
-    - name: Sign App
-      shell: pwsh
-      run: |
-        $env:ESRP_PATH="$(Get-Location)\Microsoft.EsrpClient.1.2.127\tools\EsrpClient.exe"
-        $env:HEADLAMP_WINDOWS_CLIENT_ID="${{ secrets.WINDOWS_CLIENT_ID }}"
-        $env:HEADLAMP_WINDOWS_SIGN_EMAIL="${{ secrets.WINDOWS_SIGN_EMAIL }}"
-        cd ./app/scripts
-        node ./esrp.js apple-sign ../../dmgs/
-    - name: Notarize App
-      shell: pwsh
-      run: |
-        $env:ESRP_PATH="$(Get-Location)\Microsoft.EsrpClient.1.2.127\tools\EsrpClient.exe"
-        $env:HEADLAMP_WINDOWS_CLIENT_ID="${{ secrets.WINDOWS_CLIENT_ID }}"
-        $env:HEADLAMP_WINDOWS_SIGN_EMAIL="${{ secrets.WINDOWS_SIGN_EMAIL }}"
-        cd ./app/scripts
-        node ./esrp.js apple-notarize ../../dmgs/
-    - name: Upload Notarized
-      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
-      with:
-        name: dmgs
-        path: ./dmgs/Headlamp*.dmg
-        if-no-files-found: error
-        overwrite: true
         retention-days: 2
   verify-notarization:
     runs-on: macos-latest
-    needs: notarize
+    needs: build-mac
     permissions:
-      actions: write # for downloading and uploading artifacts
+      actions: write # for downloading artifacts
       contents: read
     if: ${{ inputs.signBinaries }}
     strategy:
@@ -192,27 +120,3 @@ jobs:
         echo "Detaching volume"
         hdiutil detach "$VOLUME_NAME" || true
         exit 0
-  stapler:
-    runs-on: macos-latest
-    needs: verify-notarization
-    permissions:
-      actions: write # for downloading and uploading artifacts
-      contents: read
-    if: ${{ inputs.signBinaries }}
-    steps:
-    - name: Download artifact
-      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
-      with:
-        name: dmgs
-        path: ./dmgs
-    - name: Staple
-      run: |
-        xcrun stapler staple ./dmgs/Headlamp*.dmg
-    - name: Upload Stapled
-      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
-      with:
-        name: dmgs
-        path: ./dmgs/Headlamp*.dmg
-        if-no-files-found: error
-        overwrite: true
-        retention-days: 2
