@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
-import { combineClusterListErrors, flattenClusterListItems, formatDuration, timeAgo } from './util';
+import {
+  combineClusterListErrors,
+  flattenClusterListItems,
+  formatDuration,
+  normalizeUnit,
+  timeAgo,
+} from './util';
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
@@ -202,5 +208,113 @@ describe('timeAgo', () => {
     );
     expect(timeAgo(start)).toBe('90d');
     expect(timeAgo(start, { format: 'mini' })).toBe('90d');
+  });
+});
+
+describe('normalizeUnit', () => {
+  describe('memory — binary units', () => {
+    it('converts Ki (kibibytes)', () => {
+      expect(normalizeUnit('memory', '1Ki')).toBe('1.02 KB');
+    });
+
+    it('converts Mi (mebibytes)', () => {
+      expect(normalizeUnit('memory', '1Mi')).toBe('1.05 MB');
+    });
+
+    it('converts Gi (gibibytes)', () => {
+      expect(normalizeUnit('memory', '1Gi')).toBe('1.07 GB');
+    });
+
+    it('converts Ti (tebibytes)', () => {
+      expect(normalizeUnit('memory', '1Ti')).toBe('1.1 TB');
+    });
+
+    it('converts Pi (pebibytes)', () => {
+      expect(normalizeUnit('memory', '1Pi')).toBe('1.13 PB');
+    });
+
+    it('converts Ei (exbibytes)', () => {
+      expect(normalizeUnit('memory', '1Ei')).toBe('1.15 EB');
+    });
+  });
+
+  describe('memory — decimal units', () => {
+    it('converts k (kilobytes)', () => {
+      expect(normalizeUnit('memory', '1k')).toBe('1 KB');
+    });
+
+    it('converts M (megabytes)', () => {
+      expect(normalizeUnit('memory', '1M')).toBe('1 MB');
+    });
+
+    it('converts G (gigabytes)', () => {
+      expect(normalizeUnit('memory', '1G')).toBe('1 GB');
+    });
+
+    it('converts T (terabytes)', () => {
+      expect(normalizeUnit('memory', '1T')).toBe('1 TB');
+    });
+
+    it('converts P (petabytes)', () => {
+      expect(normalizeUnit('memory', '1P')).toBe('1 PB');
+    });
+
+    it('converts E (exabytes)', () => {
+      expect(normalizeUnit('memory', '1E')).toBe('1 EB');
+    });
+  });
+
+  describe('memory — fractional values', () => {
+    it('converts 1.5Gi', () => {
+      expect(normalizeUnit('memory', '1.5Gi')).toBe('1.61 GB');
+    });
+
+    it('converts 2.3Mi', () => {
+      expect(normalizeUnit('memory', '2.3Mi')).toBe('2.41 MB');
+    });
+
+    it('converts 0.5k', () => {
+      expect(normalizeUnit('memory', '0.5k')).toBe('500 Bytes');
+    });
+
+    it('converts 1.25Ti', () => {
+      expect(normalizeUnit('memory', '1.25Ti')).toBe('1.37 TB');
+    });
+
+    it('converts 3.75G', () => {
+      expect(normalizeUnit('memory', '3.75G')).toBe('3.75 GB');
+    });
+  });
+
+  describe('memory — edge cases', () => {
+    it('handles zero bytes', () => {
+      expect(normalizeUnit('memory', '0')).toBe('0 Bytes');
+    });
+
+    it('handles plain bytes without suffix', () => {
+      expect(normalizeUnit('memory', '1024')).toBe('1.02 KB');
+    });
+
+    it('handles non-numeric input gracefully', () => {
+      expect(normalizeUnit('memory', 'abc')).toBe('abc');
+    });
+
+    it('handles empty string gracefully', () => {
+      expect(normalizeUnit('memory', '')).toBe('');
+    });
+  });
+
+  describe('cpu', () => {
+    it('converts millicores', () => {
+      expect(normalizeUnit('cpu', '500m')).toBe('0.5 cores');
+    });
+
+    it('shows singular core', () => {
+      expect(normalizeUnit('cpu', '1')).toBe('1 core');
+    });
+
+    it('shows plural cores', () => {
+      expect(normalizeUnit('cpu', '2')).toBe('2 cores');
+    });
   });
 });

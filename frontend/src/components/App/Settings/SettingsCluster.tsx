@@ -22,6 +22,7 @@ import IconButton from '@mui/material/IconButton';
 import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { useSnackbar } from 'notistack';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -75,6 +76,7 @@ export default function SettingsCluster() {
   const history = useHistory();
   const dispatch = useDispatch();
   const location = useLocation();
+  const { enqueueSnackbar } = useSnackbar();
 
   const removeCluster = () => {
     deleteCluster(cluster || '')
@@ -83,9 +85,13 @@ export default function SettingsCluster() {
         history.push('/');
       })
       .catch((err: Error) => {
-        if (err.message === 'Not Found') {
-          // TODO: create notification with error message
-        }
+        enqueueSnackbar(
+          t('translation|Failed to delete cluster: {{ error }}', { error: err.message }),
+          {
+            variant: 'error',
+            preventDuplicate: true,
+          }
+        );
       });
   };
 

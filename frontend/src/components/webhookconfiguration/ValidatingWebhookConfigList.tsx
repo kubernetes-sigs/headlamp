@@ -34,6 +34,7 @@ export default function ValidatingWebhookConfigurationList() {
           gridTemplate: 'min-content',
           getValue: mutatingWebhookConfig => mutatingWebhookConfig.webhooks?.length || 0,
         },
+        'labels',
         'age',
       ]}
     />

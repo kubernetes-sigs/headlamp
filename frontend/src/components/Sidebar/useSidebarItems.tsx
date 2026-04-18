@@ -65,7 +65,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
 
   const [crds, error] = CRD.useList();
   if (error !== null) {
-    console.log(error);
+    console.error(error);
   }
 
   const crdsSidebarEntries = useMemo(() => {

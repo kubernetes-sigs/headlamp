@@ -47,6 +47,7 @@ export default function BackendTLSPolicyList() {
             <LabelListItem labels={[policy.validation.hostname]} />
           ),
         },
+        'labels',
         'age',
       ]}
     />

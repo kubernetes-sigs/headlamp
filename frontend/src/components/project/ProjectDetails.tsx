@@ -394,7 +394,7 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
           }
         })
         .catch(e => {
-          console.log(`Failed to check if custom delete button is ready`, e);
+          console.error(`Failed to check if custom delete button is ready`, e);
         });
     } else {
       setDeleteButton(() => customDeleteButton.component);

@@ -23,6 +23,7 @@ import { parseCpu, parseRam, TO_GB, TO_ONE_CPU } from '../../../lib/units';
 import ResourceCircularChart, {
   CircularChartProps as ResourceCircularChartProps,
 } from '../../common/Resource/CircularChart';
+import TileChart from '../../common/TileChart';
 
 export function MemoryCircularChart(props: ResourceCircularChartProps) {
   const { noMetrics } = props;
@@ -92,6 +93,51 @@ export function CpuCircularChart(props: ResourceCircularChartProps) {
       resourceAvailableGetter={cpuAvailableGetter}
       title={noMetrics ? t('glossary|CPU') : t('translation|CPU Usage')}
       {...props}
+    />
+  );
+}
+
+export function PodCapacityCircularChart(props: { node: Node | null; pods: Pod[] | null }) {
+  const { node, pods } = props;
+  const { t } = useTranslation(['translation', 'glossary']);
+  const used = pods?.length ?? -1;
+  const rawTotal = node?.status?.allocatable?.pods ?? node?.status?.capacity?.pods;
+  const parsedTotal = Number(rawTotal);
+  const total = Number.isFinite(parsedTotal) ? parsedTotal : -1;
+  const isLoading = pods === null || total < 0;
+
+  function getLabel() {
+    if (isLoading || total <= 0) {
+      return '…';
+    }
+
+    return `${((used / total) * 100).toFixed(1)} %`;
+  }
+
+  function getLegend() {
+    if (isLoading || total <= 0) {
+      return '';
+    }
+
+    return t('translation|{{ used }} / {{ total }} Pods', { used, total });
+  }
+
+  return (
+    <TileChart
+      title={t('translation|Pod Usage')}
+      data={
+        isLoading || total <= 0
+          ? []
+          : [
+              {
+                name: 'used',
+                value: used,
+              },
+            ]
+      }
+      label={getLabel()}
+      legend={getLegend()}
+      total={isLoading ? -1 : total}
     />
   );
 }

@@ -16,7 +16,6 @@
 
 import { InlineIcon } from '@iconify/react';
 import Box from '@mui/material/Box';
-import Grid from '@mui/material/Grid';
 import Paper from '@mui/material/Paper';
 import _ from 'lodash';
 import { useSnackbar } from 'notistack';
@@ -28,11 +27,12 @@ import { apply } from '../../lib/k8s/api/v1/apply';
 import { drainNode, drainNodeStatus } from '../../lib/k8s/api/v1/drainNode';
 import { KubeMetrics } from '../../lib/k8s/cluster';
 import Node from '../../lib/k8s/node';
+import Pod from '../../lib/k8s/pod';
 import { getCluster, timeAgo } from '../../lib/util';
 import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
 import { clusterAction } from '../../redux/clusterActionSlice';
 import { AppDispatch } from '../../redux/stores/store';
-import { CpuCircularChart, MemoryCircularChart } from '../cluster/Charts';
+import { CpuCircularChart, MemoryCircularChart, PodCapacityCircularChart } from '../cluster/Charts';
 import ActionButton from '../common/ActionButton';
 import ConfirmDialog from '../common/ConfirmDialog';
 import { StatusLabelProps } from '../common/Label';
@@ -66,6 +66,12 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
   const [isupdatingNodeScheduleProperty, setisUpdatingNodeScheduleProperty] = React.useState(false);
   const [isNodeDrainInProgress, setisNodeDrainInProgress] = React.useState(false);
   const [nodeFromAPI, nodeError] = Node.useGet(name);
+  const { items: nodePods } = Pod.useList({
+    fieldSelector: name
+      ? `spec.nodeName=${name},status.phase!=Succeeded,status.phase!=Failed`
+      : undefined,
+    cluster,
+  });
   const [node, setNode] = useState(nodeFromAPI);
   const noMetrics = metricsError?.status === 404;
   const [drainDialogOpen, setDrainDialogOpen] = useState(false);
@@ -209,7 +215,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
         cluster={cluster}
         error={nodeError}
         headerSection={item => (
-          <ChartsSection node={item} metrics={nodeMetrics} noMetrics={noMetrics} />
+          <ChartsSection node={item} pods={nodePods} metrics={nodeMetrics} noMetrics={noMetrics} />
         )}
         withEvents
         actions={item => {
@@ -297,12 +303,13 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
 
 interface ChartsSectionProps {
   node: Node | null;
+  pods: Pod[] | null;
   metrics: KubeMetrics[] | null;
   noMetrics?: boolean;
 }
 
 function ChartsSection(props: ChartsSectionProps) {
-  const { node, metrics, noMetrics } = props;
+  const { node, pods, metrics, noMetrics } = props;
   const { t } = useTranslation('glossary');
 
   function getUptime() {
@@ -320,15 +327,15 @@ function ChartsSection(props: ChartsSectionProps) {
 
   return (
     <Box py={2}>
-      <Grid
-        container
-        style={{
+      <Box
+        sx={{
+          display: 'grid',
+          gap: 2,
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
           marginBottom: '2rem',
         }}
-        alignItems="stretch"
-        spacing={2}
       >
-        <Grid item xs={4}>
+        <Box>
           <Paper
             variant="outlined"
             sx={theme => ({
@@ -341,18 +348,21 @@ function ChartsSection(props: ChartsSectionProps) {
           >
             <HeaderLabel value={getUptime()} label={t('Uptime')} />
           </Paper>
-        </Grid>
-        <Grid item xs={4}>
+        </Box>
+        <Box>
           <CpuCircularChart items={node && [node]} itemsMetrics={metrics} noMetrics={noMetrics} />
-        </Grid>
-        <Grid item xs={4}>
+        </Box>
+        <Box>
           <MemoryCircularChart
             items={node && [node]}
             itemsMetrics={metrics}
             noMetrics={noMetrics}
           />
-        </Grid>
-      </Grid>
+        </Box>
+        <Box>
+          <PodCapacityCircularChart node={node} pods={pods} />
+        </Box>
+      </Box>
     </Box>
   );
 }

@@ -215,7 +215,7 @@
                 </div>
               </div>
               <table
-                class="MuiTable-root css-tvuahe-MuiTable-root"
+                class="MuiTable-root css-g0cegk-MuiTable-root"
               >
                 <thead
                   class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
@@ -613,20 +613,26 @@
                     <td
                       class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                     >
-                      <a
-                        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                        href="/c/cluster0/"
+                      <span
+                        aria-label="cluster0"
+                        class=""
+                        data-mui-internal-clone-element="true"
                       >
-                        <div
-                          class="MuiBox-root css-172hjuw"
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                          href="/c/cluster0/"
                         >
-                          <span
-                            class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                          <div
+                            class="MuiBox-root css-172hjuw"
                           >
-                            cluster0
-                          </span>
-                        </div>
-                      </a>
+                            <span
+                              class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                            >
+                              cluster0
+                            </span>
+                          </div>
+                        </a>
+                      </span>
                     </td>
                     <td
                       class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
@@ -721,20 +727,26 @@
                     <td
                       class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                     >
-                      <a
-                        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                        href="/c/cluster1/"
+                      <span
+                        aria-label="cluster1"
+                        class=""
+                        data-mui-internal-clone-element="true"
                       >
-                        <div
-                          class="MuiBox-root css-172hjuw"
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                          href="/c/cluster1/"
                         >
-                          <span
-                            class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                          <div
+                            class="MuiBox-root css-172hjuw"
                           >
-                            cluster1
-                          </span>
-                        </div>
-                      </a>
+                            <span
+                              class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                            >
+                              cluster1
+                            </span>
+                          </div>
+                        </a>
+                      </span>
                     </td>
                     <td
                       class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
@@ -829,20 +841,26 @@
                     <td
                       class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                     >
-                      <a
-                        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                        href="/c/cluster2/"
+                      <span
+                        aria-label="cluster2"
+                        class=""
+                        data-mui-internal-clone-element="true"
                       >
-                        <div
-                          class="MuiBox-root css-172hjuw"
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                          href="/c/cluster2/"
                         >
-                          <span
-                            class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                          <div
+                            class="MuiBox-root css-172hjuw"
                           >
-                            cluster2
-                          </span>
-                        </div>
-                      </a>
+                            <span
+                              class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                            >
+                              cluster2
+                            </span>
+                          </div>
+                        </a>
+                      </span>
                     </td>
                     <td
                       class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"

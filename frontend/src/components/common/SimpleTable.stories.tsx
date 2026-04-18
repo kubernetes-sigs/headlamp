@@ -116,6 +116,7 @@ Getter.args = {
       label: 'Name',
       // datum: "",
       getter: (row: any) => row.name,
+      sort: true,
     },
     {
       label: 'Status',

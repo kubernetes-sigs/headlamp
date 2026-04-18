@@ -369,17 +369,17 @@ func TestGetServiceFromCluster(t *testing.T) {
 			switch {
 			case tt.mockError != nil:
 				// Create a fake clientset with a reactor to simulate errors
-				cs = fake.NewSimpleClientset()
+				cs = fake.NewClientset()
 				cs.PrependReactor("get", "services", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 					return true, nil, tt.mockError
 				})
 			case tt.setupService:
 				// Setup a mock service
 				service := createMockService(tt.namespace, tt.serviceName)
-				cs = fake.NewSimpleClientset(service)
+				cs = fake.NewClientset(service)
 			default:
 				// Empty clientset (service not found)
-				cs = fake.NewSimpleClientset()
+				cs = fake.NewClientset()
 			}
 
 			ps, status, err := getServiceFromCluster(cs, tt.namespace, tt.serviceName)

@@ -144,6 +144,7 @@ function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
             },
           },
           'namespace',
+          'labels',
           'age',
         ]}
       />

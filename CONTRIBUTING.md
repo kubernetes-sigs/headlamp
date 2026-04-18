@@ -6,7 +6,7 @@ _As contributors and maintainers of this project, and in the interest of fosteri
 
 ## Getting Started
 
-For contributing to the Headlamp project, please refer check out our:
+For contributing to the Headlamp project, please check out our:
 - [Guidelines](https://headlamp.dev/docs/latest/contributing/)
 - [Code of Conduct](./code-of-conduct.md),
 - [#headlamp](https://kubernetes.slack.com/messages/headlamp) slack channel in the Kubernetes Slack

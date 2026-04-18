@@ -35,6 +35,7 @@ export default function ConfigMapList() {
           getValue: (configmap: ConfigMap) => Object.keys(configmap.data || {}).length || 0,
           gridTemplate: 'min-content',
         },
+        'labels',
         'age',
       ]}
     />

@@ -33,12 +33,12 @@ describe('auth', () => {
     it('should successfully set a token for a cluster', async () => {
       const cluster = 'test-cluster';
       const token = 'test-token-123';
-      const mockResponse = {
+      const mockResponse: Partial<Response> = {
         ok: true,
         status: 200,
         json: vi.fn().mockResolvedValue({}),
       };
-      mockBackendFetch.mockResolvedValue(mockResponse as any);
+      mockBackendFetch.mockResolvedValue(mockResponse as Response);
 
       const result = await setToken(cluster, token);
 
@@ -55,12 +55,12 @@ describe('auth', () => {
     it('should successfully clear a token when token is null', async () => {
       const cluster = 'test-cluster';
       const token = null;
-      const mockResponse = {
+      const mockResponse: Partial<Response> = {
         ok: true,
         status: 200,
         json: vi.fn().mockResolvedValue({}),
       };
-      mockBackendFetch.mockResolvedValue(mockResponse as any);
+      mockBackendFetch.mockResolvedValue(mockResponse as Response);
 
       const result = await setToken(cluster, token);
 
@@ -77,12 +77,12 @@ describe('auth', () => {
     it('should throw an error when backend returns error response', async () => {
       const cluster = 'test-cluster';
       const token = 'test-token-123';
-      const mockResponse = {
+      const mockResponse: Partial<Response> = {
         ok: false,
         status: 500,
         json: vi.fn().mockResolvedValue({}),
       };
-      mockBackendFetch.mockResolvedValue(mockResponse as any);
+      mockBackendFetch.mockResolvedValue(mockResponse as Response);
 
       await expect(setToken(cluster, token)).rejects.toThrow('Failed to set cookie token');
     });

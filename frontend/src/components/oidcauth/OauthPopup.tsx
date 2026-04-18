@@ -72,7 +72,7 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
           window.removeEventListener('storage', storageListener);
         }
       } catch (e) {
-        console.log('error occured while closing auth window', e);
+        console.error('Error occurred while closing auth window', e);
         window.removeEventListener('storage', storageListener);
       }
     };
@@ -91,7 +91,7 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
           false
         );
       } catch (e) {
-        console.log('error occured while adding beforeunload event listener');
+        console.error('Error occurred while adding beforeunload event listener');
       }
     }
   };

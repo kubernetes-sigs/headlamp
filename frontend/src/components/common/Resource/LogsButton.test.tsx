@@ -103,6 +103,7 @@ vi.mock('../../../lib/k8s/api/v2/fetch', () => ({
 
 vi.mock('notistack', () => ({
   useSnackbar: () => ({ enqueueSnackbar: mockEnqueueSnackbar }),
+  SnackbarProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 vi.mock('../../activity/Activity', () => ({

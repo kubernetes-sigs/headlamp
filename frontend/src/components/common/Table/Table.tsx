@@ -196,10 +196,21 @@ export default function Table<RowItem extends Record<string, any>>({
   const prefix = reflectInURL === true ? '' : reflectInURL || '';
   const [page, setPage] = usePageURLState(shouldReflectInURL ? 'p' : '', prefix, initialPage);
   const filterKey = prefix ? `${prefix}filter` : 'filter';
-  const [globalFilter, setGlobalFilter] = useQueryParamsState<string | undefined>(
-    shouldReflectInURL ? filterKey : '',
-    shouldReflectInURL ? '' : undefined
+  const [globalFilterState, setGlobalFilterState] = useState<string | undefined>(
+    tableProps.initialState?.globalFilter
   );
+  const [globalFilterQueryParam, setGlobalFilterQueryParam] = useQueryParamsState<
+    string | undefined
+  >(
+    shouldReflectInURL ? filterKey : '',
+    shouldReflectInURL ? tableProps.initialState?.globalFilter : undefined
+  );
+
+  // When `reflectInURL` is enabled, the filter needs to stay in sync with the URL
+  // query parameter. Otherwise we keep the filter in plain React state only.
+  const [globalFilter, setGlobalFilter] = shouldReflectInURL
+    ? [globalFilterQueryParam, setGlobalFilterQueryParam]
+    : [globalFilterState, setGlobalFilterState];
 
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = rowsPerPage || storeRowsPerPageOptions;

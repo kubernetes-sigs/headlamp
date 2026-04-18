@@ -158,6 +158,7 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
       },
       ...(isMultiCluster ? (['cluster'] as ColumnType[]) : ([] as ColumnType[])),
       ...additionalPrinterCols,
+      'labels',
       'age',
     ];
 

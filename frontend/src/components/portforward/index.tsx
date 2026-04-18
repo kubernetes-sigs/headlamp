@@ -347,7 +347,18 @@ export default function PortForwardingList() {
             })
             .catch(error => {
               setPortForwardInAction(null);
-              console.log('Error starting port forward:', error);
+              const errorMessage =
+                error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+              const displayMessage = errorMessage
+                ? `${t('translation|Error starting port forward')}: ${errorMessage}`
+                : t('translation|Error starting port forward');
+
+              enqueueSnackbar(displayMessage, {
+                key: 'portforward-error',
+                preventDuplicate: true,
+                variant: 'error',
+              });
+              console.error('Error starting port forward:', error);
             });
         }}
       />

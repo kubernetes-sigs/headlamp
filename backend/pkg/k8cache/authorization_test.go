@@ -36,7 +36,7 @@ type MockKubeConfig struct {
 }
 
 func (k *MockKubeConfig) ClientSetWithToken(token string) (kubernetes.Interface, error) {
-	return fake.NewSimpleClientset(), nil
+	return fake.NewClientset(), nil
 }
 
 type MockClientConfig struct{}

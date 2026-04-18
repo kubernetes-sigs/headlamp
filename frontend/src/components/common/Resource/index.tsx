@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+export * from './A8RInfo';
+export { default as A8RInfo } from './A8RInfo';
 export * from './CircularChart';
 export * from './MetadataDisplay';
 export * from './EnvVarGrid';
@@ -33,6 +35,8 @@ export * from './DocsViewer';
 export { default as DocsViewer } from './DocsViewer';
 export * from './EditButton';
 export { default as EditButton } from './EditButton';
+export * from './DownloadButton';
+export { default as DownloadButton } from './DownloadButton';
 export * from './EditorDialog';
 export { default as EditorDialog } from './EditorDialog';
 export * from './MatchExpressions';

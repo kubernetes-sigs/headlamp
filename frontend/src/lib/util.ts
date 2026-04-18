@@ -501,33 +501,40 @@ export function normalizeUnit(resourceType: string, quantity: string) {
        * Binary: Ki | Mi | Gi | Ti | Pi | Ei
        * Refer https://github.com/kubernetes-client/csharp/blob/840a90e24ef922adee0729e43859cf6b43567594/src/KubernetesClient.Models/ResourceQuantity.cs#L211
        */
-      bytes = parseInt(quantity);
+      bytes = parseFloat(quantity);
+      if (isNaN(bytes)) {
+        return quantity;
+      }
       if (quantity.endsWith('Ki')) {
         bytes *= 1024;
       } else if (quantity.endsWith('Mi')) {
-        bytes *= 1024 * 1024;
+        bytes *= 1024 ** 2;
       } else if (quantity.endsWith('Gi')) {
-        bytes *= 1024 * 1024 * 1024;
+        bytes *= 1024 ** 3;
       } else if (quantity.endsWith('Ti')) {
-        bytes *= 1024 * 1024 * 1024 * 1024;
+        bytes *= 1024 ** 4;
+      } else if (quantity.endsWith('Pi')) {
+        bytes *= 1024 ** 5;
       } else if (quantity.endsWith('Ei')) {
-        bytes *= 1024 * 1024 * 1024 * 1024 * 1024;
+        bytes *= 1024 ** 6;
       } else if (quantity.endsWith('m')) {
         bytes /= 1000;
       } else if (quantity.endsWith('u')) {
-        bytes /= 1000 * 1000;
+        bytes /= 1000 ** 2;
       } else if (quantity.endsWith('n')) {
-        bytes /= 1000 * 1000 * 1000;
+        bytes /= 1000 ** 3;
       } else if (quantity.endsWith('k')) {
         bytes *= 1000;
       } else if (quantity.endsWith('M')) {
-        bytes *= 1000 * 1000;
+        bytes *= 1000 ** 2;
       } else if (quantity.endsWith('G')) {
-        bytes *= 1000 * 1000 * 1000;
+        bytes *= 1000 ** 3;
       } else if (quantity.endsWith('T')) {
-        bytes *= 1000 * 1000 * 1000 * 1000;
+        bytes *= 1000 ** 4;
+      } else if (quantity.endsWith('P')) {
+        bytes *= 1000 ** 5;
       } else if (quantity.endsWith('E')) {
-        bytes *= 1000 * 1000 * 1000 * 1000 * 1000;
+        bytes *= 1000 ** 6;
       }
 
       if (bytes === 0) {

@@ -89,7 +89,6 @@ async function storeKubeconfigFromBackstage(kubeconfig: string) {
         await statelessFunctions.findAndReplaceKubeconfig(context.name, newKubeconfigBase64, true);
       }
     );
-    console.log('Promises', promises);
     // Wait for all kubeconfig operations to complete
     await Promise.all(promises);
   } catch (error) {
@@ -118,8 +117,6 @@ const BACKSTAGE_ACK_TIMEOUT_MS = 1000;
  */
 export function setupBackstageMessageReceiver() {
   if (isBackstage()) {
-    console.log('Running in backstage, so setting up token receiver');
-
     const handleMessage = async (event: MessageEvent) => {
       try {
         const { type, payload } = event.data as BackstageMessage;

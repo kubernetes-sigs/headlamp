@@ -328,7 +328,7 @@ export function SearchPopover(props: SearchPopoverProps) {
       });
     } catch (e) {
       // Catch invalid regular expression error
-      console.log('Error searching logs: ', e);
+      console.error('Error searching logs: ', e);
       searchAddonRef.current?.findNext('');
     }
 
