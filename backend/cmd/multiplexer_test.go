@@ -788,6 +788,7 @@ func TestReconnect(t *testing.T) {
 	conn.WSConn = wsConn2.conn
 
 	// Close the connection and wait for cleanup
+
 	conn.closed = true // Mark connection as closed
 
 	// Try to reconnect the closed connection

@@ -401,7 +401,7 @@ func (m *Multiplexer) dialWebSocket(
 
 // monitorConnection monitors the health of a connection and attempts to reconnect if necessary.
 func (m *Multiplexer) monitorConnection(conn *Connection) {
-	heartbeat := time.NewTicker(HeartbeatInterval)
+	heartbeat := time.NewTicker(m.heartbeatInterval)
 	defer heartbeat.Stop()
 
 	for {
