@@ -38,6 +38,7 @@ import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import StatefulSet from '../../../lib/k8s/statefulSet';
 import { Activity } from '../../activity/Activity';
+import { colorizePrettifiedLog } from '../../pod/jsonHandling';
 import ActionButton from '../ActionButton';
 import { LogViewer } from '../LogViewer';
 import { LightTooltip } from '../Tooltip';
@@ -70,6 +71,9 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   const [lines, setLines] = useState<number>(100);
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showReconnectButton, setShowReconnectButton] = useState(false);
+  const [prettifyLogs, setPrettifyLogs] = useState<boolean>(false);
+  const [formatJsonValues, setFormatJsonValues] = useState<boolean>(false);
+  const [hasJsonLogs, setHasJsonLogs] = useState<boolean>(false);
 
   const xtermRef = React.useRef<XTerminal | null>(null);
   const { t } = useTranslation(['glossary', 'translation']);
@@ -144,6 +148,14 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
   function handlePreviousChange() {
     setShowPrevious(previous => !previous);
+  }
+
+  function handlePrettifyChange() {
+    setPrettifyLogs(prev => !prev);
+  }
+
+  function handleFormatJsonValuesChange() {
+    setFormatJsonValues(prev => !prev);
   }
 
   // Handler for initial logs button click
@@ -232,16 +244,19 @@ function LogsButtonContent({ item }: LogsButtonProps) {
       return timestampA.localeCompare(timestampB);
     });
 
+    const displayLogs =
+      prettifyLogs && hasJsonLogs ? allLogs.map(log => colorizePrettifiedLog(log)) : allLogs;
+
     if (xtermRef.current) {
       xtermRef.current.clear();
-      xtermRef.current.write(allLogs.join('').replaceAll('\n', '\r\n'));
+      xtermRef.current.write(displayLogs.join('').replaceAll('\n', '\r\n'));
     }
 
     setLogs({
       logs: allLogs,
       lastLineShown: allLogs.length - 1,
     });
-  }, [allPodLogs]);
+  }, [allPodLogs, prettifyLogs, hasJsonLogs]);
 
   // Function to fetch and aggregate logs from all pods
   function fetchAllPodsLogs(pods: Pod[], container: string): () => void {
@@ -253,7 +268,16 @@ function LogsButtonContent({ item }: LogsButtonProps) {
     pods.forEach(pod => {
       const cleanup = pod.getLogs(
         container,
-        ({ logs: newLogs }: { logs: string[]; hasJsonLogs?: boolean }) => {
+        ({
+          logs: newLogs,
+          hasJsonLogs: newHasJsonLogs,
+        }: {
+          logs: string[];
+          hasJsonLogs?: boolean;
+        }) => {
+          if (newHasJsonLogs) {
+            setHasJsonLogs(true);
+          }
           const podName = pod.getName();
           setAllPodLogs(current => {
             const updated = {
@@ -268,6 +292,8 @@ function LogsButtonContent({ item }: LogsButtonProps) {
           showPrevious,
           showTimestamps,
           follow,
+          prettifyLogs,
+          formatJsonValues,
           onReconnectStop: () => {
             setShowReconnectButton(true);
           },
@@ -287,6 +313,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
     if (selectedContainer) {
       clearLogs();
       setAllPodLogs({}); // Clear aggregated logs when switching pods
+      setHasJsonLogs(false);
 
       // Handle paused logs state
       if (!follow && logs.logs.length > 0) {
@@ -306,8 +333,17 @@ function LogsButtonContent({ item }: LogsButtonProps) {
           let lastLogLength = 0;
           cleanup = pod.getLogs(
             selectedContainer,
-            ({ logs: newLogs }: { logs: string[]; hasJsonLogs?: boolean }) => {
+            ({
+              logs: newLogs,
+              hasJsonLogs: newHasJsonLogs,
+            }: {
+              logs: string[];
+              hasJsonLogs?: boolean;
+            }) => {
               if (!isSubscribed) return;
+              if (newHasJsonLogs) {
+                setHasJsonLogs(true);
+              }
 
               setLogs(current => {
                 const terminalRef = xtermRef.current;
@@ -320,10 +356,12 @@ function LogsButtonContent({ item }: LogsButtonProps) {
                   const endIdx = Math.min(startIdx + CHUNK_SIZE, newLogs.length);
 
                   // Process only the new chunk of logs
-                  const newLogContent = newLogs
-                    .slice(startIdx, endIdx)
-                    .join('')
-                    .replaceAll('\n', '\r\n');
+                  const logSlice = newLogs.slice(startIdx, endIdx);
+                  const displaySlice =
+                    prettifyLogs && newHasJsonLogs
+                      ? logSlice.map(log => colorizePrettifiedLog(log))
+                      : logSlice;
+                  const newLogContent = displaySlice.join('').replaceAll('\n', '\r\n');
 
                   terminalRef.write(newLogContent);
                   lastLogLength = endIdx;
@@ -352,6 +390,8 @@ function LogsButtonContent({ item }: LogsButtonProps) {
               showPrevious,
               showTimestamps,
               follow,
+              prettifyLogs,
+              formatJsonValues,
               onReconnectStop: () => {
                 if (isSubscribed) {
                   setShowReconnectButton(true);
@@ -369,7 +409,19 @@ function LogsButtonContent({ item }: LogsButtonProps) {
         cleanup();
       }
     };
-  }, [selectedPodIndex, selectedContainer, lines, showTimestamps, follow, clearLogs, t, pods]);
+  }, [
+    selectedPodIndex,
+    selectedContainer,
+    lines,
+    showTimestamps,
+    follow,
+    clearLogs,
+    t,
+    pods,
+    prettifyLogs,
+    formatJsonValues,
+    showPrevious,
+  ]);
 
   // Effect to process logs when allPodLogs changes - only for "All Pods" mode
   React.useEffect(() => {
@@ -506,6 +558,40 @@ function LogsButtonContent({ item }: LogsButtonProps) {
           disabled={false}
         />
       </LightTooltip>
+
+      {/* Prettify JSON logs switch */}
+      {hasJsonLogs && (
+        <PaddedFormControlLabel
+          label={t('translation|Prettify')}
+          control={
+            <Switch
+              checked={prettifyLogs}
+              onChange={handlePrettifyChange}
+              size="small"
+              sx={{ transform: 'scale(0.8)' }}
+            />
+          }
+        />
+      )}
+
+      {/* Format JSON values switch */}
+      {hasJsonLogs && (
+        <LightTooltip
+          title={t('translation|Show JSON values in plain text by removing escape characters.')}
+        >
+          <PaddedFormControlLabel
+            label={t('translation|Format')}
+            control={
+              <Switch
+                checked={formatJsonValues}
+                onChange={handleFormatJsonValuesChange}
+                size="small"
+                sx={{ transform: 'scale(0.8)' }}
+              />
+            }
+          />
+        </LightTooltip>
+      )}
     </Box>,
   ];
 
