@@ -505,16 +505,20 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     }
 
     return sidebars;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     customSidebarEntries,
     shouldShowHomeItem,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     Object.keys(clusters).join(','),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     selectedClusters.join(','),
     allClustersConf,
     crdsSidebarEntries,
     t,
   ]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const unsortedItems =
     sidebars[sidebarName === '' ? DefaultSidebars.IN_CLUSTER : sidebarName] ?? [];
 

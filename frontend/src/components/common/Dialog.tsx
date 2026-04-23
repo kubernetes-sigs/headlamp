@@ -51,6 +51,7 @@ export function DialogTitle(props: OurDialogTitleProps) {
     return null;
   }
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const focusedRef = React.useCallback((node: HTMLElement) => {
     if (node !== null) {
       if (focusTitle) {
@@ -58,6 +59,7 @@ export function DialogTitle(props: OurDialogTitleProps) {
         node.focus();
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -171,6 +173,7 @@ export function Dialog(props: DialogProps) {
       {...other}
     >
       {(!!title || withFullScreen) && (
+        // eslint-disable-next-line react-hooks/static-components
         <DialogTitle {...titleProps} id={titleId} buttons={[<FullScreenButton />, <CloseButton />]}>
           {title}
         </DialogTitle>

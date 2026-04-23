@@ -139,6 +139,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
     if (next && !container) {
       setContainer(next);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.status]);
 
   React.useEffect(

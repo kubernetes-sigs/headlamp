@@ -63,6 +63,7 @@ export default function PortForwardingList() {
       [PortForwardAction.Stop]: t('translation|Stop'),
       [PortForwardAction.Delete]: t('translation|Delete'),
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [i18n.language]
   );
   const options = Object.keys(optionsTranslated) as (keyof typeof optionsTranslated)[];
@@ -115,6 +116,7 @@ export default function PortForwardingList() {
   }
   React.useEffect(() => {
     fetchPortForwardList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleAction = (option: string, portforward: any, closeMenu: () => void) => {

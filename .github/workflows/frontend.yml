@@ -49,7 +49,7 @@ jobs:
 
       - name: Run linter
         run: |
-          make frontend-lint
+          cd frontend && npm run ci-lint
 
   test:
     name: test

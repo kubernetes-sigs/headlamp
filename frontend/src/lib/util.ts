@@ -411,6 +411,7 @@ export function useURLState<T extends string | number | undefined = string>(
       return defaultValue;
     }
     return newValue;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [value, setValue] = React.useState<T>(initialValue as T);
 
@@ -459,6 +460,7 @@ export function useURLState<T extends string | number | undefined = string>(
     if (shouldUpdateURL) {
       history.replace({ search: urlParams.toString() });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   return [value, setValue] as [T, React.Dispatch<React.SetStateAction<T>>];
@@ -562,7 +564,8 @@ export function useId(prefix = '') {
   const [id] = React.useState<string | undefined>(
     import.meta.env.UNDER_TEST === 'true'
       ? prefix + 'id'
-      : prefix + Math.random().toString(16).slice(2)
+      : // eslint-disable-next-line react-hooks/purity
+        prefix + Math.random().toString(16).slice(2)
   );
 
   return id;

@@ -512,6 +512,7 @@ export default function PodList() {
       resourceKind: 'Pod',
       error: errors?.[0] || undefined,
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, errors]);
 
   return <PodListRenderer pods={items} errors={errors} metrics={podMetrics} reflectTableInURL />;

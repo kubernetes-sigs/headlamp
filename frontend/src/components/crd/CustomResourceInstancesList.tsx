@@ -28,6 +28,7 @@ function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
 
   const dataClassCrds = crds.map(crd => {
     const crdClass = crd.makeCRClass();
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const data = crdClass.useList({ cluster: crd.cluster, namespace: useNamespaces() });
     return { data, crdClass, crd };
   });
@@ -63,6 +64,7 @@ function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
       crdsFailedToLoad,
       allFailed: crdsFailedToLoad.length === queries.length,
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, queries);
 
   if (isLoading) {

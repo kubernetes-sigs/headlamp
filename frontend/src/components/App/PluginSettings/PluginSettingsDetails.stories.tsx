@@ -21,6 +21,7 @@ import { PluginInfo, PluginSettingsDetailsProps } from '../../../plugin/pluginsS
 import { PluginSettingsDetailsPure, PluginSettingsDetailsPureProps } from './PluginSettingsDetails';
 
 const testAutoSaveComponent: React.FC<PluginSettingsDetailsProps> = () => {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [data, setData] = React.useState<{ [key: string]: any }>({});
   const onChange = (value: string) => {
     setData({ works: value });

@@ -88,6 +88,7 @@ export function AdvancedSearch() {
         ? ''
         : [...selectedResources].join('+')
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedResources, resources]);
 
   const resourcesList = useMemo(

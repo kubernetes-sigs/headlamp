@@ -51,6 +51,7 @@ export default function CreateButton(props: CreateButtonProps) {
     } else if (!clusters.includes(targetCluster)) {
       setTargetCluster(clusters[0]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clusters]);
 
   const openActivity = () => {

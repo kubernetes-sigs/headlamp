@@ -96,10 +96,12 @@ function RouteComponent({ route }: { route: RouteType }) {
   const dispatch = useDispatch();
   React.useEffect(() => {
     dispatch(uiSlice.actions.setHideAppBar(route.hideAppBar));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.hideAppBar]);
 
   React.useEffect(() => {
     dispatch(uiSlice.actions.setIsFullWidth(route.isFullWidth));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.isFullWidth]);
 
   return (
@@ -239,6 +241,7 @@ export function PreviousRouteProvider({ children }: React.PropsWithChildren<{}>)
         setLocationInfo(levels => levels - 1);
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

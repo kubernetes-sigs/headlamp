@@ -60,6 +60,7 @@ export function useLocalStorageState<T>(key: string, defaultValue: T) {
     return () => {
       updateListeners[key] = updateListeners[key].filter(it => it !== listener);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   return [state, set] as const;

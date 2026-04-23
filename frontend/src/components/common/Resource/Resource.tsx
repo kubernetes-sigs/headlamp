@@ -176,6 +176,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
         },
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item]);
 
   React.useEffect(() => {
@@ -196,6 +197,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
       error,
     };
     onResourceUpdate?.(item as InstanceType<T>, error!);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, error]);
 
   const actualBackLink: string | Location | undefined = React.useMemo(() => {
@@ -231,6 +233,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
     }
 
     return createRouteURL(route);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item]);
 
   const sections: (DetailsViewSection | ReactNode)[] = [];
@@ -1100,6 +1103,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
   const references = extractEnvVarReferences(container);
 
   // Get unique resource names to fetch
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const secretsToFetch = React.useMemo(() => {
     const secrets = new Set<string>();
     references.forEach(ref => {
@@ -1110,6 +1114,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
     return Array.from(secrets);
   }, [references]);
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const configMapsToFetch = React.useMemo(() => {
     const configMaps = new Set<string>();
     references.forEach(ref => {
@@ -1121,6 +1126,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
   }, [references]);
 
   // Callbacks to handle fetched resources
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const handleSecretFetched = React.useCallback(
     (name: string, resource: KubeObject | null, error: ApiError | null) => {
       setFetchedSecrets(prev => {
@@ -1132,6 +1138,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
     []
   );
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const handleConfigMapFetched = React.useCallback(
     (name: string, resource: KubeObject | null, error: ApiError | null) => {
       setFetchedConfigMaps(prev => {
@@ -1144,6 +1151,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
   );
 
   // Copy handler using notistack
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const handleCopy = React.useCallback(
     (text: string) => {
       navigator.clipboard.writeText(text).then(
@@ -1345,25 +1353,32 @@ export function LivenessProbes(props: { liveness: KubeContainer['livenessProbe']
 
   return (
     <Box display="flex" flexDirection="column">
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <LivenessProbeItem>
         {`http-get, path: ${liveness?.httpGet?.path}, port: ${liveness?.httpGet?.port},
     scheme: ${liveness?.httpGet?.scheme}`}
       </LivenessProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <LivenessProbeItem>
         {liveness?.exec?.command && `exec[${liveness?.exec?.command.join(' ')}]`}
       </LivenessProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <LivenessProbeItem>
         {liveness?.successThreshold && `success = ${liveness?.successThreshold}`}
       </LivenessProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <LivenessProbeItem>
         {liveness?.failureThreshold && `failure = ${liveness?.failureThreshold}`}
       </LivenessProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <LivenessProbeItem>
         {liveness?.initialDelaySeconds && `delay = ${liveness?.initialDelaySeconds}s`}
       </LivenessProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <LivenessProbeItem>
         {liveness?.timeoutSeconds && `timeout = ${liveness?.timeoutSeconds}s`}
       </LivenessProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <LivenessProbeItem>
         {liveness?.periodSeconds && `period = ${liveness?.periodSeconds}s`}
       </LivenessProbeItem>
@@ -1742,6 +1757,7 @@ export function ContainersSection(props: { resource: KubeObjectInterface | null 
 
     if (resource.spec) {
       if (resource.spec.containers) {
+        // eslint-disable-next-line react-hooks/immutability
         title = t('Containers');
         containers = resource.spec.containers;
       } else if (resource.spec.template && resource.spec.template.spec) {

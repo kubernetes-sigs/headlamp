@@ -145,6 +145,7 @@ function usePageURLState(
 
   React.useEffect(() => {
     setPage(zeroIndexPage + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zeroIndexPage]);
 
   return [zeroIndexPage, setZeroIndexPage];
@@ -173,6 +174,7 @@ export default function SimpleTable(props: SimpleTableProps) {
   const [displayData, setDisplayData] = React.useState(data);
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = props.rowsPerPage || storeRowsPerPageOptions;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const defaultRowsPerPage = React.useMemo(() => getTablesRowsPerPage(rowsPerPageOptions[0]), []);
   const [rowsPerPage, setRowsPerPage] = useURLState(shouldReflectInURL ? 'perPage' : '', {
     defaultValue: defaultRowsPerPage,
@@ -214,6 +216,7 @@ export default function SimpleTable(props: SimpleTableProps) {
     if (displayData && page * rowsPerPage > displayData.length) {
       setPage(Math.floor(displayData.length / rowsPerPage));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, displayData, rowsPerPage]);
 
   function handleChangeRowsPerPage(

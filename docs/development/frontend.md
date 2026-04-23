@@ -30,6 +30,24 @@ a development server for the frontend (by default at `localhost:3000`).
 We use [react-query](https://tanstack.com/query/latest/docs/framework/react/overview) 
 for network request, if you need the devtools for react-query, you can simply set `REACT_APP_ENABLE_REACT_QUERY_DEVTOOLS=true` in the `.env` file.
 
+## Linting
+
+For local development, run:
+
+```bash
+npm run frontend:lint
+```
+
+This runs ESLint with the expensive compiler-based `react-hooks/*` rules turned off so it stays fast.
+
+CI uses a stricter check that re-enables all `react-hooks/*` rules and treats every warning as an error (`--max-warnings 0`):
+
+```bash
+cd frontend && npm run ci-lint
+```
+
+You can run `ci-lint` locally before pushing to catch any react-hooks violations that CI would flag.
+
 ## API documentation
 
 API documentation for TypeScript is done with [typedoc](https://typedoc.org/) and [typedoc-plugin-markdown](https://github.com/tgreyuk/typedoc-plugin-markdown), and is configured in tsconfig.json

@@ -124,6 +124,7 @@ export default function SettingsCluster() {
     if (!!clusterConfNs && clusterConfNs !== defaultNamespace) {
       setDefaultNamespace(clusterConfNs);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cluster, clusterConf]);
 
   React.useEffect(() => {
@@ -135,6 +136,7 @@ export default function SettingsCluster() {
     if (clusterSettings !== null) {
       storeClusterSettings(cluster || '', clusterSettings);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cluster, clusterSettings]);
 
   React.useEffect(() => {
@@ -155,6 +157,7 @@ export default function SettingsCluster() {
         clusterFromURLRef.current = '';
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userDefaultNamespace]);
 
   React.useEffect(() => {
@@ -168,6 +171,7 @@ export default function SettingsCluster() {
     } else {
       setCluster('');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search, clusters]);
 
   function isEditingDefaultNamespace() {

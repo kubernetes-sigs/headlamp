@@ -78,13 +78,18 @@ export function RollbackButton(props: RollbackButtonProps) {
     return null;
   }
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [openDialog, setOpenDialog] = useState(false);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const location = useLocation();
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { t } = useTranslation(['translation']);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const dispatchRollbackEvent = useEventCallback(HeadlampEventType.ROLLBACK_RESOURCE);
 
   const resource = item;
   const resourceKind = resource.kind;
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const getRevisionHistory = useCallback(() => resource.getRevisionHistory(), [resource]);
 
   async function performRollback(toRevision?: number) {

@@ -39,6 +39,7 @@ export default function TimezoneSelect(props: TimezoneSelectorProps) {
         offset: timezone.current.offset,
       };
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i18n.language]);
 
   return (

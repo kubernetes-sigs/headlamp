@@ -118,6 +118,7 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
     return <Empty>{t('translation|No custom resources found')}</Empty>;
   }
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const additionalPrinterCols = React.useMemo(() => {
     const currentVersion = apiGroup[1];
     const colsFromSpec =
@@ -149,6 +150,7 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
     return cols;
   }, [crd, apiGroup]);
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const cols = React.useMemo(() => {
     const colsToDisplay: ResourceTableProps<KubeObject<KubeCRD>>['columns'] = [
       {
@@ -167,6 +169,7 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
     }
 
     return colsToDisplay;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [crd, additionalPrinterCols, isMultiCluster]);
 
   return (

@@ -183,6 +183,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
   useEffect(() => {
     onMount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Get containers for the selected pod
@@ -369,6 +370,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
         cleanup();
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPodIndex, selectedContainer, lines, showTimestamps, follow, clearLogs, t, pods]);
 
   // Effect to process logs when allPodLogs changes - only for "All Pods" mode

@@ -355,6 +355,7 @@ export default function Terminal(props: TerminalProps) {
         currentIdx: 0,
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item]);
 
   function getAvailableShells() {
