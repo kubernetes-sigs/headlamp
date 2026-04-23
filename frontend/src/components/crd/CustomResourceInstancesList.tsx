@@ -16,24 +16,66 @@
 
 import Alert from '@mui/material/Alert';
 import AlertTitle from '@mui/material/AlertTitle';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import CRD from '../../lib/k8s/crd';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { useNamespaces } from '../../redux/filterSlice';
 import { EmptyContent as Empty, Link, Loader, ResourceListView, ShowHideLabel } from '../common/';
 
+function CrInstanceDataFetcher({
+  crd,
+  namespaces,
+  onData,
+}: {
+  crd: CRD;
+  namespaces: string | string[];
+  onData: (data: any, key: string) => void;
+}) {
+  const crdKeyId = crd.metadata.uid || crd.metadata.name;
+  const crdClass = useMemo(() => crd.makeCRClass(), [crd.cluster, crdKeyId]);
+  const data = crdClass.useList({ cluster: crd.cluster, namespace: namespaces });
+  const key = useMemo(() => `${crd.cluster}:${crdKeyId}`, [crd.cluster, crdKeyId]);
+
+  // Extract only stable fields to prevent infinite loops from new object identities
+  const dataSnapshot = useMemo(
+    () => ({
+      items: data.items,
+      isLoading: data.isLoading,
+      isFetching: data.isFetching,
+      isError: data.isError,
+      error: data.error,
+    }),
+    [data.items, data.isLoading, data.isFetching, data.isError, data.error]
+  );
+
+  useEffect(() => {
+    onData(dataSnapshot, key);
+  }, [dataSnapshot, key, onData]);
+
+  return null;
+}
+
 function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
   const { t } = useTranslation(['glossary', 'translation']);
+  const namespaces = useNamespaces();
+  const [queriesMap, setQueriesMap] = useState<Record<string, any>>({});
 
-  const dataClassCrds = crds.map(crd => {
-    const crdClass = crd.makeCRClass();
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const data = crdClass.useList({ cluster: crd.cluster, namespace: useNamespaces() });
-    return { data, crdClass, crd };
-  });
+  const handleData = useCallback((data: any, key: string) => {
+    setQueriesMap(prev => {
+      if (prev[key] === data) {
+        return prev;
+      }
+      return { ...prev, [key]: data };
+    });
+  }, []);
 
-  const queries = dataClassCrds.map(it => it.data);
+  const queries = useMemo(() => {
+    return crds.map(
+      crd =>
+        queriesMap[`${crd.cluster}:${crd.metadata.uid || crd.metadata.name}`] || { isLoading: true }
+    );
+  }, [crds, queriesMap]);
 
   const [isWarningClosed, setIsWarningClosed] = useState(false);
 
@@ -64,19 +106,38 @@ function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
       crdsFailedToLoad,
       allFailed: crdsFailedToLoad.length === queries.length,
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, queries);
+  }, [queries, crds]);
+
+  const fetchers = crds.map(crd => (
+    <CrInstanceDataFetcher
+      key={`${crd.cluster}:${crd.metadata.uid || crd.metadata.name}`}
+      crd={crd}
+      namespaces={namespaces}
+      onData={handleData}
+    />
+  ));
 
   if (isLoading) {
-    return <Loader title={t('translation|Loading custom resource instances')} />;
+    return (
+      <>
+        {fetchers}
+        <Loader title={t('translation|Loading custom resource instances')} />
+      </>
+    );
   }
 
   if (crInstancesList.length === 0) {
-    return <Empty>{t('translation|No custom resources instances found.')}</Empty>;
+    return (
+      <>
+        {fetchers}
+        <Empty>{t('translation|No custom resources instances found.')}</Empty>
+      </>
+    );
   }
 
   return (
     <>
+      {fetchers}
       {crdsFailedToLoad.length > 0 && !allFailed && !isWarningClosed && (
         <Alert
           severity="warning"
