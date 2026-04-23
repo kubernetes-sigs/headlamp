@@ -74,18 +74,18 @@ export function RollbackButton(props: RollbackButtonProps) {
   const dispatch: AppDispatch = useDispatch();
   const { item, buttonStyle, afterConfirm } = props;
 
-  if (!item || !isRollbackableResource(item)) {
-    return null;
-  }
-
   const [openDialog, setOpenDialog] = useState(false);
   const location = useLocation();
   const { t } = useTranslation(['translation']);
   const dispatchRollbackEvent = useEventCallback(HeadlampEventType.ROLLBACK_RESOURCE);
 
-  const resource = item;
-  const resourceKind = resource.kind;
-  const getRevisionHistory = useCallback(() => resource.getRevisionHistory(), [resource]);
+  const resource = isRollbackableResource(item) ? item : null;
+  const resourceKind = resource?.kind;
+  const getRevisionHistory = useCallback(() => resource?.getRevisionHistory(), [resource]);
+
+  if (!item || !isRollbackableResource(item)) {
+    return null;
+  }
 
   async function performRollback(toRevision?: number) {
     const result = await resource.rollback(toRevision);
