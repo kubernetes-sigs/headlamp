@@ -422,10 +422,10 @@ export interface VolumeDetailsProps {
 
 export function VolumeDetails(props: VolumeDetailsProps) {
   const { volumes } = props;
+  const { t } = useTranslation();
   if (!volumes) {
     return null;
   }
-  const { t } = useTranslation();
   return (
     <SectionBox title={t('translation|Volumes')}>
       <SimpleTable
