@@ -60,20 +60,27 @@ describe('activitySlice', () => {
       const stateWithExistingActivity: ActivityState = {
         history: [],
         activities: {
-          '1': { ...newActivity, title: 'Old Title', minimized: true },
+          '1': {
+            ...newActivity,
+            title: 'Old Title',
+            content: 'Old Content',
+            icon: 'mdi:old-icon',
+            hideTitleInHeader: true,
+            minimized: true,
+          },
         },
       };
-
       const updatedActivity: Activity = {
         ...newActivity,
         title: 'New Title',
+        content: 'New Content',
       };
-
       const nextState = reducer(stateWithExistingActivity, launchActivity(updatedActivity));
-
       expect(nextState.activities['1'].title).toEqual('New Title');
-      expect(nextState.activities['1'].content).toEqual('Test Content');
+      expect(nextState.activities['1'].content).toEqual('New Content');
       expect(nextState.activities['1'].minimized).toBe(false);
+      expect(nextState.activities['1'].icon).toEqual('mdi:old-icon');
+      expect(nextState.activities['1'].hideTitleInHeader).toBe(true);
       expect(nextState.history).toEqual(['1']);
     });
 
