@@ -1087,6 +1087,63 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
   const [fetchedConfigMaps, setFetchedConfigMaps] = React.useState<Map<string, FetchedResource>>(
     new Map()
   );
+  // Extract all references upfront (pure function, no hooks)
+  const references = extractEnvVarReferences(container!);
+
+  // Get unique resource names to fetch
+  const secretsToFetch = React.useMemo(() => {
+    const secrets = new Set<string>();
+    references.forEach(ref => {
+      if ((ref.type === 'secret' || ref.type === 'secretRef') && ref.resourceName) {
+        secrets.add(ref.resourceName);
+      }
+    });
+    return Array.from(secrets);
+  }, [references]);
+
+  const configMapsToFetch = React.useMemo(() => {
+    const configMaps = new Set<string>();
+    references.forEach(ref => {
+      if ((ref.type === 'configMap' || ref.type === 'configMapRef') && ref.resourceName) {
+        configMaps.add(ref.resourceName);
+      }
+    });
+    return Array.from(configMaps);
+  }, [references]);
+
+  // Callbacks to handle fetched resources
+  const handleSecretFetched = React.useCallback(
+    (name: string, resource: KubeObject | null, error: ApiError | null) => {
+      setFetchedSecrets(prev => {
+        const next = new Map(prev);
+        next.set(name, { resource, error });
+        return next;
+      });
+    },
+    []
+  );
+
+  const handleConfigMapFetched = React.useCallback(
+    (name: string, resource: KubeObject | null, error: ApiError | null) => {
+      setFetchedConfigMaps(prev => {
+        const next = new Map(prev);
+        next.set(name, { resource, error });
+        return next;
+      });
+    },
+    []
+  );
+
+  // Copy handler using notistack
+  const handleCopy = React.useCallback(
+    (text: string) => {
+      navigator.clipboard.writeText(text).then(
+        () => enqueueSnackbar(t('translation|Copied'), { variant: 'success' }),
+        err => console.error('Failed to copy: ', err)
+      );
+    },
+    [enqueueSnackbar, t]
+  );
 
   // Early return if no env vars
   if (
@@ -1106,69 +1163,6 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
     }
     return timestamp;
   })();
-
-  // Extract all references upfront (pure function, no hooks)
-  const references = extractEnvVarReferences(container);
-
-  // Get unique resource names to fetch
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const secretsToFetch = React.useMemo(() => {
-    const secrets = new Set<string>();
-    references.forEach(ref => {
-      if ((ref.type === 'secret' || ref.type === 'secretRef') && ref.resourceName) {
-        secrets.add(ref.resourceName);
-      }
-    });
-    return Array.from(secrets);
-  }, [references]);
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const configMapsToFetch = React.useMemo(() => {
-    const configMaps = new Set<string>();
-    references.forEach(ref => {
-      if ((ref.type === 'configMap' || ref.type === 'configMapRef') && ref.resourceName) {
-        configMaps.add(ref.resourceName);
-      }
-    });
-    return Array.from(configMaps);
-  }, [references]);
-
-  // Callbacks to handle fetched resources
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const handleSecretFetched = React.useCallback(
-    (name: string, resource: KubeObject | null, error: ApiError | null) => {
-      setFetchedSecrets(prev => {
-        const next = new Map(prev);
-        next.set(name, { resource, error });
-        return next;
-      });
-    },
-    []
-  );
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const handleConfigMapFetched = React.useCallback(
-    (name: string, resource: KubeObject | null, error: ApiError | null) => {
-      setFetchedConfigMaps(prev => {
-        const next = new Map(prev);
-        next.set(name, { resource, error });
-        return next;
-      });
-    },
-    []
-  );
-
-  // Copy handler using notistack
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const handleCopy = React.useCallback(
-    (text: string) => {
-      navigator.clipboard.writeText(text).then(
-        () => enqueueSnackbar(t('translation|Copied'), { variant: 'success' }),
-        err => console.error('Failed to copy: ', err)
-      );
-    },
-    [enqueueSnackbar, t]
-  );
 
   // Build variables from fetched resources
   const variables = buildEnvironmentVariables(
