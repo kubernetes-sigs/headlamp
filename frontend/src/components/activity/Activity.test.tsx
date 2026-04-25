@@ -56,6 +56,27 @@ describe('activitySlice', () => {
       expect(nextState.history).toEqual(['1']);
     });
 
+    it('should merge new payload into existing activity', () => {
+      const stateWithExistingActivity: ActivityState = {
+        history: [],
+        activities: {
+          '1': { ...newActivity, title: 'Old Title', minimized: true },
+        },
+      };
+
+      const updatedActivity: Activity = {
+        ...newActivity,
+        title: 'New Title',
+      };
+
+      const nextState = reducer(stateWithExistingActivity, launchActivity(updatedActivity));
+
+      expect(nextState.activities['1'].title).toEqual('New Title');
+      expect(nextState.activities['1'].content).toEqual('Test Content');
+      expect(nextState.activities['1'].minimized).toBe(false);
+      expect(nextState.history).toEqual(['1']);
+    });
+
     it('should close temporary activities', () => {
       const temporaryActivity: Activity = {
         id: '2',
