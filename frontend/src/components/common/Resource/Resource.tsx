@@ -1338,6 +1338,48 @@ export function VolumeMounts(props: VolumeMountsProps) {
   );
 }
 
+export function ContainerResources(props: { resources: KubeContainer['resources'] }) {
+  const { resources } = props;
+  const { t } = useTranslation('glossary');
+
+  if (!resources) {
+    return null;
+  }
+
+  const rows = [
+    {
+      type: t('CPU'),
+      requests: resources.requests?.cpu ?? '-',
+      limits: resources.limits?.cpu ?? '-',
+    },
+    {
+      type: t('Memory'),
+      requests: resources.requests?.memory ?? '-',
+      limits: resources.limits?.memory ?? '-',
+    },
+  ];
+
+  return (
+    <InnerTable
+      columns={[
+        {
+          label: '',
+          getter: (data: any) => data.type,
+        },
+        {
+          label: t('Request'),
+          getter: (data: any) => data.requests,
+        },
+        {
+          label: t('Limit'),
+          getter: (data: any) => data.limits,
+        },
+      ]}
+      data={rows}
+    />
+  );
+}
+
 export function LivenessProbes(props: { liveness: KubeContainer['livenessProbe'] }) {
   const { liveness } = props;
 
@@ -1637,6 +1679,12 @@ export function ContainerInfo(props: ContainerInfoProps) {
         name: t('glossary|Environment'),
         value: <ContainerEnvironmentVariables pod={resource as KubePod} container={container} />,
         hide: _.isEmpty(container?.env) && _.isEmpty(container?.envFrom),
+      },
+      {
+        name: t('Resources'),
+        value: <ContainerResources resources={container.resources} />,
+        valueFullRow: true,
+        hide: _.isEmpty(container.resources),
       },
       {
         name: t('Liveness Probes'),
