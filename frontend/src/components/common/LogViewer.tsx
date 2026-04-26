@@ -27,6 +27,7 @@ import _ from 'lodash';
 import React, { ReactNode, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShortcut } from '../../lib/useShortcut';
+import { XTERM_BASE_OPTIONS } from '../../lib/xterm/options';
 import ActionButton from './ActionButton';
 import { Dialog, DialogProps } from './Dialog';
 
@@ -96,11 +97,10 @@ export function LogViewer(props: LogViewerProps) {
     searchAddonRef.current = new SearchAddon();
 
     xtermRef.current = new XTerminal({
+      ...XTERM_BASE_OPTIONS,
+      rows: 30,
       cursorStyle: 'bar',
-      scrollback: 10000,
-      rows: 30, // initial rows before fit
       lineHeight: 1.21,
-      allowProposedApi: true,
     });
 
     if (!!outXtermRef) {

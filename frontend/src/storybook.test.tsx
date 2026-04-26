@@ -90,19 +90,27 @@ window.matchMedia = () => ({
  * Recursively walks the tree and replaces any usage of useId
  */
 function replaceUseId(node: any) {
-  const attributesToReplace = ['id', 'for', 'aria-describedby', 'aria-labelledby', 'aria-controls'];
+  const attributesToReplace = [
+    'id',
+    'for',
+    'aria-describedby',
+    'aria-labelledby',
+    'aria-controls',
+    'clip-path',
+  ];
   if (node.nodeType === Node.ELEMENT_NODE) {
-    for (const attr of node.attributes) {
+    Array.from(node.attributes).forEach((attr: any) => {
       if (attributesToReplace.includes(attr.name)) {
         if (attr.value.includes(':')) {
           // Handle React useId generated IDs
           node.setAttribute(attr.name, ':mock-test-id:');
-        } else if (attr.name === 'id' && attr.value.includes('recharts')) {
-          // Handle recharts generated IDs
-          node.setAttribute(attr.name, 'recharts-id');
+        } else if (attr.value.includes('recharts')) {
+          // Handle recharts generated IDs and references like url(#recharts71-clip)
+          const newValue = attr.value.replace(/recharts\d+(-clip)?/g, 'recharts-id');
+          node.setAttribute(attr.name, newValue);
         }
       }
-    }
+    });
 
     if (node.className && typeof node.className === 'string') {
       // Replace dynamic xterm owner classes with a fixed value
@@ -110,6 +118,15 @@ function replaceUseId(node: any) {
         /xterm-dom-renderer-owner-\d+/g,
         'xterm-dom-renderer-owner'
       );
+    }
+
+    if (node.tagName && node.tagName.toUpperCase() === 'STYLE') {
+      const html = node.innerHTML;
+      if (html) {
+        node.innerHTML = html
+          .replace(/xterm-dom-renderer-owner-\d+/g, 'xterm-dom-renderer-owner')
+          .replace(/blink_(underline|bar|block)_\d+/g, 'blink_$1');
+      }
     }
   }
 
