@@ -1088,7 +1088,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
     new Map()
   );
   // Extract all references upfront (pure function, no hooks)
-  const references = extractEnvVarReferences(container!);
+  const references = container ? extractEnvVarReferences(container) : [];
 
   // Get unique resource names to fetch
   const secretsToFetch = React.useMemo(() => {
