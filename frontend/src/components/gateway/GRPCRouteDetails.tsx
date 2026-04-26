@@ -32,7 +32,7 @@ export default function GRPCRouteDetails(props: { name?: string; namespace?: str
       extraSections={(item: GRPCRoute) =>
         item && [
           {
-            id: 'headlamp.httproute-parentrefs',
+            id: 'headlamp.grpcroute-parentrefs',
             section: <GatewayParentRefSection parentRefs={item?.parentRefs || []} />,
           },
         ]

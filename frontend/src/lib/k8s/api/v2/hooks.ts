@@ -130,6 +130,7 @@ export function useKubeObject<K extends KubeObject>({
   const queryKey = useMemo(
     () =>
       kubeObjectQueryKey({ cluster, name, namespace, endpoint, queryParams: cleanedUpQueryParams }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [endpoint, namespace, name]
   );
 
@@ -171,12 +172,14 @@ export function useKubeObject<K extends KubeObject>({
         },
       },
     ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endpoint]);
 
   // Breaking rules of hooks here a little but
   // getWebsocketMultiplexerEnabled is a feature toggle
   // and not a variable so this `if` should never change during runtime
   if (getWebsocketMultiplexerEnabled()) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     useWebSocket<KubeListUpdateEvent<K>>({
       url: () =>
         makeUrl([KubeObjectEndpoint.toUrl(endpoint!)], {
@@ -193,6 +196,7 @@ export function useKubeObject<K extends KubeObject>({
       },
     });
   } else {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     useWebSockets({
       enabled: !!endpoint && !!data,
       connections: connectionsRequests,

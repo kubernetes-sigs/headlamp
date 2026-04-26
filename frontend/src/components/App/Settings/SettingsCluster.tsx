@@ -22,6 +22,7 @@ import IconButton from '@mui/material/IconButton';
 import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { useSnackbar } from 'notistack';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -75,6 +76,7 @@ export default function SettingsCluster() {
   const history = useHistory();
   const dispatch = useDispatch();
   const location = useLocation();
+  const { enqueueSnackbar } = useSnackbar();
 
   const removeCluster = () => {
     deleteCluster(cluster || '')
@@ -83,9 +85,13 @@ export default function SettingsCluster() {
         history.push('/');
       })
       .catch((err: Error) => {
-        if (err.message === 'Not Found') {
-          // TODO: create notification with error message
-        }
+        enqueueSnackbar(
+          t('translation|Failed to delete cluster: {{ error }}', { error: err.message }),
+          {
+            variant: 'error',
+            preventDuplicate: true,
+          }
+        );
       });
   };
 
@@ -118,6 +124,7 @@ export default function SettingsCluster() {
     if (!!clusterConfNs && clusterConfNs !== defaultNamespace) {
       setDefaultNamespace(clusterConfNs);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cluster, clusterConf]);
 
   React.useEffect(() => {
@@ -129,6 +136,7 @@ export default function SettingsCluster() {
     if (clusterSettings !== null) {
       storeClusterSettings(cluster || '', clusterSettings);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cluster, clusterSettings]);
 
   React.useEffect(() => {
@@ -149,6 +157,7 @@ export default function SettingsCluster() {
         clusterFromURLRef.current = '';
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userDefaultNamespace]);
 
   React.useEffect(() => {
@@ -162,6 +171,7 @@ export default function SettingsCluster() {
     } else {
       setCluster('');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search, clusters]);
 
   function isEditingDefaultNamespace() {

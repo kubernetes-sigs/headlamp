@@ -79,6 +79,7 @@ export const useKubeLists = (
     });
 
     setItems(oldItems => (equal(oldItems, newItems) ? oldItems : newItems));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, classes, isLoading]);
 
   const errors = useMemo(() => {

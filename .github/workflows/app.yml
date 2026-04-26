@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [22.x]
     steps:
     - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
     - name: Use Node.js ${{ matrix.node-version }}
@@ -51,7 +51,7 @@ jobs:
     runs-on: windows-2025
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [22.x]
     steps:
     - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
     - name: Use Node.js ${{ matrix.node-version }}
@@ -78,7 +78,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [22.x]
     steps:
     - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
     - name: Use Node.js ${{ matrix.node-version }}

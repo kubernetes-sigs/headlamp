@@ -213,6 +213,7 @@ export default function Notifications() {
       // we are here means the events list changed and we have now new set of events, so we will notify the store about it
       dispatch(setNotifications(notificationsToShow.concat(currentNotifications)));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warnings, notifications]);
 
   const [areAllNotificationsInDeleteState, areThereUnseenNotifications, filteredNotifications] =

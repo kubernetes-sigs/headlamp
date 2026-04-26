@@ -57,6 +57,7 @@ import Link from '../Link';
 import Table, { TableColumn } from '../Table';
 import { getA8RMetadata } from './A8RInfo';
 import DeleteButton from './DeleteButton';
+import DownloadButton from './DownloadButton';
 import EditButton from './EditButton';
 import ResourceTableMultiActions from './ResourceTableMultiActions';
 import { RestartButton } from './RestartButton';
@@ -202,6 +203,7 @@ function TableFromResourceClass<KubeClass extends KubeObjectClass>(
       resourceKind: resourceClass.className,
       error: errors?.[0] || undefined,
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, errors]);
 
   return (
@@ -260,6 +262,7 @@ function sortingFn(sortFn?: (a: any, b: any) => number): MRT_SortingFn<any> | un
  */
 export function useThrottle(value: any, interval = 1000): any {
   const [throttledValue, setThrottledValue] = useState(value);
+  // eslint-disable-next-line react-hooks/purity
   const lastEffected = useRef(Date.now() + interval);
 
   // Ensure we don't throttle holding the loading null or undefined value before
@@ -531,6 +534,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     >;
 
     return [allColumns];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     columnsWithA8rOwner,
     hideColumns,
@@ -556,6 +560,10 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
       action: ({ item, closeMenu }) => (
         <EditButton item={item} buttonStyle="menu" afterConfirm={closeMenu} key="edit" />
       ),
+    },
+    {
+      id: DefaultHeaderAction.DOWNLOAD,
+      action: ({ item }) => <DownloadButton item={item} buttonStyle="menu" key="download" />,
     },
     {
       id: DefaultHeaderAction.VIEW,
@@ -600,6 +608,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     },
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const actionsProcessed: RowAction[] = [...hAccs, a8rAction, ...defaultActions];
 
   const renderRowActionMenuItems = useMemo(() => {

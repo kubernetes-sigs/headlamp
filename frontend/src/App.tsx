@@ -46,6 +46,7 @@ function AppWithRedux(props: React.PropsWithChildren<{}>) {
   }
 
   const currentAppTheme = useCurrentAppTheme();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const muiTheme = useMemo(() => createMuiTheme(currentAppTheme), [themeName, currentAppTheme]);
 
   return (

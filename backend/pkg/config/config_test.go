@@ -3,6 +3,8 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -385,4 +387,252 @@ func TestOIDCTLSEnvironmentVariables(t *testing.T) {
 			tt.verify(t, conf)
 		})
 	}
+}
+
+var applyMeDefaultsTests = []struct {
+	name             string
+	usernamePath     string
+	emailPath        string
+	groupsPath       string
+	userInfoURL      string
+	wantUsernamePath string
+	wantEmailPath    string
+	wantGroupsPath   string
+	wantUserInfoURL  string
+}{
+	{
+		name:             "all_empty_uses_defaults",
+		usernamePath:     "",
+		emailPath:        "",
+		groupsPath:       "",
+		userInfoURL:      "",
+		wantUsernamePath: config.DefaultMeUsernamePath,
+		wantEmailPath:    config.DefaultMeEmailPath,
+		wantGroupsPath:   config.DefaultMeGroupsPath,
+		wantUserInfoURL:  config.DefaultMeUserInfoURL,
+	},
+	{
+		name:             "whitespace_only_uses_defaults",
+		usernamePath:     "   ",
+		emailPath:        "  ",
+		groupsPath:       "\t",
+		userInfoURL:      "  ",
+		wantUsernamePath: config.DefaultMeUsernamePath,
+		wantEmailPath:    config.DefaultMeEmailPath,
+		wantGroupsPath:   config.DefaultMeGroupsPath,
+		wantUserInfoURL:  config.DefaultMeUserInfoURL,
+	},
+	{
+		name:             "all_custom_values_preserved",
+		usernamePath:     "custom.username",
+		emailPath:        "custom.email",
+		groupsPath:       "custom.groups",
+		userInfoURL:      "/oauth2/userinfo",
+		wantUsernamePath: "custom.username",
+		wantEmailPath:    "custom.email",
+		wantGroupsPath:   "custom.groups",
+		wantUserInfoURL:  "/oauth2/userinfo",
+	},
+	{
+		name:             "partial_empty_uses_defaults_for_empty",
+		usernamePath:     "my.user",
+		emailPath:        "",
+		groupsPath:       "my.groups",
+		userInfoURL:      "",
+		wantUsernamePath: "my.user",
+		wantEmailPath:    config.DefaultMeEmailPath,
+		wantGroupsPath:   "my.groups",
+		wantUserInfoURL:  config.DefaultMeUserInfoURL,
+	},
+	{
+		name:             "values_with_surrounding_whitespace_are_trimmed",
+		usernamePath:     "  trimmed.user  ",
+		emailPath:        "  trimmed.email  ",
+		groupsPath:       "  trimmed.groups  ",
+		userInfoURL:      "  /some/url  ",
+		wantUsernamePath: "trimmed.user",
+		wantEmailPath:    "trimmed.email",
+		wantGroupsPath:   "trimmed.groups",
+		wantUserInfoURL:  "/some/url",
+	},
+}
+
+func TestApplyMeDefaults(t *testing.T) {
+	for _, tt := range applyMeDefaultsTests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotUsername, gotEmail, gotGroups, gotUserInfo := config.ApplyMeDefaults(
+				tt.usernamePath, tt.emailPath, tt.groupsPath, tt.userInfoURL,
+			)
+			assert.Equal(t, tt.wantUsernamePath, gotUsername)
+			assert.Equal(t, tt.wantEmailPath, gotEmail)
+			assert.Equal(t, tt.wantGroupsPath, gotGroups)
+			assert.Equal(t, tt.wantUserInfoURL, gotUserInfo)
+		})
+	}
+}
+
+func TestValidateSessionTTL(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          []string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "session_ttl_zero",
+			args:          []string{"go run ./cmd", "--session-ttl=0"},
+			expectError:   true,
+			errorContains: "session-ttl cannot be negative or equal to zero",
+		},
+		{
+			name:          "session_ttl_negative",
+			args:          []string{"go run ./cmd", "--session-ttl=-1"},
+			expectError:   true,
+			errorContains: "session-ttl cannot be negative or equal to zero",
+		},
+		{
+			name:          "session_ttl_exceeds_one_year",
+			args:          []string{"go run ./cmd", "--session-ttl=31536001"},
+			expectError:   true,
+			errorContains: "session-ttl cannot be greater than 1 year",
+		},
+		{
+			name:        "session_ttl_exactly_one_year",
+			args:        []string{"go run ./cmd", "--session-ttl=31536000"},
+			expectError: false,
+		},
+		{
+			name:        "session_ttl_minimum_valid",
+			args:        []string{"go run ./cmd", "--session-ttl=1"},
+			expectError: false,
+		},
+		{
+			name:        "session_ttl_default",
+			args:        []string{"go run ./cmd"},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, conf)
+			}
+		})
+	}
+}
+
+var validateTracingTests = []struct {
+	name          string
+	args          []string
+	expectError   bool
+	errorContains string
+}{
+	{
+		name: "tracing_enabled_without_service_name",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=true",
+			"--service-name=",
+		},
+		expectError:   true,
+		errorContains: "service-name is required when tracing is enabled",
+	},
+	{
+		name: "tracing_enabled_with_service_name",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=true",
+			"--service-name=myapp",
+			"--otlp-endpoint=localhost:4317",
+		},
+		expectError: false,
+	},
+	{
+		name: "otlp_http_without_endpoint",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=true",
+			"--service-name=myapp",
+			"--use-otlp-http=true",
+			"--otlp-endpoint=",
+		},
+		expectError:   true,
+		errorContains: "otlp-endpoint must be configured when use-otlp-http is enabled",
+	},
+	{
+		name: "tracing_disabled_no_validation",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=false",
+		},
+		expectError: false,
+	},
+}
+
+func TestValidateTracing(t *testing.T) {
+	for _, tt := range validateTracingTests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, conf)
+			}
+		})
+	}
+}
+
+func TestMakeHeadlampKubeConfigsDir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	switch runtime.GOOS {
+	case "windows":
+		t.Setenv("APPDATA", tmpDir)
+	case "darwin":
+		t.Setenv("HOME", tmpDir)
+	default:
+		t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	}
+
+	dir, err := config.MakeHeadlampKubeConfigsDir()
+	require.NoError(t, err)
+	assert.NotEmpty(t, dir)
+
+	info, err := os.Stat(dir)
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
+	assert.True(t, strings.HasPrefix(dir, tmpDir))
+}
+
+func TestDefaultHeadlampKubeConfigFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	switch runtime.GOOS {
+	case "windows":
+		t.Setenv("APPDATA", tmpDir)
+	case "darwin":
+		t.Setenv("HOME", tmpDir)
+	default:
+		t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	}
+
+	path, err := config.DefaultHeadlampKubeConfigFile()
+	require.NoError(t, err)
+	assert.NotEmpty(t, path)
+	assert.Equal(t, "config", filepath.Base(path))
+	assert.True(t, strings.HasPrefix(path, tmpDir))
+
+	info, err := os.Stat(filepath.Dir(path))
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
 }

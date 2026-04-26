@@ -87,7 +87,9 @@ class Node extends KubeObject<KubeNode> {
   }
 
   static useMetrics(): [KubeMetrics[] | null, ApiError | null] {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const [nodeMetrics, setNodeMetrics] = React.useState<KubeMetrics[] | null>(null);
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const [error, setError] = useErrorState(setNodeMetrics);
 
     function setMetrics(metrics: KubeMetrics[]) {
@@ -98,6 +100,7 @@ class Node extends KubeObject<KubeNode> {
       }
     }
 
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     useConnectApi(metrics.bind(null, '/apis/metrics.k8s.io/v1beta1/nodes', setMetrics, setError));
 
     return [nodeMetrics, error];

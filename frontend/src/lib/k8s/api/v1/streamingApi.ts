@@ -204,7 +204,7 @@ export function streamResultsForCluster(
   }
 
   function update({ type, object }: StreamUpdate) {
-    (object as KubeObjectInterface).actionType = type; // eslint-disable-line no-param-reassign
+    (object as KubeObjectInterface).actionType = type;
 
     switch (type) {
       case 'ADDED':

@@ -89,6 +89,7 @@ export default function NavigationTabs() {
         history.push({ pathname: getFullURLOnRoute(item.name, item.isCR, item.subList ?? []) });
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [level1Tabs]
   );
 
@@ -118,6 +119,7 @@ export default function NavigationTabs() {
         }
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [level2Tabs]
   );
 

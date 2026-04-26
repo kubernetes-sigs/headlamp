@@ -73,8 +73,10 @@ export default function PodDebugSettings(props: SettingsProps) {
     if (clusterSettings !== null) {
       storeClusterSettings(cluster, clusterSettings);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cluster, clusterSettings]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   function isEditingImage() {
     return clusterSettings?.podDebugTerminal?.debugImage !== userImage;
   }

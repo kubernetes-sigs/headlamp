@@ -126,6 +126,7 @@ export function useClustersConf(): ConfigState['allClusters'] {
 
   return useMemo(
     () => (state.clusters === null ? null : allClusters),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [state.clusters === null, Object.keys(allClusters).join(',')]
   );
 }
@@ -170,6 +171,7 @@ export function useSelectedClusters(): string[] {
 
   const clusterGroup = React.useMemo(() => {
     return getSelectedClusters([], location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clusterInURL, location.pathname]);
 
   return maybeSelectedClusters && maybeSelectedClusters.length > 0
@@ -433,6 +435,7 @@ export function useClustersVersion(clusters: Cluster[]) {
       cancelledRef.current = true;
       clearInterval(timeout);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return React.useMemo<

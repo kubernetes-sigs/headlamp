@@ -15,7 +15,7 @@
  */
 
 import { renderHook } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import WS from 'vitest-websocket-mock';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
@@ -56,8 +56,8 @@ const userId = 'test-user';
 
 describe('WebSocket Multiplexer', () => {
   let mockServer: WS;
-  let onMessage: ReturnType<typeof vi.fn>;
-  let onError: ReturnType<typeof vi.fn>;
+  let onMessage: Mock<(data: any) => void>;
+  let onError: Mock<(error: any) => void>;
   let originalConsoleError: typeof console.error;
 
   beforeEach(() => {
@@ -412,29 +412,32 @@ describe('WebSocket Multiplexer', () => {
   });
 
   describe('WebSocket error handling', () => {
-    it.skip('should handle polling timeout', async () => {
-      // Mock WebSocket to never open
-      const mockWS = vi.spyOn(window, 'WebSocket').mockImplementation(() => {
-        const ws = new EventTarget() as WebSocket;
-        Object.defineProperty(ws, 'readyState', { value: WebSocket.CONNECTING });
-        Object.defineProperty(ws, 'send', { value: null });
+    it('should handle polling timeout', async () => {
+      const OriginalWebSocket = window.WebSocket;
+
+      // Mock WebSocket that triggers an error immediately after construction
+      vi.stubGlobal('WebSocket', function (this: any) {
+        const ws = {
+          readyState: WebSocket.CONNECTING,
+          onopen: null as any,
+          onclose: null as any,
+          onerror: null as any,
+          onmessage: null as any,
+          send: vi.fn(),
+          close: vi.fn(),
+        };
+        setTimeout(() => ws.onerror?.(new Event('error')), 0);
         return ws;
       });
 
       const path = '/api/v1/pods';
       const query = 'watch=true';
 
-      let error: Error | null = null;
-      try {
-        await WebSocketManager.subscribe(clusterName, path, query, onMessage);
-      } catch (e) {
-        error = e as Error;
-      }
+      await expect(WebSocketManager.subscribe(clusterName, path, query, onMessage)).rejects.toThrow(
+        `Cannot read properties of null (reading 'send')`
+      );
 
-      expect(error).toBeTruthy();
-      expect(error?.message).toBe("Cannot read properties of null (reading 'send')");
-
-      mockWS.mockRestore();
+      vi.stubGlobal('WebSocket', OriginalWebSocket);
     });
 
     it('should handle reconnection and resubscribe', async () => {

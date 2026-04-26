@@ -601,6 +601,10 @@ func ProcessContext(
 		errs = append(errs, err)
 	}
 
+	// Eagerly set context.Name so all error paths return a ContextLoadError
+	// with the correct ContextName, even if later steps fail.
+	context.Name = contextName
+
 	// Extract cluster and user names
 	clusterName, userName, err := extractClusterAndUserNames(contextMap, contextName)
 	if err != nil {
@@ -629,6 +633,11 @@ func ProcessContext(
 	context, err = convertToContext(contextName, singleConfig, source, skipProxySetup)
 	if err != nil {
 		errs = append(errs, err)
+		// convertToContext returns Context{} on error, losing the context name.
+		// Restore it so callers always receive a populated ContextLoadError.ContextName.
+		if context.Name == "" {
+			context.Name = contextName
+		}
 	}
 
 	return context, errors.Join(errs...)
@@ -662,9 +671,21 @@ func extractClusterAndUserNames(contextMap map[interface{}]interface{}, contextN
 		}
 	}
 
-	clusterName := contextData["cluster"].(string)
+	clusterName, ok := contextData["cluster"].(string)
+	if !ok {
+		return "", "", ContextError{
+			ContextName: contextName,
+			Reason:      fmt.Sprintf("missing or invalid cluster name: %v", contextData["cluster"]),
+		}
+	}
 
-	userName := contextData["user"].(string)
+	userName, ok := contextData["user"].(string)
+	if !ok {
+		return "", "", ContextError{
+			ContextName: contextName,
+			Reason:      fmt.Sprintf("missing or invalid user name: %v", contextData["user"]),
+		}
+	}
 
 	return clusterName, userName, nil
 }
@@ -851,7 +872,10 @@ func toStringKeyMap(m map[interface{}]interface{}) map[interface{}]interface{} {
 
 // getCluster gets the cluster details from the kubeconfig.
 func getCluster(kubeconfig map[string]interface{}, clusterName string) (map[interface{}]interface{}, error) {
-	clusters := kubeconfig["clusters"].([]interface{})
+	clusters, ok := kubeconfig["clusters"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid or missing clusters in kubeconfig")
+	}
 
 	for _, cluster := range clusters {
 		clusterMap, ok := cluster.(map[interface{}]interface{})

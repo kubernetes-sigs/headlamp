@@ -6,8 +6,8 @@
   "homepage": "https://github.com/kubernetes-sigs/headlamp/#readme",
   "productName": "Headlamp",
   "engines": {
-    "npm": ">=10.0.0",
-    "node": ">=20.11.1"
+    "npm": ">=11.0.0",
+    "node": ">=22.0.0"
   },
   "scripts": {
     "build": "npm run copy-icons && npm run copy-plugins && npm run compile-electron && electron-builder --dir --publish never",

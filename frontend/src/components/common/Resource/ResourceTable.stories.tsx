@@ -47,14 +47,13 @@ export default {
 const TemplateWithFilter: StoryFn<{
   resourceTableArgs: ResourceTableFromResourceClassProps<typeof MyPod>;
   namespaces: string[];
-  search: string;
 }> = args => {
-  const { resourceTableArgs, search, namespaces = [] } = args;
+  const { resourceTableArgs, namespaces = [] } = args;
 
   const storeWithFilterAndSettings = configureStore({
     reducer: (
       state = {
-        filter: { namespaces: new Set<string>(), search: '' },
+        filter: { namespaces: new Set<string>() },
         config: { settings: { tableRowsPerPageOptions: [10, 20, 50, 100] } },
         ui: { ...uiSlice.getInitialState() },
         drawerMode: { isDetailDrawerEnabled: false },
@@ -65,7 +64,6 @@ const TemplateWithFilter: StoryFn<{
       ui: { ...uiSlice.getInitialState() },
       filter: {
         namespaces: new Set(namespaces),
-        search,
       },
       config: {
         settings: {
@@ -174,17 +172,17 @@ const withHiddenCols: ResourceTableFromResourceClassProps<typeof MyPod> = {
 export const NoFilter = TemplateWithFilter.bind({});
 NoFilter.args = {
   resourceTableArgs: podData,
-  search: '',
 };
 
 export const NameSearch = TemplateWithFilter.bind({});
 NameSearch.args = {
-  resourceTableArgs: podData,
-  search: 'mypod3',
+  resourceTableArgs: {
+    ...podData,
+    defaultGlobalFilter: 'mypod3',
+  },
 };
 
 export const WithHiddenCols = TemplateWithFilter.bind({});
 WithHiddenCols.args = {
   resourceTableArgs: withHiddenCols,
-  search: '',
 };

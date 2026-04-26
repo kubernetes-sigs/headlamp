@@ -78,8 +78,8 @@ export default function VersionButton() {
     ];
   }
 
-  const { data: clusterVersion } = useQuery({
-    placeholderData: null as any,
+  const { data: clusterVersion } = useQuery<StringDict | null>({
+    placeholderData: null,
     queryKey: ['version', cluster ?? ''],
     queryFn: () => {
       return getVersion()
@@ -111,7 +111,10 @@ export default function VersionButton() {
 
           return results;
         })
-        .catch((error: Error) => console.error('Getting the cluster version:', error));
+        .catch((error: Error) => {
+          console.error('Getting the cluster version:', error);
+          return null;
+        });
     },
     refetchInterval: versionFetchInterval,
   });

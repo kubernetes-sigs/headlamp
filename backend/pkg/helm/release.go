@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
@@ -640,8 +641,10 @@ func (h *Handler) getChart(
 
 	// chart is installable only if it is of type application or empty
 	if chart.Metadata.Type != "" && chart.Metadata.Type != "application" {
-		h.logActionState(zlog.Error(), err, actionName, reqChart, reqName, failed, "chart is not installable")
-		return nil, err
+		typeErr := fmt.Errorf("chart type %q is not installable", chart.Metadata.Type)
+		h.logActionState(zlog.Error(), typeErr, actionName, reqChart, reqName, failed, "chart is not installable")
+
+		return nil, typeErr
 	}
 
 	// Update chart dependencies
@@ -924,7 +927,12 @@ func (h *Handler) GetActionStatus(clientConfig clientcmd.ClientConfig, w http.Re
 	}
 
 	if stat.Status == failed {
-		response["message"] = "action failed with error: " + *stat.Err
+		errMsg := "unknown error"
+		if stat.Err != nil {
+			errMsg = *stat.Err
+		}
+
+		response["message"] = "action failed with error: " + errMsg
 	}
 
 	w.WriteHeader(http.StatusAccepted)

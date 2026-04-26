@@ -364,8 +364,9 @@
                       >
                         Name
                         <button
-                          aria-label="sort up"
+                          aria-label="Sort descending"
                           class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                          data-mui-internal-clone-element="true"
                           tabindex="0"
                           type="button"
                         >
@@ -380,8 +381,9 @@
                       >
                         Port
                         <button
-                          aria-label="sort swap"
+                          aria-label="Sort ascending"
                           class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                          data-mui-internal-clone-element="true"
                           tabindex="0"
                           type="button"
                         >
@@ -396,8 +398,9 @@
                       >
                         Protocol
                         <button
-                          aria-label="sort swap"
+                          aria-label="Sort ascending"
                           class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                          data-mui-internal-clone-element="true"
                           tabindex="0"
                           type="button"
                         >

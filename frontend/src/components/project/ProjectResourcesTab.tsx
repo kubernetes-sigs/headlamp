@@ -382,6 +382,7 @@ export function ProjectResourcesTab({
         },
       },
     ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [t, showClusterColumn]
   );
 

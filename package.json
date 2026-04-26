@@ -9,8 +9,8 @@
   },
   "license": "Apache-2.0",
   "engines": {
-    "node": ">=20.11.1",
-    "npm": ">=10.0.0"
+    "npm": ">=11.0.0",
+    "node": ">=22.0.0"
   },
   "scripts": {
     "install:all": "npm run frontend:install && npm run backend:build && npm run app:install && npm run tools:install",

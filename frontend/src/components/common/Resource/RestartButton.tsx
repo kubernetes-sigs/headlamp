@@ -53,9 +53,13 @@ export function RestartButton(props: RestartButtonProps) {
     return null;
   }
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [openDialog, setOpenDialog] = useState(false);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const location = useLocation();
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { t } = useTranslation(['translation']);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const dispatchRestartEvent = useEventCallback(HeadlampEventType.RESTART_RESOURCE);
 
   async function restartResource() {

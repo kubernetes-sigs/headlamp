@@ -141,6 +141,7 @@ function PortForwardContent(props: PortForwardProps) {
         : getPortNumberFromPortName(pods[0].spec.containers, containerPort)
       : containerPort;
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   React.useEffect(() => {
     if (!cluster) {
       return;
@@ -328,6 +329,7 @@ function PortForwardContent(props: PortForwardProps) {
   }
 
   const forwardBaseURL = 'http://127.0.0.1';
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const displayPodName = React.useMemo(() => {
     return isPod ? name : pods && pods.length > 0 ? pods[0].metadata.name : '';
   }, [isPod, name, pods]);

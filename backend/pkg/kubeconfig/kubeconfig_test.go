@@ -175,7 +175,7 @@ func TestOIDCConfigWithCACertificate(t *testing.T) {
 
 func testOIDCConfigWithCAFile(t *testing.T) {
 	// Create a temporary kubeconfig with the correct absolute path to the CA file
-	caFilePath := filepath.Join(getTestDataPath(), "oidc_ca.pem")
+	caFilePath := filepath.ToSlash(filepath.Join(getTestDataPath(), "oidc_ca.pem"))
 	tempKubeconfig := createTempKubeconfig(t, fmt.Sprintf(`apiVersion: v1
 clusters:
 - cluster:
@@ -830,4 +830,165 @@ func TestHandleConfigLoadError(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestMalformedKubeconfig verifies the server gracefully handles malformed
+// kubeconfig files with missing required fields (e.g. cluster, user, or clusters array).
+//
+//nolint:funlen
+func TestMalformedKubeconfigDoesNotPanic(t *testing.T) {
+	t.Run("missing_cluster_field_in_context", func(t *testing.T) {
+		// Verify handling of a context where the "cluster" field is missing.
+		tempFile := createTempKubeconfig(t, `apiVersion: v1
+kind: Config
+contexts:
+- name: bad-context
+  context:
+    user: some-user
+clusters:
+- name: some-cluster
+  cluster:
+    server: https://127.0.0.1:6443
+users:
+- name: some-user
+  user:
+    token: some-token`)
+
+		defer func() { _ = os.Remove(tempFile) }()
+
+		assert.NotPanics(t, func() {
+			_, contextErrors, err := kubeconfig.LoadContextsFromFile(tempFile, kubeconfig.KubeConfig)
+			// Should return an error for the bad context, not panic.
+			assert.NoError(t, err)
+			assert.NotEmpty(t, contextErrors)
+
+			if len(contextErrors) > 0 {
+				assert.Equal(t, "bad-context", contextErrors[0].ContextName)
+				assert.ErrorContains(t, contextErrors[0].Error, "cluster")
+			}
+		})
+	})
+
+	t.Run("missing_user_field_in_context", func(t *testing.T) {
+		// Verify handling of a context where the "user" field is missing.
+		tempFile := createTempKubeconfig(t, `apiVersion: v1
+kind: Config
+contexts:
+- name: bad-context
+  context:
+    cluster: some-cluster
+clusters:
+- name: some-cluster
+  cluster:
+    server: https://127.0.0.1:6443
+users:
+- name: some-user
+  user:
+    token: some-token`)
+
+		defer func() { _ = os.Remove(tempFile) }()
+
+		assert.NotPanics(t, func() {
+			_, contextErrors, err := kubeconfig.LoadContextsFromFile(tempFile, kubeconfig.KubeConfig)
+			assert.NoError(t, err)
+			assert.NotEmpty(t, contextErrors)
+
+			if len(contextErrors) > 0 {
+				assert.Equal(t, "bad-context", contextErrors[0].ContextName)
+				assert.ErrorContains(t, contextErrors[0].Error, "user")
+			}
+		})
+	})
+
+	t.Run("missing_clusters_array", func(t *testing.T) {
+		// Verify handling of a kubeconfig where the "clusters" array is missing.
+		tempFile := createTempKubeconfig(t, `apiVersion: v1
+kind: Config
+contexts:
+- name: some-context
+  context:
+    cluster: some-cluster
+    user: some-user
+users:
+- name: some-user
+  user:
+    token: some-token`)
+
+		defer func() { _ = os.Remove(tempFile) }()
+
+		assert.NotPanics(t, func() {
+			_, contextErrors, err := kubeconfig.LoadContextsFromFile(tempFile, kubeconfig.KubeConfig)
+			assert.NoError(t, err)
+			assert.NotEmpty(t, contextErrors)
+
+			if len(contextErrors) > 0 {
+				assert.Equal(t, "some-context", contextErrors[0].ContextName)
+				assert.ErrorContains(t, contextErrors[0].Error, "cluster")
+			}
+		})
+	})
+
+	t.Run("wrong_type_cluster_field", func(t *testing.T) {
+		// Verify handling of a context where "cluster" is an integer instead of a string.
+		tempFile := createTempKubeconfig(t, `apiVersion: v1
+kind: Config
+contexts:
+- name: bad-context
+  context:
+    cluster: 12345
+    user: some-user
+clusters:
+- name: some-cluster
+  cluster:
+    server: https://127.0.0.1:6443
+users:
+- name: some-user
+  user:
+    token: some-token`)
+
+		defer func() { _ = os.Remove(tempFile) }()
+
+		assert.NotPanics(t, func() {
+			_, contextErrors, err := kubeconfig.LoadContextsFromFile(tempFile, kubeconfig.KubeConfig)
+			assert.NoError(t, err)
+			assert.NotEmpty(t, contextErrors)
+
+			if len(contextErrors) > 0 {
+				assert.Equal(t, "bad-context", contextErrors[0].ContextName)
+				assert.ErrorContains(t, contextErrors[0].Error, "cluster")
+			}
+		})
+	})
+
+	t.Run("wrong_type_user_field", func(t *testing.T) {
+		// A non-string "user" field must produce a ContextError.
+		tempFile := createTempKubeconfig(t, `apiVersion: v1
+kind: Config
+contexts:
+- name: bad-context
+  context:
+    cluster: some-cluster
+    user: 99999
+clusters:
+- name: some-cluster
+  cluster:
+    server: https://127.0.0.1:6443
+users:
+- name: some-user
+  user:
+    token: some-token`)
+
+		defer func() { _ = os.Remove(tempFile) }()
+
+		assert.NotPanics(t, func() {
+			_, contextErrors, err := kubeconfig.LoadContextsFromFile(tempFile, kubeconfig.KubeConfig)
+			assert.NoError(t, err)
+			assert.NotEmpty(t, contextErrors)
+
+			if len(contextErrors) > 0 {
+				assert.Equal(t, "bad-context", contextErrors[0].ContextName)
+				assert.ErrorContains(t, contextErrors[0].Error, "user")
+			}
+		})
+	})
 }

@@ -34,7 +34,7 @@ jobs:
     - name: Setup nodejs
       uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
       with:
-        node-version: 20.x
+        node-version: 22.x
         cache: 'npm'
         cache-dependency-path: |
           headlamp/app/package-lock.json

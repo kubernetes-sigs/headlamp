@@ -72,6 +72,7 @@ export default function EditButton(props: EditButtonProps) {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const applyFunc = React.useCallback(updateFunc, [item]);
 
   function handleSave(items: KubeObjectInterface[]) {

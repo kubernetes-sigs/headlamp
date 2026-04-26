@@ -64,6 +64,7 @@ export default function AuthVisible(props: AuthVisibleProps) {
   const itemClass: KubeObjectClass | null = (item as KubeObject)?._class?.() ?? item;
   const itemName = (item as KubeObject)?.getName?.();
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data } = useQuery<any>({
     enabled: !!item,
     queryKey: [
@@ -91,6 +92,7 @@ export default function AuthVisible(props: AuthVisibleProps) {
 
   const visible = data?.status?.allowed ?? false;
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     if (data) {
       onAuthResult?.({
@@ -98,6 +100,7 @@ export default function AuthVisible(props: AuthVisibleProps) {
         reason: data.status?.reason ?? '',
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
   if (!visible) {

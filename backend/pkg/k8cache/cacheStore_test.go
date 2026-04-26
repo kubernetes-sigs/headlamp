@@ -168,6 +168,8 @@ func TestGetResponseBody(t *testing.T) {
 
 // TestGetAPIGroup tests whether the GetAPIGroup returning correct
 // apiGroup and version from the URL.
+//
+//nolint:funlen
 func TestGetAPIGroup(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -191,18 +193,59 @@ func TestGetAPIGroup(t *testing.T) {
 			expectedError:    nil,
 		},
 		{
+			name:             "core discovery path with trailing slash",
+			urlPath:          "/clusters/kind-kind/api/",
+			expectedAPIGroup: "",
+			expectedVersion:  "",
+			expectedError:    nil,
+		},
+		{
+			name:             "api group discovery root without group",
+			urlPath:          "/clusters/kind-kind/apis",
+			expectedAPIGroup: "",
+			expectedVersion:  "",
+			expectedError:    nil,
+		},
+		{
+			name:             "api group discovery path with trailing slash",
+			urlPath:          "/clusters/kind-kind/apis/metrics.k8s.io/",
+			expectedAPIGroup: "metrics.k8s.io",
+			expectedVersion:  "",
+			expectedError:    nil,
+		},
+		{
 			name:             "invalid url format",
 			urlPath:          "/clusters/kind-kind",
 			expectedAPIGroup: "",
 			expectedVersion:  "",
 			expectedError:    fmt.Errorf("invalid url format"),
 		},
+		{
+			name:             "short url path api",
+			urlPath:          "/clusters/kind-kind/api",
+			expectedAPIGroup: "",
+			expectedVersion:  "",
+			expectedError:    nil,
+		},
+		{
+			name:             "short url path apis",
+			urlPath:          "/clusters/kind-kind/apis/metrics.k8s.io",
+			expectedAPIGroup: "metrics.k8s.io",
+			expectedVersion:  "",
+			expectedError:    nil,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			apiGroup, version, err := k8cache.GetAPIGroup(tc.urlPath)
 			assert.Equal(t, tc.expectedAPIGroup, apiGroup)
-			assert.Equal(t, tc.expectedError, err)
+
+			if tc.expectedError != nil {
+				assert.EqualError(t, err, tc.expectedError.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+
 			assert.Equal(t, tc.expectedVersion, version)
 		})
 	}
@@ -265,6 +308,8 @@ func TestExtractNamespace(t *testing.T) {
 
 // TestGenerateKey ensures the generated key is valid for both normal
 // and empty cluster name scenarios.
+//
+//nolint:funlen
 func TestGenerateKey(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -292,6 +337,41 @@ func TestGenerateKey(t *testing.T) {
 			urlPath:     url.URL{Path: "/clusters/kind-kind/api/v1/pods"},
 			contextKey:  "kind-kind",
 			expectedKey: "+pods++kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "key for core discovery path without version",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/api"},
+			contextKey:  "kind-kind",
+			expectedKey: "+api++kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "key for core discovery path with trailing slash",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/api/"},
+			contextKey:  "kind-kind",
+			expectedKey: "+api++kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "key for api group discovery root",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/apis"},
+			contextKey:  "kind-kind",
+			expectedKey: "+apis++kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "key for api group discovery path without version",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/k8s.metrics.io"},
+			contextKey:  "kind-kind",
+			expectedKey: "k8s.metrics.io+k8s.metrics.io++kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "key for api group discovery path with trailing slash",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/k8s.metrics.io/"},
+			contextKey:  "kind-kind",
+			expectedKey: "k8s.metrics.io+k8s.metrics.io++kind-kind",
 			expectedErr: nil,
 		},
 		{

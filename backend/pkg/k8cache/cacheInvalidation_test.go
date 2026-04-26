@@ -330,3 +330,62 @@ func TestRunInformerToWatch(t *testing.T) { //nolint: funlen
 		})
 	}
 }
+
+// TestRunInformerToWatch_OldResource verifies that a resource Add event triggers
+// cache invalidation for resources created long ago, after the initial sync.
+func TestRunInformerToWatch_OldResource(t *testing.T) {
+	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+
+	// Create a pod 10 minutes in the past to verify that cache invalidation
+	// triggers correctly for old resources, avoiding the stale cache bug.
+	pod := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Pod",
+			"metadata": map[string]interface{}{
+				"name":              "old-pod",
+				"namespace":         "default",
+				"creationTimestamp": time.Now().Add(-10 * time.Minute).Format(time.RFC3339),
+			},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	clientMap := map[schema.GroupVersionResource]string{gvr: "PodList"}
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, clientMap)
+	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(client, 0, "", nil)
+
+	mockCache := &MockCache{store: map[string]string{"+pods+default+test-context": "pod-data"}}
+
+	k8cache.RunInformerToWatch([]schema.GroupVersionResource{gvr}, factory, "test-context", mockCache)
+
+	// Add the pod BEFORE starting the factory to accurately simulate a pre-existing
+	// cluster resource. This ensures it is processed during the informer's initial
+	// list-and-watch sync phase (where hasSynced() == false) and is safely ignored.
+	err := client.Tracker().Add(pod)
+	assert.NoError(t, err)
+
+	stopCh := make(chan struct{})
+	factory.Start(stopCh)
+	factory.WaitForCacheSync(stopCh)
+
+	checkEviction := func(event string) {
+		assert.Eventually(t, func() bool {
+			_, err := mockCache.Get(context.Background(), "+pods+default+test-context")
+			return err != nil
+		}, 2*time.Second, 50*time.Millisecond, "Cache should be invalidated on "+event)
+	}
+
+	updatedPod := pod.DeepCopy()
+	updatedPod.SetAnnotations(map[string]string{"updated": "true"})
+	err = client.Tracker().Update(gvr, updatedPod, "default")
+	assert.NoError(t, err)
+	checkEviction("Update")
+
+	_ = mockCache.Set(context.Background(), "+pods+default+test-context", "pod-data")
+	err = client.Tracker().Delete(gvr, "default", "old-pod")
+	assert.NoError(t, err)
+	checkEviction("Delete")
+
+	close(stopCh)
+}

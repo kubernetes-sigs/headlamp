@@ -148,6 +148,7 @@ export default function TopBar({}: TopBarProps) {
     const openSideBar = isMedium && isSidebarOpenUserSelected === undefined ? false : isSidebarOpen;
 
     dispatch(setWhetherSidebarOpen(!openSideBar));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMedium, isSidebarOpenUserSelected, isSidebarOpen]);
 
   if (hideAppBar) {

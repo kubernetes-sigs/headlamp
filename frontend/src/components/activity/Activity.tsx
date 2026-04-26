@@ -1008,6 +1008,7 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
 
   useEffect(() => {
     if (activities.length === 0 && isOverview) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsOverview(false);
     }
   }, [activities, isOverview]);

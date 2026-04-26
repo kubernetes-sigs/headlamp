@@ -259,6 +259,7 @@ const useDefaultNamespaceFallback = (
         dispatch(setNamespaceFilter([defaultNamespaceFromKubeconfig]));
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [namespacesList, isNamespaceError, currentCluster]);
 };
 

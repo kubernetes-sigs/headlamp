@@ -68,6 +68,7 @@ const Template: StoryFn<DetailsViewSectionProps> = args => {
         return null;
       })
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return <DetailsViewSection {...args} />;

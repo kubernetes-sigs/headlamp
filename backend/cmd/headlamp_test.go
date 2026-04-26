@@ -46,6 +46,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -2162,4 +2163,80 @@ func TestOidcUseCookieLogic(t *testing.T) {
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
+}
+
+// TestHelmRouteReleaseHandlerTokenExtraction verifies that helmRouteReleaseHandler
+// sets the Authorization header and propagates the bearer token into the clientConfig
+// in a non-OIDC in-cluster deployment where OidcConf is nil. This is a regression
+// test for the bug where the OIDC guard prevented token extraction for non-OIDC setups.
+//
+//nolint:funlen
+func TestHelmRouteReleaseHandlerTokenExtraction(t *testing.T) {
+	clusterName := "test-cluster-nooidc"
+	cookieName := "headlamp-auth-" + clusterName + ".0"
+
+	// #nosec G101 -- test credential, not a real secret
+	testToken := "non-oidc-test-token"
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: clusterName,
+		Cluster: &api.Cluster{
+			Server: "https://test-cluster.example.com",
+		},
+		AuthInfo: &api.AuthInfo{},
+	})
+	require.NoError(t, err)
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    true,
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	var capturedAuthHeader string
+
+	var capturedBearerToken string
+
+	handler := func(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+		capturedAuthHeader = r.Header.Get("Authorization")
+
+		restConfig, restErr := clientConfig.ClientConfig()
+		if restErr == nil && restConfig != nil {
+			capturedBearerToken = restConfig.BearerToken
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/helm/release/test", nil)
+	require.NoError(t, err)
+
+	req.AddCookie(&http.Cookie{
+		Name:  cookieName,
+		Value: testToken,
+	})
+
+	w := httptest.NewRecorder()
+
+	tracer := otel.GetTracerProvider().Tracer("test-tracer")
+
+	ctx, span := tracer.Start(context.Background(), "test-span")
+
+	defer span.End()
+
+	c.helmRouteReleaseHandler(ctx, span, req, w, clusterName, "/helm/release/test", "test", handler)
+
+	assert.Equal(t, "Bearer "+testToken, capturedAuthHeader,
+		"Authorization header should be set from cookie in non-OIDC in-cluster deployment")
+
+	assert.Equal(t, testToken, capturedBearerToken,
+		"clientConfig bearer token should be set from cookie in non-OIDC in-cluster deployment")
 }
