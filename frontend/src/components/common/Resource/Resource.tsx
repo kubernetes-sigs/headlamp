@@ -1088,8 +1088,10 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
     new Map()
   );
   // Extract all references upfront (pure function, no hooks)
-  const references = container ? extractEnvVarReferences(container) : [];
-
+  const references = React.useMemo(
+  () => (container ? extractEnvVarReferences(container) : []),
+  [container]
+);
   // Get unique resource names to fetch
   const secretsToFetch = React.useMemo(() => {
     const secrets = new Set<string>();
