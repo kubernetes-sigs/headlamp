@@ -95,6 +95,9 @@ const (
 	TokenCacheFileMode = 0o600 // octal
 	// TokenCacheFileName is the name of the token cache file.
 	TokenCacheFileName = "headlamp-token-cache"
+
+	// AllowedClustersHeader is the header that identifies which clusters are allowed for the request.
+	AllowedClustersHeader = "X-HEADLAMP-ALLOWED-CLUSTERS"
 )
 
 type clientConfig struct {
@@ -1329,7 +1332,6 @@ func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 		ctx := r.Context()
 		path := r.URL.Path
 		clusterName := mux.Vars(r)["clusterName"]
-
 		_, span := telemetry.CreateSpan(ctx, r, "helm", "handleClusterHelm",
 			attribute.String("cluster", clusterName),
 		)
@@ -1522,6 +1524,27 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 
 		// A deferred function to record duration metrics & log the request completion
 		defer recordRequestCompletion(c, ctx, start, r)
+
+		clusterName := mux.Vars(r)["clusterName"]
+
+		// Filter clusters if the allowed clusters header is present
+		allowedClustersHeader := r.Header.Get(AllowedClustersHeader)
+		if allowedClustersHeader != "" {
+			allowedClusters := strings.Split(allowedClustersHeader, ",")
+			allowed := false
+
+			for _, name := range allowedClusters {
+				if strings.TrimSpace(name) == clusterName {
+					allowed = true
+					break
+				}
+			}
+
+			if !allowed {
+				c.handleError(w, ctx, span, errors.New("cluster not allowed"), "cluster not allowed", http.StatusForbidden)
+				return
+			}
+		}
 
 		contextKey, err := c.getContextKeyForRequest(r)
 		if err != nil {
@@ -1842,8 +1865,31 @@ func parseClusterFromKubeConfig(kubeConfigs []string) ([]Cluster, []error) {
 func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	clusters := c.getClusters()
+
+	// Filter clusters if the allowed clusters header is present
+	allowedClustersHeader := r.Header.Get(AllowedClustersHeader)
+	if allowedClustersHeader != "" {
+		allowedClusters := strings.Split(allowedClustersHeader, ",")
+
+		allowedMap := make(map[string]bool)
+		for _, name := range allowedClusters {
+			allowedMap[strings.TrimSpace(name)] = true
+		}
+
+		filteredClusters := []Cluster{}
+
+		for _, cluster := range clusters {
+			if allowedMap[cluster.Name] {
+				filteredClusters = append(filteredClusters, cluster)
+			}
+		}
+
+		clusters = filteredClusters
+	}
+
 	clientConfig := clientConfig{
-		Clusters:                c.getClusters(),
+		Clusters:                clusters,
 		IsDynamicClusterEnabled: c.EnableDynamicClusters,
 		AllowKubeconfigChanges:  c.AllowKubeconfigChanges,
 	}
