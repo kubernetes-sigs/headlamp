@@ -1468,8 +1468,10 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 	// Create a copy of the context to avoid modifying the cached context
 	context = context.Copy()
 
-	// Always attempt to set the token from the cookie as the function is a no operation when no cookie is present
-	setTokenFromCookie(r, clusterName)
+	// Only promote a cookie token when the request does not already provide Authorization.
+	if strings.TrimSpace(r.Header.Get("Authorization")) == "" {
+		setTokenFromCookie(r, clusterName)
+	}
 
 	bearerToken := r.Header.Get("Authorization")
 
