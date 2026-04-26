@@ -30,7 +30,6 @@ import { DetailsGrid, MetadataDictGrid } from '../common/Resource';
 import PortForward from '../common/Resource/PortForward';
 import { SectionBox } from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
-import A8RServiceInfo from './A8RServiceInfo';
 
 export default function ServiceDetails(props: {
   name?: string;
@@ -88,24 +87,7 @@ export default function ServiceDetails(props: {
           return [];
         }
 
-        const annotations = item.metadata?.annotations ?? {};
-        const hasA8r = Object.keys(annotations).some(key => key.startsWith('a8r.io/'));
-
         return [
-          // Conditionally add Service Information
-          ...(hasA8r
-            ? [
-                {
-                  id: 'headlamp.service-a8r-info',
-                  section: (
-                    <SectionBox title={t('Service Information')}>
-                      <A8RServiceInfo annotations={annotations} />
-                    </SectionBox>
-                  ),
-                },
-              ]
-            : []),
-
           {
             id: 'headlamp.service-ports',
             section: (

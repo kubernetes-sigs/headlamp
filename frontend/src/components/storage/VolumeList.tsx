@@ -116,6 +116,7 @@ export default function VolumeList() {
           render: volume => makePVStatusLabel(volume),
           gridTemplate: 0.3,
         },
+        'labels',
         'age',
       ]}
     />

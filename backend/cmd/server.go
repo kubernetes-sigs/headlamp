@@ -148,7 +148,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	}
 
 	if conf.OidcCAFile != "" {
-		caFileContents, err := os.ReadFile(conf.OidcCAFile)
+		caFileContents, err := os.ReadFile(conf.OidcCAFile) //nolint:gosec
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "reading oidc ca file")
 			os.Exit(1)

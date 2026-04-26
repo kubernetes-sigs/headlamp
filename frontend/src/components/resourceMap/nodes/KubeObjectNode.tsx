@@ -182,6 +182,7 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
 
   useEffect(() => {
     if (!isHovered) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsExpanded(false);
       return;
     }

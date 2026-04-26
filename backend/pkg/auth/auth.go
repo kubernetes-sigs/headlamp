@@ -226,13 +226,14 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 			// Log error but continue with original context
 			logger.Log(logger.LevelError, nil,
 				errors.New("failed to append ca cert to pool"), "couldn't add custom cert to context")
+
 			return ctx
 		}
 
 		// the gosec linter is disabled because gosec promotes using a minVersion of TLS 1.2 or higher.
 		// since we are using a custom CA cert configured by the user, we are not forcing a minVersion.
 		customTransport := &http.Transport{
-			TLSClientConfig: &tls.Config{ //nolint:gosec
+			TLSClientConfig: &tls.Config{
 				RootCAs: caCertPool,
 			},
 		}
@@ -467,6 +468,7 @@ func compileJMESPaths(pathCSV string) []*jmespath.JMESPath {
 		if err != nil {
 			logger.Log(logger.LevelWarn, map[string]string{"jmespath": raw}, err,
 				"failed to compile JMESPath expression, skipping")
+
 			continue
 		}
 

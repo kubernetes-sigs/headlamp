@@ -50,6 +50,7 @@ export default function LocaleSelect(props: LocaleSelectProps) {
     }
 
     return getFullNames();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showFullNames]);
 
   /**

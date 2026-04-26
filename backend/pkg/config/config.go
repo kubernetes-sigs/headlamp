@@ -361,7 +361,6 @@ func Parse(args []string) (*Config, error) {
 // files of clusters that are loaded in Headlamp.
 func MakeHeadlampKubeConfigsDir() (string, error) {
 	userConfigDir, err := os.UserConfigDir()
-
 	if err == nil {
 		kubeConfigDir := filepath.Join(userConfigDir, "Headlamp", "kubeconfigs")
 		if runtime.GOOS == osWindows {

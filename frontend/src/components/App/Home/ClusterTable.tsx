@@ -18,6 +18,7 @@ import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import { useTheme } from '@mui/material/styles';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import {
   MRT_ColumnFiltersState,
@@ -249,16 +250,21 @@ export default function ClusterTable({
           id: 'name',
           header: t('Name'),
           accessorKey: 'name',
+          gridTemplate: 2,
           Cell: ({ row: { original } }) => {
             const appearance = getClusterAppearanceFromMeta(original.name);
             return (
-              <Link routeName="cluster" params={{ cluster: original.name }}>
-                <ClusterBadge
-                  name={original.name}
-                  icon={appearance.icon}
-                  accentColor={appearance.accentColor}
-                />
-              </Link>
+              <Tooltip title={original.name} arrow>
+                <span>
+                  <Link routeName="cluster" params={{ cluster: original.name }}>
+                    <ClusterBadge
+                      name={original.name}
+                      icon={appearance.icon}
+                      accentColor={appearance.accentColor}
+                    />
+                  </Link>
+                </span>
+              </Tooltip>
             );
           },
         },

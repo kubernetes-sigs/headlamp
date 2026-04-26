@@ -1,13 +1,13 @@
 {
   "name": "headlamp",
-  "version": "0.40.0",
+  "version": "0.41.0",
   "description": "Easy-to-use and extensible Kubernetes web UI",
   "main": "build/main.js",
   "homepage": "https://github.com/kubernetes-sigs/headlamp/#readme",
   "productName": "Headlamp",
   "engines": {
-    "npm": ">=10.0.0",
-    "node": ">=20.11.1"
+    "npm": ">=11.0.0",
+    "node": ">=22.0.0"
   },
   "scripts": {
     "build": "npm run copy-icons && npm run copy-plugins && npm run compile-electron && electron-builder --dir --publish never",
@@ -50,7 +50,19 @@
       "allowToChangeInstallationDirectory": true
     },
     "deb": {
-      "artifactName": "${name}_${version}-1_${arch}.${ext}"
+      "artifactName": "${name}_${version}-1_${arch}.${ext}",
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0",
+        "libasound2"
+      ]
     },
     "linux": {
       "target": [
@@ -162,7 +174,7 @@
     "@types/node": "^22.14.0",
     "@types/semver": "^7.7.0",
     "@types/yargs": "^17.0.35",
-    "electron": "^31.2.0",
+    "electron": "^41.2.0",
     "electron-builder": "^26.6.0",
     "esbuild": "^0.25.0",
     "i18next-parser": "^9.0.0",
@@ -174,6 +186,7 @@
     "js-yaml": "^4.1.1"
   },
   "dependencies": {
+    "@langchain/mcp-adapters": "^1.0.0",
     "copyfiles": "^2.4.1",
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.5",
@@ -185,7 +198,7 @@
     "mkdirp": "^3.0.1",
     "nock": "^14.0.5",
     "shx": "^0.4.0",
-    "tar": "^7.5.10",
+    "tar": "^7.5.11",
     "yargs": "^17.7.2"
   }
 }

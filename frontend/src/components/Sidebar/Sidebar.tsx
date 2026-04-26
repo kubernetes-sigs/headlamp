@@ -214,6 +214,7 @@ export default function Sidebar() {
 
   const handleToggleOpen = useCallback(() => {
     dispatch(setWhetherSidebarOpen(!sidebar.isSidebarOpen));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sidebar.isSidebarOpen]);
 
   const linkArea = useMemo(

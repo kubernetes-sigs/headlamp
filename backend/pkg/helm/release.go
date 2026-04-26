@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
@@ -640,8 +641,10 @@ func (h *Handler) getChart(
 
 	// chart is installable only if it is of type application or empty
 	if chart.Metadata.Type != "" && chart.Metadata.Type != "application" {
-		h.logActionState(zlog.Error(), err, actionName, reqChart, reqName, failed, "chart is not installable")
-		return nil, err
+		typeErr := fmt.Errorf("chart type %q is not installable", chart.Metadata.Type)
+		h.logActionState(zlog.Error(), typeErr, actionName, reqChart, reqName, failed, "chart is not installable")
+
+		return nil, typeErr
 	}
 
 	// Update chart dependencies
@@ -693,6 +696,7 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 	if user := review.Status.UserInfo.Username; user == "" || user == "system:anonymous" {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
 			errors.New("insufficient privileges"), "getting chart: user is not authorized to perform this operation")
+
 		return false
 	}
 
@@ -705,7 +709,7 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 	installClient.Namespace = req.Namespace
 	installClient.Description = req.Description
 	installClient.CreateNamespace = req.CreateNamespace
-	installClient.ChartPathOptions.Version = req.Version
+	installClient.Version = req.Version
 
 	if !VerifyUser(actionConfig, req) {
 		return
@@ -830,7 +834,7 @@ func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action
 	upgradeClient := action.NewUpgrade(actionConfig)
 	upgradeClient.Namespace = req.Namespace
 	upgradeClient.Description = req.Description
-	upgradeClient.ChartPathOptions.Version = req.Version
+	upgradeClient.Version = req.Version
 
 	chart, err := h.getChart("upgrade", req.Chart, req.Name, upgradeClient.ChartPathOptions, true, h.EnvSettings)
 	if err != nil {
@@ -923,7 +927,12 @@ func (h *Handler) GetActionStatus(clientConfig clientcmd.ClientConfig, w http.Re
 	}
 
 	if stat.Status == failed {
-		response["message"] = "action failed with error: " + *stat.Err
+		errMsg := "unknown error"
+		if stat.Err != nil {
+			errMsg = *stat.Err
+		}
+
+		response["message"] = "action failed with error: " + errMsg
 	}
 
 	w.WriteHeader(http.StatusAccepted)

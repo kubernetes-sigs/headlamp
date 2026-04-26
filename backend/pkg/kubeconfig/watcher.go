@@ -35,7 +35,7 @@ func LoadAndWatchFiles(
 		return
 	}
 
-	defer watcher.Close()
+	defer func() { _ = watcher.Close() }()
 
 	kubeConfigPaths := splitKubeConfigPath(paths)
 

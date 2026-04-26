@@ -19,7 +19,6 @@ import Grid from '@mui/material/Grid';
 import React, { ReactNode } from 'react';
 import { ValueLabel } from '../Label';
 
-// TODO: use ReactNode after migration to react 18
 export interface NameValueTableRow {
   /** The name (key) for this row */
   name: ReactNode;

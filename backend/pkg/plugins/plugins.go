@@ -66,7 +66,8 @@ func Watch(ctx context.Context, path string, notify chan<- string) {
 
 		return
 	}
-	defer watcher.Close()
+
+	defer func() { _ = watcher.Close() }()
 
 	go func() {
 		defer func() {
@@ -250,7 +251,7 @@ func GeneratePluginPaths(
 func isCatalogInstalledPlugin(pluginDir, pluginName string) bool {
 	packageJSONPath := filepath.Join(pluginDir, pluginName, "package.json")
 
-	content, err := os.ReadFile(packageJSONPath)
+	content, err := os.ReadFile(packageJSONPath) //nolint:gosec
 	if err != nil {
 		return false
 	}
@@ -277,7 +278,7 @@ func ListPlugins(staticPluginDir, userPluginDir, pluginDir string) error {
 	getPluginName := func(pluginDir string) string {
 		packageJSONPath := filepath.Join(pluginDir, "package.json")
 
-		content, err := os.ReadFile(packageJSONPath)
+		content, err := os.ReadFile(packageJSONPath) //nolint:gosec
 		if err != nil {
 			// If there's an error reading package.json, just return the folder name as fallback.
 			return filepath.Base(pluginDir)

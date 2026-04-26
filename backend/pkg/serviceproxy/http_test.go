@@ -71,14 +71,16 @@ func TestHTTPGet(t *testing.T) {
 			defer ts.Close()
 
 			url := ts.URL
-			if tt.url == " invalid-url" {
+			switch tt.url {
+			case " invalid-url":
 				url = tt.url
-			} else if tt.url == "http://example.com/error" {
+			case "http://example.com/error":
 				url = ts.URL + "/error"
 			}
 
 			if ctx := context.Background(); tt.name == "context cancellation" {
 				var cancel context.CancelFunc
+
 				_, cancel = context.WithCancel(ctx)
 				cancel()
 			}

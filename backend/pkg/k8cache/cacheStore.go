@@ -54,7 +54,7 @@ func GetResponseBody(bodyBytes []byte, encoding string) (string, error) {
 			return "", fmt.Errorf("failed to create gzip reader: %w", err)
 		}
 
-		defer reader.Close()
+		defer func() { _ = reader.Close() }()
 
 		decompressedBody, err := io.ReadAll(reader)
 		if err != nil {
@@ -72,20 +72,28 @@ func GetResponseBody(bodyBytes []byte, encoding string) (string, error) {
 
 // GetAPIGroup parses the URL path and returns the apiGroup and version.
 func GetAPIGroup(path string) (apiGroup, version string, err error) {
+	path = strings.TrimRight(path, "/")
 	parts := strings.Split(path, "/")
 
-	if len(parts) < 4 {
-		return "", "", fmt.Errorf("invalid url format")
-	}
-
-	if parts[3] == "api" {
+	switch {
+	case len(parts) >= 4 && parts[3] == "api":
 		// Core API group
 		apiGroup = ""
-		version = parts[4]
-	} else if parts[3] == "apis" {
+
+		if len(parts) >= 5 {
+			version = parts[4]
+		}
+	case len(parts) >= 4 && parts[3] == "apis":
 		// Named API group
-		apiGroup = parts[4]
-		version = parts[5]
+		if len(parts) >= 5 {
+			apiGroup = parts[4]
+		}
+
+		if len(parts) >= 6 {
+			version = parts[5]
+		}
+	default:
+		return "", "", fmt.Errorf("invalid url format")
 	}
 
 	return
@@ -186,8 +194,8 @@ func LoadFromCache(k8scache cache.Cache[string], isAllowed bool,
 		}
 
 		SetHeader(cachedData, w)
-		_, writeErr := w.Write([]byte(cachedData.Body))
 
+		_, writeErr := w.Write([]byte(cachedData.Body))
 		if writeErr != nil {
 			return false, writeErr
 		}

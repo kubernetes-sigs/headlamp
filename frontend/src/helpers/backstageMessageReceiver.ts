@@ -28,7 +28,9 @@ const BACKSTAGE_TOKEN_STORAGE_KEY = 'backstage_token';
  * @param token - the token to set
  */
 function setBackstageToken(token: string) {
-  localStorage.setItem(BACKSTAGE_TOKEN_STORAGE_KEY, token);
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(BACKSTAGE_TOKEN_STORAGE_KEY, token);
+  }
 }
 
 /**
@@ -37,7 +39,10 @@ function setBackstageToken(token: string) {
  * @returns the backstage token
  */
 export function getBackstageToken(): string | null {
-  return localStorage.getItem(BACKSTAGE_TOKEN_STORAGE_KEY);
+  if (typeof localStorage !== 'undefined') {
+    return localStorage.getItem(BACKSTAGE_TOKEN_STORAGE_KEY);
+  }
+  return null;
 }
 
 /**
@@ -84,7 +89,6 @@ async function storeKubeconfigFromBackstage(kubeconfig: string) {
         await statelessFunctions.findAndReplaceKubeconfig(context.name, newKubeconfigBase64, true);
       }
     );
-    console.log('Promises', promises);
     // Wait for all kubeconfig operations to complete
     await Promise.all(promises);
   } catch (error) {
@@ -113,8 +117,6 @@ const BACKSTAGE_ACK_TIMEOUT_MS = 1000;
  */
 export function setupBackstageMessageReceiver() {
   if (isBackstage()) {
-    console.log('Running in backstage, so setting up token receiver');
-
     const handleMessage = async (event: MessageEvent) => {
       try {
         const { type, payload } = event.data as BackstageMessage;

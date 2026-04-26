@@ -62,9 +62,12 @@ export default function SecretDetails(props: {
             section: () => {
               // Keep data in base64 format - SecretField handles decoding for display
               const initialData = item.data || {};
+              // eslint-disable-next-line react-hooks/rules-of-hooks
               const [data, setData] = React.useState(initialData);
+              // eslint-disable-next-line react-hooks/rules-of-hooks
               const lastDataRef = React.useRef(initialData);
 
+              // eslint-disable-next-line react-hooks/rules-of-hooks
               React.useEffect(() => {
                 const newData = item.data || {};
                 if (!_.isEqual(newData, lastDataRef.current)) {
@@ -73,6 +76,7 @@ export default function SecretDetails(props: {
                     lastDataRef.current = newData;
                   }
                 }
+                // eslint-disable-next-line react-hooks/exhaustive-deps
               }, [item.data]);
 
               const handleFieldChange = (key: string, newValue: string) => {

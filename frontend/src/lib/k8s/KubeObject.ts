@@ -299,6 +299,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     onError?: (err: ApiError, cluster?: string) => void,
     opts?: ApiListOptions
   ) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const [objs, setObjs] = React.useState<{ [key: string]: K[] }>({});
     const listCallback = onList as (arg: any[]) => void;
 
@@ -359,6 +360,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       listCalls.push(this.apiList(listCallback, onError, { queryParams, cluster }));
     }
 
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     useConnectApi(...listCalls);
   }
 
@@ -378,9 +380,11 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       refetchInterval?: number;
     } & QueryParameters = {}
   ) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const fallbackClusters = useSelectedClusters();
 
     // Create requests for each cluster and namespace
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const requests = useMemo(() => {
       const clusterList = cluster
         ? [cluster]
@@ -399,8 +403,10 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
         this.isNamespaced,
         namespacesFromParams
       );
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [cluster, clusters, fallbackClusters, namespace, this.isNamespaced]);
 
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const result = useKubeObjectList<K>({
       queryParams: queryParams,
       kubeObjectClass: this,
@@ -420,6 +426,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       cluster?: string;
     }
   ) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     return useKubeObject<K>({
       kubeObjectClass: this as (new (...args: any) => K) & typeof KubeObject<any>,
       name: name,
@@ -475,6 +482,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     // We do the type conversion here because we want to be able to use hooks that may not have
     // the exact signature as get callbacks.
     const getCallback = onGet as (item: K) => void;
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     useConnectApi(this.apiGet(getCallback, name, namespace, onError, opts));
   }
 

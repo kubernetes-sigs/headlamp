@@ -4,7 +4,7 @@ timeout: 3000s
 # For each build step, cloudbuild executes a docker container.
 steps:
   # see https://github.com/kubernetes/test-infra/tree/master/config/jobs/image-pushing
-  - name: 'gcr.io/k8s-staging-test-infra/gcb-docker-gcloud:v20250513-9264efb079'
+  - name: 'gcr.io/k8s-staging-test-infra/gcb-docker-gcloud@sha256:8d6a3a5b895e6776dbe9115b75db1412fbe57299b8db329d45cb54680e462b0b' # v20251211-4c812d4cd8
     entrypoint: make
     args:
       - image

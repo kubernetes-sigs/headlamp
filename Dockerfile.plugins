@@ -1,5 +1,5 @@
 # Build the plugin
-FROM node:22@sha256:379c51ac7bbf9bffe16769cfda3eb027d59d9c66ac314383da3fcf71b46d026c as builder
+FROM node:22@sha256:f90672bf4c76dfc077d17be4c115b1ae7731d2e8558b457d86bca42aeb193866 as builder
 
 # Set the working directory
 WORKDIR /headlamp-plugins

@@ -161,6 +161,7 @@ export default function ProjectList() {
     ];
 
     return columns;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (projects.length === 0) {

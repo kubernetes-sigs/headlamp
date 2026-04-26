@@ -294,6 +294,7 @@ export function useTerminalStream(options: TerminalStreamOptions) {
       streamRef.current?.cancel();
       window.removeEventListener('resize', resizeHandler);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [containerRef, enabled, send, onData, setupTerminal, connectStream]);
 
   return {

@@ -208,6 +208,7 @@ function useFuseSearch<T>(items: T[], options: IFuseOptions<T>, query: string) {
 
   return useMemo(
     () => (query.trim() === '' ? items : fuse.search(query).map(it => it.item)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fuse, query]
   );
 }
@@ -242,6 +243,7 @@ export const ApiResourcesView = memo(
 
     const groups = useMemo(
       () => groupBy(matchingResources, it => it.groupName),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       [matchingResources, query]
     );
 

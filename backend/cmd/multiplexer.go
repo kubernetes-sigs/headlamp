@@ -389,7 +389,8 @@ func (m *Multiplexer) dialWebSocket(
 				nil,
 				"WebSocket response",
 			)
-			defer resp.Body.Close()
+
+			defer func() { _ = resp.Body.Close() }()
 		}
 
 		return nil, fmt.Errorf("dialing WebSocket: %v", err)
@@ -430,7 +431,7 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 	}
 
 	if conn.WSConn != nil {
-		conn.WSConn.Close()
+		_ = conn.WSConn.Close()
 	}
 
 	newConn, err := m.establishClusterConnection(
@@ -462,7 +463,7 @@ func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	defer clientConn.Close()
+	defer func() { _ = clientConn.Close() }()
 
 	lockClientConn := NewWSConnLock(clientConn)
 
@@ -708,6 +709,7 @@ func (m *Multiplexer) sendIfNewResourceVersion(
 // sendCompleteMessage sends a COMPLETE message to the client.
 func (m *Multiplexer) sendCompleteMessage(conn *Connection, clientConn *WSConnLock) error {
 	conn.mu.RLock()
+
 	if conn.closed {
 		conn.mu.RUnlock()
 		return nil // Connection is already closed, no need to send message
@@ -767,7 +769,7 @@ func (m *Multiplexer) cleanupConnection(conn *Connection) {
 	conn.closed = true
 
 	if conn.WSConn != nil {
-		conn.WSConn.Close()
+		_ = conn.WSConn.Close()
 	}
 
 	m.mutex.Lock()
@@ -806,7 +808,7 @@ func (m *Multiplexer) cleanupConnections() {
 		close(conn.Done)
 
 		if conn.WSConn != nil {
-			conn.WSConn.Close()
+			_ = conn.WSConn.Close()
 		}
 
 		delete(m.connections, key)
@@ -865,7 +867,7 @@ func (m *Multiplexer) CloseConnection(clusterID, path, userID string) {
 	close(conn.Done)
 
 	if conn.WSConn != nil {
-		conn.WSConn.Close()
+		_ = conn.WSConn.Close()
 	}
 }
 

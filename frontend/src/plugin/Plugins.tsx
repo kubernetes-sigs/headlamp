@@ -88,6 +88,7 @@ export default function Plugins() {
         window.desktopApi?.send('pluginsLoaded');
       })
       .catch(console.error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return null;
 }

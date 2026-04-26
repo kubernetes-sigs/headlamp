@@ -134,6 +134,7 @@ function ClearRafOnUnmount({ children }: { children: React.ReactNode }) {
 
     return () => {
       pending.current.forEach(t => clearTimeout(t));
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       pending.current.length = 0;
       if (originalRaf.current !== null) window.requestAnimationFrame = originalRaf.current;
       if (originalCaf.current !== null) window.cancelAnimationFrame = originalCaf.current;
@@ -421,6 +422,7 @@ export const TerminalShellNotFoundTryNext: StoryFn<React.ComponentProps<typeof T
       void opts;
       await Promise.resolve();
       if (callCount === 0) {
+        // eslint-disable-next-line react-hooks/immutability
         callCount += 1;
         timeouts.push(
           setTimeout(

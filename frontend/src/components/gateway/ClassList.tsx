@@ -87,6 +87,7 @@ export default function GatewayClassList() {
           render: (gatewayClass: GatewayClass) =>
             makeGatewayStatusLabel(gatewayClass.status?.conditions || null),
         },
+        'labels',
         'age',
       ]}
     />

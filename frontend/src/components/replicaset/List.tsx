@@ -105,6 +105,7 @@ export default function ReplicaSetList() {
             return matchLabels && <MetadataDictGrid dict={matchLabels} />;
           },
         },
+        'labels',
         'age',
       ]}
     />

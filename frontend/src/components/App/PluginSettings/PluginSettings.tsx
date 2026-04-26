@@ -175,6 +175,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
         setEnableSave(true);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pluginChanges]);
 
   /**

@@ -30,7 +30,7 @@ jobs:
     
       - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
         with:
-          go-version: '1.24.*'
+          go-version: '1.25.*'
 
       - name: Install dependencies
         run: |
@@ -46,10 +46,10 @@ jobs:
           minikube addons enable headlamp
           kubectl wait deployment -n headlamp headlamp --for condition=Available=True --timeout=30s    
 
-      - name: setup and run golangci-lint 
-        uses: golangci/golangci-lint-action@2226d7cb06a077cd73e56eedd38eecad18e5d837 # 6.5.0
+      - name: setup and run golangci-lint
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
-          version: v1.64
+          version: v2.11.3
           working-directory: backend
           skip-cache: true
           args: --timeout 3m

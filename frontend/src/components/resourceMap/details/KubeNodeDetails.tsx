@@ -158,6 +158,7 @@ export const KubeObjectDetails = memo(
           `No details component for kind ${kind} was found. See KubeNodeDetails.tsx for more info`
         );
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [kind, kindComponentMap]);
 
     return (

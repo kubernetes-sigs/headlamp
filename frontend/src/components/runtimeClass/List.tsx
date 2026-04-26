@@ -33,6 +33,7 @@ export function RuntimeClassList() {
           label: t('translation|Handler'),
           getValue: item => item?.jsonData?.handler,
         },
+        'labels',
         'age',
       ]}
     />

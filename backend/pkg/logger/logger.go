@@ -78,7 +78,9 @@ func Init(loglevel string) {
 // Log logs the message, source file, and line number at the specified level.
 func Log(level uint, str map[string]string, err interface{}, msg string) {
 	logFuncMutex.RLock()
+
 	fn := logFunc
+
 	logFuncMutex.RUnlock()
 
 	fn(level, str, err, msg)

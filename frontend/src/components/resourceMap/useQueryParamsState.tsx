@@ -67,6 +67,7 @@ export function useQueryParamsState<T extends string | undefined>(
         history.push(newSearch);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [history.location.search, param]
   );
 
@@ -75,6 +76,7 @@ export function useQueryParamsState<T extends string | undefined>(
     if (initialState && !value) {
       setValue(initialState, { replace: true });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialState]);
 
   return [value, setValue];

@@ -70,6 +70,7 @@ import InnerTable from '../InnerTable';
 import { DateLabel, HoverInfoLabel, StatusLabel, StatusLabelProps, ValueLabel } from '../Label';
 import Link, { LinkProps } from '../Link';
 import { metadataStyles } from '.';
+import A8RInfo from './A8RInfo';
 import { MainInfoSection, MainInfoSectionProps } from './MainInfoSection/MainInfoSection';
 import { MainInfoHeader } from './MainInfoSection/MainInfoSectionHeader';
 import { MetadataDictGrid, MetadataDisplay } from './MetadataDisplay';
@@ -175,6 +176,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
         },
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item]);
 
   React.useEffect(() => {
@@ -195,6 +197,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
       error,
     };
     onResourceUpdate?.(item as InstanceType<T>, error!);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, error]);
 
   const actualBackLink: string | Location | undefined = React.useMemo(() => {
@@ -230,6 +233,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
     }
 
     return createRouteURL(route);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item]);
 
   const sections: (DetailsViewSection | ReactNode)[] = [];
@@ -285,6 +289,22 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
         </SectionBox>
       ),
     });
+  }
+
+  // a8r.io Metadata section — rendered for any resource that carries a8r.io/* annotations
+  if (item) {
+    const annotations = item.metadata?.annotations ?? {};
+    const hasA8r = Object.keys(annotations).some(key => key.startsWith('a8r.io/'));
+    if (hasA8r) {
+      sections.push({
+        id: 'headlamp.a8r-info',
+        section: (
+          <SectionBox title={t('a8r.io Metadata')}>
+            <A8RInfo annotations={annotations} />
+          </SectionBox>
+        ),
+      });
+    }
   }
 
   // Other sections
@@ -978,7 +998,31 @@ function buildEnvironmentVariables(
         }
 
         try {
-          const targetContainer = pod.spec?.containers?.find(c => c.name === containerName);
+          const allContainers: any[] = [
+            ...(pod.spec?.containers || []),
+            ...(pod.spec?.initContainers || []),
+            ...(pod.spec?.ephemeralContainers || []),
+          ];
+
+          const templateSpec = (pod.spec as any)?.template?.spec;
+          if (templateSpec) {
+            allContainers.push(
+              ...(templateSpec.containers || []),
+              ...(templateSpec.initContainers || []),
+              ...(templateSpec.ephemeralContainers || [])
+            );
+          }
+
+          const jobTemplateSpec = (pod.spec as any)?.jobTemplate?.spec?.template?.spec;
+          if (jobTemplateSpec) {
+            allContainers.push(
+              ...(jobTemplateSpec.containers || []),
+              ...(jobTemplateSpec.initContainers || []),
+              ...(jobTemplateSpec.ephemeralContainers || [])
+            );
+          }
+
+          const targetContainer = allContainers.find(c => c.name === containerName);
           if (!targetContainer) {
             throw new Error(`Container ${containerName} not found`);
           }
@@ -1059,6 +1103,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
   const references = extractEnvVarReferences(container);
 
   // Get unique resource names to fetch
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const secretsToFetch = React.useMemo(() => {
     const secrets = new Set<string>();
     references.forEach(ref => {
@@ -1069,6 +1114,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
     return Array.from(secrets);
   }, [references]);
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const configMapsToFetch = React.useMemo(() => {
     const configMaps = new Set<string>();
     references.forEach(ref => {
@@ -1080,6 +1126,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
   }, [references]);
 
   // Callbacks to handle fetched resources
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const handleSecretFetched = React.useCallback(
     (name: string, resource: KubeObject | null, error: ApiError | null) => {
       setFetchedSecrets(prev => {
@@ -1091,6 +1138,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
     []
   );
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const handleConfigMapFetched = React.useCallback(
     (name: string, resource: KubeObject | null, error: ApiError | null) => {
       setFetchedConfigMaps(prev => {
@@ -1103,6 +1151,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
   );
 
   // Copy handler using notistack
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const handleCopy = React.useCallback(
     (text: string) => {
       navigator.clipboard.writeText(text).then(
@@ -1304,25 +1353,32 @@ export function LivenessProbes(props: { liveness: KubeContainer['livenessProbe']
 
   return (
     <Box display="flex" flexDirection="column">
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <LivenessProbeItem>
         {`http-get, path: ${liveness?.httpGet?.path}, port: ${liveness?.httpGet?.port},
     scheme: ${liveness?.httpGet?.scheme}`}
       </LivenessProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <LivenessProbeItem>
         {liveness?.exec?.command && `exec[${liveness?.exec?.command.join(' ')}]`}
       </LivenessProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <LivenessProbeItem>
         {liveness?.successThreshold && `success = ${liveness?.successThreshold}`}
       </LivenessProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <LivenessProbeItem>
         {liveness?.failureThreshold && `failure = ${liveness?.failureThreshold}`}
       </LivenessProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <LivenessProbeItem>
         {liveness?.initialDelaySeconds && `delay = ${liveness?.initialDelaySeconds}s`}
       </LivenessProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <LivenessProbeItem>
         {liveness?.timeoutSeconds && `timeout = ${liveness?.timeoutSeconds}s`}
       </LivenessProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <LivenessProbeItem>
         {liveness?.periodSeconds && `period = ${liveness?.periodSeconds}s`}
       </LivenessProbeItem>
@@ -1591,11 +1647,12 @@ export function ContainerInfo(props: ContainerInfoProps) {
         name: t('Ports'),
         value: (
           <Grid container>
-            {container.ports?.map(({ containerPort, protocol }, index) => (
+            {container.ports?.map(({ containerPort, protocol, name }, index) => (
               <>
                 <Grid item xs={12} key={`port_line_${index}`}>
                   <Box display="flex" alignItems={'center'}>
                     <Box px={0.5} minWidth={120}>
+                      {name && <ValueLabel>{`${name} `}</ValueLabel>}
                       <ValueLabel>{`${protocol}:`}</ValueLabel>
                       <ValueLabel>{containerPort}</ValueLabel>
                     </Box>
@@ -1659,10 +1716,15 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
     fieldSelector: resource.kind === 'Node' ? `spec.nodeName=${resource.metadata.name}` : undefined,
     cluster: resource.cluster,
   };
+  const podMetricsQueryData = {
+    ...queryData,
+    // The metrics.k8s.io pod metrics list endpoint does not support spec.nodeName field selectors.
+    fieldSelector: undefined,
+  };
 
   const { items: pods, errors } = Pod.useList(queryData);
   const { items: podMetrics } = PodMetrics.useList({
-    ...queryData,
+    ...podMetricsQueryData,
     refetchInterval: METRIC_REFETCH_INTERVAL_MS,
   });
   const onlyOneNamespace = !!resource.metadata.namespace || resource.kind === 'Namespace';
@@ -1675,6 +1737,7 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
       errors={errors}
       metrics={podMetrics}
       noNamespaceFilter={hideNamespaceFilter}
+      hideCreateButton
     />
   );
 }
@@ -1694,6 +1757,7 @@ export function ContainersSection(props: { resource: KubeObjectInterface | null 
 
     if (resource.spec) {
       if (resource.spec.containers) {
+        // eslint-disable-next-line react-hooks/immutability
         title = t('Containers');
         containers = resource.spec.containers;
       } else if (resource.spec.template && resource.spec.template.spec) {

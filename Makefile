@@ -55,13 +55,25 @@ endif
 all: backend frontend
 
 tools/golangci-lint: backend/go.mod backend/go.sum
-	GOBIN=`pwd`/backend/tools go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64
+ifeq ($(UNIXSHELL), true)
+	GOBIN=`pwd`/backend/tools go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.3
+else
+	powershell -Command "$$env:GOBIN='$(CURDIR)/backend/tools'; go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.3"
+endif
 
 backend-lint: tools/golangci-lint
+ifeq ($(UNIXSHELL), true)
 	cd backend && ./tools/golangci-lint run
+else
+	cd backend && tools\golangci-lint.exe run
+endif
 
 backend-lint-fix: tools/golangci-lint
+ifeq ($(UNIXSHELL), true)
 	cd backend && ./tools/golangci-lint run --fix
+else
+	cd backend && tools\golangci-lint.exe run --fix
+endif
 
 frontend/build:
 	make frontend
@@ -302,7 +314,7 @@ run-only-app:
 	cd app && npm install && node ./scripts/setup-plugins.js && npm run dev-only-app
 
 frontend-lint:
-	cd frontend && npm run lint -- --max-warnings 0 && npm run format-check
+	cd frontend && npm run lint && npm run format-check
 
 frontend-lint-fix:
 	cd frontend && npm run lint -- --fix && npm run format

@@ -27,6 +27,7 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TablePagination from '@mui/material/TablePagination';
 import TableRow from '@mui/material/TableRow';
+import Tooltip from '@mui/material/Tooltip';
 import { SxProps } from '@mui/system';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -96,21 +97,29 @@ function ColumnSortButtons(props: ColumnSortButtonProps) {
   const { t } = useTranslation();
   const { isDefaultSorted, isIncreasingOrder, clickHandler } = props;
   return isDefaultSorted ? (
-    <IconButton
-      aria-label={isIncreasingOrder ? t('translation|sort up') : t('translation|sort down')}
-      size="small"
-      onClick={() => clickHandler(!isIncreasingOrder)}
+    <Tooltip
+      title={isIncreasingOrder ? t('translation|Sort descending') : t('translation|Sort ascending')}
     >
-      <Icon icon={isIncreasingOrder ? 'mdi:menu-up' : 'mdi:menu-down'} />
-    </IconButton>
+      <IconButton
+        aria-label={
+          isIncreasingOrder ? t('translation|Sort descending') : t('translation|Sort ascending')
+        }
+        size="small"
+        onClick={() => clickHandler(!isIncreasingOrder)}
+      >
+        <Icon icon={isIncreasingOrder ? 'mdi:arrow-up' : 'mdi:arrow-down'} />
+      </IconButton>
+    </Tooltip>
   ) : (
-    <IconButton
-      aria-label={t('translation|sort swap')}
-      size="small"
-      onClick={() => clickHandler(true)}
-    >
-      <Icon icon="mdi:menu-swap" />
-    </IconButton>
+    <Tooltip title={t('translation|Sort ascending')}>
+      <IconButton
+        aria-label={t('translation|Sort ascending')}
+        size="small"
+        onClick={() => clickHandler(true)}
+      >
+        <Icon icon="mdi:swap-vertical" />
+      </IconButton>
+    </Tooltip>
   );
 }
 
@@ -136,6 +145,7 @@ function usePageURLState(
 
   React.useEffect(() => {
     setPage(zeroIndexPage + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zeroIndexPage]);
 
   return [zeroIndexPage, setZeroIndexPage];
@@ -164,6 +174,7 @@ export default function SimpleTable(props: SimpleTableProps) {
   const [displayData, setDisplayData] = React.useState(data);
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = props.rowsPerPage || storeRowsPerPageOptions;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const defaultRowsPerPage = React.useMemo(() => getTablesRowsPerPage(rowsPerPageOptions[0]), []);
   const [rowsPerPage, setRowsPerPage] = useURLState(shouldReflectInURL ? 'perPage' : '', {
     defaultValue: defaultRowsPerPage,
@@ -205,6 +216,7 @@ export default function SimpleTable(props: SimpleTableProps) {
     if (displayData && page * rowsPerPage > displayData.length) {
       setPage(Math.floor(displayData.length / rowsPerPage));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, displayData, rowsPerPage]);
 
   function handleChangeRowsPerPage(

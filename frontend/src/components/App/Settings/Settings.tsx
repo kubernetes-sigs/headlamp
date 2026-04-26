@@ -60,6 +60,7 @@ export default function Settings() {
         timezone: selectedTimezone,
       })
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTimezone]);
 
   useEffect(() => {
@@ -68,6 +69,7 @@ export default function Settings() {
         sidebarSortAlphabetically: sortSidebar,
       })
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortSidebar]);
 
   useEffect(() => {
@@ -76,6 +78,7 @@ export default function Settings() {
         useEvict: useEvict,
       })
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useEvict]);
 
   const sidebarLabelID = 'sort-sidebar-label';

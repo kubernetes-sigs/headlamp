@@ -265,6 +265,7 @@ function TimeAgo({ date, format }: { date: number | string | Date; format?: Date
     }, 1_000);
 
     return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return formattedDate;

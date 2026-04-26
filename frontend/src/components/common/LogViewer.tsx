@@ -129,6 +129,7 @@ export function LogViewer(props: LogViewerProps) {
       searchAddonRef.current?.dispose();
       xtermRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [terminalContainerRef, xtermRef.current]);
 
   React.useEffect(() => {
@@ -145,6 +146,7 @@ export function LogViewer(props: LogViewerProps) {
     xtermRef.current?.write(getJointLogs());
 
     return function cleanup() {};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logs, xtermRef]);
 
   function getJointLogs() {
@@ -217,7 +219,7 @@ export function LogViewer(props: LogViewerProps) {
       >
         {showReconnectButton && (
           <Button onClick={handleReconnect} color="info" variant="contained">
-            Reconnect
+            {t('translation|Reconnect')}
           </Button>
         )}
         <div
@@ -328,7 +330,7 @@ export function SearchPopover(props: SearchPopoverProps) {
       });
     } catch (e) {
       // Catch invalid regular expression error
-      console.log('Error searching logs: ', e);
+      console.error('Error searching logs: ', e);
       searchAddonRef.current?.findNext('');
     }
 
@@ -337,8 +339,10 @@ export function SearchPopover(props: SearchPopoverProps) {
     });
 
     return function cleanup() {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       searchAddonRef.current?.findNext('');
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchText, caseSensitiveChecked, wholeWordMatchChecked, regexChecked, open]);
 
   const handleFindNext = () => {

@@ -220,7 +220,7 @@ func TestWebsocketConnContextKey(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 			req.Header.Set("Sec-Websocket-Protocol", tc.protocols)
 
 			key := websocketConnContextKey(req, tc.clusterName)

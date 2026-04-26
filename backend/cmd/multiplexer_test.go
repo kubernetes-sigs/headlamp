@@ -73,10 +73,10 @@ func TestHandleClientWebSocket(t *testing.T) {
 	require.NoError(t, err)
 
 	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 	}
 
-	defer ws.Close()
+	defer func() { _ = ws.Close() }()
 
 	wsConn := NewWSConnLock(ws)
 
@@ -152,7 +152,7 @@ func TestDialWebSocket(t *testing.T) {
 			return
 		}
 
-		defer ws.Close()
+		defer func() { _ = ws.Close() }()
 		// Echo incoming messages back to the client
 		for {
 			mt, message, err := ws.ReadMessage()
@@ -176,7 +176,7 @@ func TestDialWebSocket(t *testing.T) {
 	assert.NotNil(t, conn)
 
 	if conn != nil {
-		conn.Close()
+		_ = conn.Close()
 	}
 }
 
@@ -197,7 +197,7 @@ func TestDialWebSocket_WithToken(t *testing.T) {
 			t.Fatalf("WebSocket upgrade failed: %v", err)
 		}
 
-		defer ws.Close()
+		defer func() { _ = ws.Close() }()
 	}))
 	defer server.Close()
 
@@ -208,7 +208,7 @@ func TestDialWebSocket_WithToken(t *testing.T) {
 	assert.NotNil(t, conn)
 
 	if conn != nil {
-		conn.Close()
+		_ = conn.Close()
 	}
 
 	assert.Equal(t, "Bearer "+token, receivedAuth)
@@ -372,6 +372,7 @@ func TestMonitorConnection(t *testing.T) {
 	conn.WSConn = wsConn.conn
 
 	done := make(chan struct{})
+
 	go func() {
 		m.monitorConnection(conn)
 		close(done)
@@ -499,7 +500,7 @@ func createTestWebSocketConn() (*websocket.Conn, *httptest.Server) {
 			return
 		}
 
-		defer ws.Close()
+		defer func() { _ = ws.Close() }()
 
 		for {
 			messageType, message, err := ws.ReadMessage()
@@ -525,7 +526,7 @@ func createTestWebSocketConn() (*websocket.Conn, *httptest.Server) {
 	}
 
 	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 	}
 
 	return conn, server
@@ -569,7 +570,7 @@ func createTestWebSocketConnection() (*WSConnLock, *httptest.Server) {
 	}
 
 	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 	}
 
 	return NewWSConnLock(conn), server
@@ -599,6 +600,7 @@ func TestWSConnLock(t *testing.T) {
 
 	// Test ReadJSON
 	var msg string
+
 	err := wsConn.ReadJSON(&msg)
 	assert.NoError(t, err)
 	assert.Contains(t, msg, "message-")
@@ -617,7 +619,7 @@ func createMockKubeAPIServer() *httptest.Server {
 			return
 		}
 
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		// Echo messages back
 		for {
@@ -845,10 +847,12 @@ func TestHandleConnectionError(t *testing.T) {
 	}
 
 	done := make(chan bool)
+
 	go func() {
 		_, rawMsg, err := clientConn.ReadMessage()
 		if err != nil {
 			t.Errorf("Error reading message: %v", err)
+
 			done <- true
 
 			return
@@ -857,6 +861,7 @@ func TestHandleConnectionError(t *testing.T) {
 		err = json.Unmarshal(rawMsg, &receivedMsg)
 		if err != nil {
 			t.Errorf("Error unmarshaling message: %v", err)
+
 			done <- true
 
 			return
@@ -891,7 +896,7 @@ func TestReadClientMessage_InvalidMessage(t *testing.T) {
 		ws, err := upgrader.Upgrade(w, r, nil)
 		require.NoError(t, err)
 
-		defer ws.Close()
+		defer func() { _ = ws.Close() }()
 
 		// Echo messages back
 		for {
@@ -915,7 +920,7 @@ func TestReadClientMessage_InvalidMessage(t *testing.T) {
 	clientConn, _, err := dialer.Dial(wsURL, nil) //nolint:bodyclose
 	require.NoError(t, err)
 
-	defer clientConn.Close()
+	defer func() { _ = clientConn.Close() }()
 
 	// Test completely invalid JSON
 	err = clientConn.WriteMessage(websocket.TextMessage, []byte("not json at all"))
@@ -1018,6 +1023,7 @@ func TestMonitorConnection_ReconnectFailure(t *testing.T) {
 
 	// Start monitoring
 	done := make(chan struct{})
+
 	go func() {
 		m.monitorConnection(conn)
 		close(done)
@@ -1025,7 +1031,7 @@ func TestMonitorConnection_ReconnectFailure(t *testing.T) {
 
 	// Force connection closure and error state
 	conn.updateStatus(StateError, fmt.Errorf("forced error"))
-	conn.WSConn.Close()
+	_ = conn.WSConn.Close()
 
 	// Wait briefly to ensure error state is set
 	time.Sleep(50 * time.Millisecond)
@@ -1053,7 +1059,7 @@ func TestHandleClientWebSocket_InvalidMessages(t *testing.T) {
 	require.NoError(t, err)
 
 	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 	}
 
 	err = ws.WriteMessage(websocket.TextMessage, []byte("invalid json"))
@@ -1070,17 +1076,17 @@ func TestHandleClientWebSocket_InvalidMessages(t *testing.T) {
 		assert.Contains(t, string(message), "error")
 	}
 
-	ws.Close()
+	_ = ws.Close()
 
 	// Test invalid message type with new connection
 	ws, resp, err = websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 
 	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 	}
 
-	defer ws.Close()
+	defer func() { _ = ws.Close() }()
 
 	err = ws.WriteJSON(Message{
 		Type:      "INVALID_TYPE",
@@ -1171,6 +1177,7 @@ func TestSendCompleteMessage_ClosedConnection(t *testing.T) {
 	require.NoError(t, err)
 
 	var msg Message
+
 	err = json.Unmarshal(message, &msg)
 	require.NoError(t, err)
 
@@ -1181,7 +1188,7 @@ func TestSendCompleteMessage_ClosedConnection(t *testing.T) {
 	assert.Equal(t, conn.UserID, msg.UserID)
 
 	// Test sending to closed connection
-	clientConn.Close()
+	_ = clientConn.Close()
 	err = m.sendCompleteMessage(conn, clientConn)
 	assert.NoError(t, err)
 }
@@ -1202,20 +1209,20 @@ func TestSendCompleteMessage_ErrorConditions(t *testing.T) {
 		{
 			name: "normal closure",
 			setupConn: func(_ *Connection, clientConn *WSConnLock) {
-				//nolint:errcheck
+				//nolint:errcheck,gosec
 				clientConn.WriteMessage(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-				clientConn.Close()
+				_ = clientConn.Close()
 			},
 			expectedError: false,
 		},
 		{
 			name: "unexpected close error",
 			setupConn: func(_ *Connection, clientConn *WSConnLock) {
-				//nolint:errcheck
+				//nolint:errcheck,gosec
 				clientConn.WriteMessage(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.CloseProtocolError, ""))
-				clientConn.Close()
+				_ = clientConn.Close()
 			},
 			expectedError: false, // All errors return nil now
 		},
@@ -1343,7 +1350,7 @@ func TestReconnect_WithToken(t *testing.T) {
 
 	// Close the connection to force another reconnection
 	if newConn.WSConn != nil {
-		newConn.WSConn.Close()
+		_ = newConn.WSConn.Close()
 	}
 
 	newConn.Status.State = StateError
@@ -1373,7 +1380,7 @@ func TestMonitorConnection_Reconnect(t *testing.T) {
 		ws, err := upgrader.Upgrade(w, r, nil)
 		require.NoError(t, err)
 
-		defer ws.Close()
+		defer func() { _ = ws.Close() }()
 
 		// Keep connection alive briefly
 		time.Sleep(100 * time.Millisecond)
@@ -1427,6 +1434,7 @@ func TestWriteMessageToCluster(t *testing.T) {
 
 	go func() {
 		_, receivedMessage, _ = clusterConn.conn.ReadMessage()
+
 		done <- true
 	}()
 
@@ -1441,7 +1449,7 @@ func TestWriteMessageToCluster(t *testing.T) {
 	}
 
 	// Test error case
-	clusterConn.Close()
+	_ = clusterConn.Close()
 
 	err = m.writeMessageToCluster(conn, testMessage)
 
@@ -1462,6 +1470,7 @@ func TestHandleClusterMessages(t *testing.T) {
 	conn.WSConn = wsConn.conn
 
 	done := make(chan struct{})
+
 	go func() {
 		m.handleClusterMessages(conn, clientConn)
 		close(done)
@@ -1474,6 +1483,7 @@ func TestHandleClusterMessages(t *testing.T) {
 
 	// Read the message from the client connection
 	var msg Message
+
 	err = clientConn.ReadJSON(&msg)
 	require.NoError(t, err)
 
@@ -1483,7 +1493,7 @@ func TestHandleClusterMessages(t *testing.T) {
 	assert.Equal(t, "test-user", msg.UserID)
 
 	// Close the connection
-	wsConn.Close()
+	_ = wsConn.Close()
 
 	// Wait for handleClusterMessages to finish
 	select {
@@ -1508,6 +1518,7 @@ func TestSendCompleteMessage(t *testing.T) {
 
 	// Verify the complete message was sent
 	var msg Message
+
 	err = clientConn.ReadJSON(&msg)
 	require.NoError(t, err)
 	assert.Equal(t, "COMPLETE", msg.Type)
@@ -1537,6 +1548,7 @@ func TestSendDataMessage(t *testing.T) {
 
 	// Verify text message
 	var msg Message
+
 	err = clientConn.ReadJSON(&msg)
 	require.NoError(t, err)
 	assert.Equal(t, string(textMsg), msg.Data)

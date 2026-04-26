@@ -64,6 +64,7 @@ func setupTestMeter(t *testing.T) (*sdkmetric.MeterProvider, *sdkmetric.ManualRe
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 
 	originalProvider := otel.GetMeterProvider()
+
 	otel.SetMeterProvider(provider)
 
 	t.Cleanup(func() {
@@ -99,6 +100,7 @@ func TestNewMetrics(t *testing.T) {
 	metrics.ErrorCounter.Add(ctx, 2, metric.WithAttributes(attribute.String("error", "test_error")))
 
 	var data metricdata.ResourceMetrics
+
 	err = reader.Collect(ctx, &data)
 	require.NoError(t, err)
 
@@ -165,6 +167,7 @@ func TestRequestCounterMiddleware(t *testing.T) { //nolint:funlen // long functi
 	require.NoError(t, err)
 
 	var data metricdata.ResourceMetrics
+
 	err = reader.Collect(context.Background(), &data)
 	require.NoError(t, err)
 
@@ -195,6 +198,7 @@ func TestRequestCounterMiddleware(t *testing.T) { //nolint:funlen // long functi
 
 func TestRequestCounterMiddlewarePanic(t *testing.T) {
 	provider, reader := setupTestMeter(t)
+
 	defer func() {
 		err := provider.Shutdown(context.Background())
 		if err != nil {
@@ -280,7 +284,7 @@ func TestResponseWriterHijack_ReturnsErrorWhenUnderlyingNotHijacker(t *testing.T
 	handler := metrics.RequestCounterMiddleware(h)
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/hijack", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/hijack", nil)
 
 	handler.ServeHTTP(rr, req)
 
@@ -306,6 +310,7 @@ func setupPanicTest(t *testing.T) (*tel.Metrics, *httptest.Server) {
 					w.WriteHeader(http.StatusInternalServerError)
 				}
 			}()
+
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -350,6 +355,7 @@ func makePanicRequest(t *testing.T, serverURL string) {
 
 func verifyPanicMetrics(t *testing.T, ctx context.Context, reader *sdkmetric.ManualReader) {
 	var data metricdata.ResourceMetrics
+
 	err := reader.Collect(ctx, &data)
 	require.NoError(t, err)
 

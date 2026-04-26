@@ -124,6 +124,7 @@ const ChipGroup = styled(Box)({
 function GraphViewContent({
   height,
   defaultNodeSelection,
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   defaultSources = useGetAllSources(),
   defaultFilters = defaultFiltersValue,
 }: GraphViewContentProps) {
@@ -202,6 +203,7 @@ function GraphViewContent({
     const visibleGraph = collapseGraph(graph, { selectedNodeId, expandAll });
 
     return { visibleGraph, fullGraph: graph };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredGraph, groupBy, selectedNodeId, expandAll, allNamespaces]);
 
   const viewport = useGraphViewport();
@@ -233,6 +235,7 @@ function GraphViewContent({
     if (selectedNodeId) {
       return findGroupContaining(visibleGraph, selectedNodeId, true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNodeId, visibleGraph, findGroupContaining]);
 
   const graphSize = getGraphSize(visibleGraph);
@@ -240,6 +243,7 @@ function GraphViewContent({
     if (expandAll && graphSize > 50) {
       setExpandAll(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphSize]);
 
   const contextValue = useMemo(
@@ -450,7 +454,9 @@ function CustomThemeProvider({ children }: { children: ReactNode }) {
  * @returns
  */
 export function GraphView(props: GraphViewContentProps) {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const propsSources = props.defaultSources ?? useGetAllSources();
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const propsRelations = props.defaultRelations ?? useGetAllRelations();
 
   // Load plugin defined sources

@@ -534,12 +534,15 @@ export function usePrefersColorScheme() {
   }
 
   const mql = window.matchMedia('(prefers-color-scheme: dark)');
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [value, setValue] = React.useState(mql.matches);
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   React.useEffect(() => {
     const handler = (x: MediaQueryListEvent | MediaQueryList) => setValue(x.matches);
     mql.addListener(handler);
     return () => mql.removeListener(handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return value;

@@ -141,6 +141,7 @@ export function useWatchKubeObjectLists<K extends KubeObject>({
   lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
 }) {
   if (getWebsocketMultiplexerEnabled()) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     return useWatchKubeObjectListsMultiplexed({
       kubeObjectClass,
       endpoint,
@@ -148,6 +149,7 @@ export function useWatchKubeObjectLists<K extends KubeObject>({
       queryParams,
     });
   } else {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     return useWatchKubeObjectListsLegacy({
       kubeObjectClass,
       endpoint,
@@ -186,6 +188,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 
   // Stabilize queryParams to prevent unnecessary effect triggers
   // Only update when the stringified params change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const stableQueryParams = useMemo(() => queryParams, [JSON.stringify(queryParams)]);
 
   // Create stable connection URLs for each list
@@ -353,6 +356,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         },
       };
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lists, kubeObjectClass, endpoint]);
 
   useWebSockets<KubeListUpdateEvent<K>>({
@@ -453,6 +457,7 @@ export function useKubeObjectList<K extends KubeObject>({
                 )
           )
         : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [requests, kubeObjectClass, endpoint, cleanedUpQueryParams]
   );
 

@@ -15,6 +15,7 @@ package k8cache_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -59,7 +60,7 @@ func TestResponseCapture_Integration(t *testing.T) {
 		Body:           &bytes.Buffer{},
 	}
 
-	handler.ServeHTTP(capture, httptest.NewRequest("GET", "/", nil))
+	handler.ServeHTTP(capture, httptest.NewRequestWithContext(context.Background(), "GET", "/", nil))
 
 	if capture.StatusCode != http.StatusAccepted {
 		t.Errorf("expected StatusCode %d, got %d", http.StatusAccepted, capture.StatusCode)

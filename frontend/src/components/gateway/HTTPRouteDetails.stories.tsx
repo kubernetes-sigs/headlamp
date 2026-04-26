@@ -44,6 +44,10 @@ export default {
           http.get('http://localhost:4466/apis/gateway.networking.k8s.io/v1beta1/httproutes', () =>
             HttpResponse.error()
           ),
+          http.get(
+            'http://localhost:4466/apis/gateway.networking.k8s.io/v1beta1/httproutes/default-httproute',
+            () => HttpResponse.error()
+          ),
           http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
             HttpResponse.json({
               kind: 'EventList',

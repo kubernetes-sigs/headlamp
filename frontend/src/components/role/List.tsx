@@ -76,6 +76,7 @@ export default function RoleList({ namespaces }: { namespaces?: string[] }) {
         },
         'namespace',
         ...(isMultiCluster ? (['cluster'] as ColumnType[]) : ([] as ColumnType[])),
+        'labels',
         'age',
       ]}
       data={allRoles}

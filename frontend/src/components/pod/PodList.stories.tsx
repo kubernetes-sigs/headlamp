@@ -54,6 +54,7 @@ export default {
                 {
                   metadata: {
                     name: 'successful',
+                    namespace: 'default',
                   },
                   containers: [
                     {

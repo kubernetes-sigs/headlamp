@@ -69,8 +69,9 @@
                 >
                   Age
                   <button
-                    aria-label="sort swap"
+                    aria-label="Sort ascending"
                     class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                    data-mui-internal-clone-element="true"
                     tabindex="0"
                     type="button"
                   >
@@ -124,7 +125,7 @@
                     class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
                     data-mui-internal-clone-element="true"
                   >
-                    3mo
+                    90d
                   </p>
                 </td>
               </tr>
@@ -168,7 +169,7 @@
                     class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
                     data-mui-internal-clone-element="true"
                   >
-                    3mo
+                    90d
                   </p>
                 </td>
               </tr>

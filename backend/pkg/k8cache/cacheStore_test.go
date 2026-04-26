@@ -54,6 +54,7 @@ func (m *MockCache) Set(ctx context.Context, key, value string) error {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.store[key] = value
 
 	return nil
@@ -68,6 +69,7 @@ func (m *MockCache) SetWithTTL(ctx context.Context, key, value string, ttl time.
 func (m *MockCache) Delete(ctx context.Context, key string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	delete(m.store, key)
 
 	return nil
@@ -81,6 +83,7 @@ func (m *MockCache) Get(ctx context.Context, key string) (string, error) {
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
 	val, ok := m.store[key]
 
 	if !ok {
@@ -114,10 +117,12 @@ func TestGetResponseBody(t *testing.T) {
 			name: "valid gzip response",
 			bodyBytes: func() []byte {
 				var buf bytes.Buffer
+
 				gz := gzip.NewWriter(&buf)
 
 				_, _ = gz.Write([]byte("test-response"))
-				gz.Close()
+				_ = gz.Close()
+
 				return buf.Bytes()
 			}(),
 			contentEncoding: "gzip",
@@ -128,8 +133,10 @@ func TestGetResponseBody(t *testing.T) {
 			name: "empty gzip response",
 			bodyBytes: func() []byte {
 				var buf bytes.Buffer
+
 				gz := gzip.NewWriter(&buf)
-				gz.Close()
+				_ = gz.Close()
+
 				return buf.Bytes()
 			}(),
 			contentEncoding: "gzip",
@@ -161,6 +168,8 @@ func TestGetResponseBody(t *testing.T) {
 
 // TestGetAPIGroup tests whether the GetAPIGroup returning correct
 // apiGroup and version from the URL.
+//
+//nolint:funlen
 func TestGetAPIGroup(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -184,18 +193,59 @@ func TestGetAPIGroup(t *testing.T) {
 			expectedError:    nil,
 		},
 		{
+			name:             "core discovery path with trailing slash",
+			urlPath:          "/clusters/kind-kind/api/",
+			expectedAPIGroup: "",
+			expectedVersion:  "",
+			expectedError:    nil,
+		},
+		{
+			name:             "api group discovery root without group",
+			urlPath:          "/clusters/kind-kind/apis",
+			expectedAPIGroup: "",
+			expectedVersion:  "",
+			expectedError:    nil,
+		},
+		{
+			name:             "api group discovery path with trailing slash",
+			urlPath:          "/clusters/kind-kind/apis/metrics.k8s.io/",
+			expectedAPIGroup: "metrics.k8s.io",
+			expectedVersion:  "",
+			expectedError:    nil,
+		},
+		{
 			name:             "invalid url format",
 			urlPath:          "/clusters/kind-kind",
 			expectedAPIGroup: "",
 			expectedVersion:  "",
 			expectedError:    fmt.Errorf("invalid url format"),
 		},
+		{
+			name:             "short url path api",
+			urlPath:          "/clusters/kind-kind/api",
+			expectedAPIGroup: "",
+			expectedVersion:  "",
+			expectedError:    nil,
+		},
+		{
+			name:             "short url path apis",
+			urlPath:          "/clusters/kind-kind/apis/metrics.k8s.io",
+			expectedAPIGroup: "metrics.k8s.io",
+			expectedVersion:  "",
+			expectedError:    nil,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			apiGroup, version, err := k8cache.GetAPIGroup(tc.urlPath)
 			assert.Equal(t, tc.expectedAPIGroup, apiGroup)
-			assert.Equal(t, tc.expectedError, err)
+
+			if tc.expectedError != nil {
+				assert.EqualError(t, err, tc.expectedError.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+
 			assert.Equal(t, tc.expectedVersion, version)
 		})
 	}
@@ -258,6 +308,8 @@ func TestExtractNamespace(t *testing.T) {
 
 // TestGenerateKey ensures the generated key is valid for both normal
 // and empty cluster name scenarios.
+//
+//nolint:funlen
 func TestGenerateKey(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -285,6 +337,41 @@ func TestGenerateKey(t *testing.T) {
 			urlPath:     url.URL{Path: "/clusters/kind-kind/api/v1/pods"},
 			contextKey:  "kind-kind",
 			expectedKey: "+pods++kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "key for core discovery path without version",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/api"},
+			contextKey:  "kind-kind",
+			expectedKey: "+api++kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "key for core discovery path with trailing slash",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/api/"},
+			contextKey:  "kind-kind",
+			expectedKey: "+api++kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "key for api group discovery root",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/apis"},
+			contextKey:  "kind-kind",
+			expectedKey: "+apis++kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "key for api group discovery path without version",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/k8s.metrics.io"},
+			contextKey:  "kind-kind",
+			expectedKey: "k8s.metrics.io+k8s.metrics.io++kind-kind",
+			expectedErr: nil,
+		},
+		{
+			name:        "key for api group discovery path with trailing slash",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/k8s.metrics.io/"},
+			contextKey:  "kind-kind",
+			expectedKey: "k8s.metrics.io+k8s.metrics.io++kind-kind",
 			expectedErr: nil,
 		},
 		{
@@ -415,7 +502,7 @@ func TestLoadFromCache(t *testing.T) {
 			assert.NoError(t, err)
 
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodGet, tc.urlObj.Path, nil)
+			r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tc.urlObj.Path, nil)
 			isLoaded, err := k8cache.LoadFromCache(mockCache, tc.isLoaded, tc.key, w, r)
 			assert.Equal(t, tc.isLoaded, isLoaded)
 			assert.NoError(t, err)
@@ -442,7 +529,7 @@ func TestStoreK8sResponseInCache(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rw := httptest.NewRecorder()
 			rcw := k8cache.NewResponseCapture(rw)
-			r := httptest.NewRequest(http.MethodGet, tc.urlObj.Path, nil)
+			r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tc.urlObj.Path, nil)
 			newCache := NewMockCache()
 			err := k8cache.StoreK8sResponseInCache(newCache, tc.urlObj, rcw, r, tc.key)
 			assert.NoError(t, err)

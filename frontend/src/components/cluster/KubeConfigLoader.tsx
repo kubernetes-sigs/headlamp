@@ -175,6 +175,7 @@ function KubeConfigLoader() {
       loadClusters();
     }
     return () => {};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   const dispatch = useDispatch();

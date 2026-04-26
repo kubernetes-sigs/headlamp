@@ -66,7 +66,7 @@ func GetClient(t *testing.T, clusterName string) clientcmd.ClientConfig {
 	return clientcmd.NewInteractiveClientConfig(*config, clusterName, nil, nil, nil)
 }
 
-func getStatus(t *testing.T, ch cache.Cache[interface{}], action string, releaseName string) (string, error) {
+func getStatus(t *testing.T, ch cache.Cache[interface{}], action string, releaseName string) (string, *string) {
 	t.Helper()
 
 	statusVal, err := ch.Get(context.Background(), "helm_"+action+"_"+releaseName)
@@ -77,7 +77,7 @@ func getStatus(t *testing.T, ch cache.Cache[interface{}], action string, release
 
 	var status struct {
 		Status string
-		Err    error
+		Err    *string
 	}
 
 	err = json.Unmarshal(valueBytes, &status)
@@ -99,8 +99,10 @@ func pingStatusTillSuccess(t *testing.T, action, releaseName string, cache cache
 
 		time.Sleep(5 * time.Second)
 
-		status, err := getStatus(t, cache, action, releaseName)
-		require.NoError(t, err)
+		status, errStr := getStatus(t, cache, action, releaseName)
+		if errStr != nil {
+			t.Fatalf("unexpected error: %s", *errStr)
+		}
 
 		if status == "success" {
 			break

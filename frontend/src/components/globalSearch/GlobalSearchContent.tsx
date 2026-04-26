@@ -17,16 +17,18 @@
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
+import IconButton from '@mui/material/IconButton';
 import Paper from '@mui/material/Paper';
 import Popper from '@mui/material/Popper';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import useAutocomplete from '@mui/material/useAutocomplete';
 import { UseAutocompleteReturnValue } from '@mui/material/useAutocomplete';
 import Fuse, { Expression, FuseResultMatch } from 'fuse.js';
 import { capitalize } from 'lodash';
 import { lazy, Suspense, useMemo, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
 import { FixedSizeList } from 'react-window';
@@ -119,6 +121,7 @@ function useSearchResources() {
         kind: classes[index].kind,
       };
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results.map(it => it.data)]);
 }
 
@@ -253,6 +256,7 @@ export function GlobalSearchContent({
           history.push(url);
         }
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [resources, isMap, location.search]
   );
 
@@ -271,6 +275,7 @@ export function GlobalSearchContent({
             }),
           }),
       })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -307,6 +312,7 @@ export function GlobalSearchContent({
             history.push(createRouteURL(name));
           },
         })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [location.pathname, history, selectedClusters]
   );
 
@@ -320,6 +326,7 @@ export function GlobalSearchContent({
       label: capitalize(theme.name),
       onClick: () => dispatch(setTheme(theme.name)),
     }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appThemes]);
 
   // Advanced Search
@@ -338,6 +345,7 @@ export function GlobalSearchContent({
         history.push(createRouteURL('advancedSearch') + '?' + params.toString());
       },
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, selectedClusters]);
   const configureShortcutsAction: SearchResult = useMemo(
     () => ({
@@ -428,6 +436,7 @@ export function GlobalSearchContent({
     if (query) return [];
 
     return allOptions.filter(it => recent[it.id]).sort((a, b) => recent[b.id] - recent[a.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recent, results, query]);
 
   const autocomplete = useAutocomplete<SearchResult, false, false, true>({
@@ -486,6 +495,11 @@ export function GlobalSearchContent({
             autoFocus: true,
             endAdornment: (
               <>
+                <Tooltip title={<Trans>Clear</Trans>} sx={{ opacity: query.length ? 1 : 0 }}>
+                  <IconButton onClick={() => setQuery('')} aria-label={t('Clear')} size="small">
+                    <Icon icon="mdi:close" />
+                  </IconButton>
+                </Tooltip>
                 {loading.length > 0 && (
                   <Delayed display="flex" mr={1}>
                     <CircularProgress size="16px" />
@@ -571,6 +585,7 @@ function SearchRow({
         padding: '8px !important',
         alignItems: 'center',
         lineHeight: 1,
+        cursor: 'pointer',
         overflow: 'hidden',
         '&.Mui-focused': {
           backgroundColor:

@@ -151,6 +151,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
     });
 
     return [recentClusters, clustersToShow];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clusters, selectedClusters.join(','), filter]);
 
   React.useEffect(() => {
@@ -180,6 +181,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
     return {
       'aria-activedescendant': cluster.name,
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDescendantIndex]);
 
   function getActiveDescendantCluster() {

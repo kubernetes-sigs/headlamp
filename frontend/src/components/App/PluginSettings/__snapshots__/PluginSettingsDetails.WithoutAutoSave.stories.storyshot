@@ -74,10 +74,10 @@
               />
               <fieldset
                 aria-hidden="true"
-                class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
               >
                 <legend
-                  class="css-yjsfm1"
+                  class="css-njhac4-MuiNotchedOutlined-root"
                 >
                   <span>
                     Normal Input
