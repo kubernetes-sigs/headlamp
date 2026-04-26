@@ -1087,7 +1087,7 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
   const [fetchedConfigMaps, setFetchedConfigMaps] = React.useState<Map<string, FetchedResource>>(
     new Map()
   );
-  // Extract all references upfront (pure function, no hooks)
+  // memoize references so downstream hooks get a stable dependency
   const references = React.useMemo(
     () => (container ? extractEnvVarReferences(container) : []),
     [container]
