@@ -496,6 +496,8 @@ export const PureTopBar = memo(
       );
     });
 
+    const isMacElectron = isElectron() && navigator.userAgent.indexOf('Mac') > -1;
+
     return (
       <>
         <AppBar
@@ -510,8 +512,7 @@ export const PureTopBar = memo(
             boxShadow: 'none',
             borderBottom: '1px solid #eee',
             borderColor: theme.palette.divider,
-            paddingLeft:
-              isElectron() && (window as any).process?.platform === 'darwin' ? '72px' : undefined,
+            paddingLeft: isMacElectron ? '72px' : undefined,
           })}
           elevation={1}
           component="nav"
@@ -523,6 +524,10 @@ export const PureTopBar = memo(
               [theme.breakpoints.down('sm')]: {
                 paddingLeft: 0,
                 paddingRight: 0,
+              },
+              appRegion: 'drag',
+              '> *': {
+                appRegion: 'no-drag',
               },
             }}
           >
