@@ -64,7 +64,7 @@ describe('activitySlice', () => {
             ...newActivity,
             title: 'Old Title',
             content: 'Old Content',
-            icon: 'mdi:old-icon',
+            icon: 'mdi:home',
             hideTitleInHeader: true,
             minimized: true,
           },
@@ -79,7 +79,7 @@ describe('activitySlice', () => {
       expect(nextState.activities['1'].title).toEqual('New Title');
       expect(nextState.activities['1'].content).toEqual('New Content');
       expect(nextState.activities['1'].minimized).toBe(false);
-      expect(nextState.activities['1'].icon).toEqual('mdi:old-icon');
+      expect(nextState.activities['1'].icon).toEqual('mdi:home');
       expect(nextState.activities['1'].hideTitleInHeader).toBe(true);
       expect(nextState.history).toEqual(['1']);
     });
