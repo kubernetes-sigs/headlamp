@@ -36,6 +36,7 @@ function ConfigMapDataSection({ item }: { item: ConfigMap }) {
   const [data, setData] = React.useState(() => _.cloneDeep(item.data));
   const [isDirty, setIsDirty] = React.useState(false);
   const lastDataRef = React.useRef(_.cloneDeep(item.data));
+  const lastUidRef = React.useRef(item.metadata?.uid);
 
   const handleFieldChange = (key: string, newValue: string) => {
     setData(prev => ({ ...prev, [key]: newValue }));
@@ -43,12 +44,17 @@ function ConfigMapDataSection({ item }: { item: ConfigMap }) {
   };
 
   React.useEffect(() => {
-    const newData = _.cloneDeep(item.data);
-    if (!isDirty && !_.isEqual(newData, lastDataRef.current)) {
+    const newData = _.cloneDeep(item.data || {});
+    const resourceChanged = item.metadata?.uid !== lastUidRef.current;
+    if (resourceChanged || (!isDirty && !_.isEqual(newData, lastDataRef.current))) {
       setData(newData);
       lastDataRef.current = newData;
+      if (resourceChanged) {
+        setIsDirty(false);
+        lastUidRef.current = item.metadata?.uid;
+      }
     }
-  }, [item.data, isDirty]);
+  }, [item.data, isDirty, item.metadata?.uid]);
 
   const handleSave = () => {
     const updatedConfigMap = { ...item.jsonData, data };
