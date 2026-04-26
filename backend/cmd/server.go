@@ -103,6 +103,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		TLSKeyPath:             conf.TLSKeyPath,
 		SessionTTL:             conf.SessionTTL,
 		OidcUseCookie:          conf.OidcUseCookie,
+		PrometheusEndpoint:     *conf.PrometheusEndpoint,
 	}
 }
 
