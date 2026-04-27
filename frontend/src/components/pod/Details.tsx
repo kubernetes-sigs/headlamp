@@ -193,6 +193,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
         xtermRef.current?.clear();
         setLogs({ logs: [], lastLineShown: -1 });
         setHasJsonLogs(false);
+        setShowReconnectButton(false);
 
         callback = item.getLogs(container, debouncedSetState, {
           tailLines: lines,
