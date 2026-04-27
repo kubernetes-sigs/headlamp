@@ -410,8 +410,12 @@ function LogsButtonContent({ item }: LogsButtonProps) {
               allPodsLastProcessedLenRef.current[podName] = podLogs.length;
             } else if (podLogs.length < lastLen) {
               // Pod log buffer reset (reconnect / container restart). Fall back to rebuild once.
-              allPodsLastProcessedLenRef.current = {};
               processAllLogs();
+              const nextLens: Record<string, number> = {};
+              for (const [nextPodName, nextPodLogs] of Object.entries(allPodLogs)) {
+                nextLens[nextPodName] = nextPodLogs.length;
+              }
+              allPodsLastProcessedLenRef.current = nextLens;
               allPodsProcessTimeoutRef.current = null;
               return;
             }
