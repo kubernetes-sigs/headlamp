@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { render } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { TestContext } from '../../test';
 import { PodLogViewer } from './Details';
@@ -52,7 +52,7 @@ vi.mock('@xterm/addon-fit', () => ({
   }),
 }));
 
-function makeMockPod(getLogs: (...args: any[]) => any) {
+function makeMockPod(getLogs: (...args: any[]) => any, restartCount = 0) {
   return {
     metadata: { name: 'test-pod', namespace: 'default', uid: 'pod-uid-123' },
     spec: {
@@ -61,7 +61,7 @@ function makeMockPod(getLogs: (...args: any[]) => any) {
       ephemeralContainers: [],
     },
     status: {
-      containerStatuses: [{ name: 'nginx', state: { running: {} }, restartCount: 0 }],
+      containerStatuses: [{ name: 'nginx', state: { running: {} }, restartCount }],
     },
     getName: () => 'test-pod',
     getLogs,
@@ -111,6 +111,37 @@ describe('PodLogViewer', () => {
       );
 
       expect(getLogs).toHaveBeenCalledWith('nginx', expect.any(Function), expect.any(Object));
+    });
+  });
+
+  describe('reconnect button', () => {
+    it('is cleared when switching to previous logs', () => {
+      let capturedOnReconnectStop: (() => void) | undefined;
+      const getLogs = vi.fn((_container: string, _onLogs: any, options: any) => {
+        capturedOnReconnectStop = options.onReconnectStop;
+        return () => {};
+      });
+
+      // A restart count above 0 enables the "Previous" switch.
+      render(
+        <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }}>
+          <PodLogViewer open item={makeMockPod(getLogs, 1)} onClose={() => {}} />
+        </TestContext>
+      );
+
+      // Simulate the current-log stream giving up so the button appears.
+      act(() => {
+        capturedOnReconnectStop?.();
+      });
+      expect(screen.getByText('Reconnect')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByLabelText('Previous'));
+      expect(getLogs).toHaveBeenLastCalledWith(
+        'nginx',
+        expect.any(Function),
+        expect.objectContaining({ showPrevious: true })
+      );
+      expect(screen.queryByText('Reconnect')).not.toBeInTheDocument();
     });
   });
 });
