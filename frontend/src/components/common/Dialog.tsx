@@ -55,6 +55,7 @@ export function DialogTitle(props: OurDialogTitleProps) {
     [focusTitle]
   );
 
+  // Don't render heading if there's no content to avoid empty heading violations
   if (!children && (!buttons || buttons.length === 0)) {
     return null;
   }
