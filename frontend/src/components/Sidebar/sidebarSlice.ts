@@ -95,9 +95,24 @@ export interface SidebarState {
 export function setInitialSidebarOpen() {
   let defaultOpen;
 
-  const openUserSelected = localStorage?.getItem('sidebar')
-    ? !JSON.parse(localStorage.getItem('sidebar')!).shrink
-    : undefined;
+  let openUserSelected: boolean | undefined = undefined;
+  const storedSidebar = localStorage?.getItem('sidebar');
+
+  if (storedSidebar) {
+    try {
+      const parsed = JSON.parse(storedSidebar);
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        'shrink' in parsed &&
+        typeof parsed.shrink === 'boolean'
+      ) {
+        openUserSelected = !parsed.shrink;
+      }
+    } catch (e) {
+      console.warn('Failed to parse sidebar local storage', e);
+    }
+  }
 
   if (openUserSelected !== undefined) {
     defaultOpen = openUserSelected;

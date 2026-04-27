@@ -6,8 +6,8 @@
   "homepage": "https://github.com/kubernetes-sigs/headlamp/#readme",
   "productName": "Headlamp",
   "engines": {
-    "npm": ">=10.0.0",
-    "node": ">=20.11.1"
+    "npm": ">=11.0.0",
+    "node": ">=22.0.0"
   },
   "scripts": {
     "build": "npm run copy-icons && npm run copy-plugins && npm run compile-electron && electron-builder --dir --publish never",
@@ -50,7 +50,19 @@
       "allowToChangeInstallationDirectory": true
     },
     "deb": {
-      "artifactName": "${name}_${version}-1_${arch}.${ext}"
+      "artifactName": "${name}_${version}-1_${arch}.${ext}",
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0",
+        "libasound2"
+      ]
     },
     "linux": {
       "target": [
@@ -134,6 +146,10 @@
       {
         "from": "../frontend/src/i18n/locales",
         "to": "frontend/i18n/locales"
+      },
+      {
+        "from": "assets/",
+        "to": "assets/"
       },
       {
         "from": "../.plugins",

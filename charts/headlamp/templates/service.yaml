@@ -31,5 +31,14 @@ spec:
       {{- if and (or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) (not (empty .Values.service.nodePort)) }}
       nodePort: {{ .Values.service.nodePort }}
       {{- end }}
+    {{- range .Values.service.extraServicePorts }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .targetPort | default .port }}
+      protocol: {{ .protocol | default "TCP" }}
+      {{- if and (or (eq $.Values.service.type "NodePort") (eq $.Values.service.type "LoadBalancer")) .nodePort }}
+      nodePort: {{ .nodePort }}
+      {{- end }}
+    {{- end }}
   selector:
     {{- include "headlamp.selectorLabels" . | nindent 4 }}

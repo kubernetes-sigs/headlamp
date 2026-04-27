@@ -52,6 +52,7 @@ import {
   PluginManager,
 } from './plugin-management';
 import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
+import { cleanupHeadlampTray, createHeadlampTray } from './tray';
 import windowSize from './windowSize';
 
 if (process.env.APPIMAGE) {
@@ -149,6 +150,8 @@ const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false'
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
 let mcpClient: MCPClient | null = null;
+let isQuitting = false;
+let hasTray = false;
 
 /**
  * `Action` is an interface for an action to be performed by the plugin manager.
@@ -1557,6 +1560,13 @@ function startElectron() {
       mainWindow?.webContents.send('currentMenu', currentMenu);
     });
 
+    mainWindow.on('close', event => {
+      if (hasTray && !isQuitting) {
+        event.preventDefault();
+        mainWindow?.hide();
+      }
+    });
+
     mainWindow.on('closed', () => {
       mainWindow = null;
     });
@@ -1755,6 +1765,17 @@ function startElectron() {
 
   app.on('ready', async () => {
     await Promise.all([startServerIfNeeded(), createWindow()]);
+    hasTray = createHeadlampTray({
+      backendToken,
+      createWindow,
+      getBackendPort: () => actualPort,
+      getMainWindow: () => mainWindow,
+      isDev,
+      quit: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    });
   });
   app.on('activate', async function () {
     if (mainWindow === null) {
@@ -1762,9 +1783,16 @@ function startElectron() {
     }
   });
 
-  app.once('window-all-closed', app.quit);
+  app.on('window-all-closed', () => {
+    if (!hasTray) {
+      app.quit();
+    }
+  });
 
   app.once('before-quit', async () => {
+    isQuitting = true;
+    cleanupHeadlampTray();
+    hasTray = false;
     saveZoomFactor(cachedZoom);
     i18n.off('languageChanged');
     if (mainWindow) {

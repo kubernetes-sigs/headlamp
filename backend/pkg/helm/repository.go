@@ -19,6 +19,7 @@ package helm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -37,6 +38,8 @@ const (
 	defaultNewConfigFileMode   os.FileMode = os.FileMode(0o644)
 	defaultNewConfigFolderMode os.FileMode = os.FileMode(0o770)
 )
+
+var errRepositoryNotFound = errors.New("repository not found")
 
 // add repository.
 type AddUpdateRepoRequest struct {
@@ -235,8 +238,8 @@ func (h *Handler) ListRepo(w http.ResponseWriter, r *http.Request) {
 		Repositories: repositories,
 	}
 
-	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
@@ -267,6 +270,11 @@ func RemoveRepository(name string, settings *cli.EnvSettings) error {
 		}()
 	}
 
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "locking repository config file")
+		return err
+	}
+
 	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "reading repo file")
@@ -275,8 +283,8 @@ func RemoveRepository(name string, settings *cli.EnvSettings) error {
 
 	isRemoved := repoFile.Remove(name)
 	if !isRemoved {
-		logger.Log(logger.LevelError, nil, err, "repository not found")
-		return err
+		logger.Log(logger.LevelError, nil, errRepositoryNotFound, "repository not found")
+		return errRepositoryNotFound
 	}
 
 	// write repo file
@@ -292,10 +300,20 @@ func RemoveRepository(name string, settings *cli.EnvSettings) error {
 // Remove repository name.
 func (h *Handler) RemoveRepo(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "name query parameter is required", http.StatusBadRequest)
+		return
+	}
 
 	err := RemoveRepository(name, h.EnvSettings)
 	if err != nil {
+		if errors.Is(err, errRepositoryNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
 		return
 	}
 
@@ -320,6 +338,11 @@ func UpdateRepository(name, url string, settings *cli.EnvSettings) error {
 				logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
 			}
 		}()
+	}
+
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "locking repository config file")
+		return err
 	}
 
 	repoFile, err := repo.LoadFile(settings.RepositoryConfig)

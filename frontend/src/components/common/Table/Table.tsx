@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import MoreVertIcon from '@mui/icons-material/MoreVert';
+import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import { useTheme } from '@mui/material/styles';
@@ -147,6 +147,7 @@ function usePageURLState(
 
   useEffect(() => {
     setPage(zeroIndexPage + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zeroIndexPage]);
 
   return [zeroIndexPage, setZeroIndexPage];
@@ -196,13 +197,25 @@ export default function Table<RowItem extends Record<string, any>>({
   const prefix = reflectInURL === true ? '' : reflectInURL || '';
   const [page, setPage] = usePageURLState(shouldReflectInURL ? 'p' : '', prefix, initialPage);
   const filterKey = prefix ? `${prefix}filter` : 'filter';
-  const [globalFilter, setGlobalFilter] = useQueryParamsState<string | undefined>(
-    shouldReflectInURL ? filterKey : '',
-    shouldReflectInURL ? '' : undefined
+  const [globalFilterState, setGlobalFilterState] = useState<string | undefined>(
+    tableProps.initialState?.globalFilter
   );
+  const [globalFilterQueryParam, setGlobalFilterQueryParam] = useQueryParamsState<
+    string | undefined
+  >(
+    shouldReflectInURL ? filterKey : '',
+    shouldReflectInURL ? tableProps.initialState?.globalFilter : undefined
+  );
+
+  // When `reflectInURL` is enabled, the filter needs to stay in sync with the URL
+  // query parameter. Otherwise we keep the filter in plain React state only.
+  const [globalFilter, setGlobalFilter] = shouldReflectInURL
+    ? [globalFilterQueryParam, setGlobalFilterQueryParam]
+    : [globalFilterState, setGlobalFilterState];
 
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = rowsPerPage || storeRowsPerPageOptions;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const defaultRowsPerPage = useMemo(() => getTablesRowsPerPage(rowsPerPageOptions[0]), []);
   const [pageSize, setPageSize] = useURLState(shouldReflectInURL ? 'perPage' : '', {
     defaultValue: defaultRowsPerPage,
@@ -265,7 +278,7 @@ export default function Table<RowItem extends Record<string, any>>({
     autoResetAll: false,
     icons: {
       ...tableProps.icons,
-      MoreHorizIcon: MoreVertIcon,
+      MoreHorizIcon: () => <Icon icon="mdi:more-vert" />,
     },
     onPaginationChange: (updater: any) => {
       if (!tableProps.data?.length) return;
@@ -398,6 +411,7 @@ export default function Table<RowItem extends Record<string, any>>({
     } else if (!shouldHideActions && visibility['actions'] === false) {
       table.setColumnVisibility(prev => ({ ...prev, actions: true }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table.getState().columnVisibility, tableColumns, table]);
 
   const gridTemplateColumns = useMemo(() => {
@@ -424,8 +438,10 @@ export default function Table<RowItem extends Record<string, any>>({
     }
 
     return preGridTemplateColumns;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     tableProps.columns,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     table.getState()?.columnVisibility,
     tableProps.state?.columnVisibility,
     tableProps.enableRowActions,

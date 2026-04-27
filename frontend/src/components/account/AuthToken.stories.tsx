@@ -58,7 +58,7 @@ const Template: StoryFn<PureAuthTokenProps> = args => <PureAuthToken {...args} /
  */
 export const ShowError = Template.bind({});
 ShowError.args = {
-  title: 'a title',
+  title: 'Authentication Error',
   token: 'a token',
   showError: true,
   showActions: false,
@@ -70,7 +70,7 @@ ShowError.args = {
  */
 export const ShowActions = Template.bind({});
 ShowActions.args = {
-  title: 'a title',
+  title: 'Authentication Token',
   token: 'a token',
   showError: false,
   showActions: true,

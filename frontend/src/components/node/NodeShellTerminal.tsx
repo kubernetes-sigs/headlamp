@@ -244,6 +244,7 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

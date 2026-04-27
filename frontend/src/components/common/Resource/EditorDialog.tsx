@@ -174,6 +174,7 @@ export default function EditorDialog(props: EditorDialogProps) {
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, hideManagedFields]);
 
   React.useEffect(() => {

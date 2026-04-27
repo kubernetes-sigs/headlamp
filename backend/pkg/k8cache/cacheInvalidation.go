@@ -28,7 +28,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -47,7 +46,12 @@ import (
 // also empty namespace.
 func DeleteKeys(key string, k8scache cache.Cache[string]) {
 	_ = k8scache.Delete(context.Background(), key)
+
 	keyPart := strings.Split(key, "+")
+	if len(keyPart) < 4 {
+		return // malformed key; nothing to namespace-strip
+	}
+
 	keyPart[2] = ""
 	key = strings.Join(keyPart, "+")
 	_ = k8scache.Delete(context.Background(), key)
@@ -64,7 +68,15 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 		return nil
 	}
 
-	key, _ := GenerateKey(r.URL, contextKey)
+	key, err := GenerateKey(r.URL, contextKey)
+	if err != nil {
+		logger.Log(logger.LevelWarn, nil, err, "could not generate cache key; skipping invalidation")
+
+		next.ServeHTTP(w, r)
+
+		return ErrHandled
+	}
+
 	DeleteKeys(key, k8scache)
 
 	freshURL := *r.URL
@@ -152,15 +164,13 @@ func CheckForChanges(
 	contextKey string,
 	kContext kubeconfig.Context,
 ) {
-	if _, loaded := watcherRegistry.Load(contextKey); loaded {
+	if _, loaded := watcherRegistry.LoadOrStore(contextKey, struct{}{}); loaded {
 		return
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	contextCancel.Store(contextKey, cancel)
-
-	watcherRegistry.Store(contextKey, struct{}{})
 
 	go runWatcher(ctx, k8scache, contextKey, kContext)
 }
@@ -174,6 +184,11 @@ func runWatcher(
 	contextKey string,
 	kContext kubeconfig.Context,
 ) {
+	defer func() {
+		watcherRegistry.Delete(contextKey)
+		contextCancel.Delete(contextKey)
+	}()
+
 	logger.Log(logger.LevelInfo, nil, nil, "running runWatcher for watching k8s resource: "+contextKey)
 
 	config, err := kContext.RESTConfig()
@@ -209,9 +224,9 @@ func runWatcher(
 	logger.Log(logger.LevelInfo, nil, nil, "Watcher for context "+contextKey+" is shutting down...")
 }
 
-// runInformerToWatch watches changes such as Addition, Deletion and Updation of a resource
-// and if so capture the data into the key and store all unique keys, and return unique
-// keys which will be delete in runWatcher.
+// RunInformerToWatch registers informers for the provided resources and watches
+// for add, update, and delete events. When a change is observed, it invalidates
+// the related cache entries for the given context.
 func RunInformerToWatch(gvrList []schema.GroupVersionResource,
 	factory dynamicinformer.DynamicSharedInformerFactory,
 	contextKey string, k8scache cache.Cache[string],
@@ -219,17 +234,21 @@ func RunInformerToWatch(gvrList []schema.GroupVersionResource,
 	for _, gvr := range gvrList {
 		informer := factory.ForResource(gvr).Informer()
 
+		// hasSynced gates cache invalidation so that events from the informer's
+		// initial list-and-watch sync do not trigger unnecessary evictions.
+		hasSynced := informer.HasSynced
+
 		if _, err := informer.AddEventHandler(watchCache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) { // resources which are added in the informers, like creation of a resource.
-				handleKeyGenerationAndDeletion(obj, gvr, contextKey, k8scache)
+				handleKeyGenerationAndDeletion(obj, gvr, contextKey, k8scache, hasSynced)
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) { // resources which are updated
 				// or changed, like pods configurations was changed.
-				handleKeyGenerationAndDeletion(newObj, gvr, contextKey, k8scache)
+				handleKeyGenerationAndDeletion(newObj, gvr, contextKey, k8scache, hasSynced)
 			},
 			DeleteFunc: func(obj interface{}) { // resources which are removed from the informers,
 				// deletion of pods or any other resources.
-				handleKeyGenerationAndDeletion(obj, gvr, contextKey, k8scache)
+				handleKeyGenerationAndDeletion(obj, gvr, contextKey, k8scache, hasSynced)
 			},
 		}); err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to add event handler for resource: "+gvr.Resource)
@@ -238,29 +257,39 @@ func RunInformerToWatch(gvrList []schema.GroupVersionResource,
 	}
 }
 
-// handleKeyGeneration generation key by using gvr's value, which will be used further for deletion of key in cache
-// so if the key match it will delete the key from cache.
+// handleKeyGenerationAndDeletion generates a cache key from the GVR and deletes
+// the corresponding entry from the cache so that stale data is not served.
+//
+// hasSynced must be informer.HasSynced. Cache eviction is skipped until the
+// informer's initial list-and-watch sync is complete.
 func handleKeyGenerationAndDeletion(obj interface{}, gvr schema.GroupVersionResource,
-	contextKey string, k8scache cache.Cache[string],
+	contextKey string, k8scache cache.Cache[string], hasSynced func() bool,
 ) {
 	unstructuredObj, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		// Handle tombstones for Delete events where the object is unknown.
+		if tombstone, isTombstone := obj.(watchCache.DeletedFinalStateUnknown); isTombstone {
+			unstructuredObj, ok = tombstone.Obj.(*unstructured.Unstructured)
+		}
+	}
+
 	if !ok {
 		logger.Log(logger.LevelError, nil, nil, "unexpected object type")
 		return
 	}
 
-	if time.Since(unstructuredObj.GetCreationTimestamp().Time) > time.Minute { // this will let only latest changes rather
-		//  than all the all the resource that are just added into informers, as it will
-		// cause unnecessary watching of resources that doesn't required to be watched.
+	// Skip cache invalidation until the informer has completed its initial
+	// list-and-watch sync, preventing unnecessary evictions during startup.
+	if !hasSynced() {
 		return
 	}
 
 	namespace := unstructuredObj.GetNamespace()
-	key := fmt.Sprintf("%s+%s+%s+%s", gvr.Group, gvr.Resource, namespace, contextKey) // Generation key using gvr's value
+	key := fmt.Sprintf("%s+%s+%s+%s", gvr.Group, gvr.Resource, namespace, contextKey)
 
-	logger.Log(logger.LevelInfo, nil, nil, key+" will going to be deleted from the cache")
+	logger.Log(logger.LevelInfo, nil, nil, key+" will be deleted from the cache")
 
-	if err := k8scache.Delete(context.Background(), key); err != nil { // key is deleting from the cache
+	if err := k8scache.Delete(context.Background(), key); err != nil {
 		logger.Log(logger.LevelError, nil, err, "error while deleting key")
 		return
 	}

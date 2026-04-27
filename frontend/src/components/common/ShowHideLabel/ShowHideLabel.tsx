@@ -46,6 +46,7 @@ export default function ShowHideLabel(props: ShowHideLabelProps) {
     }
 
     return [children.substr(0, maxChars), children.length > maxChars];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [children, expanded]);
 
   if (!children) {

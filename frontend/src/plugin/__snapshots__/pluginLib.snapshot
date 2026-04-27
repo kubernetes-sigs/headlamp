@@ -329,6 +329,7 @@
       "ServiceAccount": [Function],
       "StatefulSet": [Function],
       "StorageClass": [Function],
+      "VolumeAttributesClass": [Function],
     },
     "cluster": {
       "HEADLAMP_ALLOWED_NAMESPACES": "headlamp.allowed-namespaces",
@@ -420,6 +421,9 @@
     "useClustersVersion": [Function],
     "useConnectApi": [Function],
     "useSelectedClusters": [Function],
+    "volumeAttributesClass": {
+      "default": [Function],
+    },
   },
   "Lodash": Function {
     "default": [Function],

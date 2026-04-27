@@ -62,6 +62,7 @@ import Service from './service';
 import ServiceAccount from './serviceAccount';
 import StatefulSet from './statefulSet';
 import StorageClass from './storageClass';
+import VolumeAttributesClass from './volumeAttributesClass';
 
 export const ResourceClasses = {
   ClusterRole,
@@ -99,6 +100,7 @@ export const ResourceClasses = {
   ServiceAccount,
   StatefulSet,
   StorageClass,
+  VolumeAttributesClass,
   Gateway,
   GatewayClass,
   HTTPRoute,
@@ -126,6 +128,7 @@ export function useClustersConf(): ConfigState['allClusters'] {
 
   return useMemo(
     () => (state.clusters === null ? null : allClusters),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [state.clusters === null, Object.keys(allClusters).join(',')]
   );
 }
@@ -170,6 +173,7 @@ export function useSelectedClusters(): string[] {
 
   const clusterGroup = React.useMemo(() => {
     return getSelectedClusters([], location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clusterInURL, location.pathname]);
 
   return maybeSelectedClusters && maybeSelectedClusters.length > 0
@@ -433,6 +437,7 @@ export function useClustersVersion(clusters: Cluster[]) {
       cancelledRef.current = true;
       clearInterval(timeout);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return React.useMemo<
@@ -479,3 +484,4 @@ export * as service from './service';
 export * as serviceAccount from './serviceAccount';
 export * as statefulSet from './statefulSet';
 export * as storageClass from './storageClass';
+export * as volumeAttributesClass from './volumeAttributesClass';

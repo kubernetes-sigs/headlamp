@@ -16,10 +16,12 @@
 
 import '../../../i18n/config';
 import { useTranslation } from 'react-i18next';
+import type { ApiError } from '../../../lib/k8s/api/v2/ApiError';
+import type { KubeNodeSummaryStats } from '../../../lib/k8s/api/v2/nodeSummaryApi';
 import { KubeMetrics } from '../../../lib/k8s/cluster';
 import Node from '../../../lib/k8s/node';
 import Pod from '../../../lib/k8s/pod';
-import { parseCpu, parseRam, TO_GB, TO_ONE_CPU } from '../../../lib/units';
+import { parseCpu, parseDiskSpace, parseRam, TO_GB, TO_ONE_CPU } from '../../../lib/units';
 import ResourceCircularChart, {
   CircularChartProps as ResourceCircularChartProps,
 } from '../../common/Resource/CircularChart';
@@ -138,6 +140,51 @@ export function PodCapacityCircularChart(props: { node: Node | null; pods: Pod[]
       label={getLabel()}
       legend={getLegend()}
       total={isLoading ? -1 : total}
+    />
+  );
+}
+
+interface EphemeralStorageCircularChartProps {
+  node: Node | null;
+  summaryStats: KubeNodeSummaryStats | null;
+  summaryError: ApiError | null;
+}
+
+export function EphemeralStorageCircularChart(props: EphemeralStorageCircularChartProps) {
+  const { node, summaryStats, summaryError } = props;
+  const { t } = useTranslation(['translation', 'glossary']);
+  const allocatable = (node?.status?.allocatable || {}) as Record<string, string | undefined>;
+  const capacity = (node?.status?.capacity || {}) as Record<string, string | undefined>;
+  const rawTotal =
+    allocatable.ephemeralStorage ||
+    allocatable['ephemeral-storage'] ||
+    capacity.ephemeralStorage ||
+    capacity['ephemeral-storage'] ||
+    '';
+  const totalBytes = parseDiskSpace(rawTotal);
+  const fs = summaryStats?.node?.fs;
+  const usedBytes =
+    typeof fs?.usedBytes === 'number'
+      ? fs.usedBytes
+      : typeof fs?.capacityBytes === 'number' && typeof fs?.availableBytes === 'number'
+      ? fs.capacityBytes - fs.availableBytes
+      : -1;
+
+  const hasData = totalBytes > 0 && usedBytes >= 0;
+  const usedGB = usedBytes / TO_GB;
+  const totalGB = totalBytes / TO_GB;
+  const usagePercent = hasData ? (usedBytes / totalBytes) * 100 : 0;
+
+  return (
+    <TileChart
+      title={t('translation|Ephemeral Storage Usage')}
+      data={hasData ? [{ name: 'used', value: usedBytes }] : null}
+      total={hasData ? totalBytes : -1}
+      label={hasData ? `${usagePercent.toFixed(1)} %` : '…'}
+      legend={hasData ? `${usedGB.toFixed(2)} / ${totalGB.toFixed(2)} GB` : ''}
+      infoTooltip={
+        summaryError ? t('translation|Unable to fetch ephemeral storage usage from kubelet.') : null
+      }
     />
   );
 }

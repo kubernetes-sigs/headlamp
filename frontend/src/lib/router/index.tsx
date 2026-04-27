@@ -105,6 +105,8 @@ import PersistentVolumeClaimDetails from '../../components/storage/ClaimDetails'
 import PersistentVolumeClaimList from '../../components/storage/ClaimList';
 import StorageClassDetails from '../../components/storage/ClassDetails';
 import StorageClassList from '../../components/storage/ClassList';
+import VolumeAttributesClassDetails from '../../components/storage/VolumeAttributesClassDetails';
+import VolumeAttributesClassList from '../../components/storage/VolumeAttributesClassList';
 import PersistentVolumeDetails from '../../components/storage/VolumeDetails';
 import PersistentVolumeList from '../../components/storage/VolumeList';
 import VpaDetails from '../../components/verticalPodAutoscaler/Details';
@@ -232,6 +234,19 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'Storage Classes',
     sidebar: 'storageClasses',
     component: () => <StorageClassDetails />,
+  },
+  volumeAttributesClasses: {
+    path: '/storage/volumeattributesclasses',
+    exact: true,
+    sidebar: 'volumeAttributesClasses',
+    name: 'Volume Attributes Classes',
+    component: () => <VolumeAttributesClassList />,
+  },
+  volumeAttributesClass: {
+    path: '/storage/volumeattributesclasses/:name',
+    name: 'Volume Attributes Classes',
+    sidebar: 'volumeAttributesClasses',
+    component: () => <VolumeAttributesClassDetails />,
   },
   persistentVolumes: {
     path: '/storage/persistentvolumes',
@@ -883,11 +898,15 @@ const defaultRoutes: { [routeName: string]: Route } = {
     useClusterURL: true,
     noAuthRequired: true,
     component: () => {
+      // eslint-disable-next-line react-hooks/rules-of-hooks
       const cluster = useCluster();
+      // eslint-disable-next-line react-hooks/rules-of-hooks
       const history = useHistory();
 
+      // eslint-disable-next-line react-hooks/rules-of-hooks
       React.useEffect(() => {
         history.replace(`/settings/cluster?c=${cluster}`);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
       }, []);
 
       return <></>;

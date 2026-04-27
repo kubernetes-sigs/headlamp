@@ -342,6 +342,37 @@
         "nodePort": {
           "type": ["integer", "null"],
           "description": "Kubernetes Service Nodeport"
+        },
+        "extraServicePorts": {
+          "type": "array",
+          "description": "Additional ports to expose on the Service in addition to the default http port",
+          "items": {
+            "type": "object",
+            "required": ["name", "port"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Port name (must be unique within the Service)"
+              },
+              "port": {
+                "type": "integer",
+                "description": "Service port number"
+              },
+              "targetPort": {
+                "type": ["integer", "string"],
+                "description": "Pod-side target port (number or named port). Defaults to `port` when omitted"
+              },
+              "protocol": {
+                "type": "string",
+                "enum": ["TCP", "UDP", "SCTP"],
+                "description": "Protocol (TCP/UDP/SCTP). Defaults to TCP"
+              },
+              "nodePort": {
+                "type": ["integer", "null"],
+                "description": "Node port (only honored when service.type is NodePort or LoadBalancer)"
+              }
+            }
+          }
         }
       }
     },
@@ -427,7 +458,67 @@
               "paths": {
                 "type": "array",
                 "items": {
-                  "type": "object"
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "type"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "backend": {
+                      "type": "object",
+                      "description": "Optional override of the backend Service for this path",
+                      "properties": {
+                        "service": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "description": "Service name (supports tpl). Defaults to the Headlamp Service when omitted"
+                            },
+                            "port": {
+                              "type": "object",
+                              "properties": {
+                                "number": {
+                                  "type": "integer"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "oneOf": [
+                                {
+                                  "required": [
+                                    "number"
+                                  ],
+                                  "not": {
+                                    "required": [
+                                      "name"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "required": [
+                                    "name"
+                                  ],
+                                  "not": {
+                                    "required": [
+                                      "number"
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }

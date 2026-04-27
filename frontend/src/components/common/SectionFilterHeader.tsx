@@ -19,7 +19,7 @@ import Grid from '@mui/material/Grid';
 import React from 'react';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
-import { setNamespaceFilter } from '../../redux/filterSlice';
+import { resetFilter, setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { NamespacesAutocomplete } from './NamespacesAutocomplete';
 import SectionHeader, { SectionHeaderProps } from './SectionHeader';
@@ -43,6 +43,7 @@ function getFilterValueByNameFromURL(key: string, location: any): string[] {
 
 export interface SectionFilterHeaderProps extends SectionHeaderProps {
   noNamespaceFilter?: boolean;
+  clearGlobalNamespaceFilterOnMount?: boolean;
   /**
    * @deprecated
    * This prop has no effect, search has moved inside the Table component.
@@ -55,6 +56,7 @@ export interface SectionFilterHeaderProps extends SectionHeaderProps {
 export default function SectionFilterHeader(props: SectionFilterHeaderProps) {
   const {
     noNamespaceFilter = false,
+    clearGlobalNamespaceFilterOnMount = false,
     actions: propsActions = [],
     preRenderFromFilterActions,
     ...headerProps
@@ -63,24 +65,30 @@ export default function SectionFilterHeader(props: SectionFilterHeaderProps) {
   const dispatch = useDispatch();
   const location = useLocation();
 
-  React.useEffect(
-    () => {
-      const namespace = getFilterValueByNameFromURL('namespace', location);
-      if (namespace.length > 0) {
-        const namespaceFromStore = [...filter.namespaces].sort();
-        if (
-          namespace
-            .slice()
-            .sort()
-            .every((value: string, index: number) => value !== namespaceFromStore[index])
-        ) {
-          dispatch(setNamespaceFilter(namespace));
-        }
+  React.useEffect(() => {
+    if (noNamespaceFilter) {
+      if (clearGlobalNamespaceFilterOnMount && filter.namespaces.size > 0) {
+        dispatch(resetFilter());
       }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+      return;
+    }
+
+    const namespace = getFilterValueByNameFromURL('namespace', location);
+    if (namespace.length > 0) {
+      const sortedNamespace = namespace.slice().sort();
+      const namespaceFromStore = [...filter.namespaces].sort();
+
+      const namespacesAreEqual =
+        sortedNamespace.length === namespaceFromStore.length &&
+        sortedNamespace.every(
+          (value: string, index: number) => value === namespaceFromStore[index]
+        );
+
+      if (!namespacesAreEqual) {
+        dispatch(setNamespaceFilter(namespace));
+      }
+    }
+  }, [clearGlobalNamespaceFilterOnMount, dispatch, filter.namespaces, location, noNamespaceFilter]);
 
   let actions: React.ReactNode[] = [];
   if (preRenderFromFilterActions) {

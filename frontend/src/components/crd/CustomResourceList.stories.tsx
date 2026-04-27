@@ -44,7 +44,7 @@ export default {
           ),
           http.get(
             'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
-            () => HttpResponse.error()
+            () => new HttpResponse(null, { status: 404 })
           ),
           http.get(
             'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/mydefinition.phonyresources.io',

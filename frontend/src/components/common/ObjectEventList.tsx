@@ -37,6 +37,7 @@ export default function ObjectEventList(props: ObjectEventListProps) {
     if (events) {
       dispatchEventList(events, props.object);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events]);
 
   async function fetchEvents() {
@@ -51,6 +52,7 @@ export default function ObjectEventList(props: ObjectEventListProps) {
 
   useEffect(() => {
     fetchEvents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

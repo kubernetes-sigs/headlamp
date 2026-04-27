@@ -77,5 +77,6 @@ AuthTypeoidc.args = {
 export const AnError = Template.bind({});
 AnError.args = {
   ...argFixture,
+  title: 'Authentication',
   error: Error('Oh no! Some error happened?!?'),
 };

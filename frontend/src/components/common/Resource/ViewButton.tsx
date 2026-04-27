@@ -58,6 +58,7 @@ function ViewButton({ item, buttonStyle, initialToggle }: ViewButtonProps) {
     if (initialToggle) {
       launchActivity();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

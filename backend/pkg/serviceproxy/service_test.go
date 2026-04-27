@@ -12,7 +12,7 @@ import (
 
 func TestGetServiceInternal(t *testing.T) {
 	// Test GetService() for internal services
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-service",
@@ -33,7 +33,7 @@ func TestGetServiceInternal(t *testing.T) {
 		t.Errorf("Failed to create test service: %v", err)
 	}
 
-	ps, err := serviceproxy.GetService(cs, "default", "my-service")
+	ps, err := serviceproxy.GetService(context.Background(), cs, "default", "my-service")
 	if err != nil {
 		t.Errorf("GetService() error = %v", err)
 	}
@@ -45,7 +45,7 @@ func TestGetServiceInternal(t *testing.T) {
 
 func TestGetServiceExternal(t *testing.T) {
 	// Test GetService() for external services
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-service",
@@ -67,7 +67,7 @@ func TestGetServiceExternal(t *testing.T) {
 		t.Errorf("Failed to create test service: %v", err)
 	}
 
-	ps, err := serviceproxy.GetService(cs, "default", "my-service")
+	ps, err := serviceproxy.GetService(context.Background(), cs, "default", "my-service")
 	if err != nil {
 		t.Errorf("GetService() error = %v", err)
 	}
@@ -79,9 +79,9 @@ func TestGetServiceExternal(t *testing.T) {
 
 func TestGetServiceNonExistent(t *testing.T) {
 	// Test GetService() for non-existent services
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 
-	_, err := serviceproxy.GetService(cs, "default", "non-existent-service")
+	_, err := serviceproxy.GetService(context.Background(), cs, "default", "non-existent-service")
 	if err == nil {
 		t.Errorf("GetService() error = nil, wantErr not nil")
 	}

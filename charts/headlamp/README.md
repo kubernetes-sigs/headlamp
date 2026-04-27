@@ -184,6 +184,7 @@ NOTE: for `hostUsers=false` user namespaces must be supported. See: https://kube
 |-----|------|---------|-------------|
 | service.type | string | `"ClusterIP"` | Kubernetes service type |
 | service.port | int | `80` | Kubernetes service port |
+| service.extraServicePorts | list | `[]` | Additional ports to expose on the Service in addition to the default http port |
 | ingress.enabled | bool | `false` | Enable ingress |
 | ingress.ingressClassName | string | `""` | Ingress class name |
 | ingress.annotations | object | `{}` | Ingress annotations (e.g., kubernetes.io/tls-acme: "true") |
@@ -210,6 +211,40 @@ ingress:
       hosts:
         - headlamp.example.com
 ```
+
+Each path under `ingress.hosts[].paths[]` may optionally specify
+`backend.service.{name,port}` to override the default Headlamp Service /
+`service.port`. This is typically combined with `service.extraServicePorts` to
+route different paths to different ports of the same Service:
+
+```yaml
+service:
+  extraServicePorts:
+    - name: extra
+      port: 9090
+      targetPort: extra
+
+ingress:
+  enabled: true
+  hosts:
+    - host: headlamp.example.com
+      paths:
+        - path: /
+          type: Prefix
+        - path: /extra
+          type: Prefix
+          backend:
+            service:
+              # name is optional; defaults to the Headlamp Service.
+              # When set, it is rendered with `tpl` so values like
+              # "{{ .Release.Name }}-other" are supported.
+              port:
+                name: extra        # or: number: 9090
+```
+
+The same approach works for the Gateway API: define additional ports under
+`service.extraServicePorts` and reference them from `httpRoute.rules[].backendRefs[].port`.
+
 
 ### HTTPRoute Configuration (Gateway API)
 

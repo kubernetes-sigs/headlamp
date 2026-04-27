@@ -45,20 +45,20 @@ export interface OurDialogTitleProps extends DialogTitleProps {
  */
 export function DialogTitle(props: OurDialogTitleProps) {
   const { children, focusTitle, buttons, disableTypography = false, id, ...other } = props;
+  const focusedRef = React.useCallback(
+    (node: HTMLElement | null) => {
+      if (node !== null && focusTitle) {
+        node.setAttribute('tabindex', '-1');
+        node.focus();
+      }
+    },
+    [focusTitle]
+  );
 
   // Don't render heading if there's no content to avoid empty heading violations
   if (!children && (!buttons || buttons.length === 0)) {
     return null;
   }
-
-  const focusedRef = React.useCallback((node: HTMLElement) => {
-    if (node !== null) {
-      if (focusTitle) {
-        node.setAttribute('tabindex', '-1');
-        node.focus();
-      }
-    }
-  }, []);
 
   return (
     <MuiDialogTitle style={{ display: 'flex' }} {...other}>
@@ -171,6 +171,7 @@ export function Dialog(props: DialogProps) {
       {...other}
     >
       {(!!title || withFullScreen) && (
+        // eslint-disable-next-line react-hooks/static-components
         <DialogTitle {...titleProps} id={titleId} buttons={[<FullScreenButton />, <CloseButton />]}>
           {title}
         </DialogTitle>

@@ -234,6 +234,7 @@ const notNamespacedClasses = [
   'PriorityClass',
   'RuntimeClass',
   'StorageClass',
+  'VolumeAttributesClass',
 ];
 
 const namespacedClasses = [

@@ -1378,10 +1378,8 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 	// Create a copy of the context to avoid modifying the cached context
 	context = context.Copy()
 
-	// If running in cluster or explicitly enabled via flag, use the token from the cookie for oidc auth
-	if (c.UseInCluster || c.OidcUseCookie) && context.OidcConf != nil {
-		setTokenFromCookie(r, clusterName)
-	}
+	// Always attempt to set the token from the cookie as the function is a no operation when no cookie is present
+	setTokenFromCookie(r, clusterName)
 
 	bearerToken := r.Header.Get("Authorization")
 
@@ -2553,7 +2551,7 @@ func (c *HeadlampConfig) drainNode(clientset *kubernetes.Clientset, nodeName str
 		cacheKey := uuid.NewSHA1(uuid.Nil, []byte(nodeName+cluster)).String()
 		cacheItemTTL := DrainNodeCacheTTL * time.Minute
 
-		node, err := nodeClient.Get(context.TODO(), nodeName, v1.GetOptions{})
+		node, err := nodeClient.Get(ctx, nodeName, v1.GetOptions{})
 		if err != nil {
 			_ = c.Cache.SetWithTTL(ctx, cacheKey, "error: "+err.Error(), cacheItemTTL)
 			return
@@ -2562,13 +2560,13 @@ func (c *HeadlampConfig) drainNode(clientset *kubernetes.Clientset, nodeName str
 		// cordon the node first
 		node.Spec.Unschedulable = true
 
-		_, err = nodeClient.Update(context.TODO(), node, v1.UpdateOptions{})
+		_, err = nodeClient.Update(ctx, node, v1.UpdateOptions{})
 		if err != nil {
 			_ = c.Cache.SetWithTTL(ctx, cacheKey, "error: "+err.Error(), cacheItemTTL)
 			return
 		}
 
-		pods, err := clientset.CoreV1().Pods("").List(context.TODO(),
+		pods, err := clientset.CoreV1().Pods("").List(ctx,
 			v1.ListOptions{FieldSelector: "spec.nodeName=" + nodeName})
 		if err != nil {
 			_ = c.Cache.SetWithTTL(ctx, cacheKey, "error: "+err.Error(), cacheItemTTL)
@@ -2583,7 +2581,7 @@ func (c *HeadlampConfig) drainNode(clientset *kubernetes.Clientset, nodeName str
 				continue
 			}
 
-			_ = clientset.CoreV1().Pods(pod.Namespace).Delete(context.TODO(),
+			_ = clientset.CoreV1().Pods(pod.Namespace).Delete(ctx,
 				pod.Name, v1.DeleteOptions{GracePeriodSeconds: &gracePeriod})
 		}
 

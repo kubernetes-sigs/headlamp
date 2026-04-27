@@ -41,7 +41,18 @@ export default {
           ),
           http.get(
             'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
-            () => HttpResponse.error()
+            () =>
+              HttpResponse.json(
+                {
+                  kind: 'Status',
+                  apiVersion: 'v1',
+                  status: 'Failure',
+                  reason: 'NotFound',
+                  message: 'the server could not find the requested resource',
+                  code: 404,
+                },
+                { status: 404 }
+              )
           ),
         ],
       },

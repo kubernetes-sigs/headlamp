@@ -209,6 +209,7 @@ class Event extends KubeObject<KubeEvent> {
   ) {
     // Calling hooks in a loop is usually forbidden
     // But if we make sure that clusters don't change between renders it's fine
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const queries = Event.useList({
       clusters: clusterNames,
       ...options.queryParams,
@@ -221,6 +222,7 @@ class Event extends KubeObject<KubeEvent> {
       };
     };
 
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const result = useMemo(() => {
       const res: EventsPerCluster = {};
 
@@ -240,6 +242,7 @@ class Event extends KubeObject<KubeEvent> {
       });
 
       return res;
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [queries, clusterNames]);
 
     return result;
@@ -263,15 +266,18 @@ class Event extends KubeObject<KubeEvent> {
     );
 
     const newWarningsList = this.useListForClusters(clusters, { queryParams: queryParameters });
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const [warningList, setWarningList] = React.useState<typeof newWarningsList>(newWarningsList);
 
     // Only update the warnings if they actually differ
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     React.useEffect(() => {
       if (_.isEqual(warningList, newWarningsList)) {
         return;
       }
 
       setWarningList(newWarningsList);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [newWarningsList]);
 
     return warningList;

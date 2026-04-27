@@ -74,21 +74,26 @@ export function RollbackButton(props: RollbackButtonProps) {
   const dispatch: AppDispatch = useDispatch();
   const { item, buttonStyle, afterConfirm } = props;
 
-  if (!item || !isRollbackableResource(item)) {
-    return null;
-  }
-
   const [openDialog, setOpenDialog] = useState(false);
   const location = useLocation();
   const { t } = useTranslation(['translation']);
   const dispatchRollbackEvent = useEventCallback(HeadlampEventType.ROLLBACK_RESOURCE);
 
-  const resource = item;
-  const resourceKind = resource.kind;
-  const getRevisionHistory = useCallback(() => resource.getRevisionHistory(), [resource]);
+  const resource = item && isRollbackableResource(item) ? item : null;
+
+  const getRevisionHistory = useCallback((): Promise<RevisionInfo[]> => {
+    return resource ? resource.getRevisionHistory() : Promise.resolve([]);
+  }, [resource]);
+
+  if (!resource) {
+    return null;
+  }
+
+  const rollbackResource = resource;
+  const resourceKind = rollbackResource.kind;
 
   async function performRollback(toRevision?: number) {
-    const result = await resource.rollback(toRevision);
+    const result = await rollbackResource.rollback(toRevision);
     if (!result.success) {
       throw new Error(result.message);
     }
@@ -96,7 +101,7 @@ export function RollbackButton(props: RollbackButtonProps) {
   }
 
   function handleConfirm(toRevision?: number) {
-    const itemName = resource.metadata.name;
+    const itemName = rollbackResource.metadata.name;
 
     dispatch(
       clusterAction(() => performRollback(toRevision), {
@@ -105,8 +110,8 @@ export function RollbackButton(props: RollbackButtonProps) {
         successMessage: t('Rolled back {{ itemName }} to previous version.', { itemName }),
         errorMessage: t('Failed to rollback {{ itemName }}.', { itemName }),
         cancelUrl: location.pathname,
-        startUrl: resource.getDetailsLink(),
-        errorUrl: resource.getDetailsLink(),
+        startUrl: rollbackResource.getDetailsLink(),
+        errorUrl: rollbackResource.getDetailsLink(),
       })
     );
 
@@ -114,7 +119,7 @@ export function RollbackButton(props: RollbackButtonProps) {
 
     // Dispatch event for plugins/tracking
     dispatchRollbackEvent({
-      resource: resource,
+      resource: rollbackResource,
       status: EventStatus.CONFIRMED,
     });
 
@@ -142,7 +147,7 @@ export function RollbackButton(props: RollbackButtonProps) {
       <RollbackDialog
         open={openDialog}
         resourceKind={resourceKind}
-        resourceName={resource.metadata.name}
+        resourceName={rollbackResource.metadata.name}
         getRevisionHistory={getRevisionHistory}
         onClose={() => setOpenDialog(false)}
         onConfirm={handleConfirm}

@@ -17,6 +17,7 @@
 import { InlineIcon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
+import Typography from '@mui/material/Typography';
 import _ from 'lodash';
 import { useSnackbar } from 'notistack';
 import React, { useEffect, useState } from 'react';
@@ -25,14 +26,23 @@ import { useDispatch } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import { apply } from '../../lib/k8s/api/v1/apply';
 import { drainNode, drainNodeStatus } from '../../lib/k8s/api/v1/drainNode';
-import { KubeMetrics } from '../../lib/k8s/cluster';
+import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
+import type { KubeNodeSummaryStats } from '../../lib/k8s/api/v2/nodeSummaryApi';
+import { KubeContainer, KubeMetrics } from '../../lib/k8s/cluster';
 import Node from '../../lib/k8s/node';
+import type { KubePod } from '../../lib/k8s/pod';
 import Pod from '../../lib/k8s/pod';
+import * as units from '../../lib/units';
 import { getCluster, timeAgo } from '../../lib/util';
 import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
 import { clusterAction } from '../../redux/clusterActionSlice';
 import { AppDispatch } from '../../redux/stores/store';
-import { CpuCircularChart, MemoryCircularChart, PodCapacityCircularChart } from '../cluster/Charts';
+import {
+  CpuCircularChart,
+  EphemeralStorageCircularChart,
+  MemoryCircularChart,
+  PodCapacityCircularChart,
+} from '../cluster/Charts';
 import ActionButton from '../common/ActionButton';
 import ConfirmDialog from '../common/ConfirmDialog';
 import { StatusLabelProps } from '../common/Label';
@@ -63,6 +73,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
 
   const { enqueueSnackbar } = useSnackbar();
   const [nodeMetrics, metricsError] = Node.useMetrics();
+  const [nodeSummaryStats, nodeSummaryError] = Node.useNodeSummaryStats(name, cluster);
   const [isupdatingNodeScheduleProperty, setisUpdatingNodeScheduleProperty] = React.useState(false);
   const [isNodeDrainInProgress, setisNodeDrainInProgress] = React.useState(false);
   const [nodeFromAPI, nodeError] = Node.useGet(name);
@@ -215,7 +226,14 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
         cluster={cluster}
         error={nodeError}
         headerSection={item => (
-          <ChartsSection node={item} pods={nodePods} metrics={nodeMetrics} noMetrics={noMetrics} />
+          <ChartsSection
+            node={item}
+            pods={nodePods}
+            metrics={nodeMetrics}
+            noMetrics={noMetrics}
+            summaryStats={nodeSummaryStats}
+            summaryError={nodeSummaryError}
+          />
         )}
         withEvents
         actions={item => {
@@ -283,6 +301,10 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
         extraSections={item =>
           item && [
             {
+              id: 'headlamp.node-resource-allocation',
+              section: <AllocatedResourcesSection node={item} pods={nodePods} />,
+            },
+            {
               id: 'headlamp.node-system-info',
               section: <SystemInfoSection node={item} />,
             },
@@ -305,11 +327,13 @@ interface ChartsSectionProps {
   node: Node | null;
   pods: Pod[] | null;
   metrics: KubeMetrics[] | null;
+  summaryStats: KubeNodeSummaryStats | null;
+  summaryError: ApiError | null;
   noMetrics?: boolean;
 }
 
 function ChartsSection(props: ChartsSectionProps) {
-  const { node, pods, metrics, noMetrics } = props;
+  const { node, pods, metrics, summaryStats, summaryError, noMetrics } = props;
   const { t } = useTranslation('glossary');
 
   function getUptime() {
@@ -362,8 +386,156 @@ function ChartsSection(props: ChartsSectionProps) {
         <Box>
           <PodCapacityCircularChart node={node} pods={pods} />
         </Box>
+        <Box>
+          <EphemeralStorageCircularChart
+            node={node}
+            summaryStats={summaryStats}
+            summaryError={summaryError}
+          />
+        </Box>
       </Box>
     </Box>
+  );
+}
+const getPercentage = (value: number, capacity: number) => {
+  if (capacity === 0) return '0';
+  return ((value / capacity) * 100).toFixed(1);
+};
+
+function AllocatedResourcesSection(props: { node: Node; pods: KubePod[] | null }) {
+  const { node, pods } = props;
+  const { t } = useTranslation('glossary');
+
+  const cpuCapacity = units.parseCpu(
+    node?.status.allocatable?.cpu || node?.status.capacity?.cpu || '0'
+  );
+  const memoryCapacity = units.parseRam(
+    node?.status.allocatable?.memory || node?.status.capacity?.memory || '0'
+  );
+
+  const { cpuRequests, cpuLimits, memoryRequests, memoryLimits } = React.useMemo(() => {
+    let reqCpu = 0;
+    let limCpu = 0;
+    let reqMem = 0;
+    let limMem = 0;
+
+    pods?.forEach((pod: KubePod) => {
+      let podCpuRequests = 0;
+      let podCpuLimits = 0;
+      let podMemoryRequests = 0;
+      let podMemoryLimits = 0;
+
+      pod.spec.containers.forEach((container: KubeContainer) => {
+        podCpuRequests += units.parseCpu(container.resources?.requests?.cpu || '0');
+        podCpuLimits += units.parseCpu(container.resources?.limits?.cpu || '0');
+        podMemoryRequests += units.parseRam(container.resources?.requests?.memory || '0');
+        podMemoryLimits += units.parseRam(container.resources?.limits?.memory || '0');
+      });
+
+      pod.spec.initContainers?.forEach((container: KubeContainer) => {
+        const initCpuReq = units.parseCpu(container.resources?.requests?.cpu || '0');
+        const initCpuLimit = units.parseCpu(container.resources?.limits?.cpu || '0');
+        const initMemReq = units.parseRam(container.resources?.requests?.memory || '0');
+        const initMemLimit = units.parseRam(container.resources?.limits?.memory || '0');
+
+        podCpuRequests = Math.max(podCpuRequests, initCpuReq);
+        podCpuLimits = Math.max(podCpuLimits, initCpuLimit);
+        podMemoryRequests = Math.max(podMemoryRequests, initMemReq);
+        podMemoryLimits = Math.max(podMemoryLimits, initMemLimit);
+      });
+
+      reqCpu += podCpuRequests;
+      limCpu += podCpuLimits;
+      reqMem += podMemoryRequests;
+      limMem += podMemoryLimits;
+    });
+
+    return {
+      cpuRequests: reqCpu,
+      cpuLimits: limCpu,
+      memoryRequests: reqMem,
+      memoryLimits: limMem,
+    };
+  }, [pods]);
+
+  return (
+    <SectionBox title={t('Resource Allocation')}>
+      <Box mb={2}>
+        <Typography color="textSecondary" variant="body2">
+          {t('Total limits may be over 100 percent, i.e., overcommitted.')}
+        </Typography>
+      </Box>
+      <NameValueTable
+        rows={[
+          {
+            name: t('CPU Requests'),
+            value: (
+              <Box display="flex" alignItems="center">
+                <ValueLabel>
+                  {`${units.unparseCpu(cpuRequests.toString()).value} ${
+                    units.unparseCpu(cpuRequests.toString()).unit
+                  }`}
+                </ValueLabel>
+                <Box ml={2}>
+                  <StatusLabel status={cpuRequests > cpuCapacity ? 'error' : 'success'}>
+                    {getPercentage(cpuRequests, cpuCapacity)} %
+                  </StatusLabel>
+                </Box>
+              </Box>
+            ),
+          },
+          {
+            name: t('CPU Limits'),
+            value: (
+              <Box display="flex" alignItems="center">
+                <ValueLabel>
+                  {`${units.unparseCpu(cpuLimits.toString()).value} ${
+                    units.unparseCpu(cpuLimits.toString()).unit
+                  }`}
+                </ValueLabel>
+                <Box ml={2}>
+                  <StatusLabel status={cpuLimits > cpuCapacity ? 'warning' : 'success'}>
+                    {getPercentage(cpuLimits, cpuCapacity)} %
+                  </StatusLabel>
+                </Box>
+              </Box>
+            ),
+          },
+          {
+            name: t('Memory Requests'),
+            value: (
+              <Box display="flex" alignItems="center">
+                <ValueLabel>
+                  {`${units.unparseRam(memoryRequests).value} ${
+                    units.unparseRam(memoryRequests).unit
+                  }`}
+                </ValueLabel>
+                <Box ml={2}>
+                  <StatusLabel status={memoryRequests > memoryCapacity ? 'error' : 'success'}>
+                    {getPercentage(memoryRequests, memoryCapacity)} %
+                  </StatusLabel>
+                </Box>
+              </Box>
+            ),
+          },
+          {
+            name: t('Memory Limits'),
+            value: (
+              <Box display="flex" alignItems="center">
+                <ValueLabel>
+                  {`${units.unparseRam(memoryLimits).value} ${units.unparseRam(memoryLimits).unit}`}
+                </ValueLabel>
+                <Box ml={2}>
+                  <StatusLabel status={memoryLimits > memoryCapacity ? 'warning' : 'success'}>
+                    {getPercentage(memoryLimits, memoryCapacity)} %
+                  </StatusLabel>
+                </Box>
+              </Box>
+            ),
+          },
+        ]}
+      />
+    </SectionBox>
   );
 }
 

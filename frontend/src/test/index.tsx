@@ -15,6 +15,7 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
+import { SnackbarProvider } from 'notistack';
 import { PropsWithChildren } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route } from 'react-router-dom';
@@ -52,9 +53,11 @@ export function TestContext(props: TestContextProps) {
 
   return (
     <Provider store={store || defaultStore}>
-      <MemoryRouter initialEntries={url ? [url] : undefined}>
-        {routePath ? <Route path={routePath}>{children}</Route> : children}
-      </MemoryRouter>
+      <SnackbarProvider>
+        <MemoryRouter initialEntries={url ? [url] : undefined}>
+          {routePath ? <Route path={routePath}>{children}</Route> : children}
+        </MemoryRouter>
+      </SnackbarProvider>
     </Provider>
   );
 }

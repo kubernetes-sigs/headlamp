@@ -47,6 +47,7 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
       return val;
     }
     return defaultTableRowsPerPageOptions[0];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [selectedValue, setSelectedValue] = useState(defaultRowsPerPageValue);
   const storedCustomValue = useMemo(() => {
@@ -55,6 +56,7 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
       return defaultTableRowsPerPageOptions[0];
     }
     return val;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [customValue, setCustomValue] = useState<number | undefined>(storedCustomValue);
   const [errorMessage, setErrorMessage] = useState('');
@@ -63,6 +65,7 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
 
   useEffect(() => {
     dispatch(setAppSettings({ tableRowsPerPageOptions: options }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options]);
 
   // Make sure we update the value in the localStorage when the user selects a new value.

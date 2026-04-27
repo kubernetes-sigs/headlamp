@@ -1,0 +1,299 @@
+<body>
+  <div
+    aria-hidden="true"
+  />
+  <div
+    class="MuiDialog-root MuiModal-root css-zw3mfo-MuiModal-root-MuiDialog-root"
+    role="presentation"
+  >
+    <div
+      aria-hidden="true"
+      class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
+      style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+    />
+    <div
+      data-testid="sentinelStart"
+      tabindex="0"
+    />
+    <div
+      class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
+      role="presentation"
+      style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+      tabindex="-1"
+    >
+      <div
+        aria-labelledby=":mock-test-id:"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm css-1708vl9-MuiPaper-root-MuiDialog-paper"
+        role="dialog"
+      >
+        <h2
+          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
+          id=":mock-test-id:"
+        >
+          Choose Cluster Icon
+        </h2>
+        <div
+          class="MuiDialogContent-root css-ypiqx9-MuiDialogContent-root"
+        >
+          <div
+            class="MuiBox-root css-zoser8"
+          >
+            <div
+              class="MuiBox-root css-zefc5s"
+            >
+              <button
+                aria-label="Kubernetes"
+                aria-pressed="true"
+                class="MuiButtonBase-root MuiToggleButton-root Mui-selected MuiToggleButton-sizeMedium MuiToggleButton-standard css-1qxrnfx-MuiButtonBase-root-MuiToggleButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+                value="mdi:kubernetes"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-label="Alert Circle"
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard css-1qxrnfx-MuiButtonBase-root-MuiToggleButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+                value="mdi:alert-circle"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-label="Shield Alert"
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard css-1qxrnfx-MuiButtonBase-root-MuiToggleButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+                value="mdi:shield-alert"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-label="Server"
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard css-1qxrnfx-MuiButtonBase-root-MuiToggleButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+                value="mdi:server"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-label="Code Tags"
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard css-1qxrnfx-MuiButtonBase-root-MuiToggleButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+                value="mdi:code-tags"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-label="Test Tube"
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard css-1qxrnfx-MuiButtonBase-root-MuiToggleButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+                value="mdi:test-tube"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-label="Rocket"
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard css-1qxrnfx-MuiButtonBase-root-MuiToggleButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+                value="mdi:rocket-launch-outline"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-label="Cloud"
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard css-1qxrnfx-MuiButtonBase-root-MuiToggleButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+                value="mdi:cloud-outline"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-label="Database"
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard css-1qxrnfx-MuiButtonBase-root-MuiToggleButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+                value="mdi:database"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-label="Hexagon Multiple"
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard css-1qxrnfx-MuiButtonBase-root-MuiToggleButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+                value="mdi:hexagon-multiple-outline"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-label="Lock"
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard css-1qxrnfx-MuiButtonBase-root-MuiToggleButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+                value="mdi:lock"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-label="Key"
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard css-1qxrnfx-MuiButtonBase-root-MuiToggleButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+                value="mdi:shield-key"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-label="Lightning"
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard css-1qxrnfx-MuiButtonBase-root-MuiToggleButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+                value="mdi:lightning-bolt-circle"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-label="Star"
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard css-1qxrnfx-MuiButtonBase-root-MuiToggleButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+                value="mdi:star"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-label="Presentation"
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard css-1qxrnfx-MuiButtonBase-root-MuiToggleButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+                value="mdi:presentation"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+            </div>
+          </div>
+          <div
+            class="MuiBox-root css-1yuhvjn"
+          >
+            <label
+              class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
+            >
+              <span
+                class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeMedium PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeMedium MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeMedium css-4r3cdq-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+              >
+                <input
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  data-indeterminate="false"
+                  type="checkbox"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                  data-testid="CheckBoxOutlineBlankIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                  />
+                </svg>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+              <span
+                class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
+              >
+                Use custom icon
+              </span>
+            </label>
+          </div>
+        </div>
+        <div
+          class="MuiDialogActions-root MuiDialogActions-spacing css-knqc4i-MuiDialogActions-root"
+        >
+          <button
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            Cancel
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+        </div>
+      </div>
+    </div>
+    <div
+      data-testid="sentinelEnd"
+      tabindex="0"
+    />
+  </div>
+</body>

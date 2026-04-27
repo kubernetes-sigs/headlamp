@@ -1,6 +1,7 @@
 package serviceproxy
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -46,7 +47,7 @@ func RequestHandler(kubeConfigStore kubeconfig.ContextStore, w http.ResponseWrit
 	}
 
 	// Get the service
-	ps, status, err := getServiceFromCluster(cs, namespace, name)
+	ps, status, err := getServiceFromCluster(r.Context(), cs, namespace, name)
 	if err != nil {
 		w.WriteHeader(status)
 		return
@@ -88,8 +89,10 @@ func getAuthToken(r *http.Request, clusterName string) (string, error) {
 	return bearerToken, nil
 }
 
-func getServiceFromCluster(cs kubernetes.Interface, namespace string, name string) (*proxyService, int, error) {
-	ps, err := GetService(cs, namespace, name)
+func getServiceFromCluster(
+	ctx context.Context, cs kubernetes.Interface, namespace string, name string,
+) (*proxyService, int, error) {
+	ps, err := GetService(ctx, cs, namespace, name)
 	if err != nil {
 		if errors.IsUnauthorized(err) {
 			return nil, http.StatusUnauthorized, err
