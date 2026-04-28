@@ -661,6 +661,7 @@
   "Targets": "Cibles",
   "more…": "plus…",
   "Default": "Par défaut",
+  "Address": "",
   "Host": "Host",
   "Parallelism": "",
   "Backoff Limit": "",

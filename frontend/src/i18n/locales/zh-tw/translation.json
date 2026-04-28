@@ -651,6 +651,7 @@
   "Targets": "目標",
   "more…": "更多…",
   "Default": "預設",
+  "Address": "",
   "Host": "主機",
   "Parallelism": "",
   "Backoff Limit": "",

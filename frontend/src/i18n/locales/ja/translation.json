@@ -651,6 +651,7 @@
   "Targets": "ターゲット",
   "more…": "もっと…",
   "Default": "デフォルト",
+  "Address": "",
   "Host": "ホスト",
   "Parallelism": "",
   "Backoff Limit": "",

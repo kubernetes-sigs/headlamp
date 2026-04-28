@@ -651,6 +651,7 @@
   "Targets": "目标",
   "more…": "更多…",
   "Default": "默认",
+  "Address": "",
   "Host": "主机",
   "Parallelism": "",
   "Backoff Limit": "",

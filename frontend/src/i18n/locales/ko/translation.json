@@ -651,6 +651,7 @@
   "Targets": "대상",
   "more…": "더 보기…",
   "Default": "기본값",
+  "Address": "",
   "Host": "호스트",
   "Parallelism": "",
   "Backoff Limit": "",

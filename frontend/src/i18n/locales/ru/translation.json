@@ -666,6 +666,7 @@
   "Targets": "Цели",
   "more…": "ещё…",
   "Default": "По умолчанию",
+  "Address": "",
   "Host": "Хост",
   "Parallelism": "",
   "Backoff Limit": "",

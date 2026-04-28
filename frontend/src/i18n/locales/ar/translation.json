@@ -676,6 +676,7 @@
   "Targets": "الأهداف",
   "more…": "المزيد…",
   "Default": "افتراضي",
+  "Address": "",
   "Host": "المضيف",
   "Parallelism": "",
   "Backoff Limit": "",
