@@ -298,5 +298,19 @@
   "Reinvocation Policy": "재호출 정책",
   "API Versions": "API 버전",
   "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}": "롤링 업데이트. 최대 사용 불가: {{ maxUnavailable }}, 최대 급증: {{ maxSurge }}",
-  "Strategy Type": "전략 유형"
+  "Strategy Type": "전략 유형",
+  "Min Ready Seconds": "",
+  "Progress Deadline": "",
+  "Revision History Limit": "",
+  "Service Name": "",
+  "Pod Management Policy": "",
+  "Parallelism": "",
+  "Completion Mode": "",
+  "Backoff Limit": "",
+  "Active Deadline": "",
+  "TTL After Finished": "",
+  "Pods Status": "",
+  "Completion Time": "",
+  "Duration": "",
+  "Completed Indexes": ""
 }

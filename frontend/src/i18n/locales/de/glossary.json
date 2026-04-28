@@ -298,5 +298,19 @@
   "Reinvocation Policy": "Wiederanrufungsrichtlinie",
   "API Versions": "API-Versionen",
   "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}": "RollingUpdate. Max Unavailable: {{ maxUnavailable }}, maxSurge: {{ maxSurge }}",
-  "Strategy Type": "Strategie-Typ"
+  "Strategy Type": "Strategie-Typ",
+  "Min Ready Seconds": "",
+  "Progress Deadline": "",
+  "Revision History Limit": "",
+  "Service Name": "",
+  "Pod Management Policy": "",
+  "Parallelism": "",
+  "Completion Mode": "",
+  "Backoff Limit": "",
+  "Active Deadline": "",
+  "TTL After Finished": "",
+  "Pods Status": "",
+  "Completion Time": "",
+  "Duration": "",
+  "Completed Indexes": ""
 }

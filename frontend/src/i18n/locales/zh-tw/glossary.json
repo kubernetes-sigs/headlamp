@@ -298,5 +298,19 @@
   "Reinvocation Policy": "撤銷策略",
   "API Versions": "API 版本",
   "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}": "滾動更新. 最大不可用: {{ maxUnavailable }}, 最大突增: {{ maxSurge }}",
-  "Strategy Type": "策略類型"
+  "Strategy Type": "策略類型",
+  "Min Ready Seconds": "",
+  "Progress Deadline": "",
+  "Revision History Limit": "",
+  "Service Name": "",
+  "Pod Management Policy": "",
+  "Parallelism": "",
+  "Completion Mode": "",
+  "Backoff Limit": "",
+  "Active Deadline": "",
+  "TTL After Finished": "",
+  "Pods Status": "",
+  "Completion Time": "",
+  "Duration": "",
+  "Completed Indexes": ""
 }

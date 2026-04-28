@@ -298,5 +298,19 @@
   "Reinvocation Policy": "دوبارہ کال پالیسی",
   "API Versions": "API ورژنز",
   "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}": "رولنگ اپڈیٹ۔ زیادہ سے زیادہ غیر دستیاب: {{ maxUnavailable }}, زیادہ سے زیادہ سرج: {{ maxSurge }}",
-  "Strategy Type": "اسٹریٹجی ٹائپ"
+  "Strategy Type": "اسٹریٹجی ٹائپ",
+  "Min Ready Seconds": "",
+  "Progress Deadline": "",
+  "Revision History Limit": "",
+  "Service Name": "",
+  "Pod Management Policy": "",
+  "Parallelism": "",
+  "Completion Mode": "",
+  "Backoff Limit": "",
+  "Active Deadline": "",
+  "TTL After Finished": "",
+  "Pods Status": "",
+  "Completion Time": "",
+  "Duration": "",
+  "Completed Indexes": ""
 }

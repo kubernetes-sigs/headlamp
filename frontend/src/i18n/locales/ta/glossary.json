@@ -298,5 +298,19 @@
   "Reinvocation Policy": "ரீன்வோகேஷன் பாலிசி",
   "API Versions": "ஏபிஐ வெர்ஷன்கள்",
   "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}": "ரோலிங் அப்டேட். அதிகபட்சம் கிடைக்காதவை: {{ maxUnavailable }}, அதிகபட்ச எழுச்சி: {{ maxSurge }}",
-  "Strategy Type": "ஸ்ட்ராடஜி வகை"
+  "Strategy Type": "ஸ்ட்ராடஜி வகை",
+  "Min Ready Seconds": "",
+  "Progress Deadline": "",
+  "Revision History Limit": "",
+  "Service Name": "",
+  "Pod Management Policy": "",
+  "Parallelism": "",
+  "Completion Mode": "",
+  "Backoff Limit": "",
+  "Active Deadline": "",
+  "TTL After Finished": "",
+  "Pods Status": "",
+  "Completion Time": "",
+  "Duration": "",
+  "Completed Indexes": ""
 }
