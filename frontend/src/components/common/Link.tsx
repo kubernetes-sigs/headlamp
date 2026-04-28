@@ -19,6 +19,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import React from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../../lib/cluster';
+import { ResourceClasses } from '../../lib/k8s';
 import { kubeObjectQueryKey, useEndpoints } from '../../lib/k8s/api/v2/hooks';
 import type { KubeObject, KubeObjectClass } from '../../lib/k8s/KubeObject';
 import type { RouteURLProps } from '../../lib/router/createRouteURL';
@@ -165,26 +166,17 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
 
   if ('kubeObject' in props && props.kubeObject) {
     const obj = props.kubeObject;
-    const objClass = obj.constructor as KubeObjectClass;
+    const standardClass = (ResourceClasses as Record<string, KubeObjectClass | undefined>)[
+      obj.kind
+    ];
 
-    // 1. The Class explicitly claims the same 'kind' as the object instance.
-    // 2. The Class explicitly claims the same 'apiGroup' (via apiVersion) as the object instance.
-    const kindMatches = objClass.kind === obj.kind;
-    let groupMatches = false;
-
-    if (obj.jsonData && obj.jsonData.apiVersion && objClass.apiVersion) {
-      const instanceGroup = getApiGroup(obj.jsonData.apiVersion);
-      const classVersions = Array.isArray(objClass.apiVersion)
-        ? objClass.apiVersion
-        : [objClass.apiVersion];
-
-      if (classVersions.find(v => getApiGroup(v) === instanceGroup)) {
-        groupMatches = true;
-      }
-    }
-
-    if (!kindMatches || !groupMatches) {
+    if (!standardClass) {
       matchesStandard = false;
+    } else {
+      // Allow drawer only when the instance belongs to the built-in API group for this kind.
+      const instanceGroup = getApiGroup(obj.jsonData?.apiVersion || '');
+      const standardGroup = standardClass.apiGroupName || '';
+      matchesStandard = instanceGroup === standardGroup;
     }
   }
 
