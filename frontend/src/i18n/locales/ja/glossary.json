@@ -231,6 +231,8 @@
   "Node Port": "",
   "App Protocol": "",
   "Services": "サービス",
+  "Image Pull Secrets": "",
+  "Automount Service Account Token": "",
   "Map": "マップ",
   "Workloads": "ワークロード",
   "Stateful Sets": "ステートフルセット",

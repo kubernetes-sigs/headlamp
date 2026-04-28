@@ -231,6 +231,8 @@
   "Node Port": "",
   "App Protocol": "",
   "Services": "சேவைகள்",
+  "Image Pull Secrets": "",
+  "Automount Service Account Token": "",
   "Map": "வரைபடம்",
   "Workloads": "வொர்க்லோட்கள்",
   "Stateful Sets": "ஸ்டேட்ஃபுல் செட்ஸ்",

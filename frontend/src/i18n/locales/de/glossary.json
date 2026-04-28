@@ -231,6 +231,8 @@
   "Node Port": "",
   "App Protocol": "",
   "Services": "Dienste",
+  "Image Pull Secrets": "",
+  "Automount Service Account Token": "",
   "Map": "",
   "Workloads": "Workloads",
   "Stateful Sets": "Stateful Sets",
