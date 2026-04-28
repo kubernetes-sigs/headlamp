@@ -691,6 +691,7 @@
   "Prettify": "美化",
   "Show JSON values in plain text by removing escape characters.": "移除转义字符，以纯文本显示 JSON 值。",
   "Format": "格式化",
+  "{{ seconds }}s": "",
   "Debug Pod": "",
   "Debug: {{ itemName }}": "",
   "No cluster selected": "",

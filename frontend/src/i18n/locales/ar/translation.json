@@ -716,6 +716,7 @@
   "Prettify": "تنسيق",
   "Show JSON values in plain text by removing escape characters.": "عرض قيم JSON كنص عادي بإزالة أحرف الهروب",
   "Format": "التنسيق",
+  "{{ seconds }}s": "",
   "Debug Pod": "تصحيح Pod",
   "Debug: {{ itemName }}": "تصحيح: {{ itemName }}",
   "No cluster selected": "لم يتم تحديد أي كتلة",

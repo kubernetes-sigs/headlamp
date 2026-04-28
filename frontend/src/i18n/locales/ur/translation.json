@@ -696,6 +696,7 @@
   "Prettify": "خوبصورت بنائیں",
   "Show JSON values in plain text by removing escape characters.": "ایسکیپ حروف ہٹا کر JSON ویلیوز کو سادہ متن میں دکھائیں",
   "Format": "فارمیٹ",
+  "{{ seconds }}s": "",
   "Debug Pod": "ڈیبگ پوڈ",
   "Debug: {{ itemName }}": "ڈیبگ: {{ itemName }}",
   "No cluster selected": "کوئی کلسٹر منتخب نہیں کیا گیا",

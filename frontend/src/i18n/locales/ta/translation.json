@@ -696,6 +696,7 @@
   "Prettify": "அழகுபடுத்து",
   "Show JSON values in plain text by removing escape characters.": "தப்பிய எழுத்துகளை அகற்றி, JSON மதிப்புகளை எளிய உரையாகக் காண்பிக்கவும்.",
   "Format": "வடிவமை",
+  "{{ seconds }}s": "",
   "Debug Pod": "",
   "Debug: {{ itemName }}": "",
   "No cluster selected": "",

@@ -701,6 +701,7 @@
   "Prettify": "Embellir",
   "Show JSON values in plain text by removing escape characters.": "Afficher les valeurs JSON en texte brut en supprimant les caractères d'échappement.",
   "Format": "Format",
+  "{{ seconds }}s": "",
   "Debug Pod": "",
   "Debug: {{ itemName }}": "",
   "No cluster selected": "",

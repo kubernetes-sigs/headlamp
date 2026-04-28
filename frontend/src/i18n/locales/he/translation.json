@@ -701,6 +701,7 @@
   "Prettify": "Prettify",
   "Show JSON values in plain text by removing escape characters.": "Show JSON values in plain text by removing escape characters.",
   "Format": "Format",
+  "{{ seconds }}s": "",
   "Debug Pod": "Debug Pod",
   "Debug: {{ itemName }}": "Debug: {{ itemName }}",
   "No cluster selected": "No cluster selected",

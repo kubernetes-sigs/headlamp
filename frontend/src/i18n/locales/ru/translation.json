@@ -706,6 +706,7 @@
   "Prettify": "Форматировать",
   "Show JSON values in plain text by removing escape characters.": "Показать значения JSON в виде обычного текста, удалив escape-символы.",
   "Format": "Формат",
+  "{{ seconds }}s": "",
   "Debug Pod": "Отладка Pod",
   "Debug: {{ itemName }}": "Отладка: {{ itemName }}",
   "No cluster selected": "Кластер не выбран",
