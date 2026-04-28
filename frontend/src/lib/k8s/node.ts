@@ -30,22 +30,12 @@ export interface KubeNode extends KubeObjectInterface {
       address: string;
       type: string;
     }[];
-    allocatable?: {
-      cpu: any;
-      memory: any;
-      ephemeralStorage: any;
-      hugepages_1Gi: any;
-      hugepages_2Mi: any;
-      pods: any;
-    };
-    capacity?: {
-      cpu: any;
-      memory: any;
-      ephemeralStorage: any;
-      hugepages_1Gi: any;
-      hugepages_2Mi: any;
-      pods: any;
-    };
+    /**
+     * Resource quantities keyed by their k8s name (e.g. cpu, memory, pods, ephemeral-storage).
+     * Note: keys are kebab-case as returned by the API, not camelCase.
+     */
+    allocatable?: { [key: string]: string };
+    capacity?: { [key: string]: string };
     conditions?: (Omit<KubeCondition, 'lastProbeTime' | 'lastUpdateTime'> & {
       lastHeartbeatTime: string;
     })[];
@@ -138,6 +128,19 @@ class Node extends KubeObject<KubeNode> {
 
   getInternalIP(): string {
     return this.status.addresses?.find(address => address.type === 'InternalIP')?.address || '';
+  }
+
+  /**
+   * Roles derived from the conventional `node-role.kubernetes.io/<role>` labels.
+   *
+   * @see {@link https://kubernetes.io/docs/reference/labels-annotations-taints/#node-role-kubernetes-io}
+   */
+  getRoles(): string[] {
+    const labels = this.metadata?.labels ?? {};
+    const rolePrefix = 'node-role.kubernetes.io/';
+    return Object.keys(labels)
+      .filter(key => key.startsWith(rolePrefix))
+      .map(key => key.slice(rolePrefix.length));
   }
 }
 
