@@ -123,6 +123,7 @@
   "Egress": "エグレス",
   "except: {{ cidrExceptions }}": "例外: {{ cidrExceptions }}",
   "Pod Selector": "ポッドセレクター",
+  "Policy Types": "",
   "Network Policies": "ネットワークポリシー",
   "Uncordoning node {{name}}…": "ノード {{name}} の封鎖解除中…",
   "Cordoning node {{name}}…": "ノード {{name}} を封鎖中…",

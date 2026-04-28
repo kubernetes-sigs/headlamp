@@ -123,6 +123,7 @@
   "Egress": "Egress",
   "except: {{ cidrExceptions }}": "кроме: {{ cidrExceptions }}",
   "Pod Selector": "Селектор Подов",
+  "Policy Types": "",
   "Network Policies": "Сетевые политики",
   "Uncordoning node {{name}}…": "Снимаем cordon с узла {{name}}…",
   "Cordoning node {{name}}…": "Устанавливаем cordon на узел {{name}}…",

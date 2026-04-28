@@ -123,6 +123,7 @@
   "Egress": "Egress",
   "except: {{ cidrExceptions }}": "außer: {{ cidrExceptions }}",
   "Pod Selector": "Pod-Auswahl",
+  "Policy Types": "",
   "Network Policies": "Netzwerkrichtlinien",
   "Uncordoning node {{name}}…": "Aufhebung der Planungssperre für Node {{name}}…",
   "Cordoning node {{name}}…": "Node {{name}} wird für die Planung gesperrt…",

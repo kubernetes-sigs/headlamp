@@ -123,6 +123,7 @@
   "Egress": "इग्रेस",
   "except: {{ cidrExceptions }}": "छोड़कर: {{ cidrExceptions }}",
   "Pod Selector": "Pod सेलेक्टर",
+  "Policy Types": "",
   "Network Policies": "नेटवर्क पॉलिसीज़",
   "Uncordoning node {{name}}…": "नोड {{name}} अनकॉर्डन कर रहा है…",
   "Cordoning node {{name}}…": "नोड {{name}} कॉर्डन कर रहा है…",

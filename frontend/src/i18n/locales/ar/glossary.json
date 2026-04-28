@@ -123,6 +123,7 @@
   "Egress": "الخروج",
   "except: {{ cidrExceptions }}": "باستثناء: {{ cidrExceptions }}",
   "Pod Selector": "محدد الـ Pod",
+  "Policy Types": "",
   "Network Policies": "سياسات الشبكة",
   "Uncordoning node {{name}}…": "إلغاء عزل العقدة {{name}}…",
   "Cordoning node {{name}}…": "عزل العقدة {{name}}…",

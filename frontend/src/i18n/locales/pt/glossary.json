@@ -123,6 +123,7 @@
   "Egress": "Egress",
   "except: {{ cidrExceptions }}": "exceto: {{ cidrExceptions }}",
   "Pod Selector": "Seletor de Pod",
+  "Policy Types": "",
   "Network Policies": "Políticas de Rede",
   "Uncordoning node {{name}}…": "A remover o bloqueio do node {{name}}…",
   "Cordoning node {{name}}…": "A bloquear o node {{name}}…",

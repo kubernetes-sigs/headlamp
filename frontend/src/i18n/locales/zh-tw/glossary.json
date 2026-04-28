@@ -123,6 +123,7 @@
   "Egress": "出口",
   "except: {{ cidrExceptions }}": "例外: {{ cidrExceptions }}",
   "Pod Selector": "Pod 選擇器",
+  "Policy Types": "",
   "Network Policies": "網路政策",
   "Uncordoning node {{name}}…": "解除封鎖節點 {{name}}…",
   "Cordoning node {{name}}…": "封鎖節點 {{name}}…",

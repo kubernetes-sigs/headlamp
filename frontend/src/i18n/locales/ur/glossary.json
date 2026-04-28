@@ -123,6 +123,7 @@
   "Egress": "ایگریس",
   "except: {{ cidrExceptions }}": "سوائے: {{ cidrExceptions }}",
   "Pod Selector": "پوڈ سلیکٹر",
+  "Policy Types": "",
   "Network Policies": "نیٹ ورک پالیسیاں",
   "Uncordoning node {{name}}…": "نوڈ {{name}} کو انکارڈن کیا جا رہا ہے…",
   "Cordoning node {{name}}…": "نوڈ {{name}} کو کارڈن کیا جا رہا ہے…",

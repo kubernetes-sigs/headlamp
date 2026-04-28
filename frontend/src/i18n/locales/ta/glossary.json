@@ -123,6 +123,7 @@
   "Egress": "எக்ரெஸ்",
   "except: {{ cidrExceptions }}": "தவிர: {{ cidrExceptions }}",
   "Pod Selector": "பாட் செலக்டர்",
+  "Policy Types": "",
   "Network Policies": "நெட்வர்க் பாலிசிகள்",
   "Uncordoning node {{name}}…": "{{name}} நோடை அன்கார்டன் செய்கிறது...",
   "Cordoning node {{name}}…": "{{name}} நோடை கார்டன் செய்கிறது...",
