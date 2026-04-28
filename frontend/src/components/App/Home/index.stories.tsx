@@ -19,6 +19,7 @@ import { Meta, StoryFn } from '@storybook/react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { initialState } from '../../../redux/configSlice';
+import shortcutsReducer from '../../../redux/shortcutsSlice';
 import Home from '.';
 
 const ourState = {
@@ -51,6 +52,7 @@ const ourState = {
   drawerMode: {
     isDetailDrawerEnabled: false,
   },
+  shortcuts: { ...shortcutsReducer(undefined, { type: '' }) },
 };
 
 // @todo: Add a way for the results from useClustersVersion to be mocked, so not

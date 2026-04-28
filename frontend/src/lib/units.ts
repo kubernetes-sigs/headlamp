@@ -93,3 +93,22 @@ export function unparseCpu(value: string) {
     unit: 'm',
   };
 }
+
+/**
+ * Divides two Kubernetes resource quantities.
+ * Useful for computing resource field references with divisors.
+ * @param a - The dividend resource string (e.g., "1Gi", "500m")
+ * @param b - The divisor resource string (e.g., "1Mi", "1")
+ * @param resourceType - The type of resource ('cpu' or 'memory'). Defaults to 'memory'.
+ * @returns The result of dividing a by b
+ */
+export function divideK8sResources(
+  a: string,
+  b: string,
+  resourceType: 'cpu' | 'memory' = 'memory'
+): number {
+  if (resourceType === 'cpu') {
+    return parseCpu(a) / parseCpu(b);
+  }
+  return parseUnitsOfBytes(a) / parseUnitsOfBytes(b);
+}

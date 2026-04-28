@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { vi } from 'vitest';
 import sidebarReducer, {
   DefaultSidebars,
   initialState,
@@ -167,5 +168,21 @@ describe('setInitialSidebarOpen', () => {
     (import.meta.env as any).REACT_APP_HEADLAMP_SIDEBAR_DEFAULT_OPEN = 'true';
 
     expect(setInitialSidebarOpen().isSidebarOpen).toBe(false);
+  });
+
+  it('should handle malformed or null localStorage values safely', () => {
+    // Suppress console.warn for this test to avoid polluting test output
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    localStorage.setItem('sidebar', 'null');
+    expect(() => setInitialSidebarOpen()).not.toThrow();
+
+    localStorage.setItem('sidebar', 'invalid json');
+    expect(() => setInitialSidebarOpen()).not.toThrow();
+
+    localStorage.setItem('sidebar', JSON.stringify({ shrink: 'not-a-boolean' }));
+    expect(() => setInitialSidebarOpen()).not.toThrow();
+
+    consoleSpy.mockRestore();
   });
 });

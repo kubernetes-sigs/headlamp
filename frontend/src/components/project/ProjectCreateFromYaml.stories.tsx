@@ -20,6 +20,7 @@ import { http, HttpResponse } from 'msw';
 import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
 import { CreateNew } from './ProjectCreateFromYaml';
+import { PROJECT_ID_LABEL } from './projectUtils';
 
 export default {
   title: 'project/CreateFromYaml',
@@ -39,6 +40,8 @@ const makeStore = () => {
           'cluster-a': { name: 'cluster-a' },
           'cluster-b': { name: 'cluster-b' },
         } as any,
+        isDynamicClusterEnabled: true,
+        allowKubeconfigChanges: false,
         settings: {
           tableRowsPerPageOptions: [15, 25, 50],
           timezone: 'UTC',
@@ -76,6 +79,13 @@ Default.parameters = {
   msw: {
     handlers: {
       story: [
+        http.get('http://localhost:4466/api/v1/namespaces', () =>
+          HttpResponse.json({
+            kind: 'NamespaceList',
+            items: [],
+            metadata: {},
+          })
+        ),
         http.get('http://localhost:4466/clusters/cluster-a/api', () =>
           HttpResponse.json({ versions: ['v1'] })
         ),
@@ -100,3 +110,67 @@ Default.parameters = {
     },
   },
 };
+
+export const WithExistingProjects = Template.bind({});
+WithExistingProjects.args = {
+  store: makeStore(),
+};
+WithExistingProjects.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/api/v1/namespaces', () =>
+          HttpResponse.json({
+            kind: 'NamespaceList',
+            items: [
+              {
+                apiVersion: 'v1',
+                kind: 'Namespace',
+                metadata: {
+                  name: 'existing-project',
+                  uid: 'ns-1',
+                  labels: {
+                    [PROJECT_ID_LABEL]: 'existing-project',
+                  },
+                },
+              },
+              {
+                apiVersion: 'v1',
+                kind: 'Namespace',
+                metadata: {
+                  name: 'my-app',
+                  uid: 'ns-2',
+                  labels: {
+                    [PROJECT_ID_LABEL]: 'my-app',
+                  },
+                },
+              },
+            ],
+            metadata: {},
+          })
+        ),
+        http.get('http://localhost:4466/clusters/cluster-a/api', () =>
+          HttpResponse.json({ versions: ['v1'] })
+        ),
+        http.get('http://localhost:4466/clusters/cluster-a/apis', () =>
+          HttpResponse.json({ groups: [] })
+        ),
+        http.get('http://localhost:4466/clusters/cluster-a/api/v1', () =>
+          HttpResponse.json({
+            resources: [
+              { name: 'pods', singularName: 'pod', namespaced: true, kind: 'Pod', verbs: ['list'] },
+              {
+                name: 'configmaps',
+                singularName: 'configmap',
+                namespaced: true,
+                kind: 'ConfigMap',
+                verbs: ['list'],
+              },
+            ],
+          })
+        ),
+      ],
+    },
+  },
+};
+WithExistingProjects.storyName = 'With Existing Projects (for duplicate name testing)';

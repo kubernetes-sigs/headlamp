@@ -118,7 +118,7 @@ export async function deleteClusterKubeconfig(
           if (!parsed.contexts || parsed.contexts.length === 0) {
             const deleteRequest = store.delete(cursor.key);
             deleteRequest.onsuccess = () => {
-              console.log('Kubeconfig deleted from IndexedDB');
+              console.debug('Kubeconfig deleted from IndexedDB');
               resolve(kubeconfig64);
             };
             deleteRequest.onerror = () => {
@@ -134,7 +134,7 @@ export async function deleteClusterKubeconfig(
 
           const putRequest = store.put(updatedRow);
           putRequest.onsuccess = () => {
-            console.log('Kubeconfig updated in IndexedDB');
+            console.debug('Kubeconfig updated in IndexedDB');
             resolve(kubeconfig64);
           };
           putRequest.onerror = () => {

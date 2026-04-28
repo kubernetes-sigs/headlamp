@@ -69,8 +69,8 @@ export default function RouteSwitcher(props: { requiresToken: () => boolean }) {
               exact={!!route.exact}
               clusters={clusters}
               requiresToken={props.requiresToken}
-              children={<RouteComponent route={route} key={getCluster()} />}
-              key={`${getCluster()}`}
+              children={<RouteComponent route={route} key={`${route.path}-${getCluster()}`} />}
+              key={`${route.path}-${getCluster()}`}
             />
           )
         )}
@@ -96,10 +96,12 @@ function RouteComponent({ route }: { route: RouteType }) {
   const dispatch = useDispatch();
   React.useEffect(() => {
     dispatch(uiSlice.actions.setHideAppBar(route.hideAppBar));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.hideAppBar]);
 
   React.useEffect(() => {
     dispatch(uiSlice.actions.setIsFullWidth(route.isFullWidth));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.isFullWidth]);
 
   return (
@@ -130,9 +132,16 @@ function PageTitle({
   title: string | null | undefined;
   children: React.ReactNode;
 }) {
+  const cluster = useCluster();
+
   React.useEffect(() => {
-    document.title = title || '';
-  }, [title]);
+    if (cluster && title) {
+      document.title = `${cluster} - ${title}`;
+      return;
+    }
+
+    document.title = cluster || title || '';
+  }, [cluster, title]);
 
   return <>{children}</>;
 }
@@ -155,7 +164,7 @@ function AuthRoute(props: AuthRouteProps) {
     computedMatch = {},
     ...other
   } = props;
-  const redirectRoute = getCluster() ? 'login' : 'chooser';
+
   useSidebarItem(sidebar, computedMatch);
   const cluster = useCluster();
   const query = useQuery({
@@ -164,6 +173,24 @@ function AuthRoute(props: AuthRouteProps) {
     enabled: !!cluster && requiresAuth,
     retry: 0,
   });
+
+  const clusters = useClustersConf();
+  const currentCluster = getCluster();
+  const clusterConf = currentCluster && clusters ? clusters[currentCluster] : null;
+  const authError = query.error as any;
+  const isExplicitAuthError = [401, 403].includes(authError?.status);
+
+  let redirectRoute: string;
+
+  if (!currentCluster) {
+    redirectRoute = 'chooser';
+  } else if (clusterConf?.auth_type === 'oidc') {
+    redirectRoute = 'login';
+  } else if (query.isError && isExplicitAuthError) {
+    redirectRoute = 'token';
+  } else {
+    redirectRoute = 'login';
+  }
 
   function getRenderer({ location }: RouteProps) {
     if (!requiresAuth) {
@@ -214,6 +241,7 @@ export function PreviousRouteProvider({ children }: React.PropsWithChildren<{}>)
         setLocationInfo(levels => levels - 1);
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

@@ -109,6 +109,7 @@ export default function CreateNamespaceButton() {
         );
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [namespaceName]);
 
   return (

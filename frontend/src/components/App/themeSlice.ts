@@ -94,15 +94,18 @@ export const useCurrentAppTheme = () => {
     localStorage.setItem(currentThemeCacheKey, JSON.stringify(currentTheme));
   } else {
     // Try to load cached theme
-    try {
-      const cachedTheme = JSON.parse(localStorage.getItem(currentThemeCacheKey) ?? '') as
-        | AppTheme
-        | undefined;
+    const cachedThemeRaw = localStorage.getItem(currentThemeCacheKey);
+    if (cachedThemeRaw) {
+      try {
+        const cachedTheme = JSON.parse(cachedThemeRaw) as AppTheme | undefined;
 
-      if (cachedTheme && cachedTheme?.name === themeName) {
-        currentTheme = cachedTheme;
+        if (cachedTheme && cachedTheme?.name === themeName) {
+          currentTheme = cachedTheme;
+        }
+      } catch (e) {
+        console.debug('Failed to parse cached theme from localStorage:', e);
       }
-    } catch (e) {}
+    }
   }
 
   return currentTheme ?? defaultAppThemes[0];

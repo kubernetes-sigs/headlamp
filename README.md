@@ -69,6 +69,14 @@ permissions, you may not be able to view your cluster resources correctly.
 
 See the documentation on [how to easily get a Service Account token](https://headlamp.dev/docs/latest/installation#create-a-service-account-token) for your cluster.
 
+## Quick Start for Contributors
+
+Want to hack on Headlamp? We'd love your help!
+
+Check out the [Contributing Guidelines](./CONTRIBUTING.md) for detailed instructions on setting up your local development environment, building the project, and platform-specific tips (including Apple Silicon and macOS).
+
+For more in-depth development docs, see the [Development Guide](https://headlamp.dev/docs/latest/development/).
+
 ## Tested platforms
 
 We maintain a list of the [Kubernetes platforms](./docs/platforms.md) we have

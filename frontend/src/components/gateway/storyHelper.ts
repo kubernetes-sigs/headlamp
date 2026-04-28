@@ -151,12 +151,13 @@ export const DEFAULT_GRPC_ROUTE: KubeGRPCRoute = {
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
     generation: 1,
-    name: 'default-httproute',
+    name: 'default-grpcroute',
     namespace: 'default',
     resourceVersion: '1234',
     uid: 'abc1234',
   },
   spec: {
+    hostnames: ['grpc.example.com', 'api.example.com'],
     parentRefs: [
       {
         group: 'gateway.networking.k8s.io',
@@ -170,6 +171,53 @@ export const DEFAULT_GRPC_ROUTE: KubeGRPCRoute = {
         namespace: 'shared-gateway',
         sectionName: 'test',
         name: 'envoy-gateway-system-test',
+      },
+    ],
+    rules: [
+      {
+        name: 'grpc-service-match',
+        matches: [
+          {
+            method: {
+              type: 'Exact',
+              service: 'com.example.UserService',
+              method: 'GetUser',
+            },
+            headers: [
+              {
+                type: 'Exact',
+                name: 'x-environment',
+                value: 'production',
+              },
+            ],
+          },
+        ],
+        backendRefs: [
+          {
+            group: '',
+            kind: 'Service',
+            name: 'user-service',
+            port: 9090,
+            weight: 1,
+          },
+        ],
+        filters: [
+          {
+            type: 'RequestHeaderModifier',
+          },
+        ],
+      },
+      {
+        backendRefs: [
+          {
+            group: '',
+            kind: 'Service',
+            name: 'fallback-service',
+            namespace: 'backend',
+            port: 9090,
+            weight: 1,
+          },
+        ],
       },
     ],
   },

@@ -4,8 +4,8 @@
   "private": true,
   "productName": "Headlamp",
   "engines": {
-    "npm": ">=10.0.0",
-    "node": ">=20.11.1"
+    "npm": ">=11.0.0",
+    "node": ">=22.0.0"
   },
   "type": "module",
   "dependencies": {
@@ -53,7 +53,7 @@
     "eslint-plugin-import": "^2.24.2",
     "eslint-plugin-jsx-a11y": "^6.9.0",
     "eslint-plugin-react": "7.35.0",
-    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-unused-imports": "^4.1.3",
     "fake-indexeddb": "^6.0.0",
@@ -64,7 +64,7 @@
     "js-base64": "^3.7.2",
     "js-yaml": "^4.1.1",
     "jsonpath-plus": "^10.3.0",
-    "lodash": "^4.17.21",
+    "lodash": "^4.17.23",
     "material-react-table": "^2.13.3",
     "monaco-editor": "^0.52.0",
     "notistack": "^3.0.2",
@@ -96,7 +96,8 @@
     "domain-browser": "npm:dry-uninstall",
     "typescript": "5.6.2",
     "cheerio": "1.0.0-rc.12",
-    "js-yaml": "^4.1.1"
+    "js-yaml": "^4.1.1",
+    "eslint-plugin-react-hooks": "^7.0.1"
   },
   "optionalDependencies": {
     "@rollup/rollup-darwin-arm64": "*",
@@ -112,7 +113,8 @@
     "pretest": "npm run make-version",
     "test": "vitest",
     "start-without-multiplexer": "cross-env REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER=false npm run start",
-    "lint": "eslint --cache -c package.json --ext .js,.ts,.tsx src/ ../app/electron ../plugins/headlamp-plugin --ignore-pattern ../plugins/headlamp-plugin/template --ignore-pattern ../plugins/headlamp-plugin/lib/",
+    "lint": "eslint --cache -c package.json --ext .js,.ts,.tsx src/ ../app/electron ../plugins/headlamp-plugin --ignore-pattern ../plugins/headlamp-plugin/template --ignore-pattern ../plugins/headlamp-plugin/lib/ --ignore-pattern ../plugins/headlamp-plugin/examples --ignore-pattern ../plugins/headlamp-plugin/official-plugins",
+    "ci-lint": "eslint --cache -c .eslintrc.ci.cjs --ext .js,.ts,.tsx --max-warnings 0 src/ ../app/electron ../plugins/headlamp-plugin --ignore-pattern ../plugins/headlamp-plugin/template --ignore-pattern ../plugins/headlamp-plugin/lib/ --ignore-pattern ../plugins/headlamp-plugin/examples --ignore-pattern ../plugins/headlamp-plugin/official-plugins && npm run format-check",
     "format": "prettier --config package.json --write --cache src ../app/electron ../app/tsconfig.json ../app/scripts ../plugins/headlamp-plugin/bin ../plugins/headlamp-plugin/config ../plugins/headlamp-plugin/template ../plugins/headlamp-plugin/test*.js ../plugins/headlamp-plugin/*.json ../plugins/headlamp-plugin/*.js",
     "format-check": "prettier --config package.json --check --cache src ../app/electron ../app/tsconfig.json ../app/scripts ../plugins/headlamp-plugin/bin ../plugins/headlamp-plugin/config ../plugins/headlamp-plugin/template ../plugins/headlamp-plugin/test*.js ../plugins/headlamp-plugin/*.json ../plugins/headlamp-plugin/*.js",
     "storybook": "storybook dev -p 6006",
@@ -121,7 +123,8 @@
     "i18n": "i18next 'src/**/*.{ts,tsx}' -c ./src/i18n/i18next-parser.config.js",
     "tsc": "tsc",
     "make-version": "node ./make-env.js",
-    "star": "cross-env REACT_APP_HEADLAMP_BACKEND_TOKEN=headlamp rsbuild dev"
+    "star": "cross-env REACT_APP_HEADLAMP_BACKEND_TOKEN=headlamp rsbuild dev",
+    "build:rsbuild": "rsbuild build"
   },
   "browserslist": {
     "production": [
@@ -174,7 +177,8 @@
   },
   "eslintConfig": {
     "plugins": [
-      "license-header"
+      "license-header",
+      "react-hooks"
     ],
     "extends": [
       "@headlamp-k8s",
@@ -182,6 +186,18 @@
       "plugin:jsx-a11y/recommended"
     ],
     "rules": {
+      "react-hooks/rules-of-hooks": "off",
+      "react-hooks/exhaustive-deps": "off",
+      "react-hooks/component-hook-factories": "off",
+      "react-hooks/globals": "off",
+      "react-hooks/immutability": "off",
+      "react-hooks/purity": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/set-state-in-render": "off",
+      "react-hooks/static-components": "off",
+      "react-hooks/unsupported-syntax": "off",
+      "react-hooks/use-memo": "off",
       "license-header/header": [
         "error",
         [
@@ -206,17 +222,18 @@
   },
   "prettier": "@headlamp-k8s/eslint-config/prettier-config",
   "devDependencies": {
-    "@rsbuild/core": "^1.4.15",
-    "@rsbuild/plugin-node-polyfill": "^1.4.1",
-    "@rsbuild/plugin-react": "^1.3.5",
-    "@rsbuild/plugin-svgr": "^1.2.2",
-    "@storybook/addon-docs": "^9.1.2",
-    "@storybook/addon-links": "^9.1.2",
-    "@storybook/react-vite": "^9.1.2",
+    "@rsbuild/core": "^2.0.1",
+    "@rsbuild/plugin-node-polyfill": "^1.4.4",
+    "@rsbuild/plugin-react": "^2.0.0",
+    "@rsbuild/plugin-svgr": "^2.0.1",
+    "@storybook/addon-docs": "^9.1.19",
+    "@storybook/addon-links": "^9.1.19",
+    "@storybook/react-vite": "^9.1.19",
     "@testing-library/jest-dom": "^6.4.8",
     "@testing-library/user-event": "^14.5.2",
     "@vitest/coverage-istanbul": "^3.0.5",
     "eslint-plugin-license-header": "^0.8.0",
+    "fast-check": "^4.5.3",
     "husky": "^4.3.8",
     "i18next-parser": "^9.1.0",
     "jsdom": "^24.0.0",
@@ -226,10 +243,10 @@
     "nock": "^14.0.0-beta.14",
     "prettier": "^2.7.1",
     "resize-observer-polyfill": "^1.5.1",
-    "storybook": "^9.1.2",
-    "typedoc": "^0.26.5",
-    "typedoc-plugin-markdown": "^4.2.3",
-    "typedoc-plugin-rename-defaults": "^0.7.1",
+    "storybook": "^9.1.19",
+    "typedoc": "^0.28.0",
+    "typedoc-plugin-markdown": "^4.5.0",
+    "typedoc-plugin-rename-defaults": "^0.7.3",
     "vitest": "^3.0.5",
     "vitest-canvas-mock": "^0.3.3",
     "vitest-websocket-mock": "^0.4.0"

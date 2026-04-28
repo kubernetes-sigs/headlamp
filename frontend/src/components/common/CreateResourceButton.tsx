@@ -23,21 +23,96 @@ import { Activity } from '../activity/Activity';
 import ActionButton from '../common/ActionButton';
 import { AuthVisible } from '../common/Resource';
 import { EditorDialog } from '../common/Resource';
+import { parseEditorObject, RESOURCE_DEFINITIONS, ResourceType } from './Resource/CreateButton';
 
+/** Props for {@link CreateResourceButton}. */
 export interface CreateResourceButtonProps {
   resourceClass: KubeObjectClass;
   resourceName?: string;
 }
 
+/** Inner component rendered inside the Activity panel. Holds shared state so the
+ *  form can update the editor YAML in-place without relaunching the activity. */
+function CreateResourceActivityContent(props: {
+  resourceClass: KubeObjectClass;
+  name: string;
+  onClose: () => void;
+}) {
+  const { resourceClass, name, onClose } = props;
+  const { t } = useTranslation(['glossary', 'translation']);
+
+  const initialItem = React.useMemo(() => resourceClass.getBaseObject(), [resourceClass]);
+  const [item, setItem] = React.useState<any>(initialItem);
+  const [formResource, setFormResource] = React.useState<Record<string, any>>(initialItem);
+  const [errorMessage, setErrorMessage] = React.useState('');
+
+  const handleFormChange = (newItem: Record<string, any>) => {
+    setFormResource(newItem);
+    setItem(newItem);
+  };
+
+  const handleEditorChanged = (newValue: string) => {
+    setErrorMessage('');
+    const parsed = parseEditorObject(newValue);
+    if (parsed !== null) {
+      setFormResource(parsed);
+    }
+  };
+
+  const FormComponent =
+    resourceClass.kind in RESOURCE_DEFINITIONS
+      ? RESOURCE_DEFINITIONS[resourceClass.kind as ResourceType].form
+      : undefined;
+
+  return (
+    <EditorDialog
+      noDialog
+      item={item}
+      open
+      setOpen={() => {}}
+      onClose={onClose}
+      saveLabel={t('translation|Apply')}
+      errorMessage={errorMessage}
+      onEditorChanged={handleEditorChanged}
+      treatItemChangesAsEdits
+      title={t('translation|Create {{ name }}', { name })}
+      aria-label={t('translation|Create {{ name }}', { name })}
+      formContent={
+        FormComponent ? (
+          <FormComponent resource={formResource} onChange={handleFormChange} />
+        ) : undefined
+      }
+    />
+  );
+}
+
+/** Action button that opens an Activity panel with an EditorDialog for
+ *  creating a Kubernetes resource. Shows a form tab when the resource kind
+ *  has a matching entry in {@link RESOURCE_DEFINITIONS}. */
 export function CreateResourceButton(props: CreateResourceButtonProps) {
   const { resourceClass, resourceName } = props;
   const { t } = useTranslation(['glossary', 'translation']);
-  const [errorMessage, setErrorMessage] = React.useState('');
   const clusters = useSelectedClusters();
 
-  const baseObject = resourceClass.getBaseObject();
-  const name = resourceName ?? baseObject.kind;
+  const name = resourceName ?? resourceClass.kind;
   const activityId = 'create-resource-' + resourceClass.apiName;
+
+  const openActivity = () => {
+    Activity.launch({
+      id: activityId,
+      title: t('translation|Create {{ name }}', { name }),
+      location: 'full',
+      cluster: clusters[0],
+      icon: <Icon icon="mdi:plus-circle" />,
+      content: (
+        <CreateResourceActivityContent
+          resourceClass={resourceClass}
+          name={name}
+          onClose={() => Activity.close(activityId)}
+        />
+      ),
+    });
+  };
 
   return (
     <AuthVisible item={resourceClass} authVerb="create">
@@ -45,29 +120,7 @@ export function CreateResourceButton(props: CreateResourceButtonProps) {
         color="primary"
         description={t('translation|Create {{ name }}', { name })}
         icon={'mdi:plus-circle'}
-        onClick={() => {
-          Activity.launch({
-            id: activityId,
-            title: t('translation|Create {{ name }}', { name }),
-            location: 'full',
-            cluster: clusters[0],
-            icon: <Icon icon="mdi:plus-circle" />,
-            content: (
-              <EditorDialog
-                noDialog
-                item={baseObject}
-                open
-                setOpen={() => {}}
-                onClose={() => Activity.close(activityId)}
-                saveLabel={t('translation|Apply')}
-                errorMessage={errorMessage}
-                onEditorChanged={() => setErrorMessage('')}
-                title={t('translation|Create {{ name }}', { name })}
-                aria-label={t('translation|Create {{ name }}', { name })}
-              />
-            ),
-          });
-        }}
+        onClick={openActivity}
       />
     </AuthVisible>
   );

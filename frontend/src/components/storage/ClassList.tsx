@@ -62,6 +62,7 @@ export default function ClassList() {
           filterVariant: 'checkbox',
           getValue: storageClass => String(storageClass.allowVolumeExpansion),
         },
+        'labels',
         'age',
       ]}
     />

@@ -15,7 +15,7 @@
  */
 
 import { Base64 } from 'js-base64';
-import { post } from './api/v1/clusterRequests';
+import { patch, post } from './api/v1/clusterRequests';
 import type { StreamArgs, StreamResultsCb } from './api/v1/streamingApi';
 import { stream } from './api/v1/streamingApi';
 import type { KubeCondition, KubeContainer, KubeContainerStatus, Time } from './cluster';
@@ -293,6 +293,43 @@ class Pod extends KubeObject<KubePod> {
       isJson: false,
       ...streamOpts,
     });
+  }
+
+  /**
+   * Add an ephemeral container to the pod.
+   * @param containerName - The name of the ephemeral container to add
+   * @param image - The container image to use
+   * @param command - Optional command to run in the container (defaults to ['sh'])
+   * @returns Promise that resolves when the ephemeral container is added
+   */
+  async addEphemeralContainer(
+    containerName: string,
+    image: string,
+    command: string[] = ['sh']
+  ): Promise<void> {
+    const ephemeralContainer: KubeContainer = {
+      name: containerName,
+      image,
+      tty: true,
+      stdin: true,
+      stdinOnce: true,
+      command,
+      imagePullPolicy: 'IfNotPresent',
+    };
+
+    // Get current ephemeral containers
+    const currentEphemeralContainers = this.spec.ephemeralContainers || [];
+
+    // Prepare the patch body
+    const patchBody = {
+      spec: {
+        ephemeralContainers: [...currentEphemeralContainers, ephemeralContainer],
+      },
+    };
+
+    const url = `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/ephemeralcontainers`;
+
+    await patch(url, patchBody, true, { cluster: this.cluster });
   }
 
   private getLastRestartDate(container: KubeContainerStatus, lastRestartDate: Date): Date {

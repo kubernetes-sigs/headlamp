@@ -111,61 +111,6 @@ function UpdatePopup({
     return null;
   }
 
-  if (fetchingRelease && !releaseDownloadURL) {
-    return (
-      <ColoredSnackbar
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
-        autoHideDuration={5000}
-        message={t('translation|Fetching release information…')}
-        ContentProps={{
-          'aria-describedby': 'updatePopup',
-        }}
-        open={fetchingRelease && !closeSnackError}
-        onClose={() => {
-          setCloseSnackError(true);
-        }}
-        action={
-          <React.Fragment>
-            <Button
-              style={{
-                color: 'rgb(255, 242, 0)',
-              }}
-              onClick={() => {
-                skipUpdateHandler();
-              }}
-            >
-              {t('translation|Skip')}
-            </Button>
-          </React.Fragment>
-        }
-      />
-    );
-  }
-
-  if (releaseFetchFailed && !releaseDownloadURL) {
-    return (
-      <ColoredSnackbar
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
-        open={releaseFetchFailed}
-        message={t('translation|Failed to fetch release information')}
-        ContentProps={{
-          'aria-describedby': 'updatePopup',
-        }}
-        autoHideDuration={6000}
-      />
-    );
-  }
-
-  if (!releaseDownloadURL) {
-    return null;
-  }
-
   return (
     <ColoredSnackbar
       anchorOrigin={{
@@ -183,7 +128,7 @@ function UpdatePopup({
           <Box display={'flex'} alignItems="center">
             <Box ml={-1}>
               <Button
-                onClick={() => window.open(releaseDownloadURL)}
+                onClick={() => window.open(releaseDownloadURL, '_blank', 'noopener,noreferrer')}
                 style={{
                   color: 'inherit',
                   textTransform: 'none',
@@ -201,6 +146,7 @@ function UpdatePopup({
                   localStorage.setItem('disable_update_check', 'true');
                   setShow(false);
                 }}
+                aria-label={t('translation|Disable update notifications')}
               >
                 <Icon icon={'mdi:bell-off-outline'} width="20" />
               </Button>

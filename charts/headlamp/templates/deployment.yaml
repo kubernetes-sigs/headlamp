@@ -81,6 +81,7 @@ spec:
       {{- end }}
       serviceAccountName: {{ include "headlamp.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      hostUsers: {{ .Values.hostUsers }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- with .Values.initContainers }}
@@ -212,11 +213,11 @@ spec:
             {{- end }}
             {{- if $oidc.useAccessToken }}
             - name: OIDC_USE_ACCESS_TOKEN
-              value: {{ $oidc.useAccessToken }}
+              value: {{ $oidc.useAccessToken | quote }}
             {{- end }}
             {{- if $oidc.usePKCE }}
             - name: OIDC_USE_PKCE
-              value: {{ $oidc.usePKCE }}
+              value: {{ $oidc.usePKCE | quote }}
             {{- end }}
             {{- if $oidc.meUserInfoURL }}
             - name: ME_USER_INFO_URL
@@ -231,6 +232,9 @@ spec:
           args:
             {{- if .Values.config.inCluster }}
             - "-in-cluster"
+            {{- if .Values.config.inClusterContextName }}
+            - "-in-cluster-context-name={{ .Values.config.inClusterContextName }}"
+            {{- end }}
             {{- end }}
             {{- with .Values.config.enableHelm }}
             - "-enable-helm"
@@ -238,8 +242,14 @@ spec:
             {{- if .Values.config.watchPlugins }}
             - "-watch-plugins-changes"
             {{- end }}
+            {{- if .Values.config.oidc.useCookie }}  
+            - "-oidc-use-cookie"                     
+            {{- end }}
             {{- with .Values.config.pluginsDir}}
             - "-plugins-dir={{ . }}"
+            {{- end }}
+            {{- if hasKey .Values.config "sessionTTL" }}
+            - "-session-ttl={{ .Values.config.sessionTTL }}"
             {{- end }}
             {{- if not $oidc.externalSecret.enabled}}
             # Check if externalSecret is disabled
@@ -370,6 +380,9 @@ spec:
               mountPath: {{ .Values.config.pluginsDir }}
             - name: plugin-config
               mountPath: /config
+            {{- with .Values.pluginsManager.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           resources:
             {{- toYaml .Values.pluginsManager.resources | nindent 12 }}
           securityContext:
@@ -382,6 +395,9 @@ spec:
               {{- toYaml $defaultSC | nindent 12 }}
             {{- end }}
         {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -393,6 +409,17 @@ spec:
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- range $constraint := . }}
+        - {{ toYaml $constraint | nindent 10 }}
+          {{- if not $constraint.labelSelector }}
+          labelSelector:
+            matchLabels:
+              {{- include "headlamp.selectorLabels" $ | nindent 14 }}
+          {{- end }}
+        {{- end }}
       {{- end }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . | quote }}

@@ -176,6 +176,7 @@ export default function DeploymentsList() {
           },
           show: false,
         },
+        'labels',
         'age',
       ]}
     />

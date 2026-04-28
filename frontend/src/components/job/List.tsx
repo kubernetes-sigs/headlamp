@@ -202,6 +202,7 @@ export function JobsListRenderer(props: JobsListRendererProps) {
             );
           },
         },
+        'labels',
         'age',
       ]}
       data={jobs}

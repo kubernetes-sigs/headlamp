@@ -71,6 +71,7 @@ $ helm install my-headlamp headlamp/headlamp \
 |--------------------|--------|-----------------------|---------------------------------------------------------------------------|
 | config.inCluster   | bool   | `true`                | Run Headlamp in-cluster                                                   |
 | config.baseURL     | string | `""`                  | Base URL path for Headlamp UI                                             |
+| config.sessionTTL  | int    | `86400`               | The time in seconds for the internal session to remain valid (Default: 86400/24h, Min: 1 , Max: 31536000/1yr) |
 | config.pluginsDir  | string | `"/headlamp/plugins"` | Directory to load Headlamp plugins from                                   |
 | config.enableHelm  | bool   | `false`               | Enable Helm operations like install, upgrade and uninstall of Helm charts |
 | config.extraArgs   | array  | `[]`                  | Additional arguments for Headlamp server                                  |
@@ -86,11 +87,12 @@ $ helm install my-headlamp headlamp/headlamp \
 | config.oidc.issuerURL | string | `""` | OIDC issuer URL |
 | config.oidc.scopes | string | `""` | OIDC scopes to be used |
 | config.oidc.usePKCE | bool | `false` | Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow |
+| config.oidc.useCookie | bool | `false` | Enable using OIDC cookie for authentication outside of cluster |
 | config.oidc.secret.create | bool | `true` | Create OIDC secret using provided values |
 | config.oidc.secret.name | string | `"oidc"` | Name of the OIDC secret |
 | config.oidc.externalSecret.enabled | bool | `false` | Enable using external secret for OIDC |
 | config.oidc.externalSecret.name | string | `""` | Name of external OIDC secret |
-| config.oidc.meUserInfoURL | string | `""` | URL to fetch additional user info for the /me endpoint. For oauth2proxy /oauth2/userinfo can be used. |
+| config.oidc.meUserInfoURL | string | `""` | URL to fetch additional user info for the /me endpoint. Useful for providers like oauth2-proxy. |
 
 There are three ways to configure OIDC:
 
@@ -102,6 +104,7 @@ config:
     clientSecret: "your-client-secret"
     issuerURL: "https://your-issuer"
     scopes: "openid profile email"
+    meUserInfoURL: "https://headlamp.example.com/oauth2/userinfo"
 ```
 
 2. Using automatic secret creation:
@@ -150,6 +153,7 @@ config:
 | clusterRoleBinding.create | bool | `true` | Create cluster role binding |
 | clusterRoleBinding.clusterRoleName | string | `"cluster-admin"` | Kubernetes ClusterRole name |
 | clusterRoleBinding.annotations | object | `{}` | Cluster role binding annotations |
+| hostUsers | bool | `true` | Run in host uid namespace |
 | podSecurityContext | object | `{}` | Pod security context (e.g., fsGroup: 2000) |
 | securityContext.runAsNonRoot | bool | `true` | Run container as non-root |
 | securityContext.privileged | bool | `false` | Run container in privileged mode |
@@ -157,6 +161,8 @@ config:
 | securityContext.runAsGroup | int | `101` | Group ID to run container |
 | securityContext.capabilities | object | `{}` | Container capabilities (e.g., drop: [ALL]) |
 | securityContext.readOnlyRootFilesystem | bool | `false` | Mount root filesystem as read-only |
+
+NOTE: for `hostUsers=false` user namespaces must be supported. See: https://kubernetes.io/docs/concepts/workloads/pods/user-namespaces/
 
 ### Storage Configuration
 
@@ -178,6 +184,7 @@ config:
 |-----|------|---------|-------------|
 | service.type | string | `"ClusterIP"` | Kubernetes service type |
 | service.port | int | `80` | Kubernetes service port |
+| service.extraServicePorts | list | `[]` | Additional ports to expose on the Service in addition to the default http port |
 | ingress.enabled | bool | `false` | Enable ingress |
 | ingress.ingressClassName | string | `""` | Ingress class name |
 | ingress.annotations | object | `{}` | Ingress annotations (e.g., kubernetes.io/tls-acme: "true") |
@@ -205,6 +212,77 @@ ingress:
         - headlamp.example.com
 ```
 
+Each path under `ingress.hosts[].paths[]` may optionally specify
+`backend.service.{name,port}` to override the default Headlamp Service /
+`service.port`. This is typically combined with `service.extraServicePorts` to
+route different paths to different ports of the same Service:
+
+```yaml
+service:
+  extraServicePorts:
+    - name: extra
+      port: 9090
+      targetPort: extra
+
+ingress:
+  enabled: true
+  hosts:
+    - host: headlamp.example.com
+      paths:
+        - path: /
+          type: Prefix
+        - path: /extra
+          type: Prefix
+          backend:
+            service:
+              # name is optional; defaults to the Headlamp Service.
+              # When set, it is rendered with `tpl` so values like
+              # "{{ .Release.Name }}-other" are supported.
+              port:
+                name: extra        # or: number: 9090
+```
+
+The same approach works for the Gateway API: define additional ports under
+`service.extraServicePorts` and reference them from `httpRoute.rules[].backendRefs[].port`.
+
+
+### HTTPRoute Configuration (Gateway API)
+
+For users who prefer Gateway API over classic Ingress resources, Headlamp supports HTTPRoute configuration.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| httpRoute.enabled | bool | `false` | Enable HTTPRoute resource for Gateway API |
+| httpRoute.annotations | object | `{}` | Annotations for HTTPRoute resource |
+| httpRoute.labels | object | `{}` | Additional labels for HTTPRoute resource |
+| httpRoute.parentRefs | list | `[]` | Parent gateway references (REQUIRED when enabled) |
+| httpRoute.hostnames | list | `[]` | Hostnames for the HTTPRoute |
+| httpRoute.rules | list | `[]` | Custom routing rules (optional, defaults to path prefix /) |
+
+Example HTTPRoute configuration:
+```yaml
+httpRoute:
+  enabled: true
+  annotations:
+    gateway.example.com/custom-annotation: "value"
+  labels:
+    app.kubernetes.io/component: ingress
+  parentRefs:
+    - name: my-gateway
+      namespace: gateway-namespace
+  hostnames:
+    - headlamp.example.com
+  # Optional custom rules (defaults to path prefix / if not specified)
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /headlamp
+      backendRefs:
+        - name: my-headlamp
+          port: 80
+```
+
 ### Resource Management
 
 | Key | Type | Default | Description |
@@ -213,6 +291,7 @@ ingress:
 | nodeSelector | object | `{}` | Node labels for pod assignment |
 | tolerations | list | `[]` | Pod tolerations |
 | affinity | object | `{}` | Pod affinity settings |
+| topologySpreadConstraints | list | `[]` | Topology spread constraints for pod assignment |
 | podAnnotations | object | `{}` | Pod annotations |
 | podLabels | object | `{}` | Pod labels |
 | env | list | `[]` | Additional environment variables |
@@ -235,6 +314,34 @@ env:
     value: "localhost"
   - name: KUBERNETES_SERVICE_PORT
     value: "6443"
+```
+
+Example topology spread constraints:
+```yaml
+# Spread pods across availability zones with best-effort scheduling
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway  # Prefer spreading but allow scheduling even if it violates the constraint
+    matchLabelKeys:
+      - pod-template-hash
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule  # Hard requirement - don't schedule if it violates the constraint
+    matchLabelKeys:
+      - pod-template-hash
+```
+
+The `labelSelector` is automatically populated with the pod's selector labels if not specified. You can also provide a custom `labelSelector`:
+```yaml
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: headlamp
+        custom-label: value
 ```
 
 ### Pod Disruption Budget (PDB)
@@ -286,6 +393,7 @@ Ensure your replicaCount and maintenance procedures respect the configured PDB t
 | version       | string  | `latest`          | Headlamp plugin package version to install                                                |
 | env           | list    | `[]`              | Plugin manager env variable configuration                                                 |
 | resources     | object  | `{}`              | Plugin manager resource requests/limits                                                   |
+| volumeMounts  | list    | `[]`              | Plugin manager volume mounts                                                              |
 
 Example resource configuration:
 

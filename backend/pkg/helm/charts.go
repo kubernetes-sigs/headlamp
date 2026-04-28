@@ -95,14 +95,15 @@ func (h *Handler) ListCharts(w http.ResponseWriter, r *http.Request) {
 	chartInfos, err := listCharts(filterTerm, h.EnvSettings)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	response := ListAllChartsResponse{
 		Charts: chartInfos,
 	}
 
-	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {

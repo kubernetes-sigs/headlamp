@@ -40,6 +40,7 @@ export default function VersionDialog(props: {
       open={open}
       onClose={() => dispatch(uiSlice.actions.setVersionDialogOpen(false))}
       title={getProductName()}
+      aria-label={t('translation|Version information')}
       // We want the dialog to show on top of the cluster chooser one if needed
       style={{ zIndex: 1900 }}
     >

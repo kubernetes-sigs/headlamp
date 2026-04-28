@@ -3,9 +3,10 @@ package telemetry
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
+
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"go.opentelemetry.io/otel"
@@ -220,8 +221,10 @@ func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolin
 	}
 
 	if enabledExporters > 1 {
-		log.Printf("Warning: Multiple trace exporters configured (%s). Using %s exporter based on priority.",
-			strings.Join(enabledTypes, ", "), enabledTypes[0])
+		logger.Log(logger.LevelWarn, map[string]string{
+			"configured": strings.Join(enabledTypes, ", "),
+			"selected":   enabledTypes[0],
+		}, nil, "Multiple trace exporters configured, using highest priority exporter")
 	}
 
 	if *cfg.StdoutTraceEnabled {

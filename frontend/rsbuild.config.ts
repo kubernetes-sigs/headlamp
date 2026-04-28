@@ -11,6 +11,10 @@ const reactAppEnvVars = Object.entries(process.env)
     return env;
   }, { 'import.meta.env': '{}' });
 
+// Use environment variable for backend port, defaulting to 4466
+const backendPort = process.env.HEADLAMP_PORT || '4466';
+const backendTarget = `http://localhost:${backendPort}`;
+
 export default defineConfig({
   source: {
     entry: {
@@ -31,6 +35,22 @@ export default defineConfig({
   server: {
     port: 3000,
     cors: true,
+    proxy: {
+      '/api': { target: backendTarget, changeOrigin: true },
+      '/clusters': { target: backendTarget, changeOrigin: true },
+      '/plugins': { target: backendTarget, changeOrigin: true },
+      '/config': { target: backendTarget, changeOrigin: true },
+      '/auth': { target: backendTarget, changeOrigin: true },
+      '/oidc': { target: backendTarget, changeOrigin: true },
+      '/oidc-callback': { target: backendTarget, changeOrigin: true },
+      '/wsMultiplexer': { target: backendTarget, changeOrigin: true, ws: true },
+      '/externalproxy': { target: backendTarget, changeOrigin: true },
+      '/drain-node': { target: backendTarget, changeOrigin: true },
+      '/drain-node-status': { target: backendTarget, changeOrigin: true },
+      '/parseKubeConfig': { target: backendTarget, changeOrigin: true },
+      '/cluster': { target: backendTarget, changeOrigin: true },
+      '/metrics': { target: backendTarget, changeOrigin: true },
+    },
   },
   // dev: {
   //   hmr: false,
@@ -49,6 +69,15 @@ export default defineConfig({
   },
   tools: {
     rspack: {
+      module: {
+        rules: [
+          {
+            // Handle ?url imports (e.g. elkjs worker) as asset URLs, matching Vite's ?url behavior
+            resourceQuery: /url/,
+            type: 'asset/resource',
+          },
+        ],
+      },
       optimization: {
         splitChunks: {
           cacheGroups: {
@@ -102,7 +131,7 @@ export default defineConfig({
       },
     }),
     pluginNodePolyfill({
-      include: ['process', 'buffer', 'stream', 'https', 'http', 'require'],
+      include: ['process', 'buffer', 'stream', 'https', 'http', 'require', 'path'],
     }),
     // replaceBaseUrlPlugin(),
   ],

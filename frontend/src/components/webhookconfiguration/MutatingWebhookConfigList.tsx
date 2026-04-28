@@ -33,6 +33,7 @@ export default function MutatingWebhookConfigurationList() {
           gridTemplate: 'min-content',
           getValue: mutatingWebhookConfig => mutatingWebhookConfig.webhooks?.length || 0,
         },
+        'labels',
         'age',
       ]}
     />

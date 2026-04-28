@@ -28,10 +28,16 @@ namespaceOverride: ""
 # -- An optional list of init containers to be run before the main containers.
 initContainers: []
 
+# -- An optional list of extra containers to be run along side the main containers.
+extraContainers: []
+
 config:
   inCluster: true
+  inClusterContextName: "main"
   # -- base url path at which headlamp should run
   baseURL: ""
+  # -- session token TTL in seconds (default is 24 hours)
+  sessionTTL: 86400
   oidc:
     # Option 1:
     # @param config.oidc.secret - OIDC secret configuration
@@ -80,6 +86,8 @@ config:
     useAccessToken: false
     # -- Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow
     usePKCE: false
+    # -- Enable using OIDC cookie for authentication outside of cluster
+    useCookie: false
 
     # Option 3:
     # @param config.oidc - External OIDC secret configuration
@@ -146,6 +154,14 @@ podAnnotations: {}
 # -- Labels to add to the pod
 podLabels: {}
 
+# -- Controls user namespace isolation for the Headlamp pod.
+# When true (default), the pod shares the host user namespace (user namespaces are DISABLED).
+# When false, the pod uses a separate user namespace (user namespaces are ENABLED) for stronger isolation,
+# if supported by the cluster. Set this to false if your cluster supports user namespaces and you want
+# additional isolation; leave as true if user namespaces are not available.
+# See: https://kubernetes.io/docs/concepts/workloads/pods/user-namespaces/
+hostUsers: true
+
 # -- Headlamp pod's Security Context
 podSecurityContext:
   {}
@@ -186,6 +202,18 @@ service:
   loadBalancerSourceRanges: []
   # -- Kubernetes Service Nodeport
   nodePort: null
+  # -- Additional ports to expose on the Service in addition to the default
+  # http port. Each entry must have a unique `name` and a `port`. `targetPort`
+  # defaults to `port` when omitted. `nodePort` is only honored when
+  # `service.type` is `NodePort` or `LoadBalancer`. A matching containerPort
+  # must be provided by the user (e.g. via a sidecar) for traffic to actually
+  # be routed.
+  extraServicePorts: []
+  # - name: extra
+  #   port: 9090
+  #   targetPort: extra
+  #   protocol: TCP
+  #   nodePort: null
 
 # -- Headlamp containers volume mounts
 volumeMounts: []
@@ -228,17 +256,60 @@ ingress:
 
   # -- Hostname(s) for the Ingress resource
   # Please refer to https://kubernetes.io/docs/reference/kubernetes-api/service-resources/ingress-v1/#IngressSpec for more information.
+  # Each path may optionally specify `backend.service.{name,port}` to override
+  # the default Headlamp Service / `service.port`. `name` supports `tpl` so
+  # values like `{{ .Release.Name }}-extra` can be used. `port` accepts either
+  # `number` or `name` (matching `service.extraServicePorts[].name`).
   hosts:
     []
     # - host: chart-example.local
     #   paths:
     #   - path: /
     #     type: ImplementationSpecific
+    #   - path: /extra
+    #     type: ImplementationSpecific
+    #     backend:
+    #       service:
+    #         port:
+    #           name: extra
   # -- Ingress TLS configuration
   tls: []
   #  - secretName: chart-example-tls
   #    hosts:
   #      - chart-example.local
+
+# HTTPRoute configuration for Gateway API
+# Please refer to https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.HTTPRoute
+httpRoute:
+  # -- Enable HTTPRoute resource for Gateway API
+  enabled: false
+  # -- Annotations for HTTPRoute resource
+  annotations: {}
+  # -- Additional labels for HTTPRoute resource
+  labels: {}
+  # -- Parent references (REQUIRED when enabled - HTTPRoute will not work without this)
+  # Example:
+  # parentRefs:
+  #   - name: my-gateway
+  #     namespace: gateway-namespace
+  parentRefs: []
+  # -- Hostnames for the HTTPRoute
+  # Example:
+  # hostnames:
+  #   - headlamp.example.com
+  hostnames: []
+  # -- Custom routing rules (optional, defaults to path prefix /)
+  # If not specified, a default rule routing all traffic to the service is used
+  rules: []
+  # Example custom rules:
+  # rules:
+  #   - matches:
+  #       - path:
+  #           type: PathPrefix
+  #           value: /headlamp
+  #     backendRefs:
+  #       - name: "{{ .Release.Name }}-headlamp"
+  #         port: 80
 
 # -- CPU/Memory resource requests/limits
 resources:
@@ -263,6 +334,19 @@ tolerations: []
 # -- Affinity settings for pod assignment
 affinity: {}
 
+# -- Topology Spread Constraints for pod assignment
+topologySpreadConstraints: []
+#  - maxSkew: 1
+#    topologyKey: topology.kubernetes.io/zone
+#    whenUnsatisfiable: ScheduleAnyway
+#    matchLabelKeys:
+#      - pod-template-hash
+#  - maxSkew: 1
+#    topologyKey: kubernetes.io/hostname
+#    whenUnsatisfiable: DoNotSchedule
+#    matchLabelKeys:
+#      - pod-template-hash
+
 # -- Pod priority class
 priorityClassName: ""
 
@@ -278,6 +362,8 @@ pluginsManager:
   baseImage: node:lts-alpine
   # -- Headlamp plugin package version to install
   version: latest
+  # -- Plugin manager containers volume mounts
+  volumeMounts: []
   # -- Plugin manager env variable configuration
   # env:
   # - name: HTTPS_PROXY

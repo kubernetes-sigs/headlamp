@@ -41,6 +41,7 @@ import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import i18n from './i18next.config';
+import MCPClient from './mcp/MCPClient';
 import {
   addToPath,
   ArtifactHubHeadlampPkg,
@@ -51,13 +52,21 @@ import {
   PluginManager,
 } from './plugin-management';
 import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
+import { cleanupHeadlampTray, createHeadlampTray } from './tray';
 import windowSize from './windowSize';
+
+if (process.env.APPIMAGE) {
+  app.commandLine.appendSwitch('disable-setuid-sandbox');
+}
 
 let isRunningScript = false;
 if (process.env.HEADLAMP_RUN_SCRIPT) {
   isRunningScript = true;
   runScript();
 }
+
+// Enabled by default, set HEADLAMP_MCP_ENABLE=false to disable MCP features
+const ENABLE_MCP = process.env.HEADLAMP_MCP_ENABLE !== 'false';
 
 dotenv.config({ path: path.join(process.resourcesPath, '.env') });
 
@@ -140,6 +149,9 @@ const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false'
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
+let mcpClient: MCPClient | null = null;
+let isQuitting = false;
+let hasTray = false;
 
 /**
  * `Action` is an interface for an action to be performed by the plugin manager.
@@ -755,10 +767,15 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   process.env.HEADLAMP_CONFIG_ENABLE_HELM = 'true';
   process.env.HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS = 'true';
 
+  // Always allow kubeconfig changes (remove, rename clusters) when running
+  // as the app — both in regular Electron mode and headless browser mode share
+  // the same single-user security context.
+  process.env.HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES = 'true';
+
   // Pass a token to the backend that can be used for auth on some routes
   process.env.HEADLAMP_BACKEND_TOKEN = backendToken;
 
-  // Set the bundled plugins in addition to the the user's plugins.
+  // Set the bundled plugins in addition to the user's plugins.
   try {
     const stat = await fsPromises.stat(bundledPlugins);
     if (stat.isDirectory()) {
@@ -996,7 +1013,7 @@ function getDefaultAppMenu(): AppMenu[] {
         {
           label: i18n.t('Zoom In'),
           id: 'original-zoom-in',
-          accelerator: 'CmdOrCtrl+Plus',
+          accelerator: 'CmdOrCtrl+=',
           click: () => adjustZoom(0.1),
         },
         {
@@ -1327,6 +1344,11 @@ function adjustZoom(delta: number) {
 function startElectron() {
   console.info('App starting...');
 
+  // Increase max listeners to prevent false positive warnings
+  // The app legitimately needs multiple IPC listeners (currently 11)
+  // Default is 10, setting to 20 provides headroom for future additions
+  ipcMain.setMaxListeners(20);
+
   let appVersion: string;
   if (isDev && process.env.HEADLAMP_APP_VERSION) {
     appVersion = process.env.HEADLAMP_APP_VERSION;
@@ -1538,6 +1560,13 @@ function startElectron() {
       mainWindow?.webContents.send('currentMenu', currentMenu);
     });
 
+    mainWindow.on('close', event => {
+      if (hasTray && !isQuitting) {
+        event.preventDefault();
+        mainWindow?.hide();
+      }
+    });
+
     mainWindow.on('closed', () => {
       mainWindow = null;
     });
@@ -1707,6 +1736,14 @@ function startElectron() {
     if (userPluginBinDirs.length > 0) {
       addToPath(userPluginBinDirs, 'userPluginBinDirs plugin');
     }
+
+    if (ENABLE_MCP) {
+      const configPath = path.join(app.getPath('userData'), 'mcp-tools-config.json');
+      const settingsPath = path.join(app.getPath('userData'), 'mcp-tools-settings.json');
+      mcpClient = new MCPClient(configPath, settingsPath);
+      await mcpClient.initialize();
+      mcpClient.setMainWindow(mainWindow);
+    }
   }
 
   if (disableGPU) {
@@ -1728,6 +1765,17 @@ function startElectron() {
 
   app.on('ready', async () => {
     await Promise.all([startServerIfNeeded(), createWindow()]);
+    hasTray = createHeadlampTray({
+      backendToken,
+      createWindow,
+      getBackendPort: () => actualPort,
+      getMainWindow: () => mainWindow,
+      isDev,
+      quit: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    });
   });
   app.on('activate', async function () {
     if (mainWindow === null) {
@@ -1735,13 +1783,29 @@ function startElectron() {
     }
   });
 
-  app.once('window-all-closed', app.quit);
+  app.on('window-all-closed', () => {
+    if (!hasTray) {
+      app.quit();
+    }
+  });
 
-  app.once('before-quit', () => {
+  app.once('before-quit', async () => {
+    isQuitting = true;
+    cleanupHeadlampTray();
+    hasTray = false;
     saveZoomFactor(cachedZoom);
     i18n.off('languageChanged');
     if (mainWindow) {
       mainWindow.removeAllListeners('close');
+    }
+
+    if (mcpClient) {
+      try {
+        await mcpClient.cleanup();
+        mcpClient = null;
+      } catch (err) {
+        console.error('Failed to clean up mcpClient:', err);
+      }
     }
   });
 }

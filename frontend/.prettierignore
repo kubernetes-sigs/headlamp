@@ -8,3 +8,6 @@
 ../plugins/headlamp-plugin/lib/redux/
 ../plugins/headlamp-plugin/lib/resources/
 
+# Compiled JavaScript files from Babel
+../app/electron/*.js
+

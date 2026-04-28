@@ -26,7 +26,8 @@ import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
+import { getDefaultContainer } from '../../helpers/podContainer';
 import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
 import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
@@ -49,6 +50,8 @@ import LightTooltip from '../common/Tooltip/TooltipLight';
 import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
+import { PodDebugAction } from './PodDebugAction';
+
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   margin: 0,
   paddingTop: theme.spacing(2),
@@ -61,7 +64,7 @@ interface PodLogViewerProps extends Omit<LogViewerProps, 'logs'> {
 
 export function PodLogViewer(props: PodLogViewerProps) {
   const { item, onClose, open, ...other } = props;
-  const [container, setContainer] = React.useState(getDefaultContainer());
+  const [container, setContainer] = React.useState(() => getDefaultContainer(item));
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showTimestamps, setShowTimestamps] = useLocalStorageState<boolean>(
     'headlamp.logs.showTimestamps',
@@ -80,10 +83,6 @@ export function PodLogViewer(props: PodLogViewerProps) {
   const [cancelLogsStream, setCancelLogsStream] = React.useState<(() => void) | null>(null);
   const xtermRef = React.useRef<XTerminal | null>(null);
   const { t } = useTranslation();
-
-  function getDefaultContainer() {
-    return item.spec.containers.length > 0 ? item.spec.containers[0].name : '';
-  }
 
   const options = { leading: true, trailing: true, maxWait: 1000 };
 
@@ -135,6 +134,13 @@ export function PodLogViewer(props: PodLogViewerProps) {
   }
 
   const debouncedSetState = _.debounce(setLogsDebounced, 500, options);
+  React.useEffect(() => {
+    const next = getDefaultContainer(item);
+    if (next && !container) {
+      setContainer(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.status]);
 
   React.useEffect(
     () => {
@@ -417,10 +423,10 @@ export interface VolumeDetailsProps {
 
 export function VolumeDetails(props: VolumeDetailsProps) {
   const { volumes } = props;
+  const { t } = useTranslation();
   if (!volumes) {
     return null;
   }
-  const { t } = useTranslation();
   return (
     <SectionBox title={t('translation|Volumes')}>
       <SimpleTable
@@ -490,6 +496,95 @@ export default function PodDetails(props: PodDetailsProps) {
   const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation('glossary');
   const dispatchHeadlampEvent = useEventCallback();
+
+  const lastAutoLaunchedPodLogs = React.useRef<string | null>(null);
+  const lastAutoLaunchedPodExec = React.useRef<string | null>(null);
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const autoLaunchView = queryParams.get('view');
+  const [podItem, setPodItem] = React.useState<Pod | null>(null);
+
+  const launchLogs = React.useCallback(
+    (item: Pod) => {
+      Activity.launch({
+        id: 'logs-' + item.metadata.uid,
+        title: t('Logs: {{ itemName }}', { itemName: item.metadata.name }),
+        cluster: item.cluster,
+        icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
+        location: 'full',
+        content: <PodLogViewer noDialog open item={item} onClose={() => {}} />,
+      });
+      dispatchHeadlampEvent({
+        type: HeadlampEventType.LOGS,
+        data: {
+          status: EventStatus.OPENED,
+        },
+      });
+    },
+    [t, dispatchHeadlampEvent]
+  );
+
+  const launchTerminal = React.useCallback(
+    (item: Pod) => {
+      const activityId = 'terminal-' + item.metadata.uid;
+      Activity.launch({
+        id: activityId,
+        title: item.metadata.name,
+        cluster: item.cluster,
+        icon: <Icon icon="mdi:console" width="100%" height="100%" />,
+        location: 'full',
+        content: (
+          <Terminal
+            noDialog
+            open
+            item={item}
+            onClose={() => Activity.close(activityId)}
+            isAttach={false}
+          />
+        ),
+      });
+      dispatchHeadlampEvent({
+        type: HeadlampEventType.TERMINAL,
+        data: {
+          resource: item,
+          status: EventStatus.OPENED,
+        },
+      });
+    },
+    [dispatchHeadlampEvent]
+  );
+
+  React.useEffect(() => {
+    if (autoLaunchView !== 'logs') {
+      lastAutoLaunchedPodLogs.current = null;
+      return;
+    }
+
+    if (
+      podItem &&
+      autoLaunchView === 'logs' &&
+      lastAutoLaunchedPodLogs.current !== podItem.metadata.uid
+    ) {
+      lastAutoLaunchedPodLogs.current = podItem.metadata.uid;
+      launchLogs(podItem);
+    }
+  }, [podItem, launchLogs, autoLaunchView]);
+
+  React.useEffect(() => {
+    if (autoLaunchView !== 'exec') {
+      lastAutoLaunchedPodExec.current = null;
+      return;
+    }
+
+    if (
+      podItem &&
+      autoLaunchView === 'exec' &&
+      lastAutoLaunchedPodExec.current !== podItem.metadata.uid
+    ) {
+      lastAutoLaunchedPodExec.current = podItem.metadata.uid;
+      launchTerminal(podItem);
+    }
+  }, [podItem, launchTerminal, autoLaunchView]);
 
   function prepareExtraInfo(item: Pod | null) {
     let extraInfo: {
@@ -589,6 +684,9 @@ export default function PodDetails(props: PodDetailsProps) {
       namespace={namespace}
       cluster={cluster}
       withEvents
+      onResourceUpdate={item => {
+        setPodItem(item);
+      }}
       actions={item =>
         item && [
           {
@@ -598,24 +696,7 @@ export default function PodDetails(props: PodDetailsProps) {
                 <ActionButton
                   description={t('Show Logs')}
                   icon="mdi:file-document-box-outline"
-                  onClick={() => {
-                    Activity.launch({
-                      id: 'logs-' + item.metadata.uid,
-                      title: t('Logs') + ': ' + item.metadata.name,
-                      cluster: item.cluster,
-                      icon: (
-                        <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />
-                      ),
-                      location: 'full',
-                      content: <PodLogViewer noDialog open item={item} onClose={() => {}} />,
-                    });
-                    dispatchHeadlampEvent({
-                      type: HeadlampEventType.LOGS,
-                      data: {
-                        status: EventStatus.OPENED,
-                      },
-                    });
-                  }}
+                  onClick={() => launchLogs(item)}
                 />
               </AuthVisible>
             ),
@@ -627,28 +708,14 @@ export default function PodDetails(props: PodDetailsProps) {
                 <ActionButton
                   description={t('Terminal / Exec')}
                   icon="mdi:console"
-                  onClick={() => {
-                    Activity.launch({
-                      id: 'terminal-' + item.metadata.uid,
-                      title: item.metadata.name,
-                      cluster: item.cluster,
-                      icon: <Icon icon="mdi:console" width="100%" height="100%" />,
-                      location: 'full',
-                      content: (
-                        <Terminal noDialog open item={item} onClose={() => {}} isAttach={false} />
-                      ),
-                    });
-                    dispatchHeadlampEvent({
-                      type: HeadlampEventType.TERMINAL,
-                      data: {
-                        resource: item,
-                        status: EventStatus.CLOSED,
-                      },
-                    });
-                  }}
+                  onClick={() => launchTerminal(item)}
                 />
               </AuthVisible>
             ),
+          },
+          {
+            id: DefaultHeaderAction.POD_DEBUG,
+            action: <PodDebugAction item={item} />,
           },
           {
             id: DefaultHeaderAction.POD_ATTACH,

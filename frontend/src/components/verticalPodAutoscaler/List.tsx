@@ -71,6 +71,7 @@ export default function VpaList() {
               label: t('translation|Provided'),
               getValue: item => item?.status?.conditions?.[0]?.status ?? null,
             },
+            'labels',
             'age',
           ]}
         />
@@ -85,6 +86,7 @@ export default function VpaList() {
                     href="https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler#installation"
                     target="_blank"
                     rel="noopener"
+                    sx={{ textDecoration: 'underline' }}
                   >
                     Learn More
                   </Link>

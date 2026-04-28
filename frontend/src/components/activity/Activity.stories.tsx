@@ -64,6 +64,7 @@ const makeActivity = (activity: Partial<Activity>): Activity => ({
   id: 'id',
   location: 'window',
   content: 'Activity Content',
+  title: activity.title,
   ...activity,
 });
 

@@ -43,7 +43,7 @@ interface status {
 
 export interface KubeResourceQuota extends KubeObjectInterface {
   spec: spec;
-  status: status;
+  status?: status;
 }
 
 class ResourceQuota extends KubeObject<KubeResourceQuota> {
@@ -62,17 +62,18 @@ class ResourceQuota extends KubeObject<KubeResourceQuota> {
     return this.jsonData.spec;
   }
 
-  get status(): status {
+  get status(): status | undefined {
     return this.jsonData.status;
   }
 
   get requests(): string[] {
     const req: string[] = [];
+    const used = this.jsonData.status?.used ?? {};
     this.spec.hard &&
       Object.keys(this.spec.hard).forEach(key => {
         if (key === 'cpu' || key === 'memory' || key.startsWith('requests.')) {
           req.push(
-            `${key}: ${normalizeUnit(key, this.status.used[key])}/${normalizeUnit(
+            `${key}: ${normalizeUnit(key, used[key] ?? '0')}/${normalizeUnit(
               key,
               this.spec.hard[key]
             )}`
@@ -84,11 +85,12 @@ class ResourceQuota extends KubeObject<KubeResourceQuota> {
 
   get limits(): string[] {
     const limits: string[] = [];
+    const used = this.jsonData.status?.used ?? {};
     this.spec.hard &&
       Object.keys(this.spec.hard).forEach(key => {
         if (key.startsWith('limits.')) {
           limits.push(
-            `${key}: ${normalizeUnit(key, this.status.used[key])}/${normalizeUnit(
+            `${key}: ${normalizeUnit(key, used[key] ?? '0')}/${normalizeUnit(
               key,
               this.spec.hard[key]
             )}`
@@ -100,12 +102,14 @@ class ResourceQuota extends KubeObject<KubeResourceQuota> {
 
   get resourceStats() {
     const stats: { name: string; hard: string; used: string }[] = [];
-    this.status.hard &&
-      Object.keys(this.status.hard).forEach(key => {
+    const status = this.jsonData.status;
+    const used = status?.used ?? {};
+    status?.hard &&
+      Object.keys(status.hard).forEach(key => {
         stats.push({
           name: key,
-          hard: `${this.status.hard[key]}`,
-          used: `${this.status.used[key]}`,
+          hard: `${status.hard[key]}`,
+          used: `${used[key] ?? '0'}`,
         });
       });
     return stats;

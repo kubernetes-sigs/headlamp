@@ -149,7 +149,7 @@ export function storeStatelessClusterKubeconfig(kubeconfig: string): Promise<voi
         // The onsuccess event is fired when the request has succeeded.
         // This is where you handle the results of the request.
         addRequest.onsuccess = function requestSuccess() {
-          console.log('Kubeconfig added to IndexedDB');
+          console.debug('Kubeconfig added to IndexedDB');
           resolve(); // Resolve the promise when the kubeconfig is successfully added
         };
 

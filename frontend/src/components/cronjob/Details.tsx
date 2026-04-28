@@ -149,7 +149,7 @@ export default function CronJobDetails(props: {
   const { items: jobs, errors } = Job.useList({ namespace, cluster: cronJob?.cluster });
   const [isSpawnDialogOpen, setIsSpawnDialogOpen] = useState(false);
   const [isPendingSuspend, setIsPendingSuspend] = useState(false);
-  const isCronSuspended = cronJob?.spec.suspend;
+  const isCronSuspended = cronJob?.spec?.suspend ?? false;
 
   const ownedJobs = useMemo(
     () =>
@@ -238,7 +238,7 @@ export default function CronJobDetails(props: {
           },
           {
             name: t('translation|Suspend'),
-            value: item.spec.suspend.toString(),
+            value: (item.spec?.suspend ?? false).toString(),
           },
           {
             name: t('Starting deadline'),

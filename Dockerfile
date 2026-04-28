@@ -1,10 +1,9 @@
 # syntax=docker/dockerfile:1
 # Final container image
-ARG IMAGE_BASE=alpine:3.22.2@sha256:4b7ce07002c69e8f3d704a9c5d6fd3053be500b7f1c69fc0d80990c2ad8dd412
+ARG IMAGE_BASE=alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
 FROM ${IMAGE_BASE} AS image-base
 
-
-FROM --platform=${BUILDPLATFORM} golang:1.24.11@sha256:cf1272dbf972a94f39a81dcb9dc243a8d2f981e5dd3b5a5c965f6d9ab9268b26 AS backend-build
+FROM --platform=${BUILDPLATFORM} golang:1.25.8@sha256:f55a6ec7f24aedc1ed66e2641fdc52de01f2d24d6e49d1fa38582c07dd5f601d AS backend-build
 
 WORKDIR /headlamp
 
@@ -12,10 +11,10 @@ ARG TARGETOS
 ARG TARGETARCH
 ENV GOPATH=/go \
     GOPROXY=https://proxy.golang.org \
-	GO111MODULE=on\
-	CGO_ENABLED=0\ 
-	GOOS=${TARGETOS}\
-	GOARCH=${TARGETARCH}
+    GO111MODULE=on\
+    CGO_ENABLED=0\ 
+    GOOS=${TARGETOS}\
+    GOARCH=${TARGETARCH}
 
 # Keep go mod download separated so source changes don't trigger install
 COPY ./backend/go.* /headlamp/backend/
@@ -28,7 +27,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     cd ./backend && go build -o ./headlamp-server ./cmd/
 
-FROM --platform=${BUILDPLATFORM} node:22@sha256:4ad2c2b350ab49fb637ab40a269ffe207c61818bb7eb3a4ea122001a0c605e1f AS frontend-build
+FROM --platform=${BUILDPLATFORM} node:22@sha256:f90672bf4c76dfc077d17be4c115b1ae7731d2e8558b457d86bca42aeb193866 AS frontend-build
 
 # We need .git and app/ in order to get the version and git version for the frontend/.env file
 # that's generated when building the frontend.
@@ -76,13 +75,13 @@ RUN ./fetch-plugins.sh /plugins/
 FROM image-base AS final
 
 RUN if command -v apt-get > /dev/null; then \
-        apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates \
-        && addgroup --system headlamp \
-        && adduser --system --ingroup headlamp headlamp \
-        && rm -rf /var/lib/apt/lists/*; \
+    apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && addgroup --system headlamp \
+    && adduser --system --ingroup headlamp headlamp \
+    && rm -rf /var/lib/apt/lists/*; \
     else \
-        addgroup -S headlamp && adduser -S headlamp -G headlamp; \
+    addgroup -S headlamp && adduser -S headlamp -G headlamp; \
     fi
 
 COPY --from=backend-build --link /headlamp/backend/headlamp-server /headlamp/headlamp-server

@@ -49,8 +49,8 @@ func buildUserAgent() string {
 	return fmt.Sprintf("%s %s (%s/%s)", AppName, Version, runtime.GOOS, runtime.GOARCH)
 }
 
-// TODO: Use a different way to avoid name clashes with other clusters.
-const InClusterContextName = "main"
+// DefaultInClusterContextName is the default name used for the in-cluster context.
+const DefaultInClusterContextName = "main"
 
 const (
 	KubeConfig = 1 << iota
@@ -162,7 +162,7 @@ func (o *CustomObject) DeepCopy() *CustomObject {
 	}
 
 	copied := &CustomObject{}
-	o.ObjectMeta.DeepCopyInto(&copied.ObjectMeta)
+	o.DeepCopyInto(&copied.ObjectMeta)
 	copied.TypeMeta = o.TypeMeta
 	copied.CustomName = o.CustomName
 
@@ -339,7 +339,7 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 	// Refer: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#using-kubectl.
 	caFilePath, ok := c.AuthInfo.AuthProvider.Config["idp-certificate-authority"]
 	if ok {
-		caFileContents, err := os.ReadFile(caFilePath)
+		caFileContents, err := os.ReadFile(caFilePath) //nolint:gosec
 		if err != nil {
 			return nil, fmt.Errorf("error reading ca file: %w", err)
 		}
@@ -460,7 +460,7 @@ type ContextLoadError struct {
 // It returns an error if the file cannot be read.
 // It will return valid (contexts, ContextLoadErrors,nil) and errors if there are any errors in the file.
 func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []ContextLoadError, error) {
-	data, err := os.ReadFile(kubeConfigPath)
+	data, err := os.ReadFile(kubeConfigPath) //nolint:gosec
 	if err != nil {
 		return nil, nil, fmt.Errorf("error reading kubeconfig file: %v", err)
 	}
@@ -521,7 +521,7 @@ func LoadContextsFromMultipleFiles(kubeConfigs string, source int) ([]Context, [
 // It unmarshals the kubeconfig data, extracts the contexts, and processes each context.
 // It returns valid contexts, contextLoadErrors and any errors that occurred during the process.
 func loadContextsFromData(data []byte, source int, skipProxySetup bool) ([]Context, []ContextLoadError, error) {
-	var contexts []Context //nolint:prealloc
+	var contexts []Context
 
 	var contextErrors []ContextLoadError
 
@@ -601,6 +601,10 @@ func ProcessContext(
 		errs = append(errs, err)
 	}
 
+	// Eagerly set context.Name so all error paths return a ContextLoadError
+	// with the correct ContextName, even if later steps fail.
+	context.Name = contextName
+
 	// Extract cluster and user names
 	clusterName, userName, err := extractClusterAndUserNames(contextMap, contextName)
 	if err != nil {
@@ -629,6 +633,11 @@ func ProcessContext(
 	context, err = convertToContext(contextName, singleConfig, source, skipProxySetup)
 	if err != nil {
 		errs = append(errs, err)
+		// convertToContext returns Context{} on error, losing the context name.
+		// Restore it so callers always receive a populated ContextLoadError.ContextName.
+		if context.Name == "" {
+			context.Name = contextName
+		}
 	}
 
 	return context, errors.Join(errs...)
@@ -662,9 +671,21 @@ func extractClusterAndUserNames(contextMap map[interface{}]interface{}, contextN
 		}
 	}
 
-	clusterName := contextData["cluster"].(string)
+	clusterName, ok := contextData["cluster"].(string)
+	if !ok {
+		return "", "", ContextError{
+			ContextName: contextName,
+			Reason:      fmt.Sprintf("missing or invalid cluster name: %v", contextData["cluster"]),
+		}
+	}
 
-	userName := contextData["user"].(string)
+	userName, ok := contextData["user"].(string)
+	if !ok {
+		return "", "", ContextError{
+			ContextName: contextName,
+			Reason:      fmt.Sprintf("missing or invalid user name: %v", contextData["user"]),
+		}
+	}
 
 	return clusterName, userName, nil
 }
@@ -851,7 +872,10 @@ func toStringKeyMap(m map[interface{}]interface{}) map[interface{}]interface{} {
 
 // getCluster gets the cluster details from the kubeconfig.
 func getCluster(kubeconfig map[string]interface{}, clusterName string) (map[interface{}]interface{}, error) {
-	clusters := kubeconfig["clusters"].([]interface{})
+	clusters, ok := kubeconfig["clusters"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid or missing clusters in kubeconfig")
+	}
 
 	for _, cluster := range clusters {
 		clusterMap, ok := cluster.(map[interface{}]interface{})
@@ -932,7 +956,7 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 	authInfo := clientConfig.AuthInfos[context.AuthInfo]
 
 	// Make contextName DNS friendly.
-	contextName = makeDNSFriendly(contextName)
+	contextName = MakeDNSFriendly(contextName)
 
 	newContext := Context{
 		Name:        contextName,
@@ -968,7 +992,7 @@ func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Conte
 		authInfo := config.AuthInfos[context.AuthInfo]
 
 		// Make contextName DNS friendly.
-		contextName = makeDNSFriendly(contextName)
+		contextName = MakeDNSFriendly(contextName)
 
 		context := Context{
 			Name:        contextName,
@@ -1002,7 +1026,9 @@ func splitKubeConfigPath(path string) []string {
 }
 
 // GetInClusterContext returns the in-cluster context.
-func GetInClusterContext(oidcIssuerURL string,
+func GetInClusterContext(
+	contextName string,
+	oidcIssuerURL string,
 	oidcClientID string, oidcClientSecret string,
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
@@ -1019,10 +1045,15 @@ func GetInClusterContext(oidcIssuerURL string,
 		CertificateAuthorityData: clusterConfig.CAData,
 	}
 
-	inClusterContext := &api.Context{
-		Cluster:  InClusterContextName,
-		AuthInfo: InClusterContextName,
+	if strings.TrimSpace(contextName) == "" {
+		contextName = DefaultInClusterContextName
 	}
+
+	inClusterContext := &api.Context{
+		Cluster:  contextName,
+		AuthInfo: contextName,
+	}
+	contextName = MakeDNSFriendly(contextName)
 
 	inClusterAuthInfo := &api.AuthInfo{}
 
@@ -1041,7 +1072,7 @@ func GetInClusterContext(oidcIssuerURL string,
 	}
 
 	return &Context{
-		Name:        InClusterContextName,
+		Name:        contextName,
 		KubeContext: inClusterContext,
 		Cluster:     cluster,
 		AuthInfo:    inClusterAuthInfo,
@@ -1083,7 +1114,7 @@ func SkipKubeContextInCommaSeparatedString(blackKubeContextNameStr string) shoul
 func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, source int,
 	ignoreFunc shouldBeSkippedFunc,
 ) error {
-	var errs []error //nolint:prealloc
+	var errs []error
 
 	kubeConfigContexts, contextErrors, err := LoadContextsFromMultipleFiles(kubeConfigs, source)
 	if err != nil {
@@ -1116,8 +1147,8 @@ func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, s
 	return errors.Join(errs...)
 }
 
-// makeDNSFriendly converts a string to a DNS-friendly format.
-func makeDNSFriendly(name string) string {
+// MakeDNSFriendly converts a string to a DNS-friendly format.
+func MakeDNSFriendly(name string) string {
 	name = strings.ReplaceAll(name, "/", "--")
 	name = strings.ReplaceAll(name, " ", "__")
 

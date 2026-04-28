@@ -1,6 +1,8 @@
 package kubeconfig_test
 
 import (
+	"context"
+	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -14,6 +16,10 @@ import (
 
 //nolint:funlen
 func TestWatchAndLoadFiles(t *testing.T) {
+	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {
+		t.Skip("skipping integration test")
+	}
+
 	paths := []string{"./test_data/kubeconfig1", "./test_data/kubeconfig2"}
 
 	var path string
@@ -25,7 +31,10 @@ func TestWatchAndLoadFiles(t *testing.T) {
 
 	kubeConfigStore := kubeconfig.NewContextStore()
 
-	go kubeconfig.LoadAndWatchFiles(kubeConfigStore, path, kubeconfig.KubeConfig, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // Ensure the watcher goroutine is stopped when the test ends
+
+	go kubeconfig.LoadAndWatchFiles(ctx, kubeConfigStore, path, kubeconfig.KubeConfig, nil)
 
 	// Test adding a context
 	t.Run("Add context", func(t *testing.T) {

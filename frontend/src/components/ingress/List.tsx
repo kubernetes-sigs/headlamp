@@ -95,6 +95,7 @@ export default function IngressList() {
           getValue: () => '',
           render: (ingress: Ingress) => <RulesDisplay ingress={ingress} />,
         },
+        'labels',
         'age',
       ]}
     />

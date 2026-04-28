@@ -19,7 +19,6 @@ import Grid from '@mui/material/Grid';
 import React, { ReactNode } from 'react';
 import { ValueLabel } from '../Label';
 
-// TODO: use ReactNode after migration to react 18
 export interface NameValueTableRow {
   /** The name (key) for this row */
   name: ReactNode;
@@ -123,7 +122,8 @@ export default function NameValueTable(props: NameValueTableProps) {
               item
               key={i}
               xs={12}
-              sm={hideValueGridItem ? 12 : 4}
+              sm={hideValueGridItem ? 12 : 3}
+              md={hideValueGridItem ? 12 : 2}
               component="dt"
               className={className}
               id={nameID}
@@ -139,7 +139,8 @@ export default function NameValueTable(props: NameValueTableProps) {
                   fontSize: '1rem',
                   textAlign: 'left',
                   maxWidth: '100%',
-                  minWidth: '10rem',
+                  minWidth: 0,
+                  wordBreak: 'break-word',
                   verticalAlign: 'top',
                   color: theme.palette.text.secondary,
                   borderBottom:
@@ -168,7 +169,8 @@ export default function NameValueTable(props: NameValueTableProps) {
                 item
                 key={i + 10000}
                 xs={12}
-                sm={valueFullRow ? 12 : 8}
+                sm={valueFullRow ? 12 : 9}
+                md={valueFullRow ? 12 : 10}
                 component="dd"
                 sx={theme => {
                   const extra = withHighlightStyle

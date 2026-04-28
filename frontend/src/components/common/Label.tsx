@@ -104,9 +104,12 @@ export const StatusLabel = forwardRef<HTMLSpanElement, StatusLabelProps>((props,
       borderColor: theme.palette.divider,
     };
   } else if (isLight) {
+    const bg = baseColor;
+    const fg = status === 'warning' ? '#000000ff' : theme.palette.getContrastText(bg);
+
     params = {
-      backgroundColor: baseColor,
-      color: theme.palette.getContrastText(baseColor),
+      backgroundColor: bg,
+      color: fg,
       borderColor: 'transparent',
     };
   } else {
@@ -262,6 +265,7 @@ function TimeAgo({ date, format }: { date: number | string | Date; format?: Date
     }, 1_000);
 
     return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return formattedDate;

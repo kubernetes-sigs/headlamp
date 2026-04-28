@@ -58,17 +58,35 @@ const (
 )
 
 // Watch watches the given path for changes and sends the events to the notify channel.
-func Watch(path string, notify chan<- string) {
+// It runs until the provided context is cancelled.
+func Watch(ctx context.Context, path string, notify chan<- string) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "creating watcher")
-	}
-	defer watcher.Close()
 
-	go periodicallyWatchSubfolders(watcher, path, subFolderWatchInterval)
+		return
+	}
+
+	defer func() { _ = watcher.Close() }()
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Log(logger.LevelError, nil,
+					fmt.Errorf("panic in periodicallyWatchSubfolders: %v", r),
+					"Plugin watcher recovered from panic")
+			}
+		}()
+
+		periodicallyWatchSubfolders(ctx, watcher, path, subFolderWatchInterval)
+	}()
 
 	for {
 		select {
+		case <-ctx.Done():
+			logger.Log(logger.LevelInfo, nil, nil, "watcher: shutting down plugin watcher")
+
+			return
 		case event := <-watcher.Events:
 			notify <- event.Name + ":" + event.Op.String()
 		case err := <-watcher.Errors:
@@ -79,11 +97,9 @@ func Watch(path string, notify chan<- string) {
 
 // periodicallyWatchSubfolders periodically walks the path and adds any new directories to the watcher.
 // This is needed because fsnotify doesn't watch subfolders.
-func periodicallyWatchSubfolders(watcher *fsnotify.Watcher, path string, interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for ; true; <-ticker.C {
+// It runs until the provided context is cancelled.
+func periodicallyWatchSubfolders(ctx context.Context, watcher *fsnotify.Watcher, path string, interval time.Duration) {
+	walk := func() {
 		// Walk the path and add any new directories to the watcher.
 		_ = filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
 			if d != nil && d.IsDir() && !slices.Contains(watcher.WatchList(), path) {
@@ -110,6 +126,21 @@ func periodicallyWatchSubfolders(watcher *fsnotify.Watcher, path string, interva
 
 			return nil
 		})
+	}
+
+	// Initial walk
+	walk()
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			walk()
+		}
 	}
 }
 
@@ -220,7 +251,7 @@ func GeneratePluginPaths(
 func isCatalogInstalledPlugin(pluginDir, pluginName string) bool {
 	packageJSONPath := filepath.Join(pluginDir, pluginName, "package.json")
 
-	content, err := os.ReadFile(packageJSONPath)
+	content, err := os.ReadFile(packageJSONPath) //nolint:gosec
 	if err != nil {
 		return false
 	}
@@ -247,7 +278,7 @@ func ListPlugins(staticPluginDir, userPluginDir, pluginDir string) error {
 	getPluginName := func(pluginDir string) string {
 		packageJSONPath := filepath.Join(pluginDir, "package.json")
 
-		content, err := os.ReadFile(packageJSONPath)
+		content, err := os.ReadFile(packageJSONPath) //nolint:gosec
 		if err != nil {
 			// If there's an error reading package.json, just return the folder name as fallback.
 			return filepath.Base(pluginDir)

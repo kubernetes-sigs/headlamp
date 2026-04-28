@@ -21,6 +21,7 @@ import { Meta, StoryFn } from '@storybook/react';
 import { useLocation } from 'react-router-dom';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { useFilterFunc } from '../../../lib/util';
+import shortcutsReducer from '../../../redux/shortcutsSlice';
 import { TestContext, TestContextProps } from '../../../test';
 import SectionFilterHeader from '../SectionFilterHeader';
 import Table, { TableProps } from './Table';
@@ -264,6 +265,7 @@ const TemplateWithFilter: StoryFn<{
       state = {
         filter: { namespaces: new Set<string>(), search: '' },
         config: { settings: { tableRowsPerPageOptions: [10, 20, 50, 100] } },
+        shortcuts: { ...shortcutsReducer(undefined, { type: '' }) },
       }
     ) => state,
     preloadedState: {
@@ -276,6 +278,7 @@ const TemplateWithFilter: StoryFn<{
           tableRowsPerPageOptions: [10, 20, 50, 100],
         },
       },
+      shortcuts: { ...shortcutsReducer(undefined, { type: '' }) },
     },
   });
 

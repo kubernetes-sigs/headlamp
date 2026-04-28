@@ -1,8 +1,9 @@
 <body>
   <div>
     <div
-      aria-labelledby="#recent-clusters-label"
+      aria-labelledby="recent-clusters-label"
       class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-2 css-1vj4bu4-MuiGrid-root"
+      role="group"
     >
       <div
         class="MuiGrid-root MuiGrid-container MuiGrid-item css-lx31tv-MuiGrid-root"

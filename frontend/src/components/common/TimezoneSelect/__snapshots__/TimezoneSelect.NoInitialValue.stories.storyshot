@@ -14,6 +14,7 @@
             aria-describedby="cluster-selector-autocomplete-helper-text"
             aria-expanded="false"
             aria-invalid="false"
+            aria-label="Timezone"
             autocapitalize="none"
             autocomplete="off"
             class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
@@ -51,10 +52,10 @@
           </div>
           <fieldset
             aria-hidden="true"
-            class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+            class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
           >
             <legend
-              class="css-ihdtdm"
+              class="css-1whs34k-MuiNotchedOutlined-root"
             >
               <span
                 class="notranslate"

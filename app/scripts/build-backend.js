@@ -11,14 +11,21 @@ exports.default = async context => {
   }
 
   let osName = '';
+  let goos = '';
   if (context.platform.name === 'windows') {
     osName = 'Windows_NT';
+    goos = 'windows';
+  } else if (context.platform.name === 'mac') {
+    goos = 'darwin';
+  } else if (context.platform.name === 'linux') {
+    goos = 'linux';
   }
 
   execSync('make backend', {
     env: {
       ...process.env, // needed otherwise important vars like PATH and GOROOT are not set
       GOARCH: arch,
+      GOOS: goos,
       OS: osName,
     },
     cwd: '..',

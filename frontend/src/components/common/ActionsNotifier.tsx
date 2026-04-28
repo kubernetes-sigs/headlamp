@@ -112,6 +112,7 @@ function PureActionsNotifier({ dispatch, clusterActions }: PureActionsNotifierPr
     return () => {
       Object.keys(snackbarRefs.current).forEach(key => {
         closeSnackbar(snackbarRefs.current[key]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         delete snackbarRefs.current[key];
       });
     };

@@ -71,6 +71,7 @@ func stopOrDeletePortForward(cache cache.Cache[interface{}], cluster string, id 
 	if isStopRequest {
 		// close the channel to stop the portforward
 		portforward.closeChan <- struct{}{}
+
 		portforward.Status = STOPPED
 		portforwardstore(cache, portforward)
 	} else {

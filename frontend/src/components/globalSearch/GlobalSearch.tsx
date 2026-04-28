@@ -22,10 +22,9 @@ import InputAdornment from '@mui/material/InputAdornment';
 import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { alpha } from '@mui/system/colorManipulator';
 import { lazy, Suspense, useState } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
 import { Trans, useTranslation } from 'react-i18next';
+import { formatShortcutKey, useShortcut, useShortcutKey } from '../../lib/useShortcut';
 import { Delayed } from './Delayed';
 
 const LazySearchContent = lazy(async () => {
@@ -51,8 +50,9 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
     setPlaceholderValue('');
   };
 
-  useHotkeys('/', e => {
-    e.preventDefault();
+  const searchShortcutKey = useShortcutKey('GLOBAL_SEARCH');
+
+  useShortcut('GLOBAL_SEARCH', e => {
     e.stopPropagation();
     setFocused(true);
   });
@@ -63,19 +63,30 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
   const textFieldPlaceholder = smallBreakpoint ? (
     <IconButton
       size="medium"
+      color={isIconButton ? 'inherit' : undefined}
       sx={
         isIconButton
           ? undefined
           : {
               borderRadius: '4px',
               fontSize: '1rem',
+              fontFamily: theme.typography.fontFamily,
+              color: theme.palette.text.secondary,
               border: '1px solid',
               borderColor: theme.palette.divider,
+              background: theme.palette.background.default,
+              '&:hover': { background: theme.palette.background.muted },
             }
       }
       onClick={() => setFocused(true)}
+      aria-label={isIconButton ? t('Search') : undefined}
     >
-      <Icon icon="mdi:search" width={iconSize} height={iconSize} />
+      <Icon
+        icon="mdi:search"
+        width={iconSize}
+        height={iconSize}
+        color={isIconButton ? undefined : theme.palette.text.primary}
+      />
       {!isIconButton && <Box mx={1}>{t('Search')}</Box>}
     </IconButton>
   ) : (
@@ -87,11 +98,17 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
       placeholder={t('Search')}
       InputProps={{
         sx: theme => ({
-          background: alpha(theme.palette.background.default, 0.7),
+          background: theme.palette.background.default,
         }),
         startAdornment: (
           <InputAdornment position="start" sx={{ pointerEvents: 'none' }}>
-            <Icon icon="mdi:search" width={18} height={18} />
+            <Icon
+              icon="mdi:search"
+              width={18}
+              height={18}
+              color={theme.palette.text.primary}
+              aria-hidden
+            />
           </InputAdornment>
         ),
         endAdornment: (
@@ -99,8 +116,10 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
             <Trans>
               Press
               <Box
+                component="kbd"
                 sx={theme => ({
-                  fontSize: '14px',
+                  fontSize: '12px',
+                  fontFamily: 'monospace',
                   border: '1px solid',
                   borderRadius: '4px',
                   borderColor: theme.palette.divider,
@@ -108,11 +127,12 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  width: '24px',
+                  minWidth: '24px',
                   height: '24px',
+                  px: 0.5,
                 })}
               >
-                /
+                {formatShortcutKey(searchShortcutKey)}
               </Box>
               to search
             </Trans>
@@ -130,6 +150,7 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
       variant="outlined"
       placeholder={t('Search resources, pages, clusters by name')}
       InputProps={{
+        sx: theme => ({ background: theme.palette.background.default }),
         autoFocus: true,
         value: placeholderValue,
         onChange: e => {
@@ -181,7 +202,7 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
               width: '100%',
               left: 0,
               right: 0,
-              background: theme.palette.background.default,
+              background: theme.palette.navbar.background,
               zIndex: 1,
             }
           : {}),

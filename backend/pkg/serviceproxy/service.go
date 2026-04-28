@@ -26,8 +26,8 @@ type proxyService struct {
 }
 
 // GetService returns the requested service based on the provided name and namespace.
-func GetService(cs kubernetes.Interface, namespace string, name string) (*proxyService, error) {
-	service, err := cs.CoreV1().Services(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+func GetService(ctx context.Context, cs kubernetes.Interface, namespace string, name string) (*proxyService, error) {
+	service, err := cs.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}

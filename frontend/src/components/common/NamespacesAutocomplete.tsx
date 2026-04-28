@@ -110,6 +110,7 @@ export function PureNamespacesAutocomplete({
       id="namespaces-filter"
       autoComplete
       openOnFocus
+      disableCloseOnSelect
       options={namespaceNames}
       onChange={onChange}
       onInputChange={onInputChange}
@@ -258,6 +259,7 @@ const useDefaultNamespaceFallback = (
         dispatch(setNamespaceFilter([defaultNamespaceFromKubeconfig]));
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [namespacesList, isNamespaceError, currentCluster]);
 };
 

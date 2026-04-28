@@ -27,6 +27,30 @@ Once built, it can be run in development mode (insecure / don't use in productio
 npm run backend:start
 ```
 
+## Logging configuration
+
+Headlamp’s backend supports configurable log levels to control verbosity.
+
+Log level can be configured using either a flag or an environment variable:
+- the log level: `--log-level` or env var `HEADLAMP_CONFIG_LOG_LEVEL`
+
+Supported Values:
+- `debug`
+- `info` (default)
+- `warn` 
+- `error`
+
+> **Note:** Headlamp uses zerolog defaults.  
+> Zerolog’s default log level is `info`, and Headlamp follows this behavior.
+
+### Examples
+
+Run with warning level:
+
+```bash
+./headlamp-server --log-level warn
+```
+
 ## Lint
 
 To lint the backend/ code.
@@ -65,4 +89,18 @@ To just print a simpler coverage report to the console.
 ```bash
 npm run backend:coverage
 ```
+
+## Fuzz Testing
+
+Some backend functions include fuzz tests using Go's native fuzzing support. For example, the `SanitizeClusterName` function in `backend/pkg/auth` has a fuzz test.
+
+To run fuzz tests:
+
+```bash
+npm run backend:fuzz
+```
+
+This will run fuzz tests in the `backend/pkg/auth` package for 30 seconds. The fuzz corpus (interesting test cases discovered during fuzzing) is stored in `testdata/fuzz/` directories and committed to the repository for regression testing.
+
+For more information about Go fuzzing, see the [official Go fuzzing documentation](https://go.dev/security/fuzz/).
 

@@ -35,6 +35,7 @@ import { setTheme, useAppThemes } from '../themeSlice';
 import DrawerModeSettings from './DrawerModeSettings';
 import { useSettings } from './hook';
 import NumRowsInput from './NumRowsInput';
+import { ShortcutsList } from './ShortcutsSettings';
 import { ThemePreview } from './ThemePreview';
 
 export default function Settings() {
@@ -59,6 +60,7 @@ export default function Settings() {
         timezone: selectedTimezone,
       })
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTimezone]);
 
   useEffect(() => {
@@ -67,6 +69,7 @@ export default function Settings() {
         sidebarSortAlphabetically: sortSidebar,
       })
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortSidebar]);
 
   useEffect(() => {
@@ -75,6 +78,7 @@ export default function Settings() {
         useEvict: useEvict,
       })
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useEvict]);
 
   const sidebarLabelID = 'sort-sidebar-label';
@@ -242,6 +246,21 @@ export default function Settings() {
             ))}
           </Box>
         </Box>
+      </Box>
+      <Box sx={{ mt: 4 }}>
+        <SectionBox
+          title={t('translation|Keyboard Shortcuts')}
+          headerProps={{
+            headerStyle: 'subsection',
+          }}
+        >
+          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            {t(
+              'translation|Configure keyboard shortcuts for quick access to various parts of the application.'
+            )}
+          </Typography>
+          <ShortcutsList />
+        </SectionBox>
       </Box>
     </SectionBox>
   );

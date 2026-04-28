@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	defaultPort = 4466
-	osWindows   = "windows"
+	defaultPort       = 4466
+	defaultSessionTTL = 86400 // 24 hours in seconds
+	osWindows         = "windows"
 )
 
 const (
@@ -32,10 +33,12 @@ const (
 )
 
 type Config struct {
-	Version     bool `koanf:"version"`
-	InCluster   bool `koanf:"in-cluster"`
-	DevMode     bool `koanf:"dev"`
-	InsecureSsl bool `koanf:"insecure-ssl"`
+	Version              bool   `koanf:"version"`
+	InCluster            bool   `koanf:"in-cluster"`
+	InClusterContextName string `koanf:"in-cluster-context-name"`
+	DevMode              bool   `koanf:"dev"`
+	InsecureSsl          bool   `koanf:"insecure-ssl"`
+	LogLevel             string `koanf:"log-level"`
 	// NoBrowser disables automatically opening the default browser when running
 	// a locally embedded Headlamp binary (non in-cluster with spa.UseEmbeddedFiles == true).
 	// It has no effect in in-cluster mode or when running without embedded frontend.
@@ -43,6 +46,7 @@ type Config struct {
 	CacheEnabled              bool   `koanf:"cache-enabled"`
 	EnableHelm                bool   `koanf:"enable-helm"`
 	EnableDynamicClusters     bool   `koanf:"enable-dynamic-clusters"`
+	AllowKubeconfigChanges    bool   `koanf:"allow-kubeconfig-changes"`
 	ListenAddr                string `koanf:"listen-addr"`
 	WatchPluginsChanges       bool   `koanf:"watch-plugins-changes"`
 	Port                      uint   `koanf:"port"`
@@ -52,6 +56,7 @@ type Config struct {
 	PluginsDir                string `koanf:"plugins-dir"`
 	UserPluginsDir            string `koanf:"user-plugins-dir"`
 	BaseURL                   string `koanf:"base-url"`
+	SessionTTL                int    `koanf:"session-ttl"`
 	ProxyURLs                 string `koanf:"proxy-urls"`
 	OidcClientID              string `koanf:"oidc-client-id"`
 	OidcValidatorClientID     string `koanf:"oidc-validator-client-id"`
@@ -61,6 +66,7 @@ type Config struct {
 	OidcValidatorIdpIssuerURL string `koanf:"oidc-validator-idp-issuer-url"`
 	OidcScopes                string `koanf:"oidc-scopes"`
 	OidcUseAccessToken        bool   `koanf:"oidc-use-access-token"`
+	OidcUseCookie             bool   `koanf:"oidc-use-cookie"`
 	OidcSkipTLSVerify         bool   `koanf:"oidc-skip-tls-verify"`
 	OidcCAFile                string `koanf:"oidc-ca-file"`
 	MeUsernamePath            string `koanf:"me-username-path"`
@@ -84,10 +90,11 @@ type Config struct {
 }
 
 func (c *Config) Validate() error {
-	if !c.InCluster && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
+	if !c.InCluster && !c.OidcUseCookie && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
 		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
-		return errors.New(`oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, oidc-validator-client-id,
-		oidc-validator-idp-issuer-url, flags are only meant to be used in inCluster mode`)
+		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
+			"oidc-validator-client-id, oidc-validator-idp-issuer-url, flags are only " +
+			"meant to be used in inCluster mode or with --oidc-use-cookie")
 	}
 
 	// OIDC TLS verification warning.
@@ -111,6 +118,16 @@ func (c *Config) Validate() error {
 
 	if c.BaseURL != "" && !strings.HasPrefix(c.BaseURL, "/") {
 		return errors.New("base-url needs to start with a '/' or be empty")
+	}
+
+	if c.SessionTTL <= 0 {
+		return errors.New("session-ttl cannot be negative or equal to zero")
+	}
+
+	const oneYearInSeconds = 31536000
+
+	if c.SessionTTL > oneYearInSeconds {
+		return errors.New("session-ttl cannot be greater than 1 year")
 	}
 
 	if c.TracingEnabled != nil && *c.TracingEnabled {
@@ -344,7 +361,6 @@ func Parse(args []string) (*Config, error) {
 // files of clusters that are loaded in Headlamp.
 func MakeHeadlampKubeConfigsDir() (string, error) {
 	userConfigDir, err := os.UserConfigDir()
-
 	if err == nil {
 		kubeConfigDir := filepath.Join(userConfigDir, "Headlamp", "kubeconfigs")
 		if runtime.GOOS == osWindows {
@@ -412,11 +428,16 @@ func flagset() *flag.FlagSet {
 func addGeneralFlags(f *flag.FlagSet) {
 	f.Bool("version", false, "Print version information and exit")
 	f.Bool("in-cluster", false, "Set when running from a k8s cluster")
+	f.String("in-cluster-context-name", "main", "Name to use for the in-cluster Kubernetes context")
 	f.Bool("dev", false, "Allow connections from other origins")
 	f.Bool("cache-enabled", false, "K8s cache in backend")
 	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
+	f.String("log-level", "info", "Set backend log verbosity. Options: debug, info (default), warn, error")
 	f.Bool("enable-dynamic-clusters", false, "Enable dynamic clusters, which stores stateless clusters in the frontend.")
+	f.Bool("allow-kubeconfig-changes", false,
+		"Allow Headlamp to make changes to the known kubeconfigs when needed. "+
+			"E.g. to remove a cluster via the UI. May not be recommendable when Headlamp is deployed as a service.")
 	// Note: When running in-cluster and if not explicitly set, this flag defaults to false.
 	f.Bool("watch-plugins-changes", true, "Reloads plugins when there are changes to them or their directory")
 
@@ -426,6 +447,8 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.String("plugins-dir", defaultPluginDir(), "Specify the plugins directory to build the backend with")
 	f.String("user-plugins-dir", defaultUserPluginDir(), "Specify the user-installed plugins directory")
 	f.String("base-url", "", "Base URL path. eg. /headlamp")
+	f.Int("session-ttl", defaultSessionTTL, "The time in seconds for the session to be valid"+
+		"(Default: 86400/24h, Min: 1 , Max: 31536000/1yr )")
 	f.String("listen-addr", "", "Address to listen on; default is empty, which means listening to any address")
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
@@ -443,6 +466,7 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.Bool("oidc-skip-tls-verify", false, "Skip TLS verification for OIDC")
 	f.String("oidc-ca-file", "", "CA file for OIDC")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
+	f.Bool("oidc-use-cookie", false, "Enable OIDC cookie usage even when not running in-cluster")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")

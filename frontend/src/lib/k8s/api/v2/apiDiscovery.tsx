@@ -243,11 +243,19 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
                   );
                 }
               }
-            } catch (e) {}
+            } catch (e) {
+              console.debug(
+                `Failed to fetch group API resources for cluster ${cluster}:`,
+                { group: group?.name, version: group?.preferredVersion?.version },
+                e
+              );
+            }
           });
           await Promise.allSettled(groupResourceFetchPromises);
         }
-      } catch (legacyError) {}
+      } catch (legacyError) {
+        console.debug(`Failed to fetch legacy API resources for cluster ${cluster}:`, legacyError);
+      }
     }
   }
 

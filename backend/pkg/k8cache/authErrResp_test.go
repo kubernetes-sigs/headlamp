@@ -14,6 +14,7 @@
 package k8cache_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -47,7 +48,7 @@ func TestIsAuthBypassUR(t *testing.T) {
 func TestReturnAuthErrorResponse(t *testing.T) {
 	rr := httptest.NewRecorder()
 
-	req := httptest.NewRequest("GET", "/apis/v1/resource", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/apis/v1/resource", nil)
 
 	err := k8cache.ReturnAuthErrorResponse(rr, req, "test-context")
 	assert.NoError(t, err)
@@ -55,6 +56,7 @@ func TestReturnAuthErrorResponse(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 
 	var resp k8cache.AuthErrResponse
+
 	err = json.Unmarshal(rr.Body.Bytes(), &resp)
 	assert.NoError(t, err)
 

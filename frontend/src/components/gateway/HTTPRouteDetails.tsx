@@ -151,7 +151,7 @@ export function RuleBackendRefs(props: RuleBackendRefsProps) {
   if (!backendRefs) {
     return null;
   }
-  console.log(namespace, backendRefs);
+
   return (
     <InnerTable
       columns={[

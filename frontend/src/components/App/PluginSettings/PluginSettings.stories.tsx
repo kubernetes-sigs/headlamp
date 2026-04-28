@@ -22,6 +22,13 @@ import { PluginSettingsPure, PluginSettingsPureProps } from './PluginSettings';
 export default {
   title: 'Settings/PluginSettings',
   component: PluginSettingsPure,
+  decorators: [
+    Story => (
+      <div aria-label="Plugin Settings Test Page">
+        <Story />
+      </div>
+    ),
+  ],
 } as Meta;
 
 const Template: StoryFn<PluginSettingsPureProps> = args => (

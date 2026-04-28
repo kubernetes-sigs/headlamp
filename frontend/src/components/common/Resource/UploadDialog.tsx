@@ -70,6 +70,7 @@ const UploadFromFilesystem = ({
   const [files, setFiles] = React.useState<File[]>([]);
   const [dragOver, setDragOver] = React.useState(false);
   const [error, setError] = React.useState('');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const onFilesPicked = (picked: FileList | null) => {
     setError('');
@@ -121,20 +122,21 @@ const UploadFromFilesystem = ({
             ? t('translation|Drop the file here...')
             : t('translation|Select a file or drag and drop here')}
         </Typography>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".yaml,.yml,application/yaml"
+          multiple
+          hidden
+          onChange={e => onFilesPicked(e.target.files)}
+        />
         <Button
           variant="contained"
-          component="label"
+          onClick={() => fileInputRef.current?.click()}
           startIcon={<InlineIcon icon="mdi:upload" width={32} />}
           sx={{ fontWeight: 500 }}
         >
           {t('translation|Select File')}
-          <input
-            type="file"
-            accept=".yaml,.yml,application/yaml"
-            multiple
-            hidden
-            onChange={e => onFilesPicked(e.target.files)}
-          />
         </Button>
       </DropZoneBox>
       {!!files.length && (

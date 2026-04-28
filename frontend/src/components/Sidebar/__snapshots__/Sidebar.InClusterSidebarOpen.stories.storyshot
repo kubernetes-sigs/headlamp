@@ -11,7 +11,6 @@
           class="MuiPaper-root MuiPaper-outlined MuiDrawer-paper MuiDrawer-paperAnchorLeft MuiDrawer-paperAnchorDockedLeft css-2vc5z5-MuiPaper-root-MuiDrawer-paper"
         >
           <div
-            aria-hidden="false"
             class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column MuiGrid-wrap-xs-nowrap css-opqjvv-MuiGrid-root"
           >
             <div
@@ -500,6 +499,29 @@
                                   class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
                                 >
                                   Storage Classes
+                                </span>
+                              </div>
+                              <span
+                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              />
+                            </a>
+                          </li>
+                          <li
+                            class="css-1gktw5r"
+                          >
+                            <a
+                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
+                              href="/"
+                              role="button"
+                              tabindex="0"
+                            >
+                              <div
+                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
+                              >
+                                <span
+                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                                >
+                                  Volume Attributes Classes
                                 </span>
                               </div>
                               <span

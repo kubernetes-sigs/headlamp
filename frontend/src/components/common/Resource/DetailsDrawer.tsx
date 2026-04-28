@@ -17,6 +17,7 @@
 import Box from '@mui/material/Box';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { setSelectedResource } from '../../../redux/drawerModeSlice';
@@ -32,9 +33,29 @@ export default function DetailsDrawer() {
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('md'));
   const isDetailDrawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
 
-  function closeDrawer() {
+  const drawerRef = useRef<HTMLDivElement>(null);
+
+  const closeDrawer = useCallback(() => {
     dispatch(setSelectedResource(undefined));
-  }
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (selectedResource && !isSmallScreen && isDetailDrawerEnabled && drawerRef.current) {
+      drawerRef.current.focus();
+    }
+  }, [selectedResource, isSmallScreen, isDetailDrawerEnabled]);
+
+  useEffect(() => {
+    const mainElement = document.getElementById('main');
+    if (!mainElement) return;
+
+    if (selectedResource && !isSmallScreen && isDetailDrawerEnabled) {
+      mainElement.setAttribute('inert', '');
+      return () => {
+        mainElement.removeAttribute('inert');
+      };
+    }
+  }, [selectedResource, isSmallScreen, isDetailDrawerEnabled]);
 
   if (!selectedResource || isSmallScreen || !isDetailDrawerEnabled) {
     return null;
@@ -42,6 +63,8 @@ export default function DetailsDrawer() {
 
   return (
     <Box
+      ref={drawerRef}
+      tabIndex={-1}
       sx={{
         position: 'absolute',
         backgroundColor: 'background.paper',
@@ -54,9 +77,13 @@ export default function DetailsDrawer() {
         zIndex: 1,
         border: '1px solid',
         borderColor: theme.palette.divider,
+        outline: 'none',
       }}
-      role="complementary"
+      role="dialog"
+      aria-label={t('Resource details')}
       aria-describedby="resource-details-content"
+      aria-modal="true"
+      data-details-drawer="true"
     >
       <Box
         sx={{

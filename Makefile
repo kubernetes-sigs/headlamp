@@ -8,8 +8,24 @@ DOCKER_REPO ?= ghcr.io/headlamp-k8s
 DOCKER_EXT_REPO ?= docker.io/headlamp
 DOCKER_IMAGE_NAME ?= headlamp
 DOCKER_PLUGINS_IMAGE_NAME ?= plugins
-DOCKER_IMAGE_VERSION ?= $(shell git describe --tags --always --dirty)
-DOCKER_PLATFORM ?= local
+DOCKER_IMAGE_VERSION ?= $(shell git describe --tags --match 'v*' --always --dirty)
+DOCKER_IMAGE_EXTRA_TAG ?=
+# Detect platform (Windows, macOS, Linux)
+ifeq ($(OS),Windows_NT)
+    DOCKER_PLATFORM ?= local
+else
+    UNAME_S := $(shell uname -s)
+    ifeq ($(UNAME_S),Darwin)
+        UNAME_M := $(shell uname -m)
+        ifeq ($(UNAME_M),arm64)
+            DOCKER_PLATFORM ?= linux/arm64
+        else
+            DOCKER_PLATFORM ?= linux/amd64
+        endif
+    else
+        DOCKER_PLATFORM ?= local
+    endif
+endif
 DOCKER_PUSH ?= false
 EMBED_BINARY_NAME := headlamp_app
 # Get version and app name from app/package.json
@@ -39,13 +55,25 @@ endif
 all: backend frontend
 
 tools/golangci-lint: backend/go.mod backend/go.sum
-	GOBIN=`pwd`/backend/tools go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64
+ifeq ($(UNIXSHELL), true)
+	GOBIN=`pwd`/backend/tools go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.3
+else
+	powershell -Command "$$env:GOBIN='$(CURDIR)/backend/tools'; go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.3"
+endif
 
 backend-lint: tools/golangci-lint
+ifeq ($(UNIXSHELL), true)
 	cd backend && ./tools/golangci-lint run
+else
+	cd backend && tools\golangci-lint.exe run
+endif
 
 backend-lint-fix: tools/golangci-lint
+ifeq ($(UNIXSHELL), true)
 	cd backend && ./tools/golangci-lint run --fix
+else
+	cd backend && tools\golangci-lint.exe run --fix
+endif
 
 frontend/build:
 	make frontend
@@ -194,6 +222,10 @@ backend-embed-linux-386:
 backend-test:
 	cd backend && go test -v -p 1 ./...
 
+.PHONY: backend-fuzz
+backend-fuzz:
+	npm run backend:fuzz
+
 .PHONY: backend-coverage
 backend-coverage:
 	cd backend && go test -v -p 1 -coverprofile=coverage.out ./...
@@ -222,6 +254,10 @@ frontend: frontend-install
 frontend-build:
 	cd frontend && npm run build
 
+.PHONY: frontend-build-rsbuild
+frontend-build-rsbuild:
+	cd frontend && npm run build:rsbuild
+
 .PHONY: frontend-build-storybook
 frontend-build-storybook:
 	cd frontend && npm run build-storybook
@@ -230,10 +266,10 @@ run-backend:
 	@echo "**** Warning: Running with Helm and dynamic-clusters endpoints enabled. ****"
 
 ifeq ($(UNIXSHELL),true)
-	HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
+	HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
 else
 	@echo "**** Running on Windows without bash or zsh. ****"
-	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
+	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
 endif
 
 run-dev:
@@ -247,10 +283,11 @@ ifeq ($(UNIXSHELL),true)
     HEADLAMP_CONFIG_METRICS_ENABLED=true \
     HEADLAMP_CONFIG_ENABLE_HELM=true \
     HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true \
+    HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true \
     ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
 else
 	@echo "**** Running on Windows without bash or zsh. ****"
-	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_METRICS_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
+	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_METRICS_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
 endif
 
 run-backend-with-traces:
@@ -260,10 +297,11 @@ ifeq ($(UNIXSHELL),true)
     HEADLAMP_CONFIG_TRACING_ENABLED=true \
     HEADLAMP_CONFIG_ENABLE_HELM=true \
     HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true \
+    HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true \
     ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
 else
 	@echo "**** Running on Windows without bash or zsh. ****"
-	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_TRACING_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
+	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_TRACING_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
 endif
 
 run-frontend:
@@ -280,7 +318,7 @@ run-only-app:
 	cd app && npm install && node ./scripts/setup-plugins.js && npm run dev-only-app
 
 frontend-lint:
-	cd frontend && npm run lint -- --max-warnings 0 && npm run format-check
+	cd frontend && npm run lint && npm run format-check
 
 frontend-lint-fix:
 	cd frontend && npm run lint -- --fix && npm run format
@@ -319,13 +357,19 @@ image:
 	else \
 		BUILD_ARG=""; \
 	fi; \
+	if [ -n "$(DOCKER_IMAGE_EXTRA_TAG)" ]; then \
+		EXTRA_TAG="-t $(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):$(DOCKER_IMAGE_EXTRA_TAG)"; \
+	else \
+		EXTRA_TAG=""; \
+	fi; \
 	$(DOCKER_CMD) $(DOCKER_BUILDX_CMD) build \
 	--pull \
 	--platform=$(DOCKER_PLATFORM) \
 	$$BUILD_ARG \
 	--push=$(DOCKER_PUSH) \
-	-t $(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):$(DOCKER_IMAGE_VERSION) -f \
-	Dockerfile \
+	-t $(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):$(DOCKER_IMAGE_VERSION) \
+	$$EXTRA_TAG \
+	-f Dockerfile \
 	.
 
 .PHONY: image-verify-digests

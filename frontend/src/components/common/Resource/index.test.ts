@@ -29,8 +29,10 @@ const avoidCheck = [
 ];
 
 const checkExports = [
+  'A8RInfo',
   'CircularChart',
   'CreateButton',
+  'CreateResourceForm',
   'CopyButton',
   'DeleteButton',
   'DeleteMultipleButton',
@@ -38,6 +40,7 @@ const checkExports = [
   'DocsViewer',
   'EditButton',
   'EditorDialog',
+  'EnvVarGrid',
   'MainInfoSection',
   'MatchExpressions',
   'MetadataDisplay',
@@ -50,6 +53,10 @@ const checkExports = [
   'ResourceTableColumnChooser',
   'RestartButton',
   'RestartMultipleButton',
+  'RevisionHistorySection',
+  'DownloadButton',
+  'RollbackButton',
+  'RollbackDialog',
   'ScaleButton',
   'SimpleEditor',
   'UploadDialog',

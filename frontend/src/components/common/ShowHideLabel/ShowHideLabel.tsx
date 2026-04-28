@@ -19,6 +19,7 @@ import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useId } from '../../../lib/util';
 
 export interface ShowHideLabelProps {
   children: string;
@@ -31,14 +32,9 @@ export default function ShowHideLabel(props: ShowHideLabelProps) {
   const { show = false, labelId = '', maxChars = 256, children } = props;
   const { t } = useTranslation();
   const [expanded, setExpanded] = React.useState(show);
+  const generatedId = useId('show-hide-label-');
 
-  const labelIdOrRandom = React.useMemo(() => {
-    if (!!labelId || !!import.meta.env.UNDER_TEST) {
-      return labelId;
-    }
-
-    return `${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`;
-  }, [labelId]);
+  const labelIdOrRandom = labelId || generatedId;
 
   const [actualText, needsButton] = React.useMemo(() => {
     if (typeof children !== 'string') {
@@ -50,6 +46,7 @@ export default function ShowHideLabel(props: ShowHideLabelProps) {
     }
 
     return [children.substr(0, maxChars), children.length > maxChars];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [children, expanded]);
 
   if (!children) {
@@ -58,27 +55,24 @@ export default function ShowHideLabel(props: ShowHideLabelProps) {
 
   return (
     <Box display={expanded ? 'block' : 'flex'}>
-      <label
-        id={labelIdOrRandom}
-        style={{ wordBreak: 'break-all', whiteSpace: 'normal' }}
-        aria-expanded={!needsButton ? undefined : expanded}
-      >
+      <span id={labelIdOrRandom} style={{ wordBreak: 'break-all', whiteSpace: 'normal' }}>
         {actualText}
         {needsButton && (
           <>
             {!expanded && '…'}
             <IconButton
               aria-controls={labelIdOrRandom}
+              aria-expanded={expanded}
               sx={{ display: 'inline' }}
               onClick={() => setExpanded(expandedVal => !expandedVal)}
               size="small"
-              arial-label={expanded ? t('translation|Collapse') : t('translation|Expand')}
+              aria-label={expanded ? t('translation|Collapse') : t('translation|Expand')}
             >
               <Icon icon={expanded ? 'mdi:menu-up' : 'mdi:menu-down'} />
             </IconButton>
           </>
         )}
-      </label>
+      </span>
     </Box>
   );
 }

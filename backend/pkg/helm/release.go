@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
@@ -177,6 +178,8 @@ func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.Respon
 		Releases: releases,
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+
 	err = json.NewEncoder(w).Encode(res)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"request": "list_releases"},
@@ -185,8 +188,6 @@ func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.Respon
 
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 }
 
 type GetReleaseRequest struct {
@@ -251,6 +252,7 @@ func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.Respons
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
 	err = json.NewEncoder(w).Encode(result)
@@ -261,8 +263,6 @@ func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.Respons
 
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 }
 
 type GetReleaseHistoryRequest struct {
@@ -323,6 +323,7 @@ func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.
 		Releases: result,
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
 	err = json.NewEncoder(w).Encode(resp)
@@ -333,8 +334,6 @@ func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.
 
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 }
 
 type UninstallReleaseRequest struct {
@@ -405,6 +404,7 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 		"message": "uninstall request accepted",
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 
 	err = json.NewEncoder(w).Encode(response)
@@ -415,8 +415,6 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 }
 
 func (h *Handler) uninstallRelease(req UninstallReleaseRequest, actionConfig *action.Configuration) {
@@ -502,6 +500,7 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 		"message": "rollback request accepted",
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 
 	err = json.NewEncoder(w).Encode(response)
@@ -511,8 +510,6 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 }
 
 func (h *Handler) rollbackRelease(req RollbackReleaseRequest, actionConfig *action.Configuration) {
@@ -562,6 +559,7 @@ func (h *Handler) returnResponse(w http.ResponseWriter, reqName string, statusCo
 		"message": message,
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
 	err := json.NewEncoder(w).Encode(response)
@@ -569,8 +567,6 @@ func (h *Handler) returnResponse(w http.ResponseWriter, reqName string, statusCo
 		handleError(w, reqName, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 }
 
 func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
@@ -640,8 +636,10 @@ func (h *Handler) getChart(
 
 	// chart is installable only if it is of type application or empty
 	if chart.Metadata.Type != "" && chart.Metadata.Type != "application" {
-		h.logActionState(zlog.Error(), err, actionName, reqChart, reqName, failed, "chart is not installable")
-		return nil, err
+		typeErr := fmt.Errorf("chart type %q is not installable", chart.Metadata.Type)
+		h.logActionState(zlog.Error(), typeErr, actionName, reqChart, reqName, failed, "chart is not installable")
+
+		return nil, typeErr
 	}
 
 	// Update chart dependencies
@@ -693,6 +691,7 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 	if user := review.Status.UserInfo.Username; user == "" || user == "system:anonymous" {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
 			errors.New("insufficient privileges"), "getting chart: user is not authorized to perform this operation")
+
 		return false
 	}
 
@@ -705,7 +704,7 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 	installClient.Namespace = req.Namespace
 	installClient.Description = req.Description
 	installClient.CreateNamespace = req.CreateNamespace
-	installClient.ChartPathOptions.Version = req.Version
+	installClient.Version = req.Version
 
 	if !VerifyUser(actionConfig, req) {
 		return
@@ -830,7 +829,7 @@ func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action
 	upgradeClient := action.NewUpgrade(actionConfig)
 	upgradeClient.Namespace = req.Namespace
 	upgradeClient.Description = req.Description
-	upgradeClient.ChartPathOptions.Version = req.Version
+	upgradeClient.Version = req.Version
 
 	chart, err := h.getChart("upgrade", req.Chart, req.Name, upgradeClient.ChartPathOptions, true, h.EnvSettings)
 	if err != nil {
@@ -923,9 +922,15 @@ func (h *Handler) GetActionStatus(clientConfig clientcmd.ClientConfig, w http.Re
 	}
 
 	if stat.Status == failed {
-		response["message"] = "action failed with error: " + *stat.Err
+		errMsg := "unknown error"
+		if stat.Err != nil {
+			errMsg = *stat.Err
+		}
+
+		response["message"] = "action failed with error: " + errMsg
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 
 	err = json.NewEncoder(w).Encode(response)
@@ -935,6 +940,4 @@ func (h *Handler) GetActionStatus(clientConfig clientcmd.ClientConfig, w http.Re
 
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 }

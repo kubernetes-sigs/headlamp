@@ -30,6 +30,30 @@ export default {
         storyBase: [
           http.get(
             'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
+            () =>
+              HttpResponse.json(
+                {
+                  kind: 'Status',
+                  apiVersion: 'v1',
+                  status: 'Failure',
+                  message:
+                    'the server could not find the requested resource for /apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
+                  reason: 'NotFound',
+                  code: 404,
+                },
+                { status: 404 }
+              )
+          ),
+          http.get(
+            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/mydefinition.phonyresources.io',
+            () => HttpResponse.error()
+          ),
+          http.get(
+            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/error.crd.io',
+            () => HttpResponse.error()
+          ),
+          http.get(
+            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/loadingcrd',
             () => HttpResponse.error()
           ),
           http.get(

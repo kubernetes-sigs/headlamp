@@ -1,19 +1,19 @@
 <body>
   <div>
     <button
-      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textSecondary MuiButton-sizeLarge MuiButton-textSizeLarge MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textSecondary MuiButton-sizeLarge MuiButton-textSizeLarge MuiButton-colorSecondary MuiButton-disableElevation css-magldz-MuiButtonBase-root-MuiButton-root"
+      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textSecondary MuiButton-sizeLarge MuiButton-textSizeLarge MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textSecondary MuiButton-sizeLarge MuiButton-textSizeLarge MuiButton-colorSecondary MuiButton-disableElevation css-11jr3ot-MuiButtonBase-root-MuiButton-root"
       tabindex="0"
       type="button"
     >
-      <span
-        class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeLarge css-htszrh-MuiButton-startIcon"
-      />
-      <span
-        class="css-k5l2zq"
-        title="test-cluster!@#$%^&*()"
+      <div
+        class="MuiBox-root css-172hjuw"
       >
-        Cluster: test-cluster!@#$%^&*()
-      </span>
+        <span
+          class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+        >
+          test-cluster!@#$%^&*()
+        </span>
+      </div>
       <span
         class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
       />

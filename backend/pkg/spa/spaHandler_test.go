@@ -1,6 +1,7 @@
 package spa_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,7 +16,7 @@ const (
 
 // Is supposed to return the index.html if there is no static file.
 func TestSpaHandlerMissing(t *testing.T) {
-	req, err := http.NewRequest("GET", "/headlampxxx", nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/headlampxxx", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +40,7 @@ func TestSpaHandlerMissing(t *testing.T) {
 
 // Works with a baseURL to get the index.html.
 func TestSpaHandlerBaseURL(t *testing.T) {
-	req, err := http.NewRequest("GET", "/headlamp/", nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/headlamp/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

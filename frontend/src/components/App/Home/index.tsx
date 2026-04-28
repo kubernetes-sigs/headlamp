@@ -86,6 +86,7 @@ function useWarningSettingsPerCluster(clusterNames: string[]) {
       }
       return currentWarningLabels;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warningsMap]);
 
   return warningLabels;
@@ -120,6 +121,7 @@ function HomeComponent(props: HomeComponentProps) {
       }
       return getCustomClusterNames(clusters);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customNameClusters]);
 
   const memoizedComponent = React.useMemo(
@@ -137,6 +139,7 @@ function HomeComponent(props: HomeComponentProps) {
         />
       </>
     ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [customNameClusters, errors, versions, warningLabels]
   );
 

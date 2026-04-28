@@ -15,7 +15,7 @@
  */
 
 import '../../../i18n/config';
-import Editor from '@monaco-editor/react';
+import { DiffEditor, Editor } from '@monaco-editor/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import DialogActions from '@mui/material/DialogActions';
@@ -73,8 +73,19 @@ export interface EditorDialogProps extends DialogProps {
   title?: string;
   /** Extra optional actions. */
   actions?: React.ReactNode[];
+  /** Extra buttons rendered in the right-side toolbar next to the editor toggles. */
+  toolbarActions?: React.ReactNode[];
+  /** Content to render in a "Form" tab between Editor and Documentation. */
+  formContent?: React.ReactNode;
   /** Don't render the editor in the dialog */
   noDialog?: boolean;
+  /** When true, changes to `item` update the editor code but do not reset the
+   *  original-code baseline, so the Save button treats the new content as a
+   *  user edit. Useful when a form pushes updated YAML into the editor. */
+  treatItemChangesAsEdits?: boolean;
+  /** Override the target cluster for apply operations. When set, this takes
+   *  priority over `item.cluster` and the URL-derived cluster. */
+  cluster?: string;
 }
 
 export default function EditorDialog(props: EditorDialogProps) {
@@ -89,6 +100,10 @@ export default function EditorDialog(props: EditorDialogProps) {
     allowToHideManagedFields,
     title,
     actions = [],
+    toolbarActions,
+    formContent,
+    treatItemChangesAsEdits,
+    cluster,
     ...other
   } = props;
   const editorOptions = {
@@ -121,6 +136,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     false
   );
   const [uploadFiles, setUploadFiles] = React.useState(false);
+  const [hasOpenedDiffEditor, setHasOpenedDiffEditor] = React.useState(false);
 
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
@@ -151,7 +167,9 @@ export default function EditorDialog(props: EditorDialogProps) {
 
     // Update the code if the item representation has changed
     if (itemCode !== originalCodeRef.current.code) {
-      originalCodeRef.current = { code: itemCode, format };
+      if (!treatItemChangesAsEdits) {
+        originalCodeRef.current = { code: itemCode, format };
+      }
       setCode({ code: itemCode, format });
     }
 
@@ -173,6 +191,7 @@ export default function EditorDialog(props: EditorDialogProps) {
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, hideManagedFields]);
 
   React.useEffect(() => {
@@ -266,13 +285,17 @@ export default function EditorDialog(props: EditorDialogProps) {
   }
 
   function handleTabChange(tabIndex: number) {
-    // Check if the docs tab has been selected.
-    if (tabIndex !== 1) {
-      return;
+    const docsTabIndex = formContent ? 2 : 1;
+    const diffTabIndex = formContent ? 3 : 2;
+
+    if (tabIndex === diffTabIndex) {
+      setHasOpenedDiffEditor(true);
     }
 
-    const { obj: codeObjs } = getObjectsFromCode(code);
-    setDocSpecs(codeObjs);
+    if (tabIndex === docsTabIndex) {
+      const { obj: codeObjs } = getObjectsFromCode(code);
+      setDocSpecs(codeObjs);
+    }
   }
 
   function onUndo() {
@@ -330,7 +353,7 @@ export default function EditorDialog(props: EditorDialogProps) {
 
     if (typeof onSave === 'string' && onSave === 'default') {
       const resourceNames = newItemDefs.map(newItemDef => newItemDef.metadata.name);
-      const clusterName = (item as KubeObjectIsh)?.cluster || getCluster() || '';
+      const clusterName = cluster || (item as KubeObjectIsh)?.cluster || getCluster() || '';
 
       dispatch(
         clusterAction(() => applyFunc(newItemDefs, clusterName), {
@@ -373,6 +396,27 @@ export default function EditorDialog(props: EditorDialogProps) {
             height="100%"
           />
         )}
+      </Box>
+    );
+  }
+
+  function makeDiffEditor() {
+    const language = code.format || originalCodeRef.current.format || 'yaml';
+
+    return (
+      <Box height="100%">
+        <DiffEditor
+          original={originalCodeRef.current.code}
+          modified={code.code}
+          language={language}
+          theme={theme.base === 'dark' ? 'vs-dark' : 'light'}
+          height="100%"
+          options={{
+            automaticLayout: true,
+            readOnly: true,
+            renderSideBySide: true,
+          }}
+        />
       </Box>
     );
   }
@@ -446,6 +490,10 @@ export default function EditorDialog(props: EditorDialogProps) {
                 >
                   {t('translation|Upload File/URL')}
                 </Button>
+                {toolbarActions &&
+                  toolbarActions.map((action, i) => (
+                    <React.Fragment key={`toolbar_action_${i}`}>{action}</React.Fragment>
+                  ))}
               </FormGroup>
             </Grid>
           </Grid>
@@ -461,6 +509,16 @@ export default function EditorDialog(props: EditorDialogProps) {
                 label: t('translation|Editor'),
                 component: makeEditor(),
               },
+              ...(formContent
+                ? [
+                    {
+                      label: t('translation|Form'),
+                      component: (
+                        <Box sx={{ height: '100%', overflowY: 'auto' }}>{formContent}</Box>
+                      ),
+                    },
+                  ]
+                : []),
               {
                 label: t('translation|Documentation'),
                 component: (
@@ -468,6 +526,10 @@ export default function EditorDialog(props: EditorDialogProps) {
                     <DocsViewer docSpecs={docSpecs} />
                   </Box>
                 ),
+              },
+              {
+                label: t('translation|Review Changes'),
+                component: hasOpenedDiffEditor ? makeDiffEditor() : null,
               },
             ]}
           />

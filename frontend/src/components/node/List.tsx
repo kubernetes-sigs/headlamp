@@ -166,6 +166,7 @@ export default function NodeList() {
           },
           show: false,
         },
+        'labels',
         'age',
       ]}
     />

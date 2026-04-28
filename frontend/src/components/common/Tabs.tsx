@@ -82,17 +82,13 @@ export default function Tabs(props: TabsProps) {
     }
   }
 
-  React.useEffect(
-    () => {
-      if (defaultIndex === null) {
-        setTabIndex(false);
-        return;
-      }
-      setTabIndex(defaultIndex);
-    },
-    // eslint-disable-next-line
-    [defaultIndex]
-  );
+  React.useEffect(() => {
+    if (defaultIndex === null) {
+      setTabIndex(false);
+      return;
+    }
+    setTabIndex(defaultIndex);
+  }, [defaultIndex]);
 
   const uniqueIdSuffix = useId('tabs-');
 

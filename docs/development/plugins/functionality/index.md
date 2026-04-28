@@ -85,7 +85,7 @@ Add menus when Headlamp runs as an app with
 
 ### Cluster Chooser
 
-Change the Cluster Chooser button in the top middle of the app bar with
+Change the Cluster Chooser button in the top right of the app bar with
 [registerClusterChooser](../../api/plugin/registry/functions/registerclusterchooser).
 
 ![screenshot of the cluster chooser button](../images/cluster-chooser.png)

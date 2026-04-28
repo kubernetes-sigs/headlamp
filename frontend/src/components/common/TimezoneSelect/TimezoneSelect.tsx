@@ -39,6 +39,7 @@ export default function TimezoneSelect(props: TimezoneSelectorProps) {
         offset: timezone.current.offset,
       };
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i18n.language]);
 
   return (
@@ -60,7 +61,8 @@ export default function TimezoneSelect(props: TimezoneSelectorProps) {
           variant="outlined"
           inputProps={{
             ...params.inputProps,
-            'aria-labelledby': nameLabelID,
+            ...(nameLabelID ? { 'aria-labelledby': nameLabelID } : {}),
+            'aria-label': nameLabelID ? undefined : t('Timezone'),
           }}
         />
       )}

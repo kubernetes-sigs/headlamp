@@ -75,6 +75,7 @@ export function NetworkPolicyList() {
             );
           },
         },
+        'labels',
         'age',
       ]}
     />

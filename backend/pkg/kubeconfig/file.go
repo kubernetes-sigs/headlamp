@@ -25,7 +25,7 @@ func WriteToFile(config clientcmdapi.Config, path string) error {
 			return errors.Wrap(err, "failed to write new kubeconfig file")
 		}
 
-		defer os.Remove(newKubeConfigFile)
+		defer func() { _ = os.Remove(newKubeConfigFile) }()
 
 		load := clientcmd.ClientConfigLoadingRules{
 			Precedence: []string{configFile, newKubeConfigFile},

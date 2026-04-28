@@ -33,6 +33,7 @@ export function LeaseList() {
           label: t('translation|Holder'),
           getValue: item => item?.spec.holderIdentity,
         },
+        'labels',
         'age',
       ]}
     />

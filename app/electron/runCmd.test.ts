@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from '@jest/globals';
 import path from 'path';
+import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import { checkPermissionSecret, validateCommandData } from './runCmd';
+
+vi.mock('./plugin-management', () => ({
+  defaultPluginsDir: vi.fn(() => '/plugins/default'),
+  defaultUserPluginsDir: vi.fn(() => '/plugins/user'),
+}));
 
 describe('checkPermissionSecret', () => {
   const baseCommandData = {
@@ -228,21 +233,17 @@ describe('runScript', () => {
   const originalConsoleError = console.error;
   const originalResourcesPath = process.resourcesPath;
 
-  let exitMock: jest.Mock;
-  let consoleErrorMock: jest.Mock;
+  let exitMock: Mock;
+  let consoleErrorMock: Mock;
   beforeEach(() => {
-    jest.resetModules();
+    vi.resetModules();
     // @ts-ignore this is fine for tests
     process.resourcesPath = '/resources';
-    jest.mock('./plugin-management', () => ({
-      defaultPluginsDir: jest.fn(() => '/plugins/default'),
-      defaultUserPluginsDir: jest.fn(() => '/plugins/user'),
-    }));
 
-    exitMock = jest.fn() as any;
+    exitMock = vi.fn() as any;
     // @ts-expect-error overriding for test
     process.exit = exitMock;
-    consoleErrorMock = jest.fn();
+    consoleErrorMock = vi.fn();
     console.error = consoleErrorMock;
   });
 
@@ -252,14 +253,13 @@ describe('runScript', () => {
     console.error = originalConsoleError;
     // @ts-ignore
     process.resourcesPath = originalResourcesPath;
-    jest.unmock('./plugin-management');
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   const testScriptImport = async (scriptPath: string) => {
     const resolvedPath = path.resolve(scriptPath);
     process.argv = ['node', resolvedPath];
-    jest.doMock(resolvedPath, () => ({}), { virtual: true });
+    vi.doMock(resolvedPath, () => ({}));
     const runCmdModule = await import('./runCmd');
     runCmdModule.runScript();
     expect(exitMock).not.toHaveBeenCalled();
@@ -277,7 +277,7 @@ describe('runScript', () => {
   it('exits with error when script is outside allowed directories', async () => {
     const scriptPath = path.resolve('/not-allowed/my-script.js');
     process.argv = ['node', scriptPath];
-    jest.doMock(scriptPath, () => ({}), { virtual: true });
+    vi.doMock(scriptPath, () => ({}));
 
     const runCmdModule = await import('./runCmd');
     runCmdModule.runScript();

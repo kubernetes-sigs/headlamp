@@ -16,15 +16,18 @@
 
 import { Icon, InlineIcon } from '@iconify/react';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
 import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { useSnackbar } from 'notistack';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
+import { getClusterAppearanceFromMeta, isValidCssColor } from '../../../helpers/clusterAppearance';
 import {
   ClusterSettings,
   loadClusterSettings,
@@ -42,7 +45,10 @@ import NameValueTable from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
 import { ClusterNameEditor } from './ClusterNameEditor';
 import ClusterSelector from './ClusterSelector';
+import ColorPicker from './ColorPicker';
+import IconPicker from './IconPicker';
 import NodeShellSettings from './NodeShellSettings';
+import PodDebugSettings from './PodDebugSettings';
 import { isValidNamespaceFormat } from './util';
 
 export default function SettingsCluster() {
@@ -56,11 +62,21 @@ export default function SettingsCluster() {
   const [cluster, setCluster] = React.useState(useCluster() || '');
   const clusterFromURLRef = React.useRef('');
 
+  const [appearanceAccentColor, setAppearanceAccentColor] = React.useState<string>('');
+  const [appearanceIcon, setAppearanceIcon] = React.useState<string>('');
+  const [appearanceSaving, setAppearanceSaving] = React.useState(false);
+  const [appearanceError, setAppearanceError] = React.useState<string>('');
+
+  // Dialog states for pickers
+  const [colorPickerOpen, setColorPickerOpen] = React.useState(false);
+  const [iconPickerOpen, setIconPickerOpen] = React.useState(false);
+
   const theme = useTheme();
 
   const history = useHistory();
   const dispatch = useDispatch();
   const location = useLocation();
+  const { enqueueSnackbar } = useSnackbar();
 
   const removeCluster = () => {
     deleteCluster(cluster || '')
@@ -69,9 +85,13 @@ export default function SettingsCluster() {
         history.push('/');
       })
       .catch((err: Error) => {
-        if (err.message === 'Not Found') {
-          // TODO: create notification with error message
-        }
+        enqueueSnackbar(
+          t('translation|Failed to delete cluster: {{ error }}', { error: err.message }),
+          {
+            variant: 'error',
+            preventDuplicate: true,
+          }
+        );
       });
   };
 
@@ -90,11 +110,21 @@ export default function SettingsCluster() {
   }, [cluster]);
 
   React.useEffect(() => {
+    // Load appearance from localStorage
+    const appearance = getClusterAppearanceFromMeta(cluster || '');
+
+    setAppearanceAccentColor(appearance.accentColor || '');
+    setAppearanceIcon(appearance.icon || '');
+    setAppearanceError('');
+  }, [cluster]);
+
+  React.useEffect(() => {
     const clusterInfo = (clusterConf && clusterConf[cluster || '']) || null;
     const clusterConfNs = clusterInfo?.meta_data?.namespace;
     if (!!clusterConfNs && clusterConfNs !== defaultNamespace) {
       setDefaultNamespace(clusterConfNs);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cluster, clusterConf]);
 
   React.useEffect(() => {
@@ -106,6 +136,7 @@ export default function SettingsCluster() {
     if (clusterSettings !== null) {
       storeClusterSettings(cluster || '', clusterSettings);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cluster, clusterSettings]);
 
   React.useEffect(() => {
@@ -126,6 +157,7 @@ export default function SettingsCluster() {
         clusterFromURLRef.current = '';
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userDefaultNamespace]);
 
   React.useEffect(() => {
@@ -139,6 +171,7 @@ export default function SettingsCluster() {
     } else {
       setCluster('');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search, clusters]);
 
   function isEditingDefaultNamespace() {
@@ -178,6 +211,9 @@ export default function SettingsCluster() {
   const invalidNamespaceMessage = t(
     "translation|Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character."
   );
+
+  // Wrapper to allow empty string (optional field)
+  const isValidAccentColor = (color: string): boolean => !color || isValidCssColor(color);
 
   // If we don't have yet a cluster name from the URL, we are still loading.
   if (!clusterFromURLRef.current) {
@@ -219,6 +255,11 @@ export default function SettingsCluster() {
 
   const defaultNamespaceLabelID = 'default-namespace-label';
   const allowedNamespaceLabelID = 'allowed-namespace-label';
+  const appearanceLabelID = 'cluster-appearance-label';
+  const accentColorLabelID = 'accent-color-label';
+  const clusterIconLabelID = 'cluster-icon-label';
+  const colorButtonID = 'color-picker-button';
+  const iconButtonID = 'icon-picker-button';
 
   return (
     <>
@@ -244,6 +285,157 @@ export default function SettingsCluster() {
         <NameValueTable
           rows={[
             {
+              name: (
+                <Box>
+                  <Typography id={appearanceLabelID}>{t('translation|Appearance')}</Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    {t("translation|Stored in your browser's localStorage (per-browser setting).")}
+                  </Typography>
+                </Box>
+              ),
+              value: (
+                <Box display="flex" flexDirection="column" gap={2} sx={{ minWidth: 280 }}>
+                  {/* Color Picker */}
+                  <Box>
+                    <Typography
+                      id={accentColorLabelID}
+                      variant="subtitle2"
+                      component="span"
+                      sx={{ mb: 1 }}
+                    >
+                      {t('translation|Accent color')}
+                    </Typography>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      {appearanceAccentColor && (
+                        <Box
+                          sx={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 1,
+                            backgroundColor: appearanceAccentColor,
+                            border: `1px solid ${theme.palette.divider}`,
+                          }}
+                        />
+                      )}
+                      <Button
+                        id={colorButtonID}
+                        variant="outlined"
+                        size="small"
+                        onClick={() => setColorPickerOpen(true)}
+                        startIcon={<Icon icon="mdi:palette" />}
+                        aria-labelledby={`${appearanceLabelID} ${colorButtonID}`}
+                      >
+                        {appearanceAccentColor
+                          ? t('translation|Change Color')
+                          : t('translation|Choose Color')}
+                      </Button>
+                      {appearanceAccentColor && (
+                        <IconButton
+                          size="small"
+                          onClick={() => setAppearanceAccentColor('')}
+                          aria-label={t('translation|Clear accent color')}
+                        >
+                          <Icon icon="mdi:close" />
+                        </IconButton>
+                      )}
+                    </Box>
+                  </Box>
+
+                  {/* Icon Picker */}
+                  <Box>
+                    <Typography
+                      id={clusterIconLabelID}
+                      variant="subtitle2"
+                      component="span"
+                      sx={{ mb: 1 }}
+                    >
+                      {t('translation|Cluster icon')}
+                    </Typography>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      {appearanceIcon && <Icon icon={appearanceIcon} width={24} />}
+                      <Button
+                        id={iconButtonID}
+                        variant="outlined"
+                        size="small"
+                        onClick={() => setIconPickerOpen(true)}
+                        startIcon={<Icon icon="mdi:emoticon-outline" />}
+                        aria-labelledby={`${appearanceLabelID} ${iconButtonID}`}
+                      >
+                        {appearanceIcon
+                          ? t('translation|Change Icon')
+                          : t('translation|Choose Icon')}
+                      </Button>
+                      {appearanceIcon && (
+                        <IconButton
+                          size="small"
+                          onClick={() => setAppearanceIcon('')}
+                          aria-label={t('translation|Clear cluster icon')}
+                        >
+                          <Icon icon="mdi:close" />
+                        </IconButton>
+                      )}
+                    </Box>
+                  </Box>
+
+                  {!!appearanceError && (
+                    <Typography
+                      color={theme.palette.mode === 'dark' ? 'error.light' : 'error.main'}
+                    >
+                      {appearanceError}
+                    </Typography>
+                  )}
+                  <Box textAlign="right">
+                    <ConfirmButton
+                      disabled={appearanceSaving || (!!appearanceAccentColor && !!appearanceError)}
+                      onConfirm={() => {
+                        if (!isValidAccentColor(appearanceAccentColor)) {
+                          setAppearanceError(
+                            t(
+                              'translation|Accent color format is invalid. Use hex (#ff0000), rgb(), rgba(), or a CSS color name.'
+                            )
+                          );
+                          return;
+                        }
+
+                        setAppearanceSaving(true);
+                        setAppearanceError('');
+
+                        try {
+                          // Save appearance to localStorage via clusterSettings
+                          setClusterSettings((settings: ClusterSettings | null) => {
+                            const newSettings = { ...(settings || {}) };
+                            newSettings.appearance = {
+                              accentColor: appearanceAccentColor || undefined,
+                              icon: appearanceIcon || undefined,
+                            };
+                            return newSettings;
+                          });
+
+                          // Force a re-render of components by dispatching a storage event
+                          window.dispatchEvent(new Event('storage'));
+                        } catch (err: any) {
+                          setAppearanceError(err.message);
+                        } finally {
+                          setAppearanceSaving(false);
+                        }
+                      }}
+                      confirmTitle={t('translation|Apply appearance')}
+                      confirmDescription={t(
+                        'translation|Apply appearance changes for "{{ clusterName }}"? This will be stored in your browser.',
+                        { clusterName: cluster }
+                      )}
+                    >
+                      {appearanceSaving ? t('translation|Applying...') : t('translation|Apply')}
+                    </ConfirmButton>
+                  </Box>
+                </Box>
+              ),
+            },
+          ]}
+        />
+        <NameValueTable
+          rows={[
+            {
               name: t('translation|Default namespace'),
               nameID: defaultNamespaceLabelID,
               value: (
@@ -254,9 +446,11 @@ export default function SettingsCluster() {
                     setUserDefaultNamespace(value);
                   }}
                   value={userDefaultNamespace}
-                  aria-labelledby={defaultNamespaceLabelID}
                   placeholder={defaultNamespace}
                   error={!isValidDefaultNamespace}
+                  inputProps={{
+                    'aria-labelledby': defaultNamespaceLabelID,
+                  }}
                   helperText={
                     isValidDefaultNamespace
                       ? t(
@@ -307,6 +501,7 @@ export default function SettingsCluster() {
                     }
                     autoComplete="off"
                     inputProps={{
+                      'aria-labelledby': allowedNamespaceLabelID,
                       form: {
                         autocomplete: 'off',
                       },
@@ -370,6 +565,7 @@ export default function SettingsCluster() {
         />
       </SectionBox>
       <NodeShellSettings cluster={cluster} />
+      <PodDebugSettings cluster={cluster} />
       {removableCluster && isElectron() && (
         <Box pt={2} textAlign="right">
           <ConfirmButton
@@ -385,6 +581,21 @@ export default function SettingsCluster() {
           </ConfirmButton>
         </Box>
       )}
+
+      <ColorPicker
+        open={colorPickerOpen}
+        currentColor={appearanceAccentColor}
+        onClose={() => setColorPickerOpen(false)}
+        onSelectColor={setAppearanceAccentColor}
+        onError={setAppearanceError}
+      />
+
+      <IconPicker
+        open={iconPickerOpen}
+        currentIcon={appearanceIcon}
+        onClose={() => setIconPickerOpen(false)}
+        onSelectIcon={setAppearanceIcon}
+      />
     </>
   );
 }

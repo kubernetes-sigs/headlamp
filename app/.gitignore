@@ -1,15 +1,3 @@
 /node_modules
 /dist
 /build
-/electron/main.js
-/prod_deps
-/electron/i18next.config.js
-/electron/i18n-helper.js
-/electron/preload.js
-/electron/windowSize.js
-/electron/plugin-management.js
-/electron/plugin-management.test.js
-/electron/runCmd.js
-electron/windowSize.test.js
-electron/env-paths.js
-electron/runCmd.test.js

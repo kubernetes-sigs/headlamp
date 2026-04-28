@@ -90,6 +90,7 @@ export function ResourceQuotaRenderer(props: ResourceQuotaProps) {
             return <WrappingBox>{limits}</WrappingBox>;
           },
         },
+        'labels',
         'age',
       ]}
       headerProps={{

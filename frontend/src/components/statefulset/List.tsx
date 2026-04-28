@@ -91,6 +91,7 @@ export default function StatefulSetList() {
             );
           },
         },
+        'labels',
         'age',
       ]}
     />

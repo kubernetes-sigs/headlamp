@@ -72,7 +72,7 @@ func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", contentType)
 
-	_, err = w.Write(content)
+	_, err = w.Write(content) //nolint:gosec
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "writing content")
 	}
@@ -83,7 +83,8 @@ func (h embeddedSpaHandler) serveFile(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+
+	defer func() { _ = f.Close() }()
 
 	stat, err := f.Stat()
 	if err != nil {

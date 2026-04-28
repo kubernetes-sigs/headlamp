@@ -33,6 +33,9 @@ const { PluginManager, MultiPluginManager } = require('@headlamp-k8s/pluginctl')
 const { table } = require('table');
 const tar = require('tar');
 
+// On Windows, use the .cmd shim so execFileSync can run it without a shell.
+const binExt = process.platform === 'win32' ? '.cmd' : '';
+
 // ES imports
 const viteCopyPluginPromise = import('vite-plugin-static-copy');
 const viteConfigPromise = import('../config/vite.config.mjs');
@@ -115,7 +118,7 @@ function create(name, link, noInstall) {
     let useNpmCi = false;
     try {
       const npmJsPkgResponse = child_process.execFileSync(
-        'npm',
+        'npm' + binExt,
         ['view', `@kinvolk/headlamp-plugin@${headlampPluginPkg.version}`, 'dist', '--json'],
         { encoding: 'utf8' }
       );
@@ -232,7 +235,11 @@ function extract(pluginPackagesPath, outputPlugins, logSteps = true) {
         const srcFile = path.join(distPath, file);
         const destFile = path.join(plugName, file);
         console.log(`Copying "${srcFile}" to "${destFile}".`);
-        fs.copyFileSync(srcFile, destFile);
+        if (fs.statSync(srcFile).isDirectory()) {
+          fs.copySync(srcFile, destFile);
+        } else {
+          fs.copyFileSync(srcFile, destFile);
+        }
       });
 
       const inputPackageJson = path.join(pluginPackagesPath, 'package.json');
@@ -264,7 +271,11 @@ function extract(pluginPackagesPath, outputPlugins, logSteps = true) {
         const srcFile = path.join(distPath, file);
         const destFile = path.join(plugName, file);
         console.log(`Copying "${srcFile}" to "${destFile}".`);
-        fs.copyFileSync(srcFile, destFile);
+        if (fs.statSync(srcFile).isDirectory()) {
+          fs.copySync(srcFile, destFile);
+        } else {
+          fs.copyFileSync(srcFile, destFile);
+        }
       });
 
       const inputPackageJson = path.join(pluginPackagesPath, folder.name, 'package.json');
@@ -676,7 +687,7 @@ function runScriptOnPackages(packageFolder, scriptName, cmdLine, env) {
     const scriptCmd = cmdLine.split(' ')[0];
     const scriptCmdRest = cmdLine.split(' ').slice(1).join(' ');
 
-    const nodeModulesBinCmd = path.join('node_modules', '.bin', scriptCmd);
+    const nodeModulesBinCmd = path.join('node_modules', '.bin', scriptCmd + binExt);
     const upNodeModulesBinCmd = path.join('../', nodeModulesBinCmd);
 
     // When run as npx, find it in the node_modules npx uses
@@ -952,6 +963,7 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
       path.join('.vscode', 'settings.json'),
       path.join('.vscode', 'tasks.json'),
       'tsconfig.json',
+      'AGENTS.md',
     ];
     const templateFolder = path.resolve(__dirname, '..', 'template');
 
@@ -967,9 +979,14 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
         fs.copyFileSync(from, to);
       }
       // Add file if it is different
-      if (fs.readFileSync(from, 'utf8') !== fs.readFileSync(to, 'utf8')) {
-        console.log(`Updating file: "${to}"`);
-        fs.copyFileSync(from, to);
+      if (fs.existsSync(to)) {
+        const fromContent = fs.readFileSync(from, 'utf8');
+        const toContent = fs.readFileSync(to, 'utf8');
+
+        if (fromContent !== toContent) {
+          console.log(`Updating file: "${to}"`);
+          fs.writeFileSync(to, fromContent);
+        }
       }
     });
   }
@@ -1455,7 +1472,7 @@ function setupI18n(packageFolder) {
 
       // Run i18next-parser to extract translatable strings
       console.log(`🔍 Extracting translatable strings from source code...`);
-      const i18nextPath = path.join(__dirname, '..', 'node_modules', '.bin', 'i18next');
+      const i18nextPath = path.join(__dirname, '..', 'node_modules', '.bin', 'i18next' + binExt);
       const bundledConfigPath = path.join(__dirname, '..', 'config', 'i18next-parser.config.js');
       const { execFileSync } = require('child_process');
 
@@ -1672,7 +1689,7 @@ function extractI18n(packageFolder, newLocale) {
     // Use npx to run i18next from the headlamp-plugin package
     const headlampPluginPath = path.join(__dirname, '..');
     execFileSync(
-      'npx',
+      'npx' + binExt,
       ['--prefix', headlampPluginPath, 'i18next', 'src/**/*.{ts,tsx,js,jsx}', '-c', configToUse],
       {
         stdio: 'inherit',

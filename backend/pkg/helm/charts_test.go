@@ -20,6 +20,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -67,4 +68,25 @@ func TestListChart(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), "headlamp_test_repo/headlamp")
 	assert.NotContains(t, rr.Body.String(), "non-existing-chart")
+}
+
+func TestListChartReturnsErrorWithoutSuccessPayload(t *testing.T) {
+	cache := cache.New[interface{}]()
+	require.NotNil(t, cache)
+
+	customSettings := cli.New()
+	customSettings.RepositoryConfig = filepath.Join(t.TempDir(), "missing", "repositories.yaml")
+
+	helmHandler, err := helm.NewHandlerWithSettings(cache, customSettings)
+	require.NoError(t, err)
+
+	listChartsRequest, err := http.NewRequestWithContext(context.Background(),
+		"GET", "/clusters/minikube/helm/repositories/charts", nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	helmHandler.ListCharts(rr, listChartsRequest)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.NotContains(t, rr.Body.String(), "\"charts\"")
 }

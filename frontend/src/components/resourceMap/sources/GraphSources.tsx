@@ -140,6 +140,7 @@ const SourceLoader = memo(
 
     useEffect(() => {
       onData(id, data);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, data]);
 
     return null;
@@ -147,12 +148,14 @@ const SourceLoader = memo(
 );
 
 export default function useThrottledMemo<T>(factory: () => T, deps: any[], throttleMs: number): T {
-  const [state, setState] = useState(factory());
+  const [state, setState] = useState(factory);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedSetState = useCallback(throttle(setState, throttleMs), []);
 
   useEffect(() => {
     debouncedSetState(factory());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
   return state;
@@ -254,6 +257,7 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
           },
         };
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sources, selectedSources]);
 
   const contextValue = useThrottledMemo(
@@ -314,7 +318,7 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
       };
     },
     [sources, selectedSources, sourceData, setSelectedSources, relations],
-    500
+    1000
   );
 
   return (

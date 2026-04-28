@@ -19,6 +19,47 @@ import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 
 /**
+ * GRPCRouteMatch defines the predicate used to match requests to a given action.
+ *
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GRPCRouteMatch} Gateway API reference for GRPCRouteMatch
+ */
+export interface GRPCRouteMatch {
+  method?: {
+    type?: string;
+    service?: string;
+    method?: string;
+  };
+  headers?: {
+    type?: string;
+    name: string;
+    value: string;
+  }[];
+}
+
+/**
+ * GRPCRouteRule defines semantics for matching a gRPC request based on conditions (matches),
+ * processing it (filters), and forwarding the request to an API object (backendRefs).
+ *
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GRPCRouteRule} Gateway API reference for GRPCRouteRule
+ */
+export interface GRPCRouteRule {
+  name?: string;
+  matches?: GRPCRouteMatch[];
+  filters?: {
+    type: string;
+    [key: string]: any;
+  }[];
+  backendRefs?: {
+    group?: string;
+    kind?: string;
+    name: string;
+    namespace?: string;
+    port?: number;
+    weight?: number;
+  }[];
+}
+
+/**
  * GRPCRoute is a Gateway API type for specifying routing behavior of gRPC requests from a Gateway listener to an API object, i.e. Service.
  *
  * @see {@link https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GRPCRoute} Gateway API reference for GRPCRoute
@@ -27,7 +68,9 @@ import { KubeObject } from './KubeObject';
  */
 export interface KubeGRPCRoute extends KubeObjectInterface {
   spec: {
-    parentRefs: GatewayParentReference[];
+    hostnames?: string[];
+    parentRefs?: GatewayParentReference[];
+    rules?: GRPCRouteRule[];
     [key: string]: any;
   };
 }
@@ -41,8 +84,17 @@ class GRPCRoute extends KubeObject<KubeGRPCRoute> {
   get spec(): KubeGRPCRoute['spec'] {
     return this.jsonData.spec;
   }
+
+  get hostnames(): string[] {
+    return this.jsonData.spec.hostnames || [];
+  }
+
+  get rules(): GRPCRouteRule[] {
+    return this.jsonData.spec.rules || [];
+  }
+
   get parentRefs(): GatewayParentReference[] {
-    return this.jsonData.spec.parentRefs;
+    return this.jsonData.spec.parentRefs || [];
   }
 
   static get pluralName() {

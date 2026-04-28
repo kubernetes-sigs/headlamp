@@ -17,6 +17,7 @@ limitations under the License.
 package auth_test
 
 import (
+	"context"
 	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
@@ -60,8 +61,9 @@ var isSecureContextTests = []struct {
 	{
 		name: "HTTPS request",
 		setupReq: func() *http.Request {
-			req := httptest.NewRequest("GET", "https://example.com", nil)
+			req := httptest.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
 			req.TLS = &tls.ConnectionState{}
+
 			return req
 		},
 		expected: true,
@@ -71,6 +73,7 @@ var isSecureContextTests = []struct {
 		setupReq: func() *http.Request {
 			req := httptest.NewRequest("GET", "http://example.com", nil)
 			req.Header.Set("X-Forwarded-Proto", "https")
+
 			return req
 		},
 		expected: true,
@@ -80,6 +83,7 @@ var isSecureContextTests = []struct {
 		setupReq: func() *http.Request {
 			req := httptest.NewRequest("GET", localhostOrigin, nil)
 			req.Host = localhost
+
 			return req
 		},
 		expected: false,
@@ -89,6 +93,7 @@ var isSecureContextTests = []struct {
 		setupReq: func() *http.Request {
 			req := httptest.NewRequest("GET", "http://127.0.0.1:3000", nil)
 			req.Host = "127.0.0.1:3000"
+
 			return req
 		},
 		expected: false,
@@ -98,6 +103,7 @@ var isSecureContextTests = []struct {
 		setupReq: func() *http.Request {
 			req := httptest.NewRequest("GET", "http://example.com", nil)
 			req.Host = "example.com"
+
 			return req
 		},
 		expected: false,
@@ -161,12 +167,13 @@ func TestGetCookiePath(t *testing.T) {
 }
 
 func TestSetAndGetAuthCookie(t *testing.T) {
-	req := httptest.NewRequest("GET", localhost, nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", localhost, nil)
 	req.Host = localhost
 	w := httptest.NewRecorder()
 
 	// Test setting a cookie
-	auth.SetTokenCookie(w, req, "test-cluster", "test-token", "")
+	testTTL := 100
+	auth.SetTokenCookie(w, req, "test-cluster", "test-token", "", testTTL)
 
 	// Check if cookie was set
 	cookies := w.Result().Cookies()
@@ -191,6 +198,10 @@ func TestSetAndGetAuthCookie(t *testing.T) {
 		t.Error("Expected SameSite to be SameSiteStrictMode")
 	}
 
+	if cookie.MaxAge != testTTL {
+		t.Errorf("Expected MaxAge to be %d, got %d", testTTL, cookie.MaxAge)
+	}
+
 	// Test getting the cookie
 	req.AddCookie(cookie)
 
@@ -205,7 +216,7 @@ func TestSetAndGetAuthCookie(t *testing.T) {
 }
 
 func TestGetAuthCookieChunked(t *testing.T) {
-	req := httptest.NewRequest("GET", localhostOrigin, nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", localhostOrigin, nil)
 	req.Host = localhost
 	w := httptest.NewRecorder()
 
@@ -213,7 +224,7 @@ func TestGetAuthCookieChunked(t *testing.T) {
 	longToken := strings.Repeat("a", 5000)
 
 	// Test setting a cookie
-	auth.SetTokenCookie(w, req, "test-cluster", longToken, "")
+	auth.SetTokenCookie(w, req, "test-cluster", longToken, "", 86400)
 
 	// Check if cookie was set
 	cookies := w.Result().Cookies()
@@ -237,7 +248,7 @@ func TestGetAuthCookieChunked(t *testing.T) {
 }
 
 func TestClearAuthCookie(t *testing.T) {
-	req := httptest.NewRequest("GET", localhostOrigin, nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", localhostOrigin, nil)
 	req.Host = localhost
 	w := httptest.NewRecorder()
 
