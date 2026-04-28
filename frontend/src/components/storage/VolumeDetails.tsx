@@ -14,16 +14,36 @@
  * limitations under the License.
  */
 
+import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import PersistentVolume from '../../lib/k8s/persistentVolume';
+import PersistentVolume, { KubeClaimRef } from '../../lib/k8s/persistentVolume';
 import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 import { StatusLabelByPhase } from './utils';
 
 export function makePVStatusLabel(item: PersistentVolume, t: (key: string) => string) {
-  const status = item.status!.phase;
+  const status = item.status?.phase ?? '';
   return StatusLabelByPhase(status, t);
+}
+
+function renderClaimRef(claimRef: KubeClaimRef, cluster?: string): ReactNode {
+  if (claimRef.kind === 'PersistentVolumeClaim' && claimRef.name && claimRef.namespace) {
+    return (
+      <Link
+        routeName="persistentVolumeClaim"
+        params={{ namespace: claimRef.namespace, name: claimRef.name }}
+        activeCluster={cluster}
+        tooltip
+      >
+        {`${claimRef.namespace}/${claimRef.name}`}
+      </Link>
+    );
+  }
+  if (claimRef.name) {
+    return `${claimRef.namespace ? `${claimRef.namespace}/` : ''}${claimRef.name}`;
+  }
+  return '';
 }
 
 export default function VolumeDetails(props: { name?: string; cluster?: string }) {
@@ -37,39 +57,74 @@ export default function VolumeDetails(props: { name?: string; cluster?: string }
       name={name}
       cluster={cluster}
       withEvents
-      extraInfo={item =>
-        item && [
+      extraInfo={item => {
+        if (!item) return [];
+        const { spec, status } = item;
+        const claimRef = spec?.claimRef;
+        const sourceType = item.getSourceType();
+
+        return [
           {
             name: t('translation|Status'),
             value: makePVStatusLabel(item, t),
           },
           {
             name: t('Capacity'),
-            value: item.spec!.capacity.storage,
+            value: spec?.capacity?.storage,
           },
           {
             name: t('Access Modes'),
-            value: item.spec!.accessModes.join(', '),
+            value: spec?.accessModes?.join(', '),
+            hide: !spec?.accessModes?.length,
+          },
+          {
+            name: t('Volume Mode'),
+            value: spec?.volumeMode,
+            hide: !spec?.volumeMode,
           },
           {
             name: t('Reclaim Policy'),
-            value: item.spec!.persistentVolumeReclaimPolicy,
+            value: spec?.persistentVolumeReclaimPolicy,
+            hide: !spec?.persistentVolumeReclaimPolicy,
           },
           {
             name: t('Storage Class'),
-            value: (
+            value: spec?.storageClassName ? (
               <Link
                 routeName="storageClass"
-                params={{ name: item.spec!.storageClassName }}
+                params={{ name: spec.storageClassName }}
                 activeCluster={item.cluster}
                 tooltip
               >
-                {item.spec!.storageClassName}
+                {spec.storageClassName}
               </Link>
+            ) : (
+              ''
             ),
+            hide: !spec?.storageClassName,
           },
-        ]
-      }
+          {
+            name: t('Claim'),
+            value: claimRef ? renderClaimRef(claimRef, item.cluster) : '',
+            hide: !claimRef,
+          },
+          {
+            name: t('Source'),
+            value: sourceType,
+            hide: !sourceType,
+          },
+          {
+            name: t('translation|Reason'),
+            value: status?.reason,
+            hide: !status?.reason,
+          },
+          {
+            name: t('translation|Message'),
+            value: status?.message,
+            hide: !status?.message,
+          },
+        ];
+      }}
     />
   );
 }
