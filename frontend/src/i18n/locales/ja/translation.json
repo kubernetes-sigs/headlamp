@@ -648,6 +648,7 @@
   "MaxReplicas": "最大レプリカ",
   "Deployment pods": "デプロイメントポッド",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} 現在 / {{ desiredReplicas }} 希望",
+  "Last Scale Time": "",
   "Targets": "ターゲット",
   "more…": "もっと…",
   "Default": "デフォルト",

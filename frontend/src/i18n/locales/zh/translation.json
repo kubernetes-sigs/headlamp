@@ -648,6 +648,7 @@
   "MaxReplicas": "最大副本",
   "Deployment pods": "部署 pod",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} 当前 / {{ desiredReplicas }} 期望",
+  "Last Scale Time": "",
   "Targets": "目标",
   "more…": "更多…",
   "Default": "默认",

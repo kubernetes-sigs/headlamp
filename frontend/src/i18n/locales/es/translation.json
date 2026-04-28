@@ -658,6 +658,7 @@
   "MaxReplicas": "MaxReplicas",
   "Deployment pods": "Pods de despliegue",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} actuales / {{ desiredReplicas }} deseados",
+  "Last Scale Time": "",
   "Targets": "Objetivos",
   "more…": "más…",
   "Default": "Por defecto",

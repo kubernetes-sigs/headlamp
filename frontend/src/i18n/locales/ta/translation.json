@@ -653,6 +653,7 @@
   "MaxReplicas": "மாக்ஸிமம் ரெப்லிக்காக்கள்",
   "Deployment pods": "டிப்ளாய்மென்ட் பாட்கள்",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} தற்போதைய / {{ desiredReplicas }} விரும்பியவை",
+  "Last Scale Time": "",
   "Targets": "டார்கெட்கள்",
   "more…": "மேலும்...",
   "Default": "டிஃபால்ட்",

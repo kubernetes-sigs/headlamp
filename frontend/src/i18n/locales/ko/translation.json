@@ -648,6 +648,7 @@
   "MaxReplicas": "최대 레플리카",
   "Deployment pods": "배포된 포드",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} 현재 / {{ desiredReplicas }} 원하는",
+  "Last Scale Time": "",
   "Targets": "대상",
   "more…": "더 보기…",
   "Default": "기본값",

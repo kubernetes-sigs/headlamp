@@ -653,6 +653,7 @@
   "MaxReplicas": "",
   "Deployment pods": "",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "",
+  "Last Scale Time": "",
   "Targets": "",
   "more…": "",
   "Default": "",

@@ -653,6 +653,7 @@
   "MaxReplicas": "زیادہ سے زیادہ ریپلیکاز",
   "Deployment pods": "ڈیپلائمنٹ پوڈز",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} موجودہ / {{ desiredReplicas }} مطلوبہ",
+  "Last Scale Time": "",
   "Targets": "اہداف",
   "more…": "مزید…",
   "Default": "ڈیفالٹ",

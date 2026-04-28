@@ -673,6 +673,7 @@
   "MaxReplicas": "الحد الأقصى للنسخ",
   "Deployment pods": "Pods النشر",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} الحالي / {{ desiredReplicas }} المطلوب",
+  "Last Scale Time": "",
   "Targets": "الأهداف",
   "more…": "المزيد…",
   "Default": "افتراضي",

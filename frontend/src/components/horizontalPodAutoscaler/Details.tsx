@@ -17,6 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import HPA from '../../lib/k8s/hpa';
+import { localeDate } from '../../lib/util';
 import Link from '../common/Link';
 import { ConditionsSection } from '../common/Resource';
 import { DetailsGrid } from '../common/Resource';
@@ -70,6 +71,11 @@ export default function HpaDetails(props: { name?: string; namespace?: string; c
               currentReplicas: item.status.currentReplicas,
               desiredReplicas: item.status.desiredReplicas,
             }),
+          },
+          {
+            name: t('translation|Last Scale Time'),
+            value: item.status.lastScaleTime ? localeDate(item.status.lastScaleTime) : '',
+            hide: !item.status.lastScaleTime,
           },
         ]
       }
