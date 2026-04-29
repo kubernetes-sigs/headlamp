@@ -912,8 +912,26 @@ func createWebSocketURL(host, path, query string) string {
 		u.Scheme = SecureWebSocketScheme
 	}
 
-	u.Path = path
+	u.Path = singleJoiningSlash(u.Path, path)
 	u.RawQuery = query
 
 	return u.String()
+}
+
+// singleJoiningSlash joins two URL paths with a single slash, mirroring the
+// helper used by net/http/httputil. It preserves the cluster server's path
+// prefix (e.g. when the kubeconfig points at a reverse-proxy that routes by
+// URL path such as Warpgate).
+func singleJoiningSlash(a, b string) string {
+	aslash := strings.HasSuffix(a, "/")
+	bslash := strings.HasPrefix(b, "/")
+
+	switch {
+	case aslash && bslash:
+		return a + b[1:]
+	case !aslash && !bslash:
+		return a + "/" + b
+	}
+
+	return a + b
 }

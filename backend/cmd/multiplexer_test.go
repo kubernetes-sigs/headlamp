@@ -299,7 +299,21 @@ func TestCreateWebSocketURL(t *testing.T) {
 			host:     "https://example.com/k8s",
 			path:     "/api/v1/pods",
 			query:    "watch=true",
-			expected: "wss://example.com/api/v1/pods?watch=true",
+			expected: "wss://example.com/k8s/api/v1/pods?watch=true",
+		},
+		{
+			name:     "HTTPS with trailing slash in host path",
+			host:     "https://example.com/k8s/",
+			path:     "/api/v1/pods",
+			query:    "watch=true",
+			expected: "wss://example.com/k8s/api/v1/pods?watch=true",
+		},
+		{
+			name:     "HTTPS with multi-segment path prefix in host",
+			host:     "https://k8s.example.com:443/dev-primary-cluster",
+			path:     "/api/v1/namespaces/default/events",
+			query:    "watch=1",
+			expected: "wss://k8s.example.com:443/dev-primary-cluster/api/v1/namespaces/default/events?watch=1",
 		},
 	}
 

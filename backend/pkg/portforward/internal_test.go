@@ -234,6 +234,63 @@ func TestPortForwardRequestValidate(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TestBuildPortForwardURL ensures the upstream port-forward URL preserves the
+// kubeconfig server's path prefix (relevant when the cluster is fronted by a
+// path-routing reverse proxy such as Warpgate).
+func TestBuildPortForwardURL(t *testing.T) {
+	tests := []struct {
+		name      string
+		host      string
+		namespace string
+		podName   string
+		want      string
+	}{
+		{
+			name:      "no path prefix",
+			host:      "https://kubernetes.default.svc:443",
+			namespace: "default",
+			podName:   "my-pod",
+			want:      "https://kubernetes.default.svc:443/api/v1/namespaces/default/pods/my-pod/portforward",
+		},
+		{
+			name:      "single segment path prefix",
+			host:      "https://example.com/k8s",
+			namespace: "default",
+			podName:   "my-pod",
+			want:      "https://example.com/k8s/api/v1/namespaces/default/pods/my-pod/portforward",
+		},
+		{
+			name:      "trailing slash path prefix",
+			host:      "https://example.com/k8s/",
+			namespace: "default",
+			podName:   "my-pod",
+			want:      "https://example.com/k8s/api/v1/namespaces/default/pods/my-pod/portforward",
+		},
+		{
+			name:      "Warpgate-style multi-segment prefix",
+			host:      "https://k8s.example.com:443/proxy-routed-cluster",
+			namespace: "kube-system",
+			podName:   "traefik-69fpr",
+			want: "https://k8s.example.com:443/proxy-routed-cluster" +
+				"/api/v1/namespaces/kube-system/pods/traefik-69fpr/portforward",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := buildPortForwardURL(tt.host, tt.namespace, tt.podName)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got.String())
+		})
+	}
+}
+
+// TestBuildPortForwardURLInvalidHost ensures an invalid host yields an error.
+func TestBuildPortForwardURLInvalidHost(t *testing.T) {
+	_, err := buildPortForwardURL("://not a url", "ns", "pod")
+	assert.Error(t, err)
+}
+
 // TestStopOrDeletePortForwardRequest.Validate() function.
 func TestStopOrDeletePortForwardRequestValidate(t *testing.T) {
 	req := stopOrDeletePortForwardRequest{}
