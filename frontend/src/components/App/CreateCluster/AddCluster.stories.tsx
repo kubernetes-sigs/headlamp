@@ -110,22 +110,17 @@ export const WithPluginCatalog: Story = {
   decorators: [
     Story => {
       function ElectronStoryDecorator() {
-        const originalProcess = React.useRef((window as any).process);
-
-        const didSetProcess = React.useRef(false);
-        if (!didSetProcess.current) {
+        React.useEffect(() => {
+          const original = (window as any).process;
           (window as any).process = {
-            ...(originalProcess.current ?? {}),
+            ...(original ?? {}),
             type: 'renderer',
           };
-          didSetProcess.current = true;
-        }
-        React.useEffect(() => {
           return () => {
-            if (originalProcess.current === undefined) {
+            if (original === undefined) {
               delete (window as any).process;
             } else {
-              (window as any).process = originalProcess.current;
+              (window as any).process = original;
             }
           };
         }, []);
