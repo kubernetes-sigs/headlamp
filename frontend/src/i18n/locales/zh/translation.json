@@ -779,5 +779,9 @@
   "Toggle column filters in tables": "",
   "Log Viewer Search": "",
   "Toggle search in log viewer": "",
-  "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_one": "{{ eventDate }} (自 {{ firstEventDate }} 起 {{ count }} 次)"
+  "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_one": "{{ eventDate }} (自 {{ firstEventDate }} 起 {{ count }} 次)",
+  "Selector": "",
+  "Pod Template": "",
+  "Match Labels": "",
+  "Template Labels": ""
 }

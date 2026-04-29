@@ -783,5 +783,9 @@
   "Toggle Table Filters": "",
   "Toggle column filters in tables": "",
   "Log Viewer Search": "",
-  "Toggle search in log viewer": ""
+  "Toggle search in log viewer": "",
+  "Selector": "",
+  "Pod Template": "",
+  "Match Labels": "",
+  "Template Labels": ""
 }
