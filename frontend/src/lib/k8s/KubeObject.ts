@@ -371,11 +371,13 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       clusters,
       namespace,
       refetchInterval,
+      isEnabled,
       ...queryParams
     }: {
       cluster?: string;
       clusters?: string[];
       namespace?: string | string[];
+      isEnabled?: boolean;
       /** How often to refetch the list. Won't refetch by default. Disables watching if set. */
       refetchInterval?: number;
     } & QueryParameters = {}
@@ -386,6 +388,8 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     // Create requests for each cluster and namespace
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const requests = useMemo(() => {
+      if (isEnabled === false) return [];
+
       const clusterList = cluster
         ? [cluster]
         : clusters || (fallbackClusters.length === 0 ? [''] : fallbackClusters);
