@@ -1,0 +1,31 @@
+<body>
+  <div>
+    <pre
+      style="font-family: monospace; margin: 0px; white-space: pre-wrap;"
+    >
+      <span
+        class=""
+      >
+        The 
+        <b
+          class="search-highlight"
+        >
+          quick
+        </b>
+         brown 
+        <b
+          class="search-highlight"
+        >
+          fox
+        </b>
+         jumps over the 
+        <b
+          class="search-highlight"
+        >
+          lazy
+        </b>
+         dog
+      </span>
+    </pre>
+  </div>
+</body>

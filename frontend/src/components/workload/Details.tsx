@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
 import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
@@ -22,12 +22,12 @@ import type { KubeObject } from '../../lib/k8s/KubeObject';
 import type Pod from '../../lib/k8s/pod';
 import type { Workload, WorkloadClass } from '../../lib/k8s/Workload';
 import { useEventCallback } from '../../redux/headlampEventSlice';
+import { isLoggableWorkload } from '../common/LogsViewer/isLoggableWorkload';
 import {
   ConditionsSection,
   ContainersSection,
   DetailsGrid,
   launchWorkloadLogs,
-  LOGGABLE_WORKLOAD_KINDS,
   LogsButton,
   MetadataDictGrid,
   OwnedJobsSection,
@@ -79,7 +79,6 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
     errorsKey?: string;
   }>({ pods: null, errors: null });
   const dispatchHeadlampEvent = useEventCallback();
-  const isLoggableKind = LOGGABLE_WORKLOAD_KINDS.has(workloadKind.kind);
   const handleOwnedPodsUpdate = React.useCallback(
     (resource: KubeObject, pods: Pod[] | null, errors: ApiError[] | null) => {
       setOwnedPodsState(previous => {
@@ -106,20 +105,21 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
     []
   );
 
+  const canShowLogs = useMemo(
+    () => workloadItem && isLoggableWorkload(workloadItem),
+    [workloadItem]
+  );
+
   React.useEffect(() => {
     if (autoLaunchView !== 'logs') {
       lastAutoLaunchedLogs.current = null;
       return;
     }
-    if (
-      isLoggableKind &&
-      workloadItem &&
-      lastAutoLaunchedLogs.current !== workloadItem.metadata.uid
-    ) {
+    if (canShowLogs && workloadItem && lastAutoLaunchedLogs.current !== workloadItem.metadata.uid) {
       lastAutoLaunchedLogs.current = workloadItem.metadata.uid;
       launchWorkloadLogs(workloadItem, dispatchHeadlampEvent);
     }
-  }, [workloadItem, autoLaunchView, isLoggableKind, dispatchHeadlampEvent]);
+  }, [workloadItem, autoLaunchView, canShowLogs, dispatchHeadlampEvent]);
 
   function renderUpdateStrategy(item: Workload) {
     if (!item?.spec?.strategy) {
@@ -203,7 +203,7 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
         if (!item) return [];
         const actions = [];
 
-        if (isLoggableKind) {
+        if (canShowLogs) {
           actions.push({
             id: 'logs',
             action: <LogsButton key="logs" item={item} />,

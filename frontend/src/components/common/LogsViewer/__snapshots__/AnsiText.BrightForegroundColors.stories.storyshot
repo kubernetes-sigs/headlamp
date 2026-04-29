@@ -1,0 +1,83 @@
+<body>
+  <div>
+    <pre
+      style="font-family: monospace; margin: 0px; white-space: pre-wrap;"
+    >
+      <span
+        class="ansi-bright-black-fg"
+      >
+        bright black
+      </span>
+      <span
+        class=""
+      >
+         
+      </span>
+      <span
+        class="ansi-bright-red-fg"
+      >
+        bright red
+      </span>
+      <span
+        class=""
+      >
+         
+      </span>
+      <span
+        class="ansi-bright-green-fg"
+      >
+        bright green
+      </span>
+      <span
+        class=""
+      >
+         
+      </span>
+      <span
+        class="ansi-bright-yellow-fg"
+      >
+        bright yellow
+      </span>
+      <span
+        class=""
+      >
+         
+      </span>
+      <span
+        class="ansi-bright-blue-fg"
+      >
+        bright blue
+      </span>
+      <span
+        class=""
+      >
+         
+      </span>
+      <span
+        class="ansi-bright-magenta-fg"
+      >
+        bright magenta
+      </span>
+      <span
+        class=""
+      >
+         
+      </span>
+      <span
+        class="ansi-bright-cyan-fg"
+      >
+        bright cyan
+      </span>
+      <span
+        class=""
+      >
+         
+      </span>
+      <span
+        class="ansi-bright-white-fg"
+      >
+        bright white
+      </span>
+    </pre>
+  </div>
+</body>

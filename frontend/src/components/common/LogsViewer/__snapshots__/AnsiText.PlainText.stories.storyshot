@@ -1,0 +1,13 @@
+<body>
+  <div>
+    <pre
+      style="font-family: monospace; margin: 0px; white-space: pre-wrap;"
+    >
+      <span
+        class=""
+      >
+        Plain log line with no ANSI escape sequences.
+      </span>
+    </pre>
+  </div>
+</body>

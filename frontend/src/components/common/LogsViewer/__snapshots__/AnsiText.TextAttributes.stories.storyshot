@@ -1,0 +1,53 @@
+<body>
+  <div>
+    <pre
+      style="font-family: monospace; margin: 0px; white-space: pre-wrap;"
+    >
+      <span
+        class="ansi-bold"
+      >
+        bold
+      </span>
+      <span
+        class=""
+      >
+         
+      </span>
+      <span
+        class="ansi-italic"
+      >
+        italic
+      </span>
+      <span
+        class=""
+      >
+         
+      </span>
+      <span
+        class="ansi-underline"
+      >
+        underline
+      </span>
+      <span
+        class=""
+      >
+         
+      </span>
+      <span
+        class="ansi-bold ansi-red-fg"
+      >
+        bold red
+      </span>
+      <span
+        class=""
+      >
+         
+      </span>
+      <span
+        class="ansi-underline ansi-yellow-fg"
+      >
+        underlined yellow
+      </span>
+    </pre>
+  </div>
+</body>

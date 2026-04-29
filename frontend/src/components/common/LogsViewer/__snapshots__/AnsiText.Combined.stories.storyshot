@@ -1,0 +1,43 @@
+<body>
+  <div>
+    <pre
+      style="font-family: monospace; margin: 0px; white-space: pre-wrap;"
+    >
+      <span
+        class=""
+      >
+        INFO 
+      </span>
+      <span
+        class="ansi-bold ansi-green-fg"
+      >
+        [OK]
+      </span>
+      <span
+        class=""
+      >
+         server started 
+      </span>
+      <span
+        class="ansi-yellow-fg"
+      >
+        WARN
+      </span>
+      <span
+        class=""
+      >
+         connection slow 
+      </span>
+      <span
+        class="ansi-bold ansi-white-fg ansi-red-bg"
+      >
+         FATAL 
+      </span>
+      <span
+        class=""
+      >
+         core dumped
+      </span>
+    </pre>
+  </div>
+</body>

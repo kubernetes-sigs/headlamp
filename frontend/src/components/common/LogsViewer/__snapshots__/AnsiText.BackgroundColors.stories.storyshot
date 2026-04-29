@@ -1,0 +1,43 @@
+<body>
+  <div>
+    <pre
+      style="font-family: monospace; margin: 0px; white-space: pre-wrap;"
+    >
+      <span
+        class="ansi-red-bg"
+      >
+         red bg 
+      </span>
+      <span
+        class=""
+      >
+         
+      </span>
+      <span
+        class="ansi-green-bg"
+      >
+         green bg 
+      </span>
+      <span
+        class=""
+      >
+         
+      </span>
+      <span
+        class="ansi-blue-bg"
+      >
+         blue bg 
+      </span>
+      <span
+        class=""
+      >
+         
+      </span>
+      <span
+        class="ansi-bright-yellow-bg"
+      >
+         bright yellow bg 
+      </span>
+    </pre>
+  </div>
+</body>
