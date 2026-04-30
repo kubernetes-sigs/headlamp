@@ -29,9 +29,10 @@ const { mockLaunchWorkloadLogs, mockDetailsGrid } = vi.hoisted(() => ({
 vi.mock('../common/Resource', () => ({
   DetailsGrid: (props: any) => {
     mockDetailsGrid(props);
+    const { onResourceUpdate } = props;
     React.useEffect(() => {
-      props.onResourceUpdate?.(fakeDeployment, null);
-    }, [props.onResourceUpdate]);
+      onResourceUpdate?.(fakeDeployment, null);
+    }, [onResourceUpdate]);
     return null;
   },
   LogsButton: () => null,
