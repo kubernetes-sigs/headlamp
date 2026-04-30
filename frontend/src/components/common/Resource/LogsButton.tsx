@@ -37,6 +37,12 @@ import { KubeObject } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import StatefulSet from '../../../lib/k8s/statefulSet';
+import {
+  EventStatus,
+  HeadlampEvent,
+  HeadlampEventType,
+  useEventCallback,
+} from '../../../redux/headlampEventSlice';
 import { Activity } from '../../activity/Activity';
 import ActionButton from '../ActionButton';
 import { LogViewer } from '../LogViewer';
@@ -529,19 +535,33 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   );
 }
 
+export function launchWorkloadLogs(
+  item: KubeObject,
+  dispatchHeadlampEvent?: (event: HeadlampEvent) => void
+) {
+  Activity.launch({
+    id: 'logs-' + item.metadata.uid,
+    title: 'Logs: ' + item.metadata.name,
+    icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
+    cluster: item.cluster,
+    location: 'full',
+    content: <LogsButtonContent item={item} />,
+  });
+  dispatchHeadlampEvent?.({
+    type: HeadlampEventType.LOGS,
+    data: {
+      status: EventStatus.OPENED,
+    },
+  });
+}
+
 export function LogsButton({ item }: LogsButtonProps) {
   const { t } = useTranslation();
+  const dispatchHeadlampEvent = useEventCallback();
 
   const onClick = () => {
     if (!item) return;
-    Activity.launch({
-      id: 'logs-' + item.metadata.uid,
-      title: 'Logs: ' + item.metadata.name,
-      icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
-      cluster: item.cluster,
-      location: 'full',
-      content: <LogsButtonContent item={item} />,
-    });
+    launchWorkloadLogs(item, dispatchHeadlampEvent);
   };
 
   return (

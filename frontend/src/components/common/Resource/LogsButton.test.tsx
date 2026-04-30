@@ -20,7 +20,7 @@ import Deployment from '../../../lib/k8s/deployment';
 import Pod from '../../../lib/k8s/pod';
 import StatefulSet from '../../../lib/k8s/statefulSet';
 import { TestContext } from '../../../test';
-import { LogsButton } from './LogsButton';
+import { launchWorkloadLogs, LogsButton } from './LogsButton';
 
 // vi.hoisted runs before imports, making values available to vi.mock factories
 const { MockKubeObject, mockClusterFetch, mockEnqueueSnackbar, mockActivityLaunch } = vi.hoisted(
@@ -240,6 +240,30 @@ describe('LogsButton', () => {
       expect.objectContaining({
         id: 'logs-dep-123',
         title: 'Logs: test-deployment',
+      })
+    );
+  });
+
+  it('launchWorkloadLogs opens Activity programmatically without a click', () => {
+    launchWorkloadLogs(new Deployment(deploymentData) as any);
+
+    expect(mockActivityLaunch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'logs-dep-123',
+        title: 'Logs: test-deployment',
+        location: 'full',
+      })
+    );
+  });
+
+  it('launchWorkloadLogs fires the LOGS OPENED event when a dispatcher is passed', () => {
+    const dispatch = vi.fn();
+    launchWorkloadLogs(new Deployment(deploymentData) as any, dispatch);
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'headlamp.logs',
+        data: expect.objectContaining({ status: 'open' }),
       })
     );
   });
