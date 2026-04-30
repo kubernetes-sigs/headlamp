@@ -279,7 +279,7 @@ describe('LogsButton', () => {
       status: {},
     };
     const dispatch = vi.fn();
-    launchWorkloadLogs(new Deployment(jobData) as any, dispatch);
+    launchWorkloadLogs(new Deployment(jobData as any) as any, dispatch);
 
     expect(mockActivityLaunch).not.toHaveBeenCalled();
     expect(dispatch).not.toHaveBeenCalled();
