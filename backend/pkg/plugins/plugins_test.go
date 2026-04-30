@@ -22,6 +22,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -61,12 +62,28 @@ func TestWatch(t *testing.T) {
 	t.Log("watcher setup", "create a new file in the new directory")
 	// create a new file in the new directory
 	fileName := path.Join(dirName, uuid.NewString())
-	_, err = os.Create(fileName) //nolint:gosec
+	f, err := os.Create(fileName) //nolint:gosec
 	require.NoError(t, err)
+	f.Close()
+
+	waitForEvent := func(expected string) string {
+		timeout := time.After(10 * time.Second)
+		for {
+			select {
+			case event := <-events:
+				if event == expected {
+					return event
+				}
+			case <-timeout:
+				return ""
+			}
+		}
+	}
 
 	// wait for the watcher to pick up the new directory
-	event := <-events
-	require.Equal(t, fileName+":CREATE", event)
+	expectedEvent := filepath.Clean(fileName)+":CREATE"
+	event := waitForEvent(expectedEvent)
+	require.Equal(t, expectedEvent, event)
 	t.Log("Got create file event in the new directory")
 
 	// create a new file in a subdirectory
@@ -75,17 +92,20 @@ func TestWatch(t *testing.T) {
 	require.NoError(t, err)
 
 	// wait for the watcher to pick up the new file
-	event = <-events
-	require.Equal(t, subDirName+":CREATE", event)
+	expectedEvent = filepath.Clean(subDirName)+":CREATE"
+	event = waitForEvent(expectedEvent)
+	require.Equal(t, expectedEvent, event)
 	t.Log("Got create folder event in the directory")
 
 	subFileName := path.Join(subDirName, uuid.NewString())
-	_, err = os.Create(subFileName) //nolint:gosec
+	f, err = os.Create(subFileName) //nolint:gosec
 	require.NoError(t, err)
+	f.Close()
 
 	// wait for the watcher to pick up the new file
-	event = <-events
-	require.Equal(t, subFileName+":CREATE", event)
+	expectedEvent = filepath.Clean(subFileName)+":CREATE"
+	event = waitForEvent(expectedEvent)
+	require.Equal(t, expectedEvent, event)
 	t.Log("Got create file event in the sub directory")
 
 	// delete the file
@@ -93,8 +113,9 @@ func TestWatch(t *testing.T) {
 	require.NoError(t, err)
 
 	// wait for the watcher to pick up the delete event
-	event = <-events
-	require.Equal(t, subFileName+":REMOVE", event)
+	expectedEvent = filepath.Clean(subFileName)+":REMOVE"
+	event = waitForEvent(expectedEvent)
+	require.Equal(t, expectedEvent, event)
 	t.Log("Got delete file event in the sub directory")
 
 	// clean up
@@ -124,12 +145,14 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 
 		// create main.js and package.json in the sub directory
 		pluginPath := path.Join(subDir, "main.js")
-		_, err = os.Create(pluginPath) //nolint:gosec
+		f_plugin, err := os.Create(pluginPath) //nolint:gosec
 		require.NoError(t, err)
+		f_plugin.Close()
 
 		packageJSONPath := path.Join(subDir, "package.json")
-		_, err = os.Create(packageJSONPath) //nolint:gosec
+		f_pkg, err := os.Create(packageJSONPath) //nolint:gosec
 		require.NoError(t, err)
+		f_pkg.Close()
 
 		pathList, err := plugins.GeneratePluginPaths("", "", testDirName)
 		require.NoError(t, err)
@@ -156,12 +179,14 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 
 		// create main.js and package.json in the sub directory
 		pluginPath := path.Join(subDir, "main.js")
-		_, err = os.Create(pluginPath) //nolint:gosec
+		f_plugin, err := os.Create(pluginPath) //nolint:gosec
 		require.NoError(t, err)
+		f_plugin.Close()
 
 		packageJSONPath := path.Join(subDir, "package.json")
-		_, err = os.Create(packageJSONPath) //nolint:gosec
+		f_pkg, err := os.Create(packageJSONPath) //nolint:gosec
 		require.NoError(t, err)
+		f_pkg.Close()
 
 		pathList, err := plugins.GeneratePluginPaths(testDirName, "", "")
 		require.NoError(t, err)
@@ -188,8 +213,9 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 
 		// create random file in the sub directory
 		fileName := path.Join(subDir, uuid.NewString())
-		_, err = os.Create(fileName) //nolint:gosec
+		f, err := os.Create(fileName) //nolint:gosec
 		require.NoError(t, err)
+		f.Close()
 
 		// test with file as plugin Dir
 		pathList, err := plugins.GeneratePluginPaths(fileName, "", "")
@@ -237,13 +263,15 @@ func createPlugin(t *testing.T, baseDir string, pluginName string) string {
 
 	// create main.js
 	mainJsPath := path.Join(pluginDir, "main.js")
-	_, err = os.Create(mainJsPath) //nolint:gosec
+	f, err := os.Create(mainJsPath) //nolint:gosec
 	require.NoError(t, err)
+	f.Close()
 
 	// create package.json
 	packageJSONPath := path.Join(pluginDir, "package.json")
-	_, err = os.Create(packageJSONPath) //nolint:gosec
+	f, err = os.Create(packageJSONPath) //nolint:gosec
 	require.NoError(t, err)
+	f.Close()
 
 	return pluginDir
 }
@@ -325,12 +353,14 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 
 	// create main.js and package.json in the sub directory
 	pluginPath := path.Join(pluginDirPath, "main.js")
-	_, err = os.Create(pluginPath) //nolint:gosec
+	f, err := os.Create(pluginPath) //nolint:gosec
 	require.NoError(t, err)
+	f.Close()
 
 	packageJSONPath := path.Join(pluginDirPath, "package.json")
-	_, err = os.Create(packageJSONPath) //nolint:gosec
+	f, err = os.Create(packageJSONPath) //nolint:gosec
 	require.NoError(t, err)
+	f.Close()
 
 	// create channel to receive events
 	events := make(chan string)

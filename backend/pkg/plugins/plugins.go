@@ -24,6 +24,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -333,11 +334,21 @@ func ListPlugins(staticPluginDir, userPluginDir, pluginDir string) error {
 
 // pluginBasePathListForDir returns a list of valid plugin paths for the given directory.
 func pluginBasePathListForDir(pluginDir string, baseURL string) ([]string, error) {
+	info, err := os.Stat(pluginDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("plugin path %s is not a directory", pluginDir)
+	}
+
 	files, err := os.ReadDir(pluginDir)
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"pluginDir": pluginDir},
 			err, "reading plugin directory")
-
 		return nil, err
 	}
 
@@ -377,7 +388,7 @@ func pluginBasePathListForDir(pluginDir string, baseURL string) ([]string, error
 			}
 		}
 
-		pluginFileURL := filepath.Join(baseURL, f.Name())
+		pluginFileURL := path.Join(baseURL, f.Name())
 		pluginListURLs = append(pluginListURLs, pluginFileURL)
 	}
 

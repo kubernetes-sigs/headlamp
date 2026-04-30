@@ -343,7 +343,7 @@ func TestInvalidKubeConfig(t *testing.T) {
 		},
 	}
 
-	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, absPath, kubeconfig.KubeConfig, nil)
+	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, absPath, kubeconfig.KubeConfig, nil, false)
 	assert.Error(t, err)
 
 	clusters := c.getClusters()
@@ -555,8 +555,9 @@ func TestDeletePlugin(t *testing.T) {
 
 	// create plugin file
 	pluginFile := pluginDir + "/main.js"
-	_, err = os.Create(pluginFile) //nolint:gosec
+	f, err := os.Create(pluginFile) //nolint:gosec
 	require.NoError(t, err)
+	f.Close()
 
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
@@ -1835,7 +1836,7 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 	}
 
 	kubeConfigStore := kubeconfig.NewContextStore()
-	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, nil)
+	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, nil, false)
 	require.NoError(t, err, "failed to load kubeconfig")
 
 	cfg, err := clientcmd.LoadFromFile(kubeConfigPath)
