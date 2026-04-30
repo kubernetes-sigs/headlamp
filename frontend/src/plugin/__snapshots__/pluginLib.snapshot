@@ -74,6 +74,12 @@
     "HoverInfoLabel": [Function],
     "InfoLabel": [Function],
     "InnerTable": [Function],
+    "LOGGABLE_WORKLOAD_KINDS": Set {
+      "Deployment",
+      "ReplicaSet",
+      "DaemonSet",
+      "StatefulSet",
+    },
     "LabelListItem": [Function],
     "LabelTextField": [Function],
     "LightTooltip": [Function],
@@ -131,6 +137,12 @@
       "EditorDialog": [Function],
       "EnvVarGrid": [Function],
       "FormTextField": [Function],
+      "LOGGABLE_WORKLOAD_KINDS": Set {
+        "Deployment",
+        "ReplicaSet",
+        "DaemonSet",
+        "StatefulSet",
+      },
       "LabelTextField": [Function],
       "LivenessProbes": [Function],
       "LogsButton": [Function],
@@ -465,6 +477,7 @@
   },
   "Lodash": Function {
     "default": [Function],
+    "module.exports": [Function],
   },
   "MonacoEditor": "Present",
   "MuiCore": "Present",

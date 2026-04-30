@@ -53,6 +53,15 @@ interface LogsButtonProps {
   item: KubeObject | null;
 }
 
+// Workload kinds whose pods can be aggregated by the Logs activity. Exported so
+// plugin authors can check before calling launchWorkloadLogs().
+export const LOGGABLE_WORKLOAD_KINDS: ReadonlySet<string> = new Set([
+  'Deployment',
+  'ReplicaSet',
+  'DaemonSet',
+  'StatefulSet',
+]);
+
 // Styled component for consistent padding in form controls
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   margin: 0,
@@ -539,6 +548,9 @@ export function launchWorkloadLogs(
   item: KubeObject,
   dispatchHeadlampEvent?: (event: HeadlampEvent) => void
 ) {
+  if (!LOGGABLE_WORKLOAD_KINDS.has(item.kind)) {
+    return;
+  }
   Activity.launch({
     id: 'logs-' + item.metadata.uid,
     title: 'Logs: ' + item.metadata.name,

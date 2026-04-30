@@ -43,6 +43,7 @@ vi.mock('../common/Resource', () => ({
   OwnedPodsSection: () => null,
   RevisionHistorySection: () => null,
   launchWorkloadLogs: (...args: any[]) => mockLaunchWorkloadLogs(...args),
+  LOGGABLE_WORKLOAD_KINDS: new Set(['Deployment', 'ReplicaSet', 'DaemonSet', 'StatefulSet']),
 }));
 
 vi.mock('../../lib/k8s/Workload', () => ({

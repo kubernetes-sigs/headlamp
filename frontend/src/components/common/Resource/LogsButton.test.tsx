@@ -30,6 +30,9 @@ const { MockKubeObject, mockClusterFetch, mockEnqueueSnackbar, mockActivityLaunc
       constructor(data: any) {
         this.jsonData = data;
       }
+      get kind() {
+        return this.jsonData?.kind;
+      }
       get metadata() {
         return this.jsonData?.metadata;
       }
@@ -266,6 +269,20 @@ describe('LogsButton', () => {
         data: expect.objectContaining({ status: 'open' }),
       })
     );
+  });
+
+  it('launchWorkloadLogs no-ops for unsupported workload kinds (e.g. Job)', () => {
+    const jobData = {
+      kind: 'Job',
+      metadata: { name: 'test-job', namespace: 'default', uid: 'job-123' },
+      spec: {},
+      status: {},
+    };
+    const dispatch = vi.fn();
+    launchWorkloadLogs(new Deployment(jobData) as any, dispatch);
+
+    expect(mockActivityLaunch).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('shows warning snackbar when no pods are available', async () => {

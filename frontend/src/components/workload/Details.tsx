@@ -17,22 +17,20 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
-import { WorkloadClass } from '../../lib/k8s/Workload';
-import { Workload } from '../../lib/k8s/Workload';
+import type { Workload, WorkloadClass } from '../../lib/k8s/Workload';
 import { useEventCallback } from '../../redux/headlampEventSlice';
 import {
   ConditionsSection,
   ContainersSection,
   DetailsGrid,
   launchWorkloadLogs,
+  LOGGABLE_WORKLOAD_KINDS,
   LogsButton,
   MetadataDictGrid,
   OwnedPodsSection,
   RevisionHistorySection,
   RollbackButton,
 } from '../common/Resource';
-
-const LOGGABLE_KINDS = ['Deployment', 'ReplicaSet', 'DaemonSet', 'StatefulSet'];
 
 interface WorkloadDetailsProps<T extends WorkloadClass> {
   workloadKind: T;
@@ -53,7 +51,7 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
   const lastAutoLaunchedLogs = React.useRef<string | null>(null);
   const [workloadItem, setWorkloadItem] = React.useState<Workload | null>(null);
   const dispatchHeadlampEvent = useEventCallback();
-  const isLoggableKind = LOGGABLE_KINDS.includes(workloadKind.kind);
+  const isLoggableKind = LOGGABLE_WORKLOAD_KINDS.has(workloadKind.kind);
 
   React.useEffect(() => {
     if (autoLaunchView !== 'logs') {
