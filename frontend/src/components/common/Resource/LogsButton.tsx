@@ -546,7 +546,7 @@ export function launchWorkloadLogs(
   item: KubeObject,
   dispatchHeadlampEvent?: (event: HeadlampEvent) => void
 ) {
-  if (!LOGGABLE_WORKLOAD_KINDS.has(item.kind)) {
+  if (!isLoggableWorkload(item)) {
     return;
   }
   Activity.launch({

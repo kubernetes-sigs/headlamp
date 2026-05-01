@@ -46,11 +46,6 @@ vi.mock('../common/Resource', () => ({
   LOGGABLE_WORKLOAD_KINDS: new Set(['Deployment', 'ReplicaSet', 'DaemonSet', 'StatefulSet']),
 }));
 
-vi.mock('../../lib/k8s/Workload', () => ({
-  Workload: class {},
-  WorkloadClass: class {},
-}));
-
 const fakeDeployment: any = {
   kind: 'Deployment',
   metadata: { name: 'nginx', namespace: 'default', uid: 'dep-abc-123' },
