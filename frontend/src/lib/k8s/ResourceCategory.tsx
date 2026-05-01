@@ -15,7 +15,18 @@
  */
 
 import { memoize } from 'lodash';
+import type { ApiResource } from './api/v2/ApiResource';
 import { type KubeObject } from './KubeObject';
+
+/**
+ * Selects which resources from a Kubernetes API group belong to a category.
+ *
+ * Either allowlist specific kinds with `includeKinds`, or include the whole
+ * group and optionally deny certain kinds with `excludeKinds`.
+ */
+export type ResourceSelector =
+  | { apiGroup: string; includeKinds: string[] }
+  | { apiGroup: string; excludeKinds?: string[] };
 
 /**
  * User friendly alternative to Kubernetes API groups
@@ -27,14 +38,10 @@ export interface ResourceCategory {
   label: string;
   /** MDI icon */
   icon: string;
-  /** Description of the group */
+  /** Description of the category */
   description: string;
-  /** Which api groups are included */
-  apiGroups?: string[];
-  /** Which kinds from core api group are included */
-  coreKinds?: string[];
-  /** Ignore certain kinds from the groups */
-  excludeKinds?: string[];
+  /** Selectors defining which resources belong to this category */
+  resources?: ResourceSelector[];
 }
 
 export const categoriesConfig: ResourceCategory[] = [
@@ -42,44 +49,58 @@ export const categoriesConfig: ResourceCategory[] = [
     label: 'Workloads',
     icon: 'mdi:circle-slice-2',
     description: 'Applications and compute resources',
-    apiGroups: ['apps', 'batch'],
-    coreKinds: ['Pod'],
-    excludeKinds: ['ControllerRevision'],
+    resources: [
+      { apiGroup: 'apps', excludeKinds: ['ControllerRevision'] },
+      { apiGroup: 'batch' },
+      { apiGroup: 'core', includeKinds: ['Pod'] },
+    ],
   },
   {
     label: 'Storage',
     icon: 'mdi:database',
     description: 'Persistent data storage',
-    apiGroups: ['storage.k8s.io'],
-    coreKinds: ['PersistentVolumeClaim', 'PersistentVolume'],
-    excludeKinds: ['CSIStorageCapacity'],
+    resources: [
+      { apiGroup: 'storage.k8s.io', includeKinds: ['StorageClass'] },
+      { apiGroup: 'core', includeKinds: ['PersistentVolumeClaim', 'PersistentVolume'] },
+    ],
   },
   {
     label: 'Network',
     icon: 'mdi:folder-network-outline',
     description: 'Network connectivity and exposure',
-    apiGroups: ['networking.k8s.io'],
-    coreKinds: ['Service', 'Endpoints', 'EndpointSlice'],
+    resources: [
+      { apiGroup: 'networking.k8s.io' },
+      { apiGroup: 'core', includeKinds: ['Service', 'Endpoints', 'EndpointSlice'] },
+    ],
+  },
+  {
+    label: 'Gateway',
+    icon: 'mdi:lan-connect',
+    description: 'Gateway API resources',
+    resources: [{ apiGroup: 'gateway.networking.k8s.io' }],
   },
   {
     label: 'Security',
     icon: 'mdi:account-lock',
     description: 'Role-based access control',
-    apiGroups: ['rbac.authorization.k8s.io'],
-    coreKinds: ['ServiceAccount'],
+    resources: [
+      { apiGroup: 'rbac.authorization.k8s.io' },
+      { apiGroup: 'core', includeKinds: ['ServiceAccount'] },
+    ],
   },
   {
     label: 'Configuration',
     icon: 'mdi:format-list-checks',
     description: 'Configuration data and secrets',
-    apiGroups: [
-      'autoscaling',
-      'policy',
-      'scheduling.k8s.io',
-      'coordination.k8s.io',
-      'admissionregistration.k8s.io',
+    resources: [
+      { apiGroup: 'autoscaling' },
+      { apiGroup: 'policy' },
+      { apiGroup: 'scheduling.k8s.io' },
+      { apiGroup: 'coordination.k8s.io' },
+      { apiGroup: 'admissionregistration.k8s.io' },
+      { apiGroup: 'core', includeKinds: ['ConfigMap', 'Secret', 'ResourceQuota', 'LimitRange'] },
+      { apiGroup: 'node.k8s.io', includeKinds: ['RuntimeClass'] },
     ],
-    coreKinds: ['ConfigMap', 'Secret', 'ResourceQuota', 'LimitRange'],
   },
 ];
 
@@ -88,6 +109,23 @@ const makeCategoryForApiGroup = memoize((apiGroup: string) => ({
   icon: 'mdi:puzzle-outline',
   description: `Resources from the ${apiGroup} API group`,
 }));
+
+/**
+ * Find which predefined category matches the given API group and kind.
+ * Returns null if no category matches.
+ */
+export function findCategoryForResource(apiGroup: string, kind: string): ResourceCategory | null {
+  for (const category of categoriesConfig) {
+    if (!category.resources) continue;
+    for (const selector of category.resources) {
+      if (selector.apiGroup !== apiGroup) continue;
+      if ('includeKinds' in selector && !selector.includeKinds.includes(kind)) continue;
+      if ('excludeKinds' in selector && selector.excludeKinds?.includes(kind)) continue;
+      return category;
+    }
+  }
+  return null;
+}
 
 /**
  * Get category of the given kubernetes object
@@ -100,24 +138,65 @@ export const getKubeObjectCategory = (resource: KubeObject): ResourceCategory =>
   const kind = resource.jsonData.kind;
   const apiGroup = apiVersion.includes('/') ? apiVersion.split('/')[0] : 'core';
 
-  for (const config of categoriesConfig) {
-    const isExcluded = config.excludeKinds && config.excludeKinds.includes(kind);
-    if (isExcluded) {
-      continue;
-    }
+  return findCategoryForResource(apiGroup, kind) ?? makeCategoryForApiGroup(apiGroup);
+};
 
-    const inGroup = config.apiGroups && config.apiGroups.includes(apiGroup);
-    if (inGroup) {
-      return config;
-    }
+/** The "Custom Resources" category for resources that don't match any predefined category. */
+export const customResourcesCategory: ResourceCategory = {
+  label: 'Custom Resources',
+  icon: 'mdi:puzzle-outline',
+  description: 'Custom resource definitions',
+};
 
-    const isInCoreGroup =
-      apiGroup === 'core' && config.coreKinds && config.coreKinds.includes(kind);
-    if (isInCoreGroup) {
-      return config;
+/**
+ * Groups API resources by ResourceCategory.
+ *
+ * Each resource is either:
+ * - Placed in a predefined category (from categoriesConfig via findCategoryForResource)
+ * - Placed in "Custom Resources" if it's a known CRD
+ * - Skipped otherwise
+ *
+ * Resources within each category are sorted alphabetically by kind.
+ */
+export function groupByCategory(
+  resources: ApiResource[],
+  crdNames?: Set<string>
+): Map<ResourceCategory, ApiResource[]> {
+  // Pre-seed with categoriesConfig to preserve defined order
+  const result = new Map<ResourceCategory, ApiResource[]>();
+  for (const cat of categoriesConfig) {
+    result.set(cat, []);
+  }
+
+  const otherResources: ApiResource[] = [];
+
+  for (const resource of resources) {
+    const category = findCategoryForResource(resource.groupName ?? 'core', resource.kind);
+
+    if (category) {
+      result.get(category)!.push(resource);
+    } else if (resource.groupName) {
+      const crdName = `${resource.pluralName}.${resource.groupName}`;
+      if (!crdNames || crdNames.has(crdName)) {
+        otherResources.push(resource);
+      }
     }
   }
 
-  // Fallback to automatically generated group for the API group
-  return makeCategoryForApiGroup(apiGroup);
-};
+  // Remove empty predefined categories
+  for (const [cat, items] of result) {
+    if (items.length === 0) {
+      result.delete(cat);
+    } else {
+      items.sort((a, b) => a.kind.localeCompare(b.kind));
+    }
+  }
+
+  // Append Custom Resources last
+  if (otherResources.length > 0) {
+    otherResources.sort((a, b) => a.kind.localeCompare(b.kind));
+    result.set(customResourcesCategory, otherResources);
+  }
+
+  return result;
+}

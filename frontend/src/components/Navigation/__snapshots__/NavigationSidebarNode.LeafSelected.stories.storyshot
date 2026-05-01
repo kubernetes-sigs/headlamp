@@ -1,0 +1,33 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1qqohf6"
+    >
+      <ul
+        class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
+      >
+        <div
+          class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-10xsrtz-MuiButtonBase-root-MuiListItemButton-root"
+          role="button"
+          tabindex="0"
+        >
+          <div
+            class="MuiListItemIcon-root css-m80ve8-MuiListItemIcon-root"
+          />
+          <div
+            class="MuiListItemText-root css-tlelie-MuiListItemText-root"
+          >
+            <span
+              class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+            >
+              Map
+            </span>
+          </div>
+          <span
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+          />
+        </div>
+      </ul>
+    </div>
+  </div>
+</body>

@@ -44,7 +44,8 @@ import { ErrorPage, Loader } from '../common';
 import ActionsNotifier from '../common/ActionsNotifier';
 import AlertNotification from '../common/AlertNotification';
 import DetailsDrawer from '../common/Resource/DetailsDrawer';
-import Sidebar, { NavigationTabs } from '../Sidebar';
+import NavigationSidebar from '../Navigation/NavigationSidebar';
+import NavigationTabs from '../Navigation/NavigationTabs';
 import RouteSwitcher from './RouteSwitcher';
 import ShortcutsSettings from './Settings/ShortcutsSettings';
 import TopBar from './TopBar';
@@ -319,7 +320,7 @@ export default function Layout({}: LayoutProps) {
               gridTemplateColumns: 'min-content 1fr',
             }}
           >
-            <Sidebar />
+            <NavigationSidebar />
             <Main
               id="main"
               sx={{

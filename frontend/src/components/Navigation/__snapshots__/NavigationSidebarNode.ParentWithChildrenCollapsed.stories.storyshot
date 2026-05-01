@@ -1,0 +1,26 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1hhcxpi"
+    >
+      <ul
+        class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
+      >
+        <div
+          aria-label="Cluster"
+          class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-11puf27-MuiButtonBase-root-MuiListItemButton-root"
+          data-mui-internal-clone-element="true"
+          role="button"
+          tabindex="0"
+        >
+          <div
+            class="MuiListItemIcon-root css-k5h62x-MuiListItemIcon-root"
+          />
+          <span
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+          />
+        </div>
+      </ul>
+    </div>
+  </div>
+</body>
