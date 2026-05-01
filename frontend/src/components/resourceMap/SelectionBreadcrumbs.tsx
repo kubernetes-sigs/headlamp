@@ -89,8 +89,13 @@ export function SelectionBreadcrumbs({
           return '';
         };
 
-        const icon = it?.kubeObject?.kind ? (
-          <KubeIcon kind={it.kubeObject.kind} width="24px" height="24px" />
+        const kubeObject = it.kubeObject;
+        const apiGroup =
+          kubeObject?.jsonData?.apiVersion && kubeObject.jsonData.apiVersion.includes('/')
+            ? kubeObject.jsonData.apiVersion.split('/')[0]
+            : 'core';
+        const icon = kubeObject?.kind ? (
+          <KubeIcon kind={kubeObject.kind} apiGroup={apiGroup} width="24px" height="24px" />
         ) : null;
 
         const subtitle = it.subtitle ?? it?.kubeObject?.kind;
