@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/folke/neoconf.nvim/main/schemas/neoconf.json",
+  "lspconfig": {
+    "eslint": {
+      "settings": {
+        "workingDirectory": {
+          "mode": "auto"
+        },
+        "options": {
+          "overrideConfigFile": "frontend/.eslintrc.slow.cjs"
+        }
+      }
+    }
+  }
+}

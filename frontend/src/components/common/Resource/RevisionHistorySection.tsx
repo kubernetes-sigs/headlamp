@@ -66,6 +66,7 @@ export default function RevisionHistorySection(props: RevisionHistorySectionProp
     let isActive = true;
 
     if (!historyGetter) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRevisions([]);
       setError(null);
       setLoading(false);

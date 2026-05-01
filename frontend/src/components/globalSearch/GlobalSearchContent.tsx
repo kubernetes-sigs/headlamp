@@ -121,7 +121,7 @@ function useSearchResources() {
         kind: classes[index].kind,
       };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/use-memo
   }, [results.map(it => it.data)]);
 }
 

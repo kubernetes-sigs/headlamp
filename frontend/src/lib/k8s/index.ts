@@ -128,7 +128,7 @@ export function useClustersConf(): ConfigState['allClusters'] {
 
   return useMemo(
     () => (state.clusters === null ? null : allClusters),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/use-memo
     [state.clusters === null, Object.keys(allClusters).join(',')]
   );
 }

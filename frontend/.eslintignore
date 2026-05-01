@@ -1,5 +1,4 @@
 ../app/electron/*.js
-
 # Gitignored dirs under plugins/headlamp-plugin/ that get created locally
 # by setup scripts (copies/symlinks of frontend/src/).  ESLint doesn't
 # respect .gitignore, so we must list them here explicitly.
@@ -12,3 +11,6 @@
 ../plugins/headlamp-plugin/src/redux/
 ../plugins/headlamp-plugin/src/resources/
 ../plugins/headlamp-plugin/src/stateless/
+../plugins/headlamp-plugin/examples/
+../plugins/headlamp-plugin/official-plugins/
+../plugins/headlamp-plugin/.temp-official-plugins/

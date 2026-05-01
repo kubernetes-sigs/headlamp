@@ -1,0 +1,19 @@
+{
+  // Use the CI ESLint config so the slower react-hooks/* React Compiler rules
+  // (component-hook-factories, immutability, purity, refs, set-state-in-effect,
+  // set-state-in-render, static-components, use-memo, ...) are reported in the
+  // editor. The default frontend/package.json eslintConfig keeps these off so
+  // `npm run lint` stays fast; CI and husky enforce them via lint:slow.
+  "lsp": {
+    "eslint": {
+      "settings": {
+        "workingDirectory": {
+          "mode": "always_root"
+        },
+        "options": {
+          "overrideConfigFile": "frontend/.eslintrc.slow.cjs"
+        }
+      }
+    }
+  }
+}

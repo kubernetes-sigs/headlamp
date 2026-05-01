@@ -150,7 +150,7 @@ const SourceLoader = memo(
 export default function useThrottledMemo<T>(factory: () => T, deps: any[], throttleMs: number): T {
   const [state, setState] = useState(factory);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/use-memo
   const debouncedSetState = useCallback(throttle(setState, throttleMs), []);
 
   useEffect(() => {
