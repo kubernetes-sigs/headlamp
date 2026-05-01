@@ -126,7 +126,6 @@ SelectingClusters.parameters = {
     },
   },
 };
-
 /**
  * VALIDATING STATE
  * Shows loading spinner while the system validates selected clusters
