@@ -26,6 +26,7 @@ const avoidCheck = [
   'ActionsNotifier',
   'AlertNotification',
   'ErrorBoundary',
+  'logSeverityFilter',
 ];
 
 const checkExports = [

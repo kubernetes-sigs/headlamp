@@ -29,6 +29,7 @@ import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
+
 import { getDefaultContainer } from '../../helpers/podContainer';
 import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
@@ -45,16 +46,16 @@ import {
   VolumeSection,
 } from '../common/Resource';
 import AuthVisible from '../common/Resource/AuthVisible';
-import SectionBox from '../common/SectionBox';
-import SimpleTable from '../common/SimpleTable';
-import Terminal from '../common/Terminal';
-import LightTooltip from '../common/Tooltip/TooltipLight';
-import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import {
   ALL_SEVERITIES,
   filterLogsBySeverity,
   LogSeverity,
 } from '../common/Resource/logSeverityFilter';
+import SectionBox from '../common/SectionBox';
+import SimpleTable from '../common/SimpleTable';
+import Terminal from '../common/Terminal';
+import LightTooltip from '../common/Tooltip/TooltipLight';
+import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
 import { PodDebugAction } from './PodDebugAction';
