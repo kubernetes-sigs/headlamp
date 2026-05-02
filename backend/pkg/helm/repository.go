@@ -17,6 +17,7 @@ limitations under the License.
 package helm
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -238,15 +239,21 @@ func (h *Handler) ListRepo(w http.ResponseWriter, r *http.Request) {
 		Repositories: repositories,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	var buf bytes.Buffer
 
-	err = json.NewEncoder(w).Encode(response)
+	err = json.NewEncoder(&buf).Encode(response)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "encoding response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if _, err := w.Write(buf.Bytes()); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing repo list response")
 	}
 }
 

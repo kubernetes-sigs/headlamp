@@ -168,6 +168,15 @@ podSecurityContext:
   # fsGroup: 2000
 
 # -- Headlamp containers Security Context
+# When readOnlyRootFilesystem: true is set, the chart automatically adds a
+# writable emptyDir volume named "headlamp-tmp" mounted at /tmp so the
+# application can write temporary files.
+# You can override this behavior in two ways:
+#   1. Supply your own volumeMount with mountPath: /tmp — the chart will skip
+#      adding both the automatic mount and the automatic volume.
+#   2. Supply your own volume named "headlamp-tmp" (e.g. to set sizeLimit) —
+#      the chart will skip creating the volume but will still add the /tmp mount
+#      pointing to your volume.
 securityContext:
   # capabilities:
   #   drop:
@@ -376,7 +385,13 @@ pluginsManager:
   #   limits:
   #     cpu: "1000m"
   #     memory: "4096Mi"
-  # If omitted, the plugin manager will inherit the global securityContext
+  # If omitted, the plugin manager will inherit the global securityContext.
+  # When readOnlyRootFilesystem: true is active (set here or inherited), the
+  # chart automatically adds a writable emptyDir volume named
+  # "headlamp-plugins-tmp" mounted at /tmp in the plugin manager container.
+  # Override behavior mirrors the main container: supply your own /tmp
+  # volumeMount to skip both, or supply your own "headlamp-plugins-tmp" volume
+  # (e.g. to set sizeLimit) to have the chart only add the mount.
   securityContext:
     {}
     # runAsUser: 1001

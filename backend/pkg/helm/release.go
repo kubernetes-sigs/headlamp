@@ -602,6 +602,8 @@ func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.Res
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "setting status")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
 	}
 
 	go func(h *Handler) {

@@ -529,23 +529,24 @@ export function createMuiTheme(currentTheme: AppTheme) {
 }
 
 export function usePrefersColorScheme() {
-  if (typeof window.matchMedia !== 'function') {
-    return 'light';
-  }
+  const isSupported = typeof window.matchMedia === 'function';
+  const mql = isSupported ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
-  const mql = window.matchMedia('(prefers-color-scheme: dark)');
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [value, setValue] = React.useState(mql.matches);
+  const [value, setValue] = React.useState(mql?.matches ?? false);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   React.useEffect(() => {
+    if (!mql) return;
     const handler = (x: MediaQueryListEvent | MediaQueryList) => setValue(x.matches);
     mql.addListener(handler);
     return () => mql.removeListener(handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return value;
+  if (!isSupported) {
+    return 'light';
+  }
+
+  return value ? 'dark' : 'light';
 }
 
 /**

@@ -103,10 +103,22 @@ export interface JobsListRendererProps {
   hideColumns?: 'namespace'[];
   reflectTableInURL?: SimpleTableProps['reflectInURL'];
   noNamespaceFilter?: boolean;
+  enableRowActions?: boolean;
+  enableRowSelection?: boolean;
+  hideCreateButton?: boolean;
 }
 
 export function JobsListRenderer(props: JobsListRendererProps) {
-  const { jobs, errors, hideColumns = [], reflectTableInURL = 'jobs', noNamespaceFilter } = props;
+  const {
+    jobs,
+    errors,
+    hideColumns = [],
+    reflectTableInURL = 'jobs',
+    noNamespaceFilter,
+    enableRowActions,
+    enableRowSelection,
+    hideCreateButton,
+  } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   function getCompletions(job: Job) {
@@ -126,7 +138,9 @@ export function JobsListRenderer(props: JobsListRendererProps) {
       title={t('Jobs')}
       headerProps={{
         noNamespaceFilter,
-        titleSideActions: [<CreateResourceButton resourceClass={Job} key="create-job-button" />],
+        titleSideActions: hideCreateButton
+          ? []
+          : [<CreateResourceButton resourceClass={Job} key="create-job-button" />],
       }}
       hideColumns={hideColumns}
       errors={errors}
@@ -208,6 +222,8 @@ export function JobsListRenderer(props: JobsListRendererProps) {
       data={jobs}
       reflectInURL={reflectTableInURL}
       id="headlamp-jobs"
+      enableRowActions={enableRowActions}
+      enableRowSelection={enableRowSelection}
     />
   );
 }

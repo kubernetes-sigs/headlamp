@@ -11,6 +11,16 @@
 {{- $usePKCE := "" }}
 {{- $useAccessToken := "" }}
 {{- $meUserInfoURL := "" }}
+{{- $readOnlyRootFs := eq (include "headlamp.readOnlyRootFilesystem" .Values) "true" }}
+{{- $pluginManagerSecurityContext := dict }}
+{{- if .Values.pluginsManager.securityContext }}
+{{- $pluginManagerSecurityContext = .Values.pluginsManager.securityContext }}
+{{- else if .Values.securityContext }}
+{{- $pluginManagerSecurityContext = .Values.securityContext }}
+{{- end }}
+{{- $readOnlyRootFsPlugins := and .Values.pluginsManager.enabled (eq (include "headlamp.readOnlyRootFilesystem" (dict "securityContext" $pluginManagerSecurityContext)) "true") }}
+{{- $tmpCtx := include "headlamp.tmpVolumeContext" (dict "volumeMounts" .Values.volumeMounts "volumes" .Values.volumes "readOnly" $readOnlyRootFs "mountName" "headlamp-tmp") | fromYaml }}
+{{- $pluginsTmpCtx := include "headlamp.tmpVolumeContext" (dict "volumeMounts" .Values.pluginsManager.volumeMounts "volumes" .Values.volumes "readOnly" $readOnlyRootFsPlugins "mountName" "headlamp-plugins-tmp") | fromYaml }}
 
 # This block of code is used to extract the values from the env.
 # This is done to check if the values are non-empty and if they are, they are used in the deployment.yaml.
@@ -345,7 +355,7 @@ spec:
               port: http
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or .Values.pluginsManager.enabled .Values.volumeMounts }}
+          {{- if or .Values.pluginsManager.enabled .Values.volumeMounts $tmpCtx.addMount }}
           volumeMounts:
             {{- if .Values.pluginsManager.enabled }}
             - name: plugins-dir
@@ -353,6 +363,10 @@ spec:
             {{- end }}
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if $tmpCtx.addMount }}
+            - name: headlamp-tmp
+              mountPath: /tmp
             {{- end }}
           {{- end }}
         {{- if .Values.pluginsManager.enabled }}
@@ -380,6 +394,10 @@ spec:
               mountPath: {{ .Values.config.pluginsDir }}
             - name: plugin-config
               mountPath: /config
+            {{- if $pluginsTmpCtx.addMount }}
+            - name: headlamp-plugins-tmp
+              mountPath: /tmp
+            {{- end }}
             {{- with .Values.pluginsManager.volumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -424,7 +442,7 @@ spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . | quote }}
       {{- end }}
-      {{- if or .Values.pluginsManager.enabled .Values.volumes }}
+      {{- if or .Values.pluginsManager.enabled .Values.volumes $tmpCtx.addVolume $pluginsTmpCtx.addVolume }}
       volumes:
         {{- if .Values.pluginsManager.enabled }}
         - name: plugins-dir
@@ -432,6 +450,14 @@ spec:
         - name: plugin-config
           configMap:
             name: {{ include "headlamp.fullname" . }}-plugin-config
+        {{- if $pluginsTmpCtx.addVolume }}
+        - name: headlamp-plugins-tmp
+          emptyDir: {}
+        {{- end }}
+        {{- end }}
+        {{- if $tmpCtx.addVolume }}
+        - name: headlamp-tmp
+          emptyDir: {}
         {{- end }}
         {{- with .Values.volumes}}
         {{- toYaml . | nindent 8 }}

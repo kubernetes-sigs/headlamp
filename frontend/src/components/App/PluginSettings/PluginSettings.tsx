@@ -32,9 +32,11 @@ import { useFilterFunc } from '../../../lib/util';
 import { PluginInfo, reloadPage, setPluginSettings } from '../../../plugin/pluginsSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { Link as HeadlampLink } from '../../common/';
+import ActionButton from '../../common/ActionButton';
 import SectionBox from '../../common/SectionBox';
 import SectionFilterHeader from '../../common/SectionFilterHeader';
 import Table from '../../common/Table';
+import { usePluginDelete } from './usePluginDelete';
 
 /**
  * Interface of the component's props structure.
@@ -48,6 +50,7 @@ import Table from '../../common/Table';
 export interface PluginSettingsPureProps {
   plugins: PluginInfo[];
   onSave: (plugins: PluginInfo[]) => void;
+  onDelete?: (plugin: PluginInfo) => Promise<void> | void;
   saveAlwaysEnable?: boolean;
 }
 
@@ -162,7 +165,9 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
      * If both arrays are identical in this scope, then no changes need to be saved.
      * If they do not match, there are changes in the pluginChanges array that can be saved and thus enableSave should be enabled.
      */
-    const arrayComp = props.plugins.every((val, key) => matcher(val, pluginChanges[key]));
+    const arrayComp =
+      props.plugins.length === pluginChanges.length &&
+      props.plugins.every((val, key) => matcher(val, pluginChanges[key]));
 
     /** For storybook usage, determines if the save button should be enabled by default */
     if (props.saveAlwaysEnable) {
@@ -184,6 +189,30 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
    */
   function onSaveButtonHandler() {
     props.onSave(pluginChanges);
+  }
+
+  /**
+   * Confirm with the user, optimistically remove the plugin row, and call onDelete.
+   * Restores the row if onDelete rejects so the list stays in sync with the backend.
+   */
+  async function handleDeleteClick(plugin: PluginInfo) {
+    if (!window.confirm(t('translation|Are you sure you want to delete this plugin?'))) return;
+
+    // Optimistic update: remove the row immediately so the user gets feedback.
+    // Match by both name and type so we don't remove other versions of the same plugin.
+    const previous = pluginChanges;
+    setPluginChanges((current: any[]) =>
+      current.filter((p: any) => !(p.name === plugin.name && p.type === plugin.type))
+    );
+
+    if (!props.onDelete) return;
+
+    try {
+      await props.onDelete(plugin);
+    } catch {
+      // Restore the row if deletion fails.
+      setPluginChanges(previous);
+    }
   }
 
   /**
@@ -383,10 +412,25 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                 );
               },
             },
+            {
+              header: t('translation|Delete'),
+              accessorKey: 'delete',
+              enableSorting: false,
+              Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) =>
+                plugin.type === 'shipped' ? null : (
+                  <ActionButton
+                    description={t('translation|Delete Plugin')}
+                    icon="mdi:delete"
+                    onClick={() => handleDeleteClick(plugin)}
+                  />
+                ),
+            },
           ]
-            // remove the enable column if we're not in app mode
-            .filter(el => !(el.header === t('translation|Enable') && !isElectron()))}
+            // remove the enable and delete columns if we're not in app mode
+            .filter(el => !(el.header === t('translation|Enable') && !isElectron()))
+            .filter(el => !(el.header === t('translation|Delete') && !isElectron()))}
           data={pluginChanges}
+          getRowId={(row: PluginInfo) => `${row.name}-${row.type}`}
           filterFunction={useFilterFunc<PluginInfo>(['.name'])}
           muiTableBodyRowProps={({ row }) => {
             const plugin = row.original as PluginInfo;
@@ -447,8 +491,8 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
 /** Container function for the PluginSettingsPure, onSave prop returns plugins */
 export default function PluginSettings() {
   const dispatch = useDispatch();
-
   const pluginSettings = useTypedSelector(state => state.plugins.pluginSettings);
+  const handleDelete = usePluginDelete();
 
   return (
     <PluginSettingsPure
@@ -457,6 +501,7 @@ export default function PluginSettings() {
         dispatch(setPluginSettings(plugins));
         dispatch(reloadPage());
       }}
+      onDelete={handleDelete}
     />
   );
 }

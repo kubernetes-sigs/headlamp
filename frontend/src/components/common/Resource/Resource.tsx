@@ -41,6 +41,7 @@ import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { KubeCondition, KubeContainer, KubeContainerStatus } from '../../../lib/k8s/cluster';
 import ConfigMap from '../../../lib/k8s/configMap';
 import { KubeEvent } from '../../../lib/k8s/event';
+import Job from '../../../lib/k8s/job';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
@@ -61,6 +62,7 @@ import {
   DefaultDetailsViewSection,
   DetailsViewSection,
 } from '../../DetailsViewSection/detailsViewSectionSlice';
+import { JobsListRenderer } from '../../job/List';
 import { PodListProps, PodListRenderer } from '../../pod/List';
 import { LightTooltip, Loader, ObjectEventList } from '..';
 import BackLink from '../BackLink';
@@ -1708,11 +1710,16 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
   } else {
     namespace = resource.metadata.namespace;
   }
+  let labelSelector = '';
+  if (resource?.jsonData?.spec?.selector) {
+    labelSelector = labelSelectorToQuery(resource?.jsonData?.spec?.selector);
+  } else if (resource.kind === 'JobSet') {
+    labelSelector = `jobset.sigs.k8s.io/jobset-name=${resource.metadata.name}`;
+  }
+
   const queryData = {
     namespace,
-    labelSelector: resource?.jsonData?.spec?.selector
-      ? labelSelectorToQuery(resource?.jsonData?.spec?.selector)
-      : '',
+    labelSelector,
     fieldSelector: resource.kind === 'Node' ? `spec.nodeName=${resource.metadata.name}` : undefined,
     cluster: resource.cluster,
   };
@@ -1737,6 +1744,42 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
       errors={errors}
       metrics={podMetrics}
       noNamespaceFilter={hideNamespaceFilter}
+      hideCreateButton
+      enableRowActions={resource.kind === 'JobSet' ? false : undefined}
+      enableRowSelection={resource.kind === 'JobSet' ? false : undefined}
+    />
+  );
+}
+
+export interface OwnedJobsSectionProps {
+  resource: KubeObject;
+}
+
+export function OwnedJobsSection(props: OwnedJobsSectionProps) {
+  const { resource } = props;
+
+  if (resource.kind !== 'JobSet') {
+    return null;
+  }
+
+  return <OwnedJobsSectionContent resource={resource} />;
+}
+
+function OwnedJobsSectionContent({ resource }: OwnedJobsSectionProps) {
+  const { items: jobs, errors } = Job.useList({
+    namespace: resource.metadata.namespace,
+    labelSelector: `jobset.sigs.k8s.io/jobset-name=${resource.metadata.name}`,
+    cluster: resource.cluster,
+  });
+
+  return (
+    <JobsListRenderer
+      jobs={jobs}
+      errors={errors}
+      hideColumns={['namespace']}
+      noNamespaceFilter
+      enableRowActions={false}
+      enableRowSelection={false}
       hideCreateButton
     />
   );

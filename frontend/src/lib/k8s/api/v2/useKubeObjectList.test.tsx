@@ -268,6 +268,23 @@ describe('useWatchKubeObjectLists', () => {
       (queryClient.getQueryData(keyForNamespaceB) as ListResponse<any>).list.items[0].jsonData
     ).toBe(objectB);
   });
+
+  it('should not call WebSocketManager.subscribe when multiplexer is disabled', () => {
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          lists: [{ cluster: 'default', resourceVersion: '1' }],
+          endpoint: { version: 'v1', resource: 'pods' },
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+    expect(mockSubscribe).not.toHaveBeenCalled();
+  });
 });
 
 describe('useKubeObjectList', () => {
@@ -405,5 +422,25 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       'watch=1&resourceVersion=1',
       expect.any(Function)
     );
+  });
+
+  it('should not call legacy useWebSockets with connections when multiplexer is enabled', () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          lists: [{ cluster: 'cluster-a', namespace: 'namespace-a', resourceVersion: '1' }],
+          endpoint: { version: 'v1', resource: 'pods' },
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    expect(spy).toHaveBeenCalledWith({ enabled: false, connections: [] });
   });
 });

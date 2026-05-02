@@ -187,6 +187,8 @@ export interface PodListProps {
   noNamespaceFilter?: boolean;
   errors?: ApiError[] | null;
   hideCreateButton?: boolean;
+  enableRowActions?: boolean;
+  enableRowSelection?: boolean;
 }
 
 export function PodListRenderer(props: PodListProps) {
@@ -198,6 +200,8 @@ export function PodListRenderer(props: PodListProps) {
     noNamespaceFilter,
     errors,
     hideCreateButton,
+    enableRowActions,
+    enableRowSelection,
   } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
@@ -493,6 +497,8 @@ export function PodListRenderer(props: PodListProps) {
       data={pods}
       reflectInURL={reflectTableInURL}
       id="headlamp-pods"
+      enableRowActions={enableRowActions}
+      enableRowSelection={enableRowSelection}
     />
   );
 }

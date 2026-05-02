@@ -24,7 +24,7 @@ export default {
 
 export const Show = {
   args: {
-    releaseNotes: '### Hello\n\nworld',
+    releaseNotes: '# Release Notes\n\n## Hello\n\n### Sub-heading\n\nworld',
     appVersion: '1.9.9',
   },
 };

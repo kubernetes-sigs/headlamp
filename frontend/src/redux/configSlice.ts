@@ -89,7 +89,7 @@ export const initialState: ConfigState = {
       storedSettings.tableRowsPerPageOptions || defaultTableRowsPerPageOptions,
     timezone: storedSettings.timezone || defaultTimezone(),
     sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically || false,
-    useEvict: storedSettings.useEvict || true,
+    useEvict: storedSettings.useEvict ?? true,
   },
 };
 

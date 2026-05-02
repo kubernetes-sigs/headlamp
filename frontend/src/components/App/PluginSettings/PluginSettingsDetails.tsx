@@ -20,23 +20,20 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import _ from 'lodash';
-import { isValidElement, useEffect, useMemo, useRef, useState } from 'react';
+import { isValidElement, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useDispatch } from 'react-redux';
 import { useHistory, useParams } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
-import { deletePlugin } from '../../../lib/k8s/api/v1/pluginsApi';
 import { ConfigStore } from '../../../plugin/configStore';
-import { PluginInfo, reloadPage } from '../../../plugin/pluginsSlice';
-import { clusterAction } from '../../../redux/clusterActionSlice';
+import { PluginInfo } from '../../../plugin/pluginsSlice';
 import { useTypedSelector } from '../../../redux/hooks';
-import type { AppDispatch } from '../../../redux/stores/store';
 import NotFoundComponent from '../../404';
 import { SectionHeader } from '../../common';
 import ActionButton from '../../common/ActionButton';
 import { ConfirmDialog } from '../../common/Dialog';
 import ErrorBoundary from '../../common/ErrorBoundary';
 import { SectionBox } from '../../common/SectionBox';
+import { usePluginDelete } from './usePluginDelete';
 
 // Helper function to open plugin folder in file explorer (Electron only)
 function openPluginFolder(plugin: PluginInfo) {
@@ -70,63 +67,19 @@ function canOpenPluginFolder(plugin: PluginInfo): boolean {
 
 const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   const { plugin } = props;
-  const { t } = useTranslation(['translation']);
   const store = new ConfigStore(plugin.name);
   const pluginConf = store.useConfig();
   const config = pluginConf() as { [key: string]: any };
-  const dispatch: AppDispatch = useDispatch();
-  const history = useHistory();
-  const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (deleteTimeoutRef.current) {
-        clearTimeout(deleteTimeoutRef.current);
-      }
-    };
-  }, []);
+  const deletePluginAction = usePluginDelete();
 
   function handleSave(data: { [key: string]: any }) {
     store.set(data);
   }
 
   function handleDeleteConfirm() {
-    // Use folderName if available (the actual folder name on disk),
-    // otherwise fall back to extracting from the name
-    const pluginFolderName = plugin.folderName || plugin.name.split('/').splice(-1)[0];
-
-    // Determine plugin type for deletion - only allow deletion of user and development plugins
-    const pluginType =
-      plugin.type === 'development' || plugin.type === 'user' ? plugin.type : undefined;
-
-    let deleteSucceeded = false;
-
-    dispatch(
-      clusterAction(
-        () =>
-          deletePlugin(pluginFolderName, pluginType).then(() => {
-            deleteSucceeded = true;
-          }),
-        {
-          startMessage: t('Deleting plugin {{ itemName }}...', { itemName: pluginFolderName }),
-          cancelledMessage: t('Cancelled deletion of {{ itemName }}.', {
-            itemName: pluginFolderName,
-          }),
-          successMessage: t('Deleted plugin {{ itemName }}.', { itemName: pluginFolderName }),
-          errorMessage: t('Error deleting plugin {{ itemName }}.', { itemName: pluginFolderName }),
-        }
-      )
-    ).then(() => {
-      // Delay to let user see the snackbar notification before full page reload.
-      // The timeout is stored in a ref so it can be cleared if the component unmounts.
-      deleteTimeoutRef.current = setTimeout(() => {
-        if (deleteSucceeded) {
-          history.push('/settings/plugins');
-          dispatch(reloadPage());
-        }
-        // On error, don't reload - let user read the error message
-      }, 2000);
-    });
+    // The hook handles the snackbar, navigation, and reload. The promise rejects
+    // on failure but we ignore it here since the user stays on the detail page.
+    deletePluginAction(plugin).catch(() => {});
   }
 
   return (

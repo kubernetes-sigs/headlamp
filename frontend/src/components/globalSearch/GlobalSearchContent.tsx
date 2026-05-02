@@ -41,6 +41,7 @@ import Endpoints from '../../lib/k8s/endpoints';
 import EndpointSlice from '../../lib/k8s/endpointSlices';
 import Ingress from '../../lib/k8s/ingress';
 import Job from '../../lib/k8s/job';
+import JobSet from '../../lib/k8s/jobSet';
 import { KubeObject, KubeObjectClass } from '../../lib/k8s/KubeObject';
 import Namespace from '../../lib/k8s/namespace';
 import Node from '../../lib/k8s/node';
@@ -104,6 +105,7 @@ const classes: KubeObjectClass[] = [
   Ingress,
   ServiceAccount,
   Node,
+  JobSet,
 ];
 
 /**

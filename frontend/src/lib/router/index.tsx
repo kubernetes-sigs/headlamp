@@ -66,6 +66,7 @@ import IngressClassList from '../../components/ingress/ClassList';
 import IngressDetails from '../../components/ingress/Details';
 import IngressList from '../../components/ingress/List';
 import JobsList from '../../components/job/List';
+import JobSetList from '../../components/jobset/List';
 import { LeaseDetails } from '../../components/lease/Details';
 import { LeaseList } from '../../components/lease/List';
 import { LimitRangeDetails } from '../../components/limitRange/Details';
@@ -123,6 +124,7 @@ import { useCluster } from '..//k8s';
 import DaemonSet from '../k8s/daemonSet';
 import Deployment from '../k8s/deployment';
 import Job from '../k8s/job';
+import JobSet from '../k8s/jobSet';
 import ReplicaSet from '../k8s/replicaSet';
 import StatefulSet from '../k8s/statefulSet';
 import type { RouteURLProps } from './createRouteURL';
@@ -533,6 +535,19 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'CronJobs',
     name: 'CronJobs',
     component: () => <CronJobList />,
+  },
+  JobSets: {
+    path: '/jobsets',
+    exact: true,
+    sidebar: 'JobSets',
+    name: 'JobSets',
+    component: () => <JobSetList />,
+  },
+  JobSet: {
+    path: '/jobsets/:namespace/:name',
+    exact: true,
+    sidebar: 'JobSets',
+    component: () => <WorkloadDetails workloadKind={JobSet} />,
   },
   Deployments: {
     path: '/deployments',

@@ -14,16 +14,20 @@
  * limitations under the License.
  */
 
+import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
-import { WorkloadClass } from '../../lib/k8s/Workload';
-import { Workload } from '../../lib/k8s/Workload';
+import { useLocation, useParams } from 'react-router-dom';
+import type { Workload, WorkloadClass } from '../../lib/k8s/Workload';
+import { useEventCallback } from '../../redux/headlampEventSlice';
 import {
   ConditionsSection,
   ContainersSection,
   DetailsGrid,
+  launchWorkloadLogs,
+  LOGGABLE_WORKLOAD_KINDS,
   LogsButton,
   MetadataDictGrid,
+  OwnedJobsSection,
   OwnedPodsSection,
   RevisionHistorySection,
   RollbackButton,
@@ -41,6 +45,29 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
   const { name = params.name, namespace = params.namespace, cluster } = props;
   const { workloadKind } = props;
   const { t } = useTranslation(['glossary', 'translation']);
+
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const autoLaunchView = queryParams.get('view');
+  const lastAutoLaunchedLogs = React.useRef<string | null>(null);
+  const [workloadItem, setWorkloadItem] = React.useState<Workload | null>(null);
+  const dispatchHeadlampEvent = useEventCallback();
+  const isLoggableKind = LOGGABLE_WORKLOAD_KINDS.has(workloadKind.kind);
+
+  React.useEffect(() => {
+    if (autoLaunchView !== 'logs') {
+      lastAutoLaunchedLogs.current = null;
+      return;
+    }
+    if (
+      isLoggableKind &&
+      workloadItem &&
+      lastAutoLaunchedLogs.current !== workloadItem.metadata.uid
+    ) {
+      lastAutoLaunchedLogs.current = workloadItem.metadata.uid;
+      launchWorkloadLogs(workloadItem, dispatchHeadlampEvent);
+    }
+  }, [workloadItem, autoLaunchView, isLoggableKind, dispatchHeadlampEvent]);
 
   function renderUpdateStrategy(item: Workload) {
     if (!item?.spec?.strategy) {
@@ -106,12 +133,14 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
       namespace={namespace}
       cluster={cluster}
       withEvents
+      onResourceUpdate={item => {
+        setWorkloadItem(item);
+      }}
       actions={item => {
         if (!item) return [];
         const actions = [];
 
-        const isLoggable = ['Deployment', 'ReplicaSet', 'DaemonSet'].includes(workloadKind.kind);
-        if (isLoggable) {
+        if (isLoggableKind) {
           actions.push({
             id: 'logs',
             action: <LogsButton key="logs" item={item} />,
@@ -167,6 +196,14 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
             id: 'headlamp.workload-conditions',
             section: <ConditionsSection resource={item?.jsonData} />,
           },
+          ...(workloadKind.kind === 'JobSet'
+            ? [
+                {
+                  id: 'headlamp.workload-owned-jobs',
+                  section: <OwnedJobsSection resource={item} />,
+                },
+              ]
+            : []),
           {
             id: 'headlamp.workload-owned-pods',
             section: <OwnedPodsSection resource={item} />,

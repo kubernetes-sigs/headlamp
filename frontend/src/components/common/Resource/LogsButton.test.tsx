@@ -20,15 +20,22 @@ import Deployment from '../../../lib/k8s/deployment';
 import Pod from '../../../lib/k8s/pod';
 import StatefulSet from '../../../lib/k8s/statefulSet';
 import { TestContext } from '../../../test';
-import { LogsButton } from './LogsButton';
+import { launchWorkloadLogs, LogsButton } from './LogsButton';
 
 // vi.hoisted runs before imports, making values available to vi.mock factories
 const { MockKubeObject, mockClusterFetch, mockEnqueueSnackbar, mockActivityLaunch } = vi.hoisted(
   () => {
     class MockKubeObject {
+      static kind: string | undefined;
+      static isClassOf(instance: any): boolean {
+        return instance?.kind === this.kind;
+      }
       jsonData: any;
       constructor(data: any) {
         this.jsonData = data;
+      }
+      get kind() {
+        return this.jsonData?.kind;
       }
       get metadata() {
         return this.jsonData?.metadata;
@@ -65,7 +72,9 @@ vi.mock('../../../lib/k8s/KubeObject', () => ({
 }));
 
 vi.mock('../../../lib/k8s/deployment', () => ({
-  default: class Deployment extends MockKubeObject {},
+  default: class Deployment extends MockKubeObject {
+    static kind = 'Deployment';
+  },
   __esModule: true,
 }));
 
@@ -79,17 +88,23 @@ vi.mock('../../../lib/k8s/pod', () => ({
 }));
 
 vi.mock('../../../lib/k8s/daemonSet', () => ({
-  default: class DaemonSet extends MockKubeObject {},
+  default: class DaemonSet extends MockKubeObject {
+    static kind = 'DaemonSet';
+  },
   __esModule: true,
 }));
 
 vi.mock('../../../lib/k8s/replicaSet', () => ({
-  default: class ReplicaSet extends MockKubeObject {},
+  default: class ReplicaSet extends MockKubeObject {
+    static kind = 'ReplicaSet';
+  },
   __esModule: true,
 }));
 
 vi.mock('../../../lib/k8s/statefulSet', () => ({
-  default: class StatefulSet extends MockKubeObject {},
+  default: class StatefulSet extends MockKubeObject {
+    static kind = 'StatefulSet';
+  },
   __esModule: true,
 }));
 
@@ -242,6 +257,104 @@ describe('LogsButton', () => {
         title: 'Logs: test-deployment',
       })
     );
+  });
+
+  it('launchWorkloadLogs opens Activity programmatically without a click', () => {
+    launchWorkloadLogs(new Deployment(deploymentData) as any);
+
+    expect(mockActivityLaunch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'logs-dep-123',
+        title: 'Logs: test-deployment',
+        location: 'full',
+      })
+    );
+  });
+
+  it('launchWorkloadLogs fires the LOGS OPENED event when a dispatcher is passed', () => {
+    const dispatch = vi.fn();
+    launchWorkloadLogs(new Deployment(deploymentData) as any, dispatch);
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'headlamp.logs',
+        data: expect.objectContaining({ status: 'open' }),
+      })
+    );
+  });
+
+  it('LogsButtonContent fetches pods for a cross-bundle Deployment (isClassOf)', async () => {
+    // Simulates a plugin passing a Deployment instance whose class identity
+    // differs from the host's (duplicate class across bundles). instanceof
+    // would return false; isClassOf should match on kind.
+    class ForeignDeployment {
+      static kind = 'Deployment';
+      static isClassOf(instance: any) {
+        return instance?.kind === this.kind;
+      }
+      jsonData: any;
+      constructor(data: any) {
+        this.jsonData = data;
+      }
+      get kind() {
+        return this.jsonData?.kind;
+      }
+      get metadata() {
+        return this.jsonData?.metadata;
+      }
+      get spec() {
+        return this.jsonData?.spec;
+      }
+      get status() {
+        return this.jsonData?.status;
+      }
+      get cluster() {
+        return '';
+      }
+      getName() {
+        return this.jsonData?.metadata?.name ?? '';
+      }
+    }
+
+    mockClusterFetch.mockResolvedValue({
+      json: async () => ({ kind: 'PodList', apiVersion: 'v1', metadata: {}, items: [] }),
+    });
+
+    const foreign = new ForeignDeployment(deploymentData);
+    expect(foreign instanceof Deployment).toBe(false); // precondition
+
+    // Exercise the programmatic plugin path: launch the Activity directly.
+    launchWorkloadLogs(foreign as any);
+    expect(mockActivityLaunch).toHaveBeenCalled();
+
+    // Render the launched Activity content so LogsButtonContent mounts and
+    // kicks off its pod fetch. With isClassOf, this should succeed even
+    // though the foreign class fails `instanceof Deployment`.
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(
+      <TestContext>
+        <div id="main" />
+        {activityContent}
+      </TestContext>
+    );
+
+    await waitFor(() => {
+      expect(mockClusterFetch).toHaveBeenCalled();
+    });
+  });
+
+  it('launchWorkloadLogs no-ops for unsupported workload kinds (e.g. Job)', () => {
+    const jobData = {
+      kind: 'Job',
+      metadata: { name: 'test-job', namespace: 'default', uid: 'job-123' },
+      spec: {},
+      status: {},
+    };
+    const dispatch = vi.fn();
+    launchWorkloadLogs(new Deployment(jobData as any) as any, dispatch);
+
+    expect(mockActivityLaunch).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('shows warning snackbar when no pods are available', async () => {

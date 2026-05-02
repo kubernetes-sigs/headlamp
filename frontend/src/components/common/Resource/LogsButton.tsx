@@ -37,6 +37,12 @@ import { KubeObject } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import StatefulSet from '../../../lib/k8s/statefulSet';
+import {
+  EventStatus,
+  HeadlampEvent,
+  HeadlampEventType,
+  useEventCallback,
+} from '../../../redux/headlampEventSlice';
 import { Activity } from '../../activity/Activity';
 import ActionButton from '../ActionButton';
 import { LogViewer } from '../LogViewer';
@@ -45,6 +51,29 @@ import { LightTooltip } from '../Tooltip';
 // Component props interface
 interface LogsButtonProps {
   item: KubeObject | null;
+}
+
+// Workload kinds whose pods can be aggregated by the Logs activity. Exported so
+// plugin authors can check before calling launchWorkloadLogs().
+export const LOGGABLE_WORKLOAD_KINDS: ReadonlySet<string> = new Set([
+  'Deployment',
+  'ReplicaSet',
+  'DaemonSet',
+  'StatefulSet',
+]);
+
+// Kind + apiGroup check via KubeObject.isClassOf — cross-bundle safe, unlike
+// instanceof, which breaks when plugins ship their own class definitions.
+function isLoggableWorkload(
+  item: KubeObject | null
+): item is Deployment | ReplicaSet | DaemonSet | StatefulSet {
+  return (
+    !!item &&
+    (Deployment.isClassOf(item) ||
+      ReplicaSet.isClassOf(item) ||
+      DaemonSet.isClassOf(item) ||
+      StatefulSet.isClassOf(item))
+  );
 }
 
 // Styled component for consistent padding in form controls
@@ -84,26 +113,15 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
   // Fetch related pods.
   async function getRelatedPods(): Promise<Pod[]> {
-    if (
-      item instanceof Deployment ||
-      item instanceof ReplicaSet ||
-      item instanceof DaemonSet ||
-      item instanceof StatefulSet
-    ) {
+    if (isLoggableWorkload(item)) {
       try {
         const labelSelector = labelSelectorToQuery(item.spec.selector);
 
         if (!labelSelector) {
-          const resourceType =
-            item instanceof Deployment
-              ? 'deployment'
-              : item instanceof ReplicaSet
-              ? 'replicaset'
-              : item instanceof StatefulSet
-              ? 'statefulset'
-              : 'daemonset';
           throw new Error(
-            t('translation|No label selectors found for this {{type}}', { type: resourceType })
+            t('translation|No label selectors found for this {{type}}', {
+              type: item.kind.toLowerCase(),
+            })
           );
         }
 
@@ -148,12 +166,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
   // Handler for initial logs button click
   async function onMount() {
-    if (
-      item instanceof Deployment ||
-      item instanceof ReplicaSet ||
-      item instanceof DaemonSet ||
-      item instanceof StatefulSet
-    ) {
+    if (isLoggableWorkload(item)) {
       try {
         const fetchedPods = await getRelatedPods();
         if (fetchedPods.length > 0) {
@@ -529,19 +542,36 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   );
 }
 
+export function launchWorkloadLogs(
+  item: KubeObject,
+  dispatchHeadlampEvent?: (event: HeadlampEvent) => void
+) {
+  if (!isLoggableWorkload(item)) {
+    return;
+  }
+  Activity.launch({
+    id: 'logs-' + item.metadata.uid,
+    title: 'Logs: ' + item.metadata.name,
+    icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
+    cluster: item.cluster,
+    location: 'full',
+    content: <LogsButtonContent item={item} />,
+  });
+  dispatchHeadlampEvent?.({
+    type: HeadlampEventType.LOGS,
+    data: {
+      status: EventStatus.OPENED,
+    },
+  });
+}
+
 export function LogsButton({ item }: LogsButtonProps) {
   const { t } = useTranslation();
+  const dispatchHeadlampEvent = useEventCallback();
 
   const onClick = () => {
     if (!item) return;
-    Activity.launch({
-      id: 'logs-' + item.metadata.uid,
-      title: 'Logs: ' + item.metadata.name,
-      icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
-      cluster: item.cluster,
-      location: 'full',
-      content: <LogsButtonContent item={item} />,
-    });
+    launchWorkloadLogs(item, dispatchHeadlampEvent);
   };
 
   return (

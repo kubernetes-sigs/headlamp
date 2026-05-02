@@ -98,7 +98,7 @@ export default function VolumeClaimList() {
           label: t('translation|Status'),
           filterVariant: 'multi-select',
           getValue: volume => volume.status?.phase,
-          render: volume => makePVCStatusLabel(volume),
+          render: volume => makePVCStatusLabel(volume, t),
           gridTemplate: 0.3,
         },
         'labels',

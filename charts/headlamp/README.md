@@ -178,6 +178,37 @@ NOTE: for `hostUsers=false` user namespaces must be supported. See: https://kube
 | volumeMounts | list | `[]` | Container volume mounts |
 | volumes | list | `[]` | Pod volumes |
 
+### Read-only root filesystem
+
+When `securityContext.readOnlyRootFilesystem: true` is set, the application needs a writable `/tmp` directory. The chart handles this automatically:
+
+- An `emptyDir` volume named `headlamp-tmp` is created and mounted at `/tmp` in the main container.
+- If `pluginsManager` is enabled and its effective security context (own or inherited) also sets `readOnlyRootFilesystem: true`, a separate `emptyDir` volume named `headlamp-plugins-tmp` is created and mounted at `/tmp` in the plugin manager container.
+
+**Overriding the automatic `/tmp` volume:**
+
+You can customise this behaviour without losing the automatic mount:
+
+```yaml
+# Provide your own headlamp-tmp volume (e.g. to set a size limit).
+# The chart will skip creating the volume but will still add the /tmp mount.
+volumes:
+  - name: headlamp-tmp
+    emptyDir:
+      sizeLimit: 256Mi
+```
+
+To take full control of `/tmp` (and suppress both the automatic mount and volume entirely), add your own `volumeMount` with `mountPath: /tmp`:
+
+```yaml
+volumeMounts:
+  - name: my-tmp
+    mountPath: /tmp
+volumes:
+  - name: my-tmp
+    emptyDir: {}
+```
+
 ### Network Configuration
 
 | Key | Type | Default | Description |
@@ -384,16 +415,17 @@ Ensure your replicaCount and maintenance procedures respect the configured PDB t
 
 ### pluginsManager Configuration
 
-| Key           | Type    | Default           | Description                                                                               |
-| ------------- | ------- | ----------------- | ----------------------------------------------------------------------------------------- |
-| enabled       | boolean | `false`           | Enable plugin manager                                                                     |
-| configFile    | string  | `plugin.yml`      | Plugin configuration file name                                                            |
-| configContent | string  | `""`              | Plugin configuration content in YAML format. This is required if plugins.enabled is true. |
-| baseImage     | string  | `node:lts-alpine` | Base node image to use                                                                    |
-| version       | string  | `latest`          | Headlamp plugin package version to install                                                |
-| env           | list    | `[]`              | Plugin manager env variable configuration                                                 |
-| resources     | object  | `{}`              | Plugin manager resource requests/limits                                                   |
-| volumeMounts  | list    | `[]`              | Plugin manager volume mounts                                                              |
+| Key             | Type    | Default           | Description                                                                               |
+|-----------------|---------|-------------------|-------------------------------------------------------------------------------------------|
+| enabled         | boolean | `false`           | Enable plugin manager                                                                     |
+| configFile      | string  | `plugin.yml`      | Plugin configuration file name                                                            |
+| configContent   | string  | `""`              | Plugin configuration content in YAML format. This is required if plugins.enabled is true. |
+| baseImage       | string  | `node:lts-alpine` | Base node image to use                                                                    |
+| version         | string  | `latest`          | Headlamp plugin package version to install                                                |
+| env             | list    | `[]`              | Plugin manager env variable configuration                                                 |
+| resources       | object  | `{}`              | Plugin manager resource requests/limits                                                   |
+| volumeMounts    | list    | `[]`              | Plugin manager volume mounts                                                              |
+| securityContext | object  | `{}`              | Plugin manager security context. If omitted, inherits the global `securityContext`.       |
 
 Example resource configuration:
 

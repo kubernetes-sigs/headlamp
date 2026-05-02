@@ -18,6 +18,7 @@ import { Box } from '@mui/system';
 import { memo, ReactElement, useEffect } from 'react';
 import Deployment from '../../../lib/k8s/deployment';
 import Job from '../../../lib/k8s/job';
+import JobSet from '../../../lib/k8s/jobSet';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import ConfigDetails from '../../configmap/Details';
 import { CustomResourceDetails } from '../../crd/CustomResourceDetails';
@@ -68,6 +69,7 @@ const kindComponentMap: Record<
   Deployment: props => <WorkloadDetails {...props} workloadKind={Deployment} />,
   ReplicaSet: props => <WorkloadDetails {...props} workloadKind={ReplicaSet} />,
   Job: props => <WorkloadDetails {...props} workloadKind={Job} />,
+  JobSet: props => <WorkloadDetails {...props} workloadKind={JobSet} />,
   Service: ServiceDetails,
   CronJob: CronJobDetails,
   DaemonSet: DaemonSetDetails,

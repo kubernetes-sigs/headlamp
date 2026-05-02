@@ -204,7 +204,12 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
                 }
               }
             } catch (e) {
-              // This catch block intentionally left blank.
+              // Log failure to fetch core API resources for better observability.
+              console.debug(
+                `Failed to fetch core API resources for cluster ${cluster}:`,
+                { version: v },
+                e
+              );
             }
           });
           await Promise.allSettled(coreResourceFetchPromises);

@@ -17,14 +17,29 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { beforeEach, describe, expect, it, type MockedFunction, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type MockedFunction, vi } from 'vitest';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
-import { useEndpoints } from './hooks';
+import { useEndpoints, useKubeObject } from './hooks';
 import type { KubeObjectEndpoint } from './KubeObjectEndpoint';
 
 vi.mock('./fetch', () => ({
   clusterFetch: vi.fn(),
+}));
+
+const mockUseWebSocket = vi.fn();
+const mockUseWebSockets = vi.fn();
+
+vi.mock('./multiplexer', () => ({
+  useWebSocket: (...args: any[]) => mockUseWebSocket(...args),
+  WebSocketManager: {
+    subscribe: vi.fn().mockImplementation(() => Promise.resolve(() => {})),
+  },
+}));
+
+vi.mock('./webSocket', () => ({
+  useWebSockets: (...args: any[]) => mockUseWebSockets(...args),
+  BASE_WS_URL: 'http://localhost:3000',
 }));
 
 const mockClusterFetch = clusterFetch as MockedFunction<typeof clusterFetch>;
@@ -272,6 +287,113 @@ describe('useEndpoints', () => {
 
     await waitFor(() => {
       expect(result.current.endpoint).toEqual(endpoints[1]);
+    });
+  });
+});
+
+const MockPod = class {
+  static apiEndpoint = {
+    apiInfo: [{ version: 'v1', resource: 'pods' }] as KubeObjectEndpoint[],
+  };
+  constructor(public jsonData: any, public cluster?: string) {}
+} as any;
+
+describe('useKubeObject watch wiring', () => {
+  beforeEach(() => vi.clearAllMocks());
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('disables multiplexer WebSocket when feature flag is off', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns' },
+      })
+    );
+
+    renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster: 'test',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    // Wait until legacy sockets become enabled (data has loaded, flag is off)
+    await waitFor(() => {
+      const calls = mockUseWebSockets.mock.calls;
+      const lastCall = calls[calls.length - 1][0];
+      expect(lastCall.enabled).toBe(true);
+    });
+
+    // Multiplexer hook must stay disabled regardless
+    const wsLastCall = mockUseWebSocket.mock.calls[mockUseWebSocket.mock.calls.length - 1][0];
+    expect(wsLastCall.enabled).toBe(false);
+  });
+
+  it('disables legacy WebSockets when feature flag is on', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns' },
+      })
+    );
+
+    renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster: 'test',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    // Wait until multiplexer becomes enabled (data has loaded, flag is on)
+    await waitFor(() => {
+      const calls = mockUseWebSocket.mock.calls;
+      const lastCall = calls[calls.length - 1][0];
+      expect(lastCall.enabled).toBe(true);
+    });
+
+    // Legacy hook must stay disabled regardless
+    const wsLastCall = mockUseWebSockets.mock.calls[mockUseWebSockets.mock.calls.length - 1][0];
+    expect(wsLastCall.enabled).toBe(false);
+  });
+
+  it('includes namespace in multiplexer watch URL when data is loaded', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns' },
+      })
+    );
+
+    renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster: 'test',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      const calls = mockUseWebSocket.mock.calls;
+      const lastCall = calls[calls.length - 1][0];
+      expect(lastCall.enabled).toBe(true);
+      expect(lastCall.url()).toContain('namespaces/my-ns');
     });
   });
 });

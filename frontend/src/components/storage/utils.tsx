@@ -16,12 +16,21 @@
 
 import { StatusLabel } from '../common/Label';
 
-export function StatusLabelByPhase(phase: string) {
+export function StatusLabelByPhase(phase: string, t: (key: string) => string) {
+  const phaseMap: { [key: string]: string } = {
+    Pending: t('glossary|Pending'),
+    Available: t('glossary|Available'),
+    Bound: t('glossary|Bound'),
+    Released: t('glossary|Released'),
+    Failed: t('glossary|Failed'),
+    Lost: t('glossary|Lost'),
+  };
+
   return (
     <StatusLabel
-      status={phase === 'Bound' ? 'success' : phase === 'available' ? 'warning' : 'error'}
+      status={phase === 'Bound' ? 'success' : phase === 'Available' ? 'warning' : 'error'}
     >
-      {phase}
+      {phaseMap[phase] || phase}
     </StatusLabel>
   );
 }

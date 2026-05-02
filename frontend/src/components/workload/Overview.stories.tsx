@@ -206,6 +206,14 @@ export default {
               ],
             })
           ),
+          http.get('http://localhost:4466/apis/jobset.x-k8s.io/v1alpha2/jobsets', () =>
+            HttpResponse.json({
+              kind: 'JobSetList',
+              apiVersion: 'jobset.x-k8s.io/v1alpha2',
+              metadata: {},
+              items: [],
+            })
+          ),
         ],
       },
     },

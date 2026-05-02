@@ -21,9 +21,9 @@ import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 import { StatusLabelByPhase } from './utils';
 
-export function makePVStatusLabel(item: PersistentVolume) {
+export function makePVStatusLabel(item: PersistentVolume, t: (key: string) => string) {
   const status = item.status!.phase;
-  return StatusLabelByPhase(status);
+  return StatusLabelByPhase(status, t);
 }
 
 export default function VolumeDetails(props: { name?: string; cluster?: string }) {
@@ -41,7 +41,7 @@ export default function VolumeDetails(props: { name?: string; cluster?: string }
         item && [
           {
             name: t('translation|Status'),
-            value: makePVStatusLabel(item),
+            value: makePVStatusLabel(item, t),
           },
           {
             name: t('Capacity'),
