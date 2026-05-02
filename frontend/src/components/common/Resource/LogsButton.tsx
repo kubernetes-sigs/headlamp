@@ -16,9 +16,11 @@
 
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
+import Checkbox from '@mui/material/Checkbox';
 import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import InputLabel from '@mui/material/InputLabel';
+import ListItemText from '@mui/material/ListItemText';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import { styled } from '@mui/material/styles';
@@ -47,6 +49,11 @@ import { Activity } from '../../activity/Activity';
 import ActionButton from '../ActionButton';
 import { LogViewer } from '../LogViewer';
 import { LightTooltip } from '../Tooltip';
+import {
+  ALL_SEVERITIES,
+  filterLogsBySeverity,
+  LogSeverity,
+} from './logSeverityFilter';
 
 // Component props interface
 interface LogsButtonProps {
@@ -99,10 +106,43 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   const [lines, setLines] = useState<number>(100);
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showReconnectButton, setShowReconnectButton] = useState(false);
+  const [selectedSeverities, setSelectedSeverities] = useState<LogSeverity[]>(() => {
+    try {
+      const stored = localStorage.getItem('headlamp.logs.severityFilter');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Normalize and validate against ALL_SEVERITIES
+          const validSeverities = parsed.filter(s => ALL_SEVERITIES.includes(s as LogSeverity));
+          if (validSeverities.length > 0) {
+            return validSeverities as LogSeverity[];
+          }
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+    return [...ALL_SEVERITIES];
+  });
 
   const xtermRef = React.useRef<XTerminal | null>(null);
   const processLogsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const processedLogsRef = useRef<{ [podName: string]: string[] } | null>(null);
+  const selectedSeveritiesRef = useRef<LogSeverity[]>(selectedSeverities);
+
+  useEffect(() => {
+    selectedSeveritiesRef.current = selectedSeverities;
+  }, [selectedSeverities]);
+
+  // Re-render xterm when selectedSeverities changes without restarting the stream
+  useEffect(() => {
+    if (xtermRef.current && logs.logs.length > 0) {
+      xtermRef.current.clear();
+      const filtered = filterLogsBySeverity(logs.logs, selectedSeverities);
+      xtermRef.current.write(filtered.join('').replaceAll('\n', '\r\n'));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSeverities]);
   const { t } = useTranslation(['glossary', 'translation']);
   const { enqueueSnackbar } = useSnackbar();
 
@@ -248,16 +288,20 @@ function LogsButtonContent({ item }: LogsButtonProps) {
       return timestampA.localeCompare(timestampB);
     });
 
+    // Apply severity filter before rendering
+    const filteredLogs = filterLogsBySeverity(allLogs, selectedSeverities);
+
     if (xtermRef.current) {
       xtermRef.current.clear();
-      xtermRef.current.write(allLogs.join('').replaceAll('\n', '\r\n'));
+      xtermRef.current.write(filteredLogs.join('').replaceAll('\n', '\r\n'));
     }
 
+    // Store RAW logs in state for downloads, not filtered
     setLogs({
       logs: allLogs,
       lastLineShown: allLogs.length - 1,
     });
-  }, []);
+  }, [selectedSeverities]); // Need selectedSeverities to re-filter
 
   // Function to fetch and aggregate logs from all pods
   const fetchAllPodsLogs = React.useCallback(
@@ -341,21 +385,31 @@ function LogsButtonContent({ item }: LogsButtonProps) {
                 terminalRef.write(newLogContent);
                 lastLogLength = endIdx;
 
+                // Apply severity filter to the new chunk using the ref to avoid effect restart
+                const chunk = newLogs.slice(startIdx, endIdx);
+                const filteredChunk = filterLogsBySeverity(chunk, selectedSeveritiesRef.current);
+                const newLogContent = filteredChunk
+                  .join('')
+                  .replaceAll('\n', '\r\n');
+
+                terminalRef.write(newLogContent);
+                lastLogLength = endIdx;
+
                 // If there are more logs to process, schedule them for the next frame
                 if (endIdx < newLogs.length) {
                   requestAnimationFrame(() => {
                     setLogs(current => ({
                       ...current,
-                      logs: newLogs,
+                      logs: newLogs, // Keep raw logs for downloads
                       lastLineShown: endIdx - 1,
                     }));
                   });
                   return current;
-                }
+                }                }
               }
 
               return {
-                logs: newLogs,
+                logs: newLogs, // Keep raw logs
                 lastLineShown: newLogs.length - 1,
               };
             });
@@ -489,6 +543,35 @@ function LogsButtonContent({ item }: LogsButtonProps) {
             </MenuItem>
           ))}
           <MenuItem value={-1}>All</MenuItem>
+        </Select>
+      </FormControl>
+
+      {/* Severity filter dropdown */}
+      <FormControl sx={{ minWidth: 140 }}>
+        <InputLabel>{t('translation|Severity')}</InputLabel>
+        <Select
+          multiple
+          value={selectedSeverities}
+          onChange={event => {
+            const value = event.target.value as LogSeverity[];
+            if (value.length > 0) {
+              setSelectedSeverities(value);
+              localStorage.setItem('headlamp.logs.severityFilter', JSON.stringify(value));
+            }
+          }}
+          label={t('translation|Severity')}
+          renderValue={selected =>
+            selected.length === ALL_SEVERITIES.length
+              ? t('translation|All')
+              : (selected as LogSeverity[]).map(s => s.toUpperCase()).join(', ')
+          }
+        >
+          {ALL_SEVERITIES.map(severity => (
+            <MenuItem key={severity} value={severity}>
+              <Checkbox checked={selectedSeverities.includes(severity)} size="small" />
+              <ListItemText primary={severity.toUpperCase()} />
+            </MenuItem>
+          ))}
         </Select>
       </FormControl>
 

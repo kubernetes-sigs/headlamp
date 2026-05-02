@@ -15,9 +15,11 @@
  */
 
 import { Icon } from '@iconify/react';
+import Checkbox from '@mui/material/Checkbox';
 import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import InputLabel from '@mui/material/InputLabel';
+import ListItemText from '@mui/material/ListItemText';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Switch from '@mui/material/Switch';
@@ -48,6 +50,11 @@ import SimpleTable from '../common/SimpleTable';
 import Terminal from '../common/Terminal';
 import LightTooltip from '../common/Tooltip/TooltipLight';
 import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
+import {
+  ALL_SEVERITIES,
+  filterLogsBySeverity,
+  LogSeverity,
+} from '../common/Resource/logSeverityFilter';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
 import { PodDebugAction } from './PodDebugAction';
@@ -83,6 +90,10 @@ export function PodLogViewer(props: PodLogViewerProps) {
   const [cancelLogsStream, setCancelLogsStream] = React.useState<(() => void) | null>(null);
   const xtermRef = React.useRef<XTerminal | null>(null);
   const { t } = useTranslation();
+  const [selectedSeverities, setSelectedSeverities] = useLocalStorageState<LogSeverity[]>(
+    'headlamp.logs.severityFilter',
+    [...ALL_SEVERITIES]
+  );
 
   const options = { leading: true, trailing: true, maxWait: 1000 };
 
@@ -102,13 +113,16 @@ export function PodLogViewer(props: PodLogViewerProps) {
       return logEntry;
     });
 
+    // Apply severity filter before rendering
+    const filteredLogs = filterLogsBySeverity(displayLogs, selectedSeverities);
+
     setLogs(current => {
       if (current.lastLineShown >= logLines.length) {
         xtermRef.current?.clear();
-        xtermRef.current?.write(displayLogs.join('').replaceAll('\n', '\r\n'));
+        xtermRef.current?.write(filteredLogs.join('').replaceAll('\n', '\r\n'));
       } else {
         xtermRef.current?.write(
-          displayLogs
+          filteredLogs
             .slice(current.lastLineShown + 1)
             .join('')
             .replaceAll('\n', '\r\n')
@@ -175,7 +189,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [container, lines, open, showPrevious, showTimestamps, follow, prettifyLogs, formatJsonValues]
+    [container, lines, open, showPrevious, showTimestamps, follow, prettifyLogs, formatJsonValues, selectedSeverities]
   );
 
   function handleContainerChange(event: any) {
@@ -377,6 +391,35 @@ export function PodLogViewer(props: PodLogViewerProps) {
             }
           />
         </LightTooltip>,
+        <FormControl sx={{ minWidth: '9rem' }}>
+          <InputLabel shrink id="severity-filter-label">
+            {t('translation|Severity')}
+          </InputLabel>
+          <Select
+            labelId="severity-filter-label"
+            id="severity-filter"
+            multiple
+            value={selectedSeverities}
+            onChange={event => {
+              const value = event.target.value as LogSeverity[];
+              if (value.length > 0) {
+                setSelectedSeverities(() => value);
+              }
+            }}
+            renderValue={selected =>
+              selected.length === ALL_SEVERITIES.length
+                ? t('translation|All')
+                : (selected as LogSeverity[]).map(s => s.toUpperCase()).join(', ')
+            }
+          >
+            {ALL_SEVERITIES.map(severity => (
+              <MenuItem key={severity} value={severity}>
+                <Checkbox checked={selectedSeverities.includes(severity)} size="small" />
+                <ListItemText primary={severity.toUpperCase()} />
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>,
         hasJsonLogs && (
           <PaddedFormControlLabel
             label={t('translation|Prettify')}
