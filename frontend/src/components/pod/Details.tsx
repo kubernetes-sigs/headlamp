@@ -29,7 +29,6 @@ import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
-
 import { getDefaultContainer } from '../../helpers/podContainer';
 import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
@@ -190,7 +189,17 @@ export function PodLogViewer(props: PodLogViewerProps) {
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [container, lines, open, showPrevious, showTimestamps, follow, prettifyLogs, formatJsonValues, selectedSeverities]
+    [
+      container,
+      lines,
+      open,
+      showPrevious,
+      showTimestamps,
+      follow,
+      prettifyLogs,
+      formatJsonValues,
+      selectedSeverities,
+    ]
   );
 
   function handleContainerChange(event: any) {

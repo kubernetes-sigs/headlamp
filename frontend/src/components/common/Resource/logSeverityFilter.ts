@@ -51,18 +51,14 @@ export function detectSeverity(line: string): LogSeverity | null {
   }
 
   // --- Bracketed: [ERROR], [WARN], [WARNING] ---
-  const bracketMatch = lower.match(
-    /\[(error|err|fatal|panic|warn|warning|info|debug|trace)\]/
-  );
+  const bracketMatch = lower.match(/\[(error|err|fatal|panic|warn|warning|info|debug|trace)\]/);
   if (bracketMatch) {
     return normalizeSeverity(bracketMatch[1]);
   }
 
   // --- Space-delimited tokens (common in Go/Python logs) ---
   // Match tokens like "ERROR ", "WARNING " etc. at word boundaries
-  const tokenMatch = lower.match(
-    /\b(error|err|fatal|panic|warn|warning|info|debug|trace)\b/
-  );
+  const tokenMatch = lower.match(/\b(error|err|fatal|panic|warn|warning|info|debug|trace)\b/);
   if (tokenMatch) {
     return normalizeSeverity(tokenMatch[1]);
   }
@@ -103,10 +99,7 @@ function normalizeSeverity(token: string): LogSeverity {
  * @param selectedSeverities - The severity levels to keep.
  * @returns The filtered array of log lines.
  */
-export function filterLogsBySeverity(
-  logs: string[],
-  selectedSeverities: LogSeverity[]
-): string[] {
+export function filterLogsBySeverity(logs: string[], selectedSeverities: LogSeverity[]): string[] {
   // If all severities are selected, skip filtering for performance
   if (selectedSeverities.length === ALL_SEVERITIES.length) {
     return logs;
