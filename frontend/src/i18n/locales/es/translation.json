@@ -382,6 +382,8 @@
   "All Pods": "Todos los Pods",
   "Container": "Contenedor",
   "Restarted": "Reiniciado",
+  "Severity": "",
+  "All": "",
   "Show logs for previous instances of this container.": "Mostrar registros para instancias anteriores de este contenedor.",
   "You can only select this option for containers that have been restarted.": "Sólo podrá seleccionar esta opción para los contenedores que se han reiniciado.",
   "Show previous": "Mostrar anteriores",

@@ -378,6 +378,8 @@
   "All Pods": "すべてのポッド",
   "Container": "コンテナー",
   "Restarted": "再起動済み",
+  "Severity": "",
+  "All": "",
   "Show logs for previous instances of this container.": "このコンテナーの以前のインスタンスのログを表示します。",
   "You can only select this option for containers that have been restarted.": "再起動されたコンテナーのみでこのオプションを選択できます。",
   "Show previous": "以前のログを表示",

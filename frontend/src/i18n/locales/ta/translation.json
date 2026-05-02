@@ -380,6 +380,8 @@
   "All Pods": "அனைத்து பாட்கள்",
   "Container": "கண்டெய்னர்",
   "Restarted": "மீண்டும் தொடங்கப்பட்டது",
+  "Severity": "",
+  "All": "",
   "Show logs for previous instances of this container.": "இந்த கண்டெய்னரின் முந்தைய இன்ஸ்டன்ஸ்களுக்கான லாக்குகளைக் காட்டு.",
   "You can only select this option for containers that have been restarted.": "மீண்டும் தொடங்கப்பட்ட கண்டெய்னர்களுக்கு மட்டுமே இந்த விருப்பத்தைத் தேர்ந்தெடுக்க முடியும்.",
   "Show previous": "முந்தையதைக் காட்டு",

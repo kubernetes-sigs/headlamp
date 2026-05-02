@@ -380,6 +380,8 @@
   "All Pods": "सभी Pods",
   "Container": "कंटेनर",
   "Restarted": "पुनरारंभ किया गया",
+  "Severity": "",
+  "All": "",
   "Show logs for previous instances of this container.": "इस कंटेनर के पिछले इंस्टेंस के लिए लॉग दिखाएँ।",
   "You can only select this option for containers that have been restarted.": "आप यह विकल्प केवल उन कंटेनरों के लिए चुन सकते हैं जिन्हें पुनरारंभ किया गया है।",
   "Show previous": "पिछला दिखाएँ",
