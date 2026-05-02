@@ -113,8 +113,9 @@
     "pretest": "npm run make-version",
     "test": "vitest",
     "start-without-multiplexer": "cross-env REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER=false npm run start",
-    "lint": "eslint --cache -c package.json --ext .js,.ts,.tsx src/ ../app/electron ../plugins/headlamp-plugin --ignore-pattern ../plugins/headlamp-plugin/template --ignore-pattern ../plugins/headlamp-plugin/lib/ --ignore-pattern ../plugins/headlamp-plugin/examples --ignore-pattern ../plugins/headlamp-plugin/official-plugins",
-    "ci-lint": "eslint --cache -c .eslintrc.ci.cjs --ext .js,.ts,.tsx --max-warnings 0 src/ ../app/electron ../plugins/headlamp-plugin --ignore-pattern ../plugins/headlamp-plugin/template --ignore-pattern ../plugins/headlamp-plugin/lib/ --ignore-pattern ../plugins/headlamp-plugin/examples --ignore-pattern ../plugins/headlamp-plugin/official-plugins && npm run format-check",
+    "lint": "eslint --cache -c package.json --ext .js,.ts,.tsx src/ ../app/electron ../plugins/headlamp-plugin --ignore-pattern ../plugins/headlamp-plugin/template --ignore-pattern ../plugins/headlamp-plugin/lib/",
+    "lint:slow": "eslint --cache --cache-location node_modules/.cache/.eslintcache-slow -c .eslintrc.slow.cjs --ext .js,.ts,.tsx --max-warnings 0 src/ ../app/electron ../plugins/headlamp-plugin --ignore-pattern ../plugins/headlamp-plugin/template --ignore-pattern ../plugins/headlamp-plugin/lib/",
+    "lint:slow:fix": "npm run lint:slow -- --fix && npm run format",
     "format": "prettier --config package.json --write --cache src ../app/electron ../app/tsconfig.json ../app/scripts ../plugins/headlamp-plugin/bin ../plugins/headlamp-plugin/config ../plugins/headlamp-plugin/template ../plugins/headlamp-plugin/test*.js ../plugins/headlamp-plugin/*.json ../plugins/headlamp-plugin/*.js",
     "format-check": "prettier --config package.json --check --cache src ../app/electron ../app/tsconfig.json ../app/scripts ../plugins/headlamp-plugin/bin ../plugins/headlamp-plugin/config ../plugins/headlamp-plugin/template ../plugins/headlamp-plugin/test*.js ../plugins/headlamp-plugin/*.json ../plugins/headlamp-plugin/*.js",
     "storybook": "storybook dev -p 6006",
@@ -145,25 +146,25 @@
   },
   "lint-staged": {
     "src/**/*.{js,jsx,ts,tsx}": [
-      "eslint -c package.json --fix"
+      "eslint -c .eslintrc.slow.cjs --max-warnings 0 --fix"
     ],
     "src/**/*.{js,jsx,ts,tsx,json,css,scss,md}": [
       "prettier --config package.json --write"
     ],
     "../app/**/*.{ts,tsx}": [
-      "eslint -c package.json --fix"
+      "eslint -c .eslintrc.slow.cjs --max-warnings 0 --fix"
     ],
     "../app/**/*.{js,jsx,ts,tsx,json,css,scss,md}": [
       "prettier --config package.json --write"
     ],
     "../plugins/headlamp-plugin/{bin,lib}/**/*.{ts,tsx}": [
-      "eslint -c package.json --fix"
+      "eslint -c .eslintrc.slow.cjs --max-warnings 0 --fix"
     ],
     "../plugins/headlamp-plugin/{bin,lib}/**/*.{js,jsx,ts,tsx,json,css,scss,md}": [
       "prettier --config package.json --write"
     ],
     "../plugins/examples/**/*.{ts,tsx}": [
-      "eslint -c package.json --fix --resolve-plugins-relative-to ."
+      "eslint -c .eslintrc.slow.cjs --max-warnings 0 --fix --resolve-plugins-relative-to ."
     ],
     "../plugins/examples/**/*.{js,jsx,ts,tsx,json,css,scss,md}": [
       "prettier --config package.json --write"
@@ -172,7 +173,7 @@
       "prettier --config package.json --write"
     ],
     "../e2e-tests/**/*.{ts,tsx}": [
-      "eslint -c package.json --fix --resolve-plugins-relative-to ."
+      "eslint -c .eslintrc.slow.cjs --max-warnings 0 --fix --resolve-plugins-relative-to ."
     ]
   },
   "eslintConfig": {

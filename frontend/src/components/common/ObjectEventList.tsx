@@ -51,6 +51,7 @@ export default function ObjectEventList(props: ObjectEventListProps) {
   const { t } = useTranslation(['translation', 'glossary']);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchEvents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

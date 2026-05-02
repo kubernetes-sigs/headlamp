@@ -188,7 +188,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 
   // Stabilize queryParams to prevent unnecessary effect triggers
   // Only update when the stringified params change
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/use-memo
   const stableQueryParams = useMemo(() => queryParams, [JSON.stringify(queryParams)]);
 
   // Create stable connection URLs for each list

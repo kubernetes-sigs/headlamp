@@ -96,6 +96,7 @@ export default function CreateNamespaceButton() {
 
   useEffect(() => {
     const isValidNamespaceFormat = Namespace.isValidNamespaceFormat(namespaceName);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsValidNamespaceName(isValidNamespaceFormat);
 
     if (!isValidNamespaceFormat) {

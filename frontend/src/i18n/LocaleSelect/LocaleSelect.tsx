@@ -62,6 +62,7 @@ export default function LocaleSelect(props: LocaleSelectProps) {
     const lng = event.target.value as string;
 
     i18n.changeLanguage(lng);
+    // eslint-disable-next-line react-hooks/immutability
     theme.direction = i18n.dir();
   };
 

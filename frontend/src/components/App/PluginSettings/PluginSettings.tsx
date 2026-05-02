@@ -166,6 +166,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
 
     /** For storybook usage, determines if the save button should be enabled by default */
     if (props.saveAlwaysEnable) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEnableSave(true);
     } else {
       if (arrayComp) {

@@ -1,0 +1,19 @@
+{
+  // Use the CI ESLint config in VSCode so the slower `react-hooks/*` rules
+  // (component-hook-factories, immutability, purity, refs, set-state-in-effect,
+  // set-state-in-render, static-components, use-memo, ...) are reported in the
+  // editor by default. The default `frontend/package.json` eslintConfig keeps
+  // these off so `npm run lint` stays fast; CI and husky go through lint:slow.
+  "eslint.workingDirectories": [
+    { "directory": "frontend", "changeProcessCWD": true }
+  ],
+  "eslint.options": {
+    "overrideConfigFile": ".eslintrc.slow.cjs"
+  },
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ]
+}

@@ -59,11 +59,13 @@ export default function PodDebugSettings(props: SettingsProps) {
   const podDebugLabelID = 'pod-debug-enabled-label';
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setClusterSettings(!!cluster ? loadClusterSettings(cluster) : null);
   }, [cluster]);
 
   useEffect(() => {
     if (clusterSettings?.podDebugTerminal?.debugImage !== userImage) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUserImage(clusterSettings?.podDebugTerminal?.debugImage ?? '');
     }
 

@@ -115,6 +115,7 @@ export function LogViewer(props: LogViewerProps) {
 
     fitAddonRef.current!.fit();
 
+    // eslint-disable-next-line react-hooks/immutability
     xtermRef.current?.write(getJointLogs());
 
     const pageResizeHandler = () => {

@@ -136,6 +136,7 @@ function usePageURLState(
   const [zeroIndexPage, setZeroIndexPage] = useState(page - 1);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setZeroIndexPage((zeroIndexPage: number) => {
       if (page - 1 !== zeroIndexPage) {
         return page - 1;
@@ -441,7 +442,7 @@ export default function Table<RowItem extends Record<string, any>>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     tableProps.columns,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/use-memo
     table.getState()?.columnVisibility,
     tableProps.state?.columnVisibility,
     tableProps.enableRowActions,

@@ -145,6 +145,7 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
     return cols;
   }, [crd, apiGroup]);
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const cols = React.useMemo(() => {
     const colsToDisplay: ResourceTableProps<KubeObject<KubeCRD>>['columns'] = [
       {

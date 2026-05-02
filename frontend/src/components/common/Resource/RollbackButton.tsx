@@ -75,8 +75,11 @@ export function RollbackButton(props: RollbackButtonProps) {
   const { item, buttonStyle, afterConfirm } = props;
 
   const [openDialog, setOpenDialog] = useState(false);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const location = useLocation();
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { t } = useTranslation(['translation']);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const dispatchRollbackEvent = useEventCallback(HeadlampEventType.ROLLBACK_RESOURCE);
 
   const resource = item && isRollbackableResource(item) ? item : null;
