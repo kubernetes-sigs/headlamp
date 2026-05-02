@@ -36,17 +36,8 @@ import (
 func TestWatch(t *testing.T) {
 	t.Parallel()
 
-	// Create a temporary directory if it doesn't exist
-	_, err := os.Stat("/tmp/")
-	if os.IsNotExist(err) {
-		err = os.Mkdir("/tmp/", 0o750)
-		require.NoError(t, err)
-	}
-
-	// create a new directory in /tmp
-	dirName := path.Join("/tmp", uuid.NewString())
-	err = os.Mkdir(dirName, 0o750)
-	require.NoError(t, err)
+	// create a new directory using t.TempDir()
+	dirName := t.TempDir()
 
 	// create channel to receive events
 	events := make(chan string)
@@ -61,10 +52,10 @@ func TestWatch(t *testing.T) {
 	<-time.After(5 * time.Second)
 	t.Log("watcher setup", "create a new file in the new directory")
 	// create a new file in the new directory
-	fileName := path.Join(dirName, uuid.NewString())
+	fileName := filepath.Join(dirName, uuid.NewString())
 	f, err := os.Create(fileName) //nolint:gosec
 	require.NoError(t, err)
-	f.Close()
+	require.NoError(t, f.Close())
 
 	waitForEvent := func(expected string) string {
 		timeout := time.After(10 * time.Second)
@@ -87,7 +78,7 @@ func TestWatch(t *testing.T) {
 	t.Log("Got create file event in the new directory")
 
 	// create a new file in a subdirectory
-	subDirName := path.Join(dirName, uuid.NewString())
+	subDirName := filepath.Join(dirName, uuid.NewString())
 	err = os.Mkdir(subDirName, 0o750)
 	require.NoError(t, err)
 
@@ -97,10 +88,10 @@ func TestWatch(t *testing.T) {
 	require.Equal(t, expectedEvent, event)
 	t.Log("Got create folder event in the directory")
 
-	subFileName := path.Join(subDirName, uuid.NewString())
+	subFileName := filepath.Join(subDirName, uuid.NewString())
 	f, err = os.Create(subFileName) //nolint:gosec
 	require.NoError(t, err)
-	f.Close()
+	require.NoError(t, f.Close())
 
 	// wait for the watcher to pick up the new file
 	expectedEvent = filepath.Clean(subFileName)+":CREATE"
@@ -124,35 +115,27 @@ func TestWatch(t *testing.T) {
 }
 
 func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
-	// Create a temporary directory if it doesn't exist
-	_, err := os.Stat("/tmp/")
-	if os.IsNotExist(err) {
-		err = os.Mkdir("/tmp/", 0o750)
-		require.NoError(t, err)
-	}
-
-	// create a new directory in /tmp
-	testDirName := path.Join("/tmp", uuid.NewString())
-	err = os.Mkdir(testDirName, 0o750)
-	require.NoError(t, err)
+	// create a new directory using t.TempDir()
+	testDirName := t.TempDir()
+	var err error
 
 	t.Run("PluginPaths", func(t *testing.T) {
 		// create a new directory in dirName
 		subDirName := uuid.NewString()
-		subDir := path.Join(testDirName, subDirName)
+		subDir := filepath.Join(testDirName, subDirName)
 		err = os.Mkdir(subDir, 0o750)
 		require.NoError(t, err)
 
 		// create main.js and package.json in the sub directory
-		pluginPath := path.Join(subDir, "main.js")
+		pluginPath := filepath.Join(subDir, "main.js")
 		f_plugin, err := os.Create(pluginPath) //nolint:gosec
 		require.NoError(t, err)
-		f_plugin.Close()
+		require.NoError(t, f_plugin.Close())
 
-		packageJSONPath := path.Join(subDir, "package.json")
+		packageJSONPath := filepath.Join(subDir, "package.json")
 		f_pkg, err := os.Create(packageJSONPath) //nolint:gosec
 		require.NoError(t, err)
-		f_pkg.Close()
+		require.NoError(t, f_pkg.Close())
 
 		pathList, err := plugins.GeneratePluginPaths("", "", testDirName)
 		require.NoError(t, err)
@@ -173,20 +156,20 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 	t.Run("StaticPluginPaths", func(t *testing.T) {
 		// create a new directory in dirName
 		subDirName := uuid.NewString()
-		subDir := path.Join(testDirName, subDirName)
+		subDir := filepath.Join(testDirName, subDirName)
 		err = os.Mkdir(subDir, 0o750)
 		require.NoError(t, err)
 
 		// create main.js and package.json in the sub directory
-		pluginPath := path.Join(subDir, "main.js")
+		pluginPath := filepath.Join(subDir, "main.js")
 		f_plugin, err := os.Create(pluginPath) //nolint:gosec
 		require.NoError(t, err)
-		f_plugin.Close()
+		require.NoError(t, f_plugin.Close())
 
-		packageJSONPath := path.Join(subDir, "package.json")
+		packageJSONPath := filepath.Join(subDir, "package.json")
 		f_pkg, err := os.Create(packageJSONPath) //nolint:gosec
 		require.NoError(t, err)
-		f_pkg.Close()
+		require.NoError(t, f_pkg.Close())
 
 		pathList, err := plugins.GeneratePluginPaths(testDirName, "", "")
 		require.NoError(t, err)
@@ -207,15 +190,15 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 	t.Run("InvalidPluginPaths", func(t *testing.T) {
 		// create a new directory in test dir
 		subDirName := uuid.NewString()
-		subDir := path.Join(testDirName, subDirName)
+		subDir := filepath.Join(testDirName, subDirName)
 		err = os.Mkdir(subDir, 0o750)
 		require.NoError(t, err)
 
 		// create random file in the sub directory
-		fileName := path.Join(subDir, uuid.NewString())
+		fileName := filepath.Join(subDir, uuid.NewString())
 		f, err := os.Create(fileName) //nolint:gosec
 		require.NoError(t, err)
-		f.Close()
+		require.NoError(t, f.Close())
 
 		// test with file as plugin Dir
 		pathList, err := plugins.GeneratePluginPaths(fileName, "", "")

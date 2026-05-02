@@ -53,7 +53,7 @@ func TestLoadAndStoreKubeConfigs(t *testing.T) {
 	t.Run("valid_file", func(t *testing.T) {
 		kubeConfigFile := kubeConfigFilePath
 
-		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig, nil, false)
+		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
 		require.NoError(t, err)
 
 		contexts, err := contextStore.GetContexts()
@@ -70,7 +70,7 @@ func TestLoadAndStoreKubeConfigs(t *testing.T) {
 	t.Run("invalid_file", func(t *testing.T) {
 		kubeConfigFile := "invalid_kubeconfig"
 
-		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig, nil, false)
+		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
 		require.Error(t, err)
 	})
 }
@@ -79,7 +79,7 @@ func TestLoadContextsFromKubeConfigFile(t *testing.T) {
 	t.Run("valid_file", func(t *testing.T) {
 		kubeConfigFile := kubeConfigFilePath
 
-		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig, false)
+		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig)
 		require.NoError(t, err, "Expected no error for valid file")
 		require.Empty(t, contextErrors, "Expected no context errors for valid file")
 		require.Equal(t, 2, len(contexts), "Expected 2 contexts from valid file")
@@ -88,7 +88,7 @@ func TestLoadContextsFromKubeConfigFile(t *testing.T) {
 	t.Run("invalid_file", func(t *testing.T) {
 		kubeConfigFile := "invalid_kubeconfig"
 
-		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig, false)
+		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig)
 		require.Error(t, err, "Expected error for invalid file")
 		require.Empty(t, contextErrors, "Expected no context errors for invalid file")
 		require.Empty(t, contexts, "Expected no contexts from invalid file")
@@ -97,7 +97,7 @@ func TestLoadContextsFromKubeConfigFile(t *testing.T) {
 	t.Run("autherror", func(t *testing.T) {
 		kubeConfigFile := "./test_data/kubeconfig_autherr"
 
-		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig, false)
+		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig)
 		require.NoError(t, err, "Expected no error for auth error file")
 		require.NotEmpty(t, contextErrors, "Expected context errors for invalid auth file")
 		require.Equal(t, contextErrors[0].ContextName, "invalid-context")
@@ -107,7 +107,7 @@ func TestLoadContextsFromKubeConfigFile(t *testing.T) {
 	t.Run("partially_valid_contexts", func(t *testing.T) {
 		kubeConfigFile := "./test_data/kubeconfig_partialcontextvalid"
 
-		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig, false)
+		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig)
 		require.NoError(t, err, "Expected no error for partially valid file")
 		require.NotEmpty(t, contextErrors, "Expected some context errors for partially valid file")
 		require.Equal(t, 1, len(contexts), "Expected 1 contexts from the partially valid file")
@@ -122,7 +122,7 @@ func TestLoadContextsFromKubeConfigFile(t *testing.T) {
 func TestLoadContextFromFile(t *testing.T) {
 	kubeConfigFile := "./test_data/kubeconfig_metadata"
 
-	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig, false)
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig)
 
 	require.NoError(t, err, "Expected no error for valid file")
 	require.Empty(t, contextErrors, "Expected no context errors for valid file")
@@ -152,7 +152,7 @@ func TestLoadContextsWithDuplicateNames(t *testing.T) {
 	// Both files have a context named "random-cluster-x"
 	combined := kubeConfigFile1 + string(os.PathListSeparator) + kubeConfigFile2
 
-	contexts, contextErrors, err := kubeconfig.LoadContextsFromMultipleFiles(combined, kubeconfig.KubeConfig, false)
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromMultipleFiles(combined, kubeconfig.KubeConfig)
 	require.NoError(t, err, "Expected no error for valid file")
 	require.Empty(t, contextErrors, "Expected no context errors for valid file")
 
@@ -202,7 +202,7 @@ users:
 
 	defer func() { _ = os.Remove(tempKubeconfig) }()
 
-	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(tempKubeconfig, kubeconfig.KubeConfig, false)
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(tempKubeconfig, kubeconfig.KubeConfig)
 	require.NoError(t, err, "Expected no error for valid OIDC kubeconfig")
 	require.Empty(t, contextErrors, "Expected no context errors for valid OIDC kubeconfig")
 	require.Equal(t, 1, len(contexts), "Expected 1 context from OIDC kubeconfig")
@@ -230,7 +230,7 @@ users:
 func testOIDCConfigWithCAData(t *testing.T) {
 	kubeConfigFile := filepath.Join(getTestDataPath(), "kubeconfig_oidc_ca_data")
 
-	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig, false)
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig)
 	require.NoError(t, err, "Expected no error for valid OIDC kubeconfig with CA data")
 	require.Empty(t, contextErrors, "Expected no context errors for valid OIDC kubeconfig with CA data")
 	require.Equal(t, 1, len(contexts), "Expected 1 context from OIDC kubeconfig with CA data")
@@ -283,7 +283,7 @@ users:
 
 		defer func() { _ = os.Remove(tempFile) }()
 
-		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(tempFile, kubeconfig.KubeConfig, false)
+		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(tempFile, kubeconfig.KubeConfig)
 		require.NoError(t, err, "Expected no error for valid OIDC kubeconfig without CA")
 		require.Empty(t, contextErrors, "Expected no context errors for valid OIDC kubeconfig without CA")
 		require.Equal(t, 1, len(contexts), "Expected 1 context from OIDC kubeconfig without CA")
@@ -323,7 +323,7 @@ func TestContext(t *testing.T) {
 
 	configStore := kubeconfig.NewContextStore()
 
-	err := kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig, nil, false)
+	err := kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
 	require.NoError(t, err)
 
 	testContext, err := configStore.GetContext("minikube")
@@ -361,7 +361,7 @@ func TestLoadContextsFromBase64String(t *testing.T) {
 
 		base64String := base64.StdEncoding.EncodeToString(kubeConfigContent)
 
-		contexts, contextErrors, err := kubeconfig.LoadContextsFromBase64String(base64String, kubeconfig.DynamicCluster, false)
+		contexts, contextErrors, err := kubeconfig.LoadContextsFromBase64String(base64String, kubeconfig.DynamicCluster)
 		require.NoError(t, err, "Expected no error for valid base64")
 		require.Empty(t, contextErrors, "Expected no context errors for valid base64")
 		require.Equal(t, 2, len(contexts), "Expected 2 contexts from valid base64")
@@ -372,7 +372,7 @@ func TestLoadContextsFromBase64String(t *testing.T) {
 		invalidBase64String := "invalid_base64"
 		source := 2
 
-		contexts, contextErrors, err := kubeconfig.LoadContextsFromBase64String(invalidBase64String, source, false)
+		contexts, contextErrors, err := kubeconfig.LoadContextsFromBase64String(invalidBase64String, source)
 		require.Error(t, err, "Expected error for invalid base64")
 		require.Empty(t, contextErrors, "Expected no context errors for invalid base64")
 		require.Empty(t, contexts, "Expected no contexts from invalid base64")
@@ -402,7 +402,7 @@ users:
 `
 		base64String := base64.StdEncoding.EncodeToString([]byte(partiallyValidContent))
 
-		contexts, contextErrors, err := kubeconfig.LoadContextsFromBase64String(base64String, kubeconfig.DynamicCluster, false)
+		contexts, contextErrors, err := kubeconfig.LoadContextsFromBase64String(base64String, kubeconfig.DynamicCluster)
 		require.NoError(t, err, "Expected no error for partially valid base64")
 		require.NotEmpty(t, contextErrors, "Expected some context errors for partially valid base64")
 		require.Equal(t, 1, len(contexts), "Expected 1 valid context from partially valid base64")

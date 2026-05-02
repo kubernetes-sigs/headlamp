@@ -63,7 +63,7 @@ func TestStartPortForward(t *testing.T) {
 	ch := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
 	kubeConfigPath := getDefaultKubeConfigPath(t)
-	allContexts, contextLoadErrs, err := kubeconfig.LoadContextsFromFile(kubeConfigPath, kubeconfig.KubeConfig, false)
+	allContexts, contextLoadErrs, err := kubeconfig.LoadContextsFromFile(kubeConfigPath, kubeconfig.KubeConfig)
 	require.NoError(t, err)
 	require.NotEmpty(t, allContexts)
 
