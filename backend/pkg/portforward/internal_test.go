@@ -31,6 +31,8 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/portforward"
 )
 
 // TestHandlePortForwardReadiness tests handlePortForwardReadiness function.
@@ -289,6 +291,50 @@ func TestBuildPortForwardURL(t *testing.T) {
 func TestBuildPortForwardURLInvalidHost(t *testing.T) {
 	_, err := buildPortForwardURL("://not a url", "ns", "pod")
 	assert.Error(t, err)
+}
+
+// TestBuildPortForwardDialer verifies dialer selection: with a valid REST
+// config we get a WebSocket-first FallbackDialer (which itself falls back to
+// SPDY on upgrade failures); when the WebSocket dialer cannot be created we
+// fall back to a SPDY-only dialer rather than erroring.
+func TestBuildPortForwardDialer(t *testing.T) {
+	fullURL, err := url.Parse("https://example.com/api/v1/namespaces/default/pods/p/portforward")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		rConf        *rest.Config
+		wantFallback bool
+	}{
+		{
+			name:         "websocket dialer available, wraps in FallbackDialer",
+			rConf:        &rest.Config{Host: "https://example.com"},
+			wantFallback: true,
+		},
+		{
+			// Insecure + CAData makes TLSConfigFor (called by
+			// websocket.RoundTripperFor) fail, exercising the SPDY-only path.
+			name: "websocket dialer unavailable, returns SPDY-only dialer",
+			rConf: &rest.Config{
+				Host: "https://example.com",
+				TLSClientConfig: rest.TLSClientConfig{
+					Insecure: true,
+					CAData:   []byte("not-a-real-ca"),
+				},
+			},
+			wantFallback: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := buildPortForwardDialer(tt.rConf, fullURL, nil, nil)
+			require.NotNil(t, d)
+
+			_, isFallback := d.(*portforward.FallbackDialer)
+			assert.Equal(t, tt.wantFallback, isFallback)
+		})
+	}
 }
 
 // TestStopOrDeletePortForwardRequest.Validate() function.
