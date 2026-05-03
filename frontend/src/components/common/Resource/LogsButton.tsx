@@ -101,10 +101,8 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   const [showReconnectButton, setShowReconnectButton] = useState(false);
 
   const xtermRef = React.useRef<XTerminal | null>(null);
-  const allPodLogsRef = useRef<{ [podName: string]: string[] }>({});
   const processLogsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const processedLogsRef = useRef<{ [podName: string]: string[] } | null>(null);
-  const activeParamsRef = useRef<string>('');
   const { t } = useTranslation(['glossary', 'translation']);
   const { enqueueSnackbar } = useSnackbar();
 
@@ -235,10 +233,9 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   }
 
   // Function to process and display all logs
-  const processAllLogs = React.useCallback(() => {
-    const currentAllPodLogs = allPodLogsRef.current;
+  const processAllLogs = React.useCallback((logsData: { [podName: string]: string[] }) => {
     const allLogs: string[] = [];
-    Object.entries(currentAllPodLogs).forEach(([podName, podLogs]) => {
+    Object.entries(logsData).forEach(([podName, podLogs]) => {
       podLogs.forEach(log => {
         allLogs.push(`[${podName}] ${log}`);
       });
@@ -267,7 +264,6 @@ function LogsButtonContent({ item }: LogsButtonProps) {
     (pods: Pod[], container: string): (() => void) => {
       clearLogs();
       setAllPodLogs({});
-      allPodLogsRef.current = {};
 
       const cleanups: Array<() => void> = [];
 
@@ -276,14 +272,10 @@ function LogsButtonContent({ item }: LogsButtonProps) {
           container,
           ({ logs: newLogs }: { logs: string[]; hasJsonLogs?: boolean }) => {
             const podName = pod.getName();
-            setAllPodLogs(current => {
-              const updated = {
-                ...current,
-                [podName]: newLogs,
-              };
-              allPodLogsRef.current = updated;
-              return updated;
-            });
+            setAllPodLogs(current => ({
+              ...current,
+              [podName]: newLogs,
+            }));
           },
           {
             tailLines: lines,
@@ -305,38 +297,20 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
   // Effect for fetching and updating logs
   React.useEffect(() => {
-    const paramsKey = JSON.stringify({
-      selectedPodIndex,
-      selectedContainer,
-      lines,
-      showPrevious,
-      showTimestamps,
-      follow,
-      pods: pods.map(p => p.metadata.uid),
-    });
-
-    if (!selectedContainer || paramsKey === activeParamsRef.current) {
+    if (!selectedContainer) {
       return;
     }
-
-    activeParamsRef.current = paramsKey;
 
     let cleanup: (() => void) | null = null;
     let isSubscribed = true;
 
-    // Handle paused logs state
+    // Handle paused logs state - avoid fetching new logs
     if (!follow && logs.logs.length > 0) {
-      xtermRef.current?.write(
-        '\n\n' +
-          t('translation|Logs are paused. Click the follow button to resume following them.') +
-          '\r\n'
-      );
       return;
     }
 
     clearLogs();
     setAllPodLogs({}); // Clear aggregated logs when switching pods
-    allPodLogsRef.current = {};
 
     if (selectedPodIndex === 'all') {
       cleanup = fetchAllPodsLogs(pods, selectedContainer);
@@ -417,10 +391,20 @@ function LogsButtonContent({ item }: LogsButtonProps) {
     showTimestamps,
     follow,
     clearLogs,
-    fetchAllPodsLogs,
-    t,
     pods,
   ]);
+
+  // Effect to write paused logs message without triggering resubscription
+  React.useEffect(() => {
+    if (!follow && logs.logs.length > 0) {
+      xtermRef.current?.write(
+        '\n\n' +
+          t('translation|Logs are paused. Click the follow button to resume following them.') +
+          '\r\n'
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [follow, t]);
 
   // Effect to process logs when allPodLogs changes - only for "All Pods" mode
   // Debounced to avoid expensive O(N log N) sort on every incoming log chunk
@@ -437,7 +421,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
       processLogsTimerRef.current = setTimeout(() => {
         processLogsTimerRef.current = null;
         processedLogsRef.current = allPodLogs;
-        processAllLogs();
+        processAllLogs(allPodLogs);
       }, 250);
     }
     return () => {
