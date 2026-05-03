@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
+import { Meta, StoryObj } from '@storybook/react';
 import React from 'react';
 import { TestContext } from '../../../test';
 import PortForward from './PortForward';
 
-export default {
+const meta: Meta<typeof PortForward> = {
   title: 'Resource/PortForward',
   component: PortForward,
   parameters: {
@@ -30,136 +30,102 @@ export default {
       },
     },
   },
-} as Meta;
-
-const Template: StoryFn = args => (
-  <TestContext>
-    <PortForward {...args} />
-  </TestContext>
-);
-
-// Port forward form
-export const PortForwardForm = Template.bind({});
-PortForwardForm.storyName = 'Port forward form';
-PortForwardForm.args = {
-  containerPort: 8080,
-  resource: {
-    kind: 'Pod',
-    cluster: 'cluster1',
-    metadata: {
-      name: 'my-pod',
-      namespace: 'default',
-    },
-    status: {
-      phase: 'Running',
-    },
-  },
-};
-PortForwardForm.parameters = {
-  docs: {
-    description: {
-      story:
-        'Shows the port forward button. Note: PortForward only renders in Electron (desktop) environment — in browser it returns null.',
-    },
-  },
+  decorators: [
+    Story => (
+      <TestContext>
+        <Story />
+      </TestContext>
+    ),
+  ],
 };
 
-// Connection pending loading state
-export const ConnectionPending = Template.bind({});
-ConnectionPending.storyName = 'Connection pending loading state';
-ConnectionPending.args = {
-  containerPort: 3000,
-  resource: {
-    kind: 'Pod',
-    cluster: 'cluster1',
-    metadata: {
-      name: 'my-pod',
-      namespace: 'default',
-    },
-    status: {
-      phase: 'Running',
-    },
+export default meta;
+type Story = StoryObj<typeof PortForward>;
+
+const mockPodResource = {
+  kind: 'Pod',
+  cluster: 'cluster1',
+  metadata: {
+    name: 'my-pod',
+    namespace: 'default',
   },
-};
-ConnectionPending.parameters = {
-  docs: {
-    description: {
-      story: 'Loading state shown while port forward connection is being established.',
+  status: {
+    phase: 'Running',
+  },
+} as any;
+
+export const PortForwardForm: Story = {
+  name: 'Port forward form',
+  args: {
+    containerPort: 8080,
+    resource: mockPodResource,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Shows the port forward button. Note: PortForward only renders in Electron (desktop) environment — in browser it returns null.',
+      },
     },
   },
 };
 
-// Connection established success
-export const ConnectionEstablished = Template.bind({});
-ConnectionEstablished.storyName = 'Connection established success';
-ConnectionEstablished.args = {
-  containerPort: 8080,
-  resource: {
-    kind: 'Pod',
-    cluster: 'cluster1',
-    metadata: {
-      name: 'my-pod',
-      namespace: 'default',
-    },
-    status: {
-      phase: 'Running',
-    },
+export const ConnectionPending: Story = {
+  name: 'Connection pending loading state',
+  args: {
+    containerPort: 3000,
+    resource: mockPodResource,
   },
-};
-ConnectionEstablished.parameters = {
-  docs: {
-    description: {
-      story: 'Success state when port forward is running — shows clickable localhost link.',
+  parameters: {
+    docs: {
+      description: {
+        story: 'Loading state shown while port forward connection is being established.',
+      },
     },
   },
 };
 
-// Connection failed error state
-export const ConnectionFailed = Template.bind({});
-ConnectionFailed.storyName = 'Connection failed error state';
-ConnectionFailed.args = {
-  containerPort: 8080,
-  resource: {
-    kind: 'Pod',
-    cluster: 'cluster1',
-    metadata: {
-      name: 'my-pod',
-      namespace: 'default',
-    },
-    status: {
-      phase: 'Running',
-    },
+export const ConnectionEstablished: Story = {
+  name: 'Connection established success',
+  args: {
+    containerPort: 8080,
+    resource: mockPodResource,
   },
-};
-ConnectionFailed.parameters = {
-  docs: {
-    description: {
-      story: 'Error state shown when port forward connection fails.',
+  parameters: {
+    docs: {
+      description: {
+        story: 'Success state when port forward is running — shows clickable localhost link.',
+      },
     },
   },
 };
 
-// Port already in use error
-export const PortAlreadyInUse = Template.bind({});
-PortAlreadyInUse.storyName = 'Port already in use error';
-PortAlreadyInUse.args = {
-  containerPort: 8080,
-  resource: {
-    kind: 'Pod',
-    cluster: 'cluster1',
-    metadata: {
-      name: 'my-pod',
-      namespace: 'default',
-    },
-    status: {
-      phase: 'Running',
+export const ConnectionFailed: Story = {
+  name: 'Connection failed error state',
+  args: {
+    containerPort: 8080,
+    resource: mockPodResource,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Error state shown when port forward connection fails.',
+      },
     },
   },
 };
-PortAlreadyInUse.parameters = {
-  docs: {
-    description: {
-      story: 'Error state when the requested local port is already in use.',
+
+export const PortAlreadyInUse: Story = {
+  name: 'Port already in use error',
+  args: {
+    containerPort: 8080,
+    resource: mockPodResource,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Error state when the requested local port is already in use.',
+      },
     },
   },
 };
