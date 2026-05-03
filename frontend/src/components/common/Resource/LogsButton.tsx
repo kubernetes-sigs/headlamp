@@ -25,7 +25,7 @@ import { styled } from '@mui/material/styles';
 import Switch from '@mui/material/Switch';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import { useSnackbar } from 'notistack';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { labelSelectorToQuery } from '../../../lib/k8s';
 import { clusterFetch } from '../../../lib/k8s/api/v2/fetch';
@@ -101,6 +101,10 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   const [showReconnectButton, setShowReconnectButton] = useState(false);
 
   const xtermRef = React.useRef<XTerminal | null>(null);
+  const allPodLogsRef = useRef<{ [podName: string]: string[] }>({});
+  const processLogsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const processedLogsRef = useRef<{ [podName: string]: string[] } | null>(null);
+  const activeParamsRef = useRef<string>('');
   const { t } = useTranslation(['glossary', 'translation']);
   const { enqueueSnackbar } = useSnackbar();
 
@@ -232,8 +236,9 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
   // Function to process and display all logs
   const processAllLogs = React.useCallback(() => {
+    const currentAllPodLogs = allPodLogsRef.current;
     const allLogs: string[] = [];
-    Object.entries(allPodLogs).forEach(([podName, podLogs]) => {
+    Object.entries(currentAllPodLogs).forEach(([podName, podLogs]) => {
       podLogs.forEach(log => {
         allLogs.push(`[${podName}] ${log}`);
       });
@@ -255,125 +260,145 @@ function LogsButtonContent({ item }: LogsButtonProps) {
       logs: allLogs,
       lastLineShown: allLogs.length - 1,
     });
-  }, [allPodLogs]);
+  }, []);
 
   // Function to fetch and aggregate logs from all pods
-  function fetchAllPodsLogs(pods: Pod[], container: string): () => void {
-    clearLogs();
-    setAllPodLogs({});
+  const fetchAllPodsLogs = React.useCallback(
+    (pods: Pod[], container: string): (() => void) => {
+      clearLogs();
+      setAllPodLogs({});
+      allPodLogsRef.current = {};
 
-    const cleanups: Array<() => void> = [];
+      const cleanups: Array<() => void> = [];
 
-    pods.forEach(pod => {
-      const cleanup = pod.getLogs(
-        container,
-        ({ logs: newLogs }: { logs: string[]; hasJsonLogs?: boolean }) => {
-          const podName = pod.getName();
-          setAllPodLogs(current => {
-            const updated = {
-              ...current,
-              [podName]: newLogs,
-            };
-            return updated;
-          });
-        },
-        {
-          tailLines: lines,
-          showPrevious,
-          showTimestamps,
-          follow,
-          onReconnectStop: () => {
-            setShowReconnectButton(true);
+      pods.forEach(pod => {
+        const cleanup = pod.getLogs(
+          container,
+          ({ logs: newLogs }: { logs: string[]; hasJsonLogs?: boolean }) => {
+            const podName = pod.getName();
+            setAllPodLogs(current => {
+              const updated = {
+                ...current,
+                [podName]: newLogs,
+              };
+              allPodLogsRef.current = updated;
+              return updated;
+            });
           },
-        }
-      );
-      cleanups.push(cleanup);
-    });
+          {
+            tailLines: lines,
+            showPrevious,
+            showTimestamps,
+            follow,
+            onReconnectStop: () => {
+              setShowReconnectButton(true);
+            },
+          }
+        );
+        cleanups.push(cleanup);
+      });
 
-    return () => cleanups.forEach(cleanup => cleanup());
-  }
+      return () => cleanups.forEach(cleanup => cleanup());
+    },
+    [clearLogs, lines, showPrevious, showTimestamps, follow]
+  );
 
   // Effect for fetching and updating logs
   React.useEffect(() => {
+    const paramsKey = JSON.stringify({
+      selectedPodIndex,
+      selectedContainer,
+      lines,
+      showPrevious,
+      showTimestamps,
+      follow,
+      pods: pods.map(p => p.metadata.uid),
+    });
+
+    if (!selectedContainer || paramsKey === activeParamsRef.current) {
+      return;
+    }
+
+    activeParamsRef.current = paramsKey;
+
     let cleanup: (() => void) | null = null;
     let isSubscribed = true;
 
-    if (selectedContainer) {
-      clearLogs();
-      setAllPodLogs({}); // Clear aggregated logs when switching pods
+    // Handle paused logs state
+    if (!follow && logs.logs.length > 0) {
+      xtermRef.current?.write(
+        '\n\n' +
+          t('translation|Logs are paused. Click the follow button to resume following them.') +
+          '\r\n'
+      );
+      return;
+    }
 
-      // Handle paused logs state
-      if (!follow && logs.logs.length > 0) {
-        xtermRef.current?.write(
-          '\n\n' +
-            t('translation|Logs are paused. Click the follow button to resume following them.') +
-            '\r\n'
-        );
-        return;
-      }
+    clearLogs();
+    setAllPodLogs({}); // Clear aggregated logs when switching pods
+    allPodLogsRef.current = {};
 
-      if (selectedPodIndex === 'all') {
-        cleanup = fetchAllPodsLogs(pods, selectedContainer);
-      } else {
-        const pod = pods[selectedPodIndex as number];
-        if (pod) {
-          let lastLogLength = 0;
-          cleanup = pod.getLogs(
-            selectedContainer,
-            ({ logs: newLogs }: { logs: string[]; hasJsonLogs?: boolean }) => {
-              if (!isSubscribed) return;
+    if (selectedPodIndex === 'all') {
+      cleanup = fetchAllPodsLogs(pods, selectedContainer);
+    } else {
+      const pod = pods[selectedPodIndex as number];
+      if (pod) {
+        let lastLogLength = 0;
+        cleanup = pod.getLogs(
+          selectedContainer,
+          ({ logs: newLogs }: { logs: string[]; hasJsonLogs?: boolean }) => {
+            if (!isSubscribed) return;
 
-              setLogs(current => {
-                const terminalRef = xtermRef.current;
-                if (!terminalRef) return current;
+            setLogs(current => {
+              const terminalRef = xtermRef.current;
+              if (!terminalRef) return current;
 
-                // Only process new logs in chunks for better performance
-                if (newLogs.length > lastLogLength) {
-                  const CHUNK_SIZE = 1000; // Process 1000 lines at a time
-                  const startIdx = lastLogLength;
-                  const endIdx = Math.min(startIdx + CHUNK_SIZE, newLogs.length);
+              // Only process new logs in chunks for better performance
+              if (newLogs.length > lastLogLength) {
+                const CHUNK_SIZE = 1000; // Process 1000 lines at a time
+                const startIdx = lastLogLength;
+                const endIdx = Math.min(startIdx + CHUNK_SIZE, newLogs.length);
 
-                  // Process only the new chunk of logs
-                  const newLogContent = newLogs
-                    .slice(startIdx, endIdx)
-                    .join('')
-                    .replaceAll('\n', '\r\n');
+                // Process only the new chunk of logs
+                const newLogContent = newLogs
+                  .slice(startIdx, endIdx)
+                  .join('')
+                  .replaceAll('\n', '\r\n');
 
-                  terminalRef.write(newLogContent);
-                  lastLogLength = endIdx;
+                terminalRef.write(newLogContent);
+                lastLogLength = endIdx;
 
-                  // If there are more logs to process, schedule them for the next frame
-                  if (endIdx < newLogs.length) {
-                    requestAnimationFrame(() => {
-                      setLogs(current => ({
-                        ...current,
-                        logs: newLogs,
-                        lastLineShown: endIdx - 1,
-                      }));
-                    });
-                    return current;
-                  }
+                // If there are more logs to process, schedule them for the next frame
+                if (endIdx < newLogs.length) {
+                  requestAnimationFrame(() => {
+                    setLogs(current => ({
+                      ...current,
+                      logs: newLogs,
+                      lastLineShown: endIdx - 1,
+                    }));
+                  });
+                  return current;
                 }
+              }
 
-                return {
-                  logs: newLogs,
-                  lastLineShown: newLogs.length - 1,
-                };
-              });
+              return {
+                logs: newLogs,
+                lastLineShown: newLogs.length - 1,
+              };
+            });
+          },
+          {
+            tailLines: lines,
+            showPrevious,
+            showTimestamps,
+            follow,
+            onReconnectStop: () => {
+              if (isSubscribed) {
+                setShowReconnectButton(true);
+              }
             },
-            {
-              tailLines: lines,
-              showPrevious,
-              showTimestamps,
-              follow,
-              onReconnectStop: () => {
-                if (isSubscribed) {
-                  setShowReconnectButton(true);
-                }
-              },
-            }
-          );
-        }
+          }
+        );
       }
     }
 
@@ -384,13 +409,43 @@ function LogsButtonContent({ item }: LogsButtonProps) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPodIndex, selectedContainer, lines, showTimestamps, follow, clearLogs, t, pods]);
+  }, [
+    selectedPodIndex,
+    selectedContainer,
+    lines,
+    showPrevious,
+    showTimestamps,
+    follow,
+    clearLogs,
+    fetchAllPodsLogs,
+    t,
+    pods,
+  ]);
 
   // Effect to process logs when allPodLogs changes - only for "All Pods" mode
+  // Debounced to avoid expensive O(N log N) sort on every incoming log chunk
   React.useEffect(() => {
-    if (selectedPodIndex === 'all' && Object.keys(allPodLogs).length > 0) {
-      processAllLogs();
+    if (
+      selectedPodIndex === 'all' &&
+      Object.keys(allPodLogs).length > 0 &&
+      allPodLogs !== processedLogsRef.current
+    ) {
+      if (processLogsTimerRef.current) {
+        clearTimeout(processLogsTimerRef.current);
+        processLogsTimerRef.current = null;
+      }
+      processLogsTimerRef.current = setTimeout(() => {
+        processLogsTimerRef.current = null;
+        processedLogsRef.current = allPodLogs;
+        processAllLogs();
+      }, 250);
     }
+    return () => {
+      if (processLogsTimerRef.current) {
+        clearTimeout(processLogsTimerRef.current);
+        processLogsTimerRef.current = null;
+      }
+    };
   }, [allPodLogs, selectedPodIndex, processAllLogs]);
 
   const topActions = [
@@ -577,10 +632,7 @@ export function LogsButton({ item }: LogsButtonProps) {
   return (
     <>
       {/* Show logs button for supported workload types */}
-      {(item instanceof Deployment ||
-        item instanceof ReplicaSet ||
-        item instanceof DaemonSet ||
-        item instanceof StatefulSet) && (
+      {isLoggableWorkload(item) && (
         <ActionButton
           icon="mdi:file-document-box-outline"
           onClick={onClick}
