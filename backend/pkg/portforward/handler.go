@@ -280,6 +280,22 @@ func buildPortForwardURL(host, namespace, podName string) (*url.URL, error) {
 		return nil, fmt.Errorf("invalid REST config host: %w", err)
 	}
 
+	// url.Parse accepts scheme-less inputs like "example.com" or
+	// "kubernetes.default.svc:443" without erroring, producing a relative URL
+	// (the latter is parsed as scheme="kubernetes.default.svc", opaque="443").
+	// Default to https:// when the host parsed without one, then reject what
+	// still has no host.
+	if hostURL.Host == "" {
+		hostURL, err = url.Parse("https://" + host)
+		if err != nil {
+			return nil, fmt.Errorf("invalid REST config host: %w", err)
+		}
+	}
+
+	if hostURL.Host == "" {
+		return nil, fmt.Errorf("invalid REST config host %q: missing host", host)
+	}
+
 	prefix := strings.TrimSuffix(hostURL.Path, "/")
 	hostURL.Path = fmt.Sprintf("%s/api/v1/namespaces/%s/pods/%s/portforward", prefix, namespace, podName)
 

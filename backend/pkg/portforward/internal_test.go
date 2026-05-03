@@ -276,6 +276,20 @@ func TestBuildPortForwardURL(t *testing.T) {
 			want: "https://k8s.example.com:443/proxy-routed-cluster" +
 				"/api/v1/namespaces/kube-system/pods/traefik-69fpr/portforward",
 		},
+		{
+			name:      "missing scheme defaults to https",
+			host:      "kubernetes.default.svc:443",
+			namespace: "default",
+			podName:   "my-pod",
+			want:      "https://kubernetes.default.svc:443/api/v1/namespaces/default/pods/my-pod/portforward",
+		},
+		{
+			name:      "bare hostname defaults to https",
+			host:      "example.com",
+			namespace: "default",
+			podName:   "my-pod",
+			want:      "https://example.com/api/v1/namespaces/default/pods/my-pod/portforward",
+		},
 	}
 
 	for _, tt := range tests {
@@ -287,10 +301,24 @@ func TestBuildPortForwardURL(t *testing.T) {
 	}
 }
 
-// TestBuildPortForwardURLInvalidHost ensures an invalid host yields an error.
+// TestBuildPortForwardURLInvalidHost ensures unparseable or empty hosts yield
+// an error instead of silently producing a relative URL that would fail later
+// in the dialer.
 func TestBuildPortForwardURLInvalidHost(t *testing.T) {
-	_, err := buildPortForwardURL("://not a url", "ns", "pod")
-	assert.Error(t, err)
+	tests := []struct {
+		name string
+		host string
+	}{
+		{"unparseable", "://not a url"},
+		{"empty", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := buildPortForwardURL(tt.host, "ns", "pod")
+			assert.Error(t, err)
+		})
+	}
 }
 
 // TestBuildPortForwardDialer verifies dialer selection: with a valid REST
