@@ -85,8 +85,11 @@ describe('WebSocket Multiplexer', () => {
     vi.unstubAllEnvs();
     WebSocketManager.socketMultiplexer = null;
     WebSocketManager.connecting = false;
+    WebSocketManager.connectPromise = null;
+    WebSocketManager.connectionAttemptId = 0;
     WebSocketManager.isReconnecting = false;
     WebSocketManager.listeners.clear();
+    WebSocketManager.errorListeners.clear();
     WebSocketManager.completedPaths.clear();
     WebSocketManager.activeSubscriptions.clear();
     WebSocketManager.pendingUnsubscribes.forEach(clearTimeout);
@@ -244,6 +247,54 @@ describe('WebSocket Multiplexer', () => {
       // Verify error was handled
       expect(WebSocketManager.socketMultiplexer).toBeNull();
       expect(WebSocketManager.connecting).toBe(false);
+    });
+
+    it('should handle concurrent connection failures and clean up subscriptions', async () => {
+      const mockClose = vi.fn();
+      const MockWebSocket = vi.fn(() => ({
+        readyState: 0, // CONNECTING
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        send: vi.fn(),
+        close: mockClose,
+        onopen: null as any,
+        onerror: null as any,
+        onmessage: null as any,
+        onclose: null as any,
+      })) as any;
+
+      MockWebSocket.CONNECTING = 0;
+      MockWebSocket.OPEN = 1;
+      MockWebSocket.CLOSING = 2;
+      MockWebSocket.CLOSED = 3;
+
+      vi.stubGlobal('WebSocket', MockWebSocket);
+
+      try {
+        const path1 = '/api/v1/pods';
+        const path2 = '/api/v1/services';
+
+        const sub1 = WebSocketManager.subscribe(clusterName, path1, 'watch=true', onMessage);
+        const sub2 = WebSocketManager.subscribe(clusterName, path2, 'watch=true', vi.fn());
+
+        expect(MockWebSocket).toHaveBeenCalledTimes(1);
+
+        const wsInstance = MockWebSocket.mock.results[0].value;
+        wsInstance.onerror?.(new Event('error'));
+
+        await expect(sub1).rejects.toThrow('WebSocket connection failed');
+        await expect(sub2).rejects.toThrow('WebSocket connection failed');
+
+        const key1 = WebSocketManager.createKey(clusterName, path1, 'watch=true');
+        const key2 = WebSocketManager.createKey(clusterName, path2, 'watch=true');
+
+        expect(WebSocketManager.activeSubscriptions.has(key1)).toBe(false);
+        expect(WebSocketManager.activeSubscriptions.has(key2)).toBe(false);
+        expect(WebSocketManager.listeners.has(key1)).toBe(false);
+        expect(WebSocketManager.listeners.has(key2)).toBe(false);
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
 
     it('should handle duplicate subscriptions', async () => {
@@ -485,54 +536,197 @@ describe('WebSocket Multiplexer', () => {
   });
 
   describe('WebSocket error handling', () => {
-    it('should reject concurrent callers when in-progress connection fails', async () => {
-      vi.useFakeTimers();
+    it('should reject concurrent callers when shared connection attempt fails', async () => {
+      const MockWebSocket = vi.fn(() => ({
+        readyState: 0, // CONNECTING
+        onopen: null as any,
+        onclose: null as any,
+        onerror: null as any,
+        onmessage: null as any,
+        send: vi.fn(),
+        close: vi.fn(),
+      })) as any;
+      MockWebSocket.CONNECTING = 0;
+      MockWebSocket.OPEN = 1;
+      MockWebSocket.CLOSING = 2;
+      MockWebSocket.CLOSED = 3;
+
+      vi.stubGlobal('WebSocket', MockWebSocket);
 
       try {
-        // Manually set connecting = true to simulate an in-progress attempt
-        WebSocketManager.connecting = true;
-
-        // Start a concurrent caller — it enters the polling branch
+        const firstPromise = WebSocketManager.connect();
         const concurrentPromise = WebSocketManager.connect();
 
-        // Simulate the primary connection failing by resetting connecting to false
-        WebSocketManager.connecting = false;
+        expect(MockWebSocket).toHaveBeenCalledTimes(1);
+        expect(WebSocketManager.connectPromise).not.toBeNull();
 
-        // Advance timers so the setInterval tick fires and detects the failure
-        await vi.advanceTimersByTimeAsync(200);
+        const wsInstance = MockWebSocket.mock.results[0].value;
+        wsInstance.onerror?.(new Event('error'));
 
+        await expect(firstPromise).rejects.toThrow('WebSocket connection failed');
         await expect(concurrentPromise).rejects.toThrow('WebSocket connection failed');
+        expect(WebSocketManager.connectPromise).toBeNull();
       } finally {
-        vi.useRealTimers();
+        vi.unstubAllGlobals();
       }
     });
 
-    it('should handle polling timeout', async () => {
-      const OriginalWebSocket = window.WebSocket;
+    it('should keep newer connection attempt state when old socket closes', async () => {
+      const MockWebSocket = vi.fn(() => ({
+        readyState: 0, // CONNECTING
+        onopen: null as any,
+        onclose: null as any,
+        onerror: null as any,
+        onmessage: null as any,
+        send: vi.fn(),
+        close: vi.fn(),
+      })) as any;
+      MockWebSocket.CONNECTING = 0;
+      MockWebSocket.OPEN = 1;
+      MockWebSocket.CLOSING = 2;
+      MockWebSocket.CLOSED = 3;
 
-      // Mock WebSocket that triggers an error immediately after construction
-      vi.stubGlobal('WebSocket', function (this: any) {
-        const ws = {
-          readyState: WebSocket.CONNECTING,
-          onopen: null as any,
-          onclose: null as any,
-          onerror: null as any,
-          onmessage: null as any,
-          send: vi.fn(),
-          close: vi.fn(),
+      vi.stubGlobal('WebSocket', MockWebSocket);
+
+      try {
+        const firstPromise = WebSocketManager.connect();
+        const firstSocket = MockWebSocket.mock.results[0].value;
+
+        firstSocket.readyState = WebSocket.OPEN;
+        firstSocket.onopen?.(new Event('open'));
+
+        await expect(firstPromise).resolves.toBe(firstSocket);
+
+        firstSocket.readyState = WebSocket.CLOSING;
+        const secondPromise = WebSocketManager.connect();
+        const secondAttemptPromise = WebSocketManager.connectPromise;
+        const secondSocket = MockWebSocket.mock.results[1].value;
+
+        expect(MockWebSocket).toHaveBeenCalledTimes(2);
+
+        firstSocket.onclose?.();
+
+        expect(WebSocketManager.connecting).toBe(true);
+        expect(WebSocketManager.connectPromise).toBe(secondAttemptPromise);
+
+        secondSocket.readyState = WebSocket.OPEN;
+        secondSocket.onopen?.(new Event('open'));
+
+        await expect(secondPromise).resolves.toBe(secondSocket);
+        expect(WebSocketManager.socketMultiplexer).toBe(secondSocket);
+        expect(WebSocketManager.connectPromise).toBeNull();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('should resubscribe when replacing a non-open socket before old close fires', async () => {
+      const MockWebSocket = vi.fn(() => ({
+        readyState: 0, // CONNECTING
+        onopen: null as any,
+        onclose: null as any,
+        onerror: null as any,
+        onmessage: null as any,
+        send: vi.fn(),
+        close: vi.fn(),
+      })) as any;
+      MockWebSocket.CONNECTING = 0;
+      MockWebSocket.OPEN = 1;
+      MockWebSocket.CLOSING = 2;
+      MockWebSocket.CLOSED = 3;
+
+      vi.stubGlobal('WebSocket', MockWebSocket);
+
+      try {
+        const path = '/api/v1/pods';
+        const query = 'watch=true';
+        const requestMsg = {
+          clusterId: clusterName,
+          path,
+          query,
+          userId,
+          type: 'REQUEST',
         };
-        setTimeout(() => ws.onerror?.(new Event('error')), 0);
-        return ws;
-      });
 
-      const path = '/api/v1/pods';
-      const query = 'watch=true';
+        const subscription = WebSocketManager.subscribe(clusterName, path, query, onMessage);
+        const firstSocket = MockWebSocket.mock.results[0].value;
 
-      await expect(WebSocketManager.subscribe(clusterName, path, query, onMessage)).rejects.toThrow(
-        `Cannot read properties of null (reading 'send')`
-      );
+        firstSocket.readyState = WebSocket.OPEN;
+        firstSocket.onopen?.(new Event('open'));
+        await subscription;
 
-      vi.stubGlobal('WebSocket', OriginalWebSocket);
+        expect(firstSocket.send).toHaveBeenCalledWith(JSON.stringify(requestMsg));
+        firstSocket.send.mockClear();
+
+        firstSocket.readyState = WebSocket.CLOSING;
+        const reconnectPromise = WebSocketManager.connect();
+        const secondSocket = MockWebSocket.mock.results[1].value;
+
+        expect(WebSocketManager.isReconnecting).toBe(true);
+
+        secondSocket.readyState = WebSocket.OPEN;
+        secondSocket.onopen?.(new Event('open'));
+
+        await expect(reconnectPromise).resolves.toBe(secondSocket);
+        expect(secondSocket.send).toHaveBeenCalledWith(JSON.stringify(requestMsg));
+        expect(WebSocketManager.isReconnecting).toBe(false);
+
+        firstSocket.onclose?.();
+
+        expect(WebSocketManager.socketMultiplexer).toBe(secondSocket);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('should handle connection handshake timeout', async () => {
+      vi.useFakeTimers();
+
+      try {
+        const mockClose = vi.fn();
+
+        // Mock WebSocket to remain in CONNECTING state and never fire events
+        const MockWebSocket = vi.fn(
+          () =>
+            ({
+              readyState: 0, // CONNECTING
+              onopen: null as any,
+              onclose: null as any,
+              onerror: null as any,
+              onmessage: null as any,
+              send: vi.fn(),
+              close: mockClose,
+            } as any)
+        ) as any;
+        MockWebSocket.CONNECTING = 0;
+        MockWebSocket.OPEN = 1;
+        MockWebSocket.CLOSING = 2;
+        MockWebSocket.CLOSED = 3;
+
+        vi.stubGlobal('WebSocket', MockWebSocket);
+
+        const path = '/api/v1/pods';
+        const query = 'watch=true';
+
+        const subPromise = WebSocketManager.subscribe(clusterName, path, query, onMessage);
+        const assertion = expect(subPromise).rejects.toThrow('WebSocket connection timed out');
+
+        await vi.advanceTimersByTimeAsync(10000);
+
+        await assertion;
+
+        const wsInstance = MockWebSocket.mock.results[0].value;
+        wsInstance.readyState = WebSocket.OPEN;
+        wsInstance.onopen?.(new Event('open'));
+
+        expect(mockClose).toHaveBeenCalledTimes(1);
+        expect(WebSocketManager.socketMultiplexer).toBeNull();
+        expect(WebSocketManager.connecting).toBe(false);
+        expect(WebSocketManager.connectPromise).toBeNull();
+      } finally {
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+      }
     });
 
     it('should handle reconnection and resubscribe', async () => {
