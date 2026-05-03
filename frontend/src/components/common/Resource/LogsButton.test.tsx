@@ -142,7 +142,7 @@ vi.mock('../LogViewer', () => ({
         };
       }
     }, [xtermRef]);
-    return <div data-testid="mock-log-viewer" />;
+    return <div data-testid="mock-log-viewer">{props.topActions}</div>;
   },
 }));
 
@@ -434,5 +434,77 @@ describe('LogsButton', () => {
         type: 'headlamp.logs',
       })
     );
+  });
+
+  it('filters logs by severity and updates xterm without restarting stream', async () => {
+    mockClusterFetch.mockResolvedValue({
+      json: async () => ({ items: [mockPodData] }),
+    });
+
+    let getLogsCallCount = 0;
+    let onLogsCallback: any;
+
+    Pod.prototype.getLogs = vi.fn((...args: any[]) => {
+      getLogsCallCount++;
+      const onLogs = args.find(arg => typeof arg === 'function');
+      onLogsCallback = onLogs;
+      return () => {};
+    }) as any;
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => expect(onLogsCallback).toBeDefined());
+    expect(getLogsCallCount).toBe(1);
+
+    // Initial logs
+    act(() => {
+      onLogsCallback({
+        logs: ['[ERROR] failed\n', '[INFO] started\n'],
+      });
+    });
+
+    await waitFor(() => {
+      expect(mockXTermWrite).toHaveBeenCalledWith(expect.stringContaining('[ERROR] failed'));
+      expect(mockXTermWrite).toHaveBeenCalledWith(expect.stringContaining('[INFO] started'));
+    });
+
+    mockXTermWrite.mockClear();
+    mockXTermClear.mockClear();
+
+    // Now change severity filter by directly clicking the button
+    const selects = document.querySelectorAll('.MuiSelect-select');
+    const severitySelect = selects[3];
+    fireEvent.mouseDown(severitySelect);
+
+    await waitFor(() => {
+      expect(document.querySelector('.MuiList-root')).toBeInTheDocument();
+    });
+
+    const infoOption = Array.from(document.querySelectorAll('.MuiMenuItem-root')).find(
+      el => el.textContent === 'INFO'
+    );
+    fireEvent.click(infoOption!);
+
+    // Close the dropdown
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+
+    // It should clear and write the filtered logs
+    await waitFor(() => {
+      expect(mockXTermClear).toHaveBeenCalled();
+    });
+
+    expect(mockXTermWrite).toHaveBeenCalledWith(expect.stringContaining('[ERROR] failed'));
+    expect(mockXTermWrite).not.toHaveBeenCalledWith(expect.stringContaining('[INFO] started'));
+
+    // Verify stream was not restarted
+    expect(getLogsCallCount).toBe(1);
   });
 });

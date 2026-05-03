@@ -49,11 +49,7 @@ import { Activity } from '../../activity/Activity';
 import ActionButton from '../ActionButton';
 import { LogViewer } from '../LogViewer';
 import { LightTooltip } from '../Tooltip';
-import {
-  ALL_SEVERITIES,
-  filterLogsBySeverity,
-  LogSeverity,
-} from './logSeverityFilter';
+import { ALL_SEVERITIES, filterLogsBySeverity, LogSeverity } from './logSeverityFilter';
 
 // Component props interface
 interface LogsButtonProps {
@@ -273,35 +269,38 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   }
 
   // Function to process and display all logs
-  const processAllLogs = React.useCallback((logsData: { [podName: string]: string[] }) => {
-    const allLogs: string[] = [];
-    Object.entries(logsData).forEach(([podName, podLogs]) => {
-      podLogs.forEach(log => {
-        allLogs.push(`[${podName}] ${log}`);
+  const processAllLogs = React.useCallback(
+    (logsData: { [podName: string]: string[] }) => {
+      const allLogs: string[] = [];
+      Object.entries(logsData).forEach(([podName, podLogs]) => {
+        podLogs.forEach(log => {
+          allLogs.push(`[${podName}] ${log}`);
+        });
       });
-    });
 
-    // Sort logs by timestamp
-    allLogs.sort((a, b) => {
-      const timestampA = a.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)?.[0] || '';
-      const timestampB = b.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)?.[0] || '';
-      return timestampA.localeCompare(timestampB);
-    });
+      // Sort logs by timestamp
+      allLogs.sort((a, b) => {
+        const timestampA = a.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)?.[0] || '';
+        const timestampB = b.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)?.[0] || '';
+        return timestampA.localeCompare(timestampB);
+      });
 
-    // Apply severity filter before rendering
-    const filteredLogs = filterLogsBySeverity(allLogs, selectedSeverities);
+      // Apply severity filter before rendering
+      const filteredLogs = filterLogsBySeverity(allLogs, selectedSeverities);
 
-    if (xtermRef.current) {
-      xtermRef.current.clear();
-      xtermRef.current.write(filteredLogs.join('').replaceAll('\n', '\r\n'));
-    }
+      if (xtermRef.current) {
+        xtermRef.current.clear();
+        xtermRef.current.write(filteredLogs.join('').replaceAll('\n', '\r\n'));
+      }
 
-    // Store RAW logs in state for downloads, not filtered
-    setLogs({
-      logs: allLogs,
-      lastLineShown: allLogs.length - 1,
-    });
-  }, [selectedSeverities]); // Need selectedSeverities to re-filter
+      // Store RAW logs in state for downloads, not filtered
+      setLogs({
+        logs: allLogs,
+        lastLineShown: allLogs.length - 1,
+      });
+    },
+    [selectedSeverities]
+  ); // Need selectedSeverities to re-filter
 
   // Function to fetch and aggregate logs from all pods
   const fetchAllPodsLogs = React.useCallback(
@@ -376,23 +375,12 @@ function LogsButtonContent({ item }: LogsButtonProps) {
                 const startIdx = lastLogLength;
                 const endIdx = Math.min(startIdx + CHUNK_SIZE, newLogs.length);
 
-                // Process only the new chunk of logs
-                const newLogContent = newLogs
-                  .slice(startIdx, endIdx)
-                  .join('')
-                  .replaceAll('\n', '\r\n');
-
-                terminalRef.write(newLogContent);
-                lastLogLength = endIdx;
-
                 // Apply severity filter to the new chunk using the ref to avoid effect restart
                 const chunk = newLogs.slice(startIdx, endIdx);
                 const filteredChunk = filterLogsBySeverity(chunk, selectedSeveritiesRef.current);
-                const newLogContent = filteredChunk
-                  .join('')
-                  .replaceAll('\n', '\r\n');
+                const filteredContent = filteredChunk.join('').replaceAll('\n', '\r\n');
 
-                terminalRef.write(newLogContent);
+                terminalRef.write(filteredContent);
                 lastLogLength = endIdx;
 
                 // If there are more logs to process, schedule them for the next frame
@@ -405,7 +393,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
                     }));
                   });
                   return current;
-                }                }
+                }
               }
 
               return {

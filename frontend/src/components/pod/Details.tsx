@@ -94,6 +94,30 @@ export function PodLogViewer(props: PodLogViewerProps) {
     'headlamp.logs.severityFilter',
     [...ALL_SEVERITIES]
   );
+  const selectedSeveritiesRef = React.useRef(selectedSeverities);
+
+  React.useEffect(() => {
+    selectedSeveritiesRef.current = selectedSeverities;
+  }, [selectedSeverities]);
+
+  // Re-render xterm when selectedSeverities changes
+  React.useEffect(() => {
+    if (xtermRef.current && logs.logs.length > 0) {
+      xtermRef.current.clear();
+      const displayLogs = logs.logs.map(logEntry => {
+        if (prettifyLogs && hasJsonLogs) {
+          return colorizePrettifiedLog(logEntry);
+        }
+        return logEntry;
+      });
+      const filteredLogs = filterLogsBySeverity(displayLogs, selectedSeverities);
+      xtermRef.current.write(filteredLogs.join('').replaceAll('\n', '\r\n'));
+
+      // Update lastLineShown just in case, though it shouldn't be strictly necessary here
+      setLogs(current => ({ ...current, lastLineShown: current.logs.length - 1 }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSeverities]);
 
   const options = { leading: true, trailing: true, maxWait: 1000 };
 
@@ -106,27 +130,32 @@ export function PodLogViewer(props: PodLogViewerProps) {
   }) {
     setHasJsonLogs(hasJsonLogs);
 
-    const displayLogs = logLines.map(logEntry => {
-      if (prettifyLogs && hasJsonLogs) {
-        return colorizePrettifiedLog(logEntry);
-      }
-      return logEntry;
-    });
-
-    // Apply severity filter before rendering
-    const filteredLogs = filterLogsBySeverity(displayLogs, selectedSeverities);
-
     setLogs(current => {
       if (current.lastLineShown >= logLines.length) {
+        // Full re-render
+        const displayLogs = logLines.map(logEntry => {
+          if (prettifyLogs && hasJsonLogs) {
+            return colorizePrettifiedLog(logEntry);
+          }
+          return logEntry;
+        });
+        const filteredLogs = filterLogsBySeverity(displayLogs, selectedSeveritiesRef.current);
         xtermRef.current?.clear();
         xtermRef.current?.write(filteredLogs.join('').replaceAll('\n', '\r\n'));
       } else {
-        xtermRef.current?.write(
-          filteredLogs
-            .slice(current.lastLineShown + 1)
-            .join('')
-            .replaceAll('\n', '\r\n')
-        );
+        // Incremental write: slice raw lines first, then format and filter
+        const newRawLines = logLines.slice(current.lastLineShown + 1);
+        const displayLogs = newRawLines.map(logEntry => {
+          if (prettifyLogs && hasJsonLogs) {
+            return colorizePrettifiedLog(logEntry);
+          }
+          return logEntry;
+        });
+        const filteredLogs = filterLogsBySeverity(displayLogs, selectedSeveritiesRef.current);
+
+        if (filteredLogs.length > 0) {
+          xtermRef.current?.write(filteredLogs.join('').replaceAll('\n', '\r\n'));
+        }
       }
 
       return {
@@ -189,17 +218,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      container,
-      lines,
-      open,
-      showPrevious,
-      showTimestamps,
-      follow,
-      prettifyLogs,
-      formatJsonValues,
-      selectedSeverities,
-    ]
+    [container, lines, open, showPrevious, showTimestamps, follow, prettifyLogs, formatJsonValues]
   );
 
   function handleContainerChange(event: any) {
