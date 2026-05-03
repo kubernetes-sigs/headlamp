@@ -20,7 +20,7 @@ import { TestContext } from '../../../test';
 import DeleteMultipleButton from './DeleteMultipleButton';
 
 export default {
-  title: 'common/Resource/DeleteMultipleButton',
+  title: 'Resource/DeleteMultipleButton',
   component: DeleteMultipleButton,
   parameters: {
     docs: {
@@ -37,7 +37,6 @@ const Template: StoryFn = args => (
   </TestContext>
 );
 
-// Button enabled with items selected
 export const WithSelection = Template.bind({});
 WithSelection.storyName = 'Button enabled showing selection count';
 WithSelection.args = {
@@ -57,14 +56,20 @@ WithSelection.args = {
   ],
 };
 
-// Button disabled with no selection
 export const NoSelection = Template.bind({});
-NoSelection.storyName = 'Button disabled with no selection';
+NoSelection.storyName = 'No selection (component returns null)';
 NoSelection.args = {
   items: [],
 };
+NoSelection.parameters = {
+  docs: {
+    description: {
+      story:
+        'When no items are selected, DeleteMultipleButton returns null and renders nothing. This is the expected behavior.',
+    },
+  },
+};
 
-// Batch delete confirmation dialog
 export const WithConfirmDialog = Template.bind({});
 WithConfirmDialog.storyName = 'Batch delete confirmation dialog';
 WithConfirmDialog.args = {
@@ -76,4 +81,12 @@ WithConfirmDialog.args = {
       delete: () => Promise.resolve(),
     },
   ],
+};
+WithConfirmDialog.parameters = {
+  docs: {
+    description: {
+      story:
+        'Shows the delete button with one item selected. Click the button to open the confirmation dialog.',
+    },
+  },
 };
