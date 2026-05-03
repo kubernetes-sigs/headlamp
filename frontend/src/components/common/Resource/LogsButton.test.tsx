@@ -410,4 +410,29 @@ describe('LogsButton', () => {
     expect(mockActivityLaunch).not.toHaveBeenCalled();
     expect(dispatchMock).not.toHaveBeenCalled();
   });
+
+  it('launchWorkloadLogs works for foreign workloads with loggable kinds (cross-bundle compatibility)', () => {
+    class ForeignDeployment extends MockKubeObject {
+      static kind = 'Deployment'; // Same kind as a real loggable workload
+    }
+    const foreignItem = new ForeignDeployment({
+      kind: 'Deployment',
+      metadata: { name: 'foreign-dep', namespace: 'default', uid: 'foreign-123' },
+    });
+
+    const dispatchMock = vi.fn();
+    launchWorkloadLogs(foreignItem as any, dispatchMock);
+
+    expect(mockActivityLaunch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'logs-foreign-123',
+        title: 'Logs: foreign-dep',
+      })
+    );
+    expect(dispatchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'headlamp.logs',
+      })
+    );
+  });
 });

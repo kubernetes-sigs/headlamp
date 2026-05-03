@@ -309,12 +309,11 @@ function LogsButtonContent({ item }: LogsButtonProps) {
       return;
     }
 
-    clearLogs();
-    setAllPodLogs({}); // Clear aggregated logs when switching pods
-
     if (selectedPodIndex === 'all') {
       cleanup = fetchAllPodsLogs(pods, selectedContainer);
     } else {
+      clearLogs();
+      setAllPodLogs({}); // Clear aggregated logs when switching pods
       const pod = pods[selectedPodIndex as number];
       if (pod) {
         let lastLogLength = 0;
