@@ -313,7 +313,9 @@ export default function ClusterTable({
           id: 'name',
           header: t('Name'),
           accessorKey: 'name',
-          gridTemplate: 2,
+          gridTemplate: 3,
+          minSize: 120,
+          maxSize: 1200,
           Cell: ({ row: { original } }) => {
             const appearance = getClusterAppearanceFromMeta(original.name);
             return (
@@ -345,6 +347,8 @@ export default function ClusterTable({
         {
           id: 'origin',
           header: t('Origin'),
+          minSize: 80,
+          maxSize: 600,
           accessorFn: cluster => getOrigin(cluster),
           Cell: ({ row: { original } }) => (
             <Typography variant="body2">{getOrigin((clusters || {})[original.name])}</Typography>
@@ -353,6 +357,8 @@ export default function ClusterTable({
         {
           id: 'status',
           header: t('Status'),
+          minSize: 80,
+          maxSize: 400,
           accessorFn: cluster =>
             // When the cluster is not yet connected (no polling), the cell shows
             // "Not connected". Match the accessor so sorting/filtering is consistent.
@@ -371,6 +377,9 @@ export default function ClusterTable({
         {
           id: 'warnings',
           header: t('Warnings'),
+          gridTemplate: 'min-content',
+          minSize: 60,
+          maxSize: 200,
           // Warnings track connection status: list them for connected clusters
           // (⋯ while loading), blank for clusters that aren't connected.
           accessorFn: cluster =>
@@ -379,6 +388,9 @@ export default function ClusterTable({
         {
           id: 'version',
           header: t('glossary|Kubernetes Version'),
+          gridTemplate: 'min-content',
+          minSize: 80,
+          maxSize: 300,
           accessorFn: ({ name }) =>
             isClusterConnected(name) ? versions[name]?.gitVersion || '⋯' : '',
         },
@@ -395,9 +407,12 @@ export default function ClusterTable({
           },
           enableSorting: false,
           enableColumnFilter: false,
+          enableResizing: false,
         },
       ]}
       data={clustersList}
+      enableColumnResizing
+      columnResizeMode="onChange"
       enableRowSelection={
         MULTI_HOME_ENABLED
           ? row => {
