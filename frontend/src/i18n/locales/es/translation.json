@@ -742,6 +742,8 @@
   "Fit to screen": "Ajustar a pantalla",
   "Zoom to 100%": "Ajustar a 100%",
   "Home": "Inicio",
+  "These items are hidden for performance reasons. The amount exceeded the limit of {{limit}}.": "",
+  "Hidden": "",
   "Used": "Usado",
   "Hard": "Duro",
   "Request": "Solicitud",

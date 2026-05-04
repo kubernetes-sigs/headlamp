@@ -737,6 +737,8 @@
   "Fit to screen": "",
   "Zoom to 100%": "",
   "Home": "Startseite",
+  "These items are hidden for performance reasons. The amount exceeded the limit of {{limit}}.": "",
+  "Hidden": "",
   "Used": "Genutzt",
   "Hard": "Hart",
   "Request": "Anfrage",

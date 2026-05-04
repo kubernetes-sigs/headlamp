@@ -15,6 +15,7 @@
  */
 
 import { Icon } from '@iconify/react';
+import { Tooltip } from '@mui/material';
 import Badge from '@mui/material/Badge';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
@@ -26,8 +27,10 @@ import { styled } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/system/colorManipulator';
 import { memo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { GraphSource } from '../graph/graphModel';
 import { getFlatSources, SourceData } from './GraphSources';
+import { GraphSourcesConfig } from './GraphSourcesConfig';
 
 const Node = styled('div')(() => ({
   display: 'flex',
@@ -62,6 +65,7 @@ function GraphSourceView({
   source,
   sourceData,
   selection,
+  hiddenSources,
   toggleSelection,
 }: {
   /** Source definition */
@@ -71,7 +75,9 @@ function GraphSourceView({
   /** Set of selected source ids */
   selection: Set<string>;
   toggleSelection: (source: GraphSource) => void;
+  hiddenSources: Set<string>;
 }) {
+  const { t } = useTranslation();
   const [isActive, setIsActive] = useState(false);
   const hasChildren = 'sources' in source;
   const isSelected = (source: GraphSource): boolean =>
@@ -81,20 +87,54 @@ function GraphSourceView({
     'sources' in source && getFlatSources(source.sources).some(s => isSelected(s)) && !isChecked;
 
   const data = sourceData.get(source.id);
+  const isDisabled = hiddenSources.has(source.id);
+  const hasDisabled =
+    'sources' in source ? source.sources.some(s => hiddenSources.has(s.id)) : false;
 
   const check = (
     <>
       <Box mr={1} display="flex">
-        <Badge badgeContent={isChecked ? data?.nodes?.length : undefined} overlap="circular">
+        <Badge
+          badgeContent={
+            hasDisabled || isDisabled ? (
+              <Box sx={{ color: 'warning.main' }}>
+                <Icon icon="mdi:warning" />
+              </Box>
+            ) : isChecked ? (
+              data?.nodes?.length
+            ) : undefined
+          }
+          overlap="circular"
+        >
           <Box width={hasChildren ? '24px' : '24px'} height={hasChildren ? '24px' : '24px'}>
             {source.icon}
           </Box>
         </Badge>
       </Box>
-      <Typography variant="subtitle2">{source.label}</Typography>
+      <Typography variant="subtitle2" sx={{ marginRight: 'auto' }}>
+        {source.label}
+      </Typography>
       {!('sources' in source) && isChecked && !data && <CircularProgress />}
+      {isDisabled && (
+        <Tooltip
+          title={t(
+            'These items are hidden for performance reasons. The amount exceeded the limit of {{limit}}.',
+            { limit: GraphSourcesConfig.nodeLimitPerSource }
+          )}
+        >
+          <Chip
+            color="warning"
+            size="small"
+            label={
+              <Box sx={{ display: 'flex', gap: 0.5, lineHeight: 1 }}>
+                <Icon icon="mdi:warning" />
+                <Trans>Hidden</Trans>
+              </Box>
+            }
+          />
+        </Tooltip>
+      )}
       <Checkbox
-        sx={() => ({ marginLeft: 'auto' })}
         checked={isChecked}
         indeterminate={intermediate}
         onClick={e => {
@@ -115,6 +155,9 @@ function GraphSourceView({
   if (!('sources' in source)) {
     return (
       <Node
+        tabIndex={0}
+        role="button"
+        aria-disabled={isDisabled}
         onClick={() => {
           toggleSelection(source);
         }}
@@ -153,6 +196,7 @@ function GraphSourceView({
             <GraphSourceView
               source={source}
               selection={selection}
+              hiddenSources={hiddenSources}
               toggleSelection={toggleSelection}
               key={source.id}
               sourceData={sourceData}
@@ -172,10 +216,18 @@ export interface GraphSourcesViewProps {
   selectedSources: Set<string>;
   /** Callback when a source is toggled */
   toggleSource: (source: GraphSource) => void;
+  /** Disabled sources due to exceeding the limit */
+  hiddenSources: Set<string>;
 }
 
 export const GraphSourcesView = memo(
-  ({ sources, sourceData, selectedSources, toggleSource }: GraphSourcesViewProps) => {
+  ({
+    sources,
+    sourceData,
+    selectedSources,
+    hiddenSources,
+    toggleSource,
+  }: GraphSourcesViewProps) => {
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
     const selected = sources.filter(source => {
@@ -191,19 +243,28 @@ export const GraphSourcesView = memo(
 
     return (
       <>
-        <Chip
-          label={
-            <Stack direction="row" gap={1} alignItems="center">
-              <Icon icon="mdi:filter" /> {selectedText}{' '}
-            </Stack>
+        <Badge
+          badgeContent={
+            hiddenSources.size > 0 && (
+              <Chip color="warning" size="small" label={<Icon icon="mdi:warning" />}></Chip>
+            )
           }
-          color="primary"
-          variant={'filled'}
-          onClick={e => setAnchorEl(e.currentTarget)}
-          sx={{
-            lineHeight: '1',
-          }}
-        />
+        >
+          <Chip
+            label={
+              <Stack direction="row" gap={1} alignItems="center">
+                <Icon icon="mdi:filter" /> {selectedText}{' '}
+              </Stack>
+            }
+            color="primary"
+            variant={'filled'}
+            onClick={e => setAnchorEl(e.currentTarget)}
+            sx={{
+              lineHeight: '1',
+            }}
+          />
+        </Badge>
+
         <Popover
           elevation={4}
           anchorOrigin={{
@@ -230,6 +291,7 @@ export const GraphSourcesView = memo(
                 toggleSelection={toggleSource}
                 key={index}
                 sourceData={sourceData}
+                hiddenSources={hiddenSources}
               />
             ))}
           </Box>
