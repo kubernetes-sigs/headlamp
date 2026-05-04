@@ -27,7 +27,7 @@ import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getDefaultContainer } from '../../helpers/podContainer';
+import { getDefaultContainer, resolveContainerName } from '../../helpers/podContainer';
 import Pod from '../../lib/k8s/pod';
 import { Dialog } from './Dialog';
 
@@ -48,6 +48,7 @@ interface TerminalProps extends DialogProps {
   /** Don't render the terminal in the dialog */
   noDialog?: boolean;
   onClose?: () => void;
+  initialContainer?: string;
 }
 
 interface XTerminalConnected {
@@ -59,9 +60,11 @@ interface XTerminalConnected {
 type execReturn = ReturnType<Pod['exec']>;
 
 export default function Terminal(props: TerminalProps) {
-  const { item, onClose, isAttach, noDialog, ...other } = props;
+  const { item, onClose, isAttach, noDialog, initialContainer, ...other } = props;
   const [terminalContainerRef, setTerminalContainerRef] = React.useState<HTMLElement | null>(null);
-  const [container, setContainer] = useState<string | null>(() => getDefaultContainer(item));
+  const [container, setContainer] = useState<string | null>(() =>
+    resolveContainerName(item, initialContainer)
+  );
   const execOrAttachRef = React.useRef<execReturn | null>(null);
   const fitAddonRef = React.useRef<FitAddon | null>(null);
   const xtermRef = React.useRef<XTerminalConnected | null>(null);

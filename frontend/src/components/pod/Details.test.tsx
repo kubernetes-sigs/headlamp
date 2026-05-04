@@ -15,7 +15,11 @@
  */
 
 import { act, render } from '@testing-library/react';
-import React from 'react';
+import { createMemoryHistory } from 'history';
+import { SnackbarProvider } from 'notistack';
+import { Provider } from 'react-redux';
+import { Route, Router } from 'react-router-dom';
+import defaultStore from '../../redux/stores/store';
 import { TestContext } from '../../test';
 
 const { mockActivityLaunch, mockDispatchHeadlampEvent } = vi.hoisted(() => ({
@@ -150,6 +154,22 @@ function simulatePodLoad() {
   }
 }
 
+function renderPodDetailsWithHistory(initialUrl: string) {
+  const history = createMemoryHistory({ initialEntries: [initialUrl] });
+  render(
+    <Provider store={defaultStore}>
+      <SnackbarProvider>
+        <Router history={history}>
+          <Route path="/c/main/pods/:namespace/:name">
+            <PodDetails name="test-pod" namespace="default" />
+          </Route>
+        </Router>
+      </SnackbarProvider>
+    </Provider>
+  );
+  return history;
+}
+
 describe('PodDetails auto-launch views', () => {
   beforeEach(() => {
     mockActivityLaunch.mockReset();
@@ -157,82 +177,6 @@ describe('PodDetails auto-launch views', () => {
     capturedOnResourceUpdate = undefined;
   });
 
-  it('auto-launches terminal when ?view=exec is present', () => {
-    render(
-      <TestContext
-        routerMap={{ namespace: 'default', name: 'test-pod' }}
-        urlPrefix="/c/main/pods"
-        urlSearchParams={{ view: 'exec' }}
-      >
-        <PodDetails name="test-pod" namespace="default" />
-      </TestContext>
-    );
-
-    act(() => {
-      simulatePodLoad();
-    });
-
-    expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
-    expect(mockActivityLaunch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'terminal-pod-uid-123',
-        title: 'test-pod',
-      })
-    );
-  });
-
-  it('auto-launches logs when ?view=logs is present', () => {
-    render(
-      <TestContext
-        routerMap={{ namespace: 'default', name: 'test-pod' }}
-        urlPrefix="/c/main/pods"
-        urlSearchParams={{ view: 'logs' }}
-      >
-        <PodDetails name="test-pod" namespace="default" />
-      </TestContext>
-    );
-
-    act(() => {
-      simulatePodLoad();
-    });
-
-    expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
-    expect(mockActivityLaunch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'logs-pod-uid-123',
-      })
-    );
-  });
-
-  it('does not re-launch logs on subsequent renders for the same pod', () => {
-    const { rerender } = render(
-      <TestContext
-        routerMap={{ namespace: 'default', name: 'test-pod' }}
-        urlPrefix="/c/main/pods"
-        urlSearchParams={{ view: 'logs' }}
-      >
-        <PodDetails name="test-pod" namespace="default" />
-      </TestContext>
-    );
-
-    act(() => {
-      simulatePodLoad();
-    });
-    act(() => {
-      rerender(
-        <TestContext
-          routerMap={{ namespace: 'default', name: 'test-pod' }}
-          urlPrefix="/c/main/pods"
-          urlSearchParams={{ view: 'logs' }}
-        >
-          <PodDetails name="test-pod" namespace="default" />
-        </TestContext>
-      );
-      simulatePodLoad();
-    });
-
-    expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
-  });
   it('does not auto-launch anything when no view param is present', () => {
     render(
       <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }} urlPrefix="/c/main/pods">
@@ -247,7 +191,7 @@ describe('PodDetails auto-launch views', () => {
     expect(mockActivityLaunch).not.toHaveBeenCalled();
   });
 
-  it('does not auto-launch terminal when view param is something else', () => {
+  it('does not auto-launch when view param is something else', () => {
     render(
       <TestContext
         routerMap={{ namespace: 'default', name: 'test-pod' }}
@@ -265,49 +209,252 @@ describe('PodDetails auto-launch views', () => {
     expect(mockActivityLaunch).not.toHaveBeenCalled();
   });
 
-  it('does not re-launch terminal on subsequent renders for the same pod', () => {
-    render(
-      <TestContext
-        routerMap={{ namespace: 'default', name: 'test-pod' }}
-        urlPrefix="/c/main/pods"
-        urlSearchParams={{ view: 'exec' }}
-      >
-        <PodDetails name="test-pod" namespace="default" />
-      </TestContext>
-    );
+  describe('?view=logs', () => {
+    it('auto-launches logs', () => {
+      render(
+        <TestContext
+          routerMap={{ namespace: 'default', name: 'test-pod' }}
+          urlPrefix="/c/main/pods"
+          urlSearchParams={{ view: 'logs' }}
+        >
+          <PodDetails name="test-pod" namespace="default" />
+        </TestContext>
+      );
 
-    act(() => {
-      simulatePodLoad();
-    });
-    act(() => {
-      simulatePodLoad();
+      act(() => {
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
+      expect(mockActivityLaunch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'logs-pod-uid-123',
+        })
+      );
     });
 
-    expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
+    it('does not re-launch on subsequent renders for the same pod', () => {
+      const { rerender } = render(
+        <TestContext
+          routerMap={{ namespace: 'default', name: 'test-pod' }}
+          urlPrefix="/c/main/pods"
+          urlSearchParams={{ view: 'logs' }}
+        >
+          <PodDetails name="test-pod" namespace="default" />
+        </TestContext>
+      );
+
+      act(() => {
+        simulatePodLoad();
+      });
+      act(() => {
+        rerender(
+          <TestContext
+            routerMap={{ namespace: 'default', name: 'test-pod' }}
+            urlPrefix="/c/main/pods"
+            urlSearchParams={{ view: 'logs' }}
+          >
+            <PodDetails name="test-pod" namespace="default" />
+          </TestContext>
+        );
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-launches when ?container changes for the same pod', () => {
+      const history = renderPodDetailsWithHistory(
+        '/c/main/pods/default/test-pod?view=logs&container=nginx'
+      );
+
+      act(() => {
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
+      expect(mockActivityLaunch.mock.calls[0][0].content.props.initialContainer).toBe('nginx');
+
+      act(() => {
+        history.push('/c/main/pods/default/test-pod?view=logs&container=sidecar');
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(2);
+      expect(mockActivityLaunch.mock.calls[1][0].content.props.initialContainer).toBe('sidecar');
+    });
+
+    it('passes ?container as initialContainer', () => {
+      render(
+        <TestContext
+          routerMap={{ namespace: 'default', name: 'test-pod' }}
+          urlPrefix="/c/main/pods"
+          urlSearchParams={{ view: 'logs', container: 'nginx' }}
+        >
+          <PodDetails name="test-pod" namespace="default" />
+        </TestContext>
+      );
+
+      act(() => {
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
+      const launchArg = mockActivityLaunch.mock.calls[0][0];
+      expect(launchArg.content.props.initialContainer).toBe('nginx');
+    });
+
+    it('passes undefined initialContainer when ?container is absent', () => {
+      render(
+        <TestContext
+          routerMap={{ namespace: 'default', name: 'test-pod' }}
+          urlPrefix="/c/main/pods"
+          urlSearchParams={{ view: 'logs' }}
+        >
+          <PodDetails name="test-pod" namespace="default" />
+        </TestContext>
+      );
+
+      act(() => {
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
+      const launchArg = mockActivityLaunch.mock.calls[0][0];
+      expect(launchArg.content.props.initialContainer).toBeUndefined();
+    });
   });
 
-  it('dispatches TERMINAL event with OPENED status for exec deep-link', () => {
-    render(
-      <TestContext
-        routerMap={{ namespace: 'default', name: 'test-pod' }}
-        urlPrefix="/c/main/pods"
-        urlSearchParams={{ view: 'exec' }}
-      >
-        <PodDetails name="test-pod" namespace="default" />
-      </TestContext>
-    );
+  describe('?view=exec', () => {
+    it('auto-launches terminal', () => {
+      render(
+        <TestContext
+          routerMap={{ namespace: 'default', name: 'test-pod' }}
+          urlPrefix="/c/main/pods"
+          urlSearchParams={{ view: 'exec' }}
+        >
+          <PodDetails name="test-pod" namespace="default" />
+        </TestContext>
+      );
 
-    act(() => {
-      simulatePodLoad();
+      act(() => {
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
+      expect(mockActivityLaunch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'terminal-pod-uid-123',
+          title: 'test-pod',
+        })
+      );
     });
 
-    expect(mockDispatchHeadlampEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'headlamp.terminal',
-        data: expect.objectContaining({
-          status: 'open',
-        }),
-      })
-    );
+    it('does not re-launch on subsequent renders for the same pod', () => {
+      render(
+        <TestContext
+          routerMap={{ namespace: 'default', name: 'test-pod' }}
+          urlPrefix="/c/main/pods"
+          urlSearchParams={{ view: 'exec' }}
+        >
+          <PodDetails name="test-pod" namespace="default" />
+        </TestContext>
+      );
+
+      act(() => {
+        simulatePodLoad();
+      });
+      act(() => {
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-launches when ?container changes for the same pod', () => {
+      const history = renderPodDetailsWithHistory(
+        '/c/main/pods/default/test-pod?view=exec&container=nginx'
+      );
+
+      act(() => {
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
+      expect(mockActivityLaunch.mock.calls[0][0].content.props.initialContainer).toBe('nginx');
+
+      act(() => {
+        history.push('/c/main/pods/default/test-pod?view=exec&container=sidecar');
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(2);
+      expect(mockActivityLaunch.mock.calls[1][0].content.props.initialContainer).toBe('sidecar');
+    });
+
+    it('passes ?container as initialContainer', () => {
+      render(
+        <TestContext
+          routerMap={{ namespace: 'default', name: 'test-pod' }}
+          urlPrefix="/c/main/pods"
+          urlSearchParams={{ view: 'exec', container: 'nginx' }}
+        >
+          <PodDetails name="test-pod" namespace="default" />
+        </TestContext>
+      );
+
+      act(() => {
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
+      const launchArg = mockActivityLaunch.mock.calls[0][0];
+      expect(launchArg.content.props.initialContainer).toBe('nginx');
+    });
+
+    it('passes undefined initialContainer when ?container is absent', () => {
+      render(
+        <TestContext
+          routerMap={{ namespace: 'default', name: 'test-pod' }}
+          urlPrefix="/c/main/pods"
+          urlSearchParams={{ view: 'exec' }}
+        >
+          <PodDetails name="test-pod" namespace="default" />
+        </TestContext>
+      );
+
+      act(() => {
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
+      const launchArg = mockActivityLaunch.mock.calls[0][0];
+      expect(launchArg.content.props.initialContainer).toBeUndefined();
+    });
+
+    it('dispatches TERMINAL event with OPENED status', () => {
+      render(
+        <TestContext
+          routerMap={{ namespace: 'default', name: 'test-pod' }}
+          urlPrefix="/c/main/pods"
+          urlSearchParams={{ view: 'exec' }}
+        >
+          <PodDetails name="test-pod" namespace="default" />
+        </TestContext>
+      );
+
+      act(() => {
+        simulatePodLoad();
+      });
+
+      expect(mockDispatchHeadlampEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'headlamp.terminal',
+          data: expect.objectContaining({
+            status: 'open',
+          }),
+        })
+      );
+    });
   });
 });
