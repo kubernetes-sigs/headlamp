@@ -252,9 +252,13 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 // controls cancellation and deadlines for all outbound requests during the refresh.
 func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.OidcConfig,
 	cache cache.Cache[interface{}],
-	tokenType, token, issuerURL string,
+	tokenType, token, issuerURL, validatorIssuerURL string,
 ) (*oauth2.Token, error) {
 	ctx = ConfigureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
+
+	if validatorIssuerURL != "" {
+		ctx = oidc.InsecureIssuerURLContext(ctx, validatorIssuerURL)
+	}
 
 	// get provider
 	provider, err := oidc.NewProvider(ctx, issuerURL)
@@ -495,19 +499,20 @@ func marshalToString(val interface{}) (string, bool) {
 // RefreshAndSetTokenParams groups the inputs required to refresh a token and
 // update the Headlamp auth cookie.
 type RefreshAndSetTokenParams struct {
-	Ctx                context.Context
-	OIDCAuthConfig     *kubeconfig.OidcConfig
-	Cache              cache.Cache[interface{}]
-	Token              string
-	Cluster            string
-	Span               trace.Span
-	Writer             http.ResponseWriter
-	Request            *http.Request
-	TelemetryHandler   *telemetry.RequestHandler
-	OIDCUseAccessToken bool
-	OIDCIdpIssuerURL   string
-	BaseURL            string
-	SessionTTL         int
+	Ctx                       context.Context
+	OIDCAuthConfig            *kubeconfig.OidcConfig
+	Cache                     cache.Cache[interface{}]
+	Token                     string
+	Cluster                   string
+	Span                      trace.Span
+	Writer                    http.ResponseWriter
+	Request                   *http.Request
+	TelemetryHandler          *telemetry.RequestHandler
+	OIDCUseAccessToken        bool
+	OIDCIdpIssuerURL          string
+	OIDCValidatorIdpIssuerURL string
+	BaseURL                   string
+	SessionTTL                int
 }
 
 // RefreshAndSetToken refreshes an expiring token, updates the auth cookie,
@@ -531,6 +536,7 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 		tokenType,
 		params.Token,
 		idpIssuerURL,
+		params.OIDCValidatorIdpIssuerURL,
 	)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": params.Cluster},
