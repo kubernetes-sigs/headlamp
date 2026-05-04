@@ -16,13 +16,14 @@
 
 import Button from '@mui/material/Button';
 import { SnackbarKey, useSnackbar } from 'notistack';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { isElectron } from '../helpers/isElectron';
+import { useCluster } from '../lib/k8s';
 import { useTypedSelector } from '../redux/hooks';
-import { fetchAndExecutePlugins } from './index';
+import { fetchAndExecutePlugins, initializePlugins } from './index';
 import { pluginsLoaded, setPluginSettings } from './pluginsSlice';
 
 /**
@@ -40,11 +41,18 @@ export default function Plugins() {
   const { closeSnackbar, enqueueSnackbar } = useSnackbar();
   const history = useHistory();
   const { t } = useTranslation();
-
+  const cluster = useCluster();
   const settingsPlugins = useTypedSelector(state => state.plugins.pluginSettings);
+  // True once fetchAndExecutePlugins (and its internal initializePlugins call) has finished.
+  const [pluginsReady, setPluginsReady] = useState(false);
+  // True when the first plugin load happened without a cluster in the URL.
+  const loadedWithoutCluster = useRef(false);
 
   // only run on first load
   useEffect(() => {
+    if (!cluster) {
+      loadedWithoutCluster.current = true;
+    }
     fetchAndExecutePlugins(
       settingsPlugins,
       updatedSettingsPackages => {
@@ -84,11 +92,22 @@ export default function Plugins() {
     )
       .finally(() => {
         dispatch(pluginsLoaded());
+        setPluginsReady(true);
         // Warn the app (if we're in app mode).
         window.desktopApi?.send('pluginsLoaded');
       })
       .catch(console.error);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-initialize plugins once the cluster becomes available after a no-cluster initial load.
+  // Gated on pluginsReady so we never race with the fetchAndExecutePlugins call, which
+  // already calls initializePlugins() internally via afterPluginsRun.
+  useEffect(() => {
+    if (!cluster || !pluginsReady || !loadedWithoutCluster.current) return;
+    loadedWithoutCluster.current = false;
+    void initializePlugins();
+  }, [cluster, pluginsReady]);
+
   return null;
 }
