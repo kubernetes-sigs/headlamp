@@ -110,7 +110,7 @@ function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
                   params={{
                     crName: cr.metadata.name,
                     crd: getCRDForCR(cr).metadata.name,
-                    namespace: cr.metadata.namespace ?? '-',
+                    namespace: cr.metadata.namespace || '-',
                   }}
                   activeCluster={cr.cluster}
                 >

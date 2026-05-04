@@ -848,6 +848,7 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'crds',
     component: () => <CustomResourceDefinitionDetails />,
   },
+
   customresource: {
     path: '/customresources/:crd/:namespace/:crName',
     exact: true,
