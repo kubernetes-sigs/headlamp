@@ -15,7 +15,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 
@@ -29,7 +29,13 @@ const VALID_AUTH_VERBS = [
   'patch',
   'delete',
   'deletecollection',
-];
+] as const;
+
+type AuthVerb = (typeof VALID_AUTH_VERBS)[number];
+
+function isAuthVerb(authVerb: string): authVerb is AuthVerb {
+  return (VALID_AUTH_VERBS as readonly string[]).includes(authVerb);
+}
 
 export interface AuthVisibleProps extends React.PropsWithChildren<{}> {
   /** The item for which auth will be checked or a resource class (e.g. Job). */
@@ -55,14 +61,17 @@ export interface AuthVisibleProps extends React.PropsWithChildren<{}> {
  */
 export default function AuthVisible(props: AuthVisibleProps) {
   const { item, authVerb, subresource, namespace, onError, onAuthResult, children } = props;
+  const onAuthResultRef = useRef(onAuthResult);
+  onAuthResultRef.current = onAuthResult;
 
-  if (!VALID_AUTH_VERBS.includes(authVerb)) {
+  if (!isAuthVerb(authVerb)) {
     console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
     return null;
   }
 
-  const itemClass: KubeObjectClass | null = (item as KubeObject)?._class?.() ?? item;
-  const itemName = (item as KubeObject)?.getName?.();
+  const itemObject = item instanceof KubeObject ? item : null;
+  const itemClass: KubeObjectClass | null = item instanceof KubeObject ? item._class() : item;
+  const itemName = itemObject?.getName();
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data } = useQuery<any>({
@@ -70,20 +79,23 @@ export default function AuthVisible(props: AuthVisibleProps) {
     queryKey: [
       'authVisible',
       itemName,
-      itemClass.apiName,
-      itemClass.apiVersion,
+      itemClass?.apiName,
+      itemClass?.apiVersion,
       authVerb,
       subresource,
       namespace,
     ],
     queryFn: async () => {
       try {
-        const res = await item!.getAuthorization(
-          authVerb,
-          { subresource, namespace },
-          (item as any).cluster
-        );
-        return res;
+        if (!item) {
+          return null;
+        }
+
+        if (item instanceof KubeObject) {
+          return item.getAuthorization(authVerb, { subresource, namespace });
+        }
+
+        return item.getAuthorization(authVerb, { subresource, namespace });
       } catch (e: any) {
         onError?.(e);
       }
@@ -94,13 +106,12 @@ export default function AuthVisible(props: AuthVisibleProps) {
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
-    if (data) {
-      onAuthResult?.({
-        allowed: visible,
-        reason: data.status?.reason ?? '',
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!data) return;
+
+    onAuthResultRef.current?.({
+      allowed: data.status?.allowed ?? false,
+      reason: data.status?.reason ?? '',
+    });
   }, [data]);
 
   if (!visible) {
