@@ -38,10 +38,10 @@ export default {
       handlers: {
         storyBase: [],
         story: [
-          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1beta1/referencegrants`, () =>
+          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1/referencegrants`, () =>
             HttpResponse.json({
               kind: 'ReferenceGrantList',
-              apiVersion: 'gateway.networking.k8s.io/v1beta1',
+              apiVersion: 'gateway.networking.k8s.io/v1',
               metadata: {},
               items: [DEFAULT_REFERENCE_GRANT],
             })
