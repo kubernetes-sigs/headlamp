@@ -250,6 +250,8 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 // RefreshAndCacheNewToken obtains a fresh OIDC token using the cached refresh token
 // and re-populates the cache so subsequent requests can reuse it. The provided ctx
 // controls cancellation and deadlines for all outbound requests during the refresh.
+// validatorIssuerURL overrides the issuer expected by provider discovery when the
+// discovery URL and returned issuer differ.
 func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.OidcConfig,
 	cache cache.Cache[interface{}],
 	tokenType, token, issuerURL, validatorIssuerURL string,
