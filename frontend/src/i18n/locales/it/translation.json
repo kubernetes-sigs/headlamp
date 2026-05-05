@@ -650,6 +650,7 @@
   "Allowed Disruptions": "Interruzioni Consentite",
   "Start": "Avvia",
   "Stop": "Ferma",
+  "Error fetching port forwards": "",
   "Loading port forwarding": "Caricamento del port forwarding",
   "Pod Port": "Porta del Pod",
   "Local Port": "Porta Locale",

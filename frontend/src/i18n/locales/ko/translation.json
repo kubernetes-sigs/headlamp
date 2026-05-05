@@ -640,6 +640,7 @@
   "Allowed Disruptions": "허용된 장애",
   "Start": "시작",
   "Stop": "중지",
+  "Error fetching port forwards": "",
   "Loading port forwarding": "포트 포워딩 로딩 중",
   "Pod Port": "파드 포트",
   "Local Port": "로컬 포트",

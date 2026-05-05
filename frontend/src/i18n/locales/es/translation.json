@@ -650,6 +650,7 @@
   "Allowed Disruptions": "Perturbaciones Permitidas",
   "Start": "Comenzar",
   "Stop": "Parar",
+  "Error fetching port forwards": "",
   "Loading port forwarding": "Cargango redireccionamientos de puerto",
   "Pod Port": "Puerto del Pod",
   "Local Port": "Perto Local",

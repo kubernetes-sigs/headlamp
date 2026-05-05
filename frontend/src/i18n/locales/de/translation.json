@@ -645,6 +645,7 @@
   "Allowed Disruptions": "Erlaubte Unterbrechungen",
   "Start": "Start",
   "Stop": "Stopp",
+  "Error fetching port forwards": "",
   "Loading port forwarding": "Laden der Portweiterleitung",
   "Pod Port": "Pod-Port",
   "Local Port": "Lokaler Port",

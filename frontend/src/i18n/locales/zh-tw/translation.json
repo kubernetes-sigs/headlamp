@@ -640,6 +640,7 @@
   "Allowed Disruptions": "允許的中斷",
   "Start": "開始",
   "Stop": "停止",
+  "Error fetching port forwards": "",
   "Loading port forwarding": "讀取連接埠轉發",
   "Pod Port": "Pod 連接埠",
   "Local Port": "本地連接埠",

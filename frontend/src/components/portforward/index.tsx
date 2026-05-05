@@ -54,6 +54,8 @@ export default function PortForwardingList() {
   const [portForwardInAction, setPortForwardInAction] = React.useState<any>(null);
   const [startDialogOpen, setStartDialogOpen] = React.useState(false);
   const [selectedForStart, setSelectedForStart] = React.useState<any | null>(null);
+  const isMountedRef = React.useRef(true);
+  const portForwardInActionRef = React.useRef(portForwardInAction);
   const { enqueueSnackbar } = useSnackbar();
   const cluster = getCluster();
   const { t, i18n } = useTranslation(['translation', 'glossary']);
@@ -68,56 +70,114 @@ export default function PortForwardingList() {
   );
   const options = Object.keys(optionsTranslated) as (keyof typeof optionsTranslated)[];
 
-  function fetchPortForwardList(showError?: boolean) {
-    const cluster = getCluster();
-    if (!cluster) return;
+  React.useEffect(() => {
+    portForwardInActionRef.current = portForwardInAction;
+  }, [portForwardInAction]);
 
-    // fetch port forwarding list
-    listPortForward(cluster).then(portforwards => {
-      const massagedPortForwards = portforwards === null ? [] : portforwards;
-      massagedPortForwards.forEach((portforward: any) => {
-        if (portForwardInAction?.id === portforward.id) {
-          if (portforward.Error && showError) {
-            enqueueSnackbar(portforward.Error, {
-              key: 'portforward-error',
+  React.useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const setPortForwardInActionSafely = React.useCallback((value: any) => {
+    portForwardInActionRef.current = value;
+
+    if (!isMountedRef.current) {
+      return;
+    }
+
+    setPortForwardInAction(value);
+  }, []);
+
+  const fetchPortForwardList = React.useCallback(
+    (showError?: boolean, activePortForwardId?: any, clusterOverride?: string) => {
+      const cluster = clusterOverride || getCluster();
+      if (!cluster) return;
+      const portForwardId = activePortForwardId ?? portForwardInActionRef.current?.id;
+
+      // fetch port forwarding list
+      return listPortForward(cluster)
+        .then(portforwards => {
+          const massagedPortForwards = Array.isArray(portforwards) ? [...portforwards] : [];
+          massagedPortForwards.forEach((portforward: any) => {
+            if (portForwardId === portforward.id) {
+              const errorMsg = portforward.error || portforward.Error;
+              if (errorMsg && showError && isMountedRef.current) {
+                enqueueSnackbar(errorMsg, {
+                  key: 'portforward-error',
+                  preventDuplicate: true,
+                  autoHideDuration: 3000,
+                  variant: 'error',
+                });
+              }
+            }
+          });
+
+          // sync portforwards from backend with localStorage
+          const portforwardInStorage = localStorage.getItem(PORT_FORWARDS_STORAGE_KEY);
+          let parsedPortForwards: any[] = [];
+          try {
+            const parsed = JSON.parse(portforwardInStorage || '[]');
+            parsedPortForwards = Array.isArray(parsed) ? parsed : [];
+          } catch {
+            parsedPortForwards = [];
+            localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify([]));
+          }
+          parsedPortForwards.forEach((portforward: any) => {
+            const index = massagedPortForwards.findIndex((pf: any) => pf.id === portforward.id);
+            if (index === -1) {
+              portforward.status = PORT_FORWARD_STOP_STATUS;
+              massagedPortForwards.push(portforward);
+            }
+          });
+          localStorage.setItem(
+            PORT_FORWARDS_STORAGE_KEY,
+            JSON.stringify(
+              // in the localStorage we store portforward status as stop
+              // this is because the correct status is always present on the backend
+              // the localStorage portforwards are used specifically when the user relaunches the app
+              massagedPortForwards.map((portforward: any) => {
+                const newPortforward = { ...portforward };
+                newPortforward.status = PORT_FORWARD_STOP_STATUS;
+                return newPortforward;
+              })
+            )
+          );
+          if (!isMountedRef.current) {
+            return;
+          }
+          setPortForwards(massagedPortForwards);
+        })
+        .catch(error => {
+          console.error('Error fetching port forwards:', error);
+          if (!isMountedRef.current) {
+            return;
+          }
+          if (showError) {
+            const errorMessage =
+              error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+            const displayMessage = errorMessage
+              ? `${t('translation|Error fetching port forwards')}: ${errorMessage}`
+              : t('translation|Error fetching port forwards');
+
+            enqueueSnackbar(displayMessage, {
+              key: 'portforward-list-error',
               preventDuplicate: true,
               autoHideDuration: 3000,
               variant: 'error',
             });
           }
-        }
-      });
+        });
+    },
+    [enqueueSnackbar, t]
+  );
 
-      // sync portforwards from backend with localStorage
-      const portforwardInStorage = localStorage.getItem(PORT_FORWARDS_STORAGE_KEY);
-      const parsedPortForwards = JSON.parse(portforwardInStorage || '[]');
-      parsedPortForwards.forEach((portforward: any) => {
-        const index = massagedPortForwards.findIndex((pf: any) => pf.id === portforward.id);
-        if (index === -1) {
-          portforward.status = PORT_FORWARD_STOP_STATUS;
-          massagedPortForwards.push(portforward);
-        }
-      });
-      localStorage.setItem(
-        PORT_FORWARDS_STORAGE_KEY,
-        JSON.stringify(
-          // in the locaStorage we store portforward status as stop
-          // this is because the correct status is always present on the backend
-          // the localStorage portforwards are used specifically when the user relaunches the app
-          massagedPortForwards.map((portforward: any) => {
-            const newPortforward = { ...portforward };
-            newPortforward.status = PORT_FORWARD_STOP_STATUS;
-            return newPortforward;
-          })
-        )
-      );
-      setPortForwards(massagedPortForwards);
-    });
-  }
   React.useEffect(() => {
     fetchPortForwardList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchPortForwardList]);
 
   const handleAction = (option: string, portforward: any, closeMenu: () => void) => {
     closeMenu();
@@ -137,31 +197,39 @@ export default function PortForwardingList() {
       return;
     }
     if (option === PortForwardAction.Stop) {
-      setPortForwardInAction({ ...portforward, loading: true });
+      setPortForwardInActionSafely({ ...portforward, loading: true });
       // stop portforward
       stopOrDeletePortForward(cluster, id, true).finally(() => {
-        setPortForwardInAction(null);
-        // update portforward list item
-        fetchPortForwardList(true);
+        setPortForwardInActionSafely(null);
+        // Always refresh the backend-backed port-forward list so localStorage
+        // stays in sync even if the component unmounts before the request settles.
+        fetchPortForwardList(true, id, cluster);
       });
     }
     if (option === PortForwardAction.Delete) {
-      setPortForwardInAction({ ...portforward, loading: true });
+      setPortForwardInActionSafely({ ...portforward, loading: true });
       // delete portforward
       stopOrDeletePortForward(cluster, id, false).finally(() => {
-        setPortForwardInAction(null);
+        setPortForwardInActionSafely(null);
 
         // remove portforward from storage too
         const portforwardInStorage = localStorage.getItem(PORT_FORWARDS_STORAGE_KEY);
-        const parsedPortForwards = JSON.parse(portforwardInStorage || '[]');
+        let parsedPortForwards: any[] = [];
+        try {
+          const parsed = JSON.parse(portforwardInStorage || '[]');
+          parsedPortForwards = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          parsedPortForwards = [];
+        }
         const index = parsedPortForwards.findIndex((pf: any) => pf.id === id);
         if (index !== -1) {
           parsedPortForwards.splice(index, 1);
         }
         localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify(parsedPortForwards));
 
-        // update portforward list item
-        fetchPortForwardList(true);
+        // Always refresh the backend-backed port-forward list so localStorage
+        // stays in sync even if the component unmounts before the request settles.
+        fetchPortForwardList(true, id, cluster);
       });
     }
   };
@@ -330,7 +398,7 @@ export default function PortForwardingList() {
 
           setStartDialogOpen(false);
           setSelectedForStart(null);
-          setPortForwardInAction({ ...selectedForStart, loading: true });
+          setPortForwardInActionSafely({ ...selectedForStart, loading: true });
 
           startPortForward(
             cluster,
@@ -344,11 +412,16 @@ export default function PortForwardingList() {
             id
           )
             .then(() => {
-              setPortForwardInAction(null);
-              fetchPortForwardList(true);
+              setPortForwardInActionSafely(null);
+              // Always refresh so localStorage stays in sync regardless of mount state.
+              fetchPortForwardList(true, id, cluster);
             })
             .catch(error => {
-              setPortForwardInAction(null);
+              setPortForwardInActionSafely(null);
+              console.error('Error starting port forward:', error);
+              if (!isMountedRef.current) {
+                return;
+              }
               const errorMessage =
                 error instanceof Error ? error.message : typeof error === 'string' ? error : '';
               const displayMessage = errorMessage
@@ -360,7 +433,6 @@ export default function PortForwardingList() {
                 preventDuplicate: true,
                 variant: 'error',
               });
-              console.error('Error starting port forward:', error);
             });
         }}
       />

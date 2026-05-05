@@ -645,6 +645,7 @@
   "Allowed Disruptions": "அனுமதிக்கப்பட்ட இடையூறுகள்",
   "Start": "தொடங்கு",
   "Stop": "நிறுத்து",
+  "Error fetching port forwards": "",
   "Loading port forwarding": "போர்ட் ஃபார்வர்டிங் ஏற்றுகிறது",
   "Pod Port": "பாட் போர்ட்",
   "Local Port": "லோக்கல் போர்ட்",

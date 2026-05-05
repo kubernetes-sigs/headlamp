@@ -645,6 +645,7 @@
   "Allowed Disruptions": "",
   "Start": "प्रारंभ करें",
   "Stop": "रोकें",
+  "Error fetching port forwards": "",
   "Loading port forwarding": "",
   "Pod Port": "",
   "Local Port": "",

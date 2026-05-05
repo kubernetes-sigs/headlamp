@@ -640,6 +640,7 @@
   "Allowed Disruptions": "許可された中断",
   "Start": "開始",
   "Stop": "停止",
+  "Error fetching port forwards": "",
   "Loading port forwarding": "ポートフォワーディングを読み込み中",
   "Pod Port": "ポッドポート",
   "Local Port": "ローカルポート",
