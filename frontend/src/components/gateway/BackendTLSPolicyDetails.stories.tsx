@@ -36,11 +36,11 @@ export default {
         story: [],
         storyBase: [
           http.get(
-            'http://localhost:4466/apis/gateway.networking.k8s.io/v1alpha3/namespaces/default/backendtlspolicies',
+            'http://localhost:4466/apis/gateway.networking.k8s.io/v1/namespaces/default/backendtlspolicies',
             () => HttpResponse.error()
           ),
           http.get(
-            'http://localhost:4466/apis/gateway.networking.k8s.io/v1alpha3/namespaces/default/backendtlspolicies/example-policy',
+            'http://localhost:4466/apis/gateway.networking.k8s.io/v1/namespaces/default/backendtlspolicies/example-policy',
             () => HttpResponse.json(DEFAULT_BACKEND_TLS_POLICY)
           ),
           http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>

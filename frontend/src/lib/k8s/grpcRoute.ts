@@ -78,7 +78,7 @@ export interface KubeGRPCRoute extends KubeObjectInterface {
 class GRPCRoute extends KubeObject<KubeGRPCRoute> {
   static kind = 'GRPCRoute';
   static apiName = 'grpcroutes';
-  static apiVersion = ['gateway.networking.k8s.io/v1', 'gateway.networking.k8s.io/v1beta1'];
+  static apiVersion = ['gateway.networking.k8s.io/v1', 'gateway.networking.k8s.io/v1alpha2'];
   static isNamespaced = true;
 
   get spec(): KubeGRPCRoute['spec'] {
