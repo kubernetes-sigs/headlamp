@@ -18,6 +18,7 @@ package helm
 
 import (
 	"context"
+	"time"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -396,8 +397,10 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 		return
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	go func(h *Handler) {
-		h.uninstallRelease(req, actionConfig)
+		defer cancel()
+		h.uninstallRelease(ctx, req, actionConfig)
 	}(h)
 
 	response := map[string]string{
@@ -417,7 +420,13 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 	}
 }
 
-func (h *Handler) uninstallRelease(req UninstallReleaseRequest, actionConfig *action.Configuration) {
+func (h *Handler) uninstallRelease(
+	ctx context.Context, req UninstallReleaseRequest, actionConfig *action.Configuration,
+) {
+	if err := ctx.Err(); err != nil {
+		h.setReleaseStatusSilent("uninstall", req.Name, failed, err)
+		return
+	}
 	// Get uninstall client
 	uninstallClient := action.NewUninstall(actionConfig)
 
@@ -492,8 +501,10 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 		return
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	go func(h *Handler) {
-		h.rollbackRelease(req, actionConfig)
+		defer cancel()
+		h.rollbackRelease(ctx, req, actionConfig)
 	}(h)
 
 	response := map[string]string{
@@ -512,7 +523,12 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 	}
 }
 
-func (h *Handler) rollbackRelease(req RollbackReleaseRequest, actionConfig *action.Configuration) {
+func (h *Handler) rollbackRelease(ctx context.Context, req RollbackReleaseRequest, actionConfig *action.Configuration) {
+	if err := ctx.Err(); err != nil {
+		h.setReleaseStatusSilent("rollback", req.Name, failed, err)
+		return
+	}
+
 	rollbackClient := action.NewRollback(actionConfig)
 	rollbackClient.Version = req.Revision
 
@@ -606,8 +622,10 @@ func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		return
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	go func(h *Handler) {
-		h.installRelease(req, actionConfig)
+		defer cancel()
+		h.installRelease(ctx, req, actionConfig)
 	}(h)
 
 	h.returnResponse(w, req.Name, http.StatusAccepted, "install request accepted")
@@ -700,7 +718,12 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 	return true
 }
 
-func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Configuration) {
+func (h *Handler) installRelease(ctx context.Context, req InstallRequest, actionConfig *action.Configuration) {
+	if err := ctx.Err(); err != nil {
+		h.setReleaseStatusSilent("install", req.Name, failed, err)
+		return
+	}
+
 	installClient := action.NewInstall(actionConfig)
 	installClient.ReleaseName = req.Name
 	installClient.Namespace = req.Namespace
@@ -739,7 +762,7 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 		return
 	}
 
-	if _, err = installClient.Run(chart, values); err != nil {
+	if _, err = installClient.RunWithContext(ctx, chart, values); err != nil {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
 			err, "installing chart")
 		h.setReleaseStatusSilent("install", req.Name, failed, err)
@@ -798,8 +821,10 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		return
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	go func(h *Handler) {
-		h.upgradeRelease(req, actionConfig)
+		defer cancel()
+		h.upgradeRelease(ctx, req, actionConfig)
 	}(h)
 
 	h.returnResponse(w, req.Name, http.StatusAccepted, "upgrade request accepted")
@@ -826,7 +851,11 @@ func (h *Handler) logActionState(zlog *zerolog.Event,
 	h.setReleaseStatusSilent(action, releaseName, status, err)
 }
 
-func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action.Configuration) {
+func (h *Handler) upgradeRelease(ctx context.Context, req UpgradeReleaseRequest, actionConfig *action.Configuration) {
+	if err := ctx.Err(); err != nil {
+		h.setReleaseStatusSilent("upgrade", req.Name, failed, err)
+		return
+	}
 	// find chart
 	upgradeClient := action.NewUpgrade(actionConfig)
 	upgradeClient.Namespace = req.Namespace
@@ -856,7 +885,7 @@ func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action
 	}
 
 	// Upgrade chart
-	_, err = upgradeClient.Run(req.Name, chart, values)
+	_, err = upgradeClient.RunWithContext(ctx, req.Name, chart, values)
 	if err != nil {
 		h.logActionState(zlog.Error(), err, "upgrade", req.Chart, req.Name, failed, "chart upgrade failed")
 		return
