@@ -46,6 +46,10 @@ export default {
               items: [DEFAULT_REFERENCE_GRANT],
             })
           ),
+          http.get(
+            `${API_BASE}/apis/gateway.networking.k8s.io/v1beta1/referencegrants`,
+            () => HttpResponse.error()
+          ),
         ],
       },
     },

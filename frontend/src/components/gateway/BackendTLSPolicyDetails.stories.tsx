@@ -40,8 +40,16 @@ export default {
             () => HttpResponse.error()
           ),
           http.get(
+            `${API_BASE}/apis/gateway.networking.k8s.io/v1alpha3/namespaces/default/backendtlspolicies`,
+            () => HttpResponse.error()
+          ),
+          http.get(
             `${API_BASE}/apis/gateway.networking.k8s.io/v1/namespaces/default/backendtlspolicies/example-policy`,
             () => HttpResponse.json(DEFAULT_BACKEND_TLS_POLICY)
+          ),
+          http.get(
+            `${API_BASE}/apis/gateway.networking.k8s.io/v1alpha3/namespaces/default/backendtlspolicies/example-policy`,
+            () => HttpResponse.error()
           ),
           http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
             HttpResponse.json({
