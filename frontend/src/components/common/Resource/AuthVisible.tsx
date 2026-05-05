@@ -38,44 +38,34 @@ function isAuthVerb(authVerb: string): authVerb is AuthVerb {
 }
 
 export interface AuthVisibleProps extends React.PropsWithChildren<{}> {
-  /** The item for which auth will be checked or a resource class (e.g. Job). */
   item: KubeObject | KubeObjectClass | null;
-  /** The verb associated with the permissions being verifying. See https://kubernetes.io/docs/reference/access-authn-authz/authorization/#determine-the-request-verb . */
   authVerb: string;
-  /** The subresource for which the permissions are being verifyied (e.g. "log" when checking for a pod's log). */
   subresource?: string;
-  /** The namespace for which we're checking the permission, if applied. This is mostly useful when checking "creation" using a resource class, instead of an instance. */
   namespace?: string;
-  /** Callback for when an error occurs.
-   * @param err The error that occurred.
-   */
   onError?: (err: Error) => void;
-  /** Callback for when the authorization is checked.
-   * @param result The result of the authorization check. Its `allowed` member will be true if the user is authorized to perform the specified action on the given resource; false otherwise. The `reason` member will contain a string explaining why the user is authorized or not.
-   */
   onAuthResult?: (result: { allowed: boolean; reason: string }) => void;
 }
 
-/** A component that will only render its children if the user is authorized to perform the specified action on the given resource.
- * @param props The props for the component.
- */
 export default function AuthVisible(props: AuthVisibleProps) {
   const { item, authVerb, subresource, namespace, onError, onAuthResult, children } = props;
+
+  // ── All hooks called unconditionally, before any early returns
+
   const onAuthResultRef = useRef(onAuthResult);
   onAuthResultRef.current = onAuthResult;
 
-  if (!isAuthVerb(authVerb)) {
-    console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
-    return null;
-  }
+  // Compute flag before hooks so it can gate `enabled` without a conditional
+  // hook call.
+  const isValidAuthVerb = isAuthVerb(authVerb);
 
   const itemObject = item instanceof KubeObject ? item : null;
   const itemClass: KubeObjectClass | null = item instanceof KubeObject ? item._class() : item;
   const itemName = itemObject?.getName();
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  // No eslint-disable suppression needed — hook is always called.
+  // `enabled` prevents the query from running when the verb is invalid.
   const { data } = useQuery<any>({
-    enabled: !!item,
+    enabled: !!item && isValidAuthVerb,
     queryKey: [
       'authVisible',
       itemName,
@@ -104,7 +94,6 @@ export default function AuthVisible(props: AuthVisibleProps) {
 
   const visible = data?.status?.allowed ?? false;
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     if (!data) return;
 
@@ -113,6 +102,13 @@ export default function AuthVisible(props: AuthVisibleProps) {
       reason: data.status?.reason ?? '',
     });
   }, [data]);
+
+  //  Early returns come AFTER all hooks
+
+  if (!isValidAuthVerb) {
+    console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
+    return null;
+  }
 
   if (!visible) {
     return null;
