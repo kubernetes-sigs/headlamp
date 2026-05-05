@@ -42,6 +42,10 @@ export default {
             'http://localhost:4466/apis/gateway.networking.k8s.io/v1/namespaces/default/referencegrants',
             () => HttpResponse.json({})
           ),
+          http.get(
+            'http://localhost:4466/apis/gateway.networking.k8s.io/v1beta1/namespaces/default/referencegrants',
+            () => HttpResponse.error()
+          ),
           http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
             HttpResponse.json({
               kind: 'EventList',
@@ -74,6 +78,10 @@ Basic.parameters = {
         http.get(
           'http://localhost:4466/apis/gateway.networking.k8s.io/v1/namespaces/default/referencegrants/example-refgrant',
           () => HttpResponse.json(DEFAULT_REFERENCE_GRANT)
+        ),
+        http.get(
+          'http://localhost:4466/apis/gateway.networking.k8s.io/v1beta1/namespaces/default/referencegrants/example-refgrant',
+          () => HttpResponse.error()
         ),
       ],
     },
