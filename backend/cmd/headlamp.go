@@ -648,10 +648,15 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
+		if contentType := resp.Header.Get("Content-Type"); contentType != "" {
+			w.Header().Set("Content-Type", contentType)
+		}
+
+		w.WriteHeader(resp.StatusCode)
+
 		_, err = w.Write(respBody)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "writing response")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
 
 			return
 		}
