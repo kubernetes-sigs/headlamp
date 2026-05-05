@@ -24,6 +24,8 @@
   "Command": "Comando",
   "Environment": "Ambiente",
   "Liveness Probes": "Provas de \"Liveness\"",
+  "Readiness Probes": "",
+  "Startup Probes": "",
   "Ports": "Ports",
   "Volume Mounts": "Montagem de Volumes",
   "Containers": "Containers",

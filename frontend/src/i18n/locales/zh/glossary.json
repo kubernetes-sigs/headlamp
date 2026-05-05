@@ -24,6 +24,8 @@
   "Command": "命令",
   "Environment": "环境",
   "Liveness Probes": "存活探針",
+  "Readiness Probes": "",
+  "Startup Probes": "",
   "Ports": "端口",
   "Volume Mounts": "卷挂载",
   "Containers": "容器",

@@ -312,6 +312,14 @@ export interface KubeContainer {
   livenessProbe?: KubeContainerProbe;
 
   /**
+   * Periodic probe that blocks other probes until the container has started successfully.
+   * Cannot be updated.
+   *
+   * @see {@link https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes | more info}
+   */
+  startupProbe?: KubeContainerProbe;
+
+  /**
    * Name of the container specified as a DNS_LABEL.
    * Each container in a pod must have a unique name (DNS_LABEL).
    *

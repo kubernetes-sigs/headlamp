@@ -38,9 +38,13 @@ import { generatePath, NavLinkProps, useLocation } from 'react-router-dom';
 import YAML from 'yaml';
 import { labelSelectorToQuery, ResourceClasses, useCluster } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
-import { KubeCondition, KubeContainer, KubeContainerStatus } from '../../../lib/k8s/cluster';
+import {
+  KubeCondition,
+  KubeContainer,
+  KubeContainerProbe,
+  KubeContainerStatus,
+} from '../../../lib/k8s/cluster';
 import ConfigMap from '../../../lib/k8s/configMap';
-import type Event from '../../../lib/k8s/event';
 import { KubeEvent } from '../../../lib/k8s/event';
 import Job from '../../../lib/k8s/job';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
@@ -72,7 +76,6 @@ import ErrorBoundary from '../ErrorBoundary';
 import InnerTable from '../InnerTable';
 import { DateLabel, HoverInfoLabel, StatusLabel, StatusLabelProps, ValueLabel } from '../Label';
 import Link, { LinkProps } from '../Link';
-import { useObjectEvents } from '../ObjectEventList';
 import { metadataStyles } from '.';
 import A8RInfo from './A8RInfo';
 import { MainInfoSection, MainInfoSectionProps } from './MainInfoSection/MainInfoSection';
@@ -122,10 +125,7 @@ export interface DetailsGridProps<T extends KubeObjectClass>
   cluster?: string;
   /** Sections to show in the details grid (besides the default ones). */
   extraSections?:
-    | ((
-        item: InstanceType<T>,
-        context: { events: Event[] }
-      ) => boolean | DetailsViewSection[] | ReactNode[])
+    | ((item: InstanceType<T>) => boolean | DetailsViewSection[] | ReactNode[])
     | boolean
     | DetailsViewSection[];
   /** @deprecated Use extraSections instead. */
@@ -170,7 +170,6 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
   const [item, error] = resourceType.useGet(name, namespace, {
     cluster: cluster ?? selectedCluster ?? undefined,
   }) as [InstanceType<T> | null, ApiError | null];
-  const events = useObjectEvents(withEvents ? item : null);
   const prevItemRef = React.useRef<{ uid?: string; version?: string; error?: ApiError | null }>({});
 
   React.useEffect(() => {
@@ -333,7 +332,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
     if (Array.isArray(extraSections)) {
       actualExtraSections = extraSections;
     } else if (typeof extraSections === 'function') {
-      const extraSectionsResult = extraSections(item!, { events }) || [];
+      const extraSectionsResult = extraSections(item!) || [];
       if (Array.isArray(extraSectionsResult)) {
         actualExtraSections = extraSectionsResult;
       }
@@ -359,7 +358,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
   if (withEvents && item) {
     sections.push({
       id: DefaultDetailsViewSection.EVENTS,
-      section: <ObjectEventList object={item} events={events} />,
+      section: <ObjectEventList object={item} />,
     });
   }
 
@@ -1087,65 +1086,6 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
   const [fetchedConfigMaps, setFetchedConfigMaps] = React.useState<Map<string, FetchedResource>>(
     new Map()
   );
-  // memoize references so downstream hooks get a stable dependency
-  const references = React.useMemo(
-    () => (container ? extractEnvVarReferences(container) : []),
-    [container]
-  );
-  // Get unique resource names to fetch
-  const secretsToFetch = React.useMemo(() => {
-    const secrets = new Set<string>();
-    references.forEach(ref => {
-      if ((ref.type === 'secret' || ref.type === 'secretRef') && ref.resourceName) {
-        secrets.add(ref.resourceName);
-      }
-    });
-    return Array.from(secrets);
-  }, [references]);
-
-  const configMapsToFetch = React.useMemo(() => {
-    const configMaps = new Set<string>();
-    references.forEach(ref => {
-      if ((ref.type === 'configMap' || ref.type === 'configMapRef') && ref.resourceName) {
-        configMaps.add(ref.resourceName);
-      }
-    });
-    return Array.from(configMaps);
-  }, [references]);
-
-  // Callbacks to handle fetched resources
-  const handleSecretFetched = React.useCallback(
-    (name: string, resource: KubeObject | null, error: ApiError | null) => {
-      setFetchedSecrets(prev => {
-        const next = new Map(prev);
-        next.set(name, { resource, error });
-        return next;
-      });
-    },
-    []
-  );
-
-  const handleConfigMapFetched = React.useCallback(
-    (name: string, resource: KubeObject | null, error: ApiError | null) => {
-      setFetchedConfigMaps(prev => {
-        const next = new Map(prev);
-        next.set(name, { resource, error });
-        return next;
-      });
-    },
-    []
-  );
-
-  // Copy handler using notistack
-  const handleCopy = React.useCallback(
-    (text: string) => {
-      navigator.clipboard.writeText(text).then(
-        () => enqueueSnackbar(t('translation|Copied'), { variant: 'success' }),
-        err => console.error('Failed to copy: ', err)
-      );
-    },
-    [enqueueSnackbar, t]
-  );
 
   // Early return if no env vars
   if (
@@ -1165,6 +1105,69 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
     }
     return timestamp;
   })();
+
+  // Extract all references upfront (pure function, no hooks)
+  const references = extractEnvVarReferences(container);
+
+  // Get unique resource names to fetch
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const secretsToFetch = React.useMemo(() => {
+    const secrets = new Set<string>();
+    references.forEach(ref => {
+      if ((ref.type === 'secret' || ref.type === 'secretRef') && ref.resourceName) {
+        secrets.add(ref.resourceName);
+      }
+    });
+    return Array.from(secrets);
+  }, [references]);
+
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const configMapsToFetch = React.useMemo(() => {
+    const configMaps = new Set<string>();
+    references.forEach(ref => {
+      if ((ref.type === 'configMap' || ref.type === 'configMapRef') && ref.resourceName) {
+        configMaps.add(ref.resourceName);
+      }
+    });
+    return Array.from(configMaps);
+  }, [references]);
+
+  // Callbacks to handle fetched resources
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const handleSecretFetched = React.useCallback(
+    (name: string, resource: KubeObject | null, error: ApiError | null) => {
+      setFetchedSecrets(prev => {
+        const next = new Map(prev);
+        next.set(name, { resource, error });
+        return next;
+      });
+    },
+    []
+  );
+
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const handleConfigMapFetched = React.useCallback(
+    (name: string, resource: KubeObject | null, error: ApiError | null) => {
+      setFetchedConfigMaps(prev => {
+        const next = new Map(prev);
+        next.set(name, { resource, error });
+        return next;
+      });
+    },
+    []
+  );
+
+  // Copy handler using notistack
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const handleCopy = React.useCallback(
+    (text: string) => {
+      navigator.clipboard.writeText(text).then(
+        () => enqueueSnackbar(t('translation|Copied'), { variant: 'success' }),
+        err => console.error('Failed to copy: ', err)
+      );
+    },
+    [enqueueSnackbar, t]
+  );
 
   // Build variables from fetched resources
   const variables = buildEnvironmentVariables(
@@ -1342,51 +1345,64 @@ export function VolumeMounts(props: VolumeMountsProps) {
   );
 }
 
-function LivenessProbeItem(props: { children: React.ReactNode }) {
-  return props.children ? (
-    <Box p={0.5}>
-      <Typography sx={metadataStyles} display="inline">
-        {props.children}
-      </Typography>
-    </Box>
-  ) : null;
-}
+export function ProbeViewer(props: { probe: KubeContainerProbe | undefined }) {
+  const { probe } = props;
 
-export function LivenessProbes(props: { liveness: KubeContainer['livenessProbe'] }) {
-  const { liveness } = props;
+  function ProbeItem(props: { children: React.ReactNode }) {
+    return props.children ? (
+      <Box p={0.5}>
+        <Typography sx={metadataStyles} display="inline">
+          {props.children}
+        </Typography>
+      </Box>
+    ) : null;
+  }
 
   return (
     <Box display="flex" flexDirection="column">
-      <LivenessProbeItem>
-        {`http-get, path: ${liveness?.httpGet?.path}, port: ${liveness?.httpGet?.port},
-    scheme: ${liveness?.httpGet?.scheme}`}
-      </LivenessProbeItem>
-
-      <LivenessProbeItem>
-        {liveness?.exec?.command && `exec[${liveness?.exec?.command.join(' ')}]`}
-      </LivenessProbeItem>
-
-      <LivenessProbeItem>
-        {liveness?.successThreshold && `success = ${liveness?.successThreshold}`}
-      </LivenessProbeItem>
-
-      <LivenessProbeItem>
-        {liveness?.failureThreshold && `failure = ${liveness?.failureThreshold}`}
-      </LivenessProbeItem>
-
-      <LivenessProbeItem>
-        {liveness?.initialDelaySeconds && `delay = ${liveness?.initialDelaySeconds}s`}
-      </LivenessProbeItem>
-
-      <LivenessProbeItem>
-        {liveness?.timeoutSeconds && `timeout = ${liveness?.timeoutSeconds}s`}
-      </LivenessProbeItem>
-
-      <LivenessProbeItem>
-        {liveness?.periodSeconds && `period = ${liveness?.periodSeconds}s`}
-      </LivenessProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
+      <ProbeItem>
+        {probe?.httpGet && (
+          <>
+            http-get
+            {probe.httpGet.path && `, path: ${probe.httpGet.path}`}
+            {probe.httpGet.host && `, host: ${probe.httpGet.host}`}
+            {probe.httpGet.port !== undefined && `, port: ${probe.httpGet.port}`}
+            {probe.httpGet.scheme && `, scheme: ${probe.httpGet.scheme}`}
+          </>
+        )}
+      </ProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
+      <ProbeItem>{probe?.exec?.command && `exec[${probe.exec.command.join(' ')}]`}</ProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
+      <ProbeItem>{probe?.tcpSocket && `tcp-socket, port: ${probe.tcpSocket.port}`}</ProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
+      <ProbeItem>
+        {probe?.successThreshold !== undefined && `success = ${probe.successThreshold}`}
+      </ProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
+      <ProbeItem>
+        {probe?.failureThreshold !== undefined && `failure = ${probe.failureThreshold}`}
+      </ProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
+      <ProbeItem>
+        {probe?.initialDelaySeconds !== undefined && `delay = ${probe.initialDelaySeconds}s`}
+      </ProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
+      <ProbeItem>
+        {probe?.timeoutSeconds !== undefined && `timeout = ${probe.timeoutSeconds}s`}
+      </ProbeItem>
+      {/* eslint-disable-next-line react-hooks/static-components */}
+      <ProbeItem>
+        {probe?.periodSeconds !== undefined && `period = ${probe.periodSeconds}s`}
+      </ProbeItem>
     </Box>
   );
+}
+
+/** @deprecated Use `ProbeViewer` instead. */
+export function LivenessProbes(props: { liveness: KubeContainer['livenessProbe'] }) {
+  return <ProbeViewer probe={props.liveness} />;
 }
 
 /** @deprecated Please use `ContainerInfoKubeObjectProps` for better type safety */
@@ -1642,9 +1658,19 @@ export function ContainerInfo(props: ContainerInfoProps) {
         hide: _.isEmpty(container?.env) && _.isEmpty(container?.envFrom),
       },
       {
-        name: t('Liveness Probes'),
-        value: <LivenessProbes liveness={container.livenessProbe} />,
+        name: t('glossary|Liveness Probes'),
+        value: <ProbeViewer probe={container.livenessProbe} />,
         hide: _.isEmpty(container.livenessProbe),
+      },
+      {
+        name: t('glossary|Readiness Probes'),
+        value: <ProbeViewer probe={container.readinessProbe} />,
+        hide: _.isEmpty(container.readinessProbe),
+      },
+      {
+        name: t('glossary|Startup Probes'),
+        value: <ProbeViewer probe={container.startupProbe} />,
+        hide: _.isEmpty(container.startupProbe),
       },
       {
         name: t('Ports'),
@@ -1700,11 +1726,10 @@ export interface OwnedPodsSectionProps {
    * Hides the namespace selector
    */
   noSearch?: boolean;
-  onPodsUpdate?: (resource: KubeObject, pods: Pod[] | null, errors: ApiError[] | null) => void;
 }
 
 export function OwnedPodsSection(props: OwnedPodsSectionProps) {
-  const { resource, hideColumns, noSearch, onPodsUpdate } = props;
+  const { resource, hideColumns, noSearch } = props;
   let namespace;
 
   if (resource.kind === 'Namespace') {
@@ -1736,23 +1761,6 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
     ...podMetricsQueryData,
     refetchInterval: METRIC_REFETCH_INTERVAL_MS,
   });
-  const resourceRef = React.useRef(resource);
-  const resourceIdentity = [
-    resource.cluster,
-    resource.kind,
-    resource.metadata.uid ?? '',
-    resource.metadata.namespace ?? '',
-    resource.metadata.name,
-  ].join('|');
-
-  React.useEffect(() => {
-    resourceRef.current = resource;
-  }, [resource]);
-
-  React.useEffect(() => {
-    onPodsUpdate?.(resourceRef.current, pods, errors ?? null);
-  }, [onPodsUpdate, resourceIdentity, pods, errors]);
-
   const onlyOneNamespace = !!resource.metadata.namespace || resource.kind === 'Namespace';
   const hideNamespaceFilter = onlyOneNamespace || noSearch;
 
@@ -1823,7 +1831,6 @@ export function ContainersSection(props: { resource: KubeObjectInterface | null 
         title = t('Containers');
         containers = resource.spec.containers;
       } else if (resource.spec.template && resource.spec.template.spec) {
-        // eslint-disable-next-line react-hooks/immutability
         title = t('Container Spec');
         containers = resource.spec.template.spec.containers;
       }
