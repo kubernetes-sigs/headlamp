@@ -35,10 +35,10 @@ export default {
       handlers: {
         storyBase: [],
         story: [
-          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1alpha3/backendtlspolicies`, () =>
+          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1/backendtlspolicies`, () =>
             HttpResponse.json({
               kind: 'BackendTLSPolicyList',
-              apiVersion: 'gateway.networking.k8s.io/v1alpha3',
+              apiVersion: 'gateway.networking.k8s.io/v1',
               metadata: {},
               items: [DEFAULT_BACKEND_TLS_POLICY],
             })

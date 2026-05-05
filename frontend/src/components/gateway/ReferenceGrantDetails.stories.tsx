@@ -39,7 +39,7 @@ export default {
         story: [],
         storyBase: [
           http.get(
-            `${API_BASE}/apis/gateway.networking.k8s.io/v1beta1/namespaces/default/referencegrants`,
+            `${API_BASE}/apis/gateway.networking.k8s.io/v1/namespaces/default/referencegrants`,
             () => HttpResponse.json({})
           ),
           http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
@@ -71,7 +71,7 @@ Basic.parameters = {
     handlers: {
       story: [
         http.get(
-          `${API_BASE}/apis/gateway.networking.k8s.io/v1beta1/namespaces/default/referencegrants/example-refgrant`,
+          `${API_BASE}/apis/gateway.networking.k8s.io/v1/namespaces/default/referencegrants/example-refgrant`,
           () => HttpResponse.json(DEFAULT_REFERENCE_GRANT)
         ),
       ],

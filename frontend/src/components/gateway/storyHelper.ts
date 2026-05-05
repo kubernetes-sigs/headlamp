@@ -23,7 +23,7 @@ import { KubeHTTPRoute } from '../../lib/k8s/httpRoute';
 import { KubeReferenceGrant } from '../../lib/k8s/referenceGrant';
 
 export const DEFAULT_GATEWAY: KubeGateway = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'Gateway',
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
@@ -70,7 +70,7 @@ export const BROKEN_GATEWAY: KubeGateway = {
 };
 
 export const DEFAULT_GATEWAY_CLASS: KubeGatewayClass = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'GatewayClass',
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
@@ -87,7 +87,7 @@ export const DEFAULT_GATEWAY_CLASS: KubeGatewayClass = {
 };
 
 export const DEFAULT_HTTP_ROUTE: KubeHTTPRoute = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'HTTPRoute',
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
@@ -147,7 +147,7 @@ export const DEFAULT_HTTP_ROUTE: KubeHTTPRoute = {
 };
 
 export const EMPTY_HTTP_ROUTE: KubeHTTPRoute = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'HTTPRoute',
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
@@ -165,7 +165,7 @@ export const EMPTY_HTTP_ROUTE: KubeHTTPRoute = {
 };
 
 export const DEFAULT_GRPC_ROUTE: KubeGRPCRoute = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'GRPCRoute',
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
@@ -243,7 +243,7 @@ export const DEFAULT_GRPC_ROUTE: KubeGRPCRoute = {
 };
 
 export const DEFAULT_REFERENCE_GRANT: KubeReferenceGrant = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'ReferenceGrant',
   metadata: {
     uid: 'abc1234',
@@ -270,7 +270,7 @@ export const DEFAULT_REFERENCE_GRANT: KubeReferenceGrant = {
 };
 
 export const DEFAULT_BACKEND_TLS_POLICY: KubeBackendTLSPolicy = {
-  apiVersion: 'gateway.networking.k8s.io/v1alpha3',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'BackendTLSPolicy',
   metadata: {
     uid: 'abc1234',

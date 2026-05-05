@@ -63,7 +63,7 @@ export interface KubeBackendTLSPolicy extends KubeObjectInterface {
 class BackendTLSPolicy extends KubeObject<KubeBackendTLSPolicy> {
   static kind = 'BackendTLSPolicy';
   static apiName = 'backendtlspolicies';
-  static apiVersion = ['gateway.networking.k8s.io/v1alpha3'];
+  static apiVersion = ['gateway.networking.k8s.io/v1', 'gateway.networking.k8s.io/v1alpha3'];
   static isNamespaced = true;
 
   get spec(): BackendTLSPolicySpec {
