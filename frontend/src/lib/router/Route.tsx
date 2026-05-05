@@ -45,4 +45,11 @@ export interface Route {
   disabled?: boolean;
   /** Render route for full width */
   isFullWidth?: boolean;
+  /**
+   * Path pattern to redirect to if this route is accessed.
+   * When provided as a string, this is treated as a react-router path template
+   * (for example, for parameter interpolation), not a full URL. Query strings
+   * should be constructed by using the function form instead.
+   */
+  redirect?: string | ((params: Record<string, string | undefined>) => string);
 }

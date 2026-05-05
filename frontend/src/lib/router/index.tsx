@@ -15,7 +15,6 @@
  */
 
 import React from 'react';
-import { useHistory } from 'react-router';
 import NotFoundComponent from '../../components/404';
 import AuthToken from '../../components/account/Auth';
 import AddCluster from '../../components/App/CreateCluster/AddCluster';
@@ -120,7 +119,6 @@ import WorkloadDetails from '../../components/workload/Details';
 import WorkloadOverview from '../../components/workload/Overview';
 import { isElectron } from '../../helpers/isElectron';
 import LocaleSelect from '../../i18n/LocaleSelect/LocaleSelect';
-import { useCluster } from '..//k8s';
 import DaemonSet from '../k8s/daemonSet';
 import Deployment from '../k8s/deployment';
 import Job from '../k8s/job';
@@ -142,19 +140,6 @@ const LazyGraphView = React.lazy(() =>
   import('../../components/resourceMap/GraphView').then(it => ({ default: it.GraphView }))
 );
 
-function SettingsClusterRedirect() {
-  const cluster = useCluster();
-  const history = useHistory();
-
-  React.useEffect(() => {
-    history.replace(`/settings/cluster?c=${cluster}`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return <></>;
-}
-
-/** @private */
 const defaultRoutes: { [routeName: string]: Route } = {
   projectCreateYaml: {
     path: '/project/create-yaml',
@@ -924,7 +909,9 @@ const defaultRoutes: { [routeName: string]: Route } = {
     },
     useClusterURL: true,
     noAuthRequired: true,
-    component: SettingsClusterRedirect,
+    component: () => null,
+    redirect: (params: Record<string, string | undefined>) =>
+      `/settings/cluster?c=${params.cluster?.split('+')[0]}`,
   },
   settingsClusterHomeContext: {
     path: '/settings/cluster',

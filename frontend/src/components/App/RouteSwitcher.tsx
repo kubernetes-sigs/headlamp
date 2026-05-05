@@ -18,7 +18,15 @@ import { useQuery } from '@tanstack/react-query';
 import React, { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { Redirect, Route, RouteProps, Switch, useHistory } from 'react-router-dom';
+import {
+  generatePath,
+  Redirect,
+  Route,
+  RouteProps,
+  Switch,
+  useHistory,
+  useParams,
+} from 'react-router-dom';
 import { getCluster, getSelectedClusters } from '../../lib/cluster';
 import { useCluster, useClustersConf } from '../../lib/k8s';
 import { testAuth } from '../../lib/k8s/api/v1/clusterApi';
@@ -94,6 +102,8 @@ function RouteErrorBoundary(props: { error: Error; route: RouteType }) {
 function RouteComponent({ route }: { route: RouteType }) {
   const { t } = useTranslation();
   const dispatch = useDispatch();
+  const params = useParams();
+
   React.useEffect(() => {
     dispatch(uiSlice.actions.setHideAppBar(route.hideAppBar));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -103,6 +113,14 @@ function RouteComponent({ route }: { route: RouteType }) {
     dispatch(uiSlice.actions.setIsFullWidth(route.isFullWidth));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.isFullWidth]);
+
+  if (route.redirect) {
+    const target =
+      typeof route.redirect === 'function'
+        ? route.redirect(params)
+        : generatePath(route.redirect, params);
+    return <Redirect to={target} />;
+  }
 
   return (
     <PageTitle

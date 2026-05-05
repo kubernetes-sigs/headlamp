@@ -93,9 +93,11 @@ export function createRouteURL(routeName?: string, params: RouteURLProps = {}) {
     fullParams.cluster = cluster;
   }
 
-  // @todo: Remove this hack once we support redirection in routes
-  if (routeName === 'settingsCluster') {
-    return `/settings/cluster?c=${fullParams.cluster}`;
+  if (route.redirect) {
+    if (typeof route.redirect === 'function') {
+      return route.redirect(fullParams);
+    }
+    return generatePath(route.redirect, fullParams);
   }
 
   const url = getRoutePath(route);
