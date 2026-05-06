@@ -533,3 +533,68 @@ func TestOIDCStart_RejectsDesktopMode(t *testing.T) {
 		"error body should explain that desktop mode is reserved")
 }
 
+// callOIDCCallbackWithAccept invokes /oidc-callback with the given Accept
+// header, used by the stage 5 HTML content-negotiation tests.
+func callOIDCCallbackWithAccept(t *testing.T, handler http.Handler, rawQuery, accept string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/oidc-callback?"+rawQuery, nil)
+	require.NoError(t, err)
+
+	if accept != "" {
+		req.Header.Set("Accept", accept)
+	}
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	return rr
+}
+
+// TestOIDCCallback_HTMLErrorPages covers stage 5: when Accept: text/html
+// is present, the 4xx error responses render an HTML page with a link
+// back to Headlamp; non-HTML callers continue to get the plain-text
+// contract checked by the earlier characterization tests.
+func TestOIDCCallback_HTMLErrorPages(t *testing.T) {
+	oidcSrv := newOIDCTestServer(t, nil)
+	handler, _ := newOIDCTestHandler(t, oidcSrv)
+
+	t.Run("missing_state_html", func(t *testing.T) {
+		rr := callOIDCCallbackWithAccept(t, handler, "code=anything", "text/html")
+
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+		require.Contains(t, rr.Header().Get("Content-Type"), "text/html")
+		body := rr.Body.String()
+		require.Contains(t, body, "<html", "expected HTML page on text/html callers")
+		require.Contains(t, body, "Return to Headlamp",
+			"expected the page to offer a way back into the app")
+	})
+
+	t.Run("unknown_state_html", func(t *testing.T) {
+		rr := callOIDCCallbackWithAccept(t, handler, "state=never-issued&code=fake", "text/html")
+
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+		require.Contains(t, rr.Header().Get("Content-Type"), "text/html")
+		require.Contains(t, rr.Body.String(), "Return to Headlamp")
+	})
+
+	t.Run("missing_state_json_unchanged", func(t *testing.T) {
+		// Existing characterization-test contract: non-HTML callers still
+		// get the plain-text body. Asserting alongside HTML test so a
+		// regression in either direction is caught here.
+		rr := callOIDCCallbackWithAccept(t, handler, "code=anything", "application/json")
+
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+		require.NotContains(t, rr.Header().Get("Content-Type"), "text/html")
+		require.Contains(t, rr.Body.String(), "invalid request state is empty")
+	})
+
+	t.Run("unknown_state_text_unchanged", func(t *testing.T) {
+		rr := callOIDCCallbackWithAccept(t, handler, "state=bogus.bogus&code=fake", "")
+
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+		require.NotContains(t, rr.Header().Get("Content-Type"), "text/html")
+		require.Contains(t, rr.Body.String(), "invalid request")
+	})
+}

@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"io/fs"
 	"net/http"
@@ -571,6 +572,100 @@ func handleOIDCFlowError(w http.ResponseWriter, r *http.Request, cluster string,
 	}
 }
 
+// oidcCallbackError writes a 4xx/5xx response on /oidc-callback failure.
+// Browser callers (Accept: text/html) get a small HTML page with a link
+// back to the cluster (or root) so they're not stranded on a JSON error;
+// non-browser callers get the existing plain-text contract preserved
+// from the pre-stage-5 handler. plainBody is what non-HTML callers see
+// (preserve historical wording for downstream contract); htmlReason is
+// the friendlier text shown inside the HTML page.
+func oidcCallbackError(
+	w http.ResponseWriter, r *http.Request, status int,
+	plainBody, htmlReason string,
+	cluster, baseURL string,
+) {
+	if !wantsHTML(r) {
+		http.Error(w, plainBody, status)
+		return
+	}
+
+	clusterRoot := "/"
+	if trimmed := strings.Trim(baseURL, "/"); trimmed != "" {
+		clusterRoot = "/" + trimmed + "/"
+	}
+
+	if cluster != "" {
+		clusterRoot += "c/" + url.PathEscape(cluster) + "/"
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+
+	page := buildOIDCErrorPage(htmlReason, clusterRoot)
+	if _, err := io.WriteString(w, page); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing OIDC error page")
+	}
+}
+
+// wantsHTML returns true when the caller's Accept header prefers HTML
+// over JSON / plain text. We treat any "text/html" or "*/*" without a
+// more specific JSON preference as HTML — browsers are the dominant
+// caller of /oidc-callback so this skews toward HTML when the header
+// is ambiguous.
+func wantsHTML(r *http.Request) bool {
+	accept := r.Header.Get("Accept")
+	if accept == "" {
+		return false
+	}
+
+	lower := strings.ToLower(accept)
+	if strings.Contains(lower, "application/json") &&
+		!strings.Contains(lower, "text/html") {
+		return false
+	}
+
+	return strings.Contains(lower, "text/html") || strings.Contains(lower, "*/*")
+}
+
+// buildOIDCErrorPage renders the small HTML page shown on
+// /oidc-callback failures. The reason is HTML-escaped via
+// html/template; the link target is constructed from trusted server
+// state (cluster root) and is not user-controlled, so it's spliced in
+// directly via the template.
+func buildOIDCErrorPage(reason, clusterRoot string) string {
+	tmpl := template.Must(template.New("oidc-error").Parse(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sign-in error — Headlamp</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body { font-family: system-ui, sans-serif; max-width: 32rem; margin: 4rem auto; padding: 0 1rem; color: #222; }
+h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+p { line-height: 1.4; }
+a { color: #1565c0; }
+</style>
+</head>
+<body>
+<h1>Sign-in didn't complete</h1>
+<p>{{.Reason}}</p>
+<p><a href="{{.Home}}">Return to Headlamp</a> and try again.</p>
+</body>
+</html>`))
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, struct {
+		Reason string
+		Home   string
+	}{Reason: reason, Home: clusterRoot}); err != nil {
+		// Fall back to a static body if templating somehow fails. Defensive
+		// only — the template above is constant.
+		return "Sign-in didn't complete. <a href=\"" + clusterRoot + "\">Return to Headlamp</a>."
+	}
+
+	return buf.String()
+}
+
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
 
@@ -960,7 +1055,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		if state == "" {
 			logger.Log(logger.LevelError, nil, nil, "invalid request state is empty")
-			http.Error(w, "invalid request state is empty", http.StatusBadRequest)
+			oidcCallbackError(w, r, http.StatusBadRequest,
+				"invalid request state is empty",
+				"The sign-in link is missing required information.",
+				"", config.BaseURL)
 
 			return
 		}
@@ -971,16 +1069,22 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			// version, oversize) collapses to "invalid request" so we
 			// don't leak details to anonymous callers.
 			logger.Log(logger.LevelError, nil, err, "decoding OIDC state")
-			http.Error(w, "invalid request", http.StatusBadRequest)
+			oidcCallbackError(w, r, http.StatusBadRequest,
+				"invalid request",
+				"The sign-in link is invalid or has expired. Please start the sign-in again.",
+				"", config.BaseURL)
 
 			return
 		}
 
 		if !stateSigner.MarkConsumed(payload.CSRF) {
-			// State has already been used. Same wording as the unknown-
-			// state path so callers can't infer whether a state was
-			// previously valid.
-			http.Error(w, "invalid request", http.StatusBadRequest)
+			// State has already been used. Same response shape as the
+			// unknown-state path so callers can't infer whether a state
+			// was previously valid.
+			oidcCallbackError(w, r, http.StatusBadRequest,
+				"invalid request",
+				"This sign-in link has already been used. Please start the sign-in again.",
+				payload.Cluster, config.BaseURL)
 			return
 		}
 
