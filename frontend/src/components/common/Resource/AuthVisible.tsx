@@ -16,9 +16,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect, useRef } from 'react';
+import { getCluster } from '../../../lib/cluster'; // adjust import path as needed
 import { KubeObject, KubeObjectClass } from '../../../lib/k8s/KubeObject';
 
-/** List of valid request verbs. See https://kubernetes.io/docs/reference/access-authn-authz/authorization/#determine-the-request-verb. */
 const VALID_AUTH_VERBS = [
   'create',
   'get',
@@ -35,8 +35,15 @@ type AuthVerb = (typeof VALID_AUTH_VERBS)[number];
 function isAuthVerb(authVerb: string): authVerb is AuthVerb {
   return (VALID_AUTH_VERBS as readonly string[]).includes(authVerb);
 }
+function isKubeObjectInstance(item: KubeObject | KubeObjectClass | null): item is KubeObject {
+  return (
+    item !== null &&
+    typeof item !== 'function' &&
+    typeof (item as KubeObject).getName === 'function'
+  );
+}
 
-export interface AuthVisibleProps extends React.PropsWithChildren<{}> {
+export interface AuthVisibleProps extends React.PropsWithChildren {
   item: KubeObject | KubeObjectClass | null;
   authVerb: string;
   subresource?: string;
@@ -47,23 +54,28 @@ export interface AuthVisibleProps extends React.PropsWithChildren<{}> {
 
 export default function AuthVisible(props: AuthVisibleProps) {
   const { item, authVerb, subresource, namespace, onError, onAuthResult, children } = props;
-
   const onAuthResultRef = useRef(onAuthResult);
-
   useEffect(() => {
     onAuthResultRef.current = onAuthResult;
   }, [onAuthResult]);
 
-  const isValidAuthVerb = isAuthVerb(authVerb);
+  const onErrorRef = useRef(onError);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
 
-  const itemObject = item instanceof KubeObject ? item : null;
-  const itemClass: KubeObjectClass | null = item instanceof KubeObject ? item._class() : item;
+  const isValidAuthVerb = isAuthVerb(authVerb);
+  const isInstance = isKubeObjectInstance(item);
+  const itemObject = isInstance ? item : null;
+  const itemClass: KubeObjectClass | null = isInstance ? item._class() : item;
   const itemName = itemObject?.getName();
+  const cluster = itemObject?.cluster ?? getCluster() ?? '';
 
   const { data } = useQuery<any>({
     enabled: !!item && isValidAuthVerb,
     queryKey: [
       'authVisible',
+      cluster,
       itemName,
       itemClass?.apiName,
       itemClass?.apiVersion,
@@ -71,25 +83,20 @@ export default function AuthVisible(props: AuthVisibleProps) {
       subresource,
       namespace,
     ],
+
+    retry: false,
     queryFn: async () => {
+      if (!item) {
+        return null;
+      }
       try {
-        if (!item) {
-          return null;
-        }
-
-        if (item instanceof KubeObject) {
-          return item.getAuthorization(authVerb, { subresource, namespace });
-        }
-
-        return item.getAuthorization(authVerb, { subresource, namespace });
+        return await item.getAuthorization(authVerb, { subresource, namespace });
       } catch (e: any) {
-        onError?.(e);
-        throw e;
+        onErrorRef.current?.(e);
+        return null;
       }
     },
   });
-
-  const visible = data?.status?.allowed ?? false;
 
   useEffect(() => {
     if (!data) return;
@@ -100,10 +107,20 @@ export default function AuthVisible(props: AuthVisibleProps) {
     });
   }, [data]);
 
+  useEffect(() => {
+    if (!isValidAuthVerb) {
+      console.warn(
+        `AuthVisible: invalid authVerb "${authVerb}". ` +
+          `Expected one of: ${VALID_AUTH_VERBS.join(', ')}. Skipping authorization check.`
+      );
+    }
+  }, [authVerb, isValidAuthVerb]);
+
   if (!isValidAuthVerb) {
-    console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
     return null;
   }
+
+  const visible = data?.status?.allowed ?? false;
 
   if (!visible) {
     return null;
