@@ -41,34 +41,45 @@ type Config struct {
 	// NoBrowser disables automatically opening the default browser when running
 	// a locally embedded Headlamp binary (non in-cluster with spa.UseEmbeddedFiles == true).
 	// It has no effect in in-cluster mode or when running without embedded frontend.
-	NoBrowser                    bool   `koanf:"no-browser"`
-	CacheEnabled                 bool   `koanf:"cache-enabled"`
-	EnableHelm                   bool   `koanf:"enable-helm"`
-	EnableDynamicClusters        bool   `koanf:"enable-dynamic-clusters"`
-	AllowKubeconfigChanges       bool   `koanf:"allow-kubeconfig-changes"`
-	ListenAddr                   string `koanf:"listen-addr"`
-	WatchPluginsChanges          bool   `koanf:"watch-plugins-changes"`
-	Port                         uint   `koanf:"port"`
-	KubeConfigPath               string `koanf:"kubeconfig"`
-	SkippedKubeContexts          string `koanf:"skipped-kube-contexts"`
-	StaticDir                    string `koanf:"html-static-dir"`
-	PluginsDir                   string `koanf:"plugins-dir"`
-	UserPluginsDir               string `koanf:"user-plugins-dir"`
-	BaseURL                      string `koanf:"base-url"`
-	SessionTTL                   int    `koanf:"session-ttl"`
-	PodDebugImage                string `koanf:"pod-debug-image"`
-	ProxyURLs                    string `koanf:"proxy-urls"`
-	OidcClientID                 string `koanf:"oidc-client-id"`
-	OidcValidatorClientID        string `koanf:"oidc-validator-client-id"`
-	OidcClientSecret             string `koanf:"oidc-client-secret"`
-	OidcIdpIssuerURL             string `koanf:"oidc-idp-issuer-url"`
-	OidcCallbackURL              string `koanf:"oidc-callback-url"`
-	OidcValidatorIdpIssuerURL    string `koanf:"oidc-validator-idp-issuer-url"`
-	OidcScopes                   string `koanf:"oidc-scopes"`
-	OidcUseAccessToken           bool   `koanf:"oidc-use-access-token"`
-	OidcUseCookie                bool   `koanf:"oidc-use-cookie"`
-	OidcSkipTLSVerify            bool   `koanf:"oidc-skip-tls-verify"`
-	OidcCAFile                   string `koanf:"oidc-ca-file"`
+	NoBrowser                 bool   `koanf:"no-browser"`
+	CacheEnabled              bool   `koanf:"cache-enabled"`
+	EnableHelm                bool   `koanf:"enable-helm"`
+	EnableDynamicClusters     bool   `koanf:"enable-dynamic-clusters"`
+	AllowKubeconfigChanges    bool   `koanf:"allow-kubeconfig-changes"`
+	ListenAddr                string `koanf:"listen-addr"`
+	WatchPluginsChanges       bool   `koanf:"watch-plugins-changes"`
+	Port                      uint   `koanf:"port"`
+	KubeConfigPath            string `koanf:"kubeconfig"`
+	SkippedKubeContexts       string `koanf:"skipped-kube-contexts"`
+	StaticDir                 string `koanf:"html-static-dir"`
+	PluginsDir                string `koanf:"plugins-dir"`
+	UserPluginsDir            string `koanf:"user-plugins-dir"`
+	BaseURL                   string `koanf:"base-url"`
+	SessionTTL                int    `koanf:"session-ttl"`
+	PodDebugImage             string `koanf:"pod-debug-image"`
+	ProxyURLs                 string `koanf:"proxy-urls"`
+	OidcClientID              string `koanf:"oidc-client-id"`
+	OidcValidatorClientID     string `koanf:"oidc-validator-client-id"`
+	OidcClientSecret          string `koanf:"oidc-client-secret"`
+	OidcIdpIssuerURL          string `koanf:"oidc-idp-issuer-url"`
+	OidcCallbackURL           string `koanf:"oidc-callback-url"`
+	OidcValidatorIdpIssuerURL string `koanf:"oidc-validator-idp-issuer-url"`
+	OidcScopes                string `koanf:"oidc-scopes"`
+	OidcUseAccessToken        bool   `koanf:"oidc-use-access-token"`
+	OidcUseCookie             bool   `koanf:"oidc-use-cookie"`
+	OidcSkipTLSVerify         bool   `koanf:"oidc-skip-tls-verify"`
+	OidcCAFile                string `koanf:"oidc-ca-file"`
+	// OidcAPIProxy is the URL of an external Kubernetes API proxy through
+	// which all Kubernetes API requests are routed instead of the
+	// kube-apiserver directly. The OIDC bearer token is forwarded as-is
+	// in the Authorization header.
+	OidcAPIProxy string `koanf:"oidc-api-proxy"`
+	// OidcAPIProxyCAFile is the path to a PEM-encoded CA bundle used to
+	// verify the TLS certificate of the api-proxy. Optional.
+	OidcAPIProxyCAFile string `koanf:"oidc-api-proxy-ca-file"`
+	// OidcAPIProxySkipTLSVerify disables TLS verification for the api-proxy
+	// connection. Use only for testing.
+	OidcAPIProxySkipTLSVerify    bool   `koanf:"oidc-api-proxy-skip-tls-verify"`
 	MeUsernamePath               string `koanf:"me-username-path"`
 	MeEmailPath                  string `koanf:"me-email-path"`
 	MeGroupsPath                 string `koanf:"me-groups-path"`
@@ -108,6 +119,28 @@ func (c *Config) warnRedundantThemeDefaults() {
 	}
 }
 
+// validateAPIProxy validates the oidc-api-proxy-* configuration options.
+func (c *Config) validateAPIProxy() error {
+	if c.OidcAPIProxyCAFile != "" {
+		caFileContents, err := os.ReadFile(c.OidcAPIProxyCAFile)
+		if err != nil {
+			return fmt.Errorf("error reading oidc-api-proxy-ca-file: %w", err)
+		}
+
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caFileContents) {
+			return errors.New("invalid oidc-api-proxy-ca-file")
+		}
+	}
+
+	if c.OidcAPIProxySkipTLSVerify {
+		logger.Log(logger.LevelWarn, nil, nil,
+			"oidc-api-proxy-skip-tls-verify is set, this is not safe for production")
+	}
+
+	return nil
+}
+
 func (c *Config) Validate() error {
 	if !c.InCluster && !c.OidcUseCookie && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
 		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
@@ -129,6 +162,10 @@ func (c *Config) Validate() error {
 	}
 
 	if err := c.validateOIDCCAFile(); err != nil {
+		return err
+	}
+
+	if err := c.validateAPIProxy(); err != nil {
 		return err
 	}
 
@@ -535,6 +572,14 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.String("oidc-scopes", "profile,email", "A comma separated list of scopes needed from the OIDC provider")
 	f.Bool("oidc-skip-tls-verify", false, "Skip TLS verification for OIDC")
 	f.String("oidc-ca-file", "", "CA file for OIDC")
+	f.String("oidc-api-proxy", "",
+		"URL of an external Kubernetes API proxy. When set, "+
+			"all Kubernetes API requests are routed through this URL instead of "+
+			"the kube-apiserver. The OIDC bearer token is forwarded as-is.")
+	f.String("oidc-api-proxy-ca-file", "",
+		"PEM-encoded CA file used to verify the TLS certificate of the api-proxy")
+	f.Bool("oidc-api-proxy-skip-tls-verify", false,
+		"Skip TLS verification for the api-proxy connection (testing only)")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
 	f.Bool("oidc-use-cookie", false, "Enable OIDC cookie usage even when not running in-cluster")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")

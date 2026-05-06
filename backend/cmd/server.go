@@ -150,6 +150,8 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
 		OidcUseAccessToken:        conf.OidcUseAccessToken,
 		OidcUsePKCE:               conf.OidcUsePKCE,
+		OidcAPIProxy:              conf.OidcAPIProxy,
+		OidcAPIProxySkipTLSVerify: conf.OidcAPIProxySkipTLSVerify,
 		MeUsernamePaths:           conf.MeUsernamePath,
 		MeEmailPaths:              conf.MeEmailPath,
 		MeGroupsPaths:             conf.MeGroupsPath,
@@ -174,6 +176,16 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cfg.ProxyAuthGroupHeader = conf.ProxyAuthGroupHeader
 	cfg.ProxyAuthEmailHeader = conf.ProxyAuthEmailHeader
 	cfg.ProxyAuthTokenHeader = conf.ProxyAuthTokenHeader
+
+	if conf.OidcAPIProxyCAFile != "" {
+		caFileContents, err := os.ReadFile(conf.OidcAPIProxyCAFile) //nolint:gosec
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "reading oidc api-proxy ca file")
+			os.Exit(1)
+		}
+
+		cfg.OidcAPIProxyCACert = string(caFileContents)
+	}
 
 	compiledProxyURLs, err := compileProxyURLPatterns(cfg.ProxyURLs)
 	if err != nil {
