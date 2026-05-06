@@ -1035,6 +1035,51 @@ func TestConfigureTLSContext_CACert(t *testing.T) {
 	assert.True(t, caCertParsed.IsCA, "Generated certificate should be a CA certificate")
 }
 
+// TestConfigureTLSContext_SkipTLS_PreservesDefaults verifies that cloning
+// http.DefaultTransport preserves proxy and timeout settings.
+func TestConfigureTLSContext_SkipTLS_PreservesDefaults(t *testing.T) {
+	skipTLSVerify := true
+	resultCtx := auth.ConfigureTLSContext(context.Background(), &skipTLSVerify, nil)
+
+	client, ok := resultCtx.Value(oauth2.HTTPClient).(*http.Client)
+	require.True(t, ok, "context should contain an *http.Client")
+
+	tr, ok := client.Transport.(*http.Transport)
+	require.True(t, ok, "transport should be *http.Transport")
+
+	defaultTr, ok := http.DefaultTransport.(*http.Transport)
+	require.True(t, ok, "http.DefaultTransport should be *http.Transport")
+
+	assert.NotNil(t, tr.Proxy, "transport.Proxy should be preserved from DefaultTransport")
+	assert.Equal(t, defaultTr.TLSHandshakeTimeout, tr.TLSHandshakeTimeout, "TLSHandshakeTimeout should be preserved")
+	assert.Equal(t, defaultTr.IdleConnTimeout, tr.IdleConnTimeout, "IdleConnTimeout should be preserved")
+	assert.True(t, tr.TLSClientConfig.InsecureSkipVerify, "InsecureSkipVerify should be true")
+}
+
+// TestConfigureTLSContext_CACert_PreservesDefaults verifies the caCert branch
+// also preserves default transport settings.
+func TestConfigureTLSContext_CACert_PreservesDefaults(t *testing.T) {
+	caCertBytes, err := os.ReadFile("../../cmd/headlamp_testdata/ca.crt")
+	require.NoError(t, err)
+
+	caCert := string(caCertBytes)
+	resultCtx := auth.ConfigureTLSContext(context.Background(), nil, &caCert)
+
+	client, ok := resultCtx.Value(oauth2.HTTPClient).(*http.Client)
+	require.True(t, ok, "context should contain an *http.Client")
+
+	tr, ok := client.Transport.(*http.Transport)
+	require.True(t, ok, "transport should be *http.Transport")
+
+	defaultTr, ok := http.DefaultTransport.(*http.Transport)
+	require.True(t, ok, "http.DefaultTransport should be *http.Transport")
+
+	assert.NotNil(t, tr.Proxy, "transport.Proxy should be preserved from DefaultTransport")
+	assert.Equal(t, defaultTr.TLSHandshakeTimeout, tr.TLSHandshakeTimeout, "TLSHandshakeTimeout should be preserved")
+	assert.Equal(t, defaultTr.IdleConnTimeout, tr.IdleConnTimeout, "IdleConnTimeout should be preserved")
+	assert.NotNil(t, tr.TLSClientConfig.RootCAs, "RootCAs should be set")
+}
+
 func makeTestToken(t *testing.T, claims map[string]interface{}) string {
 	// helper to build unsigned JWT-like string for tests
 	header := map[string]string{"alg": "none", "typ": "JWT"}

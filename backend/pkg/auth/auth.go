@@ -216,31 +216,56 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 // re-enabling verification while trusting the supplied certificate bundle.
 func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *string) context.Context {
 	if skipTLSVerify != nil && *skipTLSVerify {
-		tlsSkipTransport := &http.Transport{
-			// the gosec linter is disabled here because we are explicitly requesting to skip TLS verification.
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		base, ok := http.DefaultTransport.(*http.Transport)
+		if !ok {
+			logger.Log(logger.LevelError, nil,
+				errors.New("http.DefaultTransport is not *http.Transport"),
+				"failed to configure TLS transport")
+
+			return ctx
 		}
+
+		tlsSkipTransport := base.Clone()
+
+		tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+		if base.TLSClientConfig != nil {
+			tlsCfg = base.TLSClientConfig.Clone()
+			tlsCfg.InsecureSkipVerify = true
+		}
+
+		tlsSkipTransport.TLSClientConfig = tlsCfg
 		ctx = oidc.ClientContext(ctx, &http.Client{Transport: tlsSkipTransport})
 	}
 
 	if caCert != nil {
 		caCertPool := x509.NewCertPool()
 		if !caCertPool.AppendCertsFromPEM([]byte(*caCert)) {
-			// Log error but continue with original context
 			logger.Log(logger.LevelError, nil,
 				errors.New("failed to append ca cert to pool"), "couldn't add custom cert to context")
 
 			return ctx
 		}
 
-		// the gosec linter is disabled because gosec promotes using a minVersion of TLS 1.2 or higher.
-		// since we are using a custom CA cert configured by the user, we are not forcing a minVersion.
-		customTransport := &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs: caCertPool,
-			},
+		base, ok := http.DefaultTransport.(*http.Transport)
+		if !ok {
+			logger.Log(logger.LevelError, nil,
+				errors.New("http.DefaultTransport is not *http.Transport"),
+				"failed to configure TLS transport")
+
+			return ctx
 		}
 
+		customTransport := base.Clone()
+
+		tlsCfg := &tls.Config{RootCAs: caCertPool}
+		if base.TLSClientConfig != nil {
+			tlsCfg = base.TLSClientConfig.Clone()
+			tlsCfg.RootCAs = caCertPool
+		}
+
+		tlsCfg.InsecureSkipVerify = false
+
+		customTransport.TLSClientConfig = tlsCfg
 		ctx = oidc.ClientContext(ctx, &http.Client{Transport: customTransport})
 	}
 

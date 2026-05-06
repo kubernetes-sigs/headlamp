@@ -690,9 +690,25 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		cluster := r.URL.Query().Get("cluster")
 
 		if config.Insecure {
-			tr := &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+			baseTransport, ok := http.DefaultTransport.(*http.Transport)
+			if !ok {
+				err := errors.New("http.DefaultTransport is not an *http.Transport")
+				logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+					err, "failed to configure insecure oidc client transport")
+				http.Error(w, "Failed to configure oidc transport", http.StatusInternalServerError)
+
+				return
 			}
+
+			tr := baseTransport.Clone()
+
+			tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+			if baseTransport.TLSClientConfig != nil {
+				tlsCfg = baseTransport.TLSClientConfig.Clone()
+				tlsCfg.InsecureSkipVerify = true
+			}
+
+			tr.TLSClientConfig = tlsCfg
 			InsecureClient := &http.Client{Transport: tr}
 			ctx = oidc.ClientContext(ctx, InsecureClient)
 		}
