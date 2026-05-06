@@ -19,9 +19,12 @@ import '../router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
+import { Provider } from 'react-redux';
 import { afterEach, beforeEach, vi } from 'vitest';
+import { setConfig, setStatelessConfig } from '../../redux/configSlice';
+import store from '../../redux/stores/store';
 import { createRouteURL } from '../router/createRouteURL';
-import { labelSelectorToQuery, ResourceClasses, useClustersVersion } from '.';
+import { labelSelectorToQuery, ResourceClasses, useClustersConf, useClustersVersion } from '.';
 import { clusterRequest } from './api/v1/clusterRequests';
 import { Cluster, LabelSelector } from './cluster';
 import { KubeObjectClass } from './KubeObject';
@@ -434,5 +437,35 @@ describe('Namespace testing', () => {
       expect(makeNamespace('renamed', 'kube-system').isProtected()).toBe(true);
       expect(makeNamespace('kube-system', 'my-app').isProtected()).toBe(false);
     });
+  });
+});
+
+describe('useClustersConf reactivity', () => {
+  it('reflects same-name replacement, retains stateless precedence and does not expose mutable store objects', () => {
+    store.dispatch(setConfig({ clusters: { sample: { name: 'sample', auth_type: '' } } }));
+    store.dispatch(setStatelessConfig({ statelessClusters: {} }));
+    const { result, unmount } = renderHook(() => useClustersConf(), {
+      wrapper: ({ children }) => createElement(Provider, { store, children }),
+    });
+    expect(result.current?.sample.auth_type).toBe('');
+    act(() =>
+      store.dispatch(setConfig({ clusters: { sample: { name: 'sample', auth_type: 'oidc' } } }))
+    );
+    expect(result.current?.sample.auth_type).toBe('oidc');
+    act(() =>
+      store.dispatch(
+        setStatelessConfig({
+          statelessClusters: {
+            sample: { name: 'sample', auth_type: '', server: 'https://imported' },
+          },
+        })
+      )
+    );
+    expect(result.current?.sample.server).toBe('https://imported');
+    result.current!.sample.server = 'local-mutation';
+    expect(store.getState().config.statelessClusters?.sample.server).toBe('https://imported');
+    act(() => store.dispatch(setConfig({ clusters: null })));
+    expect(result.current).toBeNull();
+    unmount();
   });
 });

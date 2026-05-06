@@ -192,7 +192,7 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
      * only if the stateless cluster config is enabled in the backend.
      */
     if (config?.isDynamicClusterEnabled) {
-      fetchStatelessClusterKubeConfigs(dispatch);
+      return fetchStatelessClusterKubeConfigs(dispatch).then(() => configToStore);
     }
 
     return configToStore;
