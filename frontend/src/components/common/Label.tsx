@@ -256,17 +256,15 @@ export function DateLabel(props: DateLabelProps) {
  * Automatically refreshes
  */
 function TimeAgo({ date, format }: { date: number | string | Date; format?: DateFormatOptions }) {
-  const [formattedDate, setFormattedDate] = useState<string>(() => timeAgo(date, { format }));
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     const id = setInterval(() => {
-      const newFormattedDate = timeAgo(date, { format });
-      setFormattedDate(newFormattedDate);
+      setTick(t => t + 1);
     }, 1_000);
 
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return formattedDate;
+  return timeAgo(date, { format }) as unknown as JSX.Element;
 }
