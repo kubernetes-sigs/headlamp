@@ -1,0 +1,53 @@
+# Dex IdP config for the OIDC reproduction harness.
+#
+# Two static users so the multi-replica repro can use distinct sessions.
+# A static client matching what headlamp-server is configured with.
+#
+# Issuer URL is the in-cluster Service. For Headlamp running OUT-of-cluster
+# (dev mode on the host), use a port-forward and override OIDC_ISSUER_URL.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dex
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dex-config
+  namespace: dex
+data:
+  config.yaml: |
+    issuer: http://dex.dex.svc.cluster.local:5556/dex
+
+    storage:
+      type: memory
+
+    web:
+      http: 0.0.0.0:5556
+
+    oauth2:
+      skipApprovalScreen: true
+      # PKCE supported; Headlamp's go-oidc client uses it when configured.
+
+    staticClients:
+      - id: headlamp-test
+        redirectURIs:
+          # Both forms because dev runs on the host and prod runs in-cluster.
+          - 'http://localhost:4466/oidc-callback'
+          - 'http://localhost:8080/oidc-callback'
+          - 'http://headlamp.headlamp.svc.cluster.local/oidc-callback'
+        name: 'Headlamp (repro)'
+        secret: headlamp-test-secret
+
+    enablePasswordDB: true
+    staticPasswords:
+      # Passwords are bcrypt of "password".
+      - email: "alice@example.com"
+        # bcrypt of 'password'
+        hash: "$2y$10$YLGTFTQQZcDOXGoWRMOz7O2VC/XAjLC/gC38fx2y7gjmP29s.1aEK"
+        username: "alice"
+        userID: "alice-id"
+      - email: "bob@example.com"
+        hash: "$2y$10$YLGTFTQQZcDOXGoWRMOz7O2VC/XAjLC/gC38fx2y7gjmP29s.1aEK"
+        username: "bob"
+        userID: "bob-id"
