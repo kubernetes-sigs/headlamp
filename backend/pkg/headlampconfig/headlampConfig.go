@@ -27,15 +27,19 @@ type HeadlampConfig struct {
 	OidcSkipTLSVerify         bool
 	OidcCACert                string
 	OidcUsePKCE               bool
-	OidcScopes                []string
-	Cache                     cache.Cache[interface{}]
-	Multiplexer               WebSocketMultiplexer
-	TelemetryConfig           config.Config
-	TelemetryHandler          *telemetry.RequestHandler
-	MeUsernamePaths           string
-	MeEmailPaths              string
-	MeGroupsPaths             string
-	MeUserInfoURL             string
+	// OidcStateSigningKeyFile, when set, is the path to a file holding the
+	// HMAC key used to sign the OAuth2 state parameter. See
+	// config.Config.OidcStateSigningKeyFile for the operator-facing docs.
+	OidcStateSigningKeyFile string
+	OidcScopes              []string
+	Cache                   cache.Cache[interface{}]
+	Multiplexer             WebSocketMultiplexer
+	TelemetryConfig         config.Config
+	TelemetryHandler        *telemetry.RequestHandler
+	MeUsernamePaths         string
+	MeEmailPaths            string
+	MeGroupsPaths           string
+	MeUserInfoURL           string
 }
 
 type HeadlampCFG struct {

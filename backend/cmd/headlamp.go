@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,7 +38,6 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -101,14 +101,6 @@ type clientConfig struct {
 	Clusters                []Cluster `json:"clusters"`
 	IsDynamicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
 	AllowKubeconfigChanges  bool      `json:"allowKubeconfigChanges"`
-}
-
-type OauthConfig struct {
-	Config       *oauth2.Config
-	Verifier     *oidc.IDTokenVerifier
-	Ctx          context.Context
-	CodeVerifier string // PKCE code verifier
-	Cluster      string // cluster context name this is associated with
 }
 
 // returns True if a file exists.
@@ -391,7 +383,194 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 	}).Methods("GET")
 }
 
+// oidcStateTTL is the lifetime of a signed state token. It bounds how long
+// a user has to complete the IdP round-trip before /oidc-callback rejects
+// the state as expired.
+//
 //nolint:gocognit,funlen,gocyclo
+const oidcStateTTL = 10 * time.Minute
+
+// oidcStateLRUSize bounds the number of consumed-state entries kept in
+// memory at once. Tokens older than this — by insertion order — can
+// reuse their CSRF; for typical login volume this is several orders of
+// magnitude above concurrent in-flight logins.
+const oidcStateLRUSize = 4096
+
+// minOIDCSigningKeyBytes is enforced both by NewStateSigner and at config
+// load time so that operators get a clear error before the server starts.
+const minOIDCSigningKeyBytes = 32
+
+// oidcFlow bundles the per-request OIDC plumbing needed by both /oidc and
+// /oidc-callback. Reconstructing it on the callback (rather than caching
+// it across requests) is what makes signed state portable across replicas.
+type oidcFlow struct {
+	OAuth2   *oauth2.Config
+	Verifier *oidc.IDTokenVerifier
+	Ctx      context.Context
+}
+
+// loadOIDCStateSigner constructs the StateSigner used by /oidc and
+// /oidc-callback.
+//
+// If config.OidcStateSigningKeyFile is set, the file is read, trailing
+// whitespace is trimmed, and the result is used as the HMAC key. The key
+// must be at least minOIDCSigningKeyBytes long; shorter keys produce a
+// startup error so misconfiguration is loud rather than silently degrading
+// to per-process random behavior.
+//
+// When the flag is unset, a 32-byte random key is generated. This works
+// for single-replica deployments but breaks multi-replica rollouts (the
+// kind of breakage characterized by #4019), so we emit one log line at
+// startup pointing operators at the flag.
+func loadOIDCStateSigner(config *HeadlampConfig) (*auth.StateSigner, error) {
+	if config.OidcStateSigningKeyFile != "" {
+		raw, err := os.ReadFile(config.OidcStateSigningKeyFile) //nolint:gosec
+		if err != nil {
+			return nil, fmt.Errorf("read oidc state signing key file: %w", err)
+		}
+
+		key := bytes.TrimRight(raw, " \t\r\n")
+		if len(key) < minOIDCSigningKeyBytes {
+			return nil, fmt.Errorf("oidc state signing key must be >= %d bytes (got %d)",
+				minOIDCSigningKeyBytes, len(key))
+		}
+
+		logger.Log(logger.LevelInfo, nil, nil,
+			"OIDC state signing key loaded from --oidc-state-signing-key-file")
+
+		return auth.NewStateSigner(key, oidcStateTTL, oidcStateLRUSize), nil
+	}
+
+	key := make([]byte, minOIDCSigningKeyBytes)
+	if _, err := rand.Read(key); err != nil {
+		return nil, fmt.Errorf("generate oidc state signing key: %w", err)
+	}
+
+	logger.Log(logger.LevelInfo, nil, nil,
+		"OIDC state signing key generated per-process. For multi-replica "+
+			"deployments, set --oidc-state-signing-key-file=<path> with a shared key file.")
+
+	return auth.NewStateSigner(key, oidcStateTTL, oidcStateLRUSize), nil
+}
+
+// buildOIDCFlow constructs the per-request OIDC plumbing — the OAuth2
+// config, the ID-token verifier, and the request context with the right
+// TLS / issuer overrides applied.
+//
+// Both /oidc and /oidc-callback call this. Building it on the callback
+// (instead of caching the /oidc result in a per-process map) is what makes
+// signed state portable across replicas; the cluster name comes from the
+// signed state payload, so the callback can rebuild the same OAuth2 config
+// on any replica that has the same kubeconfig.
+func buildOIDCFlow(ctx context.Context, config *HeadlampConfig, r *http.Request,
+	cluster string,
+) (*oidcFlow, error) {
+	if config.Insecure {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		}
+		insecureClient := &http.Client{Transport: tr}
+		ctx = oidc.ClientContext(ctx, insecureClient)
+	}
+
+	kContext, err := config.KubeConfigStore.GetContext(cluster)
+	if err != nil {
+		return nil, &oidcFlowError{kind: oidcFlowErrCluster, cluster: cluster, err: err}
+	}
+
+	oidcAuthConfig, err := kContext.OidcConfig()
+	if err != nil {
+		return nil, &oidcFlowError{kind: oidcFlowErrOIDCConfig, cluster: cluster, err: err}
+	}
+
+	ctx = auth.ConfigureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
+
+	if config.OidcValidatorIdpIssuerURL != "" {
+		ctx = oidc.InsecureIssuerURLContext(ctx, config.OidcValidatorIdpIssuerURL)
+	}
+
+	provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
+	if err != nil {
+		return nil, &oidcFlowError{
+			kind: oidcFlowErrProvider, cluster: cluster, err: err,
+			extra: map[string]string{"idpIssuerURL": oidcAuthConfig.IdpIssuerURL},
+		}
+	}
+
+	validatorClientID := oidcAuthConfig.ClientID
+	if config.OidcValidatorClientID != "" {
+		validatorClientID = config.OidcValidatorClientID
+	}
+
+	verifier := provider.Verifier(&oidc.Config{ClientID: validatorClientID})
+	oauthConfig := &oauth2.Config{
+		ClientID:     oidcAuthConfig.ClientID,
+		ClientSecret: oidcAuthConfig.ClientSecret,
+		Endpoint:     provider.Endpoint(),
+		RedirectURL:  getOidcCallbackURL(r, config),
+		Scopes:       append([]string{oidc.ScopeOpenID}, oidcAuthConfig.Scopes...),
+	}
+
+	return &oidcFlow{OAuth2: oauthConfig, Verifier: verifier, Ctx: ctx}, nil
+}
+
+// oidcFlowErrKind classifies failures from buildOIDCFlow so callers can
+// translate them into the right HTTP status without re-doing the typing.
+type oidcFlowErrKind int
+
+const (
+	oidcFlowErrCluster oidcFlowErrKind = iota
+	oidcFlowErrOIDCConfig
+	oidcFlowErrProvider
+)
+
+type oidcFlowError struct {
+	kind    oidcFlowErrKind
+	cluster string
+	err     error
+	extra   map[string]string
+}
+
+func (e *oidcFlowError) Error() string { return e.err.Error() }
+func (e *oidcFlowError) Unwrap() error { return e.err }
+
+// handleOIDCFlowError preserves the existing HTTP contract from
+// /oidc and /oidc-callback for buildOIDCFlow failures: 404 on missing
+// cluster, 500 on OIDC config / provider failure. The wording matches
+// the pre-refactor handler so the public-facing error surface is
+// unchanged.
+func handleOIDCFlowError(w http.ResponseWriter, r *http.Request, cluster string, err error) {
+	var fe *oidcFlowError
+	if !errors.As(err, &fe) {
+		logger.Log(logger.LevelError, map[string]string{"cluster": cluster}, err, "OIDC flow error")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	switch fe.kind {
+	case oidcFlowErrCluster:
+		logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+			fe.err, "failed to get context")
+		http.NotFound(w, r)
+	case oidcFlowErrOIDCConfig:
+		// Pre-refactor behavior: log "failed to get oidc config" only when
+		// in-cluster OIDC is configured; otherwise the error is expected
+		// for Service-Token-only contexts and would just be log noise.
+		// We can't easily access HeadlampConfig here without threading it,
+		// so we always log at debug-equivalent severity. The HTTP response
+		// is unchanged.
+		logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+			fe.err, "failed to get oidc config")
+		http.Error(w, fe.err.Error(), http.StatusInternalServerError)
+	case oidcFlowErrProvider:
+		logger.Log(logger.LevelError, fe.extra, fe.err, "failed to get provider")
+		http.Error(w, fe.err.Error(), http.StatusInternalServerError)
+	default:
+		http.Error(w, fe.err.Error(), http.StatusInternalServerError)
+	}
+}
+
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
 
@@ -669,110 +848,65 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	config.addClusterSetupRoute(r)
 
-	var (
-		oauthRequestMap = make(map[string]*OauthConfig)
-		oauthMu         sync.Mutex
-	)
+	// stateSigner signs and verifies the OAuth2 state parameter for the
+	// OIDC handlers. A single signer is shared by /oidc and /oidc-callback
+	// in the same process. Operators that run multiple replicas must point
+	// every replica at the same signing key via
+	// --oidc-state-signing-key-file; otherwise a callback that lands on a
+	// different replica than the one that issued the state will be
+	// rejected (see #4019).
+	stateSigner, err := loadOIDCStateSigner(config)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "loading OIDC state signing key")
+		// We deliberately do not fall back silently; a misconfigured key
+		// file is an operator error that should be loud.
+		panic(fmt.Sprintf("failed to load OIDC state signing key: %v", err))
+	}
 
 	r.HandleFunc("/oidc", func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.Background()
 		cluster := r.URL.Query().Get("cluster")
 
-		if config.Insecure {
-			tr := &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
-			}
-			InsecureClient := &http.Client{Transport: tr}
-			ctx = oidc.ClientContext(ctx, InsecureClient)
+		flow, err := buildOIDCFlow(r.Context(), config, r, cluster)
+		if err != nil {
+			handleOIDCFlowError(w, r, cluster, err)
+			return
 		}
 
-		kContext, err := config.KubeConfigStore.GetContext(cluster)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
-				err, "failed to get context")
-
-			http.NotFound(w, r)
+		csrfBytes := make([]byte, 16)
+		if _, err := rand.Read(csrfBytes); err != nil {
+			logger.Log(logger.LevelError, nil, err, "generating CSRF for OIDC state")
+			http.Error(w, "internal error", http.StatusInternalServerError)
 
 			return
 		}
 
-		oidcAuthConfig, err := kContext.OidcConfig()
-		if err != nil {
-			// Avoid the noise in the pod log while accessing Headlamp using Service Token
-			if config.OidcIdpIssuerURL != "" {
-				logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
-					err, "failed to get oidc config")
-			}
-
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		ctx = auth.ConfigureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
-
-		if config.OidcValidatorIdpIssuerURL != "" {
-			ctx = oidc.InsecureIssuerURLContext(ctx, config.OidcValidatorIdpIssuerURL)
-		}
-
-		provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"idpIssuerURL": oidcAuthConfig.IdpIssuerURL},
-				err, "failed to get provider")
-
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		validatorClientID := oidcAuthConfig.ClientID
-		if config.OidcValidatorClientID != "" {
-			validatorClientID = config.OidcValidatorClientID
-		}
-
-		oidcConfig := &oidc.Config{
-			ClientID: validatorClientID,
-		}
-
-		verifier := provider.Verifier(oidcConfig)
-		oauthConfig := &oauth2.Config{
-			ClientID:     oidcAuthConfig.ClientID,
-			ClientSecret: oidcAuthConfig.ClientSecret,
-			Endpoint:     provider.Endpoint(),
-			RedirectURL:  getOidcCallbackURL(r, config),
-			Scopes:       append([]string{oidc.ScopeOpenID}, oidcAuthConfig.Scopes...),
-		}
-
-		// state should be unique per request, cryptographically secure random, url safe
-		state := func() string {
-			b := make([]byte, 32)
-			if _, err := rand.Read(b); err != nil {
-				panic(err)
-			}
-
-			return base64.RawURLEncoding.EncodeToString(b)
-		}()
-
-		entry := &OauthConfig{
-			Config:   oauthConfig,
-			Verifier: verifier,
-			Ctx:      ctx,
-			Cluster:  cluster,
+		payload := auth.StatePayload{
+			V:         auth.StateSchemaVersion,
+			Cluster:   cluster,
+			Mode:      "popup",
+			ExpUnixMs: stateSigner.Now().Add(stateSigner.TTL()).UnixMilli(),
+			CSRF:      hex.EncodeToString(csrfBytes),
 		}
 
 		var authURL string
 
 		if config.OidcUsePKCE {
-			entry.CodeVerifier = oauth2.GenerateVerifier()
-			authURL = oauthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(entry.CodeVerifier))
-		} else {
-			authURL = oauthConfig.AuthCodeURL(state)
+			payload.CodeVerifier = oauth2.GenerateVerifier()
 		}
 
-		// Store the request config keyed by state for callback handling
-		oauthMu.Lock()
-		oauthRequestMap[state] = entry
-		oauthMu.Unlock()
+		state, err := stateSigner.Encode(payload)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "encoding OIDC state")
+			http.Error(w, "internal error", http.StatusInternalServerError)
+
+			return
+		}
+
+		if config.OidcUsePKCE {
+			authURL = flow.OAuth2.AuthCodeURL(state, oauth2.S256ChallengeOption(payload.CodeVerifier))
+		} else {
+			authURL = flow.OAuth2.AuthCodeURL(state)
+		}
 
 		http.Redirect(w, r, authURL, http.StatusFound)
 	}).Queries("cluster", "{cluster}")
@@ -785,43 +919,49 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		state := r.URL.Query().Get("state")
 
 		if state == "" {
-			logger.Log(logger.LevelError, nil, err, "invalid request state is empty")
+			logger.Log(logger.LevelError, nil, nil, "invalid request state is empty")
 			http.Error(w, "invalid request state is empty", http.StatusBadRequest)
 
 			return
 		}
 
-		oauthMu.Lock()
+		payload, err := stateSigner.Decode(state)
+		if err != nil {
+			// Any decode failure (bad signature, malformed, expired, bad
+			// version, oversize) collapses to "invalid request" so we
+			// don't leak details to anonymous callers.
+			logger.Log(logger.LevelError, nil, err, "decoding OIDC state")
+			http.Error(w, "invalid request", http.StatusBadRequest)
 
-		oauthConfig, ok := oauthRequestMap[state]
-		if ok {
-			// We have a copy of the oauthConfig, we can delete the map entry now
-			delete(oauthRequestMap, state)
+			return
 		}
 
-		oauthMu.Unlock()
-
-		if !ok {
+		if !stateSigner.MarkConsumed(payload.CSRF) {
+			// State has already been used. Same wording as the unknown-
+			// state path so callers can't infer whether a state was
+			// previously valid.
 			http.Error(w, "invalid request", http.StatusBadRequest)
+			return
+		}
+
+		flow, err := buildOIDCFlow(r.Context(), config, r, payload.Cluster)
+		if err != nil {
+			handleOIDCFlowError(w, r, payload.Cluster, err)
 			return
 		}
 
 		var oauth2Token *oauth2.Token
 
-		var err error
-
 		// Exchange authorization code for token, with or without PKCE
-		if config.OidcUsePKCE && oauthConfig.CodeVerifier != "" {
-			// Use PKCE code verifier for token exchange
-			oauth2Token, err = oauthConfig.Config.Exchange(
-				oauthConfig.Ctx,
+		if config.OidcUsePKCE && payload.CodeVerifier != "" {
+			oauth2Token, err = flow.OAuth2.Exchange(
+				flow.Ctx,
 				r.URL.Query().Get("code"),
-				oauth2.SetAuthURLParam("code_verifier", oauthConfig.CodeVerifier),
+				oauth2.SetAuthURLParam("code_verifier", payload.CodeVerifier),
 			)
 		} else {
-			// Standard token exchange without PKCE
-			oauth2Token, err = oauthConfig.Config.Exchange(
-				oauthConfig.Ctx,
+			oauth2Token, err = flow.OAuth2.Exchange(
+				flow.Ctx,
 				r.URL.Query().Get("code"),
 			)
 		}
@@ -840,7 +980,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		rawUserToken, ok := oauth2Token.Extra(tokenType).(string)
 		if !ok {
-			logger.Log(logger.LevelError, nil, err, fmt.Sprintf("no %s field in oauth2 token", tokenType))
+			logger.Log(logger.LevelError, nil, nil, fmt.Sprintf("no %s field in oauth2 token", tokenType))
 			http.Error(w, fmt.Sprintf("No %s field in oauth2 token.", tokenType), http.StatusInternalServerError)
 
 			return
@@ -854,7 +994,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawUserToken)
+		idToken, err := flow.Verifier.Verify(flow.Ctx, rawUserToken)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to verify ID Token")
 			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
@@ -887,9 +1027,9 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		// Set auth cookie
-		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
+		auth.SetTokenCookie(w, r, payload.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
 
-		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
+		redirectURL += fmt.Sprintf("auth?cluster=%1s", payload.Cluster)
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 	})

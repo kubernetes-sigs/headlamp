@@ -64,6 +64,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 
@@ -135,7 +136,17 @@ func (o *oidcTestServer) URL() string {
 // newOIDCTestHandler builds a Headlamp handler with one OIDC-configured
 // kubeconfig context whose IdP issuer points at the supplied mock server.
 // Returns the handler and the cluster name registered.
+//
+// If signingKeyFile is non-empty, the handler is built with
+// OidcStateSigningKeyFile pointing at it. This lets the multi-replica
+// subtests assert behavior both with and without a shared signing key.
 func newOIDCTestHandler(t *testing.T, oidcSrv *oidcTestServer) (http.Handler, string) {
+	return newOIDCTestHandlerWithKey(t, oidcSrv, "")
+}
+
+func newOIDCTestHandlerWithKey(
+	t *testing.T, oidcSrv *oidcTestServer, signingKeyFile string,
+) (http.Handler, string) {
 	t.Helper()
 
 	const clusterName = "oidc-char-test"
@@ -164,9 +175,10 @@ func newOIDCTestHandler(t *testing.T, oidcSrv *oidcTestServer) (http.Handler, st
 				UseInCluster:    false,
 				KubeConfigStore: kubeConfigStore,
 			},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
+			Cache:                   cache.New[interface{}](),
+			TelemetryConfig:         GetDefaultTestTelemetryConfig(),
+			TelemetryHandler:        &telemetry.RequestHandler{},
+			OidcStateSigningKeyFile: signingKeyFile,
 		},
 	}
 
@@ -223,9 +235,13 @@ func callOIDCCallback(t *testing.T, handler http.Handler, rawQuery string) *http
 	return rr
 }
 
-// TestOIDCStart_StateIsRandom32Bytes covers target #1: each /oidc call
-// issues a fresh, base64-url-encoded 32-byte random state.
-func TestOIDCStart_StateIsRandom32Bytes(t *testing.T) {
+// TestOIDCStart_StateIsSignedToken covers target #1: each /oidc call
+// issues a fresh signed state token. Stage 3 of the PR-1 refactor
+// replaced the original 32-byte random state with an HMAC-signed JSON
+// payload (auth.StateSigner). The state now has the form
+// "<base64url(payload)>.<base64url(HMAC-SHA256))>" — distinct per call
+// because the embedded CSRF is a fresh 16 random bytes per call.
+func TestOIDCStart_StateIsSignedToken(t *testing.T) {
 	oidcSrv := newOIDCTestServer(t, nil)
 	handler, cluster := newOIDCTestHandler(t, oidcSrv)
 
@@ -237,14 +253,20 @@ func TestOIDCStart_StateIsRandom32Bytes(t *testing.T) {
 		loc := driveOIDCStart(t, handler, cluster)
 		state := extractState(t, loc)
 
-		// state is base64.RawURLEncoding-encoded; decode and assert 32 bytes.
-		raw, err := base64.RawURLEncoding.DecodeString(state)
-		require.NoError(t, err, "state %q should be base64.RawURLEncoding", state)
-		require.Equal(t, 32, len(raw),
-			"state should decode to 32 random bytes; got %d bytes", len(raw))
+		// Format: "<bodyB64>.<sigB64>" where sigB64 decodes to 32 bytes.
+		dot := strings.IndexByte(state, '.')
+		require.Greater(t, dot, 0, "state %q missing payload/sig separator", state)
+
+		bodyB64, sigB64 := state[:dot], state[dot+1:]
+		require.NotEmpty(t, bodyB64, "state %q has empty payload segment", state)
+		require.NotEmpty(t, sigB64, "state %q has empty signature segment", state)
+
+		sig, err := base64.RawURLEncoding.DecodeString(sigB64)
+		require.NoError(t, err, "signature %q should be base64.RawURLEncoding", sigB64)
+		require.Equal(t, 32, len(sig), "signature should be 32 bytes (HMAC-SHA256)")
 
 		_, dup := seen[state]
-		require.False(t, dup, "state %q reused across /oidc calls (collision or bug)", state)
+		require.False(t, dup, "state %q reused across /oidc calls (CSRF nonce should make every state distinct)", state)
 		seen[state] = struct{}{}
 	}
 
@@ -358,64 +380,88 @@ func TestOIDCCallback_StateIsSingleUse(t *testing.T) {
 		"replay rejection uses the same body wording as unknown-state")
 }
 
-// TestOIDCCallback_MultiReplicaStateLoss is the explicit regression test
-// for #4019 (multi-replica state loss).
+// TestOIDCCallback_MultiReplica covers the #4019 regression two ways:
 //
-// Two independent handler instances are constructed; each has its own
-// in-process oauthRequestMap because oauthRequestMap is allocated inside
-// createHeadlampHandler at headlamp.go:673. We start the OIDC flow on
-// instance A (which writes the state into A's map) and deliver the
-// callback to instance B (whose map has no such entry). The current
-// behavior is `400 invalid request`.
+//   - without_shared_signing_key: each handler instance generates its own
+//     per-process HMAC key at startup, so a state token issued by A is
+//     rejected as bad-signature when delivered to B. This characterizes
+//     the multi-replica failure mode operators get when they don't set
+//     --oidc-state-signing-key-file.
+//   - with_shared_signing_key: both handlers load the same key from the
+//     same file. A state token issued by A is accepted by B (it
+//     proceeds to token exchange, which fails on our stub /token; the
+//     exact downstream status doesn't matter — what matters is that
+//     state validation succeeded, i.e. the response is not 400 "invalid
+//     request").
 //
-// This test currently asserts THE BUG. When stage 3 of the PR-1 plan in
-// #5401 lands (signed stateless state payload that does not require a
-// shared map), this test must be UPDATED — not deleted — to assert the
-// new behavior:
-//
-//   - if both handlers share a signing key (the new --oidc-state-signing-
-//     key-file flag), the callback to B should succeed (or get to the
-//     token-exchange step, which our mock can be wired to either succeed
-//     or fail at).
-//   - if the handlers do NOT share a signing key, B should reject the
-//     state with a signature-verification error, not a "lookup miss"
-//     (different error path, similar 400).
-//
-// Until that update lands, this test serves as the canonical reproduction
-// of the bug.
-func TestOIDCCallback_MultiReplicaStateLoss(t *testing.T) {
-	oidcSrv := newOIDCTestServer(t, nil)
+// Renamed from TestOIDCCallback_MultiReplicaStateLoss because the test
+// now describes the fix, not the bug.
+func TestOIDCCallback_MultiReplica(t *testing.T) {
+	t.Run("without_shared_signing_key", func(t *testing.T) {
+		oidcSrv := newOIDCTestServer(t, nil)
 
-	handlerA, clusterA := newOIDCTestHandler(t, oidcSrv)
-	handlerB, clusterB := newOIDCTestHandler(t, oidcSrv)
+		handlerA, clusterA := newOIDCTestHandler(t, oidcSrv)
+		handlerB, clusterB := newOIDCTestHandler(t, oidcSrv)
 
-	// Both replicas register the same cluster name (matches the
-	// real-world deployment where two pods see the same kubeconfig).
-	require.Equal(t, clusterA, clusterB,
-		"sanity: replicas reference the same cluster name")
+		require.Equal(t, clusterA, clusterB,
+			"sanity: replicas reference the same cluster name")
 
-	// 1. /oidc on replica A. State is written into A's per-process map.
-	loc := driveOIDCStart(t, handlerA, clusterA)
-	state := extractState(t, loc)
+		loc := driveOIDCStart(t, handlerA, clusterA)
+		state := extractState(t, loc)
 
-	// 2. /oidc-callback on replica B with the state issued by A.
-	rr := callOIDCCallback(t, handlerB, fmt.Sprintf("state=%s&code=fake", state))
+		rr := callOIDCCallback(t, handlerB, fmt.Sprintf("state=%s&code=fake", state))
 
-	// Current behavior: B has no entry, rejects with 400.
-	require.Equal(t, http.StatusBadRequest, rr.Code,
-		"#4019 regression: callback to a different replica returns 400")
+		require.Equal(t, http.StatusBadRequest, rr.Code,
+			"#4019 without shared signing key: B rejects A's signed state with 400")
 
-	body := strings.TrimSpace(rr.Body.String())
-	require.Equal(t, "invalid request", body,
-		"#4019 regression: failure mode is the unknown-state path, not a "+
-			"different error type")
+		body := strings.TrimSpace(rr.Body.String())
+		require.Contains(t, body, "invalid request",
+			"failure mode is the generic invalid-state path; we deliberately "+
+				"don't leak signature-vs-other distinctions to anonymous callers")
+	})
 
-	// Sanity: the state IS recognized on the issuing replica, proving the
-	// failure on B is specifically a per-process map lookup miss and not
-	// some unrelated rejection (e.g. malformed state).
-	rrA := callOIDCCallback(t, handlerA, fmt.Sprintf("state=%s&code=fake", state))
-	require.NotEqual(t, http.StatusBadRequest, rrA.Code,
-		"sanity: replica A should accept the state it issued (token exchange "+
-			"is expected to fail downstream because the test mock is unwired, "+
-			"but state lookup must succeed)")
+	t.Run("with_shared_signing_key", func(t *testing.T) {
+		oidcSrv := newOIDCTestServer(t, nil)
+
+		// Write a shared signing key to a temp file used by both handlers.
+		key := make([]byte, 32)
+		for i := range key {
+			key[i] = byte(0xA0 ^ i) // arbitrary deterministic 32 bytes
+		}
+
+		keyFile := writeTempKeyFile(t, key)
+
+		handlerA, clusterA := newOIDCTestHandlerWithKey(t, oidcSrv, keyFile)
+		handlerB, clusterB := newOIDCTestHandlerWithKey(t, oidcSrv, keyFile)
+
+		require.Equal(t, clusterA, clusterB,
+			"sanity: replicas reference the same cluster name")
+
+		loc := driveOIDCStart(t, handlerA, clusterA)
+		state := extractState(t, loc)
+
+		rr := callOIDCCallback(t, handlerB, fmt.Sprintf("state=%s&code=fake", state))
+
+		require.NotEqual(t, http.StatusBadRequest, rr.Code,
+			"#4019 fix: with shared signing key, B should accept A's state and "+
+				"proceed to the token-exchange step (which our test mock fails, "+
+				"yielding 500 — but state validation has succeeded). got %d body=%q",
+			rr.Code, rr.Body.String())
+	})
+}
+
+// writeTempKeyFile writes the given key bytes to a temp file and returns
+// the path. Used by the multi-replica subtests to give two handler
+// instances the same signing key.
+func writeTempKeyFile(t *testing.T, key []byte) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	path := dir + "/oidc-state-signing.key"
+
+	if err := os.WriteFile(path, key, 0o600); err != nil {
+		t.Fatalf("write key file: %v", err)
+	}
+
+	return path
 }
