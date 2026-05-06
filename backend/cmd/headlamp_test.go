@@ -2265,55 +2265,11 @@ func TestGenerateOidcState(t *testing.T) {
 }
 
 func TestOIDCHandlerReturnsInternalServerErrorWhenStateGenerationFails(t *testing.T) {
-	var oidcProvider *httptest.Server
+	oidcSrv := newOIDCTestServer(t, nil)
+	handler, cluster := newOIDCTestHandler(t, oidcSrv,
+		withStateReader(errReader{err: errors.New("rand failure")}))
 
-	oidcProvider = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		switch r.URL.Path {
-		case "/.well-known/openid-configuration":
-			err := json.NewEncoder(w).Encode(map[string]interface{}{
-				"issuer":                                oidcProvider.URL,
-				"authorization_endpoint":                oidcProvider.URL + "/auth",
-				"token_endpoint":                        oidcProvider.URL + "/token",
-				"jwks_uri":                              oidcProvider.URL + "/keys",
-				"id_token_signing_alg_values_supported": []string{"RS256"},
-			})
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	t.Cleanup(oidcProvider.Close)
-
-	kubeConfigStore := kubeconfig.NewContextStore()
-	err := kubeConfigStore.AddContext(&kubeconfig.Context{
-		Name: "test-cluster",
-		OidcConf: &kubeconfig.OidcConfig{
-			ClientID:     "test-client",
-			ClientSecret: "test-secret",
-			IdpIssuerURL: oidcProvider.URL,
-		},
-	})
-	require.NoError(t, err)
-
-	cfg := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeConfigStore,
-			},
-			Cache:            cache.New[interface{}](),
-			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-		oidcStateReader: errReader{err: errors.New("rand failure")},
-	}
-
-	handler := createHeadlampHandler(context.Background(), cfg)
-	rr, err := getResponse(handler, http.MethodGet, "/oidc?cluster=test-cluster", nil)
+	rr, err := getResponse(handler, http.MethodGet, "/oidc?cluster="+cluster, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
