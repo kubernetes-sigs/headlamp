@@ -49,7 +49,10 @@ export default function AuthVisible(props: AuthVisibleProps) {
   const { item, authVerb, subresource, namespace, onError, onAuthResult, children } = props;
 
   const onAuthResultRef = useRef(onAuthResult);
-  onAuthResultRef.current = onAuthResult;
+
+  useEffect(() => {
+    onAuthResultRef.current = onAuthResult;
+  }, [onAuthResult]);
 
   const isValidAuthVerb = isAuthVerb(authVerb);
 
