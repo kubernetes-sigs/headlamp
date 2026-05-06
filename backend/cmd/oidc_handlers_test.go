@@ -465,3 +465,71 @@ func writeTempKeyFile(t *testing.T, key []byte) string {
 
 	return path
 }
+
+// driveOIDCStartWithQuery is like driveOIDCStart but lets the caller
+// supply a full query string. Used by stage 4 tests that want to add
+// returnTo / mode parameters.
+func driveOIDCStartWithQuery(t *testing.T, handler http.Handler, query string) (*url.URL, *httptest.ResponseRecorder) {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/oidc?"+query, nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusFound {
+		return nil, rr
+	}
+
+	loc := rr.Header().Get("Location")
+	require.NotEmpty(t, loc, "Location header missing on /oidc redirect")
+
+	u, err := url.Parse(loc)
+	require.NoError(t, err)
+
+	return u, rr
+}
+
+// TestOIDCStart_RejectsBadReturnTo covers the /oidc returnTo validation
+// added in stage 4. Open redirect attempts must be rejected with 400 at
+// issue time, before the IdP redirect.
+func TestOIDCStart_RejectsBadReturnTo(t *testing.T) {
+	oidcSrv := newOIDCTestServer(t, nil)
+	handler, cluster := newOIDCTestHandler(t, oidcSrv)
+
+	cases := []string{
+		"https://evil/",
+		"//evil",
+		"/foo/../etc",
+		"javascript:alert(1)",
+	}
+
+	for _, bad := range cases {
+		bad := bad
+		t.Run(bad, func(t *testing.T) {
+			query := fmt.Sprintf("cluster=%s&returnTo=%s", cluster, url.QueryEscape(bad))
+			_, rr := driveOIDCStartWithQuery(t, handler, query)
+
+			require.Equal(t, http.StatusBadRequest, rr.Code,
+				"expected 400 rejecting unsafe returnTo %q, got %d body=%q",
+				bad, rr.Code, rr.Body.String())
+		})
+	}
+}
+
+// TestOIDCStart_RejectsDesktopMode covers the explicit reservation of
+// mode=desktop for PR 2 of #5401.
+func TestOIDCStart_RejectsDesktopMode(t *testing.T) {
+	oidcSrv := newOIDCTestServer(t, nil)
+	handler, cluster := newOIDCTestHandler(t, oidcSrv)
+
+	query := fmt.Sprintf("cluster=%s&mode=desktop", cluster)
+	_, rr := driveOIDCStartWithQuery(t, handler, query)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+	require.Contains(t, rr.Body.String(), "PR 2",
+		"error body should explain that desktop mode is reserved")
+}
+

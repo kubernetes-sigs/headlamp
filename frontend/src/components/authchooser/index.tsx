@@ -37,6 +37,14 @@ import Empty from '../common/EmptyContent';
 import Link from '../common/Link';
 import Loader from '../common/Loader';
 import OauthPopup from '../oidcauth/OauthPopup';
+import { buildOauthUrl } from './buildOauthUrl';
+
+/**
+ * Re-export buildOauthUrl for backward compatibility. Implementation
+ * lives in buildOauthUrl.ts so unit tests can import it without pulling
+ * in Redux / MUI / k8s client layers.
+ */
+export { buildOauthUrl };
 
 function ColorButton({ children, ...rest }: ComponentProps<typeof Button>) {
   return (
@@ -74,6 +82,32 @@ function AuthChooser({ children }: AuthChooserProps) {
   }
 
   const numClusters = Object.keys(clusters || {}).length;
+
+  // Build the OIDC kickoff URL.
+  //
+  // returnTo: prefer location.state.from (set by ProtectedRoute when the
+  // user was redirected here from a deep-link), falling back to the
+  // current pathname+search so a refresh on the AuthChooser still
+  // preserves where the user was trying to go. Fragments are stripped:
+  // the backend rejects "#" in returnTo and they don't survive a
+  // server-side redirect anyway.
+  //
+  // mode=popup matches the existing button-driven popup flow. fullPage
+  // is for direct navigation entries (e.g. a bookmark hitting /oidc) and
+  // future autologin work; the AuthChooser button always uses popup.
+  const oauthUrl = React.useMemo(() => {
+    const fromTyped = from as Location | undefined;
+    return buildOauthUrl(
+      getAppUrl(),
+      getCluster() || '',
+      'popup',
+      fromTyped?.pathname || '',
+      fromTyped?.search || '',
+      typeof window !== 'undefined' ? window.location.pathname || '' : '',
+      typeof window !== 'undefined' ? window.location.search || '' : '',
+      Date()
+    );
+  }, [from, clusterName]);
 
   function runTestAuthAgain() {
     setError(null);
@@ -204,7 +238,7 @@ function AuthChooser({ children }: AuthChooserProps) {
           : t('Authentication')
       }
       error={error}
-      oauthUrl={`${getAppUrl()}oidc?dt=${Date()}&cluster=${getCluster()}`}
+      oauthUrl={oauthUrl}
       clusterAuthType={clusterAuthType}
       handleTryAgain={runTestAuthAgain}
       handleOidcAuth={() => {

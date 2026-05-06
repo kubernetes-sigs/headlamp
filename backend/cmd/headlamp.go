@@ -866,6 +866,45 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	r.HandleFunc("/oidc", func(w http.ResponseWriter, r *http.Request) {
 		cluster := r.URL.Query().Get("cluster")
 
+		// mode controls how /oidc-callback redirects after a successful
+		// token exchange. "popup" preserves the legacy /auth?cluster=...
+		// contract; "fullPage" redirects directly to returnTo (or the
+		// cluster root if returnTo is absent). "desktop" is reserved for
+		// PR 2 of #5401 and is rejected here so its eventual semantics
+		// can't be silently established by abuse.
+		mode := r.URL.Query().Get("mode")
+		switch mode {
+		case "":
+			mode = "popup"
+		case "popup", "fullPage":
+			// ok
+		case "desktop":
+			http.Error(w,
+				"mode=desktop is reserved for the desktop OIDC code-handoff flow (PR 2 of #5401) "+
+					"and is not yet supported",
+				http.StatusBadRequest)
+
+			return
+		default:
+			http.Error(w, "invalid mode", http.StatusBadRequest)
+			return
+		}
+
+		var validatedReturnTo string
+
+		if rawReturnTo := r.URL.Query().Get("returnTo"); rawReturnTo != "" {
+			cleaned, vErr := auth.ValidateReturnTo(rawReturnTo, "")
+			if vErr != nil {
+				logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+					vErr, "rejected returnTo on /oidc")
+				http.Error(w, "invalid returnTo", http.StatusBadRequest)
+
+				return
+			}
+
+			validatedReturnTo = cleaned
+		}
+
 		flow, err := buildOIDCFlow(r.Context(), config, r, cluster)
 		if err != nil {
 			handleOIDCFlowError(w, r, cluster, err)
@@ -883,7 +922,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		payload := auth.StatePayload{
 			V:         auth.StateSchemaVersion,
 			Cluster:   cluster,
-			Mode:      "popup",
+			Mode:      mode,
+			ReturnTo:  validatedReturnTo,
 			ExpUnixMs: stateSigner.Now().Add(stateSigner.TTL()).UnixMilli(),
 			CSRF:      hex.EncodeToString(csrfBytes),
 		}
@@ -1029,7 +1069,45 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		// Set auth cookie
 		auth.SetTokenCookie(w, r, payload.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
 
-		redirectURL += fmt.Sprintf("auth?cluster=%1s", payload.Cluster)
+		// Re-validate returnTo at consumption time (defense in depth: even
+		// though the value was validated at /oidc and signed into the
+		// state, a future schema change or signing-key compromise should
+		// not be able to convert state into an arbitrary open redirect).
+		safeReturnTo := ""
+		if payload.ReturnTo != "" {
+			cleaned, vErr := auth.ValidateReturnTo(payload.ReturnTo, "")
+			if vErr == nil {
+				safeReturnTo = cleaned
+			} else {
+				logger.Log(logger.LevelError, map[string]string{"cluster": payload.Cluster},
+					vErr, "rejected returnTo on /oidc-callback (signed state had unsafe returnTo)")
+			}
+		}
+
+		switch payload.Mode {
+		case "fullPage":
+			// Skip /auth entirely. Redirect straight to returnTo, or to
+			// the cluster root if returnTo is absent or unsafe.
+			if safeReturnTo != "" {
+				redirectURL = safeReturnTo
+			} else {
+				redirectURL += fmt.Sprintf("c/%s/", payload.Cluster)
+			}
+		case "desktop":
+			// Belt-and-suspenders: /oidc rejects mode=desktop, but signed
+			// state could in principle carry it via a different code path.
+			http.Error(w, "mode=desktop is not yet supported", http.StatusBadRequest)
+			return
+		default:
+			// "popup" (and unset, treated as popup): preserve the existing
+			// /auth?cluster=... contract, optionally with returnTo so the
+			// /auth page can finish navigating after the popup-storage
+			// handshake.
+			redirectURL += fmt.Sprintf("auth?cluster=%s", payload.Cluster)
+			if safeReturnTo != "" {
+				redirectURL += "&returnTo=" + url.QueryEscape(safeReturnTo)
+			}
+		}
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 	})
