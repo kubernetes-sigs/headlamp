@@ -31,10 +31,49 @@ import { JSON_HEADERS } from './constants';
 /**
  * Test authentication for the given cluster.
  * Will throw an error if the user is not authenticated.
+ *
+ * For OIDC clusters (auth_type === 'oidc'), this calls the headlamp-server
+ * `/clusters/{cluster}/me` endpoint, which validates the per-cluster auth
+ * cookie. If the cookie is missing or expired, the server returns 401 or
+ * a `system:anonymous` identity, both of which we treat as
+ * "not-authenticated" so the caller routes the user to AuthChooser.
+ *
+ * This works around the SSRR false-positive reported in #4721: when
+ * `system:basic-user` is granted to `system:unauthenticated`, SSRR
+ * returns HTTP 201 for both anonymous and authenticated callers, so it
+ * cannot be used as the auth signal on those clusters.
+ *
+ * For non-OIDC clusters, behavior is unchanged: SSRR is the auth signal.
  */
 export async function testAuth(cluster = '', namespace = 'default') {
-  const spec = { namespace };
   const clusterName = cluster || getCluster();
+
+  if (clusterName) {
+    const clusterAuthType = store.getState().config?.clusters?.[clusterName]?.auth_type;
+
+    if (clusterAuthType === 'oidc') {
+      // /me returns 401 when the auth cookie is missing or invalid;
+      // returns identity JSON otherwise. We treat a successful response
+      // whose username starts with system:anonymous as not-authenticated
+      // (the apiserver's stand-in identity for unauthenticated requests
+      // when anonymous auth is enabled).
+      const me = await clusterRequest('/me', {
+        timeout: 5 * 1000,
+        cluster: clusterName,
+      });
+
+      const username: string = (me && (me.username || me.user?.username)) || '';
+      if (!username || username.startsWith('system:anonymous')) {
+        const err = new Error('not authenticated') as Error & { status?: number };
+        err.status = 401;
+        throw err;
+      }
+
+      return me;
+    }
+  }
+
+  const spec = { namespace };
 
   return post('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', { spec }, false, {
     timeout: 5 * 1000,
