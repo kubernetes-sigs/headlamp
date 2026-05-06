@@ -32,12 +32,30 @@ import { useHistory, useLocation } from 'react-router-dom';
 // main page…" hang reported in #4877 / #2126.
 export const OIDCAuthFallbackDelayMs = 250;
 
+// isSafeReturnTo restricts returnTo to same-origin path-only values to
+// prevent open-redirect attacks via the ?returnTo= query parameter.
+// Accepts: paths starting with a single "/" that are not protocol-relative
+// ("//host"), do not embed a scheme ("://"), and contain no ".." segments.
+function isSafeReturnTo(value: string): boolean {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) {
+    return false;
+  }
+  if (value.includes('://')) {
+    return false;
+  }
+  if (/(^|\/)\.\.(\/|$)/.test(value)) {
+    return false;
+  }
+  return true;
+}
+
 const OIDCAuth: FunctionComponent<{}> = () => {
   const location = useLocation();
   const history = useHistory();
   const urlSearchParams = new URLSearchParams(location.search);
   const cluster = urlSearchParams.get('cluster');
-  const returnTo = urlSearchParams.get('returnTo') || '';
+  const rawReturnTo = urlSearchParams.get('returnTo') || '';
+  const returnTo = isSafeReturnTo(rawReturnTo) ? rawReturnTo : '';
   const { t } = useTranslation();
 
   useEffect(() => {

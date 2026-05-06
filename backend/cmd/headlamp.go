@@ -404,10 +404,14 @@ const minOIDCSigningKeyBytes = 32
 // oidcFlow bundles the per-request OIDC plumbing needed by both /oidc and
 // /oidc-callback. Reconstructing it on the callback (rather than caching
 // it across requests) is what makes signed state portable across replicas.
+//
+// The request-scoped context with TLS / issuer overrides is returned
+// alongside the flow rather than stored on it, so callers stay honest
+// about cancellation. Idiomatic Go (and contextcheck) avoids storing
+// context in struct fields.
 type oidcFlow struct {
 	OAuth2   *oauth2.Config
 	Verifier *oidc.IDTokenVerifier
-	Ctx      context.Context
 }
 
 // loadOIDCStateSigner constructs the StateSigner used by /oidc and
@@ -439,7 +443,7 @@ func loadOIDCStateSigner(config *HeadlampConfig) (*auth.StateSigner, error) {
 		logger.Log(logger.LevelInfo, nil, nil,
 			"OIDC state signing key loaded from --oidc-state-signing-key-file")
 
-		return auth.NewStateSigner(key, oidcStateTTL, oidcStateLRUSize), nil
+		return auth.NewStateSigner(key, oidcStateTTL, auth.WithLRUSize(oidcStateLRUSize)), nil
 	}
 
 	key := make([]byte, minOIDCSigningKeyBytes)
@@ -451,12 +455,12 @@ func loadOIDCStateSigner(config *HeadlampConfig) (*auth.StateSigner, error) {
 		"OIDC state signing key generated per-process. For multi-replica "+
 			"deployments, set --oidc-state-signing-key-file=<path> with a shared key file.")
 
-	return auth.NewStateSigner(key, oidcStateTTL, oidcStateLRUSize), nil
+	return auth.NewStateSigner(key, oidcStateTTL, auth.WithLRUSize(oidcStateLRUSize)), nil
 }
 
 // buildOIDCFlow constructs the per-request OIDC plumbing — the OAuth2
-// config, the ID-token verifier, and the request context with the right
-// TLS / issuer overrides applied.
+// config and the ID-token verifier — and returns the request context
+// with the right TLS / issuer overrides applied.
 //
 // Both /oidc and /oidc-callback call this. Building it on the callback
 // (instead of caching the /oidc result in a per-process map) is what makes
@@ -465,7 +469,7 @@ func loadOIDCStateSigner(config *HeadlampConfig) (*auth.StateSigner, error) {
 // on any replica that has the same kubeconfig.
 func buildOIDCFlow(ctx context.Context, config *HeadlampConfig, r *http.Request,
 	cluster string,
-) (*oidcFlow, error) {
+) (*oidcFlow, context.Context, error) {
 	if config.Insecure {
 		tr := &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
@@ -476,12 +480,12 @@ func buildOIDCFlow(ctx context.Context, config *HeadlampConfig, r *http.Request,
 
 	kContext, err := config.KubeConfigStore.GetContext(cluster)
 	if err != nil {
-		return nil, &oidcFlowError{kind: oidcFlowErrCluster, cluster: cluster, err: err}
+		return nil, ctx, &errFlowCluster{cluster: cluster, err: err}
 	}
 
 	oidcAuthConfig, err := kContext.OidcConfig()
 	if err != nil {
-		return nil, &oidcFlowError{kind: oidcFlowErrOIDCConfig, cluster: cluster, err: err}
+		return nil, ctx, &errFlowOIDCConfig{cluster: cluster, err: err}
 	}
 
 	ctx = auth.ConfigureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
@@ -492,10 +496,7 @@ func buildOIDCFlow(ctx context.Context, config *HeadlampConfig, r *http.Request,
 
 	provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
 	if err != nil {
-		return nil, &oidcFlowError{
-			kind: oidcFlowErrProvider, cluster: cluster, err: err,
-			extra: map[string]string{"idpIssuerURL": oidcAuthConfig.IdpIssuerURL},
-		}
+		return nil, ctx, &errFlowProvider{issuerURL: oidcAuthConfig.IdpIssuerURL, err: err}
 	}
 
 	validatorClientID := oidcAuthConfig.ClientID
@@ -512,63 +513,63 @@ func buildOIDCFlow(ctx context.Context, config *HeadlampConfig, r *http.Request,
 		Scopes:       append([]string{oidc.ScopeOpenID}, oidcAuthConfig.Scopes...),
 	}
 
-	return &oidcFlow{OAuth2: oauthConfig, Verifier: verifier, Ctx: ctx}, nil
+	return &oidcFlow{OAuth2: oauthConfig, Verifier: verifier}, ctx, nil
 }
 
-// oidcFlowErrKind classifies failures from buildOIDCFlow so callers can
-// translate them into the right HTTP status without re-doing the typing.
-type oidcFlowErrKind int
-
-const (
-	oidcFlowErrCluster oidcFlowErrKind = iota
-	oidcFlowErrOIDCConfig
-	oidcFlowErrProvider
-)
-
-type oidcFlowError struct {
-	kind    oidcFlowErrKind
+// Concrete buildOIDCFlow error types. handleOIDCFlowError dispatches via
+// errors.As so each carries exactly the fields its caller needs and there
+// is no untyped `extra` map to drift.
+type errFlowCluster struct {
 	cluster string
 	err     error
-	extra   map[string]string
 }
 
-func (e *oidcFlowError) Error() string { return e.err.Error() }
-func (e *oidcFlowError) Unwrap() error { return e.err }
+func (e *errFlowCluster) Error() string { return e.err.Error() }
+func (e *errFlowCluster) Unwrap() error { return e.err }
 
-// handleOIDCFlowError preserves the existing HTTP contract from
-// /oidc and /oidc-callback for buildOIDCFlow failures: 404 on missing
-// cluster, 500 on OIDC config / provider failure. The wording matches
-// the pre-refactor handler so the public-facing error surface is
-// unchanged.
-func handleOIDCFlowError(w http.ResponseWriter, r *http.Request, cluster string, err error) {
-	var fe *oidcFlowError
-	if !errors.As(err, &fe) {
-		logger.Log(logger.LevelError, map[string]string{"cluster": cluster}, err, "OIDC flow error")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+type errFlowOIDCConfig struct {
+	cluster string
+	err     error
+}
 
-		return
-	}
+func (e *errFlowOIDCConfig) Error() string { return e.err.Error() }
+func (e *errFlowOIDCConfig) Unwrap() error { return e.err }
 
-	switch fe.kind {
-	case oidcFlowErrCluster:
-		logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
-			fe.err, "failed to get context")
+type errFlowProvider struct {
+	issuerURL string
+	err       error
+}
+
+func (e *errFlowProvider) Error() string { return e.err.Error() }
+func (e *errFlowProvider) Unwrap() error { return e.err }
+
+// handleOIDCFlowError translates buildOIDCFlow failures into HTTP
+// responses: 404 for missing cluster, 500 for OIDC config / provider
+// failure. Logs the full error server-side; the HTTP body is generic
+// to avoid leaking IdP-supplied error strings to anonymous callers.
+func handleOIDCFlowError(w http.ResponseWriter, r *http.Request, err error) {
+	var (
+		clusterErr  *errFlowCluster
+		configErr   *errFlowOIDCConfig
+		providerErr *errFlowProvider
+	)
+
+	switch {
+	case errors.As(err, &clusterErr):
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterErr.cluster},
+			clusterErr.err, "failed to get context")
 		http.NotFound(w, r)
-	case oidcFlowErrOIDCConfig:
-		// Pre-refactor behavior: log "failed to get oidc config" only when
-		// in-cluster OIDC is configured; otherwise the error is expected
-		// for Service-Token-only contexts and would just be log noise.
-		// We can't easily access HeadlampConfig here without threading it,
-		// so we always log at debug-equivalent severity. The HTTP response
-		// is unchanged.
-		logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
-			fe.err, "failed to get oidc config")
-		http.Error(w, fe.err.Error(), http.StatusInternalServerError)
-	case oidcFlowErrProvider:
-		logger.Log(logger.LevelError, fe.extra, fe.err, "failed to get provider")
-		http.Error(w, fe.err.Error(), http.StatusInternalServerError)
+	case errors.As(err, &configErr):
+		logger.Log(logger.LevelError, map[string]string{"cluster": configErr.cluster},
+			configErr.err, "failed to get oidc config")
+		http.Error(w, "oidc not configured for cluster", http.StatusInternalServerError)
+	case errors.As(err, &providerErr):
+		logger.Log(logger.LevelError, map[string]string{"idpIssuerURL": providerErr.issuerURL},
+			providerErr.err, "failed to get provider")
+		http.Error(w, "oidc provider unavailable", http.StatusInternalServerError)
 	default:
-		http.Error(w, fe.err.Error(), http.StatusInternalServerError)
+		logger.Log(logger.LevelError, nil, err, "OIDC flow error")
+		http.Error(w, "internal error", http.StatusInternalServerError)
 	}
 }
 
@@ -952,9 +953,15 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// rejected (see #4019).
 	stateSigner, err := loadOIDCStateSigner(config)
 	if err != nil {
+		// A bad --oidc-state-signing-key-file (unreadable, too short) is
+		// an operator startup error and not survivable. We panic instead
+		// of returning the error to keep createHeadlampHandler's
+		// signature unchanged across many call sites; the recovery path
+		// in production is "fix the file and restart the binary".
+		// loadOIDCStateSigner only errors on file IO + length validation,
+		// not on the per-process default-key path, so tests that don't
+		// exercise the bad-key code path are unaffected.
 		logger.Log(logger.LevelError, nil, err, "loading OIDC state signing key")
-		// We deliberately do not fall back silently; a misconfigured key
-		// file is an operator error that should be loud.
 		panic(fmt.Sprintf("failed to load OIDC state signing key: %v", err))
 	}
 
@@ -962,21 +969,21 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		cluster := r.URL.Query().Get("cluster")
 
 		// mode controls how /oidc-callback redirects after a successful
-		// token exchange. "popup" preserves the legacy /auth?cluster=...
-		// contract; "fullPage" redirects directly to returnTo (or the
-		// cluster root if returnTo is absent). "desktop" is reserved for
-		// PR 2 of #5401 and is rejected here so its eventual semantics
-		// can't be silently established by abuse.
-		mode := r.URL.Query().Get("mode")
+		// token exchange. ModePopup preserves the legacy /auth?cluster=...
+		// contract; ModeFullPage redirects directly to returnTo (or the
+		// cluster root if returnTo is absent). ModeDesktop is reserved
+		// for PR 2 of #5401 and is rejected here so its eventual
+		// semantics can't be silently established by abuse.
+		mode := auth.StateMode(r.URL.Query().Get("mode"))
 		switch mode {
 		case "":
-			mode = "popup"
-		case "popup", "fullPage":
+			mode = auth.ModePopup
+		case auth.ModePopup, auth.ModeFullPage:
 			// ok
-		case "desktop":
+		case auth.ModeDesktop:
 			http.Error(w,
-				"mode=desktop is reserved for the desktop OIDC code-handoff flow (PR 2 of #5401) "+
-					"and is not yet supported",
+				"mode=desktop is reserved for the desktop OIDC code-handoff flow "+
+					"(see kubernetes-sigs/headlamp#5401, PR 2) and is not yet supported",
 				http.StatusBadRequest)
 
 			return
@@ -988,7 +995,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		var validatedReturnTo string
 
 		if rawReturnTo := r.URL.Query().Get("returnTo"); rawReturnTo != "" {
-			cleaned, vErr := auth.ValidateReturnTo(rawReturnTo, "")
+			cleaned, vErr := auth.ValidateReturnTo(rawReturnTo, config.BaseURL)
 			if vErr != nil {
 				logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
 					vErr, "rejected returnTo on /oidc")
@@ -1000,9 +1007,9 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			validatedReturnTo = cleaned
 		}
 
-		flow, err := buildOIDCFlow(r.Context(), config, r, cluster)
+		flow, _, err := buildOIDCFlow(r.Context(), config, r, cluster)
 		if err != nil {
-			handleOIDCFlowError(w, r, cluster, err)
+			handleOIDCFlowError(w, r, err)
 			return
 		}
 
@@ -1015,12 +1022,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		payload := auth.StatePayload{
-			V:         auth.StateSchemaVersion,
-			Cluster:   cluster,
-			Mode:      mode,
-			ReturnTo:  validatedReturnTo,
-			ExpUnixMs: stateSigner.Now().Add(stateSigner.TTL()).UnixMilli(),
-			CSRF:      hex.EncodeToString(csrfBytes),
+			Cluster:  cluster,
+			Mode:     mode,
+			ReturnTo: validatedReturnTo,
+			CSRF:     hex.EncodeToString(csrfBytes),
 		}
 
 		var authURL string
@@ -1088,9 +1093,9 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		flow, err := buildOIDCFlow(r.Context(), config, r, payload.Cluster)
+		flow, flowCtx, err := buildOIDCFlow(r.Context(), config, r, payload.Cluster)
 		if err != nil {
-			handleOIDCFlowError(w, r, payload.Cluster, err)
+			handleOIDCFlowError(w, r, err)
 			return
 		}
 
@@ -1099,20 +1104,30 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		// Exchange authorization code for token, with or without PKCE
 		if config.OidcUsePKCE && payload.CodeVerifier != "" {
 			oauth2Token, err = flow.OAuth2.Exchange(
-				flow.Ctx,
+				flowCtx,
 				r.URL.Query().Get("code"),
 				oauth2.SetAuthURLParam("code_verifier", payload.CodeVerifier),
 			)
 		} else {
 			oauth2Token, err = flow.OAuth2.Exchange(
-				flow.Ctx,
+				flowCtx,
 				r.URL.Query().Get("code"),
 			)
 		}
 
 		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to exchange token")
-			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
+			// Don't echo the upstream OAuth2 error body to the browser;
+			// it can carry full IdP HTTP response bodies including
+			// internal addresses or stack traces. Log the full detail
+			// server-side and surface a generic message via
+			// oidcCallbackError so the response shape matches the rest
+			// of the 4xx/5xx paths.
+			logger.Log(logger.LevelError, map[string]string{"cluster": payload.Cluster},
+				err, "failed to exchange token")
+			oidcCallbackError(w, r, http.StatusInternalServerError,
+				"Failed to exchange token",
+				"The identity provider rejected the sign-in. Please try again.",
+				payload.Cluster, config.BaseURL)
 
 			return
 		}
@@ -1138,7 +1153,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		idToken, err := flow.Verifier.Verify(flow.Ctx, rawUserToken)
+		idToken, err := flow.Verifier.Verify(flowCtx, rawUserToken)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to verify ID Token")
 			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
@@ -1177,9 +1192,11 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		// though the value was validated at /oidc and signed into the
 		// state, a future schema change or signing-key compromise should
 		// not be able to convert state into an arbitrary open redirect).
+		// We pass config.BaseURL so the validator also enforces the
+		// sub-path prefix when one is configured.
 		safeReturnTo := ""
 		if payload.ReturnTo != "" {
-			cleaned, vErr := auth.ValidateReturnTo(payload.ReturnTo, "")
+			cleaned, vErr := auth.ValidateReturnTo(payload.ReturnTo, config.BaseURL)
 			if vErr == nil {
 				safeReturnTo = cleaned
 			} else {
@@ -1188,26 +1205,28 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			}
 		}
 
+		escapedCluster := url.PathEscape(payload.Cluster)
+
 		switch payload.Mode {
-		case "fullPage":
+		case auth.ModeFullPage:
 			// Skip /auth entirely. Redirect straight to returnTo, or to
 			// the cluster root if returnTo is absent or unsafe.
 			if safeReturnTo != "" {
 				redirectURL = safeReturnTo
 			} else {
-				redirectURL += fmt.Sprintf("c/%s/", payload.Cluster)
+				redirectURL += "c/" + escapedCluster + "/"
 			}
-		case "desktop":
+		case auth.ModeDesktop:
 			// Belt-and-suspenders: /oidc rejects mode=desktop, but signed
 			// state could in principle carry it via a different code path.
 			http.Error(w, "mode=desktop is not yet supported", http.StatusBadRequest)
 			return
 		default:
-			// "popup" (and unset, treated as popup): preserve the existing
-			// /auth?cluster=... contract, optionally with returnTo so the
-			// /auth page can finish navigating after the popup-storage
-			// handshake.
-			redirectURL += fmt.Sprintf("auth?cluster=%s", payload.Cluster)
+			// ModePopup (and unset, treated as popup): preserve the
+			// existing /auth?cluster=... contract, optionally with
+			// returnTo so the /auth page can finish navigating after the
+			// popup-storage handshake.
+			redirectURL += "auth?cluster=" + url.QueryEscape(payload.Cluster)
 			if safeReturnTo != "" {
 				redirectURL += "&returnTo=" + url.QueryEscape(safeReturnTo)
 			}

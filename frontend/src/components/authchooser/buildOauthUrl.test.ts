@@ -17,7 +17,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildOauthUrl } from './buildOauthUrl';
 
-const FIXED_NOW = 'Wed May 06 2026 00:00:00 GMT+0000';
+const FIXED_NOW = '1714953600000';
 
 function parseQuery(url: string): URLSearchParams {
   const q = url.split('?')[1] || '';

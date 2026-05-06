@@ -61,10 +61,15 @@ test.describe('OIDC login (PR-1 stages 1-7)', () => {
     await page.fill('input[name="password"]', password);
     await page.click('button[type="submit"]');
 
-    // Some Dex deployments have an explicit "Grant access" approval.
-    const approve = page.locator('button:has-text("Grant Access")');
-    if (await approve.count()) {
-      await approve.first().click();
+    // Some Dex deployments add an explicit consent step. Wait briefly
+    // for the button to render and become interactive; if it never
+    // appears, assume this Dex deployment doesn't have it and continue.
+    const approve = page.getByRole('button', { name: /grant access/i });
+    try {
+      await approve.waitFor({ state: 'visible', timeout: 2000 });
+      await approve.click();
+    } catch {
+      // No consent step on this Dex install. Proceed.
     }
   }
 

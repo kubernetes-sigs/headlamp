@@ -29,18 +29,53 @@ import (
 	"time"
 )
 
+// StateMode is the redirect-flow shape carried in StatePayload.Mode.
+// Centralizing the valid set here lets callers (the /oidc and
+// /oidc-callback handlers) compare against typed constants instead of
+// stringly-typed values, and lets the desktop reservation be enforced
+// in one place.
+type StateMode string
+
+const (
+	// ModePopup is the default; AuthChooser opens /oidc in a popup window
+	// and the callback redirects through /auth so the popup can hand the
+	// auth-success signal to its opener.
+	ModePopup StateMode = "popup"
+	// ModeFullPage is for direct navigation entries; the callback
+	// redirects straight to ReturnTo, skipping /auth.
+	ModeFullPage StateMode = "fullPage"
+	// ModeDesktop is reserved for the PR-2 desktop OIDC code-handoff
+	// flow. /oidc rejects it with 400 today.
+	ModeDesktop StateMode = "desktop"
+)
+
+// Valid reports whether m is one of the recognized StateModes.
+func (m StateMode) Valid() bool {
+	switch m {
+	case ModePopup, ModeFullPage, ModeDesktop:
+		return true
+	default:
+		return false
+	}
+}
+
 // StatePayload is the JSON payload that round-trips between the /oidc and
 // /oidc-callback handlers via the OAuth2 `state` query parameter. It carries
 // everything the callback needs to reconstruct the OIDC config and verify
 // the request without per-process server state.
 type StatePayload struct {
-	V            int    `json:"v"`       // schema version, currently 1
-	Cluster      string `json:"cluster"` // cluster name from /oidc query
-	Mode         string `json:"mode"`    // "popup" | "fullPage" | "desktop"
-	ReturnTo     string `json:"returnTo,omitempty"`
-	CodeVerifier string `json:"codeVerifier"` // PKCE
-	ExpUnixMs    int64  `json:"exp"`          // unix milliseconds
-	CSRF         string `json:"csrf"`         // 16 random bytes hex
+	V            int       `json:"v"`       // schema version, currently 1
+	Cluster      string    `json:"cluster"` // cluster name from /oidc query
+	Mode         StateMode `json:"mode"`
+	ReturnTo     string    `json:"returnTo,omitempty"`
+	CodeVerifier string    `json:"codeVerifier,omitempty"` // PKCE; absent when PKCE is off
+	// ExpUnixMs is the absolute expiry time in unix milliseconds.
+	// The wire-format key is "expMs" (not the JWT-conventional "exp",
+	// which is unix seconds) so debuggers and log aggregators don't
+	// misread the unit by a factor of 1000. Encode populates this
+	// automatically from the signer's clock + TTL; Decode requires it.
+	ExpUnixMs int64  `json:"expMs"`
+	CSRF      string `json:"csrf"` // 16 random bytes hex
 }
 
 // StateSchemaVersion is the only schema version the StateSigner accepts.
@@ -53,6 +88,10 @@ const MaxStatePayloadBytes = 4 * 1024
 // MinStateKeyBytes is the smallest acceptable HMAC key length.
 const MinStateKeyBytes = 32
 
+// defaultLRUSize is the consumed-CSRF cache size used when the caller
+// doesn't supply WithLRUSize.
+const defaultLRUSize = 1024
+
 // Errors returned by StateSigner.Decode. Callers should not echo error
 // details to end users; treat any error as "invalid request".
 var (
@@ -61,20 +100,42 @@ var (
 	ErrStateBadVersion    = errors.New("state bad schema version")
 	ErrStateExpired       = errors.New("state expired")
 	ErrStatePayloadTooBig = errors.New("state payload too large")
+	ErrStateMissingCSRF   = errors.New("state missing CSRF")
+	ErrStateMissingExpiry = errors.New("state missing expiry")
 )
 
-// Clock is the time source used by StateSigner. Production uses time.Now;
-// tests inject a fake clock to drive expiry deterministically.
-type Clock func() time.Time
+// clockFn is the time source used by StateSigner. Production uses
+// time.Now; tests inject a fake clock to drive expiry deterministically.
+// Unexported so the type's API surface stays minimal.
+type clockFn func() time.Time
+
+// SignerOption configures a StateSigner at construction time.
+type SignerOption func(*StateSigner)
+
+// WithClock replaces the time source. Intended for tests so expiry can
+// be driven without sleeping. Has no effect on existing in-flight calls.
+func WithClock(c func() time.Time) SignerOption {
+	return func(s *StateSigner) { s.clock = c }
+}
+
+// WithLRUSize overrides the consumed-CSRF cache capacity.
+func WithLRUSize(n int) SignerOption {
+	return func(s *StateSigner) {
+		if n > 0 {
+			s.lruSize = n
+		}
+	}
+}
 
 // StateSigner encodes and decodes signed state tokens for the OIDC handlers,
 // and tracks consumed CSRF identifiers to enforce single-use semantics.
 //
-// A StateSigner is safe for concurrent use by multiple goroutines.
+// A StateSigner is safe for concurrent use by multiple goroutines; all
+// fields are either immutable after construction or guarded by mu.
 type StateSigner struct {
 	key   []byte
 	ttl   time.Duration
-	clock Clock
+	clock clockFn
 
 	mu       sync.Mutex
 	lru      *list.List
@@ -85,39 +146,43 @@ type StateSigner struct {
 // NewStateSigner constructs a StateSigner.
 //
 // key must be at least MinStateKeyBytes long; shorter keys panic so that
-// misconfiguration is loud rather than silent. ttl is the maximum age a
-// token may have before Decode rejects it. lruSize bounds the consumed-CSRF
-// cache; a typical value is 1024.
-func NewStateSigner(key []byte, ttl time.Duration, lruSize int) *StateSigner {
+// misconfiguration is loud rather than silent. ttl is the expiry stamped
+// on every Encode call (now + ttl).
+//
+// Optional behaviors are configured via SignerOptions: WithClock for tests,
+// WithLRUSize to override the consumed-CSRF cache capacity (default 1024).
+func NewStateSigner(key []byte, ttl time.Duration, opts ...SignerOption) *StateSigner {
 	if len(key) < MinStateKeyBytes {
 		panic(fmt.Sprintf("auth.NewStateSigner: key must be >= %d bytes, got %d", MinStateKeyBytes, len(key)))
 	}
 
-	if lruSize <= 0 {
-		lruSize = 1024
-	}
-
-	return &StateSigner{
+	s := &StateSigner{
 		key:      append([]byte(nil), key...),
 		ttl:      ttl,
 		clock:    time.Now,
 		lru:      list.New(),
-		consumed: make(map[string]*list.Element, lruSize),
-		lruSize:  lruSize,
+		consumed: make(map[string]*list.Element, defaultLRUSize),
+		lruSize:  defaultLRUSize,
 	}
-}
 
-// SetClock overrides the time source. Intended for tests.
-func (s *StateSigner) SetClock(c Clock) {
-	s.clock = c
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	return s
 }
 
 // Encode serializes p as base64url(json) + "." + base64url(HMAC-SHA256).
 // The encoding is URL-safe and fits comfortably inside a query parameter.
+//
+// Encode stamps the schema version and expiry automatically; callers don't
+// need to set p.V or p.ExpUnixMs (and any value they pass is overwritten).
+// Encode does not validate Mode — the handler is responsible for refusing
+// callers that ask for unsupported modes (it knows which modes the deploy
+// supports; the package-level constants only describe what's representable).
 func (s *StateSigner) Encode(p StatePayload) (string, error) {
-	if p.V == 0 {
-		p.V = StateSchemaVersion
-	}
+	p.V = StateSchemaVersion
+	p.ExpUnixMs = s.clock().Add(s.ttl).UnixMilli()
 
 	body, err := json.Marshal(p)
 	if err != nil {
@@ -137,12 +202,18 @@ func (s *StateSigner) Encode(p StatePayload) (string, error) {
 	return bodyB64 + "." + sig, nil
 }
 
-// Decode verifies the signature, schema version, payload size, and expiry,
-// returning the parsed payload on success.
+// Decode verifies the signature, schema version, payload size, expiry,
+// and CSRF presence, returning the parsed payload on success.
 //
 // Decode does NOT mark the payload's CSRF as consumed; callers invoke
 // MarkConsumed separately so that the consume step happens after any other
 // validations that might reject the request.
+//
+// A token whose ExpUnixMs is zero is rejected with ErrStateMissingExpiry
+// — there is no "never expires" mode. A token whose CSRF is empty is
+// rejected with ErrStateMissingCSRF, since the single-use guarantee is
+// keyed on CSRF and an empty key would silently degrade to "every replay
+// passes".
 func (s *StateSigner) Decode(token string) (StatePayload, error) {
 	dot := strings.IndexByte(token, '.')
 	if dot < 0 {
@@ -185,11 +256,16 @@ func (s *StateSigner) Decode(token string) (StatePayload, error) {
 		return StatePayload{}, ErrStateBadVersion
 	}
 
-	if p.ExpUnixMs > 0 {
-		nowMs := s.clock().UnixMilli()
-		if nowMs > p.ExpUnixMs {
-			return StatePayload{}, ErrStateExpired
-		}
+	if p.ExpUnixMs <= 0 {
+		return StatePayload{}, ErrStateMissingExpiry
+	}
+
+	if s.clock().UnixMilli() > p.ExpUnixMs {
+		return StatePayload{}, ErrStateExpired
+	}
+
+	if p.CSRF == "" {
+		return StatePayload{}, ErrStateMissingCSRF
 	}
 
 	return p, nil
@@ -200,9 +276,14 @@ func (s *StateSigner) Decode(token string) (StatePayload, error) {
 // false. Eviction of the LRU's oldest entry can let a previously-consumed
 // csrf re-pass; with lruSize tuned to dwarf concurrent in-flight logins
 // this is acceptable.
+//
+// MarkConsumed panics if csrf is empty. Callers are expected to validate
+// the payload via Decode (which rejects empty CSRF) before reaching this
+// point; the panic exists so a programmer error stays loud rather than
+// silently degrading the single-use guarantee to "every replay passes".
 func (s *StateSigner) MarkConsumed(csrf string) (firstUse bool) {
 	if csrf == "" {
-		return false
+		panic("auth.StateSigner.MarkConsumed: empty CSRF (Decode should have rejected this)")
 	}
 
 	s.mu.Lock()
@@ -229,15 +310,4 @@ func (s *StateSigner) MarkConsumed(csrf string) (firstUse bool) {
 	}
 
 	return true
-}
-
-// TTL returns the configured token lifetime. Useful for callers that want
-// to set ExpUnixMs to clock+TTL when constructing a payload.
-func (s *StateSigner) TTL() time.Duration {
-	return s.ttl
-}
-
-// Now returns the signer's current clock time.
-func (s *StateSigner) Now() time.Time {
-	return s.clock()
 }

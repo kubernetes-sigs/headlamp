@@ -34,9 +34,17 @@ import { JSON_HEADERS } from './constants';
  *
  * For OIDC clusters (auth_type === 'oidc'), this calls the headlamp-server
  * `/clusters/{cluster}/me` endpoint, which validates the per-cluster auth
- * cookie. If the cookie is missing or expired, the server returns 401 or
- * a `system:anonymous` identity, both of which we treat as
- * "not-authenticated" so the caller routes the user to AuthChooser.
+ * cookie. The handler is implemented at backend/pkg/auth/auth.go HandleMe;
+ * it returns 401 with `{"message": "unauthorized"}` (or "token expired")
+ * when the cookie is missing, malformed, or its embedded JWT cannot be
+ * verified, and otherwise returns `{"username": ..., "email": ..., ...}`
+ * with the JMESPath-extracted username from the JWT payload.
+ *
+ * The `clusterRequest` wrapper rejects the promise on any non-2xx, so
+ * 401 from /me surfaces as a thrown error and the caller routes the
+ * user to AuthChooser. The defense-in-depth `system:anonymous` check
+ * below covers the case where a future kubeconfig wires its OIDC
+ * username path to a claim that resolves to that string.
  *
  * This works around the SSRR false-positive reported in #4721: when
  * `system:basic-user` is granted to `system:unauthenticated`, SSRR
@@ -52,18 +60,19 @@ export async function testAuth(cluster = '', namespace = 'default') {
     const clusterAuthType = store.getState().config?.clusters?.[clusterName]?.auth_type;
 
     if (clusterAuthType === 'oidc') {
-      // /me returns 401 when the auth cookie is missing or invalid;
-      // returns identity JSON otherwise. We treat a successful response
-      // whose username starts with system:anonymous as not-authenticated
-      // (the apiserver's stand-in identity for unauthenticated requests
-      // when anonymous auth is enabled).
       const me = await clusterRequest('/me', {
         timeout: 5 * 1000,
         cluster: clusterName,
       });
 
-      const username: string = (me && (me.username || me.user?.username)) || '';
+      const username: string = (me && me.username) || '';
       if (!username || username.startsWith('system:anonymous')) {
+        // Defense in depth: a 200 with a system:anonymous-equivalent
+        // username should not count as authenticated. The backend is
+        // expected to surface unauthenticated cookies as 401 (which
+        // clusterRequest already throws on); this branch covers an
+        // operator who configures the JMESPath username extraction in a
+        // way that resolves to "system:anonymous" or empty.
         const err = new Error('not authenticated') as Error & { status?: number };
         err.status = 401;
         throw err;

@@ -17,6 +17,9 @@ limitations under the License.
 package auth
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -35,12 +38,10 @@ func newTestKey(b byte) []byte {
 
 func samplePayload() StatePayload {
 	return StatePayload{
-		V:            StateSchemaVersion,
 		Cluster:      "main",
-		Mode:         "popup",
+		Mode:         ModePopup,
 		ReturnTo:     "/c/main/pods",
 		CodeVerifier: "abcDEF1234567890abcDEF1234567890abcdef0123",
-		ExpUnixMs:    time.Now().Add(5 * time.Minute).UnixMilli(),
 		CSRF:         "deadbeefcafef00d0011223344556677",
 	}
 }
@@ -48,11 +49,11 @@ func samplePayload() StatePayload {
 func TestStateSigner_RoundTrip(t *testing.T) {
 	t.Parallel()
 
-	s := NewStateSigner(newTestKey(0xAB), 5*time.Minute, 16)
+	s := NewStateSigner(newTestKey(0xAB), 5*time.Minute, WithLRUSize(16))
 
-	want := samplePayload()
+	in := samplePayload()
 
-	tok, err := s.Encode(want)
+	tok, err := s.Encode(in)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
@@ -66,15 +67,26 @@ func TestStateSigner_RoundTrip(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
+	// Encode stamps V and ExpUnixMs; the input doesn't carry those so we
+	// build the expected payload here and require everything else to
+	// round-trip exactly.
+	want := in
+	want.V = StateSchemaVersion
+	want.ExpUnixMs = got.ExpUnixMs
+
 	if got != want {
 		t.Fatalf("round-trip mismatch:\n got=%+v\nwant=%+v", got, want)
+	}
+
+	if got.ExpUnixMs <= 0 {
+		t.Fatalf("Encode should stamp ExpUnixMs; got %d", got.ExpUnixMs)
 	}
 }
 
 func TestStateSigner_TamperedSignature(t *testing.T) {
 	t.Parallel()
 
-	s := NewStateSigner(newTestKey(0xAB), 5*time.Minute, 16)
+	s := NewStateSigner(newTestKey(0xAB), 5*time.Minute, WithLRUSize(16))
 
 	tok, err := s.Encode(samplePayload())
 	if err != nil {
@@ -98,8 +110,8 @@ func TestStateSigner_TamperedSignature(t *testing.T) {
 func TestStateSigner_DifferentKey(t *testing.T) {
 	t.Parallel()
 
-	a := NewStateSigner(newTestKey(0x01), 5*time.Minute, 16)
-	b := NewStateSigner(newTestKey(0x02), 5*time.Minute, 16)
+	a := NewStateSigner(newTestKey(0x01), 5*time.Minute, WithLRUSize(16))
+	b := NewStateSigner(newTestKey(0x02), 5*time.Minute, WithLRUSize(16))
 
 	tok, err := a.Encode(samplePayload())
 	if err != nil {
@@ -115,21 +127,23 @@ func TestStateSigner_DifferentKey(t *testing.T) {
 func TestStateSigner_Expired(t *testing.T) {
 	t.Parallel()
 
-	s := NewStateSigner(newTestKey(0xCC), 5*time.Minute, 16)
-
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	s.SetClock(func() time.Time { return now })
+	clockTime := now
 
-	p := samplePayload()
-	p.ExpUnixMs = now.Add(time.Minute).UnixMilli()
+	s := NewStateSigner(
+		newTestKey(0xCC),
+		time.Minute,
+		WithLRUSize(16),
+		WithClock(func() time.Time { return clockTime }),
+	)
 
-	tok, err := s.Encode(p)
+	tok, err := s.Encode(samplePayload())
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
 
 	// Advance past expiry.
-	s.SetClock(func() time.Time { return now.Add(2 * time.Minute) })
+	clockTime = now.Add(2 * time.Minute)
 
 	_, err = s.Decode(tok)
 	if !errors.Is(err, ErrStateExpired) {
@@ -140,17 +154,14 @@ func TestStateSigner_Expired(t *testing.T) {
 func TestStateSigner_BadVersion(t *testing.T) {
 	t.Parallel()
 
-	s := NewStateSigner(newTestKey(0xDD), 5*time.Minute, 16)
+	s := NewStateSigner(newTestKey(0xDD), 5*time.Minute, WithLRUSize(16))
 
-	p := samplePayload()
-	p.V = 999
+	// Encode stamps V automatically, so simulate a wrong-version token by
+	// hand-crafting the body and signing with the same key.
+	body := []byte(`{"v":999,"cluster":"main","mode":"popup","csrf":"abc","expMs":99999999999999}`)
+	tok := craftToken(s, body)
 
-	tok, err := s.Encode(p)
-	if err != nil {
-		t.Fatalf("encode: %v", err)
-	}
-
-	_, err = s.Decode(tok)
+	_, err := s.Decode(tok)
 	if !errors.Is(err, ErrStateBadVersion) {
 		t.Fatalf("expected ErrStateBadVersion, got %v", err)
 	}
@@ -159,7 +170,7 @@ func TestStateSigner_BadVersion(t *testing.T) {
 func TestStateSigner_PayloadTooBig(t *testing.T) {
 	t.Parallel()
 
-	s := NewStateSigner(newTestKey(0xEE), 5*time.Minute, 16)
+	s := NewStateSigner(newTestKey(0xEE), 5*time.Minute, WithLRUSize(16))
 
 	p := samplePayload()
 	p.CodeVerifier = strings.Repeat("a", MaxStatePayloadBytes+1)
@@ -173,7 +184,7 @@ func TestStateSigner_PayloadTooBig(t *testing.T) {
 func TestStateSigner_Malformed(t *testing.T) {
 	t.Parallel()
 
-	s := NewStateSigner(newTestKey(0xFF), 5*time.Minute, 16)
+	s := NewStateSigner(newTestKey(0xFF), 5*time.Minute, WithLRUSize(16))
 
 	cases := []string{
 		"",
@@ -194,7 +205,7 @@ func TestStateSigner_Malformed(t *testing.T) {
 func TestStateSigner_MarkConsumed(t *testing.T) {
 	t.Parallel()
 
-	s := NewStateSigner(newTestKey(0x11), 5*time.Minute, 4)
+	s := NewStateSigner(newTestKey(0x11), 5*time.Minute, WithLRUSize(4))
 
 	if !s.MarkConsumed("a") {
 		t.Fatalf("first MarkConsumed should return true")
@@ -225,5 +236,58 @@ func TestStateSigner_NewStateSigner_RejectsShortKey(t *testing.T) {
 		}
 	}()
 
-	_ = NewStateSigner(make([]byte, MinStateKeyBytes-1), time.Minute, 4)
+	_ = NewStateSigner(make([]byte, MinStateKeyBytes-1), time.Minute)
+}
+
+// craftToken signs the given body with s.key, bypassing Encode's
+// invariant stamping. Used by Decode-only negative tests.
+func craftToken(s *StateSigner, body []byte) string {
+	bodyB64 := base64.RawURLEncoding.EncodeToString(body)
+
+	mac := hmac.New(sha256.New, s.key)
+	mac.Write([]byte(bodyB64))
+
+	return bodyB64 + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+func TestStateSigner_RejectsMissingExpiry(t *testing.T) {
+	t.Parallel()
+
+	s := NewStateSigner(newTestKey(0x55), 5*time.Minute, WithLRUSize(16))
+
+	body := []byte(`{"v":1,"cluster":"main","mode":"popup","csrf":"abc","expMs":0}`)
+	tok := craftToken(s, body)
+
+	_, err := s.Decode(tok)
+	if !errors.Is(err, ErrStateMissingExpiry) {
+		t.Fatalf("expected ErrStateMissingExpiry, got %v", err)
+	}
+}
+
+func TestStateSigner_RejectsMissingCSRF(t *testing.T) {
+	t.Parallel()
+
+	s := NewStateSigner(newTestKey(0x66), 5*time.Minute, WithLRUSize(16))
+
+	body := []byte(`{"v":1,"cluster":"main","mode":"popup","csrf":"","expMs":99999999999999}`)
+	tok := craftToken(s, body)
+
+	_, err := s.Decode(tok)
+	if !errors.Is(err, ErrStateMissingCSRF) {
+		t.Fatalf("expected ErrStateMissingCSRF, got %v", err)
+	}
+}
+
+func TestStateSigner_MarkConsumed_PanicsOnEmpty(t *testing.T) {
+	t.Parallel()
+
+	s := NewStateSigner(newTestKey(0x77), time.Minute, WithLRUSize(4))
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatalf("expected panic on empty CSRF")
+		}
+	}()
+
+	s.MarkConsumed("")
 }

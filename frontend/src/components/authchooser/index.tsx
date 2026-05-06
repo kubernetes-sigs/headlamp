@@ -39,13 +39,6 @@ import Loader from '../common/Loader';
 import OauthPopup from '../oidcauth/OauthPopup';
 import { buildOauthUrl } from './buildOauthUrl';
 
-/**
- * Re-export buildOauthUrl for backward compatibility. Implementation
- * lives in buildOauthUrl.ts so unit tests can import it without pulling
- * in Redux / MUI / k8s client layers.
- */
-export { buildOauthUrl };
-
 function ColorButton({ children, ...rest }: ComponentProps<typeof Button>) {
   return (
     <Button variant="contained" sx={{ width: '14rem', padding: '0.5rem 2rem' }} {...rest}>
@@ -105,7 +98,7 @@ function AuthChooser({ children }: AuthChooserProps) {
       fromTyped?.search || '',
       typeof window !== 'undefined' ? window.location.pathname || '' : '',
       typeof window !== 'undefined' ? window.location.search || '' : '',
-      Date()
+      Date.now().toString()
     );
   }, [from, clusterName]);
 

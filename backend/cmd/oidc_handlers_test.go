@@ -442,10 +442,11 @@ func TestOIDCCallback_MultiReplica(t *testing.T) {
 
 		rr := callOIDCCallback(t, handlerB, fmt.Sprintf("state=%s&code=fake", state))
 
-		require.NotEqual(t, http.StatusBadRequest, rr.Code,
-			"#4019 fix: with shared signing key, B should accept A's state and "+
-				"proceed to the token-exchange step (which our test mock fails, "+
-				"yielding 500 — but state validation has succeeded). got %d body=%q",
+		require.Equal(t, http.StatusInternalServerError, rr.Code,
+			"#4019 fix: with shared signing key, B accepts A's state and "+
+				"proceeds to the token-exchange step (which our test mock fails, "+
+				"yielding 500 — what matters is that state validation succeeded). "+
+				"got %d body=%q",
 			rr.Code, rr.Body.String())
 	})
 }
@@ -529,7 +530,7 @@ func TestOIDCStart_RejectsDesktopMode(t *testing.T) {
 	_, rr := driveOIDCStartWithQuery(t, handler, query)
 
 	require.Equal(t, http.StatusBadRequest, rr.Code)
-	require.Contains(t, rr.Body.String(), "PR 2",
+	require.Contains(t, rr.Body.String(), "not yet supported",
 		"error body should explain that desktop mode is reserved")
 }
 

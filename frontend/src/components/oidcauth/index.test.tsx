@@ -46,11 +46,8 @@ describe('OIDCAuth', () => {
   });
 
   it('falls back to navigating to returnTo after the configured delay', () => {
-    const replaceMock = vi.fn();
-    // Patch history.replace via a wrapper component? Simpler: spy on
-    // window.location only verifies real navigation; here we just
-    // confirm the setTimeout is scheduled. We rely on the
-    // OIDCAuthFallbackDelayMs export and the side-effect having run.
+    // Verify the setTimeout is scheduled with the correct delay.
+    // Navigation verification is covered by e2e tests.
     const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
 
     render(
@@ -61,7 +58,6 @@ describe('OIDCAuth', () => {
 
     const calls = setTimeoutSpy.mock.calls.filter(c => c[1] === OIDCAuthFallbackDelayMs);
     expect(calls.length).toBeGreaterThanOrEqual(1);
-    expect(replaceMock).not.toHaveBeenCalled(); // setTimeout never fired
   });
 
   it('does not schedule a fallback when returnTo is absent', () => {
@@ -88,5 +84,26 @@ describe('OIDCAuth', () => {
     unmount();
 
     expect(clearSpy).toHaveBeenCalled();
+  });
+
+  it.each([
+    ['absolute URL', 'https://evil.example/'],
+    ['scheme-relative', '//evil.example/'],
+    ['embedded scheme via path', '/foo://bar'],
+    ['traversal', '/c/main/../../etc/passwd'],
+    ['empty', ''],
+    ['relative', 'foo/bar'],
+  ])('does not schedule a fallback for unsafe returnTo (%s)', (_label, value) => {
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
+
+    const search = new URLSearchParams({ cluster: 'main', returnTo: value }).toString();
+    render(
+      <MemoryRouter initialEntries={[`/auth?${search}`]}>
+        <OIDCAuth />
+      </MemoryRouter>
+    );
+
+    const calls = setTimeoutSpy.mock.calls.filter(c => c[1] === OIDCAuthFallbackDelayMs);
+    expect(calls).toHaveLength(0);
   });
 });
