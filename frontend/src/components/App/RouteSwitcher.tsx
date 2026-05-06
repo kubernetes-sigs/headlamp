@@ -37,6 +37,25 @@ import { useSidebarItem } from '../Sidebar';
 export default function RouteSwitcher(props: { requiresToken: () => boolean }) {
   // The NotFoundRoute always has to be evaluated in the last place.
   const routes = useTypedSelector(state => state.routes.routes);
+  const cluster = useCluster();
+  const history = useHistory();
+
+  React.useEffect(() => {
+    const pendingCluster = sessionStorage.getItem('pendingCluster');
+
+    if (!history?.location?.pathname) return;
+
+    if (!history.location.pathname.startsWith('/c/')) return;
+
+    if (pendingCluster && pendingCluster !== cluster) {
+      sessionStorage.removeItem('pendingCluster');
+
+      const newPath = history.location.pathname.replace(/^\/c\/[^/]+/, `/c/${pendingCluster}`);
+
+      history.replace(newPath);
+    }
+  }, [cluster, history]);
+
   const routeFilters = useTypedSelector(state => state.routes.routeFilters);
   const defaultRoutes = Object.values(getDefaultRoutes()).concat(NotFoundRoute);
   const clusters = useClustersConf();
