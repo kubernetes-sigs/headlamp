@@ -59,7 +59,7 @@ jobs:
             -e GOPROXY=off \
             -e GONOSUMDB='*' \
             -w /backend \
-            golang:1.25.8@sha256:bd1e2df4e6259b2bd5b1de0e6b22ca414502cd6e7276a5dd5dd414b65063be58 \
+            golang:1.25.9@sha256:8a7adc288b77e9b787cd2695029eb54d10ae80571b21d44fed68d067ad0a9c96 \
             sh -c "go build ./... && go test ./..."
       - name: Build ${{ matrix.arch }} container image
         uses: docker/build-push-action@0a97817b6ade9f46837855d676c4cca3a2471fc9 # v4.2.1
