@@ -52,7 +52,7 @@ export const queryClient = new QueryClient({
 });
 
 /**
- * Invalidates the cached user identity (`clusterMe`) for every cluster.
+ * Invalidates cached user identity and resets authentication probes for every cluster.
  *
  * Call this after an OIDC login completes. The backend may broadcast the new
  * token to sibling clusters that share the same identity provider, which
@@ -65,6 +65,9 @@ export const queryClient = new QueryClient({
  * plugins as `Utils.auth`; invalidating Headlamp's own query keys is not a
  * capability plugins should have.
  */
-export function invalidateClusterUserInfo() {
-  return queryClient.invalidateQueries({ queryKey: ['clusterMe'] });
+export function invalidateClusterUserInfo(): Promise<void> {
+  const authReset = queryClient.resetQueries({ queryKey: ['auth'] });
+  return Promise.all([authReset, queryClient.invalidateQueries({ queryKey: ['clusterMe'] })]).then(
+    () => undefined
+  );
 }

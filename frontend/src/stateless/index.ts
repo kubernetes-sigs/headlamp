@@ -223,7 +223,7 @@ export function storeStatelessClusterKubeconfig(kubeconfig: string): Promise<voi
  * @throws Error if the kubeconfig is invalid.
  */
 export function getStatelessClusterKubeConfigs(): Promise<string[]> {
-  return new Promise<string[]>(async (resolve, reject) => {
+  return new Promise<string[]>((resolve, reject) => {
     const request = indexedDB.open('kubeconfigs', 1) as any;
 
     // The onupgradeneeded event is fired when the database is created for the first time.
@@ -266,7 +266,7 @@ export function getStatelessClusterKubeConfigs(): Promise<string[]> {
 
     // The onerror event is fired when the database is opened.
     // This is where you handle errors.
-    request.onerror = handleDataBaseError;
+    request.onerror = (event: DatabaseErrorEvent) => handleDataBaseError(event, reject);
   });
 }
 

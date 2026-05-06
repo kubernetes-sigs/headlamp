@@ -121,14 +121,18 @@ async function setCookieToken(cluster: string, token: string | null) {
  */
 export function setToken(cluster: string, token: string | null) {
   const setTokenMethodToUse = store.getState().ui.functionsToOverride.setToken;
-  if (setTokenMethodToUse) {
-    return Promise.resolve(setTokenMethodToUse(cluster, token));
-  }
+  const write = setTokenMethodToUse
+    ? Promise.resolve(setTokenMethodToUse(cluster, token))
+    : setCookieToken(cluster, token);
 
-  return setCookieToken(cluster, token).then(result => {
+  return write.then(async result => {
     if (token) {
       queryClient.invalidateQueries({ queryKey: ['clusterMe', cluster], exact: true });
+      await queryClient.resetQueries({ queryKey: ['auth', cluster] });
     } else {
+      // Clearing credentials must not refetch while logout is navigating away.
+      queryClient.cancelQueries({ queryKey: ['auth', cluster] });
+      queryClient.removeQueries({ queryKey: ['auth', cluster] });
       queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
     }
 
