@@ -16,8 +16,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect, useRef } from 'react';
-import { KubeObject } from '../../../lib/k8s/KubeObject';
-import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
+import { KubeObject, KubeObjectClass } from '../../../lib/k8s/KubeObject';
 
 /** List of valid request verbs. See https://kubernetes.io/docs/reference/access-authn-authz/authorization/#determine-the-request-verb. */
 const VALID_AUTH_VERBS = [
@@ -49,21 +48,15 @@ export interface AuthVisibleProps extends React.PropsWithChildren<{}> {
 export default function AuthVisible(props: AuthVisibleProps) {
   const { item, authVerb, subresource, namespace, onError, onAuthResult, children } = props;
 
-  // ── All hooks called unconditionally, before any early returns
-
   const onAuthResultRef = useRef(onAuthResult);
   onAuthResultRef.current = onAuthResult;
 
-  // Compute flag before hooks so it can gate `enabled` without a conditional
-  // hook call.
   const isValidAuthVerb = isAuthVerb(authVerb);
 
   const itemObject = item instanceof KubeObject ? item : null;
   const itemClass: KubeObjectClass | null = item instanceof KubeObject ? item._class() : item;
   const itemName = itemObject?.getName();
 
-  // No eslint-disable suppression needed — hook is always called.
-  // `enabled` prevents the query from running when the verb is invalid.
   const { data } = useQuery<any>({
     enabled: !!item && isValidAuthVerb,
     queryKey: [
@@ -88,6 +81,7 @@ export default function AuthVisible(props: AuthVisibleProps) {
         return item.getAuthorization(authVerb, { subresource, namespace });
       } catch (e: any) {
         onError?.(e);
+        throw e;
       }
     },
   });
@@ -102,8 +96,6 @@ export default function AuthVisible(props: AuthVisibleProps) {
       reason: data.status?.reason ?? '',
     });
   }, [data]);
-
-  //  Early returns come AFTER all hooks
 
   if (!isValidAuthVerb) {
     console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
