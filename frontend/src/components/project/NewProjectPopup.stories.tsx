@@ -44,6 +44,7 @@ const makeStore = () => {
         settings: {
           tableRowsPerPageOptions: [15, 25, 50],
           timezone: 'UTC',
+          sidebarSortAlphabetically: false,
           useEvict: true,
         },
         isDynamicClusterEnabled: false,

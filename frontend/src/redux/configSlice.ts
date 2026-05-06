@@ -65,6 +65,7 @@ export interface ConfigState {
      * timezone is the timezone to use for displaying dates and times.
      */
     timezone: string;
+    sidebarSortAlphabetically: boolean;
     useEvict: boolean;
     [key: string]: any;
   };
@@ -76,7 +77,67 @@ function defaultTimezone() {
   return import.meta.env.UNDER_TEST ? 'UTC' : Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
-const storedSettings = JSON.parse(localStorage.getItem('settings') || '{}');
+function isNumberArray(value: unknown): value is number[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(item => Number.isInteger(item) && item > 0)
+  );
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
+function isBoolean(value: unknown): value is boolean {
+  return typeof value === 'boolean';
+}
+
+function isValidTimeZone(value: string): boolean {
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function loadStoredSettings(): Partial<ConfigState['settings']> {
+  try {
+    const rawSettings = localStorage.getItem('settings');
+    if (!rawSettings) {
+      return {};
+    }
+
+    const parsed: unknown = JSON.parse(rawSettings);
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {};
+    }
+
+    const parsedSettings = parsed as Record<string, unknown>;
+    const sanitizedSettings: Partial<ConfigState['settings']> = {};
+
+    if (isNumberArray(parsedSettings.tableRowsPerPageOptions)) {
+      sanitizedSettings.tableRowsPerPageOptions = parsedSettings.tableRowsPerPageOptions;
+    }
+    if (isString(parsedSettings.timezone) && isValidTimeZone(parsedSettings.timezone)) {
+      sanitizedSettings.timezone = parsedSettings.timezone;
+    }
+    if (isBoolean(parsedSettings.sidebarSortAlphabetically)) {
+      sanitizedSettings.sidebarSortAlphabetically = parsedSettings.sidebarSortAlphabetically;
+    }
+    if (isBoolean(parsedSettings.useEvict)) {
+      sanitizedSettings.useEvict = parsedSettings.useEvict;
+    }
+
+    return sanitizedSettings;
+  } catch {
+    return {};
+  }
+}
+
+const storedSettings = loadStoredSettings();
 
 export const initialState: ConfigState = {
   clusters: null,
@@ -86,9 +147,9 @@ export const initialState: ConfigState = {
   allowKubeconfigChanges: false,
   settings: {
     tableRowsPerPageOptions:
-      storedSettings.tableRowsPerPageOptions || defaultTableRowsPerPageOptions,
+      storedSettings.tableRowsPerPageOptions ?? defaultTableRowsPerPageOptions,
     timezone: storedSettings.timezone || defaultTimezone(),
-    sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically || false,
+    sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically ?? false,
     useEvict: storedSettings.useEvict ?? true,
   },
 };
