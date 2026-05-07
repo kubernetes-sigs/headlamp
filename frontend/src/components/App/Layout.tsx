@@ -48,6 +48,7 @@ import Sidebar, { NavigationTabs } from '../Sidebar';
 import RouteSwitcher from './RouteSwitcher';
 import ShortcutsSettings from './Settings/ShortcutsSettings';
 import { applyBackendThemeConfig } from './themeSlice';
+import TokenExpiryNotification from './TokenExpiryNotification';
 import TopBar from './TopBar';
 import VersionDialog from './VersionDialog';
 
@@ -346,6 +347,7 @@ export default function Layout({}: LayoutProps) {
                 <ClusterNotFoundPopup key={clusterName} cluster={clusterName} />
               ))}
               <AlertNotification />
+              <TokenExpiryNotification />
               <Box sx={{ height: '100%' }}>
                 <Div />
                 <Container {...containerProps} sx={{ height: '100%' }}>

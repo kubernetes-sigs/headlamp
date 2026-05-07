@@ -21,6 +21,7 @@
 import { Base64 } from 'js-base64';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import store from '../redux/stores/store';
+import { ApiError } from './k8s/api/v2/ApiError';
 import { backendFetch } from './k8s/api/v2/fetch';
 import { queryClient } from './queryClient';
 
@@ -152,4 +153,51 @@ export async function logout(cluster: string) {
 export function deleteTokens() {
   const clusters = Object.keys(store.getState().config.allClusters ?? {});
   return Promise.all(clusters.map(cluster => logout(cluster)));
+}
+
+/**
+ * Response from the /clusters/:cluster/me endpoint.
+ */
+export interface ClusterMeResponse {
+  username?: string;
+  email?: string;
+  groups?: string[];
+  userInfoURL?: string;
+  /** Unix timestamp (seconds) when the token expires. Present only when the backend
+   *  can parse an `exp` claim from the token (JWT-based auth). */
+  tokenExpiry?: number;
+}
+
+/**
+ * Result of a call to fetchClusterMe.
+ * `tokenExpired` is true when the backend returned 401 (token missing or expired).
+ * `data` is null when the request failed for any reason other than a 401.
+ */
+export type ClusterMeResult =
+  | { tokenExpired: false; data: ClusterMeResponse }
+  | { tokenExpired: true; data: null }
+  | { tokenExpired: false; data: null };
+
+/**
+ * Fetches identity and token-expiry information for the given cluster from the
+ * Headlamp backend's /clusters/:cluster/me endpoint.
+ *
+ * The backend validates the per-cluster cookie and returns 401 when the token
+ * is missing or has already expired — callers should treat that as a signal to
+ * log the user out.
+ *
+ * @param cluster - Name of the cluster.
+ * @returns A ClusterMeResult object.
+ */
+export async function fetchClusterMe(cluster: string): Promise<ClusterMeResult> {
+  try {
+    const response = await backendFetch(`/clusters/${cluster}/me`);
+    const data: ClusterMeResponse = await response.json();
+    return { tokenExpired: false, data };
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) {
+      return { tokenExpired: true, data: null };
+    }
+    return { tokenExpired: false, data: null };
+  }
 }
