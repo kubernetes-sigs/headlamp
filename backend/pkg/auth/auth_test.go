@@ -1362,3 +1362,38 @@ func TestHandleMe_MissingCookie(t *testing.T) {
 	assert.Equal(t, "no-store, no-cache, must-revalidate, private", rr.Header().Get("Cache-Control"))
 	assert.Equal(t, "Cookie", rr.Header().Get("Vary"))
 }
+
+func TestHandleMe_IncludesTokenExpiry(t *testing.T) {
+	t.Parallel()
+
+	futureExpiry := time.Now().Add(time.Hour).Unix()
+	claims := map[string]interface{}{
+		"preferred_username": "alice",
+		"exp":                float64(futureExpiry),
+	}
+
+	token := makeTestToken(t, claims)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := httptest.NewRecorder()
+
+	handler := auth.HandleMe(auth.MeHandlerOptions{
+		UsernamePaths: "preferred_username",
+	})
+
+	handler(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var got struct {
+		Username    string `json:"username"`
+		TokenExpiry int64  `json:"tokenExpiry"`
+	}
+
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.Equal(t, "alice", got.Username)
+	assert.Equal(t, futureExpiry, got.TokenExpiry, "tokenExpiry should match the JWT exp claim as a Unix timestamp")
+}

@@ -380,7 +380,8 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 			return
 		}
 
-		if expiry, err := GetExpiryUnixTimeUTC(claims); err != nil || time.Now().After(expiry) {
+		expiry, err := GetExpiryUnixTimeUTC(claims)
+		if err != nil || time.Now().After(expiry) {
 			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{"message": "token expired"})
 			return
 		}
@@ -389,7 +390,7 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 		email := stringValueFromJMESPaths(claims, compiledEmailPaths)
 		groups := stringSliceFromJMESPaths(claims, compiledGroupsPaths)
 
-		writeMeResponse(w, username, email, groups, userInfoURL)
+		writeMeResponse(w, username, email, groups, userInfoURL, expiry)
 	}
 }
 
@@ -435,19 +436,33 @@ func tryProxyAuth(w http.ResponseWriter, r *http.Request, opts MeHandlerOptions,
 		}
 	}
 
-	writeMeResponse(w, username, email, groups, userInfoURL)
+	writeMeResponse(w, username, email, groups, userInfoURL, time.Time{})
 
 	return true
 }
 
-// writeMeResponse writes the successful response for HandleMe with the standard cache-busting headers.
-func writeMeResponse(w http.ResponseWriter, username, email string, groups []string, userInfoURL string) {
-	writeMeJSON(w, http.StatusOK, map[string]interface{}{
+// writeMeResponse serializes the identity payload with the standard cache-busting headers.
+// tokenExpiry is the token's expiry time; if non-zero it is included so the frontend
+// can warn users before their session ends.
+func writeMeResponse(
+	w http.ResponseWriter,
+	username, email string,
+	groups []string,
+	userInfoURL string,
+	tokenExpiry time.Time,
+) {
+	payload := map[string]interface{}{
 		"username":    username,
 		"email":       email,
 		"groups":      groups,
 		"userInfoURL": userInfoURL,
-	})
+	}
+
+	if !tokenExpiry.IsZero() {
+		payload["tokenExpiry"] = tokenExpiry.Unix()
+	}
+
+	writeMeJSON(w, http.StatusOK, payload)
 }
 
 // writeMeJSON sets the standard cache-control headers used by /me responses and writes the JSON payload.
