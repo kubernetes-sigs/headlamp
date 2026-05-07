@@ -255,7 +255,7 @@ export function DateLabel(props: DateLabelProps) {
  * Shows time passed since given date
  * Automatically refreshes
  */
-function TimeAgo({ date, format }: { date: number | string | Date; format?: DateFormatOptions }) {
+function TimeAgo({ date, format }: Pick<DateLabelProps, 'date' | 'format'>): React.ReactNode {
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -266,5 +266,5 @@ function TimeAgo({ date, format }: { date: number | string | Date; format?: Date
     return () => clearInterval(id);
   }, []);
 
-  return timeAgo(date, { format }) as unknown as JSX.Element;
+  return timeAgo(date, { format });
 }
