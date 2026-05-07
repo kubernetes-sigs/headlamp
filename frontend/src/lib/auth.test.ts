@@ -17,7 +17,8 @@
 import { Base64 } from 'js-base64';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import store from '../redux/stores/store';
-import { getUserInfo, setToken } from './auth';
+import { fetchClusterMe, getUserInfo, setToken } from './auth';
+import { ApiError } from './k8s/api/v2/ApiError';
 import { backendFetch } from './k8s/api/v2/fetch';
 
 // Mock the dependencies
@@ -161,6 +162,44 @@ describe('auth', () => {
       expect(spy).toHaveBeenCalled();
 
       spy.mockRestore();
+    });
+  });
+
+  describe('fetchClusterMe', () => {
+    it('returns tokenExpired:false and data on 200 response', async () => {
+      const responseData = { username: 'alice', tokenExpiry: 9999999999 };
+      mockBackendFetch.mockResolvedValue({
+        json: vi.fn().mockResolvedValue(responseData),
+      } as any);
+
+      const result = await fetchClusterMe('test-cluster');
+
+      expect(mockBackendFetch).toHaveBeenCalledWith('/clusters/test-cluster/me');
+      expect(result).toEqual({ tokenExpired: false, data: responseData });
+    });
+
+    it('returns tokenExpired:true and data:null on 401 ApiError', async () => {
+      mockBackendFetch.mockRejectedValue(new ApiError('Unauthorized', { status: 401 }));
+
+      const result = await fetchClusterMe('test-cluster');
+
+      expect(result).toEqual({ tokenExpired: true, data: null });
+    });
+
+    it('returns tokenExpired:false and data:null on non-401 ApiError', async () => {
+      mockBackendFetch.mockRejectedValue(new ApiError('Internal Server Error', { status: 500 }));
+
+      const result = await fetchClusterMe('test-cluster');
+
+      expect(result).toEqual({ tokenExpired: false, data: null });
+    });
+
+    it('returns tokenExpired:false and data:null on network error', async () => {
+      mockBackendFetch.mockRejectedValue(new Error('Network failed'));
+
+      const result = await fetchClusterMe('test-cluster');
+
+      expect(result).toEqual({ tokenExpired: false, data: null });
     });
   });
 });

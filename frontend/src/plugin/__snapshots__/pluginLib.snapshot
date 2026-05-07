@@ -530,6 +530,7 @@
     "CLUSTER_ACTION_GRACE_PERIOD": 5000,
     "auth": {
       "deleteTokens": [Function],
+      "fetchClusterMe": [Function],
       "getToken": [Function],
       "getUserInfo": [Function],
       "hasToken": [Function],
