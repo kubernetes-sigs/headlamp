@@ -6,7 +6,7 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.42.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
     app.kubernetes.io/version: "0.42.0"
@@ -28,7 +28,7 @@ metadata:
   name: headlamp-plugin-config
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.42.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
     app.kubernetes.io/version: "0.42.0"
@@ -42,7 +42,7 @@ kind: ClusterRoleBinding
 metadata:
   name: headlamp-admin
   labels:
-    helm.sh/chart: headlamp-0.42.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
     app.kubernetes.io/version: "0.42.0"
@@ -63,7 +63,7 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.42.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
     app.kubernetes.io/version: "0.42.0"
@@ -81,16 +81,13 @@ spec:
     app.kubernetes.io/instance: headlamp
 ---
 # Source: headlamp/templates/deployment.yaml
-# This block of code is used to extract the values from the env.
-# This is done to check if the values are non-empty and if they are, they are used in the deployment.yaml.
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.42.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
     app.kubernetes.io/version: "0.42.0"
@@ -139,7 +136,6 @@ spec:
             - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             - "-session-ttl=86400"
-            # Check if externalSecret is disabled
           ports:
             - name: http
               containerPort: 4466
