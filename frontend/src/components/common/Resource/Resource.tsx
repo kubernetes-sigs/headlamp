@@ -1342,7 +1342,7 @@ export function VolumeMounts(props: VolumeMountsProps) {
   );
 }
 
-function LivenessProbeItem(props: { children: React.ReactNode }) {
+function ProbeItem(props: { children: React.ReactNode }) {
   return props.children ? (
     <Box p={0.5}>
       <Typography sx={metadataStyles} display="inline">
@@ -1352,41 +1352,41 @@ function LivenessProbeItem(props: { children: React.ReactNode }) {
   ) : null;
 }
 
-export function LivenessProbes(props: { liveness: KubeContainer['livenessProbe'] }) {
-  const { liveness } = props;
+export function ProbeViewer(props: { probe: KubeContainer['livenessProbe'] }) {
+  const { probe } = props;
+  const { t } = useTranslation('translation');
 
   return (
     <Box display="flex" flexDirection="column">
-      <LivenessProbeItem>
-        {`http-get, path: ${liveness?.httpGet?.path}, port: ${liveness?.httpGet?.port},
-    scheme: ${liveness?.httpGet?.scheme}`}
-      </LivenessProbeItem>
-
-      <LivenessProbeItem>
-        {liveness?.exec?.command && `exec[${liveness?.exec?.command.join(' ')}]`}
-      </LivenessProbeItem>
-
-      <LivenessProbeItem>
-        {liveness?.successThreshold && `success = ${liveness?.successThreshold}`}
-      </LivenessProbeItem>
-
-      <LivenessProbeItem>
-        {liveness?.failureThreshold && `failure = ${liveness?.failureThreshold}`}
-      </LivenessProbeItem>
-
-      <LivenessProbeItem>
-        {liveness?.initialDelaySeconds && `delay = ${liveness?.initialDelaySeconds}s`}
-      </LivenessProbeItem>
-
-      <LivenessProbeItem>
-        {liveness?.timeoutSeconds && `timeout = ${liveness?.timeoutSeconds}s`}
-      </LivenessProbeItem>
-
-      <LivenessProbeItem>
-        {liveness?.periodSeconds && `period = ${liveness?.periodSeconds}s`}
-      </LivenessProbeItem>
+      {probe?.httpGet && (
+        <ProbeItem>
+          {`http-get, ${probe.httpGet.path ? `path: ${probe.httpGet.path}, ` : ''}port: ${
+            probe.httpGet.port
+          }, scheme: ${probe.httpGet.scheme}`}
+        </ProbeItem>
+      )}
+      {probe?.exec?.command && <ProbeItem>{`exec[${probe.exec.command.join(' ')}]`}</ProbeItem>}
+      {probe?.tcpSocket && <ProbeItem>{`tcp-socket, port: ${probe.tcpSocket.port}`}</ProbeItem>}
+      {probe?.successThreshold && (
+        <ProbeItem>{`${t('success')} = ${probe.successThreshold}`}</ProbeItem>
+      )}
+      {probe?.failureThreshold && (
+        <ProbeItem>{`${t('failure')} = ${probe.failureThreshold}`}</ProbeItem>
+      )}
+      {probe?.initialDelaySeconds && (
+        <ProbeItem>{`${t('delay')} = ${probe.initialDelaySeconds}s`}</ProbeItem>
+      )}
+      {probe?.timeoutSeconds && (
+        <ProbeItem>{`${t('timeout')} = ${probe.timeoutSeconds}s`}</ProbeItem>
+      )}
+      {probe?.periodSeconds && <ProbeItem>{`${t('period')} = ${probe.periodSeconds}s`}</ProbeItem>}
     </Box>
   );
+}
+
+/** @deprecated Please use ProbeViewer */
+export function LivenessProbes(props: { liveness: KubeContainer['livenessProbe'] }) {
+  return <ProbeViewer probe={props.liveness} />;
 }
 
 /** @deprecated Please use `ContainerInfoKubeObjectProps` for better type safety */
@@ -1642,9 +1642,19 @@ export function ContainerInfo(props: ContainerInfoProps) {
         hide: _.isEmpty(container?.env) && _.isEmpty(container?.envFrom),
       },
       {
-        name: t('Liveness Probes'),
-        value: <LivenessProbes liveness={container.livenessProbe} />,
+        name: t('glossary|Liveness Probe'),
+        value: <ProbeViewer probe={container.livenessProbe} />,
         hide: _.isEmpty(container.livenessProbe),
+      },
+      {
+        name: t('glossary|Readiness Probe'),
+        value: <ProbeViewer probe={container.readinessProbe} />,
+        hide: _.isEmpty(container.readinessProbe),
+      },
+      {
+        name: t('glossary|Startup Probe'),
+        value: <ProbeViewer probe={container.startupProbe} />,
+        hide: _.isEmpty(container.startupProbe),
       },
       {
         name: t('Ports'),

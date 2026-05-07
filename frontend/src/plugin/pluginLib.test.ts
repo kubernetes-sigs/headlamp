@@ -34,6 +34,7 @@ describe('pluginLib variable', () => {
       'ReactRedux',
       'ReactRouter',
       'Recharts',
+      'Lodash',
     ];
     // External libraries that we bundle can have different values per OS
     // So we're just going to check if they're present or not
