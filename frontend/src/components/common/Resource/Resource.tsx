@@ -1340,52 +1340,51 @@ export function VolumeMounts(props: VolumeMountsProps) {
   );
 }
 
-export function LivenessProbes(props: { liveness: KubeContainer['livenessProbe'] }) {
-  const { liveness } = props;
+function ProbeItem(props: { children: React.ReactNode }) {
+  return props.children ? (
+    <Box p={0.5}>
+      <Typography sx={metadataStyles} display="inline">
+        {props.children}
+      </Typography>
+    </Box>
+  ) : null;
+}
 
-  function LivenessProbeItem(props: { children: React.ReactNode }) {
-    return props.children ? (
-      <Box p={0.5}>
-        <Typography sx={metadataStyles} display="inline">
-          {props.children}
-        </Typography>
-      </Box>
-    ) : null;
-  }
+export function ProbeViewer(props: { probe: KubeContainer['livenessProbe'] }) {
+  const { probe } = props;
+  const { t } = useTranslation('translation');
 
   return (
     <Box display="flex" flexDirection="column">
-      {/* eslint-disable-next-line react-hooks/static-components */}
-      <LivenessProbeItem>
-        {`http-get, path: ${liveness?.httpGet?.path}, port: ${liveness?.httpGet?.port},
-    scheme: ${liveness?.httpGet?.scheme}`}
-      </LivenessProbeItem>
-      {/* eslint-disable-next-line react-hooks/static-components */}
-      <LivenessProbeItem>
-        {liveness?.exec?.command && `exec[${liveness?.exec?.command.join(' ')}]`}
-      </LivenessProbeItem>
-      {/* eslint-disable-next-line react-hooks/static-components */}
-      <LivenessProbeItem>
-        {liveness?.successThreshold && `success = ${liveness?.successThreshold}`}
-      </LivenessProbeItem>
-      {/* eslint-disable-next-line react-hooks/static-components */}
-      <LivenessProbeItem>
-        {liveness?.failureThreshold && `failure = ${liveness?.failureThreshold}`}
-      </LivenessProbeItem>
-      {/* eslint-disable-next-line react-hooks/static-components */}
-      <LivenessProbeItem>
-        {liveness?.initialDelaySeconds && `delay = ${liveness?.initialDelaySeconds}s`}
-      </LivenessProbeItem>
-      {/* eslint-disable-next-line react-hooks/static-components */}
-      <LivenessProbeItem>
-        {liveness?.timeoutSeconds && `timeout = ${liveness?.timeoutSeconds}s`}
-      </LivenessProbeItem>
-      {/* eslint-disable-next-line react-hooks/static-components */}
-      <LivenessProbeItem>
-        {liveness?.periodSeconds && `period = ${liveness?.periodSeconds}s`}
-      </LivenessProbeItem>
+      {probe?.httpGet && (
+        <ProbeItem>
+          {`http-get, ${probe.httpGet.path ? `path: ${probe.httpGet.path}, ` : ''}port: ${
+            probe.httpGet.port
+          }, scheme: ${probe.httpGet.scheme}`}
+        </ProbeItem>
+      )}
+      {probe?.exec?.command && <ProbeItem>{`exec[${probe.exec.command.join(' ')}]`}</ProbeItem>}
+      {probe?.tcpSocket && <ProbeItem>{`tcp-socket, port: ${probe.tcpSocket.port}`}</ProbeItem>}
+      {probe?.successThreshold && (
+        <ProbeItem>{`${t('success')} = ${probe.successThreshold}`}</ProbeItem>
+      )}
+      {probe?.failureThreshold && (
+        <ProbeItem>{`${t('failure')} = ${probe.failureThreshold}`}</ProbeItem>
+      )}
+      {probe?.initialDelaySeconds && (
+        <ProbeItem>{`${t('delay')} = ${probe.initialDelaySeconds}s`}</ProbeItem>
+      )}
+      {probe?.timeoutSeconds && (
+        <ProbeItem>{`${t('timeout')} = ${probe.timeoutSeconds}s`}</ProbeItem>
+      )}
+      {probe?.periodSeconds && <ProbeItem>{`${t('period')} = ${probe.periodSeconds}s`}</ProbeItem>}
     </Box>
   );
+}
+
+/** @deprecated Please use ProbeViewer */
+export function LivenessProbes(props: { liveness: KubeContainer['livenessProbe'] }) {
+  return <ProbeViewer probe={props.liveness} />;
 }
 
 /** @deprecated Please use `ContainerInfoKubeObjectProps` for better type safety */
@@ -1641,9 +1640,19 @@ export function ContainerInfo(props: ContainerInfoProps) {
         hide: _.isEmpty(container?.env) && _.isEmpty(container?.envFrom),
       },
       {
-        name: t('Liveness Probes'),
-        value: <LivenessProbes liveness={container.livenessProbe} />,
+        name: t('Liveness Probe'),
+        value: <ProbeViewer probe={container.livenessProbe} />,
         hide: _.isEmpty(container.livenessProbe),
+      },
+      {
+        name: t('Readiness Probe'),
+        value: <ProbeViewer probe={container.readinessProbe} />,
+        hide: _.isEmpty(container.readinessProbe),
+      },
+      {
+        name: t('Startup Probe'),
+        value: <ProbeViewer probe={container.startupProbe} />,
+        hide: _.isEmpty(container.startupProbe),
       },
       {
         name: t('Ports'),

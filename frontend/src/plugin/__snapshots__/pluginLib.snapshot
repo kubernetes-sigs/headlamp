@@ -106,6 +106,7 @@
     "PercentageBar": [Function],
     "PercentageCircle": [Function],
     "PortForward": [Function],
+    "ProbeViewer": [Function],
     "PureNamespacesAutocomplete": [Function],
     "RESOURCE_DEFINITIONS": {
       "Pod": {
@@ -159,6 +160,7 @@
       "PORT_FORWARD_STOP_STATUS": "Stopped",
       "PageGrid": [Function],
       "PortForward": [Function],
+      "ProbeViewer": [Function],
       "RESOURCE_DEFINITIONS": {
         "Pod": {
           "class": [Function],
@@ -483,6 +485,7 @@
   },
   "Lodash": Function {
     "default": [Function],
+    "module.exports": [Function],
   },
   "MonacoEditor": "Present",
   "MuiCore": "Present",
