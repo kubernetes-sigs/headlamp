@@ -409,6 +409,78 @@ describe('WebSocket Multiplexer', () => {
         { timeout: 10000 }
       );
     });
+
+    it('should cleanup when unmounted before subscription resolves', async () => {
+      const fullUrl = `${BASE_WS_URL}api/v1/pods`;
+      const cleanup = vi.fn();
+      let resolveSubscribe: (cleanup: () => void) => void = () => {};
+      const subscribeSpy = vi.spyOn(WebSocketManager, 'subscribe').mockReturnValue(
+        new Promise<() => void>(resolve => {
+          resolveSubscribe = resolve;
+        })
+      );
+
+      const { unmount } = renderHook(() =>
+        useWebSocket({
+          url: () => fullUrl,
+          enabled: true,
+          cluster: clusterName,
+          onMessage,
+          onError,
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(subscribeSpy).toHaveBeenCalledWith(
+          clusterName,
+          '/api/v1/pods',
+          '',
+          expect.any(Function)
+        );
+      });
+
+      unmount();
+      resolveSubscribe(cleanup);
+
+      await vi.waitFor(() => {
+        expect(cleanup).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('should remove subscription state when unmounted before subscription rejects', async () => {
+      const fullUrl = `${BASE_WS_URL}api/v1/pods`;
+      const key = WebSocketManager.createKey(clusterName, '/api/v1/pods', '');
+      let rejectConnect: (error: Error) => void = () => {};
+      vi.spyOn(WebSocketManager, 'connect').mockReturnValue(
+        new Promise<WebSocket>((_, reject) => {
+          rejectConnect = reject;
+        })
+      );
+
+      const { unmount } = renderHook(() =>
+        useWebSocket({
+          url: () => fullUrl,
+          enabled: true,
+          cluster: clusterName,
+          onMessage,
+          onError,
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(WebSocketManager.activeSubscriptions.has(key)).toBe(true);
+        expect(WebSocketManager.listeners.get(key)?.size).toBe(1);
+      });
+
+      unmount();
+      rejectConnect(new Error('WebSocket connection failed'));
+
+      await vi.waitFor(() => {
+        expect(WebSocketManager.listeners.has(key)).toBe(false);
+        expect(WebSocketManager.activeSubscriptions.has(key)).toBe(false);
+        expect(onError).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe('WebSocket error handling', () => {

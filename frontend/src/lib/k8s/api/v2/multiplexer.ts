@@ -384,17 +384,40 @@ export function useWebSocket<T>({
     }
 
     let cleanup: (() => void) | undefined;
+    let isCancelled = false;
+    let subscriptionPath: string | undefined;
+    let subscriptionQuery = '';
 
     const connectWebSocket = async () => {
       try {
         const parsedUrl = new URL(url, getBaseWsUrl());
-        cleanup = await WebSocketManager.subscribe(
+        subscriptionPath = parsedUrl.pathname;
+        subscriptionQuery = parsedUrl.search.slice(1);
+        const unsubscribe = await WebSocketManager.subscribe(
           cluster,
-          parsedUrl.pathname,
-          parsedUrl.search.slice(1),
+          subscriptionPath,
+          subscriptionQuery,
           stableOnMessage
         );
+        if (isCancelled) {
+          unsubscribe();
+        } else {
+          cleanup = unsubscribe;
+        }
       } catch (err) {
+        if (subscriptionPath) {
+          const key = WebSocketManager.createKey(cluster, subscriptionPath, subscriptionQuery);
+          WebSocketManager.unsubscribe(
+            key,
+            cluster,
+            subscriptionPath,
+            subscriptionQuery,
+            stableOnMessage
+          );
+        }
+        if (isCancelled) {
+          return;
+        }
         console.error('WebSocket connection failed:', err);
         onError?.(err as Error);
       }
@@ -403,6 +426,7 @@ export function useWebSocket<T>({
     connectWebSocket();
 
     return () => {
+      isCancelled = true;
       if (cleanup) {
         cleanup();
       }
