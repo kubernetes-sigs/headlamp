@@ -209,6 +209,29 @@ config:
       name: your-oidc-secret
 ```
 
+### OIDC Environment Variables
+
+The chart passes `config.oidc.*` values to Headlamp through its
+`HEADLAMP_CONFIG_*` environment variables. Legacy `OIDC_*` and
+`ME_USER_INFO_URL` values supplied through `env:` or an external secret are not
+translated into container arguments.
+
+If you provide OIDC values through `env:` or an external secret, use these names:
+
+- `OIDC_CLIENT_ID` -> `HEADLAMP_CONFIG_OIDC_CLIENT_ID`
+- `OIDC_CLIENT_SECRET` -> `HEADLAMP_CONFIG_OIDC_CLIENT_SECRET`
+- `OIDC_ISSUER_URL` -> `HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL`
+- `OIDC_SCOPES` -> `HEADLAMP_CONFIG_OIDC_SCOPES`
+- `OIDC_CALLBACK_URL` -> `HEADLAMP_CONFIG_OIDC_CALLBACK_URL`
+- `OIDC_VALIDATOR_CLIENT_ID` -> `HEADLAMP_CONFIG_OIDC_VALIDATOR_CLIENT_ID`
+- `OIDC_VALIDATOR_ISSUER_URL` -> `HEADLAMP_CONFIG_OIDC_VALIDATOR_IDP_ISSUER_URL`
+- `OIDC_USE_ACCESS_TOKEN` -> `HEADLAMP_CONFIG_OIDC_USE_ACCESS_TOKEN`
+- `OIDC_USE_PKCE` -> `HEADLAMP_CONFIG_OIDC_USE_PKCE`
+- `OIDC_AUTO_LOGIN` -> `HEADLAMP_CONFIG_OIDC_AUTO_LOGIN`
+- `ME_USER_INFO_URL` -> `HEADLAMP_CONFIG_ME_USER_INFO_URL`
+
+Values set through `config.oidc.*` continue to work without changes.
+
 ### Cluster Inventory Configuration
 
 > **Warning**
@@ -219,8 +242,8 @@ config:
 When `config.clusterInventory.enabled` is true, every discovered cluster uses
 Headlamp's configured OIDC login. Its Kubernetes API server validates each
 user's token and applies that user's RBAC. The chart requires an OIDC client ID
-and issuer, supplied through `config.oidc`, the existing OIDC environment
-variables, or `config.oidc.externalSecret`.
+and issuer, supplied through `config.oidc`, the `HEADLAMP_CONFIG_OIDC`
+environment variables, or `config.oidc.externalSecret`.
 
 ```yaml
 config:

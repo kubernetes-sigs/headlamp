@@ -116,7 +116,6 @@ spec:
             - "-session-ttl=86400"
             - "-enable-cluster-api"
             - "-cluster-api-label-selector=!headlamp.dev/ignore"
-            # Check if externalSecret is disabled
             - --oidc-client-id=$(CLIENT_ID)
             - --oidc-idp-issuer-url=$(ISSUER)
           ports:

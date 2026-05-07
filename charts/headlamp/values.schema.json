@@ -321,7 +321,7 @@
                 },
                 "hasScopes": {
                   "type": "boolean",
-                  "description": "Set to true if the external secret contains an OIDC_SCOPES key"
+                  "description": "Deprecated compatibility option. OIDC values are read directly from HEADLAMP_CONFIG_* environment variables"
                 }
               }
             }

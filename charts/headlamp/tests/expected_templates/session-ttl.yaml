@@ -113,7 +113,6 @@ spec:
             - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             - "-session-ttl=31536000"
-            # Check if externalSecret is disabled
           ports:
             - name: http
               containerPort: 4466

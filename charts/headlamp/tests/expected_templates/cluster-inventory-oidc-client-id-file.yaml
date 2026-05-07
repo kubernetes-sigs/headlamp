@@ -106,7 +106,6 @@ spec:
             - "-session-ttl=86400"
             - "-enable-cluster-inventory"
             - "-cluster-inventory-label-selector=!headlamp.dev/ignore"
-            # Check if externalSecret is disabled
             - --oidc-client-id-file=
             - --oidc-client-id-file=/etc/oidc/client-id
             - --oidc-client-secret-file=

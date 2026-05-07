@@ -106,7 +106,6 @@ spec:
             - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             - "-session-ttl=86400"
-            # Check if externalSecret is disabled
             - --oidc-idp-issuer-url=
           ports:
             - name: http

@@ -99,43 +99,27 @@ spec:
           imagePullPolicy: IfNotPresent
           
           env:
-            - name: OIDC_CLIENT_ID
+            - name: HEADLAMP_CONFIG_OIDC_CLIENT_ID
               value: "12345"
-            - name: OIDC_CLIENT_SECRET
+            - name: HEADLAMP_CONFIG_OIDC_CLIENT_SECRET
               value: "*abc #def"
-            - name: OIDC_ISSUER_URL
+            - name: HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL
               value: "https://issuer.example.com"
-            - name: OIDC_SCOPES
+            - name: HEADLAMP_CONFIG_OIDC_SCOPES
               value: "openid,profile,email"
-            - name: OIDC_CALLBACK_URL
+            - name: HEADLAMP_CONFIG_OIDC_CALLBACK_URL
               value: "https://headlamp.example.com/oidc-callback"
-            - name: OIDC_VALIDATOR_CLIENT_ID
+            - name: HEADLAMP_CONFIG_OIDC_VALIDATOR_CLIENT_ID
               value: "true"
-            - name: OIDC_VALIDATOR_ISSUER_URL
+            - name: HEADLAMP_CONFIG_OIDC_VALIDATOR_IDP_ISSUER_URL
               value: "https://validator.example.com"
-            - name: ME_USER_INFO_URL
+            - name: HEADLAMP_CONFIG_ME_USER_INFO_URL
               value: "https://headlamp.example.com/oauth2/userinfo"
           args:
             - "-in-cluster"
             - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             - "-session-ttl=86400"
-            # Check if externalSecret is disabled
-            # Check if clientID is non empty either from env or oidc.config
-            - "-oidc-client-id=$(OIDC_CLIENT_ID)"
-            # Check if clientSecret is non empty either from env or oidc.config
-            - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
-            # Check if issuerURL is non empty either from env or oidc.config
-            - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
-            # Check if scopes are non empty either from env or oidc.config
-            - "-oidc-scopes=$(OIDC_SCOPES)"
-            # Check if callbackURL is non empty either from env or oidc.config
-            - "-oidc-callback-url=$(OIDC_CALLBACK_URL)"
-            # Check if validatorClientID is non empty either from env or oidc.config
-            - "-oidc-validator-client-id=$(OIDC_VALIDATOR_CLIENT_ID)"
-            # Check if validatorIssuerURL is non empty either from env or oidc.config
-            - "-oidc-validator-idp-issuer-url=$(OIDC_VALIDATOR_ISSUER_URL)"
-            - "-me-user-info-url=$(ME_USER_INFO_URL)"
           ports:
             - name: http
               containerPort: 4466

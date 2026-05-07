@@ -99,40 +99,25 @@ spec:
           imagePullPolicy: IfNotPresent
           
           env:
-            - name: OIDC_CLIENT_ID
+            - name: HEADLAMP_CONFIG_OIDC_CLIENT_ID
               value: "testClientId"
-            - name: OIDC_CLIENT_SECRET
+            - name: HEADLAMP_CONFIG_OIDC_CLIENT_SECRET
               value: "testClientSecret"
-            - name: OIDC_ISSUER_URL
+            - name: HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL
               value: "testIssuerURL"
-            - name: OIDC_SCOPES
+            - name: HEADLAMP_CONFIG_OIDC_SCOPES
               value: "testScope"
-            - name: OIDC_VALIDATOR_CLIENT_ID
+            - name: HEADLAMP_CONFIG_OIDC_VALIDATOR_CLIENT_ID
               value: "overriddenClientID"
-            - name: OIDC_VALIDATOR_ISSUER_URL
+            - name: HEADLAMP_CONFIG_OIDC_VALIDATOR_IDP_ISSUER_URL
               value: "overriddenIssuerURL"
-            - name: OIDC_USE_ACCESS_TOKEN
+            - name: HEADLAMP_CONFIG_OIDC_USE_ACCESS_TOKEN
               value: "true"
           args:
             - "-in-cluster"
             - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             - "-session-ttl=86400"
-            # Check if externalSecret is disabled
-            # Check if clientID is non empty either from env or oidc.config
-            - "-oidc-client-id=$(OIDC_CLIENT_ID)"
-            # Check if clientSecret is non empty either from env or oidc.config
-            - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
-            # Check if issuerURL is non empty either from env or oidc.config
-            - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
-            # Check if scopes are non empty either from env or oidc.config
-            - "-oidc-scopes=$(OIDC_SCOPES)"
-            # Check if validatorClientID is non empty either from env or oidc.config
-            - "-oidc-validator-client-id=$(OIDC_VALIDATOR_CLIENT_ID)"
-            # Check if validatorIssuerURL is non empty either from env or oidc.config
-            - "-oidc-validator-idp-issuer-url=$(OIDC_VALIDATOR_ISSUER_URL)"
-            # Check if useAccessToken is non false either from env or oidc.config
-            - "-oidc-use-access-token=$(OIDC_USE_ACCESS_TOKEN)"
           ports:
             - name: http
               containerPort: 4466

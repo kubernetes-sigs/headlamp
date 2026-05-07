@@ -116,9 +116,8 @@ config:
     externalSecret:
       enabled: false
       name: ""
-      # -- Set to true if your external secret contains an OIDC_SCOPES key.
-      # When false (default), the -oidc-scopes argument is omitted so that
-      # a missing key does not produce an empty or unresolved argument.
+      # -- Deprecated compatibility option. OIDC values are read directly from
+      # the external secret through HEADLAMP_CONFIG_* environment variables.
       hasScopes: false
 
     # -- URL to fetch additional user info for the /me endpoint.

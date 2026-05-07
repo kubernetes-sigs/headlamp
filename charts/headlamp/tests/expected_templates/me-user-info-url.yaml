@@ -109,7 +109,7 @@ spec:
           imagePullPolicy: IfNotPresent
           
           env:
-            - name: ME_USER_INFO_URL
+            - name: HEADLAMP_CONFIG_ME_USER_INFO_URL
               valueFrom:
                 secretKeyRef:
                   name: oidc
@@ -119,8 +119,6 @@ spec:
             - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             - "-session-ttl=86400"
-            # Check if externalSecret is disabled
-            - "-me-user-info-url=$(ME_USER_INFO_URL)"
           ports:
             - name: http
               containerPort: 4466

@@ -110,12 +110,12 @@ spec:
           imagePullPolicy: IfNotPresent
           
           env:
-            - name: OIDC_CLIENT_ID
+            - name: HEADLAMP_CONFIG_OIDC_CLIENT_ID
               valueFrom:
                 secretKeyRef:
                   name: oidc
                   key: clientID
-            - name: OIDC_ISSUER_URL
+            - name: HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL
               valueFrom:
                 secretKeyRef:
                   name: oidc
@@ -130,11 +130,6 @@ spec:
             - "-cluster-inventory-namespaces=inventory-e2e,shared-inventory"
             - "-cluster-inventory-root-reconcile-interval=10s"
             - "-cluster-inventory-no-crd-cache-ttl=30s"
-            # Check if externalSecret is disabled
-            # Check if clientID is non empty either from env or oidc.config
-            - "-oidc-client-id=$(OIDC_CLIENT_ID)"
-            # Check if issuerURL is non empty either from env or oidc.config
-            - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
           ports:
             - name: http
               containerPort: 4466

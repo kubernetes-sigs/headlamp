@@ -110,7 +110,6 @@ spec:
             - "-session-ttl=86400"
             - "-enable-cluster-api"
             - "-cluster-api-label-selector=!headlamp.dev/ignore"
-            # Check if externalSecret is disabled
           ports:
             - name: http
               containerPort: 4466
