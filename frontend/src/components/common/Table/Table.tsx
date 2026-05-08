@@ -216,7 +216,7 @@ export default function Table<RowItem extends Record<string, any>>({
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = rowsPerPage || storeRowsPerPageOptions;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const defaultRowsPerPage = useMemo(() => getTablesRowsPerPage(rowsPerPageOptions[0]), []);
+  const defaultRowsPerPage = getTablesRowsPerPage(rowsPerPageOptions[0]);
   const [pageSize, setPageSize] = useURLState(shouldReflectInURL ? 'perPage' : '', {
     defaultValue: defaultRowsPerPage,
     prefix,
