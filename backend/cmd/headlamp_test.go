@@ -473,6 +473,7 @@ func clusterInventoryConfigContext() *kubeconfig.Context {
 		},
 	}
 }
+}
 
 func TestInvalidKubeConfig(t *testing.T) {
 	cache := cache.New[interface{}]()

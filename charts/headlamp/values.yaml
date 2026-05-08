@@ -130,6 +130,7 @@ config:
   # tlsCertPath: "/headlamp-cert/headlamp-ca.crt"
   # tlsKeyPath: "/headlamp-cert/headlamp-tls.key"
   clusterInventory:
+  clusterInventory:
     # -- Enable experimental/alpha Cluster Inventory discovery.
     enabled: false
     # -- Experimental/alpha Cluster Inventory access providers config. Required when enabled.
