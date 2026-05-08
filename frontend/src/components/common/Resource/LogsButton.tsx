@@ -35,6 +35,7 @@ import { makeUrl } from '../../../lib/k8s/api/v2/makeUrl';
 import { KubeContainerStatus } from '../../../lib/k8s/cluster';
 import DaemonSet from '../../../lib/k8s/daemonSet';
 import Deployment from '../../../lib/k8s/deployment';
+import Job from '../../../lib/k8s/job';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
@@ -63,19 +64,21 @@ export const LOGGABLE_WORKLOAD_KINDS: ReadonlySet<string> = new Set([
   'ReplicaSet',
   'DaemonSet',
   'StatefulSet',
+  'Job',
 ]);
 
 // Kind + apiGroup check via KubeObject.isClassOf — cross-bundle safe, unlike
 // instanceof, which breaks when plugins ship their own class definitions.
 function isLoggableWorkload(
   item: KubeObject | null
-): item is Deployment | ReplicaSet | DaemonSet | StatefulSet {
+): item is Deployment | ReplicaSet | DaemonSet | StatefulSet | Job {
   return (
     !!item &&
     (Deployment.isClassOf(item) ||
       ReplicaSet.isClassOf(item) ||
       DaemonSet.isClassOf(item) ||
-      StatefulSet.isClassOf(item))
+      StatefulSet.isClassOf(item) ||
+      Job.isClassOf(item))
   );
 }
 
@@ -153,7 +156,10 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   async function getRelatedPods(): Promise<Pod[]> {
     if (isLoggableWorkload(item)) {
       try {
-        const labelSelector = labelSelectorToQuery(item.spec.selector);
+        const labelSelector =
+          Job.isClassOf(item) && !item.spec.selector
+            ? `batch.kubernetes.io/job-name=${item.metadata.name}`
+            : labelSelectorToQuery(item.spec.selector);
 
         if (!labelSelector) {
           throw new Error(
