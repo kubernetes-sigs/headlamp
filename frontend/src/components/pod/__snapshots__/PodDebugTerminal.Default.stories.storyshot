@@ -108,7 +108,7 @@
                   style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
                 >
                   <span>
-                    Error: Unreachable
+                    Error: Unreachable - Unreachable
                   </span>
                 </div>
                 <div
@@ -246,7 +246,7 @@
         13.41L15.59,17L17,15.59L13.41,12L17,8.41L15.59,7Z"
                   />
                 </svg>
-                Failed to create debug container: Unreachable
+                Failed to create debug container: Unreachable - Unreachable
               </div>
             </div>
           </div>

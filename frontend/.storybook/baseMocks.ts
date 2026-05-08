@@ -25,12 +25,16 @@ import { NODE_DUMMY_DATA } from '../src/components/node/storyHelper';
  *
  */
 export const baseMocks = [
-  http.get('http://localhost:4466/wsMultiplexer', () => HttpResponse.error()),
+  http.get('*/wsMultiplexer', () => HttpResponse.error()),
   http.get('https://api.iconify.design/mdi.json', () => HttpResponse.json({})),
-  http.post('http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectaccessreviews', () =>
-    HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+  http.post('*/apis/authorization.k8s.io/*/selfsubjectaccessreviews', () =>
+    HttpResponse.json({
+      kind: 'SelfSubjectAccessReview',
+      apiVersion: 'authorization.k8s.io/v1',
+      status: { allowed: true, reason: '', code: 200 },
+    })
   ),
-  http.get('http://localhost:4466/api/v1/namespaces', () =>
+  http.get('*/api/v1/namespaces', () =>
     HttpResponse.json({
       kind: 'NamespacesList',
       items: [
@@ -53,46 +57,46 @@ export const baseMocks = [
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/clusters/cluster0/version', () => HttpResponse.json({})),
-  http.get('http://localhost:4466/clusters/cluster1/version', () => HttpResponse.json({})),
-  http.get('http://localhost:4466/clusters/cluster2/version', () => HttpResponse.json({})),
-  http.get('http://localhost:4466/clusters/cluster0/api/v1/events', () =>
+  http.get('*/clusters/cluster0/version', () => HttpResponse.json({})),
+  http.get('*/clusters/cluster1/version', () => HttpResponse.json({})),
+  http.get('*/clusters/cluster2/version', () => HttpResponse.json({})),
+  http.get('*/clusters/cluster0/api/v1/events', () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/clusters/cluster1/api/v1/events', () =>
+  http.get('*/clusters/cluster1/api/v1/events', () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/clusters/cluster2/api/v1/events', () =>
+  http.get('*/clusters/cluster2/api/v1/events', () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/version', () => HttpResponse.json({})),
-  http.get('http://localhost:4466/api/v1/events', () =>
+  http.get('*/version', () => HttpResponse.json({})),
+  http.get('*/api/v1/events', () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/api/v1/namespaces/kube-system/events', () =>
+  http.get('*/api/v1/namespaces/kube-system/events', () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/api/v1/nodes', () =>
+  http.get('*/api/v1/nodes', () =>
     HttpResponse.json({
       kind: 'NodesList',
       apiVersion: 'v1',
@@ -102,7 +106,7 @@ export const baseMocks = [
       items: NODE_DUMMY_DATA,
     })
   ),
-  http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
+  http.get('*/api/v1/namespaces/default/pods', () =>
     HttpResponse.json({
       kind: 'PodList',
       apiVersion: 'v1',
@@ -110,7 +114,7 @@ export const baseMocks = [
       items: [],
     })
   ),
-  http.get('http://localhost:4466/apis/metrics.k8s.io/v1beta1/nodes', () =>
+  http.get('*/apis/metrics.k8s.io/v1beta1/nodes', () =>
     HttpResponse.json({
       apiVersion: 'metrics.k8s.io/v1beta1',
       kind: 'NodeMetricsList',
@@ -241,6 +245,20 @@ export const baseMocks = [
           reportingInstance: '',
         },
       ],
+    })
+  ),
+  http.get('https://api.github.com/repos/kinvolk/headlamp/releases', () =>
+    HttpResponse.json([
+      {
+        name: 'v0.25.0',
+        html_url: 'https://github.com/kinvolk/headlamp/releases/tag/v0.25.0',
+        body: 'Release notes here',
+      },
+    ])
+  ),
+  http.get('https://api.github.com/repos/kinvolk/headlamp/releases/tags/*', () =>
+    HttpResponse.json({
+      body: 'Release notes here <!-- end-release-notes -->',
     })
   ),
 ];

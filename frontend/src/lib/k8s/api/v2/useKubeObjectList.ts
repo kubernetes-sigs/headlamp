@@ -520,7 +520,7 @@ export function useKubeObjectList<K extends KubeObject>({
     .map(data => ({
       cluster: data!.cluster,
       namespace: data!.namespace,
-      resourceVersion: data!.list.metadata.resourceVersion,
+      resourceVersion: data?.list?.metadata?.resourceVersion || '',
     }));
 
   if (listsNotYetWatched.length > 0) {
