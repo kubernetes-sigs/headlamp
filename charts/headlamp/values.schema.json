@@ -262,6 +262,17 @@
           "type": "string",
           "description": "Path of private key file for TLS"
         },
+        "clusterInventory": {
+          "type": "object",
+          "description": "Cluster Inventory configuration",
+          "properties": {
+            "labelSelector": {
+              "type": "string",
+              "description": "Kubernetes label selector used to filter ClusterProfile resources",
+              "default": "!headlamp.dev/ignore"
+            }
+          }
+        },
         "extraArgs": {
           "type": "array",
           "description": "Extra arguments to pass to the application",

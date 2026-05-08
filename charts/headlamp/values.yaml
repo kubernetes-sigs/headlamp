@@ -129,6 +129,9 @@ config:
   podDebugImage: ""
   # tlsCertPath: "/headlamp-cert/headlamp-ca.crt"
   # tlsKeyPath: "/headlamp-cert/headlamp-tls.key"
+  clusterInventory:
+    # -- Kubernetes label selector used to filter ClusterProfile resources.
+    labelSelector: "!headlamp.dev/ignore"
   # Extra arguments that can be given to the container. See charts/headlamp/README.md for more information.
   extraArgs: []
 

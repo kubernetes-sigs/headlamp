@@ -49,15 +49,15 @@ import (
 	"github.com/gorilla/mux"
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
-
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/portforward"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -70,6 +70,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
@@ -460,6 +461,40 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 			}
 		}
 	}).Methods("GET")
+}
+
+func startClusterInventory(ctx context.Context, config *HeadlampConfig) error {
+	if !config.EnableClusterInventory {
+		return nil
+	}
+
+	var hubConfig *rest.Config
+
+	if config.UseInCluster {
+		inClusterConfig, err := rest.InClusterConfig()
+		if err != nil {
+			return fmt.Errorf("get in-cluster config for cluster inventory: %w", err)
+		}
+
+		hubConfig = inClusterConfig
+	}
+
+	runner, err := clusterinventory.NewRunner(clusterinventory.Options{
+		Store:                 config.KubeConfigStore,
+		ProviderFile:          config.ClusterInventoryProviderFile,
+		LabelSelector:         config.ClusterInventoryLabelSelector,
+		RootReconcileInterval: config.ClusterInventoryRootReconcileInterval,
+		NoCRDCacheTTL:         config.ClusterInventoryNoCRDCacheTTL,
+		HubConfig:             hubConfig,
+		DiscoverFromStore:     !config.UseInCluster,
+	})
+	if err != nil {
+		return err
+	}
+
+	go runner.Run(ctx)
+
+	return nil
 }
 
 func setupInClusterContext(config *HeadlampConfig) {
@@ -1405,6 +1440,25 @@ func hostValidationMiddleware(listenAddr string, port uint) func(http.Handler) h
 	}
 }
 
+func serverHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, error) {
+	handler := createHeadlampHandler(ctx, config)
+
+	if err := startClusterInventory(ctx, config); err != nil {
+		return nil, err
+	}
+
+	handler = config.OIDCTokenRefreshMiddleware(handler)
+
+	// Only validate the Host header when listening on a loopback address.
+	// When bound to a non-loopback address (e.g. behind a reverse proxy),
+	// arbitrary Host headers are expected and must be allowed through.
+	if isLoopbackAddr(config.ListenAddr) {
+		handler = hostValidationMiddleware(config.ListenAddr, config.Port)(handler)
+	}
+
+	return handler, nil
+}
+
 //nolint:funlen
 func StartHeadlampServer(config *HeadlampConfig) {
 	tel, err := initTelemetry(config)
@@ -1438,14 +1492,10 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	handler := createHeadlampHandler(ctx, config)
-	handler = config.OIDCTokenRefreshMiddleware(handler)
-
-	// Only validate the Host header when listening on a loopback address.
-	// When bound to a non-loopback address (e.g. behind a reverse proxy),
-	// arbitrary Host headers are expected and must be allowed through.
-	if isLoopbackAddr(config.ListenAddr) {
-		handler = hostValidationMiddleware(config.ListenAddr, config.Port)(handler)
+	handler, err := serverHandler(ctx, config)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "starting cluster inventory discovery")
+		return
 	}
 
 	listenHost := strings.TrimPrefix(strings.TrimSuffix(config.ListenAddr, "]"), "[")

@@ -3,6 +3,7 @@ package headlampconfig
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -46,28 +47,35 @@ type HeadlampConfig struct {
 }
 
 type HeadlampCFG struct {
-	UseInCluster                 bool
-	InClusterContextName         string
-	ListenAddr                   string
-	CacheEnabled                 bool
-	DevMode                      bool
-	Insecure                     bool
-	EnableHelm                   bool
-	EnableDynamicClusters        bool
-	AllowKubeconfigChanges       bool
-	WatchPluginsChanges          bool
-	Port                         uint
-	KubeConfigPath               string
-	SkippedKubeContexts          string
-	StaticDir                    string
-	PluginDir                    string
-	UserPluginDir                string
-	StaticPluginDir              string
-	KubeConfigStore              kubeconfig.ContextStore
-	Telemetry                    *telemetry.Telemetry
-	Metrics                      *telemetry.Metrics
-	BaseURL                      string
-	ProxyURLs                    []string
+	UseInCluster           bool
+	InClusterContextName   string
+	ListenAddr             string
+	CacheEnabled           bool
+	DevMode                bool
+	Insecure               bool
+	EnableHelm             bool
+	EnableDynamicClusters  bool
+	EnableClusterInventory bool
+	AllowKubeconfigChanges bool
+	WatchPluginsChanges    bool
+	Port                   uint
+	KubeConfigPath         string
+	SkippedKubeContexts    string
+	StaticDir              string
+	PluginDir              string
+	UserPluginDir          string
+	StaticPluginDir        string
+	KubeConfigStore        kubeconfig.ContextStore
+	Telemetry              *telemetry.Telemetry
+	Metrics                *telemetry.Metrics
+	BaseURL                string
+	ProxyURLs              []string
+
+	ClusterInventoryProviderFile          string
+	ClusterInventoryLabelSelector         string
+	ClusterInventoryRootReconcileInterval time.Duration
+	ClusterInventoryNoCRDCacheTTL         time.Duration
+
 	TLSCertPath                  string
 	TLSKeyPath                   string
 	SessionTTL                   int

@@ -393,6 +393,29 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 	}
 }
 
+func TestGetClustersClusterInventorySource(t *testing.T) {
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:        "cluster-inventory-in-cluster--default--spoke-a--dbdb0aa95e5d",
+		KubeContext: &api.Context{Cluster: "spoke-a", AuthInfo: "spoke-a", Namespace: "default"},
+		Cluster:     &api.Cluster{Server: "https://spoke-a.example.com"},
+		AuthInfo:    &api.AuthInfo{},
+		Source:      kubeconfig.ClusterInventory,
+		ClusterID:   "cluster-inventory/in-cluster/default/spoke-a",
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
+		},
+	}
+
+	clusters := c.getClusters()
+	require.Len(t, clusters, 1)
+	assert.Equal(t, "cluster_inventory", clusters[0].Metadata["source"])
+	assert.Equal(t, "cluster-inventory/in-cluster/default/spoke-a", clusters[0].Metadata["clusterID"])
+}
+
 func TestInvalidKubeConfig(t *testing.T) {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()

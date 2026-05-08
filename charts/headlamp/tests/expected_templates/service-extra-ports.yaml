@@ -123,6 +123,7 @@ spec:
             - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             - "-session-ttl=86400"
+            - "-cluster-inventory-label-selector=!headlamp.dev/ignore"
             # Check if externalSecret is disabled
           ports:
             - name: http
