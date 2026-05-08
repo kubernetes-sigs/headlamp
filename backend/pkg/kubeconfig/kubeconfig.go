@@ -56,6 +56,7 @@ const (
 	KubeConfig = 1 << iota
 	DynamicCluster
 	InCluster
+	ClusterInventory
 )
 
 // Context contains all information related to a kubernetes context.
@@ -415,6 +416,8 @@ func (c *Context) SourceStr() string {
 		return "dynamic_cluster"
 	case InCluster:
 		return "incluster"
+	case ClusterInventory:
+		return "cluster_inventory"
 	default:
 		return "unknown"
 	}
