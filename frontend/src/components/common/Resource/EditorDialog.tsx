@@ -299,7 +299,9 @@ export default function EditorDialog(props: EditorDialogProps) {
   }
 
   function onUndo() {
+    window.clearTimeout(lastCodeCheckHandler.current);
     setCode(originalCodeRef.current);
+    setError('');
   }
 
   const applyFunc = async (newItems: KubeObjectInterface[], clusterName: string) => {
