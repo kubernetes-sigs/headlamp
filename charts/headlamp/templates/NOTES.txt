@@ -30,3 +30,11 @@
   kubectl get secret $SECRET --namespace {{ include "headlamp.namespace" . }} --template=\{\{.data.token\}\} | base64 --decode
   {{- end }}
 {{- end }}
+{{- if .Values.image.tag }}
+
+NOTE:
+  image.tag is explicitly set to {{ .Values.image.tag }}.
+  Chart upgrades do not change this pinned value automatically.
+  If the UI shows an older version than the chart appVersion, update image.tag explicitly, for example:
+  helm upgrade {{ .Release.Name }} headlamp/headlamp --namespace {{ include "headlamp.namespace" . }} --set image.tag=v{{ .Chart.AppVersion }}
+{{- end }}

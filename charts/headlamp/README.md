@@ -53,6 +53,19 @@ $ helm install my-headlamp headlamp/headlamp \
   --set ingress.hosts[0].paths[0].path=/
 ```
 
+### Upgrade note about image tags
+
+If `image.tag` is set explicitly (for example in a values file or via `--set image.tag=...`), Helm upgrades will keep that value.
+This means the release can show a newer chart/app version while still running an older container image.
+
+To ensure the running image matches the chart version during upgrade, set the tag explicitly to the chart's appVersion-derived format:
+
+```console
+$ helm upgrade my-headlamp headlamp/headlamp \
+  --namespace kube-system \
+  --set image.tag=v<appVersion>
+```
+
 ## Configuration
 
 ### Core Parameters
