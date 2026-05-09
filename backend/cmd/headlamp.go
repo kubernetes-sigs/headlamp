@@ -65,6 +65,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -2638,7 +2639,7 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 	c.drainNode(clientset, drainPayload.NodeName, drainPayload.Cluster)
 }
 
-func (c *HeadlampConfig) drainNode(clientset *kubernetes.Clientset, nodeName string, cluster string) {
+func (c *HeadlampConfig) drainNode(clientset kubernetes.Interface, nodeName string, cluster string) {
 	go func() {
 		nodeClient := clientset.CoreV1().Nodes()
 		ctx := context.Background()
@@ -2669,17 +2670,30 @@ func (c *HeadlampConfig) drainNode(clientset *kubernetes.Clientset, nodeName str
 
 		var gracePeriod int64 = 0
 
+		var deleteErrors []string
+
 		for _, pod := range pods.Items {
 			// ignore daemonsets
 			if pod.Labels["kubernetes.io/created-by"] == "daemonset-controller" {
 				continue
 			}
 
-			_ = clientset.CoreV1().Pods(pod.Namespace).Delete(ctx,
-				pod.Name, v1.DeleteOptions{GracePeriodSeconds: &gracePeriod})
+			if err := clientset.CoreV1().Pods(pod.Namespace).Delete(ctx,
+				pod.Name, v1.DeleteOptions{GracePeriodSeconds: &gracePeriod}); err != nil && !apierrors.IsNotFound(err) {
+				deleteErrors = append(deleteErrors, fmt.Sprintf("%s/%s: %v", pod.Namespace, pod.Name, err))
+			}
 		}
 
-		_ = c.Cache.SetWithTTL(ctx, cacheKey, "success", cacheItemTTL)
+		if len(deleteErrors) > 0 {
+			errMsg := fmt.Sprintf("error: failed to delete %d pod(s)", len(deleteErrors))
+			logger.Log(logger.LevelError, nil, nil,
+				fmt.Sprintf("node drain: failed to delete %d pod(s): %s",
+					len(deleteErrors), strings.Join(deleteErrors, "; ")))
+
+			_ = c.Cache.SetWithTTL(ctx, cacheKey, errMsg, cacheItemTTL)
+		} else {
+			_ = c.Cache.SetWithTTL(ctx, cacheKey, "success", cacheItemTTL)
+		}
 	}()
 }
 
