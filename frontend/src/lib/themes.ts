@@ -105,6 +105,7 @@ export interface HeadlampSidebar {
 export interface HeadlampNavbar {
   background: string;
   color: string;
+  searchHint: string;
 }
 
 declare module '@mui/material/styles/createPalette.d' {
@@ -218,6 +219,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
       navbar: {
         background: currentTheme.navbar?.background ?? '#FFF',
         color: currentTheme.navbar?.color ?? '#333',
+        searchHint: '#74747B',
       },
       clusterChooser: {
         button: {
@@ -446,6 +448,10 @@ export function createMuiTheme(currentTheme: AppTheme) {
         },
         notificationBorderColor: 'rgba(255,255,255,0.12)',
         mode: 'dark',
+        navbar: {
+          ...commonRules.palette.navbar,
+          searchHint: 'rgba(255, 255, 255, 0.7)',
+        },
         background: {
           default: currentTheme.background?.default ?? '#1f1f1f',
           paper: currentTheme.background?.surface ?? '#1f1f1f',
