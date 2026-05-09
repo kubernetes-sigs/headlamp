@@ -214,11 +214,11 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
                   >
                     <span
-                      aria-label="testsecret-tls 🞂 https-example.foo.com"
+                      aria-label="testsecret-tls › https-example.foo.com"
                       class=""
                       data-mui-internal-clone-element="true"
                     >
-                      testsecret-tls 🞂 https-example.foo.com
+                      testsecret-tls › https-example.foo.com
                     </span>
                   </dd>
                   <dt

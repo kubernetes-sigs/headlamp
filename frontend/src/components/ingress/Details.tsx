@@ -233,7 +233,7 @@ export default function IngressDetails(props: {
               <LabelListItem
                 labels={ingress.spec?.tls?.map(
                   (tls: { hosts: string[]; secretName: string }) =>
-                    `${tls.secretName} 🞂 ${tls.hosts.join(', ')}`
+                    `${tls.secretName} › ${tls.hosts.join(', ')}`
                 )}
               />
             ),
