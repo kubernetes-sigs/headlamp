@@ -21,22 +21,20 @@ metadata:
 type: Opaque
 data:
 ---
-# Source: headlamp/templates/extra-manifests.yaml
+# Source: headlamp/templates/cluster-inventory-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: dummy-configmap
+  name: headlamp-cluster-inventory
+  namespace: default
+  labels:
+    helm.sh/chart: headlamp-0.42.0
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/instance: headlamp
+    app.kubernetes.io/version: "0.42.0"
+    app.kubernetes.io/managed-by: Helm
 data:
-  key1: value1
-  key2: value2
----
-# Source: headlamp/templates/extra-manifests.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: configmap-with-templated-data
-data:
-  injectedKey: headlamp
+  config.json: "{\"providers\":[{\"name\":\"static-provider\"}]}"
 ---
 # Source: headlamp/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -130,6 +128,11 @@ spec:
             - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             - "-session-ttl=86400"
+            - "-enable-cluster-inventory"
+            - "-cluster-inventory-provider-file=/etc/cluster-inventory/config.json"
+            - "-cluster-inventory-label-selector=!headlamp.dev/ignore"
+            - "-cluster-inventory-root-reconcile-interval=10s"
+            - "-cluster-inventory-no-crd-cache-ttl=30s"
             # Check if externalSecret is disabled
           ports:
             - name: http
@@ -157,3 +160,14 @@ spec:
             failureThreshold: 3
           resources:
             {}
+          volumeMounts:
+            - name: cluster-inventory-config
+              mountPath: /etc/cluster-inventory
+              readOnly: true
+      volumes:
+        - name: cluster-inventory-config
+          configMap:
+            name: headlamp-cluster-inventory
+            items:
+              - key: config.json
+                path: config.json
