@@ -740,12 +740,12 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-ccolv7-MuiTableCell-root"
               >
                 <span
-                  aria-label="/ 🞂 service1:80
-/second 🞂 service2:someport"
+                  aria-label="/ › service1:80
+/second › service2:someport"
                   class=""
                   data-mui-internal-clone-element="true"
                 >
-                  / 🞂 service1:80, /second 🞂 service2:someport
+                  / › service1:80, /second › service2:someport
                 </span>
               </td>
               <td
@@ -847,11 +847,11 @@
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-ccolv7-MuiTableCell-root"
               >
                 <span
-                  aria-label="/ 🞂 Service:service1"
+                  aria-label="/ › Service:service1"
                   class=""
                   data-mui-internal-clone-element="true"
                 >
-                  / 🞂 Service:service1
+                  / › Service:service1
                 </span>
               </td>
               <td
