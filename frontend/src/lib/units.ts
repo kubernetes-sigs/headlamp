@@ -18,7 +18,7 @@
  * This module was taken from the k8dash project.
  */
 
-import _ from 'lodash';
+import * as _ from 'lodash';
 
 const RAM_TYPES = ['Bi', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei'];
 const UNITS = ['B', 'K', 'M', 'G', 'T', 'P', 'E'];

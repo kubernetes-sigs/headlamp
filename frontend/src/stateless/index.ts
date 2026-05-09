@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import _ from 'lodash';
+import * as _ from 'lodash';
 import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
 import { request } from '../lib/k8s/api/v1/clusterRequests';
 import { JSON_HEADERS } from '../lib/k8s/api/v1/constants';

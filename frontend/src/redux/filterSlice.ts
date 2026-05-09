@@ -147,7 +147,7 @@ const filterSlice = createSlice({
       const namespacesSet = new Set(namespaces);
       state.namespaces = namespacesSet;
 
-      saveNamespaces([...namespacesSet]);
+      saveNamespaces(Array.from(namespacesSet));
     },
     /**
      * Resets the filter state.
@@ -170,5 +170,5 @@ export default filterSlice.reducer;
  */
 export const useNamespaces = () => {
   const namespacesSet = useSelector(({ filter }: { filter: FilterState }) => filter.namespaces);
-  return useMemo(() => [...namespacesSet], [namespacesSet]);
+  return useMemo(() => Array.from(namespacesSet), [namespacesSet]);
 };

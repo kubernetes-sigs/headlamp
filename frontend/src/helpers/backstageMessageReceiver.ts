@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import jsyaml from 'js-yaml';
+import * as jsyaml from 'js-yaml';
 import { KubeconfigObject } from '../lib/k8s/kubeconfig';
 import * as statelessFunctions from '../stateless';
 import { isBackstage } from './isBackstage';
