@@ -16,7 +16,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect, useRef } from 'react';
-import { getCluster } from '../../../lib/cluster'; // adjust import path as needed
+import { getCluster } from '../../../lib/cluster';
 import { KubeObject, KubeObjectClass } from '../../../lib/k8s/KubeObject';
 
 const VALID_AUTH_VERBS = [
@@ -35,6 +35,7 @@ type AuthVerb = (typeof VALID_AUTH_VERBS)[number];
 function isAuthVerb(authVerb: string): authVerb is AuthVerb {
   return (VALID_AUTH_VERBS as readonly string[]).includes(authVerb);
 }
+
 function isKubeObjectInstance(item: KubeObject | KubeObjectClass | null): item is KubeObject {
   return (
     item !== null &&
@@ -54,6 +55,7 @@ export interface AuthVisibleProps extends React.PropsWithChildren {
 
 export default function AuthVisible(props: AuthVisibleProps) {
   const { item, authVerb, subresource, namespace, onError, onAuthResult, children } = props;
+
   const onAuthResultRef = useRef(onAuthResult);
   useEffect(() => {
     onAuthResultRef.current = onAuthResult;
@@ -83,14 +85,19 @@ export default function AuthVisible(props: AuthVisibleProps) {
       subresource,
       namespace,
     ],
-
     retry: false,
     queryFn: async () => {
       if (!item) {
         return null;
       }
       try {
-        return await item.getAuthorization(authVerb, { subresource, namespace });
+        if (isInstance) {
+          return await item.getAuthorization(authVerb, { subresource, namespace });
+        }
+        if (!itemClass) {
+          return null;
+        }
+        return await itemClass.getAuthorization(authVerb, { subresource, namespace }, cluster);
       } catch (e: any) {
         onErrorRef.current?.(e);
         return null;
@@ -100,7 +107,6 @@ export default function AuthVisible(props: AuthVisibleProps) {
 
   useEffect(() => {
     if (!data) return;
-
     onAuthResultRef.current?.({
       allowed: data.status?.allowed ?? false,
       reason: data.status?.reason ?? '',
