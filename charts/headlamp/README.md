@@ -66,6 +66,35 @@ $ helm upgrade my-headlamp headlamp/headlamp \
   --set image.tag=v<appVersion>
 ```
 
+### Installation with Cluster Inventory
+```console
+$ helm install my-headlamp headlamp/headlamp \
+  --namespace kube-system \
+  --values cluster-inventory-values.yaml
+```
+
+`cluster-inventory-values.yaml`:
+
+```yaml
+config:
+  clusterInventory:
+    enabled: true
+    accessProvidersConfig:
+      providers:
+        - name: secretreader
+          execConfig:
+            apiVersion: client.authentication.k8s.io/v1
+            command: /access-plugins/secretreader/secretreader-plugin
+            provideClusterInfo: true
+    plugins:
+      - name: secretreader
+        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.1
+        mountPath: /access-plugins/secretreader
+```
+
+`plugins[]` mounts Cluster Inventory access provider binaries as Kubernetes
+`image` volumes; it is not for Headlamp UI plugins.
+
 ## Configuration
 
 ### Core Parameters
