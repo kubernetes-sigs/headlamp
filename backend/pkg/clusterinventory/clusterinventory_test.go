@@ -49,6 +49,11 @@ import (
 	ciafake "sigs.k8s.io/cluster-inventory-api/client/clientset/versioned/fake"
 )
 
+const (
+	clusterInventoryTestEventuallyTimeout = 10 * time.Second
+	clusterInventoryTestEventuallyTick    = 20 * time.Millisecond
+)
+
 func writeProviderFile(t *testing.T, providers ...string) string {
 	t.Helper()
 
@@ -120,6 +125,24 @@ func clusterProfile(name, providerName, server string) *apisv1alpha1.ClusterProf
 	return cp
 }
 
+func clusterProfileWithControlPlaneCondition(
+	status metav1.ConditionStatus,
+	reason string,
+	message string,
+) *apisv1alpha1.ClusterProfile {
+	cp := clusterProfile("spoke-a", "static-token", "https://spoke-a.example.com")
+	cp.Status.Conditions = []metav1.Condition{
+		{
+			Type:    apisv1alpha1.ClusterConditionControlPlaneHealthy,
+			Status:  status,
+			Reason:  reason,
+			Message: message,
+		},
+	}
+
+	return cp
+}
+
 func listErrorClient(err error) *ciafake.Clientset {
 	client := ciafake.NewSimpleClientset()
 	client.PrependReactor("list", "clusterprofiles", func(k8stesting.Action) (bool, k8sruntime.Object, error) {
@@ -173,7 +196,7 @@ func waitForRootSync(t *testing.T, runner *Runner, rootID string) {
 		runner.mu.Unlock()
 
 		return state != nil && state.informer.HasSynced()
-	}, 2*time.Second, 10*time.Millisecond)
+	}, clusterInventoryTestEventuallyTimeout, clusterInventoryTestEventuallyTick)
 }
 
 func requireProfileContextEventually(
@@ -194,7 +217,7 @@ func requireProfileContextEventually(
 		headlampContext = ctx
 
 		return true
-	}, 2*time.Second, 10*time.Millisecond)
+	}, clusterInventoryTestEventuallyTimeout, clusterInventoryTestEventuallyTick)
 
 	return headlampContext
 }
@@ -206,7 +229,7 @@ func requireNoProfileContextEventually(t *testing.T, store kubeconfig.ContextSto
 		_, err := getProfileContext(store, profileKey)
 
 		return err != nil
-	}, 2*time.Second, 10*time.Millisecond)
+	}, clusterInventoryTestEventuallyTimeout, clusterInventoryTestEventuallyTick)
 }
 
 type watchListClient struct {
@@ -303,6 +326,50 @@ func TestRestConfigToContextPreservesConfig(t *testing.T) {
 	assert.Equal(t, "/bin/token", ctx.AuthInfo.Exec.Command)
 	assert.Equal(t, clientcmdapi.NeverExecInteractiveMode, ctx.AuthInfo.Exec.InteractiveMode)
 	assert.Equal(t, execConfig.Config, ctx.Cluster.Extensions[clusterExecConfigExtensionKey])
+}
+
+func TestContextFromClusterProfilePreservesInventoryMetadata(t *testing.T) {
+	runner := newTestRunner(t, Options{})
+	profileKey := "in-cluster/default/spoke-a"
+	cp := clusterProfile("spoke-a", "static-token", "https://spoke-a.example.com")
+	cp.Status.Conditions = []metav1.Condition{
+		{
+			Type:               apisv1alpha1.ClusterConditionControlPlaneHealthy,
+			Status:             metav1.ConditionFalse,
+			Reason:             "HealthCheckFailed",
+			Message:            "control plane endpoint is not ready",
+			LastTransitionTime: metav1.NewTime(time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC)),
+			ObservedGeneration: 3,
+		},
+	}
+	cp.Status.Version = apisv1alpha1.ClusterVersion{Kubernetes: "v1.35.0"}
+	cp.Status.Properties = []apisv1alpha1.Property{
+		{
+			Name:             "region",
+			Value:            "us-west1",
+			LastObservedTime: metav1.NewTime(time.Date(2026, 5, 10, 1, 0, 0, 0, time.UTC)),
+		},
+	}
+
+	headlampContext, ok := runner.contextFromClusterProfile(profileKey, cp)
+	require.True(t, ok)
+
+	require.NotNil(t, headlampContext.ClusterInventory)
+	assert.Equal(t, kubeconfig.ClusterInventoryProfile{
+		Namespace: "default",
+		Name:      "spoke-a",
+		Key:       profileKey,
+	}, headlampContext.ClusterInventory.Profile)
+	assert.Equal(t, cp.Status.Conditions, headlampContext.ClusterInventory.Conditions)
+	require.NotNil(t, headlampContext.ClusterInventory.Version)
+	assert.Equal(t, "v1.35.0", headlampContext.ClusterInventory.Version.Kubernetes)
+	assert.Equal(t, []kubeconfig.ClusterInventoryProperty{
+		{
+			Name:             "region",
+			Value:            "us-west1",
+			LastObservedTime: cp.Status.Properties[0].LastObservedTime,
+		},
+	}, headlampContext.ClusterInventory.Properties)
 }
 
 func TestClusterProfileDeletePrunesContextOutsideRunnerLock(t *testing.T) {
@@ -655,7 +722,7 @@ func TestRemovedStoreSeedStopsWatcherAndPrunesDiscoveredContexts(t *testing.T) {
 		defer runner.mu.Unlock()
 
 		return runner.roots["store/seed-a"] == nil
-	}, 2*time.Second, 10*time.Millisecond)
+	}, clusterInventoryTestEventuallyTimeout, clusterInventoryTestEventuallyTick)
 }
 
 func TestStoreSeedConfigChangeRestartsWatcher(t *testing.T) {
@@ -786,7 +853,7 @@ func TestWatchAddUpdateDeleteSyncsContext(t *testing.T) {
 		headlampContext, err := getProfileContext(store, "in-cluster/default/spoke-a")
 
 		return err == nil && headlampContext.Cluster.Server == "https://spoke-a-updated.example.com"
-	}, 2*time.Second, 10*time.Millisecond)
+	}, clusterInventoryTestEventuallyTimeout, clusterInventoryTestEventuallyTick)
 
 	require.NoError(t, client.ApisV1alpha1().ClusterProfiles("default").Delete(
 		ctx,
@@ -795,6 +862,62 @@ func TestWatchAddUpdateDeleteSyncsContext(t *testing.T) {
 	))
 
 	requireNoProfileContextEventually(t, store, "in-cluster/default/spoke-a")
+}
+
+func TestWatchUpdateSyncsClusterInventoryConditions(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	runner := newTestRunner(t, Options{
+		Store:     store,
+		HubConfig: &rest.Config{Host: "https://hub.example.com"},
+	})
+
+	client := ciafake.NewSimpleClientset()
+	runner.clientForConfig = func(*rest.Config) (ciaclient.Interface, error) {
+		return client, nil
+	}
+
+	ctx := testRunnerContext(t, runner)
+	reconcileAndWaitForRoot(t, ctx, runner, inClusterRootID)
+
+	createdProfile := clusterProfileWithControlPlaneCondition(
+		metav1.ConditionFalse,
+		"HealthCheckFailed",
+		"control plane endpoint is not ready",
+	)
+	created, err := client.ApisV1alpha1().ClusterProfiles("default").Create(
+		ctx,
+		createdProfile,
+		metav1.CreateOptions{},
+	)
+	require.NoError(t, err)
+
+	headlampContext := requireProfileContextEventually(t, store, "in-cluster/default/spoke-a")
+	require.NotNil(t, headlampContext.ClusterInventory)
+	require.Len(t, headlampContext.ClusterInventory.Conditions, 1)
+	require.Equal(t, metav1.ConditionFalse, headlampContext.ClusterInventory.Conditions[0].Status)
+
+	updatedProfile := clusterProfileWithControlPlaneCondition(
+		metav1.ConditionTrue,
+		"HealthCheckSucceeded",
+		"control plane endpoint is ready",
+	)
+	updatedProfile.ObjectMeta = created.ObjectMeta
+	_, err = client.ApisV1alpha1().ClusterProfiles("default").Update(ctx, updatedProfile, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		headlampContext, err := getProfileContext(store, "in-cluster/default/spoke-a")
+		if err != nil || headlampContext.ClusterInventory == nil {
+			return false
+		}
+
+		conditions := headlampContext.ClusterInventory.Conditions
+
+		return len(conditions) == 1 &&
+			conditions[0].Type == apisv1alpha1.ClusterConditionControlPlaneHealthy &&
+			conditions[0].Status == metav1.ConditionTrue &&
+			conditions[0].Reason == "HealthCheckSucceeded"
+	}, clusterInventoryTestEventuallyTimeout, clusterInventoryTestEventuallyTick)
 }
 
 func TestClusterProfileUpdateToIgnoredLabelPrunesContext(t *testing.T) {

@@ -2091,20 +2091,26 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 
 		clusterID := context.ClusterID
 
+		metadata := map[string]interface{}{
+			"source":     source,
+			"namespace":  context.KubeContext.Namespace,
+			"extensions": context.KubeContext.Extensions,
+			"origin": map[string]interface{}{
+				"kubeconfig": kubeconfigPath,
+			},
+			"originalName": context.Name,
+			"clusterID":    clusterID,
+		}
+
+		if context.Source == kubeconfig.ClusterInventory && context.ClusterInventory != nil {
+			metadata["clusterInventory"] = context.ClusterInventory
+		}
+
 		clusters = append(clusters, Cluster{
 			Name:     context.Name,
 			Server:   context.Cluster.Server,
 			AuthType: context.AuthType(),
-			Metadata: map[string]interface{}{
-				"source":     source,
-				"namespace":  context.KubeContext.Namespace,
-				"extensions": context.KubeContext.Extensions,
-				"origin": map[string]interface{}{
-					"kubeconfig": kubeconfigPath,
-				},
-				"originalName": context.Name,
-				"clusterID":    clusterID,
-			},
+			Metadata: metadata,
 		})
 	}
 

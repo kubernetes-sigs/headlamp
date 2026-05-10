@@ -66,6 +66,7 @@
   "View": "Вид",
   "Settings": "Настройки",
   "Delete Cluster": "Удалить кластер",
+  "Control plane unhealthy": "",
   "Active": "Активный",
   "Authentication required": "",
   "Insufficient permissions": "",

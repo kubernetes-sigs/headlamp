@@ -70,6 +70,7 @@
   "Authentication required": "",
   "Insufficient permissions": "",
   "Unavailable": "",
+  "Control plane unhealthy": "",
   "Plugin": "Estensione",
   "In-cluster": "In-cluster",
   "Cluster Inventory": "",

@@ -34,13 +34,14 @@ import { loadTableSettings, storeTableSettings } from '../../../helpers/tableSet
 import { formatClusterPathParam } from '../../../lib/cluster';
 import { useClustersConf, useClustersVersion } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
-import { Cluster } from '../../../lib/k8s/cluster';
+import { Cluster, KubeCondition } from '../../../lib/k8s/cluster';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { getClusterPrefixedPath } from '../../../lib/util';
 import { useTypedSelector } from '../../../redux/hooks';
 import { Loader } from '../../common';
 import Link from '../../common/Link';
 import Table from '../../common/Table';
+import { LightTooltip } from '../../common/Tooltip';
 import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import ClusterBadge from '../../Sidebar/ClusterBadge';
 import ClusterContextMenu from './ClusterContextMenu';
@@ -48,10 +49,103 @@ import { canSelectCluster, getClusterStatus, getClusterStatusLabel } from './clu
 import { MULTI_HOME_ENABLED } from './config';
 import { getCustomClusterNames } from './customClusterNames';
 
+const CLUSTER_INVENTORY_SOURCE = 'cluster_inventory';
+const CONTROL_PLANE_HEALTHY_CONDITION = 'ControlPlaneHealthy';
+
+type ClusterInventoryCondition = Pick<
+  KubeCondition,
+  'type' | 'status' | 'reason' | 'message' | 'lastTransitionTime'
+>;
+
+type ClusterStatusKind = 'active' | 'error' | 'unknown';
+
+interface ClusterStatusInfo {
+  kind: ClusterStatusKind;
+  text: string;
+  condition: ClusterInventoryCondition | null;
+}
+
+const STATUS_VARIANTS: Record<
+  ClusterStatusKind,
+  { icon: string; colorKey: 'success' | 'error' | 'unknown'; coloredText: boolean }
+> = {
+  active: { icon: 'mdi:cloud-check-variant', colorKey: 'success', coloredText: true },
+  error: { icon: 'mdi:cloud-off', colorKey: 'error', coloredText: true },
+  unknown: { icon: 'mdi:cloud-question', colorKey: 'unknown', coloredText: false },
+};
+
+function getControlPlaneHealthyCondition(cluster: Cluster): ClusterInventoryCondition | null {
+  if (cluster?.meta_data?.source !== CLUSTER_INVENTORY_SOURCE) {
+    return null;
+  }
+
+  const conditions = cluster?.meta_data?.clusterInventory?.conditions;
+  if (!Array.isArray(conditions)) {
+    return null;
+  }
+
+  return (
+    conditions.find(
+      (condition: ClusterInventoryCondition) => condition.type === CONTROL_PLANE_HEALTHY_CONDITION
+    ) ?? null
+  );
+}
+
+function getConditionTooltip(condition: ClusterInventoryCondition): string {
+  return [condition.reason, condition.message, condition.lastTransitionTime]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function getClusterStatusInfo(
+  cluster: Cluster,
+  error: ApiError | null | undefined,
+  t: (key: string) => string
+): ClusterStatusInfo {
+  const condition = getControlPlaneHealthyCondition(cluster);
+
+  if (condition?.status === 'False') {
+    return { kind: 'error', text: t('translation|Control plane unhealthy'), condition };
+  }
+
+  const status = getClusterStatus(error);
+  if (status === 'auth-error' || status === 'permission-error' || status === 'unavailable') {
+    return { kind: 'error', text: getClusterStatusLabel(t, error), condition };
+  }
+
+  if (condition?.status === 'Unknown' || status === 'loading') {
+    return { kind: 'unknown', text: '⋯', condition };
+  }
+
+  return { kind: 'active', text: getClusterStatusLabel(t, error), condition };
+}
+
+function getClusterStatusAccessor(
+  cluster: Cluster,
+  error: ApiError | null | undefined,
+  t: (key: string) => string
+): string | undefined {
+  const condition = getControlPlaneHealthyCondition(cluster);
+  if (condition?.status === 'False') {
+    return t('translation|Control plane unhealthy');
+  }
+
+  const status = getClusterStatus(error);
+  if (status === 'auth-error' || status === 'permission-error' || status === 'unavailable') {
+    return getClusterStatusLabel(t, error);
+  }
+
+  if (condition?.status === 'Unknown') {
+    return t('translation|Unknown');
+  }
+
+  return getClusterStatusLabel(t, error);
+}
+
 /**
  * ClusterStatus component displays the status of a cluster.
  * It shows an icon and a message indicating whether the cluster is active, loading, unavailable,
- * requires authentication, or has insufficient permissions.
+ * requires authentication, has insufficient permissions, or has an unhealthy control plane.
  *
  * @param {Object} props - The component props.
  * @param {ApiError|null} [props.error] - The error object if there is an error with the cluster.
@@ -69,47 +163,36 @@ function ClusterStatus({ error, cluster }: { error?: ApiError | null; cluster: C
     }
     return null;
   }, [customStatuses, cluster, error]);
-  const status = getClusterStatus(error);
 
   if (renderedCustomStatus !== null) {
     return renderedCustomStatus;
   }
 
-  const isLoading = status === 'loading';
-  const isActive = status === 'active';
-  const hasError =
-    status === 'auth-error' || status === 'permission-error' || status === 'unavailable';
-  const statusText = getClusterStatusLabel(t, error);
-
-  return (
-    <Box width="fit-content">
-      <Box display="flex" alignItems="center" justifyContent="center">
-        {hasError ? (
-          <Icon icon="mdi:cloud-off" width={16} color={theme.palette.home.status.error} />
-        ) : isLoading ? (
-          <Icon icon="mdi:cloud-question" width={16} color={theme.palette.home.status.unknown} />
-        ) : (
-          <Icon
-            icon="mdi:cloud-check-variant"
-            width={16}
-            color={theme.palette.home.status.success}
-          />
-        )}
-        <Typography
-          variant="body2"
-          style={{
-            marginLeft: theme.spacing(1),
-            color: hasError
-              ? theme.palette.home.status.error
-              : isActive
-              ? theme.palette.home.status.success
-              : undefined,
-          }}
-        >
-          {statusText}
-        </Typography>
-      </Box>
+  const { kind, text, condition } = getClusterStatusInfo(cluster, error, t);
+  const variant = STATUS_VARIANTS[kind];
+  const color = theme.palette.home.status[variant.colorKey];
+  const tooltip = condition ? getConditionTooltip(condition) : '';
+  const statusContent = (
+    <Box display="flex" alignItems="center" justifyContent="center" width="fit-content">
+      <Icon icon={variant.icon} width={16} color={color} />
+      <Typography
+        variant="body2"
+        style={{
+          marginLeft: theme.spacing(1),
+          color: variant.coloredText ? color : undefined,
+        }}
+      >
+        {text}
+      </Typography>
     </Box>
+  );
+
+  return tooltip ? (
+    <LightTooltip title={<span style={{ whiteSpace: 'pre-line' }}>{tooltip}</span>}>
+      {statusContent}
+    </LightTooltip>
+  ) : (
+    statusContent
   );
 }
 
@@ -203,7 +286,7 @@ export default function ClusterTable({
       return t('translation|Plugin');
     } else if (cluster?.meta_data?.source === 'incluster') {
       return t('translation|In-cluster');
-    } else if (cluster?.meta_data?.source === 'cluster_inventory') {
+    } else if (cluster?.meta_data?.source === CLUSTER_INVENTORY_SOURCE) {
       return t('translation|Cluster Inventory');
     }
     return t('translation|Unknown');
@@ -288,7 +371,7 @@ export default function ClusterTable({
         {
           id: 'status',
           header: t('Status'),
-          accessorFn: cluster => getClusterStatusLabel(t, errors[cluster?.name]),
+          accessorFn: cluster => getClusterStatusAccessor(cluster, errors[cluster?.name], t),
           Cell: ({ row: { original } }) => (
             <ClusterStatus error={errors[original.name]} cluster={original} />
           ),
@@ -310,7 +393,7 @@ export default function ClusterTable({
           muiTableBodyCellProps: {
             align: 'right',
           },
-          accessorFn: cluster => getClusterStatusLabel(t, errors[cluster?.name]),
+          accessorFn: cluster => getClusterStatusAccessor(cluster, errors[cluster?.name], t),
           Cell: ({ row: { original: cluster } }) => {
             return <ClusterContextMenu cluster={cluster} />;
           },

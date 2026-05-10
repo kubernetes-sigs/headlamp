@@ -524,7 +524,42 @@ func (r *Runner) contextFromClusterProfile(
 		return nil, false
 	}
 
+	headlampContext.ClusterInventory = clusterInventoryMetadataFromProfile(profileKey, cp)
+
 	return headlampContext, true
+}
+
+func clusterInventoryMetadataFromProfile(
+	profileKey string,
+	cp *apisv1alpha1.ClusterProfile,
+) *kubeconfig.ClusterInventoryMetadata {
+	metadata := &kubeconfig.ClusterInventoryMetadata{
+		Profile: kubeconfig.ClusterInventoryProfile{
+			Namespace: cp.Namespace,
+			Name:      cp.Name,
+			Key:       profileKey,
+		},
+		Conditions: append([]metav1.Condition(nil), cp.Status.Conditions...),
+	}
+
+	if cp.Status.Version.Kubernetes != "" {
+		metadata.Version = &kubeconfig.ClusterInventoryVersion{
+			Kubernetes: cp.Status.Version.Kubernetes,
+		}
+	}
+
+	if len(cp.Status.Properties) > 0 {
+		metadata.Properties = make([]kubeconfig.ClusterInventoryProperty, len(cp.Status.Properties))
+		for i, property := range cp.Status.Properties {
+			metadata.Properties[i] = kubeconfig.ClusterInventoryProperty{
+				Name:             property.Name,
+				Value:            property.Value,
+				LastObservedTime: property.LastObservedTime,
+			}
+		}
+	}
+
+	return metadata
 }
 
 func (r *Runner) recordSyncedProfile(state *rootState, profileKey string, contextName string) {

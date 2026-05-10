@@ -395,14 +395,7 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 
 func TestGetClustersClusterInventorySource(t *testing.T) {
 	kubeConfigStore := kubeconfig.NewContextStore()
-	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
-		Name:        "cluster-inventory-in-cluster--default--spoke-a--dbdb0aa95e5d",
-		KubeContext: &api.Context{Cluster: "spoke-a", AuthInfo: "spoke-a", Namespace: "default"},
-		Cluster:     &api.Cluster{Server: "https://spoke-a.example.com"},
-		AuthInfo:    &api.AuthInfo{},
-		Source:      kubeconfig.ClusterInventory,
-		ClusterID:   "cluster-inventory/in-cluster/default/spoke-a",
-	}))
+	require.NoError(t, kubeConfigStore.AddContext(clusterInventoryConfigContext()))
 
 	c := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -414,6 +407,69 @@ func TestGetClustersClusterInventorySource(t *testing.T) {
 	require.Len(t, clusters, 1)
 	assert.Equal(t, "cluster_inventory", clusters[0].Metadata["source"])
 	assert.Equal(t, "cluster-inventory/in-cluster/default/spoke-a", clusters[0].Metadata["clusterID"])
+	inventory, ok := clusters[0].Metadata["clusterInventory"].(*kubeconfig.ClusterInventoryMetadata)
+	require.True(t, ok)
+	assert.Equal(t, "default", inventory.Profile.Namespace)
+	assert.Equal(t, "spoke-a", inventory.Profile.Name)
+	require.Len(t, inventory.Conditions, 1)
+	assert.Equal(t, "ControlPlaneHealthy", inventory.Conditions[0].Type)
+	assert.Equal(t, metav1.ConditionFalse, inventory.Conditions[0].Status)
+	require.NotNil(t, inventory.Version)
+	assert.Equal(t, "v1.35.0", inventory.Version.Kubernetes)
+	assert.Equal(t, []kubeconfig.ClusterInventoryProperty{{Name: "region", Value: "us-west1"}}, inventory.Properties)
+
+	recorder := httptest.NewRecorder()
+	c.getConfig(recorder, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil))
+
+	var config clientConfig
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &config))
+	require.Len(t, config.Clusters, 1)
+	configInventory, ok := config.Clusters[0].Metadata["clusterInventory"].(map[string]interface{})
+	require.True(t, ok)
+	configProfile, ok := configInventory["profile"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "default", configProfile["namespace"])
+	assert.Equal(t, "spoke-a", configProfile["name"])
+
+	configConditions, ok := configInventory["conditions"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, configConditions, 1)
+	configCondition, ok := configConditions[0].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "ControlPlaneHealthy", configCondition["type"])
+	assert.Equal(t, "False", configCondition["status"])
+}
+
+func clusterInventoryConfigContext() *kubeconfig.Context {
+	return &kubeconfig.Context{
+		Name:        "cluster-inventory-in-cluster--default--spoke-a--dbdb0aa95e5d",
+		KubeContext: &api.Context{Cluster: "spoke-a", AuthInfo: "spoke-a", Namespace: "default"},
+		Cluster:     &api.Cluster{Server: "https://spoke-a.example.com"},
+		AuthInfo:    &api.AuthInfo{},
+		Source:      kubeconfig.ClusterInventory,
+		ClusterID:   "cluster-inventory/in-cluster/default/spoke-a",
+		ClusterInventory: &kubeconfig.ClusterInventoryMetadata{
+			Profile: kubeconfig.ClusterInventoryProfile{
+				Namespace: "default",
+				Name:      "spoke-a",
+				Key:       "in-cluster/default/spoke-a",
+			},
+			Conditions: []metav1.Condition{
+				{
+					Type:               "ControlPlaneHealthy",
+					Status:             metav1.ConditionFalse,
+					Reason:             "HealthCheckFailed",
+					Message:            "control plane endpoint is not ready",
+					LastTransitionTime: metav1.NewTime(time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC)),
+					ObservedGeneration: 3,
+				},
+			},
+			Version: &kubeconfig.ClusterInventoryVersion{Kubernetes: "v1.35.0"},
+			Properties: []kubeconfig.ClusterInventoryProperty{
+				{Name: "region", Value: "us-west1"},
+			},
+		},
+	}
 }
 
 func TestInvalidKubeConfig(t *testing.T) {

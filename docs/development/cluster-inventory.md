@@ -55,10 +55,12 @@ kubectl --context kind-ci-hub apply -f \
   https://raw.githubusercontent.com/kubernetes-sigs/cluster-inventory-api/v0.1.0/config/crd/bases/multicluster.x-k8s.io_clusterprofiles.yaml
 ```
 
-Patch sample status with `status.accessProviders`:
+Patch sample status with `status.accessProviders` and health conditions:
 
 `ClusterProfile.spec.clusterManager.name` is required by the v0.1.0 CRD, even
-when the access details are patched later through the status subresource.
+when the access details are patched later through the status subresource. The
+CRD also requires `reason` on each condition, so include it even when adapting
+examples that omit the field.
 
 ```bash
 kubectl --context kind-ci-hub -n inventory-e2e apply -f - <<'EOF'
@@ -75,6 +77,13 @@ kubectl --context kind-ci-hub -n inventory-e2e patch clusterprofiles spoke-a \
   --subresource=status --type=merge \
   -p "$(jq -n --arg server "$SPOKE_A_SERVER" --arg ca "$SPOKE_A_CA" '{
     status: {
+      conditions: [{
+        type: "ControlPlaneHealthy",
+        status: "True",
+        reason: "HealthCheckSucceeded",
+        message: "control plane endpoint is ready",
+        lastTransitionTime: "2026-05-10T00:00:00Z"
+      }],
       accessProviders: [{
         name: "static-token-spoke-a",
         cluster: {
