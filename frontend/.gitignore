@@ -28,3 +28,4 @@ yarn-error.log*
 .eslintcache
 
 **/locales/**/*_old.json
+.eslintcache

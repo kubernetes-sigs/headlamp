@@ -93,13 +93,13 @@ const Template: StoryFn<PureKubeConfigLoaderProps> = args => <PureKubeConfigLoad
  * FILE UPLOAD STATE
  * Shows the initial drag-and-drop interface where users upload their kubeconfig file
  */
-export const FileUpload = Template.bind({});
-FileUpload.args = {
+export const FileUploadWithDragDrop = Template.bind({});
+FileUploadWithDragDrop.args = {
   step: Step.LoadKubeConfig,
   fileContent: { clusters: [], users: [], contexts: [], currentContext: '' },
   selectedClusters: [],
 };
-FileUpload.parameters = {
+FileUploadWithDragDrop.parameters = {
   docs: {
     description: {
       story:
@@ -112,13 +112,13 @@ FileUpload.parameters = {
  * CLUSTER SELECTION STATE
  * Shows available clusters from the uploaded kubeconfig file
  */
-export const SelectingClusters = Template.bind({});
-SelectingClusters.args = {
+export const SuccessWithClusterList = Template.bind({});
+SuccessWithClusterList.args = {
   step: Step.SelectClusters,
   fileContent: mockFileContent,
   selectedClusters: ['production', 'staging'],
 };
-SelectingClusters.parameters = {
+SuccessWithClusterList.parameters = {
   docs: {
     description: {
       story:
@@ -126,12 +126,13 @@ SelectingClusters.parameters = {
     },
   },
 };
-/** 
+
+/**
  * VALIDATING STATE
  * Shows loading spinner while the system validates selected clusters
  */
-export const ValidatingClusters = Template.bind({});
-ValidatingClusters.args = {
+export const FileParsingLoadingState = Template.bind({});
+FileParsingLoadingState.args = {
   step: Step.ValidateKubeConfig,
   fileContent: mockFileContent,
   selectedClusters: ['production', 'staging'],
@@ -152,8 +153,8 @@ ConfiguringClusters.args = {
  * SUCCESS STATE
  * Shows success message after clusters are successfully imported
  */
-export const SuccessfulImport = Template.bind({});
-SuccessfulImport.args = {
+export const SuccessfulClusterImport = Template.bind({});
+SuccessfulClusterImport.args = {
   step: Step.Success,
   fileContent: mockFileContent,
   selectedClusters: ['production', 'staging'],
@@ -184,13 +185,22 @@ DuplicateClusterError.args = {
 };
 
 /**
- * ERROR: TIMEOUT
- * Shows error when file parsing or cluster setup times out
+ * ERROR: SIMULATED TIMEOUT
+ * Mock error state demonstrating how timeout failures would appear in the UI.
+ * Note: timeout handling is not currently implemented in KubeConfigLoader.
  */
-export const TimeoutError = Template.bind({});
-TimeoutError.args = {
+export const LargeFileParsingTimeout = Template.bind({});
+LargeFileParsingTimeout.args = {
   step: Step.SelectClusters,
   error: 'Operation timed out. The file is too large or the connection is too slow.',
   fileContent: mockFileContent,
   selectedClusters: ['production', 'staging'],
+};
+LargeFileParsingTimeout.parameters = {
+  docs: {
+    description: {
+      story:
+        'Simulated timeout error state for future timeout-handling scenarios. The current component implementation does not yet include timeout logic.',
+    },
+  },
 };
