@@ -58,6 +58,8 @@ export interface AppTheme {
     background?: string;
     /** Text and icon color of the navbar */
     color?: string;
+    /** Global search shortcut hint (falls back in createMuiTheme if omitted) */
+    searchHint?: string;
   };
   /** General shape radius (things like buttons, popups, etc) */
   radius?: number;

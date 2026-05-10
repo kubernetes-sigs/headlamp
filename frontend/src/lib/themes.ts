@@ -219,7 +219,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
       navbar: {
         background: currentTheme.navbar?.background ?? '#FFF',
         color: currentTheme.navbar?.color ?? '#333',
-        searchHint: '#74747B',
+        searchHint: currentTheme.navbar?.searchHint ?? '#74747B',
       },
       clusterChooser: {
         button: {
@@ -450,7 +450,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
         mode: 'dark',
         navbar: {
           ...commonRules.palette.navbar,
-          searchHint: 'rgba(255, 255, 255, 0.7)',
+          searchHint: currentTheme.navbar?.searchHint ?? 'rgba(255, 255, 255, 0.7)',
         },
         background: {
           default: currentTheme.background?.default ?? '#1f1f1f',
