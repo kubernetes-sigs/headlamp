@@ -72,7 +72,7 @@ describe('PluginManager Test Cases', () => {
 
   test('No Update available for Plugin', async () => {
     // No updates available for "app-catalog" plugin
-    await PluginManager.update('app-catalog', tempDir, '', mockProgressCallback);
+    await PluginManager.update('@headlamp-k8s/app-catalog', tempDir, '', mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'error',
       message: 'No updates available',
@@ -91,7 +91,7 @@ describe('PluginManager Test Cases', () => {
     // Write the updated package.json back to the file
     fs.writeFileSync(packageJSONPath, JSON.stringify(packageJSON, null, 2));
 
-    await PluginManager.update('app-catalog', tempDir, '', mockProgressCallback);
+    await PluginManager.update('@headlamp-k8s/app-catalog', tempDir, '', mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugin Updated',
@@ -112,13 +112,67 @@ describe('PluginManager Test Cases', () => {
       message: 'Plugin Installed',
     });
 
-    PluginManager.uninstall('app-catalog', tempDir, mockProgressCallback);
+    PluginManager.uninstall('@headlamp-k8s/app-catalog', tempDir, mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugin Uninstalled',
     });
 
     fs.rmdirSync(tempDir, { recursive: true });
+  });
+
+    test('Update works with legacy name when scoped plugin is installed', async () => {
+    await PluginManager.install(
+      'https://artifacthub.io/packages/headlamp/test-123/appcatalog_headlamp_plugin',
+      tempDir,
+      '',
+      mockProgressCallback
+    );
+
+    const pluginDir = `${tempDir}/appcatalog_headlamp_plugin`;
+    const packageJSONPath = `${pluginDir}/package.json`;
+    const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath));
+    packageJSON.name = '@headlamp-k8s/app-catalog';
+    fs.writeFileSync(packageJSONPath, JSON.stringify(packageJSON, null, 2));
+
+    jest.clearAllMocks();
+
+    // Update using legacy name
+    await PluginManager.update('app-catalog', tempDir, '', mockProgressCallback);
+
+    expect(mockProgressCallback).toHaveBeenCalledWith({
+      type: 'error',
+      message: 'No updates available',
+    });
+  });
+
+  test('Uninstall works with legacy name when scoped plugin is installed', async () => {
+    const tempDirLegacy = tmp.dirSync({ unsafeCleanup: true }).name;
+
+    await PluginManager.install(
+      'https://artifacthub.io/packages/headlamp/test-123/appcatalog_headlamp_plugin',
+      tempDirLegacy,
+      '',
+      mockProgressCallback
+    );
+
+    const pluginDir = `${tempDirLegacy}/appcatalog_headlamp_plugin`;
+    const packageJSONPath = `${pluginDir}/package.json`;
+    const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath));
+    packageJSON.name = '@headlamp-k8s/app-catalog';
+    fs.writeFileSync(packageJSONPath, JSON.stringify(packageJSON, null, 2));
+
+    jest.clearAllMocks();
+
+    // Uninstall using legacy name
+    PluginManager.uninstall('app-catalog', tempDirLegacy, mockProgressCallback);
+
+    expect(mockProgressCallback).toHaveBeenCalledWith({
+      type: 'success',
+      message: 'Plugin Uninstalled',
+    });
+
+    fs.rmdirSync(tempDirLegacy, { recursive: true });
   });
 });
 
