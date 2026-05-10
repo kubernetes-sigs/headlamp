@@ -51,6 +51,18 @@ type AddUpdateRepoRequest struct {
 	// https://github.com/helm/helm/blob/39ca699ca790e02ba36753dec6ba4177cc68d417/cmd/helm/repo_add.go#L169
 }
 
+func (r AddUpdateRepoRequest) Validate() error {
+	if strings.TrimSpace(r.Name) == "" {
+		return errors.New("name is required")
+	}
+
+	if strings.TrimSpace(r.URL) == "" {
+		return errors.New("url is required")
+	}
+
+	return nil
+}
+
 // Creates a filename if it's not there, including any missing directories.
 func createFileIfNotThere(fileName string) error {
 	_, err := os.Stat(fileName)
@@ -155,6 +167,14 @@ func (h *Handler) AddRepo(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "parsing request")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	err = request.Validate()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "validating request")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return
@@ -381,6 +401,14 @@ func (h *Handler) UpdateRepository(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "parsing request")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	err = request.Validate()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "validating request")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return
