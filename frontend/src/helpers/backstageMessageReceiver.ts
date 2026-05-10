@@ -113,9 +113,9 @@ const BACKSTAGE_ACK_TIMEOUT_MS = 1000;
  * setupBackstageMessageReceiver sets up a listener for messages from the backstage app
  * and sets the backend token if it is received
  *
- * @returns void
+ * @returns a cleanup function that removes the event listener, or undefined if not in Backstage
  */
-export function setupBackstageMessageReceiver() {
+export function setupBackstageMessageReceiver(): (() => void) | undefined {
   if (isBackstage()) {
     const handleMessage = async (event: MessageEvent) => {
       try {
@@ -146,5 +146,6 @@ export function setupBackstageMessageReceiver() {
     };
 
     window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }
 }
