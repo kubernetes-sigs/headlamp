@@ -615,7 +615,12 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("X-Accel-Expires", "0")
 
-		client := http.Client{}
+		proxyCtx, cancel := context.WithTimeout(r.Context(), 30 * time.Second)
+		defer cancel()
+
+		proxyReq = proxyReq.WithContext(proxyCtx)
+
+		client := http.Client{Timeout: 30 * time.Second}
 
 		resp, err := client.Do(proxyReq) //nolint:gosec
 		if err != nil {
