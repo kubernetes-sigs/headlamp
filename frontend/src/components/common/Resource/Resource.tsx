@@ -1650,8 +1650,8 @@ export function ContainerInfo(props: ContainerInfoProps) {
         value: (
           <Grid container>
             {container.ports?.map(({ containerPort, protocol, name }, index) => (
-              <>
-                <Grid item xs={12} key={`port_line_${index}`}>
+              <React.Fragment key={`port_line_${index}`}>
+                <Grid item xs={12}>
                   <Box display="flex" alignItems={'center'}>
                     <Box px={0.5} minWidth={120}>
                       {name && <ValueLabel>{`${name} `}</ValueLabel>}
@@ -1670,7 +1670,7 @@ export function ContainerInfo(props: ContainerInfoProps) {
                     </Box>
                   </Grid>
                 )}
-              </>
+              </React.Fragment>
             ))}
           </Grid>
         ),
