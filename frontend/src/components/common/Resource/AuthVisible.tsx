@@ -71,7 +71,7 @@ export default function AuthVisible(props: AuthVisibleProps) {
   const itemObject = isInstance ? item : null;
   const itemClass: KubeObjectClass | null = isInstance ? item._class() : item;
   const itemName = itemObject?.getName();
-  const cluster = itemObject?.cluster ?? getCluster() ?? '';
+  const cluster = itemObject?.cluster || getCluster() || '';
 
   const { data } = useQuery<any>({
     enabled: !!item && isValidAuthVerb,
