@@ -196,15 +196,29 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     switch (e.key) {
       case 'ArrowUp': {
-        setActiveDescendantIndex(
-          idx => (idx - 1) % (recentClusters.length + clustersToShow.length)
-        );
+        setActiveDescendantIndex(idx => {
+          const total = recentClusters.length + clustersToShow.length;
+          if (total === 0) {
+            return -1;
+          }
+
+          if (idx <= 0) {
+            return total - 1;
+          }
+
+          return (idx - 1 + total) % total;
+        });
         break;
       }
       case 'ArrowDown': {
-        setActiveDescendantIndex(
-          idx => (idx + 1) % (recentClusters.length + clustersToShow.length)
-        );
+        setActiveDescendantIndex(idx => {
+          const total = recentClusters.length + clustersToShow.length;
+          if (total === 0) {
+            return -1;
+          }
+
+          return (idx + 1) % total;
+        });
         break;
       }
       case 'Enter': {
