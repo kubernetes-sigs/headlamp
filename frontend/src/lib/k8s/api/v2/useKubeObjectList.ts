@@ -529,11 +529,12 @@ export function useKubeObjectList<K extends KubeObject>({
 
   const listsToStopWatching = listsToWatch.filter(
     watching =>
-      requests.find(request =>
-        watching.cluster === request?.cluster && request.namespaces && watching.namespace
-          ? request.namespaces?.includes(watching.namespace)
-          : true
-      ) === undefined
+      requests.find(request => {
+        if (watching.cluster !== request?.cluster) return false;
+        return !request.namespaces?.length
+          ? !watching.namespace
+          : !!watching.namespace && request.namespaces.includes(watching.namespace);
+      }) === undefined
   );
 
   if (listsToStopWatching.length > 0) {
