@@ -56,6 +56,18 @@ const serviceMock = {
     },
   },
 };
+
+const serviceMockWithoutSelector = {
+  ...serviceMock,
+  metadata: {
+    ...serviceMock.metadata,
+    name: 'service-without-selector',
+  },
+  spec: {
+    ...serviceMock.spec,
+    selector: undefined,
+  },
+};
 /** Service mock with full a8r.io annotations */
 const serviceMockWithA8RAnnotations = {
   ...serviceMock,
@@ -250,6 +262,51 @@ const endpointslices = [
   },
 ];
 
+const pods = [
+  {
+    apiVersion: 'v1',
+    kind: 'Pod',
+    metadata: {
+      name: 'example-pod-1',
+      namespace: 'default',
+      resourceVersion: '1001',
+      uid: 'pod-1',
+    },
+    spec: {
+      nodeName: 'worker-node-a',
+      containers: [],
+    },
+    status: {
+      phase: 'Running',
+      podIP: '10.244.0.21',
+      startTime: '2022-10-25T11:48:48Z',
+      conditions: [],
+      containerStatuses: [],
+    },
+  },
+  {
+    apiVersion: 'v1',
+    kind: 'Pod',
+    metadata: {
+      name: 'example-pod-2',
+      namespace: 'default',
+      resourceVersion: '1002',
+      uid: 'pod-2',
+    },
+    spec: {
+      nodeName: 'worker-node-b',
+      containers: [],
+    },
+    status: {
+      phase: 'Pending',
+      podIP: '10.244.1.32',
+      startTime: '2022-10-25T11:49:48Z',
+      conditions: [],
+      containerStatuses: [],
+    },
+  },
+];
+
 export default {
   title: 'Service/Details',
   component: Details,
@@ -271,6 +328,9 @@ const TemplateA8R: StoryFn<typeof Details> = () => {
 
 const TemplateA8ROwnerOnly: StoryFn<typeof Details> = () => {
   return <Details name="owner-only-service" namespace="default" />;
+};
+const TemplateNoSelector: StoryFn<typeof Details> = () => {
+  return <Details name="service-without-selector" namespace="default" />;
 };
 
 const TemplateNodePort: StoryFn<typeof Details> = () => {
@@ -315,6 +375,13 @@ Default.parameters = {
               metadata: {},
             })
         ),
+        http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: pods,
+            metadata: {},
+          })
+        ),
       ],
     },
   },
@@ -340,6 +407,13 @@ ErrorWithEndpoints.parameters = {
         http.get(
           'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/default/endpointslices',
           () => HttpResponse.error()
+        ),
+        http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: pods,
+            metadata: {},
+          })
         ),
       ],
     },
@@ -377,6 +451,13 @@ WithA8RAnnotations.parameters = {
               metadata: {},
             })
         ),
+        http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: pods,
+            metadata: {},
+          })
+        ),
       ],
     },
   },
@@ -413,6 +494,94 @@ WithA8ROwnerOnly.parameters = {
               items: endpointslices,
               metadata: {},
             })
+        ),
+        http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: pods,
+            metadata: {},
+          })
+        ),
+      ],
+    },
+  },
+};
+
+export const WithoutSelector = TemplateNoSelector.bind({});
+WithoutSelector.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+          HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
+        ),
+        http.get('http://localhost:4466/api/v1/namespaces/default/services', () =>
+          HttpResponse.error()
+        ),
+        http.get(
+          'http://localhost:4466/api/v1/namespaces/default/services/service-without-selector',
+          () => HttpResponse.json(serviceMockWithoutSelector)
+        ),
+        http.get('http://localhost:4466/api/v1/namespaces/default/endpoints', () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: endpoints,
+            metadata: {},
+          })
+        ),
+        http.get(
+          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/default/endpointslices',
+          () =>
+            HttpResponse.json({
+              kind: 'List',
+              items: endpointslices,
+              metadata: {},
+            })
+        ),
+        http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: pods,
+            metadata: {},
+          })
+        ),
+      ],
+    },
+  },
+};
+
+export const PodsError = Template.bind({});
+PodsError.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+          HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
+        ),
+        http.get('http://localhost:4466/api/v1/namespaces/default/services', () =>
+          HttpResponse.error()
+        ),
+        http.get('http://localhost:4466/api/v1/namespaces/default/services/example-service', () =>
+          HttpResponse.json(serviceMock)
+        ),
+        http.get('http://localhost:4466/api/v1/namespaces/default/endpoints', () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: endpoints,
+            metadata: {},
+          })
+        ),
+        http.get(
+          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/default/endpointslices',
+          () =>
+            HttpResponse.json({
+              kind: 'List',
+              items: endpointslices,
+              metadata: {},
+            })
+        ),
+        http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
+          HttpResponse.error()
         ),
       ],
     },

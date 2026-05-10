@@ -101,7 +101,7 @@ vi.mock('../../lib/k8s/pod', () => {
 
 vi.mock('../../lib/k8s/cluster', () => ({}));
 
-vi.mock('./List', () => ({
+vi.mock('./podStatus', () => ({
   makePodStatusLabel: () => 'Running',
 }));
 

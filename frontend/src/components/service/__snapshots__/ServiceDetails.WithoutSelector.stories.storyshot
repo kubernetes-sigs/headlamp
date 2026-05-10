@@ -47,7 +47,7 @@
                 <h1
                   class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
                 >
-                  Service: owner-only-service
+                  Service: service-without-selector
                 </h1>
                 <div
                   class="MuiBox-root css-ldp2l3"
@@ -145,7 +145,7 @@
                     <span
                       class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                     >
-                      owner-only-service
+                      service-without-selector
                     </span>
                   </dd>
                   <dt
@@ -176,28 +176,6 @@
                     >
                       2022-10-25T11:48:48.000Z
                     </span>
-                  </dd>
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
-                  >
-                    Annotations
-                  </dt>
-                  <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
-                  >
-                    <div
-                      class="MuiBox-root css-0"
-                    >
-                      <div
-                        class="MuiBox-root css-yi3mkw"
-                      >
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                        >
-                          a8r.io/owner: backend-team@example.com
-                        </p>
-                      </div>
-                    </div>
                   </dd>
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
@@ -254,70 +232,10 @@
                     >
                       <div
                         class="MuiBox-root css-yi3mkw"
-                      >
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                        >
-                          app: example
-                        </p>
-                      </div>
+                      />
                     </div>
                   </dd>
                 </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
-      >
-        <div
-          class="MuiBox-root css-p0cik4"
-        >
-          <div
-            class="MuiBox-root css-j1fy4m"
-          >
-            <div
-              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
-            >
-              <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-              >
-                <div
-                  class="MuiBox-root css-70qvj9"
-                >
-                  <h2
-                    class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
-                  >
-                    a8r.io Metadata
-                  </h2>
-                  <div
-                    class="MuiBox-root css-ldp2l3"
-                  />
-                </div>
-              </div>
-            </div>
-            <div
-              class="MuiBox-root css-1txv3mw"
-            >
-              <div
-                class="MuiBox-root css-1hdbc19"
-              >
-                <div
-                  class="MuiBox-root css-70qvj9"
-                >
-                  <p
-                    class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
-                  >
-                    <strong>
-                      Owner
-                      :
-                    </strong>
-                     
-                    backend-team@example.com
-                  </p>
-                </div>
               </div>
             </div>
           </div>
@@ -577,25 +495,13 @@
               class="MuiBox-root css-1txv3mw"
             >
               <div
-                aria-atomic="true"
-                aria-live="polite"
-                class="MuiBox-root css-ty8jgw"
-                role="status"
+                class="MuiBox-root css-19midj6"
               >
-                No data to be shown.
-              </div>
-              <div
-                class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
-              >
-                <div
-                  class="MuiBox-root css-19midj6"
+                <p
+                  class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
                 >
-                  <p
-                    class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
-                  >
-                    No data to be shown.
-                  </p>
-                </div>
+                  This Service has no selector, so it does not target Pods directly
+                </p>
               </div>
             </div>
           </div>

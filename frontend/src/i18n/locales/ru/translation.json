@@ -846,6 +846,7 @@
   "Handler": "Обработчик",
   "No data in this secret": "В этом секрете нет данных",
   "Hide Helm Secrets": "Скрыть секреты Helm",
+  "Error loading pods": "",
   "Shrink sidebar": "Свернуть боковую панель",
   "Expand sidebar": "Развернуть боковую панель",
   "Main Navigation": "Основная навигация",

@@ -23,6 +23,7 @@ import { useParams } from 'react-router-dom';
 import Endpoint from '../../lib/k8s/endpoints';
 import EndpointSlice from '../../lib/k8s/endpointSlices';
 import Service, { KubeServicePort } from '../../lib/k8s/service';
+import Pod from '../../lib/k8s/pod';
 import Empty from '../common/EmptyContent';
 import { ValueLabel } from '../common/Label';
 import Link from '../common/Link';
@@ -30,6 +31,103 @@ import { DetailsGrid, MetadataDictGrid } from '../common/Resource';
 import PortForward from '../common/Resource/PortForward';
 import { SectionBox } from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
+import { makePodStatusLabel } from '../pod/podStatus';
+
+function getServiceSelectorFilter(service: Service) {
+  const selector = service.spec?.selector;
+  if (!selector) {
+    return null;
+  }
+
+  return Object.keys(selector)
+    .sort()
+    .map(item => `${item}=${selector[item]}`)
+    .join(',');
+}
+
+function PodsSection({
+  service,
+  namespace,
+  cluster,
+}: {
+  service: Service;
+  namespace: string;
+  cluster?: string;
+}) {
+  const { t } = useTranslation(['glossary', 'translation']);
+  const selectorFilter = getServiceSelectorFilter(service);
+
+  if (selectorFilter === null) {
+    return (
+      <Empty>
+        {t('glossary|This Service has no selector, so it does not target Pods directly')}
+      </Empty>
+    );
+  }
+
+  return <PodsTable namespace={namespace} cluster={cluster} selectorFilter={selectorFilter} />;
+}
+
+function PodsTable({
+  namespace,
+  cluster,
+  selectorFilter,
+}: {
+  namespace: string;
+  cluster?: string;
+  selectorFilter: string;
+}) {
+  const { t } = useTranslation(['glossary', 'translation']);
+  const {
+    items: pods,
+    error: podsError,
+    isLoading,
+  } = Pod.useList({
+    namespace,
+    cluster,
+    labelSelector: selectorFilter,
+  });
+
+  React.useEffect(() => {
+    if (podsError) {
+      console.error('Error loading pods', podsError);
+    }
+  }, [podsError]);
+
+  return (
+    <>
+      {podsError ? (
+        <Box mb={2}>
+          <Empty color="error">
+            {t('translation|Error loading pods')}: {podsError.toString()}
+          </Empty>
+        </Box>
+      ) : null}
+      <SimpleTable
+        data={podsError ? [] : isLoading ? null : pods ?? null}
+        columns={[
+          {
+            label: t('glossary|Pod Name'),
+            getter: pod => <Link kubeObject={pod} />,
+          },
+          {
+            label: t('translation|Status'),
+            getter: pod => makePodStatusLabel(pod, false),
+          },
+          {
+            label: t('glossary|Pod IP'),
+            getter: pod => pod.status?.podIP ?? pod.status?.podIPs?.[0]?.ip ?? '',
+          },
+          {
+            label: t('glossary|Node'),
+            getter: pod => pod.spec?.nodeName ?? '',
+          },
+        ]}
+        reflectInURL="service-pods"
+      />
+    </>
+  );
+}
 
 export default function ServiceDetails(props: {
   name?: string;
@@ -263,6 +361,14 @@ export default function ServiceDetails(props: {
                     reflectInURL="endpoints"
                   />
                 )}
+              </SectionBox>
+            ),
+          },
+          {
+            id: 'headlamp.service-pods',
+            section: (
+              <SectionBox title={t('glossary|Pods')}>
+                <PodsSection service={item} namespace={namespace} cluster={cluster} />
               </SectionBox>
             ),
           },

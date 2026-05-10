@@ -834,6 +834,7 @@
   "Handler": "Handler",
   "No data in this secret": "No data in this secret",
   "Hide Helm Secrets": "Hide Helm Secrets",
+  "Error loading pods": "Error loading pods",
   "Shrink sidebar": "Shrink sidebar",
   "Expand sidebar": "Expand sidebar",
   "Main Navigation": "Main Navigation",

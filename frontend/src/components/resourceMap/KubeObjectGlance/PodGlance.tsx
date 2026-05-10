@@ -18,7 +18,7 @@ import { Box } from '@mui/system';
 import { useTranslation } from 'react-i18next';
 import Pod from '../../../lib/k8s/pod';
 import { StatusLabel } from '../../common/Label';
-import { makePodStatusLabel } from '../../pod/List';
+import { makePodStatusLabel } from '../../pod/podStatus';
 
 export function PodGlance({ pod }: { pod: Pod }) {
   const { t } = useTranslation();

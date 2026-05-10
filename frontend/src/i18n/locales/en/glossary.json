@@ -232,6 +232,8 @@
   "Traffic Distribution": "Traffic Distribution",
   "Node Port": "Node Port",
   "App Protocol": "App Protocol",
+  "This Service has no selector, so it does not target Pods directly": "This Service has no selector, so it does not target Pods directly",
+  "Pod Name": "Pod Name",
   "Services": "Services",
   "Image Pull Secrets": "Image Pull Secrets",
   "Automount Service Account Token": "Automount Service Account Token",
