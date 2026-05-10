@@ -416,6 +416,14 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'validatingWebhookConfigurations',
             label: t('glossary|Validating Webhook Configurations'),
           },
+          {
+            name: 'validatingAdmissionPolicies',
+            label: t('glossary|Validating Admission Policies'),
+          },
+          {
+            name: 'validatingAdmissionPolicyBindings',
+            label: t('glossary|Validating Admission Policy Bindings'),
+          },
         ],
       },
     ];

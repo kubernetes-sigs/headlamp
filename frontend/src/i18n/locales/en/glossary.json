@@ -231,6 +231,8 @@
   "Leases": "Leases",
   "Mutating Webhook Configurations": "Mutating Webhook Configurations",
   "Validating Webhook Configurations": "Validating Webhook Configurations",
+  "Validating Admission Policies": "Validating Admission Policies",
+  "Validating Admission Policy Bindings": "Validating Admission Policy Bindings",
   "Git Version": "Git Version",
   "Git Tree State": "Git Tree State",
   "Go Version": "Go Version",
