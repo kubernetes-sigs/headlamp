@@ -450,6 +450,8 @@ export function createMuiTheme(currentTheme: AppTheme) {
         mode: 'dark',
         navbar: {
           ...commonRules.palette.navbar,
+          background: currentTheme.navbar?.background ?? '#1f1f1f',
+          color: currentTheme.navbar?.color ?? '#fff',
           searchHint: currentTheme.navbar?.searchHint ?? 'rgba(255, 255, 255, 0.7)',
         },
         background: {
