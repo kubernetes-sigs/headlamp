@@ -24,7 +24,8 @@ export default {
 
 export const Show = {
   args: {
-    releaseNotes: '# Release Notes\n\n## Hello\n\n### Sub-heading\n\nworld',
+    releaseNotes:
+      '# Release Notes\n\n## Hello\n\n### Sub-heading\n\nworld\n\n## Changes\n\n| Feature | Status | Notes |\n|---------|--------|-------|\n| Dark mode | ✅ Done | Available in settings |\n| Tables | ✅ Done | Now rendered properly |\n| Images | ✅ Done | Bounded to container |\n\n## Code Example\n\n```yaml\napiVersion: v1\nkind: Pod\n```\n\n> **Note:** This is a blockquote with important information.',
     appVersion: '1.9.9',
   },
 };
