@@ -52,12 +52,12 @@ let plugins = JSON.parse(output);
 console.log('Initial plugins:', plugins);
 
 // Ensure the plugin is not installed
-const pluginName = 'prometheus';
+const pluginName = '@headlamp-k8s/minikube';
 let pluginExists = plugins.some(plugin => plugin.pluginName === pluginName);
 assert.strictEqual(pluginExists, false, 'Plugin should not be initially installed');
 
 // Install the plugin
-const pluginURL = 'https://artifacthub.io/packages/headlamp/test-123/prometheus_headlamp_plugin';
+const pluginURL = 'https://artifacthub.io/packages/headlamp/test-123/headlamp_minikube';
 output = runCommand(`node ../bin/pluginctl.js install ${pluginURL}`);
 console.log('Install output:', output);
 

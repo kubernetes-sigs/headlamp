@@ -26,19 +26,19 @@ describe('MultiPluginManagement', () => {
   let installer;
   const PLUGIN_DATA = [
     {
-      name: 'appcatalog_headlamp_plugin',
-      source: 'https://artifacthub.io/packages/headlamp/test-123/appcatalog_headlamp_plugin',
-      version: '0.0.3',
+      name: 'headlamp_opencost',
+      source: 'https://artifacthub.io/packages/headlamp/test-123/headlamp_opencost',
+      version: '0.1.3',
     },
     {
-      name: 'ai_plugin',
-      source: 'https://artifacthub.io/packages/headlamp/test-123/ai_plugin',
-      version: '0.0.2',
+      name: 'headlamp_kompose',
+      source: 'https://artifacthub.io/packages/headlamp/test-123/headlamp_kompose',
+      version: '0.1.1-beta',
     },
     {
-      name: 'prometheus_headlamp_plugin',
-      source: 'https://artifacthub.io/packages/headlamp/test-123/prometheus_headlamp_plugin',
-      version: '0.0.3',
+      name: 'headlamp_flux',
+      source: 'https://artifacthub.io/packages/headlamp/test-123/headlamp_flux',
+      version: '0.6.0',
     },
   ];
   beforeEach(async () => {
