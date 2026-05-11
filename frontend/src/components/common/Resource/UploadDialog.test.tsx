@@ -30,6 +30,7 @@ const renderComponent = (setCode = vi.fn(), setUploadFiles = vi.fn()) => {
 describe('UploadDialog', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   describe('Load from URL', () => {
@@ -46,8 +47,7 @@ describe('UploadDialog', () => {
       const setCode = vi.fn();
       renderComponent(setCode);
 
-      fireEvent.click(screen.getByText('Upload File/URL'));
-      fireEvent.click(screen.getByText('Load from URL'));
+      fireEvent.click(screen.getByRole('tab', { name: /load from url/i }));
 
       fireEvent.change(screen.getByLabelText(/enter url/i), {
         target: { value: 'https://example.com/nonexistent.yaml' },
@@ -75,8 +75,7 @@ describe('UploadDialog', () => {
       const setCode = vi.fn();
       renderComponent(setCode);
 
-      fireEvent.click(screen.getByText('Upload File/URL'));
-      fireEvent.click(screen.getByText('Load from URL'));
+      fireEvent.click(screen.getByRole('tab', { name: /load from url/i }));
 
       fireEvent.change(screen.getByLabelText(/enter url/i), {
         target: { value: 'https://example.com/valid.yaml' },
