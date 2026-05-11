@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
+import Typography from '@mui/material/Typography';
 import _, { uniq } from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -41,16 +44,48 @@ interface DeleteMultipleButtonProps {
 
 interface DeleteMultipleButtonDescriptionProps {
   items?: KubeObject[];
+  loading?: boolean;
+  error?: string;
 }
 
 function DeleteMultipleButtonDescription(props: DeleteMultipleButtonDescriptionProps) {
+  const { items, loading, error } = props;
   const { t } = useTranslation(['translation']);
   const clusters = uniq(props.items?.map(it => it.cluster));
+  if (loading) {
+    return (
+      <Box display="flex" alignItems="center" justifyContent="center" p={2}>
+        <CircularProgress size={24} sx={{ mr: 2 }} />
+        <Typography>{t('Deleting {{ count }} items…', { count: items?.length || 0 })}</Typography>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box>
+        <Typography color="error" gutterBottom>
+          {error}
+        </Typography>
+        <Typography variant="body2">
+          {t('The following items were selected for deletion:')}
+        </Typography>
+        <ul>
+          {items?.map(item => (
+            <li key={item.metadata.uid}>
+              {item.kind}: {item.metadata.name}{' '}
+              {clusters.length > 0 ? `(cluster: ${item.cluster})` : ''}
+            </li>
+          ))}
+        </ul>
+      </Box>
+    );
+  }
   return (
     <p>
       {t('Are you sure you want to delete the following items?')}
       <ul>
-        {props.items?.map(item => (
+        {items?.map(item => (
           <li key={item.metadata.uid}>
             {item.kind}: {item.metadata.name}{' '}
             {clusters.length > 0 ? `(cluster: ${item.cluster})` : ''}
@@ -61,53 +96,19 @@ function DeleteMultipleButtonDescription(props: DeleteMultipleButtonDescriptionP
   );
 }
 
-export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
-  const dispatch: AppDispatch = useDispatch();
-  const settingsObj = useSettings();
+export interface PureDeleteMultipleButtonProps {
+  items?: KubeObject[];
+  buttonStyle?: ButtonStyle;
+  open: boolean;
+  onToggleOpen: (open: boolean) => void;
+  onConfirm: () => void;
+  loading?: boolean;
+  error?: string;
+}
 
-  const { items, options, afterConfirm, buttonStyle } = props;
-  const [openAlert, setOpenAlert] = React.useState(false);
+export function PureDeleteMultipleButton(props: PureDeleteMultipleButtonProps) {
+  const { items, buttonStyle, open, onToggleOpen, onConfirm, loading, error } = props;
   const { t } = useTranslation(['translation']);
-  const location = useLocation();
-  const dispatchDeleteEvent = useEventCallback(HeadlampEventType.DELETE_RESOURCES);
-
-  const deleteFunc = React.useCallback(
-    (items: KubeObject[]) => {
-      if (!items || items.length === 0) {
-        return;
-      }
-      const clonedItems = _.cloneDeep(items);
-      const itemsLength = clonedItems.length;
-
-      dispatch(
-        clusterAction(
-          async () => {
-            await Promise.all(
-              items.map(item => {
-                if (settingsObj.useEvict && item.kind === 'Pod') {
-                  const pod = item as Pod;
-                  return pod.evict();
-                }
-                return item.delete();
-              })
-            );
-          },
-          {
-            startMessage: t('Deleting {{ itemsLength }} items…', { itemsLength }),
-            cancelledMessage: t('Cancelled deletion of {{ itemsLength }} items.', { itemsLength }),
-            successMessage: t('Deleted {{ itemsLength }} items.', { itemsLength }),
-            errorMessage: t('Error deleting {{ itemsLength }} items.', { itemsLength }),
-            cancelUrl: location.pathname,
-            startUrl: location.pathname,
-            errorUrl: location.pathname,
-            ...options,
-          }
-        )
-      );
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [options]
-  );
 
   if (!items || items.length === 0) {
     return null;
@@ -118,27 +119,121 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
       <ActionButton
         description={t('translation|Delete items')}
         buttonStyle={buttonStyle}
-        onClick={() => {
-          setOpenAlert(true);
-        }}
+        onClick={() => onToggleOpen(true)}
         icon="mdi:delete"
       />
       <ConfirmDialog
-        open={openAlert}
-        title={t('translation|Delete items')}
-        description={<DeleteMultipleButtonDescription items={items} />}
-        handleClose={() => setOpenAlert(false)}
-        onConfirm={() => {
-          deleteFunc(items);
-          dispatchDeleteEvent({
-            resources: items,
-            status: EventStatus.CONFIRMED,
-          });
-          if (afterConfirm) {
-            afterConfirm();
-          }
-        }}
+        open={open}
+        title={error ? t('translation|Delete failed') : t('translation|Delete items')}
+        description={
+          <DeleteMultipleButtonDescription items={items} loading={loading} error={error} />
+        }
+        handleClose={() => !loading && onToggleOpen(false)}
+        onConfirm={onConfirm}
       />
     </>
+  );
+}
+
+export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
+  const dispatch: AppDispatch = useDispatch();
+  const settingsObj = useSettings();
+
+  const { items, options, afterConfirm, buttonStyle } = props;
+  const [openAlert, setOpenAlert] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | undefined>(undefined);
+  const { t } = useTranslation(['translation']);
+  const location = useLocation();
+  const dispatchDeleteEvent = useEventCallback(HeadlampEventType.DELETE_RESOURCES);
+
+  const deleteFunc = React.useCallback(
+    async (items: KubeObject[]) => {
+      if (!items || items.length === 0) {
+        return;
+      }
+      const clonedItems = _.cloneDeep(items);
+      const itemsLength = clonedItems.length;
+      setLoading(true);
+      setError(undefined);
+
+      let failed = false;
+      await dispatch(
+        clusterAction(
+          async () => {
+            try {
+              await Promise.all(
+                items.map(item => {
+                  if (settingsObj.useEvict && item.kind === 'Pod') {
+                    const pod = item as Pod;
+                    return pod.evict();
+                  }
+                  return item.delete();
+                })
+              );
+            } catch (err) {
+              failed = true;
+              setError(
+                err instanceof Error
+                  ? err.message
+                  : t('Error deleting {{ itemsLength }} items.', { itemsLength })
+              );
+              throw err;
+            }
+          },
+          {
+            startMessage: t('Deleting {{ itemsLength }} items…', { itemsLength }),
+            cancelledMessage: t('Cancelled deletion of {{ itemsLength }} items.', {
+              itemsLength,
+            }),
+            successMessage: t('Deleted {{ itemsLength }} items.', { itemsLength }),
+            errorMessage: t('Error deleting {{ itemsLength }} items.', { itemsLength }),
+            cancelUrl: location.pathname,
+            startUrl: location.pathname,
+            errorUrl: location.pathname,
+            ...options,
+          }
+        )
+      );
+      setLoading(false);
+      if (!failed) {
+        setOpenAlert(false);
+        if (afterConfirm) {
+          afterConfirm();
+        }
+      }
+    },
+    [dispatch, settingsObj.useEvict, t, location.pathname, options, afterConfirm]
+  );
+
+  const handleConfirm = () => {
+    if (!items) return;
+    // ConfirmDialog calls handleClose() before onConfirm(); re-open so the
+    // loading/error UI stays visible while deleteFunc runs.
+    setOpenAlert(true);
+    dispatchDeleteEvent({
+      resources: items,
+      status: EventStatus.CONFIRMED,
+    });
+    deleteFunc(items);
+  };
+
+  const handleToggleOpen = (open: boolean) => {
+    setOpenAlert(open);
+    if (!open) {
+      setError(undefined);
+    }
+  };
+
+  return (
+    <PureDeleteMultipleButton
+      items={items}
+      buttonStyle={buttonStyle}
+      open={openAlert}
+      onToggleOpen={handleToggleOpen}
+      onConfirm={handleConfirm}
+      loading={loading}
+      error={error}
+    />
   );
 }
