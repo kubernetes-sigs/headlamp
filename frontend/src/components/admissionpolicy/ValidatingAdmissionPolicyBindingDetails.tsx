@@ -42,14 +42,16 @@ export default function ValidatingAdmissionPolicyBindingDetails(props: {
         item && [
           {
             name: t('Policy Name'),
-            value: (
+            value: item.spec?.policyName ? (
               <Link
                 routeName="validatingAdmissionPolicy"
-                params={{ name: item.spec?.policyName }}
+                params={{ name: item.spec.policyName }}
                 activeCluster={item.cluster}
               >
-                {item.spec?.policyName}
+                {item.spec.policyName}
               </Link>
+            ) : (
+              ''
             ),
           },
           {
