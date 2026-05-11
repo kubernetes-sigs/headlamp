@@ -26,6 +26,8 @@
   "Readiness Probe": "Readiness Probe",
   "Startup Probe": "Startup Probe",
   "Liveness Probes": "Liveness Probes",
+  "Readiness Probes": "Readiness Probes",
+  "Startup Probes": "Startup Probes",
   "Ports": "Ports",
   "Volume Mounts": "Volume Mounts",
   "Containers": "Containers",

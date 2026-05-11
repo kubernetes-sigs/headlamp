@@ -33,6 +33,7 @@ vi.mock('./clusterRequests', () => ({
 
 describe('streamingApi race conditions', () => {
   let mockWebSocket: any;
+  let originalWebSocket: typeof globalThis.WebSocket;
 
   beforeEach(() => {
     mockWebSocket = {
@@ -41,6 +42,8 @@ describe('streamingApi race conditions', () => {
       removeEventListener: vi.fn(),
       send: vi.fn(),
     };
+    // Save original WebSocket before stubbing
+    originalWebSocket = globalThis.WebSocket;
     vi.stubGlobal(
       'WebSocket',
       vi.fn(() => mockWebSocket)
@@ -49,7 +52,8 @@ describe('streamingApi race conditions', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.unstubAllGlobals();
+    // Restore original WebSocket to prevent leakage to subsequent tests
+    vi.stubGlobal('WebSocket', originalWebSocket);
   });
 
   it('stream() should close connection if cancelled during async connectStream setup', async () => {
