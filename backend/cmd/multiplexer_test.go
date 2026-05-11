@@ -393,7 +393,11 @@ func TestMonitorConnection(t *testing.T) {
 	}()
 
 	time.Sleep(100 * time.Millisecond)
-	close(conn.Done)
+	select {
+	case <-conn.Done:
+	default:
+		close(conn.Done)
+	}
 	<-done
 
 	assert.Equal(t, StateClosed, conn.Status.State)
@@ -414,6 +418,9 @@ func TestUpdateStatus(t *testing.T) {
 	}
 
 	for _, state := range states {
+		conn.closed = false
+		conn.closeOnce = sync.Once{}
+		conn.Done = make(chan struct{})
 		conn.updateStatus(state, nil)
 		assert.Equal(t, state, conn.Status.State)
 	}
@@ -914,10 +921,7 @@ func TestHandleConnectionError(t *testing.T) {
 	testError := fmt.Errorf("test error")
 
 	// Capture the error message sent to the client
-	var receivedMsg struct {
-		ClusterID string `json:"clusterId"`
-		Error     string `json:"error"`
-	}
+	var receivedMsg Message
 
 	done := make(chan bool)
 
@@ -947,8 +951,8 @@ func TestHandleConnectionError(t *testing.T) {
 
 	select {
 	case <-done:
-		assert.Equal(t, "test-cluster", receivedMsg.ClusterID)
-		assert.Equal(t, "test error", receivedMsg.Error)
+		assert.Equal(t, "ERROR", receivedMsg.Type)
+		assert.Contains(t, receivedMsg.Data, `"error":"test error"`)
 	case <-time.After(time.Second):
 		t.Fatal("Test timed out")
 	}
@@ -999,8 +1003,9 @@ func TestReadClientMessage_InvalidMessage(t *testing.T) {
 	err = clientConn.WriteMessage(websocket.TextMessage, []byte("not json at all"))
 	require.NoError(t, err)
 
-	msg, err := m.readClientMessage(clientConn)
+	msg, isFatal, err := m.readClientMessage(clientConn)
 	require.Error(t, err)
+	assert.False(t, isFatal)
 	assert.Equal(t, Message{}, msg)
 
 	// Test JSON with invalid data type
@@ -1010,17 +1015,19 @@ func TestReadClientMessage_InvalidMessage(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	msg, err = m.readClientMessage(clientConn)
+	msg, isFatal, err = m.readClientMessage(clientConn)
 	require.Error(t, err)
+	assert.False(t, isFatal)
 	assert.Equal(t, Message{}, msg)
 
 	// Test empty JSON object
 	err = clientConn.WriteMessage(websocket.TextMessage, []byte("{}"))
 	require.NoError(t, err)
 
-	msg, err = m.readClientMessage(clientConn)
+	msg, isFatal, err = m.readClientMessage(clientConn)
 	// Empty message is valid JSON but will be unmarshaled into an empty Message struct
 	require.NoError(t, err)
+	assert.False(t, isFatal)
 	assert.Equal(t, Message{}, msg)
 
 	// Test missing required fields
@@ -1030,9 +1037,10 @@ func TestReadClientMessage_InvalidMessage(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	msg, err = m.readClientMessage(clientConn)
+	msg, isFatal, err = m.readClientMessage(clientConn)
 	// Missing fields are allowed by json.Unmarshal
 	require.NoError(t, err)
+	assert.False(t, isFatal)
 	assert.Equal(t, Message{Data: "some data"}, msg)
 }
 
@@ -1053,6 +1061,9 @@ func TestUpdateStatus_WithError(t *testing.T) {
 	assert.Equal(t, testErr.Error(), conn.Status.Error)
 
 	// Test state change without error
+	conn.closed = false
+	conn.closeOnce = sync.Once{}
+	conn.Done = make(chan struct{})
 	conn.updateStatus(StateConnected, nil)
 	assert.Equal(t, StateConnected, conn.Status.State)
 	assert.Empty(t, conn.Status.Error)
@@ -1062,7 +1073,11 @@ func TestUpdateStatus_WithError(t *testing.T) {
 	assert.Equal(t, StateError, conn.Status.State)
 	assert.Equal(t, testErr.Error(), conn.Status.Error)
 
-	close(conn.Done)
+	select {
+	case <-conn.Done:
+	default:
+		close(conn.Done)
+	}
 	conn.closed = true // Mark connection as closed
 
 	// Try to update state after close - should not change
@@ -1113,7 +1128,11 @@ func TestMonitorConnection_ReconnectFailure(t *testing.T) {
 	assert.Equal(t, StateError, conn.Status.State)
 	assert.NotEmpty(t, conn.Status.Error)
 
-	close(conn.Done)
+	select {
+	case <-conn.Done:
+	default:
+		close(conn.Done)
+	}
 	<-done
 }
 
@@ -1218,7 +1237,7 @@ func TestSendIfNewResourceVersion_VersionComparison(t *testing.T) {
 	// Test invalid JSON
 	message = []byte(`invalid json`)
 	err = m.sendIfNewResourceVersion(message, conn, clientConn, &lastVersion)
-	assert.Error(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "200", lastVersion) // Version should not change on error
 
 	// Test missing resourceVersion
@@ -1522,7 +1541,11 @@ func TestMonitorConnection_Reconnect(t *testing.T) {
 	assert.Contains(t, []ConnectionState{StateError, StateConnecting}, conn.Status.State)
 
 	// Clean up
-	close(conn.Done)
+	select {
+	case <-conn.Done:
+	default:
+		close(conn.Done)
+	}
 }
 
 func TestWriteMessageToCluster(t *testing.T) {

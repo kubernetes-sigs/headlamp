@@ -98,6 +98,8 @@ type Connection struct {
 	usesServiceAccountToken bool
 	// Authentication token.
 	Token *string
+	// closeOnce is used to ensure the connection is closed only once.
+	closeOnce sync.Once
 }
 
 // Message represents a WebSocket message structure.
@@ -255,9 +257,8 @@ func (m *Multiplexer) readServiceAccountToken(path string) (string, error) {
 // updateStatus updates the status of a connection and notifies the client.
 func (c *Connection) updateStatus(state ConnectionState, err error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.closed {
+		c.mu.Unlock()
 		return
 	}
 
@@ -270,14 +271,17 @@ func (c *Connection) updateStatus(state ConnectionState, err error) {
 	}
 
 	if c.Client == nil {
+		c.mu.Unlock()
+		if state == StateClosed {
+			c.safeClose()
+		}
 		return
 	}
 
 	c.writeMu.Lock()
-	defer c.writeMu.Unlock()
-
-	// Check if connection is closed before writing
 	if c.closed {
+		c.writeMu.Unlock()
+		c.mu.Unlock()
 		return
 	}
 
@@ -292,7 +296,8 @@ func (c *Connection) updateStatus(state ConnectionState, err error) {
 	jsonData, jsonErr := json.Marshal(statusData)
 	if jsonErr != nil {
 		logger.Log(logger.LevelError, map[string]string{"clusterID": c.ClusterID}, jsonErr, "marshaling status message")
-
+		c.writeMu.Unlock()
+		c.mu.Unlock()
 		return
 	}
 
@@ -303,13 +308,41 @@ func (c *Connection) updateStatus(state ConnectionState, err error) {
 		Type:      "STATUS",
 	}
 
-	if err := c.Client.WriteJSON(statusMsg); err != nil {
-		if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-			logger.Log(logger.LevelError, map[string]string{"clusterID": c.ClusterID}, err, "writing status message to client")
+	writeErr := c.Client.WriteJSON(statusMsg)
+	c.writeMu.Unlock()
+	c.mu.Unlock()
+
+	if writeErr != nil {
+		if !websocket.IsCloseError(writeErr, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+			logger.Log(logger.LevelError, map[string]string{"clusterID": c.ClusterID}, writeErr, "writing status message to client")
+		}
+	}
+
+	if state == StateClosed {
+		c.safeClose()
+	}
+}
+
+// safeClose safely closes the connection and its resources.
+func (c *Connection) safeClose() {
+	c.closeOnce.Do(func() {
+		c.mu.Lock()
+		c.closed = true
+		c.mu.Unlock()
+
+		if c.Done != nil {
+			select {
+			case <-c.Done:
+				// Already closed
+			default:
+				close(c.Done)
+			}
 		}
 
-		c.closed = true
-	}
+		if c.WSConn != nil {
+			_ = c.WSConn.Close()
+		}
+	})
 }
 
 // establishClusterConnection creates a new WebSocket connection to a Kubernetes cluster.
@@ -557,14 +590,23 @@ func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	defer func() { _ = clientConn.Close() }()
-
 	lockClientConn := NewWSConnLock(clientConn)
 
+	defer func() {
+		_ = lockClientConn.Close()
+		m.closeClientConnections(lockClientConn)
+	}()
+
 	for {
-		msg, err := m.readClientMessage(clientConn)
+		msg, isFatal, err := m.readClientMessage(clientConn)
 		if err != nil {
-			break
+			if isFatal {
+				break
+			}
+			// For non-fatal errors (like parsing), we just log and continue
+			logger.Log(logger.LevelError, nil, err, "failed to read client message")
+			m.sendClientError(lockClientConn, "", "", "", "", err)
+			continue
 		}
 
 		// Check if it's a close message
@@ -576,7 +618,9 @@ func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Reque
 
 		token, err := auth.GetTokenFromCookie(r, msg.ClusterID)
 		if err != nil {
-			break
+			logger.Log(logger.LevelError, map[string]string{"clusterID": msg.ClusterID}, err, "getting token from cookie")
+			m.sendClientError(lockClientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
+			continue
 		}
 
 		conn, err := m.getOrCreateConnection(msg, lockClientConn, &token)
@@ -593,29 +637,42 @@ func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Reque
 			}
 		}
 	}
+}
 
-	m.cleanupConnections()
+// closeClientConnections closes all connections associated with a specific client.
+func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
+	var connsToClose []*Connection
+
+	m.mutex.Lock()
+	for key, conn := range m.connections {
+		if conn.Client == clientConn {
+			connsToClose = append(connsToClose, conn)
+			delete(m.connections, key)
+		}
+	}
+	m.mutex.Unlock()
+
+	for _, conn := range connsToClose {
+		conn.safeClose()
+	}
 }
 
 // readClientMessage reads a message from the client WebSocket connection.
-func (m *Multiplexer) readClientMessage(clientConn *websocket.Conn) (Message, error) {
+// It returns the message, a boolean indicating if the error is fatal for the connection, and the error.
+func (m *Multiplexer) readClientMessage(clientConn *websocket.Conn) (Message, bool, error) {
 	var msg Message
 
 	_, rawMessage, err := clientConn.ReadMessage()
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "reading message")
-
-		return Message{}, err
+		return Message{}, true, err
 	}
 
 	err = json.Unmarshal(rawMessage, &msg)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "unmarshaling message")
-
-		return Message{}, err
+		return Message{}, false, err
 	}
 
-	return msg, nil
+	return msg, false, nil
 }
 
 // getOrCreateConnection gets an existing connection or creates a new one if it doesn't exist.
@@ -669,25 +726,42 @@ func (m *Multiplexer) refreshConnectionToken(conn *Connection, requestToken *str
 	return nil
 }
 
-// handleConnectionError handles errors that occur when establishing a connection.
-func (m *Multiplexer) handleConnectionError(clientConn *WSConnLock, msg Message, err error) {
-	errorMsg := struct {
-		ClusterID string `json:"clusterId"`
-		Error     string `json:"error"`
+// sendClientError sends an error message to the client WebSocket connection.
+func (m *Multiplexer) sendClientError(clientConn *WSConnLock, clusterID, path, query, userID string, err error) {
+	errorData := struct {
+		Error string `json:"error"`
 	}{
-		ClusterID: msg.ClusterID,
-		Error:     err.Error(),
+		Error: err.Error(),
 	}
 
-	if err = clientConn.WriteJSON(errorMsg); err != nil {
+	jsonData, jsonErr := json.Marshal(errorData)
+	if jsonErr != nil {
+		logger.Log(logger.LevelError, map[string]string{"clusterID": clusterID}, jsonErr, "marshaling error message")
+		return
+	}
+
+	errorMsg := Message{
+		ClusterID: clusterID,
+		Path:      path,
+		Query:     query,
+		UserID:    userID,
+		Data:      string(jsonData),
+		Type:      "ERROR",
+	}
+
+	if err := clientConn.WriteJSON(errorMsg); err != nil {
 		logger.Log(
 			logger.LevelError,
-			map[string]string{"clusterID": msg.ClusterID},
+			map[string]string{"clusterID": clusterID},
 			err,
 			"writing error message to client",
 		)
 	}
+}
 
+// handleConnectionError handles errors that occur when establishing a connection.
+func (m *Multiplexer) handleConnectionError(clientConn *WSConnLock, msg Message, err error) {
+	m.sendClientError(clientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
 	logger.Log(logger.LevelError, map[string]string{"clusterID": msg.ClusterID}, err, "establishing cluster connection")
 }
 
@@ -779,7 +853,10 @@ func (m *Multiplexer) sendIfNewResourceVersion(
 ) error {
 	var obj map[string]interface{}
 	if err := json.Unmarshal(message, &obj); err != nil {
-		return fmt.Errorf("error unmarshaling message: %v", err)
+		// If we can't unmarshal as JSON, it might be binary data (e.g. from a terminal)
+		// We just return nil here to indicate no new resource version was found,
+		// but we don't want to stop processing messages.
+		return nil
 	}
 
 	// Try to find metadata directly
@@ -822,8 +899,6 @@ func (m *Multiplexer) sendCompleteMessage(conn *Connection, clientConn *WSConnLo
 		return nil // Connection is already closed, no need to send message
 	}
 
-	conn.mu.RUnlock()
-
 	completeMsg := Message{
 		ClusterID: conn.ClusterID,
 		Path:      conn.Path,
@@ -831,6 +906,7 @@ func (m *Multiplexer) sendCompleteMessage(conn *Connection, clientConn *WSConnLo
 		UserID:    conn.UserID,
 		Type:      "COMPLETE",
 	}
+	conn.mu.RUnlock()
 
 	conn.writeMu.Lock()
 	defer conn.writeMu.Unlock()
@@ -846,10 +922,6 @@ func (m *Multiplexer) sendCompleteMessage(conn *Connection, clientConn *WSConnLo
 }
 
 // sendDataMessage sends the actual data message to the client.
-//
-// Lock ordering note: writeMu is released before acquiring mu to
-// maintain a consistent lock order (mu → writeMu) with updateStatus
-// and prevent a lock-order inversion deadlock.
 func (m *Multiplexer) sendDataMessage(
 	conn *Connection,
 	clientConn *WSConnLock,
@@ -857,6 +929,10 @@ func (m *Multiplexer) sendDataMessage(
 	message []byte,
 ) error {
 	dataMsg := m.createWrapperMessage(conn, messageType, message)
+
+	conn.mu.Lock()
+	conn.Status.LastMsg = time.Now()
+	conn.mu.Unlock()
 
 	conn.writeMu.Lock()
 	err := clientConn.WriteJSON(dataMsg)
@@ -866,23 +942,12 @@ func (m *Multiplexer) sendDataMessage(
 		return err
 	}
 
-	conn.mu.Lock()
-	conn.Status.LastMsg = time.Now()
-	conn.mu.Unlock()
-
 	return nil
 }
 
 // cleanupConnection performs cleanup for a connection.
 func (m *Multiplexer) cleanupConnection(conn *Connection) {
-	conn.mu.Lock()
-	defer conn.mu.Unlock() // Ensure the mutex is unlocked even if an error occurs
-
-	conn.closed = true
-
-	if conn.WSConn != nil {
-		_ = conn.WSConn.Close()
-	}
+	conn.safeClose()
 
 	m.mutex.Lock()
 	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
@@ -917,12 +982,6 @@ func (m *Multiplexer) cleanupConnections() {
 
 	for key, conn := range m.connections {
 		conn.updateStatus(StateClosed, nil)
-		close(conn.Done)
-
-		if conn.WSConn != nil {
-			_ = conn.WSConn.Close()
-		}
-
 		delete(m.connections, key)
 	}
 }
@@ -946,36 +1005,14 @@ func (m *Multiplexer) CloseConnection(clusterID, path, userID string) {
 	conn, exists := m.connections[connKey]
 	if !exists {
 		m.mutex.Unlock()
-		// Don't log error for non-existent connections during cleanup
 		return
 	}
-
-	// Mark as closed before releasing the lock
-	conn.mu.Lock()
-	if conn.closed {
-		conn.mu.Unlock()
-		m.mutex.Unlock()
-		logger.Log(logger.LevelError, map[string]string{"clusterID": conn.ClusterID}, nil, "closing connection")
-
-		return
-	}
-
-	conn.closed = true
-	conn.mu.Unlock()
 
 	delete(m.connections, connKey)
 	m.mutex.Unlock()
 
-	// Lock the connection mutex before accessing shared resources
-	conn.mu.Lock()
-	defer conn.mu.Unlock() // Ensure the mutex is unlocked after the operations
-
-	// Close the Done channel and connections after removing from map
-	close(conn.Done)
-
-	if conn.WSConn != nil {
-		_ = conn.WSConn.Close()
-	}
+	conn.updateStatus(StateClosed, nil)
+	conn.safeClose()
 }
 
 // createConnectionKey creates a unique key for a connection based on cluster ID, path, and user ID.
