@@ -274,5 +274,17 @@
   "Reinvocation Policy": "再呼び出しポリシー",
   "API Versions": "API バージョン",
   "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}": "ローリングアップデート。最大利用不可: {{ maxUnavailable }}, 最大サージ: {{ maxSurge }}",
-  "Strategy Type": "戦略タイプ"
+  "Strategy Type": "戦略タイプ",
+  "Validations": "Validations",
+  "Policy Name": "Policy Name",
+  "Validation Actions": "Validation Actions",
+  "Match Constraints": "Match Constraints",
+  "Match Conditions": "Match Conditions",
+  "Expression": "Expression",
+  "Audit Annotations": "Audit Annotations",
+  "Variables": "Variables",
+  "Param Ref": "Param Ref",
+  "Match Resources": "Match Resources",
+  "Parameter Not Found Action": "Parameter Not Found Action",
+  "Value Expression": "Value Expression"
 }

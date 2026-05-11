@@ -274,5 +274,17 @@
   "Reinvocation Policy": "रीइनवोकेशन पॉलिसी",
   "API Versions": "API संस्करण",
   "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}": "रोलिंगअपडेट। अधिकतम अनुपलब्ध: {{ maxUnavailable }}, अधिकतम वृद्धि: {{ maxSurge }}",
-  "Strategy Type": "रणनीति प्रकार"
+  "Strategy Type": "रणनीति प्रकार",
+  "Validations": "Validations",
+  "Policy Name": "Policy Name",
+  "Validation Actions": "Validation Actions",
+  "Match Constraints": "Match Constraints",
+  "Match Conditions": "Match Conditions",
+  "Expression": "Expression",
+  "Audit Annotations": "Audit Annotations",
+  "Variables": "Variables",
+  "Param Ref": "Param Ref",
+  "Match Resources": "Match Resources",
+  "Parameter Not Found Action": "Parameter Not Found Action",
+  "Value Expression": "Value Expression"
 }
