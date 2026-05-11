@@ -51,13 +51,22 @@ console.log('Initial list output:', output);
 let plugins = JSON.parse(output);
 console.log('Initial plugins:', plugins);
 
+const pluginName = '@headlamp-k8s/flux';
+
+// Ensure clean state
+if (plugins.some(plugin => plugin.pluginName === pluginName)) {
+  console.log(`Uninstalling existing plugin ${pluginName}`);
+  runCommand(`node ../bin/pluginctl.js uninstall ${pluginName}`);
+  output = runCommand('node ../bin/pluginctl.js list --json');
+  plugins = JSON.parse(output);
+}
+
 // Ensure the plugin is not installed
-const pluginName = 'prometheus';
 let pluginExists = plugins.some(plugin => plugin.pluginName === pluginName);
 assert.strictEqual(pluginExists, false, 'Plugin should not be initially installed');
 
 // Install the plugin
-const pluginURL = 'https://artifacthub.io/packages/headlamp/test-123/prometheus_headlamp_plugin';
+const pluginURL = 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux';
 output = runCommand(`node ../bin/pluginctl.js install ${pluginURL}`);
 console.log('Install output:', output);
 

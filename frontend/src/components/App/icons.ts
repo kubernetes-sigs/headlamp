@@ -369,6 +369,9 @@ const mdiIcons = {
     'dock-window': {
       body: '\u003Cpath fill="currentColor" d="M18 18v2H4a2 2 0 0 1-2-2V8h2v10M22 6v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2m-2 0H8v8h12Z"/\u003E',
     },
+    resize: {
+      body: '\u003Cpath fill="currentColor" d="M14 2h6v6h-2V5.41L14.71 8.71L13.29 7.29L16.59 4H14V2M10 22H4v-6h2v2.59L9.29 15.29L10.71 16.71L7.41 20H10V22M22 10V4h-6v2h2.59L15.29 9.29L16.71 10.71L20 7.41V10h2M2 14v6h6v-2H5.41l3.3-3.29l-1.42-1.42L4 16.59V14H2z"/\u003E',
+    },
     'resize-bottom-right': {
       body: '\u003Cpath fill="currentColor" d="M22 22h-2v-2h2zm0-4h-2v-2h2zm-4 4h-2v-2h2zm0-4h-2v-2h2zm-4 4h-2v-2h2zm8-8h-2v-2h2z"/\u003E',
     },

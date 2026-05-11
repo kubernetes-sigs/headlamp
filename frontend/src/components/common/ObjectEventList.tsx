@@ -43,7 +43,7 @@ export default function ObjectEventList(props: ObjectEventListProps) {
   async function fetchEvents() {
     try {
       const events = await Event.objectEvents(props.object);
-      setEvents(events.map((e: KubeEvent) => new Event(e)));
+      setEvents((events || []).map((e: KubeEvent) => new Event(e)));
     } catch (e) {
       console.error('Failed to fetch events for object:', props.object, e);
     }

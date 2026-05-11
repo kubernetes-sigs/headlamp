@@ -108,6 +108,13 @@ export async function request(
   return clusterRequest(path, { cluster, autoLogoutOnAuthError, ...params }, queryParams);
 }
 
+export interface RequestHeaders {
+  Authorization?: string;
+  cluster?: string;
+  autoLogoutOnAuthError?: boolean;
+  [otherHeader: string]: any;
+}
+
 /**
  * Sends a request to the backend. If the cluster is required in the params parameter, it will
  * be used as a request to the respective Kubernetes server.
@@ -124,13 +131,6 @@ export async function clusterRequest(
   params: ClusterRequestParams = {},
   queryParams?: QueryParameters
 ): Promise<any> {
-  interface RequestHeaders {
-    Authorization?: string;
-    cluster?: string;
-    autoLogoutOnAuthError?: boolean;
-    [otherHeader: string]: any;
-  }
-
   const {
     timeout = DEFAULT_TIMEOUT,
     cluster: paramsCluster,
@@ -159,11 +159,16 @@ export async function clusterRequest(
 
   let url = combinePath(getAppUrl(), fullPath);
   url += asQuery(queryParams);
-  const requestData = {
-    signal: controller.signal,
+  const requestData: RequestInit & { headers: RequestHeaders; signal?: AbortSignal } = {
     credentials: 'include' as RequestCredentials,
     ...opts,
   };
+
+  // Only add the signal if it's a valid AbortSignal.
+  // This avoids the 'Expected signal to be an instance of AbortSignal' error in Vitest.
+  if (typeof AbortSignal !== 'undefined' && controller.signal instanceof AbortSignal) {
+    requestData.signal = controller.signal;
+  }
   if (isBackstage()) {
     requestData.headers = addBackstageAuthHeaders(requestData.headers);
   }
@@ -171,9 +176,30 @@ export async function clusterRequest(
   try {
     response = await fetch(url, requestData);
   } catch (err) {
-    if (err instanceof Error) {
+    if (
+      err instanceof TypeError &&
+      err.message.includes('instance of AbortSignal') &&
+      requestData.signal
+    ) {
+      const retryData = { ...requestData };
+      delete retryData.signal;
+      try {
+        response = await fetch(url, retryData);
+      } catch (retryErr) {
+        err = retryErr as Error;
+      }
+    }
+
+    if (err instanceof Error && !response.ok) {
       if (err.name === 'AbortError') {
         response = new Response(undefined, { status: 408, statusText: 'Request timed-out' });
+      } else {
+        console.error('Network error in clusterRequest:', {
+          method: params.method ?? 'GET',
+          url,
+          path,
+          err,
+        });
       }
     }
   } finally {

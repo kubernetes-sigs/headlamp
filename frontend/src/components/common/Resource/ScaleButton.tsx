@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-import { Icon } from '@iconify/react';
-import Button from '@mui/material/Button';
-import Dialog, { DialogProps } from '@mui/material/Dialog';
-import DialogActions from '@mui/material/DialogActions';
-import DialogContent from '@mui/material/DialogContent';
-import DialogContentText from '@mui/material/DialogContentText';
-import DialogTitle from '@mui/material/DialogTitle';
-import Fab from '@mui/material/Fab';
-import Grid from '@mui/material/Grid';
-import OutlinedInput from '@mui/material/OutlinedInput';
-import { styled, useTheme } from '@mui/material/styles';
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  TextField,
+  Typography,
+} from '@mui/material';
+import { styled } from '@mui/material/styles';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -40,43 +40,168 @@ import {
 } from '../../../redux/headlampEventSlice';
 import { AppDispatch } from '../../../redux/stores/store';
 import ActionButton, { ButtonStyle } from '../ActionButton';
-import { LightTooltip } from '../Tooltip';
 import AuthVisible from './AuthVisible';
 
 interface ScaleButtonProps {
-  item: (Deployment | StatefulSet | ReplicaSet) & { _class?: () => { isScalable?: boolean } };
+  item: Deployment | StatefulSet | ReplicaSet;
   buttonStyle?: ButtonStyle;
   options?: CallbackActionOptions;
 }
 
-export default function ScaleButton(props: ScaleButtonProps) {
-  const dispatch: AppDispatch = useDispatch();
+interface ScaleDialogProps {
+  open: boolean;
+  resource: Deployment | StatefulSet | ReplicaSet;
+  onClose: () => void;
+  onSave: (numReplicas: number) => void;
+}
 
-  const { item, buttonStyle, options = {} } = props;
-  const [openDialog, setOpenDialog] = React.useState(false);
-  const location = useLocation();
-  const { t } = useTranslation();
+const ScaleTextField = styled(TextField)({
+  '& input': {
+    MozAppearance: 'textfield',
+    textAlign: 'center',
+  },
+  '& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button': {
+    display: 'none',
+  },
+  width: '80px',
+});
 
-  async function updateFunc(numReplicas: number) {
-    try {
-      await item.scale(numReplicas);
-    } catch (err) {
-      throw err;
-    }
+/**
+ * Extracts the current replica count from a scalable resource's spec.
+ *
+ * @param resource - A Deployment, StatefulSet, or ReplicaSet resource object.
+ * @returns The number of replicas from the resource spec, or -1 if unavailable.
+ */
+function getReplicas(resource: Deployment | StatefulSet | ReplicaSet) {
+  if (!resource || !('spec' in resource) || resource.spec.replicas === undefined) {
+    return -1;
   }
+  const replicas = resource.spec.replicas;
+  const parsed = typeof replicas === 'number' ? replicas : parseInt(replicas as string, 10);
+  return Number.isFinite(parsed) ? parsed : -1;
+}
 
-  // eslint-disable-next-line react-hooks/use-memo
-  const applyFunc = React.useCallback(updateFunc, [item]);
+function ScaleDialog(props: ScaleDialogProps) {
+  const { open, resource, onClose, onSave } = props;
+  const [numReplicas, setNumReplicas] = React.useState<number>(getReplicas(resource));
+
+  const prevOpenRef = React.useRef(open);
+  React.useEffect(() => {
+    if (open && !prevOpenRef.current) {
+      setNumReplicas(getReplicas(resource));
+    }
+    prevOpenRef.current = open;
+  }, [open, resource]);
+
+  const { t } = useTranslation(['translation']);
+  const desiredNumReplicasLabel = 'desired-number-replicas-label';
+  const numReplicasForWarning = 100;
+  const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.SCALE_RESOURCE);
+
+  const currentNumReplicas = getReplicas(resource);
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle>{t('Scale Replicas')}</DialogTitle>
+      <DialogContent>
+        <Box display="flex" flexDirection="column" gap={2} mt={1}>
+          <Box display="flex" alignItems="center" gap={2}>
+            <Typography id={desiredNumReplicasLabel}>{t('Desired replicas')}:</Typography>
+            <Box display="flex" alignItems="center">
+              <Button
+                variant="outlined"
+                onClick={() => setNumReplicas(prev => Math.max(0, prev - 1))}
+                aria-label={t('Decrease replicas')}
+                sx={{ minWidth: '40px', height: '40px', borderRadius: '4px 0 0 4px' }}
+              >
+                -
+              </Button>
+              <ScaleTextField
+                type="number"
+                value={numReplicas === -1 ? '' : numReplicas}
+                onChange={e => {
+                  const val = parseInt(e.target.value, 10);
+                  setNumReplicas(Number.isFinite(val) ? val : -1);
+                }}
+                inputProps={{
+                  'aria-labelledby': desiredNumReplicasLabel,
+                  min: 0,
+                }}
+                variant="outlined"
+                size="small"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 0,
+                  },
+                }}
+              />
+              <Button
+                variant="outlined"
+                onClick={() => setNumReplicas(prev => (prev === -1 ? 1 : prev + 1))}
+                aria-label={t('Increase replicas')}
+                sx={{ minWidth: '40px', height: '40px', borderRadius: '0 4px 4px 0' }}
+              >
+                +
+              </Button>
+            </Box>
+          </Box>
+          {numReplicas >= numReplicasForWarning && (
+            <Typography variant="body2" color="warning.main">
+              {t("A large number of replicas may negatively impact the cluster's performance")}
+            </Typography>
+          )}
+          {currentNumReplicas !== -1 && numReplicas !== currentNumReplicas && (
+            <Typography variant="body2" color="textSecondary">
+              {t('Current number of replicas: {{ numReplicas }}', {
+                numReplicas: currentNumReplicas,
+              })}
+            </Typography>
+          )}
+        </Box>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 3 }}>
+        <Button onClick={onClose} color="inherit">
+          {t('Cancel')}
+        </Button>
+        <Button
+          onClick={() => {
+            onSave(numReplicas);
+            dispatchHeadlampEvent({
+              resource,
+              status: EventStatus.CONFIRMED,
+            });
+            onClose();
+          }}
+          variant="contained"
+          color="primary"
+          disabled={numReplicas < 0 || !Number.isFinite(numReplicas)}
+        >
+          {t('Apply')}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+export default function ScaleButton(props: ScaleButtonProps) {
+  const { item, buttonStyle, options = {} } = props;
+  const dispatch: AppDispatch = useDispatch();
+  const [open, setOpen] = React.useState(false);
+  const { t } = useTranslation(['translation']);
+  const location = useLocation();
+
+  if (!item || !('isScalable' in item && item.isScalable)) {
+    return null;
+  }
 
   function handleSave(numReplicas: number) {
     const cancelUrl = location.pathname;
     const itemName = item.metadata.name;
 
-    setOpenDialog(false);
+    setOpen(false);
 
-    // setOpenDialog(false);
     dispatch(
-      clusterAction(() => applyFunc(numReplicas), {
+      clusterAction(() => item.scale(numReplicas), {
         startMessage: t('Scaling {{ itemName }}…', { itemName }),
         cancelledMessage: t('Cancelled scaling {{ itemName }}.', { itemName }),
         successMessage: t('Scaled {{ itemName }}.', { itemName }),
@@ -86,14 +211,6 @@ export default function ScaleButton(props: ScaleButtonProps) {
         ...options,
       })
     );
-  }
-
-  function handleClose() {
-    setOpenDialog(false);
-  }
-
-  if (!item || !item?.isScalable) {
-    return null;
   }
 
   return (
@@ -106,144 +223,12 @@ export default function ScaleButton(props: ScaleButtonProps) {
       }}
     >
       <ActionButton
-        description={t('translation|Scale')}
+        description={t('Scale')}
         buttonStyle={buttonStyle}
-        onClick={() => {
-          setOpenDialog(true);
-        }}
-        icon="mdi:expand-all"
+        icon="mdi:resize"
+        onClick={() => setOpen(true)}
       />
-      <ScaleDialog resource={item} open={openDialog} onClose={handleClose} onSave={handleSave} />
+      <ScaleDialog resource={item} open={open} onClose={() => setOpen(false)} onSave={handleSave} />
     </AuthVisible>
-  );
-}
-
-interface ScaleDialogProps extends Omit<DialogProps, 'resource'> {
-  resource: Deployment | StatefulSet | ReplicaSet;
-  onSave: (numReplicas: number) => void;
-  onClose: () => void;
-  errorMessage?: string;
-}
-
-const Input = styled(OutlinedInput)({
-  '& input[type=number]': {
-    MozAppearance: 'textfield',
-    textAlign: 'center',
-  },
-  '& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button': {
-    display: 'none',
-  },
-  width: '80px',
-});
-
-function ScaleDialog(props: ScaleDialogProps) {
-  const { open, resource, onClose, onSave } = props;
-  const [numReplicas, setNumReplicas] = React.useState<number>(getNumReplicas());
-  const { t } = useTranslation(['translation']);
-  const theme = useTheme();
-  const desiredNumReplicasLabel = 'desired-number-replicas-label';
-  const numReplicasForWarning = 100;
-  const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.SCALE_RESOURCE);
-
-  function getNumReplicas() {
-    if (!('spec' in resource)) {
-      return -1;
-    }
-
-    return parseInt(resource.spec.replicas);
-  }
-
-  const currentNumReplicas = getNumReplicas();
-
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{t('Scale Replicas')}</DialogTitle>
-      <DialogContent
-        sx={{
-          paddingBottom: '30px', // Prevent the content from overflowing
-        }}
-      >
-        <Grid container spacing={2}>
-          <Grid item xs={12}>
-            <DialogContentText>
-              {t('translation|Current number of replicas: {{ numReplicas }}', {
-                numReplicas:
-                  currentNumReplicas === -1 ? t('translation|Unknown') : currentNumReplicas,
-              })}
-            </DialogContentText>
-          </Grid>
-          <Grid item container alignItems="center" spacing={1}>
-            <Grid item sm="auto" xs={12}>
-              <DialogContentText id={desiredNumReplicasLabel}>
-                {t('translation|Desired number of replicas:')}
-              </DialogContentText>
-            </Grid>
-            <Grid item spacing={2} sm="auto" sx={{ padding: '6px', textAlign: 'left' }}>
-              <Fab
-                size="small"
-                color="secondary"
-                onClick={() => setNumReplicas(numReplicas => Math.max(0, numReplicas - 1))}
-                aria-label={t('translation|Decrement')}
-                disabled={numReplicas <= 0}
-                sx={{ boxShadow: 'none' }}
-              >
-                <Icon icon="mdi:minus" width="22px" />
-              </Fab>
-              <Input
-                size="small"
-                type="number"
-                value={numReplicas}
-                sx={{ marginLeft: '6px', marginRight: '6px' }}
-                onChange={e => setNumReplicas(Math.max(0, Number(e.target.value)))}
-                aria-labelledby={desiredNumReplicasLabel}
-                inputProps={{
-                  min: 0,
-                  step: 1,
-                }}
-              />
-
-              <Fab
-                size="small"
-                color="secondary"
-                onClick={() => setNumReplicas(numReplicas => numReplicas + 1)}
-                aria-label={t('translation|Increment')}
-                sx={{ boxShadow: 'none' }}
-              >
-                <Icon icon="mdi:plus" width="22px" />
-              </Fab>
-            </Grid>
-            <Grid item xs="auto">
-              {numReplicas >= numReplicasForWarning && (
-                <LightTooltip
-                  title={t(
-                    "A large number of replicas may negatively impact the cluster's performance"
-                  )}
-                >
-                  <Icon icon="mdi:warning" width="28px" color={theme.palette.warning.main} />
-                </LightTooltip>
-              )}
-            </Grid>
-          </Grid>
-        </Grid>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} color="secondary" variant="contained">
-          {t('translation|Cancel')}
-        </Button>
-        <Button
-          onClick={() => {
-            onSave(numReplicas);
-            dispatchHeadlampEvent({
-              resource: resource,
-              status: EventStatus.CONFIRMED,
-            });
-          }}
-          variant="contained"
-          color="primary"
-        >
-          {t('translation|Apply')}
-        </Button>
-      </DialogActions>
-    </Dialog>
   );
 }

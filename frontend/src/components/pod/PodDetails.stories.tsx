@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
-import { createTheme, ThemeProvider } from '@mui/material/styles';
+import { ThemeProvider } from '@mui/material/styles';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
+import { createMuiTheme } from '../../lib/themes';
 import { TestContext } from '../../test';
+import { lightTheme } from '../App/defaultAppThemes';
 import PodDetails from './Details';
 import { podList } from './storyHelper';
 
@@ -34,15 +36,7 @@ const AUTH_URL = `http://localhost:4466/clusters/${CLUSTER_NAME}/apis/authorizat
 // Store the initial path at module scope, so we can always restore to it
 const INITIAL_PATH = window.location.pathname;
 
-const theme = createTheme({
-  components: {
-    MuiButtonBase: {
-      defaultProps: {
-        disableRipple: true,
-      },
-    },
-  },
-});
+const theme = createMuiTheme(lightTheme);
 
 export default {
   title: 'Pod/PodDetailsView',

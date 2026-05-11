@@ -19,6 +19,7 @@ const fs = require('fs');
 const fsp = require('fs').promises;
 const os = require('os');
 const MultiPluginManager = require('./multi-plugin-management');
+const { PluginManager } = require('./plugin-management');
 
 describe('MultiPluginManagement', () => {
   let tempDir;
@@ -53,11 +54,32 @@ describe('MultiPluginManagement', () => {
       }
     };
     installer = new MultiPluginManager(tempDir, '', mockProgressCallback);
+
+    // Mock PluginManager.install to simulate successful installation
+    jest.spyOn(PluginManager, 'install').mockImplementation(async (url, dest) => {
+      if (url.includes('nonexistent') || url.includes('invalid-plugin')) {
+        throw new Error('Plugin not found');
+      }
+      const pluginName = url.split('/').pop();
+      const pluginPath = path.join(dest, pluginName);
+      await fsp.mkdir(pluginPath, { recursive: true });
+      await fsp.writeFile(path.join(pluginPath, 'package.json'), JSON.stringify({
+        name: pluginName,
+        artifacthub: { url }
+      }));
+      await fsp.writeFile(path.join(pluginPath, 'main.js'), '');
+    });
+
+    // Mock fetchPluginInfo (private function but used by PluginManager.update which we might need)
+    // Actually, MultiPluginManager.installPlugin calls PluginManager.install directly.
+    // Let's also mock MultiPluginManager.prototype.validateConfig to return our mock config
+    // if we don't want to hit the real disk for the config file, but it's already using tempDir.
   });
 
   afterEach(async () => {
     // Clean up temporary directory
     await fsp.rm(tempDir, { recursive: true, force: true });
+    jest.restoreAllMocks();
   });
 
   describe('validateConfig', () => {

@@ -49,7 +49,7 @@ describe('PluginManager Test Cases', () => {
 
   test('Install Plugin', async () => {
     await PluginManager.install(
-      'https://artifacthub.io/packages/headlamp/test-123/appcatalog_headlamp_plugin',
+      'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux',
       tempDir,
       '',
       mockProgressCallback
@@ -62,7 +62,7 @@ describe('PluginManager Test Cases', () => {
 
   test('List Plugins', () => {
     PluginManager.list(tempDir, mockProgressCallback);
-    // Assuming "app-catalog" plugin is in the list of plugins
+    // Assuming "flux" plugin is in the list of plugins
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugins Listed',
@@ -71,8 +71,8 @@ describe('PluginManager Test Cases', () => {
   });
 
   test('No Update available for Plugin', async () => {
-    // No updates available for "app-catalog" plugin
-    await PluginManager.update('app-catalog', tempDir, '', mockProgressCallback);
+    // No updates available for "@headlamp-k8s/flux" plugin
+    await PluginManager.update('@headlamp-k8s/flux', tempDir, '', mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'error',
       message: 'No updates available',
@@ -80,18 +80,26 @@ describe('PluginManager Test Cases', () => {
   });
 
   test('Update Plugin', async () => {
-    // update the "app-catalog" plugin package.json with lower state
-    const packageJSONPath = `${tempDir}/appcatalog_headlamp_plugin/package.json`;
+    // update the "flux" plugin package.json with lower state
+    const packageJSONPath = `${tempDir}/headlamp_flux/package.json`;
     const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath));
-    packageJSON.artifacthub.version = `${semver.major(
-      packageJSON.artifacthub.version
-    )}.${semver.minor(packageJSON.artifacthub.version)}.${
-      semver.patch(packageJSON.artifacthub.version) - 1
-    }`; // Reduce the version using semver
+    // Reduce the version using semver. If patch is 0, reduce minor.
+    const v = semver.parse(packageJSON.artifacthub.version);
+    if (v.patch > 0) {
+      v.patch--;
+    } else if (v.minor > 0) {
+      v.minor--;
+      v.patch = 9; // High patch number to ensure update is available
+    } else if (v.major > 0) {
+      v.major--;
+      v.minor = 9;
+      v.patch = 9;
+    }
+    packageJSON.artifacthub.version = v.format();
     // Write the updated package.json back to the file
     fs.writeFileSync(packageJSONPath, JSON.stringify(packageJSON, null, 2));
 
-    await PluginManager.update('app-catalog', tempDir, '', mockProgressCallback);
+    await PluginManager.update('@headlamp-k8s/flux', tempDir, '', mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugin Updated',
@@ -102,7 +110,7 @@ describe('PluginManager Test Cases', () => {
     const tempDir = tmp.dirSync({ unsafeCleanup: true }).name;
 
     await PluginManager.install(
-      'https://artifacthub.io/packages/headlamp/test-123/appcatalog_headlamp_plugin',
+      'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux',
       tempDir,
       '',
       mockProgressCallback
@@ -112,7 +120,7 @@ describe('PluginManager Test Cases', () => {
       message: 'Plugin Installed',
     });
 
-    PluginManager.uninstall('app-catalog', tempDir, mockProgressCallback);
+    PluginManager.uninstall('@headlamp-k8s/flux', tempDir, mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugin Uninstalled',

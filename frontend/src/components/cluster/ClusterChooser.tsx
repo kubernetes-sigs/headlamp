@@ -23,7 +23,6 @@ import ClusterBadge from '../Sidebar/ClusterBadge';
 export interface ClusterChooserProps {
   clickHandler: (event?: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
   cluster?: string;
-  selectedClusters?: string[];
   icon?: string;
   accentColor?: string;
 }
@@ -33,19 +32,10 @@ export type ClusterChooserType =
   | null;
 
 const ClusterChooser = React.forwardRef(function ClusterChooser(
-  { clickHandler, cluster, selectedClusters, icon, accentColor }: ClusterChooserProps,
+  { clickHandler, cluster, icon, accentColor }: ClusterChooserProps,
   ref: React.Ref<HTMLButtonElement>
 ) {
   const { t } = useTranslation();
-
-  const selected = selectedClusters ?? [];
-  const multipleSelected = selected.length > 1;
-  const MAX_INLINE_CLUSTERS = 2;
-  const displayName = multipleSelected
-    ? selected.length <= MAX_INLINE_CLUSTERS
-      ? selected.join(', ')
-      : t('{{count}} clusters', { count: selected.length })
-    : cluster || t('Cluster');
 
   return (
     <Button
@@ -63,11 +53,7 @@ const ClusterChooser = React.forwardRef(function ClusterChooser(
       })}
       ref={ref}
     >
-      <ClusterBadge
-        name={displayName}
-        icon={multipleSelected ? undefined : icon}
-        accentColor={accentColor}
-      />
+      <ClusterBadge name={cluster || t('Cluster')} icon={icon} accentColor={accentColor} />
     </Button>
   );
 });
