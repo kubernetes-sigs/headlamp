@@ -104,6 +104,10 @@ config:
     externalSecret:
       enabled: false
       name: ""
+      # -- Set to true if your external secret contains an OIDC_SCOPES key.
+      # When false (default), the -oidc-scopes argument is omitted so that
+      # a missing key does not produce an empty or unresolved argument.
+      hasScopes: false
 
     # -- URL to fetch additional user info for the /me endpoint.
     # For oauth2proxy /oauth2/userinfo can be used. Empty and it will not be used.
