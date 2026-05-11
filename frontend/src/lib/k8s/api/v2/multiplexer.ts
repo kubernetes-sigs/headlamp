@@ -106,7 +106,7 @@ export const WebSocketManager = {
         socket = new WebSocket(wsUrl);
       } catch (e) {
         this.connecting = false;
-        reject(e);
+        reject(e instanceof Error ? e : new Error(String(e)));
         return;
       }
 
