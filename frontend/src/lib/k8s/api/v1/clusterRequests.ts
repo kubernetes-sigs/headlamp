@@ -155,8 +155,6 @@ export async function clusterRequest(
   }
 
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-
   let url = combinePath(getAppUrl(), fullPath);
   url += asQuery(queryParams);
   const requestData = {
@@ -164,10 +162,16 @@ export async function clusterRequest(
     credentials: 'include' as RequestCredentials,
     ...opts,
   };
+  const id = setTimeout(() => controller.abort(), timeout);
+
   if (isBackstage()) {
     requestData.headers = addBackstageAuthHeaders(requestData.headers);
   }
-  let response: Response = new Response(undefined, { status: 502, statusText: 'Unreachable' });
+  let response: Response = new Response(JSON.stringify({ message: 'Unreachable' }), {
+    status: 502,
+    statusText: 'Unreachable',
+    headers: { 'Content-Type': 'application/json' },
+  });
   try {
     response = await fetch(url, requestData);
   } catch (err) {
@@ -196,9 +200,13 @@ export async function clusterRequest(
 
     let message = statusText;
     try {
-      if (isJSON) {
-        const json = await response.json();
-        message += ` - ${json.message}`;
+      if (isJSON && response.bodyUsed === false && response.headers.get('content-length') !== '0') {
+        try {
+          const json = await response.json();
+          message += ` - ${json.message}`;
+        } catch (e) {
+          console.debug('Failed to parse error JSON', e);
+        }
       } else {
         // When not expecting JSON, still try to get error details from body
         const text = await response.text();

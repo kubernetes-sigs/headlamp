@@ -49,7 +49,7 @@ describe('PluginManager Test Cases', () => {
 
   test('Install Plugin', async () => {
     await PluginManager.install(
-      'https://artifacthub.io/packages/headlamp/test-123/appcatalog_headlamp_plugin',
+      'https://artifacthub.io/packages/headlamp/headlamp/opencost',
       tempDir,
       '',
       mockProgressCallback
@@ -71,8 +71,8 @@ describe('PluginManager Test Cases', () => {
   });
 
   test('No Update available for Plugin', async () => {
-    // No updates available for "app-catalog" plugin
-    await PluginManager.update('app-catalog', tempDir, '', mockProgressCallback);
+    // No updates available for "opencost" plugin
+    await PluginManager.update('opencost', tempDir, '', mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'error',
       message: 'No updates available',
@@ -80,8 +80,8 @@ describe('PluginManager Test Cases', () => {
   });
 
   test('Update Plugin', async () => {
-    // update the "app-catalog" plugin package.json with lower state
-    const packageJSONPath = `${tempDir}/appcatalog_headlamp_plugin/package.json`;
+    // update the "opencost" plugin package.json with lower state
+    const packageJSONPath = `${tempDir}/opencost/package.json`;
     const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath));
     packageJSON.artifacthub.version = `${semver.major(
       packageJSON.artifacthub.version
@@ -91,7 +91,7 @@ describe('PluginManager Test Cases', () => {
     // Write the updated package.json back to the file
     fs.writeFileSync(packageJSONPath, JSON.stringify(packageJSON, null, 2));
 
-    await PluginManager.update('app-catalog', tempDir, '', mockProgressCallback);
+    await PluginManager.update('opencost', tempDir, '', mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugin Updated',
@@ -102,7 +102,7 @@ describe('PluginManager Test Cases', () => {
     const tempDir = tmp.dirSync({ unsafeCleanup: true }).name;
 
     await PluginManager.install(
-      'https://artifacthub.io/packages/headlamp/test-123/appcatalog_headlamp_plugin',
+      'https://artifacthub.io/packages/headlamp/headlamp/opencost',
       tempDir,
       '',
       mockProgressCallback
@@ -112,7 +112,7 @@ describe('PluginManager Test Cases', () => {
       message: 'Plugin Installed',
     });
 
-    PluginManager.uninstall('app-catalog', tempDir, mockProgressCallback);
+    PluginManager.uninstall('opencost', tempDir, mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugin Uninstalled',

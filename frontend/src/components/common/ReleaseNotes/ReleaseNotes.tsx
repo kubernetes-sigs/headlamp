@@ -34,11 +34,11 @@ export default function ReleaseNotes() {
   const [fetchingRelease, setFetchingRelease] = React.useState<boolean>(false);
   const [releaseFetchFailed, setReleaseFetchFailed] = React.useState<boolean>(false);
   const [skipFetch, setSkipFetch] = React.useState(false);
+  const controllerRef = React.useRef<AbortController | null>(null);
 
-  // network controller this makes sure if the github request is still lying around we
-  // abort it on fetch release skip press button click
-  const controller = new AbortController();
-  const signal = controller.signal;
+  const isUpdateCheckingDisabled = React.useMemo(() => {
+    return JSON.parse(localStorage.getItem('disable_update_check') || 'false');
+  }, []);
 
   React.useEffect(() => {
     if (desktopApi) {
@@ -50,6 +50,10 @@ export default function ReleaseNotes() {
             console.debug("Skipping update check because config's checkForUpdates is false");
             return;
           }
+
+          const controller = new AbortController();
+          const signal = controller.signal;
+          controllerRef.current = controller;
 
           /**
            * Fetches latest github release and sets the releaseNotes plus releaseDownloadURL.
@@ -160,12 +164,13 @@ export default function ReleaseNotes() {
             }
           }
 
-          const isUpdateCheckingDisabled = JSON.parse(
-            localStorage.getItem('disable_update_check') || 'false'
-          );
           if (!isUpdateCheckingDisabled && !fetchingRelease && !skipFetch) {
             fetchRelease();
           }
+
+          return () => {
+            controller.abort();
+          };
         }
       );
     }
@@ -186,7 +191,7 @@ export default function ReleaseNotes() {
           releaseFetchFailed={releaseFetchFailed}
           skipUpdateHandler={() => {
             // abort the github release fetch
-            controller.abort();
+            controllerRef.current?.abort();
             setSkipFetch(false);
             setFetchingRelease(false);
           }}

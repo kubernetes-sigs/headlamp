@@ -14,21 +14,11 @@
  * limitations under the License.
  */
 
-import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import ClusterSelector, { ClusterSelectorProps } from './ClusterSelector';
-
-const theme = createTheme({
-  palette: {
-    mode: 'light',
-    navbar: {
-      background: '#fff',
-    },
-  },
-});
 
 const getMockState = () => ({
   plugins: { loaded: true },
@@ -56,9 +46,7 @@ const Template: StoryFn<ClusterSelectorProps> = args => {
 
   return (
     <Provider store={store}>
-      <ThemeProvider theme={theme}>
-        <ClusterSelector {...args} />
-      </ThemeProvider>
+      <ClusterSelector {...args} />
     </Provider>
   );
 };

@@ -27,16 +27,11 @@ export default {
     msw: {
       handlers: {
         storyBase: [
-          http.get(
-            'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices',
-            () => HttpResponse.error()
-          ),
-          http.get('http://localhost:4466/apis/discovery.k8s.io/v1/endpointslices', () =>
+          http.get('*/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices', () =>
             HttpResponse.error()
           ),
-          http.get('http://localhost:4466/api/v1/namespaces/my-namespace/events', () =>
-            HttpResponse.error()
-          ),
+          http.get('*/apis/discovery.k8s.io/v1/endpointslices', () => HttpResponse.error()),
+          http.get('*/api/v1/namespaces/my-namespace/events', () => HttpResponse.error()),
         ],
       },
     },
@@ -57,7 +52,7 @@ Default.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices/my-endpoint',
+          '*/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices/my-endpoint',
           () =>
             HttpResponse.json({
               kind: 'EndpointSlice',
@@ -74,6 +69,7 @@ Default.parameters = {
                 {
                   addresses: ['127.0.0.1'],
                   nodeName: 'mynode',
+                  conditions: { ready: true, serving: true, terminating: false },
                   targetRef: {
                     kind: 'Pod',
                     namespace: 'MyNamespace',
@@ -86,6 +82,7 @@ Default.parameters = {
                 {
                   addresses: ['127.0.0.2'],
                   nodeName: 'mynode',
+                  conditions: { ready: false, serving: false, terminating: true },
                   targetRef: {
                     kind: 'Pod',
                     namespace: 'MyNamespace',
@@ -116,7 +113,7 @@ Error.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices/my-endpoint',
+          '*/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices/my-endpoint',
           () => HttpResponse.error()
         ),
       ],

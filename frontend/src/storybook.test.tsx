@@ -14,6 +14,76 @@
  * limitations under the License.
  */
 
+vi.mock('./helpers/getAppUrl', () => ({
+  getAppUrl: () => 'http://localhost:4466',
+}));
+
+// Mock useShortcut to avoid Redux store initialization issues in storybook tests
+// The useShortcut hook requires state.shortcuts.shortcuts which isn't set up in test env
+vi.mock('./lib/useShortcut', () => ({
+  useShortcut: vi.fn(() => ({
+    key: '',
+    shortcut: {
+      key: '',
+      description: '',
+      action: () => {},
+    },
+  })),
+  useShortcutKey: vi.fn(() => ''),
+  shortcutsPlugin: {
+    shortcuts: {},
+  },
+}));
+
+// Mock WebSocket for stories that use streaming
+class MockWebSocket {
+  url: string;
+  readyState: number = 0; // CONNECTING
+  onopen: (() => void) | null = null;
+  onclose: (() => void) | null = null;
+  onmessage: ((ev: any) => void) | null = null;
+  onerror: ((ev: any) => void) | null = null;
+  private listeners: Record<string, Function[]> = {};
+
+  constructor(url: string) {
+    this.url = url;
+    setTimeout(() => {
+      this.readyState = 1; // OPEN
+      this.onopen?.();
+      this.dispatchEvent(new Event('open'));
+    }, 0);
+  }
+
+  addEventListener(type: string, listener: Function) {
+    if (!this.listeners[type]) {
+      this.listeners[type] = [];
+    }
+    this.listeners[type].push(listener);
+  }
+
+  removeEventListener(type: string, listener: Function) {
+    if (!this.listeners[type]) return;
+    this.listeners[type] = this.listeners[type].filter(l => l !== listener);
+  }
+
+  dispatchEvent(event: any) {
+    const type = event.type || event;
+    if (this.listeners[type]) {
+      this.listeners[type].forEach(l => l(event));
+    }
+    return true;
+  }
+
+  send() {}
+  close() {
+    this.readyState = 3; // CLOSED
+    this.onclose?.();
+    this.dispatchEvent(new Event('close'));
+  }
+}
+
+vi.stubGlobal('WebSocket', MockWebSocket);
+
 import 'vitest-canvas-mock';
 import { composeStories, type Meta, setProjectAnnotations, type StoryFn } from '@storybook/react';
 import { act, render as testingLibraryRender, waitFor } from '@testing-library/react';
@@ -23,6 +93,10 @@ import * as previewAnnotations from '../.storybook/preview';
 
 const annotations = setProjectAnnotations([previewAnnotations, { testingLibraryRender }]);
 beforeAll(annotations.beforeAll!);
+
+afterAll(() => {
+  vi.unstubAllGlobals();
+});
 
 type StoryFile = {
   default: Meta;

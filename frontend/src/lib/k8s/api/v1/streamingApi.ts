@@ -92,6 +92,9 @@ export function streamResult<T extends KubeObjectInterface>(
         asQuery({ ...queryParams, ...{ watch: '1', fieldSelector: `metadata.name=${name}` } });
 
       socket = stream(watchUrl, (x: any) => cb(x.object), { isJson: true, cluster: clusterName });
+      if (isCancelled) {
+        socket.cancel();
+      }
     } catch (err) {
       console.error('Error in api request', { err, url });
       // @todo: sometimes errCb is {}, the typing for apiProxy needs improving.
@@ -178,6 +181,9 @@ export function streamResultsForCluster(
         url +
         asQuery({ ...queryParams, ...{ watch: '1', resourceVersion: metadata.resourceVersion } });
       socket = stream(watchUrl, update, { isJson: true, cluster: clusterName });
+      if (isCancelled) {
+        socket.cancel();
+      }
     } catch (err) {
       console.error('Error in api request', { err, url });
       if (errCb && typeof errCb === 'function') {
@@ -324,6 +330,10 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
     if (connectCb) connectCb();
     try {
       connection = await connectStream(url, cb, onFail, isJson, additionalProtocols, cluster);
+      if (isCancelled) {
+        connection.close();
+        return;
+      }
     } catch (error) {
       console.error('Error connecting stream:', error);
       onFail();
