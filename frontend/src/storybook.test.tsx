@@ -18,6 +18,23 @@ vi.mock('./helpers/getAppUrl', () => ({
   getAppUrl: () => 'http://localhost:4466',
 }));
 
+// Mock useShortcut to avoid Redux store initialization issues in storybook tests
+// The useShortcut hook requires state.shortcuts.shortcuts which isn't set up in test env
+vi.mock('./lib/useShortcut', () => ({
+  useShortcut: vi.fn(() => ({
+    key: '',
+    shortcut: {
+      key: '',
+      description: '',
+      action: () => {},
+    },
+  })),
+  useShortcutKey: vi.fn(() => ''),
+  shortcutsPlugin: {
+    shortcuts: {},
+  },
+}));
+
 // Mock WebSocket for stories that use streaming
 class MockWebSocket {
   url: string;
