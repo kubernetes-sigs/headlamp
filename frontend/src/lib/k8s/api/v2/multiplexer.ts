@@ -65,8 +65,7 @@ export const WebSocketManager = {
    *
    * Known limitations:
    * 1. Polls every 100ms which may not be optimal for performance
-   * 2. No timeout - could theoretically run forever if connection never opens
-   * 3. May miss state changes that happen between polls
+   * 2. May miss state changes that happen between polls
    *
    * A more robust solution would use event listeners and Promise caching,
    * but that adds complexity and potential race conditions to handle.
@@ -82,11 +81,14 @@ export const WebSocketManager = {
 
     // Wait for existing connection attempt if in progress
     if (this.connecting) {
-      return new Promise(resolve => {
+      return new Promise((resolve, reject) => {
         const checkConnection = setInterval(() => {
           if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
             clearInterval(checkConnection);
-            resolve(this.socketMultiplexer);
+            resolve(this.socketMultiplexer!);
+          } else if (!this.connecting) {
+            clearInterval(checkConnection);
+            reject(new Error('WebSocket connection failed'));
           }
         }, 100);
       });
