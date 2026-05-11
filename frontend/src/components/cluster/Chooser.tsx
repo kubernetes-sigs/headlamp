@@ -125,18 +125,17 @@ export function ClusterTitle(props: ClusterTitleProps) {
 interface ClusterButtonProps extends PropsWithChildren<{}> {
   cluster: Cluster;
   onClick?: (...args: any[]) => void;
-  focusedRef?: (node: any) => void;
 }
 
-function ClusterButton(props: ClusterButtonProps) {
+const ClusterButton = React.forwardRef<HTMLButtonElement, ClusterButtonProps>((props, ref) => {
   const theme = useTheme();
-  const { cluster, onClick = undefined, focusedRef } = props;
+  const { cluster, onClick = undefined } = props;
   const appearance = getClusterAppearanceFromMeta(cluster?.name || '');
   const icon = appearance.icon || 'mdi:kubernetes';
   const iconColor = appearance.accentColor || theme.palette.primaryColor;
 
   return (
-    <ButtonBase focusRipple ref={focusedRef} onClick={onClick}>
+    <ButtonBase focusRipple ref={ref} onClick={onClick}>
       <Card
         sx={{
           width: 128,
@@ -168,7 +167,7 @@ function ClusterButton(props: ClusterButtonProps) {
       </Card>
     </ButtonBase>
   );
-}
+});
 
 interface ClusterListProps {
   clusters: Cluster[];
@@ -178,7 +177,7 @@ interface ClusterListProps {
 function ClusterList(props: ClusterListProps) {
   const { clusters, onButtonClick } = props;
   const theme = useTheme();
-  const focusedRef = React.useCallback((node: HTMLElement) => {
+  const focusedRef = React.useCallback((node: HTMLButtonElement | null) => {
     if (node !== null) {
       node.focus();
     }
@@ -228,7 +227,9 @@ function ClusterList(props: ClusterListProps) {
           </Grid>
         )}
         <Grid
-          aria-labelledby={`#${recentClustersLabelId}`}
+          aria-labelledby={
+            recentClusters.length !== clusters.length ? recentClustersLabelId : undefined
+          }
           item
           container
           alignItems="center"
@@ -238,7 +239,7 @@ function ClusterList(props: ClusterListProps) {
           {recentClusters.map((cluster, i) => (
             <Grid item key={cluster.name}>
               <ClusterButton
-                focusedRef={i === 0 ? focusedRef : undefined}
+                ref={i === 0 ? focusedRef : undefined}
                 cluster={cluster}
                 onClick={() => onButtonClick(cluster)}
               />
@@ -318,6 +319,7 @@ export function ClusterDialog(props: ClusterDialogProps) {
       {...otherProps}
     >
       <DialogTitle
+        disableTypography
         sx={{
           textAlign: 'center',
           alignItems: 'center',

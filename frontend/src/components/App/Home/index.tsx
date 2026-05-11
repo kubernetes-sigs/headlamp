@@ -57,23 +57,24 @@ interface HomeComponentProps {
   clusters: { [name: string]: Cluster } | null;
 }
 
+const maxWarnings = 50;
+
+function renderWarningsText(warnings: ReturnType<typeof useEventWarningList>, clusterName: string) {
+  const numWarnings =
+    (!!warnings[clusterName]?.error && -1) || (warnings[clusterName]?.warnings?.length ?? -1);
+
+  if (numWarnings === -1) {
+    return '⋯';
+  }
+  if (numWarnings >= maxWarnings) {
+    return `${maxWarnings}+`;
+  }
+  return numWarnings.toString();
+}
+
 function useWarningSettingsPerCluster(clusterNames: string[]) {
   const warningsMap = useEventWarningList(clusterNames);
   const [warningLabels, setWarningLabels] = React.useState<{ [cluster: string]: string }>({});
-  const maxWarnings = 50;
-
-  function renderWarningsText(warnings: typeof warningsMap, clusterName: string) {
-    const numWarnings =
-      (!!warnings[clusterName]?.error && -1) || (warnings[clusterName]?.warnings?.length ?? -1);
-
-    if (numWarnings === -1) {
-      return '⋯';
-    }
-    if (numWarnings >= maxWarnings) {
-      return `${maxWarnings}+`;
-    }
-    return numWarnings.toString();
-  }
 
   React.useEffect(() => {
     setWarningLabels(currentWarningLabels => {
@@ -86,8 +87,7 @@ function useWarningSettingsPerCluster(clusterNames: string[]) {
       }
       return currentWarningLabels;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [warningsMap]);
+  }, [warningsMap, clusterNames]);
 
   return warningLabels;
 }
@@ -103,9 +103,11 @@ function HomeComponent(props: HomeComponentProps) {
   );
   const { t } = useTranslation(['translation', 'glossary']);
   const [versions, errors] = useClustersVersion(Object.values(clusters || {}));
-  const warningLabels = useWarningSettingsPerCluster(
-    Object.values(customNameClusters).map(c => c.name)
+  const clusterNames = React.useMemo(
+    () => Object.values(customNameClusters).map(c => c.name),
+    [customNameClusters]
   );
+  const warningLabels = useWarningSettingsPerCluster(clusterNames);
 
   React.useEffect(() => {
     if (isBackstage()) {
@@ -121,8 +123,7 @@ function HomeComponent(props: HomeComponentProps) {
       }
       return getCustomClusterNames(clusters);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customNameClusters]);
+  }, [clusters]);
 
   const memoizedComponent = React.useMemo(
     () => (
@@ -139,8 +140,7 @@ function HomeComponent(props: HomeComponentProps) {
         />
       </>
     ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [customNameClusters, errors, versions, warningLabels]
+    [customNameClusters, errors, versions, warningLabels, clusters]
   );
 
   return (

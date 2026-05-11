@@ -20,7 +20,7 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import _ from 'lodash';
-import { isValidElement, useEffect, useMemo, useState } from 'react';
+import { isValidElement, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHistory, useParams } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
@@ -153,21 +153,12 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
   const { config, plugin, onSave, onDelete } = props;
   const { t } = useTranslation(['translation']);
   const [data, setData] = useState<{ [key: string]: any } | undefined>(config);
-  const [enableSaveButton, setEnableSaveButton] = useState(false);
+  const enableSaveButton = useMemo(() => !_.isEqual(config, data), [config, data]);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const history = useHistory();
   const [author, name] = plugin.name.includes('@')
     ? plugin.name.substring(1).split(/\/(.+)/)
     : [null, plugin.name];
-
-  useEffect(() => {
-    if (!_.isEqual(config, data)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setEnableSaveButton(true);
-    } else {
-      setEnableSaveButton(false);
-    }
-  }, [data, config]);
 
   function onDataChange(data: { [key: string]: any }) {
     setData(data);

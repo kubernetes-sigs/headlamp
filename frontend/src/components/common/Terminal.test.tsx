@@ -63,7 +63,7 @@ describe('Terminal', () => {
     };
     const pod = createMockPod(async (_container: string, onData: (data: ArrayBuffer) => void) => {
       await Promise.resolve();
-      setTimeout(() => onData(buildMessage(Channel.StdOut, 'late data after unmount')), 5000);
+      setTimeout(() => onData(buildMessage(Channel.StdOut, 'late data after unmount')), 100);
       return streamReturn;
     });
 
@@ -81,7 +81,7 @@ describe('Terminal', () => {
     unmount();
 
     await act(() => {
-      vi.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(100);
     });
 
     expect(true).toBe(true);

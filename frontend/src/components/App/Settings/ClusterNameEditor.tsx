@@ -96,47 +96,7 @@ export function ClusterNameEditor({
     setCustomNameInUse(nameInUse);
   }
 
-  function ClusterErrorDialog() {
-    return (
-      <ConfirmDialog
-        onConfirm={() => {
-          setClusterErrorDialogOpen(false);
-        }}
-        handleClose={() => {
-          setClusterErrorDialogOpen(false);
-        }}
-        hideCancelButton
-        open={clusterErrorDialogOpen}
-        title={t('translation|Error')}
-        description={clusterErrorDialogMessage}
-        confirmLabel={t('translation|Okay')}
-      ></ConfirmDialog>
-    );
-  }
   // Display the original name of the cluster if it was loaded from a kubeconfig file.
-  function ClusterName() {
-    const currentName = clusterInfo?.name;
-    const originalName = clusterInfo?.meta_data?.originalName;
-    const source = clusterInfo?.meta_data?.source;
-    // Note: display original name is currently only supported for non dynamic clusters from kubeconfig sources.
-    const displayOriginalName = source === 'kubeconfig' && originalName;
-
-    return (
-      <>
-        {clusterErrorDialogOpen && <ClusterErrorDialog />}
-        <Typography>{t('translation|Name')}</Typography>
-        <div>
-          {displayOriginalName && currentName !== displayOriginalName && (
-            <Typography id="cluster-original-name" variant="body2" color="textSecondary">
-              {t('translation|Original name: {{ displayName }}', {
-                displayName: displayName,
-              })}
-            </Typography>
-          )}
-        </div>
-      </>
-    );
-  }
 
   function storeNewClusterName(name: string) {
     let actualName = name;
@@ -202,8 +162,35 @@ export function ClusterNameEditor({
     <NameValueTable
       rows={[
         {
-          // eslint-disable-next-line react-hooks/static-components
-          name: <ClusterName />,
+          name: (
+            <>
+              {clusterErrorDialogOpen && (
+                <ConfirmDialog
+                  onConfirm={() => {
+                    setClusterErrorDialogOpen(false);
+                  }}
+                  handleClose={() => {
+                    setClusterErrorDialogOpen(false);
+                  }}
+                  hideCancelButton
+                  open={clusterErrorDialogOpen}
+                  title={t('translation|Error')}
+                  description={clusterErrorDialogMessage}
+                  confirmLabel={t('translation|Okay')}
+                ></ConfirmDialog>
+              )}
+              <Typography>{t('translation|Name')}</Typography>
+              <div>
+                {source === 'kubeconfig' && originalName && clusterInfo?.name !== originalName && (
+                  <Typography id="cluster-original-name" variant="body2" color="textSecondary">
+                    {t('translation|Original name: {{ displayName }}', {
+                      displayName: displayName,
+                    })}
+                  </Typography>
+                )}
+              </div>
+            </>
+          ),
           nameID: clusterNameLabelID,
           value: (
             <TextField

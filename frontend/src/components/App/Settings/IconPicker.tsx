@@ -84,6 +84,7 @@ export default function IconPicker({ open, currentIcon, onClose, onSelectIcon }:
               <Tooltip key={iconOption.value} title={iconOption.name}>
                 <ToggleButton
                   value={iconOption.value}
+                  aria-label={iconOption.name}
                   selected={currentIcon === iconOption.value && !useCustomIcon}
                   onChange={() => handlePresetIconClick(iconOption.value)}
                   disabled={useCustomIcon}

@@ -27,6 +27,7 @@ const backendTarget = `http://localhost:${backendPort}`;
 export default defineConfig({
   define: {
     global: 'globalThis',
+    'import.meta.env.UNDER_TEST': JSON.stringify(process.env.UNDER_TEST === 'true' || process.env.VITEST === 'true'),
   },
   envPrefix: 'REACT_APP_',
   base: process.env.PUBLIC_URL,

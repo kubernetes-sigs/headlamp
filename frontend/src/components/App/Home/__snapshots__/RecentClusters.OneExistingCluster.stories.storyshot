@@ -9,7 +9,7 @@
         class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
       >
         <button
-          class="MuiButtonBase-root css-10d1a0h-MuiButtonBase-root"
+          class="MuiButtonBase-root Mui-focusVisible css-10d1a0h-MuiButtonBase-root"
           tabindex="0"
           type="button"
         >
@@ -29,7 +29,16 @@
           </div>
           <span
             class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-          />
+          >
+            <span
+              class="css-y4cjyz-MuiTouchRipple-ripple MuiTouchRipple-ripple MuiTouchRipple-rippleVisible MuiTouchRipple-ripplePulsate"
+              style="width: 1px; height: 1px; top: -0.5px; left: -0.5px;"
+            >
+              <span
+                class="MuiTouchRipple-child MuiTouchRipple-childPulsate"
+              />
+            </span>
+          </span>
         </button>
       </div>
     </div>
