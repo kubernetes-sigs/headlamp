@@ -101,7 +101,14 @@ export const WebSocketManager = {
     const wsUrl = `${getBaseWsUrl()}${MULTIPLEXER_ENDPOINT}`;
 
     return new Promise((resolve, reject) => {
-      const socket = new WebSocket(wsUrl);
+      let socket: WebSocket;
+      try {
+        socket = new WebSocket(wsUrl);
+      } catch (e) {
+        this.connecting = false;
+        reject(e);
+        return;
+      }
 
       socket.onopen = () => {
         this.socketMultiplexer = socket;
