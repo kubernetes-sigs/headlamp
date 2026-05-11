@@ -412,6 +412,26 @@ describe('WebSocket Multiplexer', () => {
   });
 
   describe('WebSocket error handling', () => {
+    it('should reject concurrent callers when in-progress connection fails', async () => {
+      vi.useFakeTimers();
+
+      // Manually set connecting = true to simulate an in-progress attempt
+      WebSocketManager.connecting = true;
+
+      // Start a concurrent caller — it enters the polling branch
+      const concurrentPromise = WebSocketManager.connect();
+
+      // Simulate the primary connection failing by resetting connecting to false
+      WebSocketManager.connecting = false;
+
+      // Advance timers so the setInterval tick fires and detects the failure
+      await vi.advanceTimersByTimeAsync(200);
+
+      await expect(concurrentPromise).rejects.toThrow('WebSocket connection failed');
+
+      vi.useRealTimers();
+    });
+
     it('should handle polling timeout', async () => {
       const OriginalWebSocket = window.WebSocket;
 
