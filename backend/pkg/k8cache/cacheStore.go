@@ -236,6 +236,10 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 	r *http.Request,
 	key string,
 ) error {
+	if rcw.StatusCode >= 500 {
+		return nil
+	}
+
 	capturedHeaders := rcw.Header()
 	encoding := capturedHeaders.Get("Content-Encoding")
 	bodyBytes := rcw.Body.Bytes()

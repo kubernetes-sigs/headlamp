@@ -856,3 +856,25 @@ func TestExtractNamespace_QueryStringOnNamespacedURL(t *testing.T) {
 		})
 	}
 }
+
+func TestStoreK8sResponseInCache_5xxResponseShouldNotBeCached(t *testing.T) {
+	mockCache := NewMockCache()
+	targetURL := &url.URL{Path: "/api/v1/pods"}
+	rw := httptest.NewRecorder()
+	rcw := k8cache.NewResponseCapture(rw)
+
+	// Simulate a load balancer 502 — body has no K8s "Failure" string
+	rcw.WriteHeader(http.StatusBadGateway)
+	_, _ = rcw.Write([]byte(`<html><body>Bad Gateway</body></html>`))
+
+	r := httptest.NewRequestWithContext(
+		context.Background(), http.MethodGet, targetURL.Path, nil,
+	)
+
+	err := k8cache.StoreK8sResponseInCache(mockCache, targetURL, rcw, r, "infra-error-key")
+	assert.NoError(t, err)
+
+	// Key must NOT be in cache — infrastructure errors should not be cached
+	_, getErr := mockCache.Get(context.Background(), "infra-error-key")
+	assert.Error(t, getErr, "5xx infrastructure errors should not be cached")
+}
