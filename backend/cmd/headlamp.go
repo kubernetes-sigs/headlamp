@@ -314,7 +314,7 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 		logger.Log(logger.LevelInfo, nil, nil, "Received DELETE request for plugin: "+mux.Vars(r)["name"])
 
 		if err := config.checkHeadlampBackendToken(w, r); err != nil {
-			config.TelemetryHandler.RecordError(span, err, " Invalid backend token")
+			config.TelemetryHandler.RecordError(span, err, "Invalid backend token")
 			logger.Log(logger.LevelWarn, nil, err, "Invalid backend token for DELETE /plugins/{name}")
 
 			return

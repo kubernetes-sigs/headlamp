@@ -20,11 +20,6 @@ type spaHandler struct {
 }
 
 func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if strings.Contains(r.URL.Path, "..") {
-		http.Error(w, "Contains unexpected '..'", http.StatusBadRequest)
-		return
-	}
-
 	absStaticPath, err := filepath.Abs(h.staticPath)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "getting absolute static path")
@@ -34,29 +29,39 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Clean the path to prevent directory traversal
-	pathURL := path.Clean(r.URL.Path)
-	pathURL = strings.TrimPrefix(pathURL, h.baseURL)
-	pathURL = strings.TrimPrefix(pathURL, "/")
+	rPath := strings.TrimPrefix(r.URL.Path, h.baseURL)
+	rPath = strings.TrimPrefix(rPath, "/")
+	rPath = path.Clean(rPath)
+
+	// Reject direct traversal hacks explicitly
+	if rPath == ".." || strings.HasPrefix(rPath, "../") {
+		http.Error(w, "Invalid file name", http.StatusBadRequest)
+		return
+	}
+
+	if rPath == "" || rPath == "." {
+		rPath = h.indexPath
+	}
 
 	// prepend the path with the path to the static directory
-	filePath := filepath.Join(absStaticPath, pathURL)
+	fullPath := filepath.Join(absStaticPath, rPath)
 
-	absPath, err := filepath.Abs(filePath)
+	// This is defensive, for preventing using files outside of the staticPath
+	// if in the future we touch the code.
+	absPath, err := filepath.Abs(fullPath)
 	if err != nil {
 		http.Error(w, "Invalid file name", http.StatusBadRequest)
 		return
 	}
 
-	// This is defensive, for preventing using files outside of the staticPath
-	// if in the future we touch the code.
-	rel, err := filepath.Rel(absStaticPath, absPath)
-	if err != nil || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
+	relPath, err := filepath.Rel(absStaticPath, absPath)
+	if err != nil || filepath.IsAbs(relPath) || relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
 		http.Error(w, "Invalid file name (file to serve is outside of the static dir!)", http.StatusBadRequest)
 		return
 	}
 
 	// check whether a file exists at the given path
-	_, err = os.Stat(filePath)
+	_, err = os.Stat(fullPath)
 	if os.IsNotExist(err) {
 		// file does not exist, serve index.html
 		http.ServeFile(w, r, filepath.Join(absStaticPath, h.indexPath))
@@ -71,7 +76,7 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The file does exist, so we serve that.
-	http.ServeFile(w, r, filePath)
+	http.ServeFile(w, r, fullPath)
 }
 
 // NewHandler creates a new handler.

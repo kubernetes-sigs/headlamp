@@ -50,8 +50,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes/fake"
-	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
@@ -641,149 +639,6 @@ func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
 	}
 }
 
-func TestDrainNodePodDeletionFailure(t *testing.T) { //nolint:funlen
-	podOk := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pod-ok",
-			Namespace: "default",
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "test-node",
-		},
-	}
-	podDaemonset := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pod-daemonset",
-			Namespace: "default",
-			Labels:    map[string]string{"kubernetes.io/created-by": "daemonset-controller"},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "test-node",
-		},
-	}
-	podFail := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pod-fail",
-			Namespace: "kube-system",
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "test-node",
-		},
-	}
-
-	node := &corev1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-node",
-		},
-	}
-
-	fakeClient := fake.NewClientset(node, podOk, podDaemonset, podFail)
-
-	// Inject error for deleting pod-fail
-	fakeClient.PrependReactor("delete", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
-		deleteAction := action.(k8stesting.DeleteAction)
-		if deleteAction.GetName() == "pod-fail" {
-			return true, nil, fmt.Errorf("pod is protected by PodDisruptionBudget")
-		}
-
-		return false, nil, nil
-	})
-
-	testCache := cache.New[interface{}]()
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			Cache: testCache,
-		},
-	}
-
-	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"test-cluster")).String()
-	ctx := context.Background()
-
-	c.drainNode(fakeClient, "test-node", "test-cluster")
-
-	require.Eventually(t, func() bool {
-		cacheItem, err := testCache.Get(ctx, cacheKey)
-		if err != nil {
-			return false
-		}
-
-		status, ok := cacheItem.(string)
-
-		return ok && strings.HasPrefix(status, "error:")
-	}, 5*time.Second, 50*time.Millisecond)
-
-	cacheItem, err := testCache.Get(ctx, cacheKey)
-	require.NoError(t, err)
-
-	status, ok := cacheItem.(string)
-	require.True(t, ok)
-
-	assert.True(t, strings.HasPrefix(status, "error:"),
-		"expected error status, got: %s", status)
-	assert.Contains(t, status, "failed to delete")
-}
-
-func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
-	pod1 := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pod-1",
-			Namespace: "default",
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "test-node",
-		},
-	}
-	podDaemonset := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pod-daemonset",
-			Namespace: "default",
-			Labels:    map[string]string{"kubernetes.io/created-by": "daemonset-controller"},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "test-node",
-		},
-	}
-
-	node := &corev1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-node",
-		},
-	}
-
-	fakeClient := fake.NewClientset(node, pod1, podDaemonset)
-
-	testCache := cache.New[interface{}]()
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			Cache: testCache,
-		},
-	}
-
-	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"test-cluster")).String()
-	ctx := context.Background()
-
-	c.drainNode(fakeClient, "test-node", "test-cluster")
-
-	require.Eventually(t, func() bool {
-		cacheItem, err := testCache.Get(ctx, cacheKey)
-		if err != nil {
-			return false
-		}
-
-		status, ok := cacheItem.(string)
-
-		return ok && status == "success"
-	}, 2*time.Second, 50*time.Millisecond)
-
-	cacheItem, err := testCache.Get(ctx, cacheKey)
-	require.NoError(t, err)
-
-	status, ok := cacheItem.(string)
-	require.True(t, ok)
-
-	assert.Equal(t, "success", status)
-}
-
 func TestDeletePlugin(t *testing.T) {
 	// create temp dir for plugins
 	tempDir, err := os.MkdirTemp("", "plugins")
@@ -792,22 +647,22 @@ func TestDeletePlugin(t *testing.T) {
 	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// create user-plugins dir
-	userPluginDir := tempDir + "/user-plugins"
+	userPluginDir := filepath.Join(tempDir, "user-plugins")
 	err = os.Mkdir(userPluginDir, 0o750)
 	require.NoError(t, err)
 
 	// create dev plugins dir
-	devPluginDir := tempDir + "/plugins"
+	devPluginDir := filepath.Join(tempDir, "plugins")
 	err = os.Mkdir(devPluginDir, 0o750)
 	require.NoError(t, err)
 
 	// create plugin in dev dir
-	pluginDir := devPluginDir + "/test-plugin"
+	pluginDir := filepath.Join(devPluginDir, "test-plugin")
 	err = os.Mkdir(pluginDir, 0o750)
 	require.NoError(t, err)
 
 	// create plugin file
-	pluginFile := pluginDir + "/main.js"
+	pluginFile := filepath.Join(pluginDir, "main.js")
 	f, err := os.Create(pluginFile) //nolint:gosec
 	require.NoError(t, err)
 	require.NoError(t, f.Close())

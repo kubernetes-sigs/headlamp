@@ -60,7 +60,7 @@ const (
 
 // Watch watches the given path for changes and sends the events to the notify channel.
 // It runs until the provided context is cancelled.
-func Watch(ctx context.Context, path string, notify chan<- string, ready ...chan<- struct{}) {
+func Watch(ctx context.Context, watchPath string, notify chan<- string, ready ...chan<- struct{}) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "creating watcher")
@@ -84,7 +84,7 @@ func Watch(ctx context.Context, path string, notify chan<- string, ready ...chan
 			r = ready[0]
 		}
 
-		periodicallyWatchSubfolders(ctx, watcher, path, subFolderWatchInterval, r)
+		periodicallyWatchSubfolders(ctx, watcher, notify, watchPath, subFolderWatchInterval, r)
 	}()
 
 	for {
@@ -94,7 +94,12 @@ func Watch(ctx context.Context, path string, notify chan<- string, ready ...chan
 
 			return
 		case event := <-watcher.Events:
-			notify <- event.Name + ":" + event.Op.String()
+			select {
+			case notify <- event.Name + ":" + event.Op.String():
+			case <-ctx.Done():
+				logger.Log(logger.LevelInfo, nil, nil, "watcher: shutting down plugin watcher during event notify")
+				return
+			}
 		case err := <-watcher.Errors:
 			logger.Log(logger.LevelError, nil, err, "Plugin watcher Error")
 		}
@@ -107,32 +112,43 @@ func Watch(ctx context.Context, path string, notify chan<- string, ready ...chan
 func periodicallyWatchSubfolders(
 	ctx context.Context,
 	watcher *fsnotify.Watcher,
-	path string,
+	notify chan<- string,
+	dirPath string,
 	interval time.Duration,
 	ready chan<- struct{},
 ) {
 	walk := func() {
 		// Walk the path and add any new directories to the watcher.
-		_ = filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
-			if d != nil && d.IsDir() && !slices.Contains(watcher.WatchList(), path) {
-				err := watcher.Add(path)
+		_ = filepath.WalkDir(dirPath, func(entryPath string, d fs.DirEntry, err error) error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+
+			if d != nil && d.IsDir() && !slices.Contains(watcher.WatchList(), entryPath) {
+				err := watcher.Add(entryPath)
 				if err != nil {
-					logger.Log(logger.LevelError, map[string]string{"path": path},
+					logger.Log(logger.LevelError, map[string]string{"path": entryPath},
 						err, "adding path to watcher")
 
 					return err
 				}
 				// when a folder is added, send events for all the files in the folder
-				entries, err := os.ReadDir(path)
+				entries, err := os.ReadDir(entryPath)
 				if err != nil {
-					logger.Log(logger.LevelError, map[string]string{"path": path},
+					logger.Log(logger.LevelError, map[string]string{"path": entryPath},
 						err, "reading dir")
 
 					return err
 				}
 
 				for _, entry := range entries {
-					watcher.Events <- fsnotify.Event{Name: filepath.Join(path, entry.Name()), Op: fsnotify.Create}
+					select {
+					case notify <- filepath.Join(entryPath, entry.Name()) + ":" + fsnotify.Create.String():
+					case <-ctx.Done():
+						return ctx.Err()
+					}
 				}
 			}
 
@@ -340,21 +356,24 @@ func ListPlugins(staticPluginDir, userPluginDir, pluginDir string) error {
 
 // pluginBasePathListForDir returns a list of valid plugin paths for the given directory.
 func pluginBasePathListForDir(pluginDir string, baseURL string) ([]string, error) {
+	if pluginDir == "" {
+		return nil, nil
+	}
+
 	info, err := os.Stat(pluginDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-
 		return nil, err
 	}
 
 	if !info.IsDir() {
-		return nil, fmt.Errorf("plugin path %s is not a directory", pluginDir)
+		return nil, fmt.Errorf("%q is not a directory", pluginDir)
 	}
 
 	files, err := os.ReadDir(pluginDir)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		logger.Log(logger.LevelError, map[string]string{"pluginDir": pluginDir},
 			err, "reading plugin directory")
 
