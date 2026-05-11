@@ -490,10 +490,15 @@ export function useKubeObjectList<K extends KubeObject>({
           }
           return acc;
         }, {} as Record<string, QueryListResponse<any, K, ApiError>>),
-        items: results.every(result => result.data === null)
-          ? null
-          : results.flatMap(result => result?.data?.list?.items ?? []),
-        errors: results.map(result => result.error).filter(Boolean),
+        items:
+          results.length === 0 ||
+          results.some(result => result.isPending || result.isLoading) ||
+          results.every(result => result.data === null)
+            ? null
+            : results.flatMap(result => result?.data?.list?.items ?? []),
+        errors: results
+          .map(result => result.error)
+          .filter((e): e is ApiError => e != null),
         isError: results.some(result => result.isError),
         isLoading: results.some(result => result.isLoading),
         isFetching: results.some(result => result.isFetching),
@@ -547,21 +552,20 @@ export function useKubeObjectList<K extends KubeObject>({
     queryParams: cleanedUpQueryParams,
   });
 
-  const errors = query.errors.filter(it => it !== null);
-
-  // @ts-ignore - TS compiler gets confused with iterators
+  // @ts-ignore - TS compiler gets confused with iterators (tuple & QueryListResponse)
   return {
     items: endpointError ? [] : query.items,
-    errors: endpointError ? [endpointError] : errors.length > 0 ? errors : null,
-    error: endpointError ?? query.errors.find(it => it !== null) ?? null,
+    errors:
+      endpointError ? [endpointError] : query.errors.length > 0 ? query.errors : null,
+    error: endpointError ?? query.errors[0] ?? null,
     clusterResults: query.clusterResults,
     isError: query.isError,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     isSuccess: query.isSuccess,
-    *[Symbol.iterator](): ArrayIterator<ApiError | K[] | null> {
+    *[Symbol.iterator]() {
       yield query.items;
-      yield endpointError ?? query.errors.find(it => it !== null) ?? null;
+      yield endpointError ?? query.errors[0] ?? null;
     },
   };
 }

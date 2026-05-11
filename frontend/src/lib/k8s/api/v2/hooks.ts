@@ -207,7 +207,7 @@ export function useKubeObject<K extends KubeObject>({
     isFetching: query.isFetching,
     isSuccess: query.isSuccess,
     status: query.status,
-    *[Symbol.iterator](): ArrayIterator<ApiError | K | null> {
+    *[Symbol.iterator]() {
       yield data;
       yield endpointError ?? query.error;
     },

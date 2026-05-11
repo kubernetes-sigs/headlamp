@@ -212,6 +212,27 @@ const defaultRoutes: { [routeName: string]: Route } = {
       }))
     ),
   },
+  genericResources: {
+    path: '/genericresources',
+    exact: true,
+    name: 'Generic resources',
+    sidebar: 'genericResources',
+    component: React.lazy(() => import('../../components/genericresources/GenericResourcePicker')),
+  },
+  genericResourceList: {
+    path: '/genericresources/:resourceId',
+    exact: true,
+    name: 'Generic resource list',
+    sidebar: 'genericResources',
+    component: React.lazy(() => import('../../components/genericresources/GenericResourceList')),
+  },
+  genericResource: {
+    path: '/genericresources/:resourceId/:namespace/:name',
+    exact: true,
+    name: 'Generic resource',
+    sidebar: 'genericResources',
+    component: React.lazy(() => import('../../components/genericresources/GenericResourceDetails')),
+  },
   namespaces: {
     path: '/namespaces',
     name: 'Namespaces',

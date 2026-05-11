@@ -793,5 +793,17 @@
   "Toggle Table Filters": "",
   "Toggle column filters in tables": "",
   "Log Viewer Search": "",
-  "Toggle search in log viewer": ""
+  "Toggle search in log viewer": "",
+  "Generic resources": "Allgemeine Ressourcen",
+  "Filter": "Filter",
+  "API version": "API-Version",
+  "Scope": "Geltungsbereich",
+  "Namespaced": "Namensraumbezogen",
+  "Cluster-wide": "Clusterweit",
+  "Resource": "Ressource",
+  "Invalid or unknown resource type. Use the generic resources browser.": "Ungültiger oder unbekannter Ressourcentyp. Bitte den Browser für allgemeine Ressourcen verwenden.",
+  "Invalid or unknown resource type.": "Ungültiger oder unbekannter Ressourcentyp.",
+  "Error loading resource: {{message}}": "Fehler beim Laden der Ressource: {{message}}",
+  "No API resources were discovered.": "Es wurden keine API-Ressourcen gefunden.",
+  "No resources match the filter.": "Keine Ressourcen entsprechen dem Filter."
 }

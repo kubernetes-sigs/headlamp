@@ -788,5 +788,17 @@
   "Toggle column filters in tables": "",
   "Log Viewer Search": "",
   "Toggle search in log viewer": "",
+  "Generic resources": "通用资源",
+  "Filter": "筛选",
+  "API version": "API 版本",
+  "Scope": "范围",
+  "Namespaced": "命名空间",
+  "Cluster-wide": "集群范围",
+  "Resource": "资源",
+  "Invalid or unknown resource type. Use the generic resources browser.": "无效或未知的资源类型。请使用通用资源浏览器。",
+  "Invalid or unknown resource type.": "无效或未知的资源类型。",
+  "Error loading resource: {{message}}": "加载资源出错：{{message}}",
+  "No API resources were discovered.": "未发现 API 资源。",
+  "No resources match the filter.": "没有与筛选条件匹配的资源。",
   "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_one": "{{ eventDate }} (自 {{ firstEventDate }} 起 {{ count }} 次)"
 }
