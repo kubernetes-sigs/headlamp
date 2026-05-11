@@ -20,7 +20,7 @@ import (
 	"context"
 	"net/http/httptest"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -35,101 +35,110 @@ import (
 func TestWatch(t *testing.T) {
 	t.Parallel()
 
-	// Create a temporary directory if it doesn't exist
-	_, err := os.Stat("/tmp/")
-	if os.IsNotExist(err) {
-		err = os.Mkdir("/tmp/", 0o750)
-		require.NoError(t, err)
-	}
-
-	// create a new directory in /tmp
-	dirName := path.Join("/tmp", uuid.NewString())
-	err = os.Mkdir(dirName, 0o750)
-	require.NoError(t, err)
-
+	dirName := t.TempDir()
 	// create channel to receive events
-	events := make(chan string)
-
+	events := make(chan string, 32)
+	ready := make(chan struct{}, 1)
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // Ensure the watcher goroutine is stopped when the test ends
 
-	// start watching the directory
-	go plugins.Watch(ctx, dirName, events)
+	defer cancel()
 
-	// wait for the watcher to be setup
-	<-time.After(5 * time.Second)
-	t.Log("watcher setup", "create a new file in the new directory")
-	// create a new file in the new directory
-	fileName := path.Join(dirName, uuid.NewString())
-	_, err = os.Create(fileName) //nolint:gosec
-	require.NoError(t, err)
+	go plugins.Watch(ctx, dirName, events, ready)
 
-	// wait for the watcher to pick up the new directory
-	event := <-events
-	require.Equal(t, fileName+":CREATE", event)
-	t.Log("Got create file event in the new directory")
+	waitForWatcherReady(t, ready)
 
-	// create a new file in a subdirectory
-	subDirName := path.Join(dirName, uuid.NewString())
-	err = os.Mkdir(subDirName, 0o750)
-	require.NoError(t, err)
+	t.Run("CreateFile", func(t *testing.T) {
+		fileName := filepath.Join(dirName, uuid.NewString())
+		f, err := os.Create(fileName) //nolint:gosec
+		require.NoError(t, err)
 
-	// wait for the watcher to pick up the new file
-	event = <-events
-	require.Equal(t, subDirName+":CREATE", event)
-	t.Log("Got create folder event in the directory")
+		_ = f.Close()
 
-	subFileName := path.Join(subDirName, uuid.NewString())
-	_, err = os.Create(subFileName) //nolint:gosec
-	require.NoError(t, err)
+		expectedEvent := filepath.Clean(fileName) + ":CREATE"
+		event := waitForPluginEvent(t, events, expectedEvent)
+		require.Equal(t, expectedEvent, event)
+	})
 
-	// wait for the watcher to pick up the new file
-	event = <-events
-	require.Equal(t, subFileName+":CREATE", event)
-	t.Log("Got create file event in the sub directory")
+	t.Run("CreateAndObserveSubdir", func(t *testing.T) {
+		subDirName := filepath.Join(dirName, uuid.NewString())
+		err := os.Mkdir(subDirName, 0o750)
+		require.NoError(t, err)
 
-	// delete the file
-	err = os.Remove(subFileName)
-	require.NoError(t, err)
+		expectedEvent := filepath.Clean(subDirName) + ":CREATE"
+		event := waitForPluginEvent(t, events, expectedEvent)
+		require.Equal(t, expectedEvent, event)
 
-	// wait for the watcher to pick up the delete event
-	event = <-events
-	require.Equal(t, subFileName+":REMOVE", event)
-	t.Log("Got delete file event in the sub directory")
+		subFileName := filepath.Join(subDirName, uuid.NewString())
+		f, err := os.Create(subFileName) //nolint:gosec
+		require.NoError(t, err)
 
-	// clean up
-	err = os.RemoveAll(dirName)
-	require.NoError(t, err)
+		_ = f.Close()
+
+		expectedEvent = filepath.Clean(subFileName) + ":CREATE"
+		event = waitForPluginEvent(t, events, expectedEvent)
+		require.Equal(t, expectedEvent, event)
+
+		err = os.Remove(subFileName)
+		require.NoError(t, err)
+
+		expectedEvent = filepath.Clean(subFileName) + ":REMOVE"
+		event = waitForPluginEvent(t, events, expectedEvent)
+		require.Equal(t, expectedEvent, event)
+	})
+}
+
+func waitForWatcherReady(t *testing.T, ready <-chan struct{}) {
+	t.Helper()
+
+	select {
+	case <-ready:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for watcher to be ready")
+	}
+}
+
+func waitForPluginEvent(t *testing.T, events <-chan string, expected string) string {
+	t.Helper()
+
+	timeout := time.After(10 * time.Second)
+
+	for {
+		select {
+		case event := <-events:
+			if event == expected {
+				return event
+			}
+		case <-timeout:
+			return ""
+		}
+	}
 }
 
 func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
-	// Create a temporary directory if it doesn't exist
-	_, err := os.Stat("/tmp/")
-	if os.IsNotExist(err) {
-		err = os.Mkdir("/tmp/", 0o750)
-		require.NoError(t, err)
-	}
+	// create a new directory using t.TempDir()
+	testDirName := t.TempDir()
 
-	// create a new directory in /tmp
-	testDirName := path.Join("/tmp", uuid.NewString())
-	err = os.Mkdir(testDirName, 0o750)
-	require.NoError(t, err)
+	var err error
 
 	t.Run("PluginPaths", func(t *testing.T) {
 		// create a new directory in dirName
 		subDirName := uuid.NewString()
-		subDir := path.Join(testDirName, subDirName)
+		subDir := filepath.Join(testDirName, subDirName)
 		err = os.Mkdir(subDir, 0o750)
 		require.NoError(t, err)
 
 		// create main.js and package.json in the sub directory
-		pluginPath := path.Join(subDir, "main.js")
-		_, err = os.Create(pluginPath) //nolint:gosec
+		pluginPath := filepath.Join(subDir, "main.js")
+		fPlugin, err := os.Create(pluginPath) //nolint:gosec
 		require.NoError(t, err)
 
-		packageJSONPath := path.Join(subDir, "package.json")
-		_, err = os.Create(packageJSONPath) //nolint:gosec
+		_ = fPlugin.Close()
+
+		packageJSONPath := filepath.Join(subDir, "package.json")
+		fPkg, err := os.Create(packageJSONPath) //nolint:gosec
 		require.NoError(t, err)
+
+		_ = fPkg.Close()
 
 		pathList, err := plugins.GeneratePluginPaths("", "", testDirName)
 		require.NoError(t, err)
@@ -150,18 +159,22 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 	t.Run("StaticPluginPaths", func(t *testing.T) {
 		// create a new directory in dirName
 		subDirName := uuid.NewString()
-		subDir := path.Join(testDirName, subDirName)
+		subDir := filepath.Join(testDirName, subDirName)
 		err = os.Mkdir(subDir, 0o750)
 		require.NoError(t, err)
 
 		// create main.js and package.json in the sub directory
-		pluginPath := path.Join(subDir, "main.js")
-		_, err = os.Create(pluginPath) //nolint:gosec
+		pluginPath := filepath.Join(subDir, "main.js")
+		fPlugin, err := os.Create(pluginPath) //nolint:gosec
 		require.NoError(t, err)
 
-		packageJSONPath := path.Join(subDir, "package.json")
-		_, err = os.Create(packageJSONPath) //nolint:gosec
+		_ = fPlugin.Close()
+
+		packageJSONPath := filepath.Join(subDir, "package.json")
+		fPkg, err := os.Create(packageJSONPath) //nolint:gosec
 		require.NoError(t, err)
+
+		_ = fPkg.Close()
 
 		pathList, err := plugins.GeneratePluginPaths(testDirName, "", "")
 		require.NoError(t, err)
@@ -182,43 +195,45 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 	t.Run("InvalidPluginPaths", func(t *testing.T) {
 		// create a new directory in test dir
 		subDirName := uuid.NewString()
-		subDir := path.Join(testDirName, subDirName)
+		subDir := filepath.Join(testDirName, subDirName)
 		err = os.Mkdir(subDir, 0o750)
 		require.NoError(t, err)
 
 		// create random file in the sub directory
-		fileName := path.Join(subDir, uuid.NewString())
-		_, err = os.Create(fileName) //nolint:gosec
+		fileName := filepath.Join(subDir, uuid.NewString())
+		f, err := os.Create(fileName) //nolint:gosec
 		require.NoError(t, err)
+
+		_ = f.Close()
 
 		// test with file as plugin Dir
 		pathList, err := plugins.GeneratePluginPaths(fileName, "", "")
 		assert.Error(t, err)
 		assert.Nil(t, pathList)
 	})
-
-	// clean up
-	err = os.RemoveAll(testDirName)
-	require.NoError(t, err)
 }
 
 // createPlugin creates a plugin directory with main.js and package.json.
 func createPlugin(t *testing.T, baseDir string, pluginName string) string {
 	t.Helper()
 
-	pluginDir := path.Join(baseDir, pluginName)
+	pluginDir := filepath.Join(baseDir, pluginName)
 	err := os.Mkdir(pluginDir, 0o750)
 	require.NoError(t, err)
 
 	// create main.js
-	mainJsPath := path.Join(pluginDir, "main.js")
-	_, err = os.Create(mainJsPath) //nolint:gosec
+	mainJsPath := filepath.Join(pluginDir, "main.js")
+	f, err := os.Create(mainJsPath) //nolint:gosec
 	require.NoError(t, err)
 
+	_ = f.Close()
+
 	// create package.json
-	packageJSONPath := path.Join(pluginDir, "package.json")
-	_, err = os.Create(packageJSONPath) //nolint:gosec
+	packageJSONPath := filepath.Join(pluginDir, "package.json")
+	f, err = os.Create(packageJSONPath) //nolint:gosec
 	require.NoError(t, err)
+
+	_ = f.Close()
 
 	return pluginDir
 }
@@ -281,7 +296,7 @@ func TestListPlugins(t *testing.T) { //nolint:funlen
 	logEntries = nil
 
 	// test missing package.json — should still succeed (falls back to folder name).
-	_ = os.Remove(path.Join(plugin1Dir, "package.json"))
+	_ = os.Remove(filepath.Join(plugin1Dir, "package.json"))
 
 	err = plugins.ListPlugins(staticPluginDir, userPluginDir, pluginDir)
 	require.NoError(t, err)
@@ -303,7 +318,7 @@ func TestListPlugins(t *testing.T) { //nolint:funlen
 	logEntries = nil
 
 	// test invalid package.json — should still succeed (falls back to folder name).
-	err = os.WriteFile(path.Join(plugin1Dir, "package.json"), []byte("invalid json"), 0o600)
+	err = os.WriteFile(filepath.Join(plugin1Dir, "package.json"), []byte("invalid json"), 0o600)
 	require.NoError(t, err)
 
 	err = plugins.ListPlugins(staticPluginDir, userPluginDir, pluginDir)
@@ -324,33 +339,27 @@ func TestListPlugins(t *testing.T) { //nolint:funlen
 }
 
 func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
-	// Create a temporary directory if it doesn't exist
-	_, err := os.Stat("/tmp/")
-	if os.IsNotExist(err) {
-		err = os.Mkdir("/tmp/", 0o750)
-		require.NoError(t, err)
-	}
-
-	// create a new directory in /tmp
-	testDirName := uuid.NewString()
-	testDirPath := path.Join("/tmp", testDirName)
-	err = os.Mkdir(testDirPath, 0o750)
-	require.NoError(t, err)
+	// create a new directory
+	testDirPath := t.TempDir()
 
 	// create a new directory for plugin
 	pluginDirName := uuid.NewString()
-	pluginDirPath := path.Join(testDirPath, pluginDirName)
-	err = os.Mkdir(pluginDirPath, 0o750)
+	pluginDirPath := filepath.Join(testDirPath, pluginDirName)
+	err := os.Mkdir(pluginDirPath, 0o750)
 	require.NoError(t, err)
 
 	// create main.js and package.json in the sub directory
-	pluginPath := path.Join(pluginDirPath, "main.js")
-	_, err = os.Create(pluginPath) //nolint:gosec
+	pluginPath := filepath.Join(pluginDirPath, "main.js")
+	f, err := os.Create(pluginPath) //nolint:gosec
 	require.NoError(t, err)
 
-	packageJSONPath := path.Join(pluginDirPath, "package.json")
-	_, err = os.Create(packageJSONPath) //nolint:gosec
+	_ = f.Close()
+
+	packageJSONPath := filepath.Join(pluginDirPath, "package.json")
+	f, err = os.Create(packageJSONPath) //nolint:gosec
 	require.NoError(t, err)
+
+	_ = f.Close()
 
 	// create channel to receive events
 	events := make(chan string)
@@ -511,31 +520,31 @@ func TestDelete(t *testing.T) {
 	defer func() { _ = os.RemoveAll(tempDir) }() // clean up
 
 	// Create user-plugins directory
-	userPluginDir := path.Join(tempDir, "user-plugins")
+	userPluginDir := filepath.Join(tempDir, "user-plugins")
 	err = os.Mkdir(userPluginDir, 0o750)
 	require.NoError(t, err)
 
 	// Create development plugins directory
-	devPluginDir := path.Join(tempDir, "plugins")
+	devPluginDir := filepath.Join(tempDir, "plugins")
 	err = os.Mkdir(devPluginDir, 0o750)
 	require.NoError(t, err)
 
 	// Create a user plugin
-	userPluginPath := path.Join(userPluginDir, "user-plugin-1")
+	userPluginPath := filepath.Join(userPluginDir, "user-plugin-1")
 	err = os.Mkdir(userPluginPath, 0o750)
 	require.NoError(t, err)
 
 	// Create a dev plugin
-	devPluginPath := path.Join(devPluginDir, "dev-plugin-1")
+	devPluginPath := filepath.Join(devPluginDir, "dev-plugin-1")
 	err = os.Mkdir(devPluginPath, 0o750)
 	require.NoError(t, err)
 
 	// Create a plugin with the same name in both directories for type-specific deletion tests
-	sharedPluginUser := path.Join(userPluginDir, "shared-plugin")
+	sharedPluginUser := filepath.Join(userPluginDir, "shared-plugin")
 	err = os.Mkdir(sharedPluginUser, 0o750)
 	require.NoError(t, err)
 
-	sharedPluginDev := path.Join(devPluginDir, "shared-plugin")
+	sharedPluginDev := filepath.Join(devPluginDir, "shared-plugin")
 	err = os.Mkdir(sharedPluginDev, 0o750)
 	require.NoError(t, err)
 
@@ -640,11 +649,11 @@ func TestDelete(t *testing.T) {
 				assert.NoError(t, err, "Delete should not return an error")
 				// check if the plugin was deleted from the correct directory
 				if tt.pluginType == "user" || (tt.pluginType == "" && tt.pluginName == "user-plugin-1") {
-					userPath := path.Join(tt.userPluginDir, tt.pluginName)
+					userPath := filepath.Join(tt.userPluginDir, tt.pluginName)
 					_, userErr := os.Stat(userPath)
 					assert.True(t, os.IsNotExist(userErr), "User plugin should be deleted")
 				} else if tt.pluginType == "development" || (tt.pluginType == "" && tt.pluginName == "dev-plugin-1") {
-					devPath := path.Join(tt.devPluginDir, tt.pluginName)
+					devPath := filepath.Join(tt.devPluginDir, tt.pluginName)
 					_, devErr := os.Stat(devPath)
 					assert.True(t, os.IsNotExist(devErr), "Dev plugin should be deleted")
 				}

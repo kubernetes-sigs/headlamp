@@ -32,7 +32,9 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"reflect"
+	stdruntime "runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -794,7 +796,7 @@ func TestRefreshCreds(t *testing.T) {
 			c := test.config
 
 			if c.Command == "" {
-				c.Command = "./testdata/test-plugin.sh"
+				c.Command, c.Args = getTestPluginCmd()
 				c.Env = append(c.Env, api.ExecEnvVar{
 					Name:  "TEST_OUTPUT",
 					Value: test.output,
@@ -878,8 +880,10 @@ func TestRoundTripper(t *testing.T) {
 	}
 	server := httptest.NewServer(http.HandlerFunc(handler))
 
+	cmd, args := getTestPluginCmd()
 	c := api.ExecConfig{
-		Command:         "./testdata/test-plugin.sh",
+		Command:         cmd,
+		Args:            args,
 		APIVersion:      "client.authentication.k8s.io/v1beta1",
 		InteractiveMode: api.IfAvailableExecInteractiveMode,
 	}
@@ -992,9 +996,11 @@ func TestAuthorizationHeaderPresentCancelsExecAction(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
+		cmd, args := getTestPluginCmd()
 		t.Run(test.name, func(t *testing.T) {
 			a, err := newAuthenticator(newCache(), func(_ int) bool { return false }, &api.ExecConfig{
-				Command:    "./testdata/test-plugin.sh",
+				Command:    cmd,
+				Args:       args,
 				APIVersion: "client.authentication.k8s.io/v1beta1",
 			}, nil)
 			if err != nil {
@@ -1035,8 +1041,10 @@ func TestTLSCredentials(t *testing.T) {
 	server.StartTLS()
 	defer server.Close()
 
+	cmd, args := getTestPluginCmd()
 	a, err := newAuthenticator(newCache(), func(_ int) bool { return false }, &api.ExecConfig{
-		Command:         "./testdata/test-plugin.sh",
+		Command:         cmd,
+		Args:            args,
 		APIVersion:      "client.authentication.k8s.io/v1beta1",
 		InteractiveMode: api.IfAvailableExecInteractiveMode,
 	}, nil)
@@ -1125,8 +1133,10 @@ func TestConcurrentUpdateTransportConfig(t *testing.T) {
 		return s
 	}
 
+	cmd, args := getTestPluginCmd()
 	c := api.ExecConfig{
-		Command:    "./testdata/test-plugin.sh",
+		Command:    cmd,
+		Args:       args,
 		APIVersion: "client.authentication.k8s.io/v1beta1",
 	}
 	a, err := newAuthenticator(newCache(), func(_ int) bool { return false }, &c, nil)
@@ -1262,4 +1272,11 @@ func genClientCert(t *testing.T) ([]byte, []byte) {
 	}
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certRaw}),
 		pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyRaw})
+}
+
+func getTestPluginCmd() (string, []string) {
+	if stdruntime.GOOS == "windows" {
+		return "cmd.exe", []string{"/c", filepath.Join(".", "testdata", "test-plugin.bat")}
+	}
+	return filepath.Join(".", "testdata", "test-plugin.sh"), nil
 }

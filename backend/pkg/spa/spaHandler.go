@@ -3,6 +3,7 @@ package spa
 import (
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -33,22 +34,29 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Clean the path to prevent directory traversal
-	path := filepath.Clean(r.URL.Path)
-	path = strings.TrimPrefix(path, h.baseURL)
+	pathURL := path.Clean(r.URL.Path)
+	pathURL = strings.TrimPrefix(pathURL, h.baseURL)
+	pathURL = strings.TrimPrefix(pathURL, "/")
 
 	// prepend the path with the path to the static directory
-	path = filepath.Join(absStaticPath, path)
+	filePath := filepath.Join(absStaticPath, pathURL)
+
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		http.Error(w, "Invalid file name", http.StatusBadRequest)
+		return
+	}
 
 	// This is defensive, for preventing using files outside of the staticPath
 	// if in the future we touch the code.
-	absPath, err := filepath.Abs(path)
-	if err != nil || !strings.HasPrefix(absPath, absStaticPath) {
+	rel, err := filepath.Rel(absStaticPath, absPath)
+	if err != nil || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
 		http.Error(w, "Invalid file name (file to serve is outside of the static dir!)", http.StatusBadRequest)
 		return
 	}
 
 	// check whether a file exists at the given path
-	_, err = os.Stat(path)
+	_, err = os.Stat(filePath)
 	if os.IsNotExist(err) {
 		// file does not exist, serve index.html
 		http.ServeFile(w, r, filepath.Join(absStaticPath, h.indexPath))
@@ -63,7 +71,7 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The file does exist, so we serve that.
-	http.ServeFile(w, r, path)
+	http.ServeFile(w, r, filePath)
 }
 
 // NewHandler creates a new handler.

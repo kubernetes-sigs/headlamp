@@ -766,8 +766,9 @@ func TestDeletePlugin(t *testing.T) {
 
 	// create plugin file
 	pluginFile := pluginDir + "/main.js"
-	_, err = os.Create(pluginFile) //nolint:gosec
+	f, err := os.Create(pluginFile) //nolint:gosec
 	require.NoError(t, err)
+	require.NoError(t, f.Close())
 
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()

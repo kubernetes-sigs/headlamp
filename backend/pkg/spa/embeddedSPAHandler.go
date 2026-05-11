@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"mime"
 	"net/http"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -24,14 +25,21 @@ type embeddedSpaHandler struct {
 
 // ServeHTTP serves the static files embedded in the binary.
 func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, h.baseURL)
+	requestPath := strings.TrimPrefix(r.URL.Path, h.baseURL)
+	requestPath = strings.TrimPrefix(requestPath, "/")
+	requestPath = path.Clean(requestPath)
 
-	if path == "" || path == "/" {
-		path = h.indexPath
+	if requestPath == "" ||
+		requestPath == "." ||
+		requestPath == "/" ||
+		path.IsAbs(requestPath) ||
+		requestPath == ".." ||
+		strings.HasPrefix(requestPath, "../") {
+		requestPath = h.indexPath
 	}
 
 	// Prepend "static" to the path as that's the root in our embed.FS
-	fullPath := filepath.Join("static", path)
+	fullPath := path.Join("static", requestPath)
 	servedPath := fullPath
 
 	content, err := h.serveFile(fullPath)
@@ -39,7 +47,7 @@ func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		// If there's any error, serve the index file
-		servedPath = filepath.Join("static", h.indexPath)
+		servedPath = path.Join("static", h.indexPath)
 
 		content, err = h.serveFile(servedPath)
 		if err != nil {
@@ -50,7 +58,7 @@ func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		isServingIndex = true
 	} else {
 		// Check if we're directly serving the index file
-		isServingIndex = path == h.indexPath || path == "/"+h.indexPath || path == "/"+h.indexPath+"/"
+		isServingIndex = requestPath == h.indexPath
 	}
 
 	// if we're serving the index.html file and have a baseURL, replace the headlampBaseUrl with the baseURL

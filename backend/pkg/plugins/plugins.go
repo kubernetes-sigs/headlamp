@@ -24,6 +24,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -59,7 +60,7 @@ const (
 
 // Watch watches the given path for changes and sends the events to the notify channel.
 // It runs until the provided context is cancelled.
-func Watch(ctx context.Context, path string, notify chan<- string) {
+func Watch(ctx context.Context, path string, notify chan<- string, ready ...chan<- struct{}) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "creating watcher")
@@ -78,7 +79,12 @@ func Watch(ctx context.Context, path string, notify chan<- string) {
 			}
 		}()
 
-		periodicallyWatchSubfolders(ctx, watcher, path, subFolderWatchInterval)
+		var r chan<- struct{}
+		if len(ready) > 0 {
+			r = ready[0]
+		}
+
+		periodicallyWatchSubfolders(ctx, watcher, path, subFolderWatchInterval, r)
 	}()
 
 	for {
@@ -98,7 +104,13 @@ func Watch(ctx context.Context, path string, notify chan<- string) {
 // periodicallyWatchSubfolders periodically walks the path and adds any new directories to the watcher.
 // This is needed because fsnotify doesn't watch subfolders.
 // It runs until the provided context is cancelled.
-func periodicallyWatchSubfolders(ctx context.Context, watcher *fsnotify.Watcher, path string, interval time.Duration) {
+func periodicallyWatchSubfolders(
+	ctx context.Context,
+	watcher *fsnotify.Watcher,
+	path string,
+	interval time.Duration,
+	ready chan<- struct{},
+) {
 	walk := func() {
 		// Walk the path and add any new directories to the watcher.
 		_ = filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
@@ -130,6 +142,13 @@ func periodicallyWatchSubfolders(ctx context.Context, watcher *fsnotify.Watcher,
 
 	// Initial walk
 	walk()
+
+	if ready != nil {
+		select {
+		case ready <- struct{}{}:
+		default:
+		}
+	}
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -321,8 +340,21 @@ func ListPlugins(staticPluginDir, userPluginDir, pluginDir string) error {
 
 // pluginBasePathListForDir returns a list of valid plugin paths for the given directory.
 func pluginBasePathListForDir(pluginDir string, baseURL string) ([]string, error) {
+	info, err := os.Stat(pluginDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	if !info.IsDir() {
+		return nil, fmt.Errorf("plugin path %s is not a directory", pluginDir)
+	}
+
 	files, err := os.ReadDir(pluginDir)
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"pluginDir": pluginDir},
 			err, "reading plugin directory")
 
@@ -365,7 +397,7 @@ func pluginBasePathListForDir(pluginDir string, baseURL string) ([]string, error
 			}
 		}
 
-		pluginFileURL := filepath.Join(baseURL, f.Name())
+		pluginFileURL := path.Join(baseURL, f.Name())
 		pluginListURLs = append(pluginListURLs, pluginFileURL)
 	}
 
