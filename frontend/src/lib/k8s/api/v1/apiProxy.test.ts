@@ -111,6 +111,31 @@ describe('apiProxy', () => {
       }
     });
 
+    it('Logs non-timeout fetch failures and throws a 502 fallback response', async () => {
+      expect.assertions(2);
+
+      const networkError = new Error('Network disconnection');
+      nock(baseApiUrl).get(testPath).replyWithError(networkError);
+
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      try {
+        await apiProxy.clusterRequest(testPath);
+      } catch (error: any) {
+        expect(error.status).toEqual(502);
+      }
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Network error in clusterRequest:',
+        expect.objectContaining({
+          method: 'GET',
+          path: testPath,
+        })
+      );
+
+      consoleErrorSpy.mockRestore();
+    });
+
     it('Successfully appends query parameters', async () => {
       const queryParams = {
         watch: '1',

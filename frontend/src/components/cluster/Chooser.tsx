@@ -61,12 +61,11 @@ export interface ClusterTitleProps {
     [clusterName: string]: Cluster;
   };
   cluster?: string;
-  selectedClusters?: string[];
   onClick?: (event?: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
 }
 
 export function ClusterTitle(props: ClusterTitleProps) {
-  const { cluster, clusters, selectedClusters, onClick } = props;
+  const { cluster, clusters, onClick } = props;
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const buttonRef = React.useRef<HTMLButtonElement>(null);
   const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
@@ -101,7 +100,6 @@ export function ClusterTitle(props: ClusterTitleProps) {
               e?.currentTarget && setAnchorEl(e.currentTarget);
             }}
             cluster={cluster}
-            selectedClusters={selectedClusters}
           />
         )
       ) : (
@@ -112,7 +110,6 @@ export function ClusterTitle(props: ClusterTitleProps) {
             e?.currentTarget && setAnchorEl(e.currentTarget);
           }}
           cluster={cluster}
-          selectedClusters={selectedClusters}
           icon={getClusterAppearanceFromMeta(cluster).icon}
           accentColor={getClusterAppearanceFromMeta(cluster).accentColor}
         />
