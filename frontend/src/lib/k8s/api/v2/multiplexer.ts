@@ -66,6 +66,9 @@ export const WebSocketManager = {
    * Known limitations:
    * 1. Polls every 100ms which may not be optimal for performance
    * 2. May miss state changes that happen between polls
+   * 3. Has no timeout while waiting on an in-progress connection attempt; callers
+   *    will reject if that attempt fails and clears `this.connecting`, but can wait
+   *    indefinitely if it never reaches open, error, or close
    *
    * A more robust solution would use event listeners and Promise caching,
    * but that adds complexity and potential race conditions to handle.
