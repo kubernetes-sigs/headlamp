@@ -51,54 +51,56 @@ Default.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('*/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices/my-endpoint', () =>
-          HttpResponse.json({
-            kind: 'EndpointSlice',
-            apiVersion: 'discovery.k8s.io/v1',
-            metadata: {
-              name: 'my-endpoint',
-              namespace: 'my-namespace',
-              uid: 'phony',
-              creationTimestamp: new Date('2020-04-25').toISOString(),
-              resourceVersion: '1',
-              selfLink: '0',
-            },
-            endpoints: [
-              {
-                addresses: ['127.0.0.1'],
-                nodeName: 'mynode',
-                conditions: { ready: true, serving: true, terminating: false },
-                targetRef: {
-                  kind: 'Pod',
-                  namespace: 'MyNamespace',
-                  name: 'mypod',
-                  uid: 'phony-pod',
-                  resourceVersion: '1',
-                  apiVersion: 'v1',
+        http.get(
+          '*/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices/my-endpoint',
+          () =>
+            HttpResponse.json({
+              kind: 'EndpointSlice',
+              apiVersion: 'discovery.k8s.io/v1',
+              metadata: {
+                name: 'my-endpoint',
+                namespace: 'my-namespace',
+                uid: 'phony',
+                creationTimestamp: new Date('2020-04-25').toISOString(),
+                resourceVersion: '1',
+                selfLink: '0',
+              },
+              endpoints: [
+                {
+                  addresses: ['127.0.0.1'],
+                  nodeName: 'mynode',
+                  conditions: { ready: true, serving: true, terminating: false },
+                  targetRef: {
+                    kind: 'Pod',
+                    namespace: 'MyNamespace',
+                    name: 'mypod',
+                    uid: 'phony-pod',
+                    resourceVersion: '1',
+                    apiVersion: 'v1',
+                  },
                 },
-              },
-              {
-                addresses: ['127.0.0.2'],
-                nodeName: 'mynode',
-                conditions: { ready: false, serving: false, terminating: true },
-                targetRef: {
-                  kind: 'Pod',
-                  namespace: 'MyNamespace',
-                  name: 'mypod-1',
-                  uid: 'phony-pod-1',
-                  resourceVersion: '1',
-                  apiVersion: 'v1',
+                {
+                  addresses: ['127.0.0.2'],
+                  nodeName: 'mynode',
+                  conditions: { ready: false, serving: false, terminating: true },
+                  targetRef: {
+                    kind: 'Pod',
+                    namespace: 'MyNamespace',
+                    name: 'mypod-1',
+                    uid: 'phony-pod-1',
+                    resourceVersion: '1',
+                    apiVersion: 'v1',
+                  },
                 },
-              },
-            ],
-            ports: [
-              {
-                name: 'myport',
-                port: 8080,
-                protocol: 'TCP',
-              },
-            ],
-          })
+              ],
+              ports: [
+                {
+                  name: 'myport',
+                  port: 8080,
+                  protocol: 'TCP',
+                },
+              ],
+            })
         ),
       ],
     },
@@ -110,8 +112,9 @@ Error.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('*/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices/my-endpoint', () =>
-          HttpResponse.error()
+        http.get(
+          '*/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices/my-endpoint',
+          () => HttpResponse.error()
         ),
       ],
     },

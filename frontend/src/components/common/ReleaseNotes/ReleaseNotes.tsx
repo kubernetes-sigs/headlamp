@@ -40,8 +40,6 @@ export default function ReleaseNotes() {
     return JSON.parse(localStorage.getItem('disable_update_check') || 'false');
   }, []);
 
-
-
   React.useEffect(() => {
     if (desktopApi) {
       desktopApi.receive(

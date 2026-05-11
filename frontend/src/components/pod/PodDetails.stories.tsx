@@ -33,8 +33,6 @@ const AUTH_URL = `http://localhost:4466/clusters/${CLUSTER_NAME}/apis/authorizat
 // Store the initial path at module scope, so we can always restore to it
 const INITIAL_PATH = window.location.pathname;
 
-
-
 export default {
   title: 'Pod/PodDetailsView',
   component: PodDetails,

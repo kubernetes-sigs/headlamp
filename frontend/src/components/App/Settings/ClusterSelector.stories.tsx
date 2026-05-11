@@ -20,8 +20,6 @@ import React from 'react';
 import { Provider } from 'react-redux';
 import ClusterSelector, { ClusterSelectorProps } from './ClusterSelector';
 
-
-
 const getMockState = () => ({
   plugins: { loaded: true },
   theme: {
@@ -48,7 +46,7 @@ const Template: StoryFn<ClusterSelectorProps> = args => {
 
   return (
     <Provider store={store}>
-        <ClusterSelector {...args} />
+      <ClusterSelector {...args} />
     </Provider>
   );
 };

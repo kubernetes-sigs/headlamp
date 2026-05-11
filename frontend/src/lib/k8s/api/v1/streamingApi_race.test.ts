@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { afterEach,beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as findKubeconfig from '../../../../stateless/findKubeconfigByClusterName';
 import * as clusterRequests from './clusterRequests';
 import * as streamingApi from './streamingApi';
@@ -41,7 +41,10 @@ describe('streamingApi race conditions', () => {
       removeEventListener: vi.fn(),
       send: vi.fn(),
     };
-    vi.stubGlobal('WebSocket', vi.fn(() => mockWebSocket));
+    vi.stubGlobal(
+      'WebSocket',
+      vi.fn(() => mockWebSocket)
+    );
   });
 
   afterEach(() => {
