@@ -242,7 +242,7 @@ class Pod extends KubeObject<KubePod> {
        */
       failCb: () => {
         // If it's a reconnection attempt, stop further reconnection attempts
-        if (follow && isReconnecting) {
+        if (!showPrevious && follow && isReconnecting) {
           isReconnecting = false;
 
           // If the onReconnectStop callback is provided, call it
