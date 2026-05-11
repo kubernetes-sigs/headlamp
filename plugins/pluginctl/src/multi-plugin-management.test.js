@@ -27,17 +27,17 @@ describe('MultiPluginManagement', () => {
   const PLUGIN_DATA = [
     {
       name: 'headlamp_opencost',
-      source: 'https://artifacthub.io/packages/headlamp/test-123/headlamp_opencost',
+      source: 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_opencost',
       version: '0.1.3',
     },
     {
       name: 'headlamp_kompose',
-      source: 'https://artifacthub.io/packages/headlamp/test-123/headlamp_kompose',
+      source: 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_kompose',
       version: '0.1.1-beta',
     },
     {
       name: 'headlamp_flux',
-      source: 'https://artifacthub.io/packages/headlamp/test-123/headlamp_flux',
+      source: 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux',
       version: '0.6.0',
     },
   ];
