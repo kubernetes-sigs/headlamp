@@ -26,6 +26,7 @@ import { getAppUrl } from '../../helpers/getAppUrl';
 import { getCluster, getClusterPrefixedPath } from '../../lib/cluster';
 import { useClustersConf } from '../../lib/k8s';
 import { testAuth } from '../../lib/k8s/api/v1/clusterApi';
+import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { queryClient } from '../../lib/queryClient';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
@@ -37,6 +38,7 @@ import Empty from '../common/EmptyContent';
 import Link from '../common/Link';
 import Loader from '../common/Loader';
 import OauthPopup from '../oidcauth/OauthPopup';
+import TroubleshootingTips from './TroubleshootingTips';
 
 function ColorButton({ children, ...rest }: ComponentProps<typeof Button>) {
   return (
@@ -126,7 +128,8 @@ function AuthChooser({ children }: AuthChooserProps) {
               // Ideally we'd only not assign the error if it was 401 or 403 (so we let the logic
               // proceed to request a token), but let's first check whether this is all we get
               // from clusters that require a token.
-              if ([408, 504, 502].includes(err.status)) {
+              const status = (err as ApiError).status;
+              if (typeof status === 'number' && [408, 504, 502].includes(status)) {
                 errorObj = err;
               }
 
@@ -317,6 +320,10 @@ export function PureAuthChooser({
                         errorMessage: error!.message,
                       })}
                 </Empty>
+                <TroubleshootingTips
+                  errorMessage={error!.message}
+                  errorStatus={(error as ApiError)?.status}
+                />
                 <Link routeName="settingsClusterHomeContext" search={{ c: clusterName }}>
                   {t('translation|Cluster settings')}
                 </Link>
