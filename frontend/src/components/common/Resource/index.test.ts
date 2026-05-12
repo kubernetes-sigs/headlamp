@@ -59,6 +59,7 @@ const checkExports = [
   'RollbackButton',
   'RollbackDialog',
   'ScaleButton',
+  'ScaleMultipleButton',
   'SimpleEditor',
   'UploadDialog',
   'ViewButton',
