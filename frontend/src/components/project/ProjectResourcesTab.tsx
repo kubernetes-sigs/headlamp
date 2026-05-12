@@ -203,9 +203,9 @@ export function ProjectResourcesTab({
               <Icon
                 icon={
                   status === 'error'
-                    ? 'mdi:alert'
-                    : status === 'warning'
                     ? 'mdi:alert-circle'
+                    : status === 'warning'
+                    ? 'mdi:alert'
                     : 'mdi:check-circle'
                 }
                 style={{

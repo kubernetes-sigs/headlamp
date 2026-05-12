@@ -567,7 +567,7 @@ func newTokenServerJSON(t *testing.T, status int, body any) *httptest.Server {
 	return srv
 }
 
-func newOIDCProviderServer(t *testing.T, tokenHandler http.HandlerFunc) *httptest.Server {
+func newOIDCProviderServer(t *testing.T, issuerURL string, tokenHandler http.HandlerFunc) *httptest.Server {
 	t.Helper()
 
 	mux := http.NewServeMux()
@@ -577,8 +577,13 @@ func newOIDCProviderServer(t *testing.T, tokenHandler http.HandlerFunc) *httptes
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
+		issuer := issuerURL
+		if issuer == "" {
+			issuer = srv.URL
+		}
+
 		cfg := map[string]any{
-			"issuer":         srv.URL,
+			"issuer":         issuer,
 			"token_endpoint": srv.URL + "/token",
 			"jwks_uri":       srv.URL + "/jwks",
 		}
@@ -751,7 +756,7 @@ func TestRefreshAndCacheNewToken_Success(t *testing.T) {
 	)
 
 	fc := &fakeCache{store: map[string]interface{}{oldKey: "REFRESH_OLD"}}
-	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, r *http.Request) {
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, r.ParseForm()) //nolint:gosec
 		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
 		require.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
@@ -764,7 +769,7 @@ func TestRefreshAndCacheNewToken_Success(t *testing.T) {
 	})
 
 	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
-	tok, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL)
+	tok, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, "")
 	require.NoError(t, err)
 	assert.NotNil(t, tok)
 	assert.Equal(t, refreshNew, tok.RefreshToken)
@@ -779,6 +784,35 @@ func TestRefreshAndCacheNewToken_Success(t *testing.T) {
 	assert.Equal(t, 10*time.Second, fc.setWithTTLCalls[0].ttl)
 }
 
+func TestRefreshAndCacheNewToken_ValidatorIssuerOverride(t *testing.T) {
+	const (
+		oldToken     = "OLD"
+		oldKey       = "oidc-token-" + oldToken
+		issuerURL    = "https://issuer.example.com"
+		refreshToken = "REFRESH_OLD"
+	)
+
+	fc := &fakeCache{store: map[string]interface{}{oldKey: refreshToken}}
+	srv := newOIDCProviderServer(t, issuerURL, func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm()) //nolint:gosec
+		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
+		require.Equal(t, refreshToken, r.PostForm.Get("refresh_token"))
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
+	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "issuer did not match")
+
+	tok, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, issuerURL)
+	require.NoError(t, err)
+	assert.NotNil(t, tok)
+	assert.Equal(t, refreshNew, tok.RefreshToken)
+}
+
 func TestRefreshAndCacheNewToken_ProviderError(t *testing.T) {
 	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -786,7 +820,7 @@ func TestRefreshAndCacheNewToken_ProviderError(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, &fakeCache{}, "id_token", "OLD", srv.URL)
+	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, &fakeCache{}, "id_token", "OLD", srv.URL, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "getting provider")
 }
@@ -795,14 +829,14 @@ func TestRefreshAndCacheNewToken_TokenError(t *testing.T) {
 	const oldToken = "OLD"
 
 	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
-	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, _ *http.Request) {
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]any{"error": "server_error"})
 	})
 
 	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
-	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL)
+	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refreshing token")
 	assert.Len(t, fc.setCalls, 0)
@@ -817,7 +851,7 @@ func TestRefreshAndSetToken_DefaultsToIDToken(t *testing.T) {
 
 	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
 
-	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, r *http.Request) {
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		require.NoError(t, r.ParseForm())
 		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
@@ -868,7 +902,7 @@ func TestRefreshAndSetToken_UsesAccessToken(t *testing.T) {
 		"id_token":      "IGNORED",
 	}
 
-	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, r *http.Request) {
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		require.NoError(t, r.ParseForm())
 		require.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
@@ -911,7 +945,7 @@ func TestRefreshAndSetToken_ErrorDoesNotSetCookie(t *testing.T) {
 
 	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
 
-	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, _ *http.Request) {
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "token refresh failed", http.StatusInternalServerError)
 	})
 

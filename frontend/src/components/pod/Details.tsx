@@ -29,7 +29,7 @@ import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
-import { getDefaultContainer } from '../../helpers/podContainer';
+import { getDefaultContainer, resolveContainerName } from '../../helpers/podContainer';
 import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
 import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
@@ -67,11 +67,14 @@ const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
 
 interface PodLogViewerProps extends Omit<LogViewerProps, 'logs'> {
   item: Pod;
+  initialContainer?: string;
 }
 
 export function PodLogViewer(props: PodLogViewerProps) {
-  const { item, onClose, open, ...other } = props;
-  const [container, setContainer] = React.useState(() => getDefaultContainer(item));
+  const { item, onClose, open, initialContainer, ...other } = props;
+  const [container, setContainer] = React.useState(() =>
+    resolveContainerName(item, initialContainer)
+  );
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showTimestamps, setShowTimestamps] = useLocalStorageState<boolean>(
     'headlamp.logs.showTimestamps',
@@ -574,6 +577,7 @@ export default function PodDetails(props: PodDetailsProps) {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const autoLaunchView = queryParams.get('view');
+  const autoLaunchContainer = queryParams.get('container') ?? undefined;
   const [podItem, setPodItem] = React.useState<Pod | null>(null);
 
   const launchLogs = React.useCallback(
@@ -584,7 +588,15 @@ export default function PodDetails(props: PodDetailsProps) {
         cluster: item.cluster,
         icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
         location: 'full',
-        content: <PodLogViewer noDialog open item={item} onClose={() => {}} />,
+        content: (
+          <PodLogViewer
+            noDialog
+            open
+            item={item}
+            onClose={() => {}}
+            initialContainer={autoLaunchContainer}
+          />
+        ),
       });
       dispatchHeadlampEvent({
         type: HeadlampEventType.LOGS,
@@ -593,7 +605,7 @@ export default function PodDetails(props: PodDetailsProps) {
         },
       });
     },
-    [t, dispatchHeadlampEvent]
+    [t, dispatchHeadlampEvent, autoLaunchContainer]
   );
 
   const launchTerminal = React.useCallback(
@@ -612,6 +624,7 @@ export default function PodDetails(props: PodDetailsProps) {
             item={item}
             onClose={() => Activity.close(activityId)}
             isAttach={false}
+            initialContainer={autoLaunchContainer}
           />
         ),
       });
@@ -623,7 +636,7 @@ export default function PodDetails(props: PodDetailsProps) {
         },
       });
     },
-    [dispatchHeadlampEvent]
+    [dispatchHeadlampEvent, autoLaunchContainer]
   );
 
   React.useEffect(() => {
@@ -635,12 +648,12 @@ export default function PodDetails(props: PodDetailsProps) {
     if (
       podItem &&
       autoLaunchView === 'logs' &&
-      lastAutoLaunchedPodLogs.current !== podItem.metadata.uid
+      lastAutoLaunchedPodLogs.current !== `${podItem.metadata.uid}:${autoLaunchContainer ?? ''}`
     ) {
-      lastAutoLaunchedPodLogs.current = podItem.metadata.uid;
+      lastAutoLaunchedPodLogs.current = `${podItem.metadata.uid}:${autoLaunchContainer ?? ''}`;
       launchLogs(podItem);
     }
-  }, [podItem, launchLogs, autoLaunchView]);
+  }, [podItem, launchLogs, autoLaunchView, autoLaunchContainer]);
 
   React.useEffect(() => {
     if (autoLaunchView !== 'exec') {
@@ -651,12 +664,12 @@ export default function PodDetails(props: PodDetailsProps) {
     if (
       podItem &&
       autoLaunchView === 'exec' &&
-      lastAutoLaunchedPodExec.current !== podItem.metadata.uid
+      lastAutoLaunchedPodExec.current !== `${podItem.metadata.uid}:${autoLaunchContainer ?? ''}`
     ) {
-      lastAutoLaunchedPodExec.current = podItem.metadata.uid;
+      lastAutoLaunchedPodExec.current = `${podItem.metadata.uid}:${autoLaunchContainer ?? ''}`;
       launchTerminal(podItem);
     }
-  }, [podItem, launchTerminal, autoLaunchView]);
+  }, [podItem, launchTerminal, autoLaunchView, autoLaunchContainer]);
 
   function prepareExtraInfo(item: Pod | null) {
     let extraInfo: {

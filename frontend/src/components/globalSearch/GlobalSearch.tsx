@@ -112,7 +112,12 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
           </InputAdornment>
         ),
         endAdornment: (
-          <Box display="flex" flexShrink={0} gap={0.5} sx={{ opacity: 0.7, pointerEvents: 'none' }}>
+          <Box
+            display="flex"
+            flexShrink={0}
+            gap={0.5}
+            sx={{ color: theme.palette.navbar.searchHint, pointerEvents: 'none' }}
+          >
             <Trans>
               Press
               <Box

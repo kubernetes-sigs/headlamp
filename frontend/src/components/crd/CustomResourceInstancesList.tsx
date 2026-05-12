@@ -16,7 +16,7 @@
 
 import Alert from '@mui/material/Alert';
 import AlertTitle from '@mui/material/AlertTitle';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import CRD from '../../lib/k8s/crd';
 import { KubeObject } from '../../lib/k8s/KubeObject';
@@ -37,35 +37,27 @@ function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
 
   const [isWarningClosed, setIsWarningClosed] = useState(false);
 
-  const { crInstancesList, getCRDForCR, isLoading, crdsFailedToLoad, allFailed } = useMemo(() => {
-    const isLoading = queries.some(it => it.isLoading || it.isFetching);
+  const isLoading = queries.some(it => it.isLoading || it.isFetching);
 
-    // Collect the names of CRD that failed to load lists
-    const crdsFailedToLoad: string[] = [];
-    queries.forEach((it, i) => {
-      if (it.isError) {
-        crdsFailedToLoad.push(crds[i].metadata.name);
-      }
-    });
+  // Collect the names of CRDs that failed to load lists
+  const crdsFailedToLoad: string[] = [];
+  queries.forEach((it, i) => {
+    if (it.isError) {
+      crdsFailedToLoad.push(crds[i].metadata.name);
+    }
+  });
+  const allFailed = crdsFailedToLoad.length === queries.length;
 
-    // Create a map to be able to link to CRD by CR kind
-    const crKindToCRDMap = queries.reduce((acc, { items }, index) => {
-      if (items?.[0]) {
-        acc[items[0].kind] = crds[index];
-      }
-      return acc;
-    }, {} as Record<string, CRD>);
-    const getCRDForCR = (cr: KubeObject) => crKindToCRDMap[cr.kind];
+  // Create a map to be able to link to CRD by CR kind
+  const crKindToCRDMap = queries.reduce((acc, { items }, index) => {
+    if (items?.[0]) {
+      acc[items[0].kind] = crds[index];
+    }
+    return acc;
+  }, {} as Record<string, CRD>);
+  const getCRDForCR = (cr: KubeObject) => crKindToCRDMap[cr.kind];
 
-    return {
-      crInstancesList: queries.flatMap(it => it.items ?? []),
-      getCRDForCR,
-      isLoading,
-      crdsFailedToLoad,
-      allFailed: crdsFailedToLoad.length === queries.length,
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, queries);
+  const crInstancesList = queries.flatMap(it => it.items ?? []);
 
   if (isLoading) {
     return <Loader title={t('translation|Loading custom resource instances')} />;

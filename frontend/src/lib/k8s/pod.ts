@@ -356,9 +356,9 @@ class Pod extends KubeObject<KubePod> {
     return false;
   }
 
-  private hasPodReadyCondition(conditions: any): boolean {
+  private hasPodReadyCondition(conditions: KubeCondition[]): boolean {
     for (const condition of conditions) {
-      if (condition.type === 'Ready' && condition.Status === 'True') {
+      if (condition.type === 'Ready' && condition.status === 'True') {
         return true;
       }
     }
@@ -493,7 +493,7 @@ class Pod extends KubeObject<KubePod> {
 
       // change pod status back to "Running" if there is at least one container still reporting as "Running" status
       if (reason === 'Completed' && hasRunning) {
-        if (this.hasPodReadyCondition(this.status?.conditions)) {
+        if (this.hasPodReadyCondition(this.status?.conditions ?? [])) {
           reason = 'Running';
         } else {
           reason = 'NotReady';

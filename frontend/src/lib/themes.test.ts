@@ -34,6 +34,27 @@ describe('themes.ts', () => {
       expect(theme.palette.mode).toBe('dark');
       expect(theme.palette.background.default).toBe('#1f1f1f');
     });
+
+    it('should set searchHint defaults for light and dark themes', () => {
+      const lightTheme = createMuiTheme({ base: 'light', name: 'Light Theme' });
+      const darkTheme = createMuiTheme({ base: 'dark', name: 'Dark Theme' });
+
+      expect(lightTheme.palette.navbar.searchHint).toBe('#74747B');
+      expect(darkTheme.palette.navbar.searchHint).toBe('rgba(255, 255, 255, 0.7)');
+    });
+
+    it('should allow navbar searchHint override from AppTheme', () => {
+      const customTheme: AppTheme = {
+        base: 'dark',
+        name: 'Custom Theme',
+        navbar: {
+          searchHint: '#123456',
+        },
+      };
+      const theme = createMuiTheme(customTheme);
+
+      expect(theme.palette.navbar.searchHint).toBe('#123456');
+    });
   });
 
   describe('getThemeName', () => {

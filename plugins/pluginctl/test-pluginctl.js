@@ -1,4 +1,4 @@
-#!/bin/env node
+#!/usr/bin/env node
 
 /*
  * Copyright 2025 The Kubernetes Authors
@@ -23,10 +23,10 @@ This tests unpublished @headlamp-k8s/pluginctl package in repo.
 
 Assumes being run within the plugins/pluginctl folder
 `;
-const PACKAGE_NAME = "appcatalog_headlamp_plugin";
+const PACKAGE_NAME = "headlamp_opencost";
 const PACKAGE_URL =
-  "https://artifacthub.io/packages/headlamp/test-123/appcatalog_headlamp_plugin";
-const PACKAGE_NAME_TO_UNINSTALL = "app-catalog";
+  "https://artifacthub.io/packages/headlamp/test-123/headlamp_opencost";
+const PACKAGE_NAME_TO_UNINSTALL = "@headlamp-k8s/opencost";
 
 function testPluginctl() {
   // remove some temporary files.

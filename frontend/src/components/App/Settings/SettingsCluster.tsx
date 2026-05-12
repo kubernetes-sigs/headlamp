@@ -489,7 +489,7 @@ export default function SettingsCluster() {
                       value = value.replace(' ', '');
                       setNewAllowedNamespace(value);
                     }}
-                    placeholder="namespace"
+                    placeholder={t('glossary|Namespace')}
                     error={!isValidNewAllowedNamespace}
                     value={newAllowedNamespace}
                     helperText={

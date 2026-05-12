@@ -1569,10 +1569,13 @@ function startElectron() {
     });
 
     mainWindow.on('close', event => {
-      if (hasTray && !isQuitting) {
+      if (process.platform === 'darwin' && hasTray && !isQuitting) {
         event.preventDefault();
         mainWindow?.hide();
+        return;
       }
+      isQuitting = true;
+      app.quit();
     });
 
     mainWindow.on('closed', () => {
