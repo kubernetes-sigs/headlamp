@@ -438,6 +438,8 @@
     },
     "node": {
       "default": [Function],
+      "useNodeMetrics": [Function],
+      "useNodeSummaryStats": [Function],
     },
     "persistentVolume": {
       "default": [Function],
