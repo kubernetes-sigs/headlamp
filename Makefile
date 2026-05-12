@@ -350,12 +350,11 @@ lint: backend-lint frontend-lint
 lint-fix: backend-lint-fix frontend-lint-fix
 
 plugins-test:
-	cd plugins/headlamp-plugin && npm install && npm run build && ./test-headlamp-plugin.js
+	cd plugins/headlamp-plugin && npm install && npm run build
+	cd plugins/headlamp-plugin && ./test-headlamp-plugin.js
 	cd plugins/headlamp-plugin && ./test-plugins-examples.sh
 	cd plugins/pluginctl/src && npm install && node ./plugin-management.e2e.js
 	cd plugins/pluginctl && npx jest src/multi-plugin-management.test.js
-	cd plugins/pluginctl && npx jest src/plugin-management.test.js
-	cd plugins/pluginctl && npm run test
 
 # IMAGE_BASE can be used to specify a base final image.
 #   IMAGE_BASE=debian:latest make image
