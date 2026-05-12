@@ -326,10 +326,6 @@ func (c *Connection) updateStatus(state ConnectionState, err error) {
 // safeClose safely closes the connection and its resources.
 func (c *Connection) safeClose() {
 	c.closeOnce.Do(func() {
-		c.mu.Lock()
-		c.closed = true
-		c.mu.Unlock()
-
 		if c.Done != nil {
 			select {
 			case <-c.Done:
@@ -338,6 +334,10 @@ func (c *Connection) safeClose() {
 				close(c.Done)
 			}
 		}
+
+		c.mu.Lock()
+		c.closed = true
+		c.mu.Unlock()
 
 		if c.WSConn != nil {
 			_ = c.WSConn.Close()
@@ -603,9 +603,9 @@ func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Reque
 			if isFatal {
 				break
 			}
-			// For non-fatal errors (like parsing), we just log and continue
+			// For non-fatal errors (like parsing), log and continue because
+			// there is no routable client message context available.
 			logger.Log(logger.LevelError, nil, err, "failed to read client message")
-			m.sendClientError(lockClientConn, "", "", "", "", err)
 			continue
 		}
 
@@ -742,8 +742,6 @@ func (m *Multiplexer) sendClientError(clientConn *WSConnLock, clusterID, path, q
 
 	errorMsg := Message{
 		ClusterID: clusterID,
-		Path:      path,
-		Query:     query,
 		UserID:    userID,
 		Data:      string(jsonData),
 		Type:      "ERROR",
