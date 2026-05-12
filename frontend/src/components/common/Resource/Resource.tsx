@@ -1709,7 +1709,7 @@ export interface OwnedPodsSectionProps {
 }
 
 export function OwnedPodsSection(props: OwnedPodsSectionProps) {
-  const { resource, hideColumns, noSearch } = props;
+  const { resource, hideColumns, noSearch, onPodsUpdate } = props;
   let namespace;
 
   if (resource.kind === 'Namespace') {
@@ -1767,6 +1767,24 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
         }),
     refetchInterval: METRIC_REFETCH_INTERVAL_MS,
   });
+
+  const resourceRef = React.useRef(resource);
+
+  const resourceIdentity = [
+    resource.cluster,
+    resource.kind,
+    resource.metadata.uid ?? '',
+    resource.metadata.namespace ?? '',
+    resource.metadata.name,
+  ].join('|');
+
+  React.useEffect(() => {
+    resourceRef.current = resource;
+  }, [resource]);
+
+  React.useEffect(() => {
+    onPodsUpdate?.(resourceRef.current, pods, errors ?? null);
+  }, [onPodsUpdate, resourceIdentity, pods, errors]);
 
   if (!labelSelector && resource.kind === 'Service') {
     return null;
