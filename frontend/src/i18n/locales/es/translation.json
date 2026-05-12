@@ -492,6 +492,7 @@
   "{{count}} files selected_many": "",
   "{{count}} files selected_other": "",
   "Please enter a valid URL.": "",
+  "Failed to fetch file: {{statusText}}": "",
   "Unexpected error while fetching the file.": "",
   "Enter URL": "",
   "Upload File": "",

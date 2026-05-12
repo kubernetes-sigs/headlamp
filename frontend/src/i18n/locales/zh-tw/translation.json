@@ -482,6 +482,7 @@
   "Select File": "選擇檔案",
   "{{count}} files selected_other": "已選擇 {{count}} 個檔案",
   "Please enter a valid URL.": "請輸入有效的 URL。",
+  "Failed to fetch file: {{statusText}}": "",
   "Unexpected error while fetching the file.": "抓取檔案時發生意外錯誤。",
   "Enter URL": "輸入 URL",
   "Upload File": "上傳檔案",

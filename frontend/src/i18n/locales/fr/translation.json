@@ -492,6 +492,7 @@
   "{{count}} files selected_many": "{{count}} fichiers sélectionnés",
   "{{count}} files selected_other": "{{count}} fichiers sélectionnés",
   "Please enter a valid URL.": "Veuillez entrer une URL valide.",
+  "Failed to fetch file: {{statusText}}": "",
   "Unexpected error while fetching the file.": "Erreur inattendue lors de la récupération du fichier.",
   "Enter URL": "Entrer l'URL",
   "Upload File": "Télécharger un fichier",
