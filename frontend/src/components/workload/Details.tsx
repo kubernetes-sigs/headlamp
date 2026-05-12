@@ -17,6 +17,9 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
+import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
+import type { KubeObject } from '../../lib/k8s/KubeObject';
+import type Pod from '../../lib/k8s/pod';
 import type { Workload, WorkloadClass } from '../../lib/k8s/Workload';
 import { useEventCallback } from '../../redux/headlampEventSlice';
 import {
@@ -32,12 +35,29 @@ import {
   RevisionHistorySection,
   RollbackButton,
 } from '../common/Resource';
+import { WorkloadDiagnosticsSection } from '../diagnostics/Diagnostics';
 
 interface WorkloadDetailsProps<T extends WorkloadClass> {
   workloadKind: T;
   name?: string;
   namespace?: string;
   cluster?: string;
+}
+
+function getOwnedPodsKey(pods: Pod[] | null) {
+  return (
+    pods
+      ?.map(pod =>
+        [pod.metadata.uid, pod.metadata.namespace, pod.metadata.name, pod.metadata.resourceVersion]
+          .filter(Boolean)
+          .join('/')
+      )
+      .join('|') ?? ''
+  );
+}
+
+function getOwnedPodsErrorsKey(errors: ApiError[] | null) {
+  return errors?.map(error => error.toString()).join('|') ?? '';
 }
 
 export default function WorkloadDetails<T extends WorkloadClass>(props: WorkloadDetailsProps<T>) {
@@ -51,8 +71,40 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
   const autoLaunchView = queryParams.get('view');
   const lastAutoLaunchedLogs = React.useRef<string | null>(null);
   const [workloadItem, setWorkloadItem] = React.useState<Workload | null>(null);
+  const [ownedPodsState, setOwnedPodsState] = React.useState<{
+    workloadUid?: string;
+    pods: Pod[] | null;
+    errors: ApiError[] | null;
+    podsKey?: string;
+    errorsKey?: string;
+  }>({ pods: null, errors: null });
   const dispatchHeadlampEvent = useEventCallback();
   const isLoggableKind = LOGGABLE_WORKLOAD_KINDS.has(workloadKind.kind);
+  const handleOwnedPodsUpdate = React.useCallback(
+    (resource: KubeObject, pods: Pod[] | null, errors: ApiError[] | null) => {
+      setOwnedPodsState(previous => {
+        const workloadUid = resource.metadata.uid;
+        const podsKey = getOwnedPodsKey(pods);
+        const errorsKey = getOwnedPodsErrorsKey(errors);
+        if (
+          previous.workloadUid === workloadUid &&
+          previous.podsKey === podsKey &&
+          previous.errorsKey === errorsKey
+        ) {
+          return previous;
+        }
+
+        return {
+          workloadUid,
+          pods,
+          errors,
+          podsKey,
+          errorsKey,
+        };
+      });
+    },
+    []
+  );
 
   React.useEffect(() => {
     if (autoLaunchView !== 'logs') {
@@ -135,6 +187,17 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
       withEvents
       onResourceUpdate={item => {
         setWorkloadItem(item);
+        setOwnedPodsState(previous =>
+          previous.workloadUid === item?.metadata.uid
+            ? previous
+            : {
+                workloadUid: item?.metadata.uid,
+                pods: null,
+                errors: null,
+                podsKey: '',
+                errorsKey: '',
+              }
+        );
       }}
       actions={item => {
         if (!item) return [];
@@ -193,6 +256,18 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
         if (!item) return [];
         const sections = [
           {
+            id: 'headlamp.workload-diagnostics',
+            section: (
+              <WorkloadDiagnosticsSection
+                workload={item}
+                pods={ownedPodsState.workloadUid === item.metadata.uid ? ownedPodsState.pods : null}
+                errors={
+                  ownedPodsState.workloadUid === item.metadata.uid ? ownedPodsState.errors : null
+                }
+              />
+            ),
+          },
+          {
             id: 'headlamp.workload-conditions',
             section: <ConditionsSection resource={item?.jsonData} />,
           },
@@ -206,7 +281,7 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
             : []),
           {
             id: 'headlamp.workload-owned-pods',
-            section: <OwnedPodsSection resource={item} />,
+            section: <OwnedPodsSection resource={item} onPodsUpdate={handleOwnedPodsUpdate} />,
           },
           {
             id: 'headlamp.workload-containers',
