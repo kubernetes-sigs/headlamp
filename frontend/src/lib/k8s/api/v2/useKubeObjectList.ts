@@ -498,7 +498,7 @@ export function useKubeObjectList<K extends KubeObject>({
             : results.flatMap(result => result?.data?.list?.items ?? []),
         errors: results
           .map(result => result.error)
-          .filter((e): e is ApiError => e != null),
+          .filter((e): e is ApiError => e !== null),
         isError: results.some(result => result.isError),
         isLoading: results.some(result => result.isLoading),
         isFetching: results.some(result => result.isFetching),
@@ -564,7 +564,7 @@ export function useKubeObjectList<K extends KubeObject>({
     isFetching: query.isFetching,
     isSuccess: query.isSuccess,
     *[Symbol.iterator]() {
-      yield query.items;
+      yield endpointError ? [] : query.items;
       yield endpointError ?? query.errors[0] ?? null;
     },
   };

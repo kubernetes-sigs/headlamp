@@ -73,17 +73,8 @@ export default function GenericResourceList() {
 
   const backTo = createRouteURL('genericResources');
 
-  if (!ref || !kubeClass) {
-    return (
-      <Empty color="error">
-        {t('translation|Invalid or unknown resource type. Use the generic resources browser.')}
-      </Empty>
-    );
-  }
-
-  const title = `${ref.kind} (${ref.apiVersion})`;
-
   const columns: (ResourceTableColumn<KubeObject> | ColumnType)[] = React.useMemo(() => {
+    if (!ref) return [];
     const nameCol: ResourceTableColumn<KubeObject> = {
       label: t('translation|Name'),
       getValue: resource => resource.metadata.name,
@@ -99,6 +90,16 @@ export default function GenericResourceList() {
     tail.push('labels', 'age');
     return [nameCol, ...tail];
   }, [ref, isMultiCluster, t]);
+
+  if (!ref || !kubeClass) {
+    return (
+      <Empty color="error">
+        {t('translation|Invalid or unknown resource type. Use the generic resources browser.')}
+      </Empty>
+    );
+  }
+
+  const title = `${ref.kind} (${ref.apiVersion})`;
 
   return (
     <ResourceListView

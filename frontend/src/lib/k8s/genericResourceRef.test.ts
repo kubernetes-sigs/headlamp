@@ -16,10 +16,10 @@
 
 import type { ApiResource } from './api/v2/ApiResource';
 import {
+  type GenericResourceRef,
   genericResourceRefFromApiResource,
   parseGenericResourceRef,
   serializeGenericResourceRef,
-  type GenericResourceRef,
 } from './genericResourceRef';
 
 describe('genericResourceRef', () => {
@@ -39,7 +39,6 @@ describe('genericResourceRef', () => {
       kind: 'Pod',
       isNamespaced: true,
       singularName: 'pod',
-      groupName: undefined,
     });
 
     const ext: ApiResource = {
@@ -60,6 +59,24 @@ describe('genericResourceRef', () => {
     expect(parseGenericResourceRef('not-valid-base64!!!')).toBeNull();
   });
 
+  it('parse drops unknown JSON keys from decoded ref', () => {
+    const id = serializeGenericResourceRef({
+      apiVersion: 'v1',
+      pluralName: 'pods',
+      kind: 'Pod',
+      isNamespaced: true,
+      extra: 'ignored',
+    } as unknown as GenericResourceRef);
+    const parsed = parseGenericResourceRef(id);
+    expect(parsed).toEqual({
+      apiVersion: 'v1',
+      pluralName: 'pods',
+      kind: 'Pod',
+      isNamespaced: true,
+    });
+    expect(Object.keys(parsed!)).not.toContain('extra');
+  });
+
   it('returns null for empty or oversized id', () => {
     expect(parseGenericResourceRef('')).toBeNull();
     expect(parseGenericResourceRef('a'.repeat(9000))).toBeNull();
@@ -76,5 +93,37 @@ describe('genericResourceRef', () => {
     expect(() => serializeGenericResourceRef(huge)).toThrow(
       'GenericResourceRef JSON exceeds maximum length'
     );
+  });
+
+  it('returns null for pluralName with path-injection chars', () => {
+    const inject = (pluralName: string) => {
+      const raw = JSON.stringify({ apiVersion: 'v1', pluralName, kind: 'Pod', isNamespaced: true });
+      const b64 = btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      return parseGenericResourceRef(b64);
+    };
+    expect(inject('pods/../../secret')).toBeNull();
+    expect(inject('pods?foo=bar')).toBeNull();
+    expect(inject('pods#anchor')).toBeNull();
+    expect(inject('Pods')).toBeNull();
+    expect(inject('pods')).not.toBeNull();
+  });
+
+  it('returns null for invalid apiVersion format', () => {
+    const make = (apiVersion: string) => {
+      const raw = JSON.stringify({ apiVersion, pluralName: 'pods', kind: 'Pod', isNamespaced: true });
+      const b64 = btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      return parseGenericResourceRef(b64);
+    };
+    expect(make('apps/v1/extra')).toBeNull();
+    expect(make('/v1')).toBeNull();
+    expect(make('apps/v1')).not.toBeNull();
+    expect(make('v1')).not.toBeNull();
+  });
+
+  it('returns null for oversized decoded JSON', () => {
+    const filler = 'a'.repeat(4100);
+    const raw = JSON.stringify({ apiVersion: 'v1', pluralName: 'pods', kind: 'Pod', isNamespaced: true, _pad: filler });
+    const b64 = btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    expect(parseGenericResourceRef(b64)).toBeNull();
   });
 });

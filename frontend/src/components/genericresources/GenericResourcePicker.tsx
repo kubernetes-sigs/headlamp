@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
+import { Box, TextField, Typography } from '@mui/material';
 import Alert from '@mui/material/Alert';
 import AlertTitle from '@mui/material/AlertTitle';
-import { Box, TextField, Typography } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -43,7 +43,6 @@ export default function GenericResourcePicker() {
   const { data: resources, isPending, isError, error } = useQuery({
     queryFn: () => apiDiscovery([...selectedClusters]),
     queryKey: ['api-discovery', ...selectedClusters],
-    staleTime: 60_000,
   });
 
   const rows = React.useMemo(() => {

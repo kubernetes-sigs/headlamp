@@ -196,7 +196,7 @@ function TableFromResourceClass<KubeClass extends KubeObjectClass>(
   const { resourceClass, id, ignoreGlobalNamespaceFilter, ...otherProps } = props;
   const selectedNamespaces = useNamespaces();
   const listNamespaces = ignoreGlobalNamespaceFilter
-    ? ([] as string[])
+    ? props.namespaces ?? ([] as string[])
     : props.namespaces ?? selectedNamespaces;
   const { items, errors } = resourceClass.useList({
     namespace: listNamespaces,

@@ -49,10 +49,25 @@ function fromBase64Url(s: string): string {
 
 /** Reject oversized path segments (URL / proxy limits, abuse). */
 const MAX_REF_PARAM_LENGTH = 8192;
+const MAX_DECODED_JSON_LENGTH = 4096;
+
+/** Kubernetes plural/singular names: lowercase alphanumeric + hyphens. */
+const PLURAL_NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
+const SINGULAR_NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
+/**
+ * apiVersion: optional group prefix (DNS subdomain) + '/' + version,
+ * or bare version.  Each segment: lowercase alphanumeric, dots, hyphens.
+ * No path-injection chars allowed.
+ */
+const API_VERSION_RE = /^([a-z0-9][a-z0-9.-]*\/)?[a-z][a-z0-9]*$/;
+/** Kind: PascalCase alphanumeric (no slashes, dots, etc.). */
+const KIND_RE = /^[A-Za-z][A-Za-z0-9]*$/;
+/** groupName: DNS subdomain format. */
+const GROUP_NAME_RE = /^[a-z0-9][a-z0-9.-]*$/;
 
 export function serializeGenericResourceRef(ref: GenericResourceRef): string {
   const json = JSON.stringify(ref);
-  if (json.length > 4096) {
+  if (json.length > MAX_DECODED_JSON_LENGTH) {
     throw new Error('GenericResourceRef JSON exceeds maximum length');
   }
   return toBase64Url(json);
@@ -64,16 +79,47 @@ export function parseGenericResourceRef(id: string): GenericResourceRef | null {
   }
   try {
     const json = fromBase64Url(id);
-    const obj = JSON.parse(json) as GenericResourceRef;
+    if (json.length > MAX_DECODED_JSON_LENGTH) {
+      return null;
+    }
+    const raw = JSON.parse(json) as Record<string, unknown>;
     if (
-      typeof obj?.apiVersion !== 'string' ||
-      typeof obj?.pluralName !== 'string' ||
-      typeof obj?.kind !== 'string' ||
-      typeof obj?.isNamespaced !== 'boolean'
+      typeof raw.apiVersion !== 'string' ||
+      typeof raw.pluralName !== 'string' ||
+      typeof raw.kind !== 'string' ||
+      typeof raw.isNamespaced !== 'boolean'
     ) {
       return null;
     }
-    return obj;
+    if (!raw.apiVersion || !raw.pluralName || !raw.kind) {
+      return null;
+    }
+    if (
+      !API_VERSION_RE.test(raw.apiVersion) ||
+      !PLURAL_NAME_RE.test(raw.pluralName) ||
+      !KIND_RE.test(raw.kind)
+    ) {
+      return null;
+    }
+    const ref: GenericResourceRef = {
+      apiVersion: raw.apiVersion,
+      pluralName: raw.pluralName,
+      kind: raw.kind,
+      isNamespaced: raw.isNamespaced,
+    };
+    if (typeof raw.singularName === 'string') {
+      if (raw.singularName && !SINGULAR_NAME_RE.test(raw.singularName)) {
+        return null;
+      }
+      ref.singularName = raw.singularName;
+    }
+    if (typeof raw.groupName === 'string') {
+      if (raw.groupName && !GROUP_NAME_RE.test(raw.groupName)) {
+        return null;
+      }
+      ref.groupName = raw.groupName;
+    }
+    return ref;
   } catch {
     return null;
   }
