@@ -64,5 +64,6 @@ type HeadlampCFG struct {
 	TLSCertPath            string
 	TLSKeyPath             string
 	SessionTTL             int
+	PodDebugImage          string
 	OidcUseCookie          bool
 }

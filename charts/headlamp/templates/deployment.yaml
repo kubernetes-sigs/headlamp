@@ -261,6 +261,9 @@ spec:
             {{- if hasKey .Values.config "sessionTTL" }}
             - "-session-ttl={{ .Values.config.sessionTTL }}"
             {{- end }}
+            {{- with .Values.config.podDebugImage }}
+            - "-pod-debug-image={{ . }}"
+            {{- end }}
             {{- if not $oidc.externalSecret.enabled}}
             # Check if externalSecret is disabled
             {{- if or (ne $oidc.clientID "") (ne $clientID "") }}

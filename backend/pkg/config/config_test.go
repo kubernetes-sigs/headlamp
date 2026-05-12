@@ -51,9 +51,10 @@ func TestParseBasic(t *testing.T) {
 		},
 		{
 			name: "with_args",
-			args: []string{"go run ./cmd", "--port=3456"},
+			args: []string{"go run ./cmd", "--port=3456", "--pod-debug-image=registry.example.com/debug:latest"},
 			verify: func(t *testing.T, conf *config.Config) {
 				assert.Equal(t, uint(3456), conf.Port)
+				assert.Equal(t, "registry.example.com/debug:latest", conf.PodDebugImage)
 				assert.Equal(t, config.DefaultMeUsernamePath, conf.MeUsernamePath)
 			},
 		},

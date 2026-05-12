@@ -49,6 +49,7 @@ const makeStore = () => {
         },
         isDynamicClusterEnabled: false,
         allowKubeconfigChanges: false,
+        defaultPodDebugImage: '',
       },
       projects: {
         headerActions: {},

@@ -180,6 +180,10 @@
           "minimum": 1,
           "maximum": 31536000
         },
+        "podDebugImage": {
+          "type": "string",
+          "description": "Default image to use when creating pod debug containers"
+        },
         "oidc": {
           "type": "object",
           "description": "OIDC configuration",

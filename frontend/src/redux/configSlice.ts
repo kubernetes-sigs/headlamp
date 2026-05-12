@@ -54,6 +54,11 @@ export interface ConfigState {
    */
   allowKubeconfigChanges: boolean;
   /**
+   * Default image used for pod debug containers when no per-cluster override is configured.
+   * An empty string indicates that no default image is configured.
+   */
+  defaultPodDebugImage: string;
+  /**
    * Settings is a map of settings names to settings values.
    */
   settings: {
@@ -145,6 +150,7 @@ export const initialState: ConfigState = {
   allClusters: null,
   isDynamicClusterEnabled: false,
   allowKubeconfigChanges: false,
+  defaultPodDebugImage: '',
   settings: {
     tableRowsPerPageOptions:
       storedSettings.tableRowsPerPageOptions ?? defaultTableRowsPerPageOptions,
@@ -169,6 +175,7 @@ const configSlice = createSlice({
         clusters: ConfigState['clusters'];
         isDynamicClusterEnabled?: boolean;
         allowKubeconfigChanges?: boolean;
+        defaultPodDebugImage?: string;
       }>
     ) {
       state.clusters = action.payload.clusters;
@@ -177,6 +184,9 @@ const configSlice = createSlice({
       }
       if (action.payload.allowKubeconfigChanges !== undefined) {
         state.allowKubeconfigChanges = action.payload.allowKubeconfigChanges;
+      }
+      if (action.payload.defaultPodDebugImage !== undefined) {
+        state.defaultPodDebugImage = action.payload.defaultPodDebugImage;
       }
     },
     /**

@@ -113,6 +113,8 @@ config:
   pluginsDir: "/headlamp/plugins"
   enableHelm: false
   watchPlugins: false
+  # -- Default image to use when creating pod debug containers. If empty, Headlamp uses its built-in default.
+  podDebugImage: ""
   # tlsCertPath: "/headlamp-cert/headlamp-ca.crt"
   # tlsKeyPath: "/headlamp-cert/headlamp-tls.key"
   # Extra arguments that can be given to the container. See charts/headlamp/README.md for more information.

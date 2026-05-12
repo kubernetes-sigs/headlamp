@@ -19,12 +19,14 @@ import DialogContent from '@mui/material/DialogContent';
 import Typography from '@mui/material/Typography';
 import _ from 'lodash';
 import { useSnackbar } from 'notistack';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import type { MutableRefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_POD_DEBUG_IMAGE, loadClusterSettings } from '../../helpers/clusterSettings';
 import { getCluster } from '../../lib/cluster';
 import Pod from '../../lib/k8s/pod';
 import { Channel, useTerminalStream, XTerminalConnected } from '../../lib/k8s/useTerminalStream';
+import { useTypedSelector } from '../../redux/hooks';
 
 /**
  * Props for PodDebugTerminal.
@@ -174,10 +176,20 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
   const exitSentRef = useRef(false);
   const pendingExitRef = useRef(false);
   const containerCreatedRef = useRef(false);
+  const defaultPodDebugImage = useTypedSelector(state => state.config.defaultPodDebugImage);
+  const defaultPodDebugImageRef = useRef(defaultPodDebugImage);
+  const onCloseRef = useRef<() => void>(() => {});
+  const isSuccessfulExitRef = useRef<(channel: number, text: string) => boolean>(() => false);
+  const isShellNotFoundRef = useRef<(channel: number, text: string) => boolean>(() => false);
+  const shellConnectFailedRef = useRef<(xtermc: XTerminalConnected) => void>(() => {});
+  const terminalRef = useRef<MutableRefObject<XTerminalConnected | null> | null>(null);
 
-  const { xtermRef, streamRef, send } = useTerminalStream({
-    containerRef: terminalContainerRef,
-    connectStream: async onDataCallback => {
+  useEffect(() => {
+    defaultPodDebugImageRef.current = defaultPodDebugImage;
+  }, [defaultPodDebugImage]);
+
+  const connectStream = useCallback(
+    async (onDataCallback: (data: ArrayBuffer) => void) => {
       const cluster = getCluster();
       if (!cluster) {
         enqueueSnackbar(t('translation|No cluster selected'), { variant: 'error' });
@@ -186,7 +198,8 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
 
       const clusterSettings = loadClusterSettings(cluster);
       const config = clusterSettings.podDebugTerminal;
-      const debugImage = config?.debugImage || DEFAULT_POD_DEBUG_IMAGE;
+      const debugImage =
+        config?.debugImage || defaultPodDebugImageRef.current || DEFAULT_POD_DEBUG_IMAGE;
       const isEnabled = config?.isEnabled ?? true;
 
       if (!isEnabled) {
@@ -202,13 +215,15 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
       if (runningDebugContainer) {
         containerName = runningDebugContainer.name;
         containerCreatedRef.current = true;
-        xtermRef.current?.xterm.writeln(
+        terminalRef.current?.current?.xterm.writeln(
           t('translation|Attaching to existing debug container...') + '\r\n'
         );
       } else {
         containerName = generateContainerName(item);
 
-        xtermRef.current?.xterm.writeln(t('translation|Creating ephemeral debug container...'));
+        terminalRef.current?.current?.xterm.writeln(
+          t('translation|Creating ephemeral debug container...')
+        );
 
         const { containerName: readyContainerName } = await debugPod(
           item,
@@ -221,7 +236,9 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
               }),
               { variant: 'error' }
             );
-            xtermRef.current?.xterm.writeln(`\r\n${t('translation|Error')}: ${errorMessage}\r\n`);
+            terminalRef.current?.current?.xterm.writeln(
+              `\r\n${t('translation|Error')}: ${errorMessage}\r\n`
+            );
           }
         );
 
@@ -230,7 +247,9 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
         }
 
         containerCreatedRef.current = true;
-        xtermRef.current?.xterm.writeln(t('translation|Attaching to debug container...'));
+        terminalRef.current?.current?.xterm.writeln(
+          t('translation|Attaching to debug container...')
+        );
       }
 
       const stream = item.attach(containerName, onDataCallback, {});
@@ -239,13 +258,27 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
         stream,
       };
     },
-    onClose: wrappedOnClose,
-    errorHandlers: {
-      isSuccessfulExit: isSuccessfulExitError,
-      isShellNotFound: isShellNotFoundError,
-      onConnectionFailed: shellConnectFailed,
-    },
+    [enqueueSnackbar, item, t]
+  );
+
+  const errorHandlers = useMemo(
+    () => ({
+      isSuccessfulExit: (channel: number, text: string) =>
+        isSuccessfulExitRef.current(channel, text),
+      isShellNotFound: (channel: number, text: string) => isShellNotFoundRef.current(channel, text),
+      onConnectionFailed: (xtermc: XTerminalConnected) => shellConnectFailedRef.current(xtermc),
+    }),
+    []
+  );
+  const handleTerminalClose = useCallback(() => onCloseRef.current(), []);
+
+  const { xtermRef, streamRef, send } = useTerminalStream({
+    containerRef: terminalContainerRef,
+    connectStream,
+    onClose: handleTerminalClose,
+    errorHandlers,
   });
+  terminalRef.current = xtermRef;
 
   const sendExitIfPossible = useCallback(() => {
     if (exitSentRef.current) {
@@ -342,6 +375,11 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
     xterm.clear();
     xterm.write(t('translation|Failed to connect…\r\n'));
   }
+
+  onCloseRef.current = wrappedOnClose;
+  isSuccessfulExitRef.current = isSuccessfulExitError;
+  isShellNotFoundRef.current = isShellNotFoundError;
+  shellConnectFailedRef.current = shellConnectFailed;
 
   useEffect(() => {
     const handleBeforeUnload = () => {
