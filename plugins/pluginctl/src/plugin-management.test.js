@@ -17,7 +17,6 @@
 const pluginManagement = require('./plugin-management.js');
 const tmp = require('tmp');
 const fs = require('fs');
-const semver = require('semver');
 
 const PluginManager = pluginManagement.PluginManager;
 const validateArchiveURL = pluginManagement.validateArchiveURL;
@@ -32,24 +31,22 @@ const mockProgressCallback = jest.fn(args => {
 describe('PluginManager Test Cases', () => {
   let tempDir;
 
-  beforeAll(() => {
-    // Create a temporary directory before all tests
-    tempDir = tmp.dirSync({ unsafeCleanup: true }).name;
-  });
-
-  afterAll(() => {
-    // Remove the temporary directory after all tests
-    fs.rmdirSync(tempDir, { recursive: true });
-  });
-
   beforeEach(() => {
-    // Initialize a new PluginManager instance before each test
+    // Create a temporary directory before each test
+    tempDir = tmp.dirSync({ unsafeCleanup: true }).name;
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    // Remove the temporary directory after each test
+    if (fs.existsSync(tempDir)) {
+      fs.rmdirSync(tempDir, { recursive: true });
+    }
   });
 
   test('Install Plugin', async () => {
     await PluginManager.install(
-      'https://artifacthub.io/packages/headlamp/test-123/headlamp_opencost',
+      'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux',
       tempDir,
       '',
       mockProgressCallback
@@ -60,9 +57,15 @@ describe('PluginManager Test Cases', () => {
     });
   });
 
-  test('List Plugins', () => {
+  test('List Plugins', async () => {
+    await PluginManager.install(
+      'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux',
+      tempDir,
+      '',
+      mockProgressCallback
+    );
     PluginManager.list(tempDir, mockProgressCallback);
-    // Assuming "app-catalog" plugin is in the list of plugins
+    // Assuming "flux" plugin is in the list of plugins
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugins Listed',
@@ -71,8 +74,14 @@ describe('PluginManager Test Cases', () => {
   });
 
   test('No Update available for Plugin', async () => {
-    // No updates available for "opencost" plugin
-    await PluginManager.update('@headlamp-k8s/opencost', tempDir, '', mockProgressCallback);
+    await PluginManager.install(
+      'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux',
+      tempDir,
+      '',
+      mockProgressCallback
+    );
+    // No updates available for "flux" plugin
+    await PluginManager.update('@headlamp-k8s/flux', tempDir, '', mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'error',
       message: 'No updates available',
@@ -80,17 +89,20 @@ describe('PluginManager Test Cases', () => {
   });
 
   test('Update Plugin', async () => {
-    // update the "opencost" plugin package.json with lower version
-    const packageJSONPath = `${tempDir}/headlamp_opencost/package.json`;
+    await PluginManager.install(
+      'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux',
+      tempDir,
+      '',
+      mockProgressCallback
+    );
+    // update the "flux" plugin package.json with lower version
+    const packageJSONPath = `${tempDir}/headlamp_flux/package.json`;
     const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath));
-    packageJSON.artifacthub.version = `${semver.major(
-      packageJSON.artifacthub.version
-    )}.${semver.minor(packageJSON.artifacthub.version)}.${semver.patch(packageJSON.artifacthub.version) - 1
-      }`; // Reduce the version using semver
+    packageJSON.artifacthub.version = '0.0.1'; // Set to a version lower than the latest
     // Write the updated package.json back to the file
     fs.writeFileSync(packageJSONPath, JSON.stringify(packageJSON, null, 2));
 
-    await PluginManager.update('@headlamp-k8s/opencost', tempDir, '', mockProgressCallback);
+    await PluginManager.update('@headlamp-k8s/flux', tempDir, '', mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugin Updated',
@@ -98,10 +110,8 @@ describe('PluginManager Test Cases', () => {
   });
 
   test('Uninstall Plugin', async () => {
-    const tempDir = tmp.dirSync({ unsafeCleanup: true }).name;
-
     await PluginManager.install(
-      'https://artifacthub.io/packages/headlamp/test-123/headlamp_opencost',
+      'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux',
       tempDir,
       '',
       mockProgressCallback
@@ -111,13 +121,11 @@ describe('PluginManager Test Cases', () => {
       message: 'Plugin Installed',
     });
 
-    PluginManager.uninstall('@headlamp-k8s/opencost', tempDir, mockProgressCallback);
+    PluginManager.uninstall('@headlamp-k8s/flux', tempDir, mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugin Uninstalled',
     });
-
-    fs.rmdirSync(tempDir, { recursive: true });
   });
 });
 
