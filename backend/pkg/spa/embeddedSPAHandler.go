@@ -32,13 +32,16 @@ func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Prepend "static" to the path as that's the root in our embed.FS
 	fullPath := filepath.Join("static", path)
+	servedPath := fullPath
 
 	content, err := h.serveFile(fullPath)
 	isServingIndex := false
 
 	if err != nil {
 		// If there's any error, serve the index file
-		content, err = h.serveFile(filepath.Join("static", h.indexPath))
+		servedPath = filepath.Join("static", h.indexPath)
+
+		content, err = h.serveFile(servedPath)
 		if err != nil {
 			http.Error(w, "Unable to read index file", http.StatusInternalServerError)
 			return
@@ -63,7 +66,7 @@ func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set the correct Content-Type header
-	ext := filepath.Ext(fullPath)
+	ext := filepath.Ext(servedPath)
 
 	contentType := mime.TypeByExtension(ext)
 	if contentType == "" {
