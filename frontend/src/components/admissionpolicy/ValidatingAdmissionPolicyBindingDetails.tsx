@@ -93,8 +93,8 @@ export default function ValidatingAdmissionPolicyBindingDetails(props: {
                           />
                         ),
                         hide:
-                          !item.spec.paramRef?.selector?.matchLabels &&
-                          !item.spec.paramRef?.selector?.matchExpressions,
+                          !Object.keys(item.spec.paramRef?.selector?.matchLabels ?? {}).length &&
+                          !item.spec.paramRef?.selector?.matchExpressions?.length,
                       },
                     ]}
                   />
@@ -124,8 +124,10 @@ export default function ValidatingAdmissionPolicyBindingDetails(props: {
                           />
                         ),
                         hide:
-                          !item.spec.matchResources.namespaceSelector?.matchLabels &&
-                          !item.spec.matchResources.namespaceSelector?.matchExpressions,
+                          !Object.keys(
+                            item.spec.matchResources.namespaceSelector?.matchLabels ?? {}
+                          ).length &&
+                          !item.spec.matchResources.namespaceSelector?.matchExpressions?.length,
                       },
                       {
                         name: t('Object Selector'),
@@ -138,8 +140,9 @@ export default function ValidatingAdmissionPolicyBindingDetails(props: {
                           />
                         ),
                         hide:
-                          !item.spec.matchResources.objectSelector?.matchLabels &&
-                          !item.spec.matchResources.objectSelector?.matchExpressions,
+                          !Object.keys(item.spec.matchResources.objectSelector?.matchLabels ?? {})
+                            .length &&
+                          !item.spec.matchResources.objectSelector?.matchExpressions?.length,
                       },
                     ]}
                   />

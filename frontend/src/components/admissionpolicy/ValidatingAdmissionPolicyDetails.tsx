@@ -103,8 +103,10 @@ export default function ValidatingAdmissionPolicyDetails(props: {
                           />
                         ),
                         hide:
-                          !item.spec.matchConstraints.namespaceSelector?.matchLabels &&
-                          !item.spec.matchConstraints.namespaceSelector?.matchExpressions,
+                          !Object.keys(
+                            item.spec.matchConstraints.namespaceSelector?.matchLabels ?? {}
+                          ).length &&
+                          !item.spec.matchConstraints.namespaceSelector?.matchExpressions?.length,
                       },
                       {
                         name: t('Object Selector'),
@@ -117,8 +119,9 @@ export default function ValidatingAdmissionPolicyDetails(props: {
                           />
                         ),
                         hide:
-                          !item.spec.matchConstraints.objectSelector?.matchLabels &&
-                          !item.spec.matchConstraints.objectSelector?.matchExpressions,
+                          !Object.keys(item.spec.matchConstraints.objectSelector?.matchLabels ?? {})
+                            .length &&
+                          !item.spec.matchConstraints.objectSelector?.matchExpressions?.length,
                       },
                     ]}
                   />
