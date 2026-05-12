@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
-import { ButtonProps } from '@mui/material/Button';
+import Button, { ButtonProps } from '@mui/material/Button';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import React from 'react';
-import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it, vi } from 'vitest';
-import i18n from '../../i18n/config';
 import { TestContext } from '../../test';
 import ConfirmButton, { ConfirmButtonProps } from './ConfirmButton';
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key.split('|')[1] || key,
+  }),
+}));
 
 const renderComponent = (props: Partial<ConfirmButtonProps> = {}) => {
   const defaultProps = {
@@ -31,13 +34,11 @@ const renderComponent = (props: Partial<ConfirmButtonProps> = {}) => {
   };
 
   return render(
-    <I18nextProvider i18n={i18n}>
-      <TestContext>
-        <ConfirmButton {...defaultProps} {...props}>
-          Delete
-        </ConfirmButton>
-      </TestContext>
-    </I18nextProvider>
+    <TestContext>
+      <ConfirmButton {...defaultProps} {...props}>
+        Delete
+      </ConfirmButton>
+    </TestContext>
   );
 };
 
@@ -94,12 +95,9 @@ describe('ConfirmButton', () => {
   });
 
   it('renders and opens confirm dialog when buttonComponent is provided', () => {
-    const CustomButton = React.forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => (
-      <button ref={ref} data-testid="custom-trigger" {...(props as object)} />
-    ));
-    CustomButton.displayName = 'CustomButton';
+    const CustomButton = (props: ButtonProps) => <Button data-testid="custom-trigger" {...props} />;
 
-    renderComponent({ buttonComponent: CustomButton as unknown as React.ElementType<ButtonProps> });
+    renderComponent({ buttonComponent: CustomButton });
     expect(screen.getByTestId('custom-trigger')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('custom-trigger'));
     expect(screen.getByText('Confirm Action')).toBeInTheDocument();
