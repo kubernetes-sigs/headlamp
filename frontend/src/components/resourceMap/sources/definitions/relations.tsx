@@ -313,6 +313,5 @@ const staticRelations = [
 export function useGetAllRelations(): Relation[] {
   const crdRelations = useGetCRToOwnerRelations();
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => [...staticRelations, ...crdRelations], [crdRelations, staticRelations]);
+  return useMemo(() => [...staticRelations, ...crdRelations], [crdRelations]);
 }
