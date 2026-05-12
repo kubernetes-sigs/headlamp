@@ -164,8 +164,8 @@ SuccessfulClusterImport.args = {
  * ERROR: INVALID YAML
  * Shows error when the uploaded file is not a valid YAML kubeconfig
  */
-export const InvalidYAMLError = Template.bind({});
-InvalidYAMLError.args = {
+export const InvalidYAMLErrorState = Template.bind({});
+InvalidYAMLErrorState.args = {
   step: Step.LoadKubeConfig,
   error: 'Invalid kubeconfig file: unexpected end of file at line 45',
   fileContent: { clusters: [], users: [], contexts: [], currentContext: '' },
@@ -176,8 +176,8 @@ InvalidYAMLError.args = {
  * ERROR: DUPLICATE CLUSTERS
  * Shows error when selected clusters already exist in the system
  */
-export const DuplicateClusterError = Template.bind({});
-DuplicateClusterError.args = {
+export const DuplicateClusterErrorState = Template.bind({});
+DuplicateClusterErrorState.args = {
   step: Step.SelectClusters,
   error: 'Duplicate cluster: production in the list. Please edit the context name.',
   fileContent: mockFileContent,

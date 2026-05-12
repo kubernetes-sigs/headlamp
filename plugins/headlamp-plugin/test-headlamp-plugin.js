@@ -1,4 +1,9 @@
+<<<<<<< HEAD
 #!/usr/bin/env node
+=======
+#!/env node
+
+>>>>>>> a68c5c801 (frontend: KubeConfigLoader: Address Copilot review comments)
 
 /*
  * Copyright 2025 The Kubernetes Authors
