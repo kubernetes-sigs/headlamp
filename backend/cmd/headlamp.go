@@ -1080,19 +1080,20 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 
 		// refresh and cache new token
 		auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
-			Ctx:                ctx,
-			OIDCAuthConfig:     oidcAuthConfig,
-			Cache:              c.Cache,
-			Token:              token,
-			Cluster:            cluster,
-			Span:               span,
-			Writer:             w,
-			Request:            r,
-			TelemetryHandler:   c.TelemetryHandler,
-			OIDCUseAccessToken: c.OidcUseAccessToken,
-			OIDCIdpIssuerURL:   c.OidcIdpIssuerURL,
-			BaseURL:            c.BaseURL,
-			SessionTTL:         c.SessionTTL,
+			Ctx:                       ctx,
+			OIDCAuthConfig:            oidcAuthConfig,
+			Cache:                     c.Cache,
+			Token:                     token,
+			Cluster:                   cluster,
+			Span:                      span,
+			Writer:                    w,
+			Request:                   r,
+			TelemetryHandler:          c.TelemetryHandler,
+			OIDCUseAccessToken:        c.OidcUseAccessToken,
+			OIDCIdpIssuerURL:          c.OidcIdpIssuerURL,
+			OIDCValidatorIdpIssuerURL: c.OidcValidatorIdpIssuerURL,
+			BaseURL:                   c.BaseURL,
+			SessionTTL:                c.SessionTTL,
 		})
 
 		next.ServeHTTP(w, r)
