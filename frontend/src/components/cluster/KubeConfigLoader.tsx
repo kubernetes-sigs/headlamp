@@ -398,9 +398,7 @@ function KubeConfigLoader() {
     reader.onerror = () => setError(t("translation|Couldn't read kubeconfig file"));
     reader.onload = () => {
       try {
-        const data = String.fromCharCode.apply(null, [
-          ...new Uint8Array(reader.result as ArrayBuffer),
-        ]);
+        const data = new TextDecoder().decode(reader.result as ArrayBuffer);
         const doc = yaml.load(data) as kubeconfig;
         if (!doc.clusters) {
           throw new Error(t('translation|No clusters found!'));
