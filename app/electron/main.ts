@@ -859,13 +859,16 @@ function quitServerProcess() {
   serverProcess.stdin.destroy();
 
   if (process.platform === 'win32') {
-    // On Windows, use taskkill with /T to kill the entire process tree.
+    // On Windows, reuse killProcess() so the process-tree termination logic
+    // stays centralized and does not diverge from the shared implementation.
     // serverProcess.kill() only terminates the root process, leaving
     // detached children (spawned with detached: true) running.
     try {
-      execSync('taskkill /pid ' + serverProcess.pid + ' /T /F');
+      if (serverProcess.pid !== undefined) {
+        killProcess(serverProcess.pid);
+      }
     } catch (e) {
-      console.error('Failed to kill server process tree with taskkill:', e);
+      console.error('Failed to kill server process tree:', e);
       serverProcess.kill();
     }
   } else {
