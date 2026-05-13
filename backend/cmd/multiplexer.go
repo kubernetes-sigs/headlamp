@@ -259,6 +259,7 @@ func (c *Connection) updateStatus(state ConnectionState, err error) {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
+
 		return
 	}
 
@@ -272,33 +273,52 @@ func (c *Connection) updateStatus(state ConnectionState, err error) {
 
 	if c.Client == nil {
 		c.mu.Unlock()
+
 		if state == StateClosed {
 			c.safeClose()
 		}
+
 		return
 	}
 
+	writeErr := c.writeStatusLocked()
+	c.mu.Unlock()
+
+	if writeErr != nil {
+		if !websocket.IsCloseError(writeErr, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+			logger.Log(logger.LevelError,
+				map[string]string{"clusterID": c.ClusterID},
+				writeErr,
+				"writing status message to client")
+		}
+	}
+
+	if state == StateClosed {
+		c.safeClose()
+	}
+}
+
+func (c *Connection) writeStatusLocked() error {
 	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
 	if c.closed {
-		c.writeMu.Unlock()
-		c.mu.Unlock()
-		return
+		return nil
 	}
 
 	statusData := struct {
 		State string `json:"state"`
 		Error string `json:"error"`
 	}{
-		State: string(state),
+		State: string(c.Status.State),
 		Error: c.Status.Error,
 	}
 
 	jsonData, jsonErr := json.Marshal(statusData)
 	if jsonErr != nil {
 		logger.Log(logger.LevelError, map[string]string{"clusterID": c.ClusterID}, jsonErr, "marshaling status message")
-		c.writeMu.Unlock()
-		c.mu.Unlock()
-		return
+
+		return nil
 	}
 
 	statusMsg := Message{
@@ -308,19 +328,7 @@ func (c *Connection) updateStatus(state ConnectionState, err error) {
 		Type:      "STATUS",
 	}
 
-	writeErr := c.Client.WriteJSON(statusMsg)
-	c.writeMu.Unlock()
-	c.mu.Unlock()
-
-	if writeErr != nil {
-		if !websocket.IsCloseError(writeErr, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-			logger.Log(logger.LevelError, map[string]string{"clusterID": c.ClusterID}, writeErr, "writing status message to client")
-		}
-	}
-
-	if state == StateClosed {
-		c.safeClose()
-	}
+	return c.Client.WriteJSON(statusMsg)
 }
 
 // safeClose safely closes the connection and its resources.
@@ -606,6 +614,7 @@ func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Reque
 			// For non-fatal errors (like parsing), log and continue because
 			// there is no routable client message context available.
 			logger.Log(logger.LevelError, nil, err, "failed to read client message")
+
 			continue
 		}
 
@@ -617,13 +626,19 @@ func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Reque
 		}
 
 		token, err := auth.GetTokenFromCookie(r, msg.ClusterID)
-		if err != nil {
+		if err != nil && token != "" {
 			logger.Log(logger.LevelError, map[string]string{"clusterID": msg.ClusterID}, err, "getting token from cookie")
 			m.sendClientError(lockClientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
+
 			continue
 		}
 
-		conn, err := m.getOrCreateConnection(msg, lockClientConn, &token)
+		var tokenPtr *string
+		if token != "" {
+			tokenPtr = &token
+		}
+
+		conn, err := m.getOrCreateConnection(msg, lockClientConn, tokenPtr)
 		if err != nil {
 			m.handleConnectionError(lockClientConn, msg, err)
 
@@ -647,6 +662,7 @@ func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
 	for key, conn := range m.connections {
 		if conn.Client == clientConn {
 			connsToClose = append(connsToClose, conn)
+
 			delete(m.connections, key)
 		}
 	}
@@ -742,6 +758,8 @@ func (m *Multiplexer) sendClientError(clientConn *WSConnLock, clusterID, path, q
 
 	errorMsg := Message{
 		ClusterID: clusterID,
+		Path:      path,
+		Query:     query,
 		UserID:    userID,
 		Data:      string(jsonData),
 		Type:      "ERROR",

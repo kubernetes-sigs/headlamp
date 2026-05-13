@@ -393,11 +393,13 @@ func TestMonitorConnection(t *testing.T) {
 	}()
 
 	time.Sleep(100 * time.Millisecond)
+
 	select {
 	case <-conn.Done:
 	default:
 		close(conn.Done)
 	}
+
 	<-done
 
 	assert.Equal(t, StateClosed, conn.Status.State)
@@ -1078,6 +1080,7 @@ func TestUpdateStatus_WithError(t *testing.T) {
 	default:
 		close(conn.Done)
 	}
+
 	conn.closed = true // Mark connection as closed
 
 	// Try to update state after close - should not change
@@ -1133,6 +1136,7 @@ func TestMonitorConnection_ReconnectFailure(t *testing.T) {
 	default:
 		close(conn.Done)
 	}
+
 	<-done
 }
 
@@ -1157,29 +1161,6 @@ func TestHandleClientWebSocket_InvalidMessages(t *testing.T) {
 	err = ws.WriteMessage(websocket.TextMessage, []byte("invalid json"))
 	require.NoError(t, err)
 
-	// Should receive an error message or close
-	_, message, err := ws.ReadMessage()
-	if err != nil {
-		// Connection may be closed due to error
-		if !websocket.IsCloseError(err, websocket.CloseAbnormalClosure) {
-			t.Errorf("expected abnormal closure, got %v", err)
-		}
-	} else {
-		assert.Contains(t, string(message), "error")
-	}
-
-	_ = ws.Close()
-
-	// Test invalid message type with new connection
-	ws, resp, err = websocket.DefaultDialer.Dial(wsURL, nil)
-	require.NoError(t, err)
-
-	if resp != nil && resp.Body != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-
-	defer func() { _ = ws.Close() }()
-
 	err = ws.WriteJSON(Message{
 		Type:      "INVALID_TYPE",
 		ClusterID: "test-cluster",
@@ -1189,16 +1170,11 @@ func TestHandleClientWebSocket_InvalidMessages(t *testing.T) {
 
 	require.NoError(t, err)
 
-	// Should receive an error message or close
-	_, message, err = ws.ReadMessage()
-	if err != nil {
-		// Connection may be closed due to error
-		if !websocket.IsCloseError(err, websocket.CloseAbnormalClosure) {
-			t.Errorf("expected abnormal closure, got %v", err)
-		}
-	} else {
-		assert.Contains(t, string(message), "error")
-	}
+	_, message, err := ws.ReadMessage()
+	require.NoError(t, err)
+	assert.Contains(t, string(message), "ERROR")
+
+	_ = ws.Close()
 }
 
 func TestSendIfNewResourceVersion_VersionComparison(t *testing.T) {

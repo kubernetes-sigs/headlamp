@@ -299,6 +299,38 @@ export const WebSocketManager = {
         return;
       }
 
+      // Handle ERROR messages from backend
+      if (data.type === 'ERROR') {
+        let errorMessage = 'Unknown error';
+        try {
+          const parsedData = data.data ? JSON.parse(data.data) : {};
+          errorMessage = parsedData.error || errorMessage;
+        } catch (e) {
+          errorMessage = data.data || errorMessage;
+        }
+
+        const update = {
+          type: 'ERROR',
+          object: {
+            kind: 'Status',
+            status: 'Failure',
+            message: errorMessage,
+          },
+        };
+
+        const listeners = this.listeners.get(key);
+        if (listeners) {
+          for (const listener of listeners) {
+            try {
+              listener(update);
+            } catch (err) {
+              console.error('Failed to process WebSocket error message:', err);
+            }
+          }
+        }
+        return;
+      }
+
       // Parse and validate update data
       let update;
       try {
