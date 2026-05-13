@@ -46,7 +46,7 @@ export interface FormField {
   /** Display label for the field. */
   label: string;
   /** Input type – defaults to 'text'. */
-  type?: 'text' | 'labels' | 'select' | 'containers' | 'namespace';
+  type?: 'text' | 'labels' | 'select' | 'containers' | 'namespace' | 'single-field';
   /** Whether the field is required. */
   required?: boolean;
   /** Helper text displayed below the field. */
@@ -55,6 +55,7 @@ export interface FormField {
   options?: SelectOption[];
   /** Extra top margin (theme spacing units) to visually separate from the field above. */
   spacingTop?: number;
+  multiple?: boolean;
 }
 
 /** A labelled group of fields. */
@@ -122,11 +123,12 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
         return (
           <FormTextField
             label={field.label}
-            value={value ?? ''}
+            value={value ?? (field.multiple ? [] : '')}
             onChange={e => handleFieldChange(field.path, e.target.value)}
             required={field.required}
             helperText={field.helperText}
             select
+            SelectProps={{ multiple: field.multiple }}
           >
             {(field.options ?? []).map(opt => (
               <MenuItem key={opt.value} value={opt.value}>
@@ -134,6 +136,16 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
               </MenuItem>
             ))}
           </FormTextField>
+        );
+      case 'single-field':
+        return (
+          <AddFormField
+            label={field.label}
+            value={value}
+            onChange={val => handleFieldChange(field.path, val)}
+            required={field.required}
+            helperText={field.helperText}
+          />
         );
       default:
         return (
@@ -533,6 +545,58 @@ export function ContainerTextField(props: ContainerTextFieldProps) {
         </Button>
       </Box>
     </Box>
+  );
+}
+
+export interface AddFormFieldProps {
+  value: string | undefined;
+  onChange: (value: string | undefined) => void;
+  label?: string;
+  required?: boolean;
+  helperText?: string;
+}
+
+export function AddFormField(props: AddFormFieldProps) {
+  const { value, onChange, label, required, helperText } = props;
+  const { t } = useTranslation(['translation']);
+
+  const isActive = value !== undefined;
+
+  return isActive ? (
+    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+      <FormTextField
+        label={label}
+        value={value ?? ''}
+        onChange={e => onChange(e.target.value)}
+        required={required}
+        helperText={helperText}
+      />
+
+      <IconButton
+        size="small"
+        onClick={() => {
+          onChange(undefined);
+        }}
+        aria-label={t('translation|Remove {{ label }}', { label })}
+      >
+        <Icon icon="mdi:close-circle" width={24} height={24} />
+      </IconButton>
+    </Box>
+  ) : (
+    <Button
+      size="small"
+      color="primary"
+      onClick={() => {
+        onChange('');
+      }}
+      aria-label={t('translation|Add {{ label }}', { label })}
+    >
+      <Icon icon="mdi:plus-circle" width={24} height={24} />
+
+      <Typography variant="body2" sx={{ ml: 0.5 }}>
+        {t('translation|Add {{ label }}', { label })}
+      </Typography>
+    </Button>
   );
 }
 

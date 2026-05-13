@@ -25,7 +25,9 @@ import { alpha } from '@mui/system';
 import * as yaml from 'js-yaml';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import CreatePVCForm from '../../../components/storage/CreatePVCForm';
 import { useSelectedClusters } from '../../../lib/k8s';
+import PersistentVolumeClaim from '../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../lib/k8s/pod';
 import { Activity } from '../../activity/Activity';
 import CreatePodForm from '../../pod/CreatePodForm';
@@ -34,6 +36,7 @@ import EditorDialog from './EditorDialog';
 
 export const RESOURCE_DEFINITIONS = {
   Pod: { class: Pod, form: CreatePodForm },
+  PersistentVolumeClaim: { class: PersistentVolumeClaim, form: CreatePVCForm },
 };
 
 export type ResourceType = keyof typeof RESOURCE_DEFINITIONS;
