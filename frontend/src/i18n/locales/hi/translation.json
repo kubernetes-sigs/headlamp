@@ -633,6 +633,7 @@
   "Attaching to existing debug container...": "मौजूदा डिबग कंटेनर से जुड़ा जा रहा है...",
   "Creating ephemeral debug container...": "अस्थायी डिबग कंटेनर बनाया जा रहा है...",
   "Failed to create debug container: {{message}}": "डिबग कंटेनर बनाने में विफल: {{message}}",
+  "Attaching to debug container...": "",
   "Failed to connect…\r\n": "कनेक्ट करने में विफल…\r\n",
   "Press Ctrl+D or type \"exit\" to terminate the ephemeral container. If you don't, the container will stay running.": "अस्थायी कंटेनर समाप्त करने के लिए Ctrl+D दबाएँ या \"exit\" टाइप करें। यदि आप ऐसा नहीं करते, तो कंटेनर चलता रहेगा।",
   "Max Unavailable": "अधिकतम अनुपलब्ध",
