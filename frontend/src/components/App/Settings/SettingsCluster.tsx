@@ -521,7 +521,7 @@ export default function SettingsCluster() {
                           <InlineIcon icon="mdi:plus-circle" />
                         </IconButton>
                       ),
-                      onKeyPress: event => {
+                      onKeyDown: event => {
                         if (event.key === 'Enter') {
                           storeNewAllowedNamespace(newAllowedNamespace);
                         }

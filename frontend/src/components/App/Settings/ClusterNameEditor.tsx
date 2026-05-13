@@ -252,7 +252,7 @@ export function ClusterNameEditor({
                     </ConfirmButton>
                   </Box>
                 ),
-                onKeyPress: event => {
+                onKeyDown: event => {
                   if (event.key === 'Enter' && isValidCurrentName) {
                     handleUpdateClusterName(source);
                   }
