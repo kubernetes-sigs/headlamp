@@ -60,7 +60,7 @@ export interface ListResponse<K extends KubeObject> {
  * @template K - Type extending KubeObject for the resources being queried
  * @param kubeObjectClass - The class constructor used to instantiate each item in the list
  * @param endpoint - The Kubernetes API endpoint information for the resource type
- * @param namespace - Optional namespace to filter the list. If undefined, fetches from all namespaces.
+ * @param namespace - Optional namespace to filter the list. If undefined, namespaced resources are fetched across all namespaces, while cluster-scoped resources are fetched at cluster scope.
  * @param cluster - The name of the cluster to query
  * @param queryParams - Additional Kubernetes API query parameters (e.g., labelSelector, fieldSelector)
  * @param refetchInterval - Optional interval in milliseconds for automatic background refetching
@@ -388,8 +388,9 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
 
 /**
  * A utility function that prepares an array of cluster/namespace request configurations.
- * It intelligently calculates which namespaces to query for each cluster by intersecting
- * the requested namespaces with the user's allowed namespaces, and handles
+ * It calculates which namespaces to query for each cluster by intersecting
+ * the requested namespaces with the user's allowed namespaces (if an allowlist is configured).
+ * An empty allowlist means all requested namespaces are queried unchanged. It also handles
  * cluster-scoped vs. namespace-scoped resources.
  *
  * @param clusters - Array of cluster names to include in the requests
@@ -546,8 +547,8 @@ export function useKubeObjectList<K extends KubeObject>({
     .filter(
       data =>
         listsToWatch.find(
-          // resourceVersion is intentionally omitted to avoid recreating WS connection when list is updated.
-          // The WebSocket manager handles version tracking internally after the connection is established.
+          // Watch identity here is based on cluster/namespace only; WebSocketManager reuses the
+          // original subscription query and does not update resource versions internally.
           watching => watching.cluster === data?.cluster && watching.namespace === data.namespace
         ) === undefined
     )
