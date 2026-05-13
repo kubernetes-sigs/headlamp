@@ -857,9 +857,20 @@ function quitServerProcess() {
   }
 
   serverProcess.stdin.destroy();
-  // @todo: should we try and end the process a bit more gracefully?
-  //       What happens if the kill signal doesn't kill it?
-  serverProcess.kill();
+
+  if (process.platform === 'win32') {
+    // On Windows, use taskkill with /T to kill the entire process tree.
+    // serverProcess.kill() only terminates the root process, leaving
+    // detached children (spawned with detached: true) running.
+    try {
+      execSync('taskkill /pid ' + serverProcess.pid + ' /T /F');
+    } catch (e) {
+      console.error('Failed to kill server process tree with taskkill:', e);
+      serverProcess.kill();
+    }
+  } else {
+    serverProcess.kill();
+  }
 
   serverProcess = null;
 }
@@ -1606,6 +1617,7 @@ function startElectron() {
       app.on('second-instance', () => {
         // Someone tried to run a second instance, we should focus our window.
         if (mainWindow) {
+          mainWindow.show();
           if (mainWindow.isMinimized()) mainWindow.restore();
           mainWindow.focus();
         }
