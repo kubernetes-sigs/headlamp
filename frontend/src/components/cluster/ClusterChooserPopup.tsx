@@ -109,7 +109,9 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
   const [recentClusters, clustersToShow] = React.useMemo(() => {
     let allClusters = Object.values(clusters || {});
     if (filter !== '') {
-      allClusters = allClusters.filter(cluster => cluster.name.includes(filter));
+      allClusters = allClusters.filter(cluster =>
+        cluster.name.toLowerCase().includes(filter.toLowerCase())
+      );
     }
 
     const recentClustersNames = !!filter ? [] : getRecentClusters();
