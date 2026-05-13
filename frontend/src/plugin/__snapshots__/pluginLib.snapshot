@@ -492,7 +492,6 @@
   },
   "Lodash": Function {
     "default": [Function],
-    "module.exports": [Function],
   },
   "MonacoEditor": "Present",
   "MuiCore": "Present",

@@ -1384,52 +1384,6 @@
                               />
                             </a>
                           </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Validating Admission Policies
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Validating Admission Policy Bindings
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
                         </ul>
                       </div>
                     </div>
@@ -1534,7 +1488,31 @@
                   >
                     <div
                       class="MuiBox-root css-0"
-                    />
+                    >
+                      <div
+                        class="MuiBox-root css-yncjbp"
+                      >
+                        <button
+                          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-751h87-MuiButtonBase-root-MuiButton-root"
+                          tabindex="0"
+                          type="button"
+                        >
+                          <div
+                            class="MuiBox-root css-70qvj9"
+                          >
+                            <div
+                              class="MuiBox-root css-0"
+                            />
+                            <div
+                              class="MuiBox-root css-0"
+                            />
+                          </div>
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
+                      </div>
+                    </div>
                     <div
                       class="MuiBox-root css-0"
                     >
