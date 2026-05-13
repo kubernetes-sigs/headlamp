@@ -247,6 +247,7 @@ export function DateLabel(props: DateLabelProps) {
       hoverInfo={localeDate(date)}
       icon="mdi:calendar"
       iconProps={iconProps}
+      labelFirst
     />
   );
 }
