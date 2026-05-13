@@ -72,6 +72,7 @@ const dependenciesToNotCopy = [
   'resize-observer-polyfill',
   'vitest-canvas-mock',
   '@tanstack/react-query-devtools',
+  'remark-gfm',
 ];
 
 // Dependencies that can have different versions
