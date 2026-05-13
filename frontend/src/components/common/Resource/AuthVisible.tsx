@@ -101,7 +101,6 @@ export default function AuthVisible(props: AuthVisibleProps) {
         reason: data.status?.reason ?? '',
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
   if (!isAuthVerbValid) {
