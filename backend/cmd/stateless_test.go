@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -110,6 +111,42 @@ func TestStatelessClustersKubeConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseKubeConfigInvalidJSONReturnsBadRequest(t *testing.T) {
+	cache := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:          false,
+				KubeConfigPath:        "",
+				EnableDynamicClusters: true,
+				KubeConfigStore:       kubeConfigStore,
+			},
+			Cache: cache,
+		},
+	}
+	handler := createHeadlampHandler(context.Background(), &c)
+
+	token := uuid.New().String()
+	require.NoError(t, os.Setenv("HEADLAMP_BACKEND_TOKEN", token))
+	defer func() { _ = os.Unsetenv("HEADLAMP_BACKEND_TOKEN") }()
+
+	req := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/parseKubeConfig",
+		strings.NewReader("{"),
+	)
+	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", token)
+
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Equal(t, "Invalid JSON request body\n", resp.Body.String())
+	assert.NotContains(t, resp.Body.String(), "clusters")
 }
 
 //nolint:funlen
