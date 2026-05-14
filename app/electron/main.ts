@@ -844,7 +844,7 @@ let intentionalQuit: boolean;
 let serverProcessQuit: boolean;
 
 function quitServerProcess() {
-  if ((!serverProcess || serverProcessQuit) && process.platform !== 'win32') {
+  if (!serverProcess || serverProcessQuit) {
     console.error('server process already not running');
     return;
   }
