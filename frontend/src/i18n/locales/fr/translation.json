@@ -351,7 +351,7 @@
   "Running dry run for {{ newItemName }}…": "Exécution à blanc pour {{ newItemName }}…",
   "Cancelled dry run for {{ newItemName }}.": "Exécution à blanc annulée pour {{ newItemName }}.",
   "Dry run passed for {{ newItemName }}.": "Exécution à blanc réussie pour {{ newItemName }}.",
-  "Dry run failed for {{ newItemName }}.": "Échec de l'exécution à blanc pour {{ newItemName }",
+  "Dry run failed for {{ newItemName }}.": "Échec de l'exécution à blanc pour {{ newItemName }}.",
   "Applying {{ newItemName }}…": "Application {{ newItemName }}…",
   "Cancelled applying {{ newItemName }}.": "Annulation de l'application {{ newItemName }}.",
   "Applied {{ newItemName }}.": "Appliqué {{ newItemName }}.",
