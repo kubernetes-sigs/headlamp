@@ -845,7 +845,7 @@ let serverProcessQuit: boolean;
 
 function quitServerProcess() {
   if (!serverProcess || serverProcessQuit) {
-    console.error('server process already not running');
+    console.info('server process already not running');
     return;
   }
 
@@ -1855,6 +1855,8 @@ if (!isRunningScript) {
  * @param  {ChildProcess} serverProcess to attach the error handlers to.
  */
 function attachServerEventHandlers(serverProcess: ChildProcessWithoutNullStreams) {
+  serverProcessQuit = false;
+
   serverProcess.on('error', err => {
     console.error(`server process failed to start: ${err}`);
   });
