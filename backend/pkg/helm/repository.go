@@ -40,7 +40,10 @@ const (
 	defaultNewConfigFolderMode os.FileMode = os.FileMode(0o770)
 )
 
-var errRepositoryNotFound = errors.New("repository not found")
+var (
+	errRepositoryNotFound        = errors.New("repository not found")
+	errRepositoryLockNotAcquired = errors.New("repository lock not acquired")
+)
 
 // add repository.
 type AddUpdateRepoRequest struct {
@@ -94,6 +97,18 @@ func lockRepositoryFile(lockCtx context.Context, repositoryConfig string) (bool,
 	return locked, fileLock, err
 }
 
+func ensureRepositoryFileLocked(locked bool, err error) error {
+	if err != nil {
+		return err
+	}
+
+	if !locked {
+		return errRepositoryLockNotAcquired
+	}
+
+	return nil
+}
+
 const timeoutForLock = 30 * time.Second
 
 // Adds a repository with name, url to the helm config. Returns error if there is one.
@@ -108,19 +123,17 @@ func addRepository(name string, url string, settings *cli.EnvSettings) error {
 	defer cancel()
 
 	locked, fileLock, err := lockRepositoryFile(lockCtx, settings.RepositoryConfig)
-	if err == nil && locked {
-		defer func() {
-			err := fileLock.Unlock()
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
-			}
-		}()
-	}
-
-	if err != nil {
+	if err = ensureRepositoryFileLocked(locked, err); err != nil {
 		logger.Log(logger.LevelError, nil, err, "locking repository config file")
 		return err
 	}
+
+	defer func() {
+		err := fileLock.Unlock()
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
+		}
+	}()
 
 	// read repo file
 	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
@@ -288,19 +301,17 @@ func RemoveRepository(name string, settings *cli.EnvSettings) error {
 	defer cancel()
 
 	locked, fileLock, err := lockRepositoryFile(lockCtx, settings.RepositoryConfig)
-	if err == nil && locked {
-		defer func() {
-			err := fileLock.Unlock()
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
-			}
-		}()
-	}
-
-	if err != nil {
+	if err = ensureRepositoryFileLocked(locked, err); err != nil {
 		logger.Log(logger.LevelError, nil, err, "locking repository config file")
 		return err
 	}
+
+	defer func() {
+		err := fileLock.Unlock()
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
+		}
+	}()
 
 	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
 	if err != nil {
@@ -358,19 +369,17 @@ func UpdateRepository(name, url string, settings *cli.EnvSettings) error {
 	defer cancel()
 
 	locked, fileLock, err := lockRepositoryFile(lockCtx, settings.RepositoryConfig)
-	if err == nil && locked {
-		defer func() {
-			err := fileLock.Unlock()
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
-			}
-		}()
-	}
-
-	if err != nil {
+	if err = ensureRepositoryFileLocked(locked, err); err != nil {
 		logger.Log(logger.LevelError, nil, err, "locking repository config file")
 		return err
 	}
+
+	defer func() {
+		err := fileLock.Unlock()
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
+		}
+	}()
 
 	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
 	if err != nil {
