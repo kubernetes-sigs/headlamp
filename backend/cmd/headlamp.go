@@ -777,14 +777,20 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		// state should be unique per request, cryptographically secure random, url safe
-		state := func() string {
+		state, err := func() (string, error) {
 			b := make([]byte, 32)
 			if _, err := rand.Read(b); err != nil {
-				panic(err)
+				return "", fmt.Errorf("generating OIDC state: %w", err)
 			}
 
-			return base64.RawURLEncoding.EncodeToString(b)
+			return base64.RawURLEncoding.EncodeToString(b), nil
 		}()
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"cluster": cluster}, err, "failed to generate OIDC state")
+			http.Error(w, "failed to generate OIDC state", http.StatusInternalServerError)
+
+			return
+		}
 
 		entry := &OauthConfig{
 			Config:   oauthConfig,
