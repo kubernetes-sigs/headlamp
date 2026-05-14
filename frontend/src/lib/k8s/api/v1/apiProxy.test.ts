@@ -893,10 +893,12 @@ describe('apiProxy', () => {
     });
 
     it('Successfully returns user info from /me API', async () => {
-      nock(baseApiUrl).get(`/clusters/${clusterName}${mePath}`).reply(200, {
-        username: 'me-user',
-        groups: ['me-group'],
-      });
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}${mePath}`)
+        .reply(200, {
+          username: 'me-user',
+          groups: ['me-group'],
+        });
 
       const userInfo = await apiProxy.getClusterUserInfo(clusterName);
       expect(userInfo).toEqual({ username: 'me-user', groups: ['me-group'] });
