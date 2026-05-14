@@ -1169,6 +1169,22 @@ func TestOIDCSecretFilesEnvironmentVariables(t *testing.T) {
 	})
 }
 
+func TestWatchPluginsChangesInClusterDefaults(t *testing.T) {
+	require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_WATCH_PLUGINS_CHANGES"))
+
+	conf, err := config.Parse([]string{"go run ./cmd", "--in-cluster"})
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+	assert.Equal(t, false, conf.WatchPluginsChanges)
+}
+
+func TestWatchPluginsChangesInClusterFlagOverride(t *testing.T) {
+	conf, err := config.Parse([]string{"go run ./cmd", "--in-cluster", "--watch-plugins-changes=true"})
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+	assert.Equal(t, true, conf.WatchPluginsChanges)
+}
+
 var applyMeDefaultsTests = []struct {
 	name             string
 	usernamePath     string

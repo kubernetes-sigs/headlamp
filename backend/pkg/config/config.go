@@ -448,6 +448,11 @@ func recordExplicitFlags(f *flag.FlagSet) map[string]bool {
 	return explicitFlags
 }
 
+func hasWatchPluginsChangesEnv() bool {
+	_, ok := os.LookupEnv("HEADLAMP_CONFIG_WATCH_PLUGINS_CHANGES")
+	return ok
+}
+
 // loadConfigFromEnv loads config values from environment variables into koanf.
 func loadConfigFromEnv(k *koanf.Koanf) error {
 	err := k.Load(env.Provider("HEADLAMP_CONFIG_", ".", func(s string) string {
@@ -592,11 +597,11 @@ func ParseWithAppNameDefault(args []string, appName string) (*Config, error) {
 	explicitFlags := recordExplicitFlags(f)
 
 	// 4. Load config from environment variables.
-	_, watchPluginsChangesEnvSet := os.LookupEnv("HEADLAMP_CONFIG_WATCH_PLUGINS_CHANGES")
-
 	if err := loadConfigFromEnv(k); err != nil {
 		return nil, err
 	}
+
+	watchPluginsChangesEnvSet := hasWatchPluginsChangesEnv()
 
 	// 5. Reload explicitly-set flags to override env values.
 	if err := reloadExplicitFlags(k, f, explicitFlags); err != nil {
