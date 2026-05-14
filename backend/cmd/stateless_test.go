@@ -131,6 +131,7 @@ func TestParseKubeConfigInvalidJSONReturnsBadRequest(t *testing.T) {
 
 	token := uuid.New().String()
 	require.NoError(t, os.Setenv("HEADLAMP_BACKEND_TOKEN", token))
+
 	defer func() { _ = os.Unsetenv("HEADLAMP_BACKEND_TOKEN") }()
 
 	req := httptest.NewRequestWithContext(
