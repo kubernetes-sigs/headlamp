@@ -3,7 +3,7 @@ package serviceproxy
 import (
 	"context"
 	"fmt"
-	"io"
+	"net/http"
 	"net/url"
 	"path"
 	"strings"
@@ -11,8 +11,9 @@ import (
 
 // ServiceConnection represents a connection to a service.
 type ServiceConnection interface {
-	// Get performs a GET request and streams the response body into w.
-	Get(ctx context.Context, requestURI string, w io.Writer) error
+	// Get performs a GET request and forwards the upstream status code,
+	// Content-Type, and response body into w.
+	Get(ctx context.Context, requestURI string, w http.ResponseWriter) error
 }
 type Connection struct {
 	URI string
@@ -25,9 +26,9 @@ func NewConnection(ps *proxyService) ServiceConnection {
 	}
 }
 
-// Get sends a GET request to the specified URI and streams the response body
-// into w.
-func (c *Connection) Get(ctx context.Context, requestURI string, w io.Writer) error {
+// Get sends a GET request to the specified URI and forwards the upstream
+// status code, Content-Type, and response body into w.
+func (c *Connection) Get(ctx context.Context, requestURI string, w http.ResponseWriter) error {
 	base, err := url.Parse(c.URI)
 	if err != nil {
 		return fmt.Errorf("invalid host uri: %w", err)
