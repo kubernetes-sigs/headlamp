@@ -372,6 +372,8 @@
   "This will discard your changes in the editor. Do you want to proceed?": "Irá descartar as suas modificações no editor. Deseja prosseguir?",
   "Undo Changes": "Desfazer modificações",
   "Dry Run": "",
+  "Namespace Mismatch": "",
+  "The resource(s) you are creating/updating are in a namespace that is not currently filtered, so they will not be visible once created/updated. You might want to remove the filter in order to see the resource. Do you want to proceed?": "",
   "Invalid Secret Reference": "",
   "Invalid Config Map Reference": "",
   "Invalid fieldRef": "",
