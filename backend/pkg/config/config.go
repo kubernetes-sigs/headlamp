@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"flag"
@@ -40,6 +41,7 @@ import (
 const (
 	defaultPort       = 4466
 	defaultSessionTTL = 86400 // 24 hours in seconds
+	maxPort           = 65535
 	osWindows         = "windows"
 )
 
@@ -213,6 +215,10 @@ func (c *Config) validateAPIProxy() error {
 }
 
 func (c *Config) Validate() error {
+	if err := c.validateOptionValues(); err != nil {
+		return err
+	}
+
 	if err := c.validateAppName(); err != nil {
 		return err
 	}
@@ -359,6 +365,43 @@ func (c *Config) validateServiceAccountTokenFlags() error {
 	if c.ServiceAccountTokenPath != "" && !c.UnsafeUseServiceAccountToken {
 		return errors.New("--service-account-token-path requires " +
 			"--unsafe-use-service-account-token to be enabled")
+	}
+
+	return nil
+}
+
+func (c *Config) validateOptionValues() error {
+	if c.Port == 0 || c.Port > maxPort {
+		return fmt.Errorf("port must be between 1 and %d", maxPort)
+	}
+
+	if !isValidLogLevel(c.LogLevel) {
+		return errors.New("log-level must be one of debug, info, warn, or error")
+	}
+
+	return validateTLSPaths(c.TLSCertPath, c.TLSKeyPath)
+}
+
+func isValidLogLevel(logLevel string) bool {
+	switch strings.ToLower(strings.TrimSpace(logLevel)) {
+	case "", "debug", "info", "warn", "error":
+		return true
+	default:
+		return false
+	}
+}
+
+func validateTLSPaths(certPath, keyPath string) error {
+	if certPath == "" && keyPath == "" {
+		return nil
+	}
+
+	if certPath == "" || keyPath == "" {
+		return errors.New("tls-cert-path and tls-key-path must be configured together")
+	}
+
+	if _, err := tls.LoadX509KeyPair(certPath, keyPath); err != nil {
+		return fmt.Errorf("invalid tls certificate or key path: %w", err)
 	}
 
 	return nil

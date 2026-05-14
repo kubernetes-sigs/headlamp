@@ -1322,6 +1322,160 @@ func TestValidateSessionTTL(t *testing.T) {
 	}
 }
 
+func TestValidatePort(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          []string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "port_zero",
+			args:          []string{"go run ./cmd", "--port=0"},
+			expectError:   true,
+			errorContains: "port must be between 1 and 65535",
+		},
+		{
+			name:          "port_above_max",
+			args:          []string{"go run ./cmd", "--port=65536"},
+			expectError:   true,
+			errorContains: "port must be between 1 and 65535",
+		},
+		{
+			name:        "port_max",
+			args:        []string{"go run ./cmd", "--port=65535"},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, conf)
+			}
+		})
+	}
+}
+
+func TestValidateLogLevel(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          []string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "log_level_debug",
+			args:        []string{"go run ./cmd", "--log-level=debug"},
+			expectError: false,
+		},
+		{
+			name:        "log_level_error",
+			args:        []string{"go run ./cmd", "--log-level=error"},
+			expectError: false,
+		},
+		{
+			name:        "log_level_empty",
+			args:        []string{"go run ./cmd", "--log-level="},
+			expectError: false,
+		},
+		{
+			name:        "log_level_whitespace",
+			args:        []string{"go run ./cmd", "--log-level= \t"},
+			expectError: false,
+		},
+		{
+			name:          "log_level_invalid",
+			args:          []string{"go run ./cmd", "--log-level=verbose"},
+			expectError:   true,
+			errorContains: "log-level must be one of debug, info, warn, or error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, conf)
+			}
+		})
+	}
+}
+
+func TestValidateTLSPaths(t *testing.T) {
+	tlsTestDataPath := filepath.Join("..", "..", "cmd", "headlamp_testdata")
+	validCertPath := filepath.Join(tlsTestDataPath, "headlamp.crt")
+	validKeyPath := filepath.Join(tlsTestDataPath, "headlamp.key")
+	missingPath := filepath.Join(t.TempDir(), "missing.pem")
+	tlsArgs := func(certPath, keyPath string) []string {
+		return []string{"go run ./cmd", "--tls-cert-path=" + certPath, "--tls-key-path=" + keyPath}
+	}
+
+	tests := []struct {
+		name          string
+		args          []string
+		errorContains string
+	}{
+		{
+			name:          "tls_cert_without_key",
+			args:          []string{"go run ./cmd", "--tls-cert-path=/tmp/tls.crt"},
+			errorContains: "tls-cert-path and tls-key-path must be configured together",
+		},
+		{
+			name:          "tls_key_without_cert",
+			args:          []string{"go run ./cmd", "--tls-key-path=/tmp/tls.key"},
+			errorContains: "tls-cert-path and tls-key-path must be configured together",
+		},
+		{
+			name: "tls_invalid_pair",
+			args: tlsArgs(
+				filepath.Join(getTestDataPath(), "valid_ca.pem"),
+				filepath.Join(getTestDataPath(), "invalid_ca.pem"),
+			),
+			errorContains: "invalid tls certificate or key path",
+		},
+		{
+			name: "tls_valid_pair",
+			args: tlsArgs(validCertPath, validKeyPath),
+		},
+		{
+			name:          "tls_missing_cert",
+			args:          tlsArgs(missingPath, validKeyPath),
+			errorContains: "invalid tls certificate or key path",
+		},
+		{
+			name:          "tls_missing_key",
+			args:          tlsArgs(validCertPath, missingPath),
+			errorContains: "invalid tls certificate or key path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			if tt.errorContains != "" {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, conf)
+			}
+		})
+	}
+}
+
 var validateTracingTests = []struct {
 	name          string
 	args          []string
