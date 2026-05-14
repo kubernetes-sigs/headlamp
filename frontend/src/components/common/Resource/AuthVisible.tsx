@@ -84,6 +84,8 @@ export default function AuthVisible(props: AuthVisibleProps) {
     },
   });
 
+  const visible = data?.status?.allowed ?? false;
+
   useEffect(() => {
     if (data) {
       onAuthResult?.({
@@ -97,8 +99,6 @@ export default function AuthVisible(props: AuthVisibleProps) {
     console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
     return null;
   }
-
-  const visible = data?.status?.allowed ?? false;
 
   if (!visible) {
     return null;
