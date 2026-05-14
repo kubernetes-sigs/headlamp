@@ -108,19 +108,21 @@ func addRepository(name string, url string, settings *cli.EnvSettings) error {
 	defer cancel()
 
 	locked, fileLock, err := lockRepositoryFile(lockCtx, settings.RepositoryConfig)
-	if err == nil && locked {
-		defer func() {
-			err := fileLock.Unlock()
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
-			}
-		}()
-	}
-
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "locking repository config file")
 		return err
 	}
+
+	if !locked {
+		return errors.New("failed to acquire repository lock")
+	}
+
+	defer func() {
+		err := fileLock.Unlock()
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
+		}
+	}()
 
 	// read repo file
 	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
@@ -288,19 +290,21 @@ func RemoveRepository(name string, settings *cli.EnvSettings) error {
 	defer cancel()
 
 	locked, fileLock, err := lockRepositoryFile(lockCtx, settings.RepositoryConfig)
-	if err == nil && locked {
-		defer func() {
-			err := fileLock.Unlock()
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
-			}
-		}()
-	}
-
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "locking repository config file")
 		return err
 	}
+
+	if !locked {
+		return errors.New("failed to acquire repository lock")
+	}
+
+	defer func() {
+		err := fileLock.Unlock()
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
+		}
+	}()
 
 	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
 	if err != nil {
@@ -358,20 +362,21 @@ func UpdateRepository(name, url string, settings *cli.EnvSettings) error {
 	defer cancel()
 
 	locked, fileLock, err := lockRepositoryFile(lockCtx, settings.RepositoryConfig)
-	if err == nil && locked {
-		defer func() {
-			err := fileLock.Unlock()
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
-			}
-		}()
-	}
-
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "locking repository config file")
 		return err
 	}
 
+	if !locked {
+		return errors.New("failed to acquire repository lock")
+	}
+
+	defer func() {
+		err := fileLock.Unlock()
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
+		}
+	}()
 	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "reading repo file")
