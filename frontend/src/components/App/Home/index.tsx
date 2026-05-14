@@ -60,8 +60,9 @@ interface HomeComponentProps {
 const maxWarnings = 50;
 
 function renderWarningsText(warnings: ReturnType<typeof useEventWarningList>, clusterName: string) {
-  const numWarnings =
-    (!!warnings[clusterName]?.error && -1) || (warnings[clusterName]?.warnings?.length ?? -1);
+  const numWarnings = warnings[clusterName]?.error
+    ? -1
+    : warnings[clusterName]?.warnings?.length ?? -1;
 
   if (numWarnings === -1) {
     return '⋯';
