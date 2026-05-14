@@ -866,13 +866,23 @@ function quitServerProcess() {
     try {
       if (serverProcess.pid !== undefined) {
         killProcess(serverProcess.pid);
+      } else {
+        serverProcess.kill();
       }
     } catch (e) {
       console.error('Failed to kill server process tree:', e);
-      serverProcess.kill();
+      try {
+        serverProcess.kill();
+      } catch (fallbackErr) {
+        console.error('Failed to fallback kill server process:', fallbackErr);
+      }
     }
   } else {
-    serverProcess.kill();
+    try {
+      serverProcess.kill();
+    } catch (e) {
+      console.error('Failed to kill server process:', e);
+    }
   }
 
   serverProcess = null;
