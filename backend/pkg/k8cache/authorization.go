@@ -50,10 +50,30 @@ type CachedClientSet struct {
 	lastUsed  time.Time
 }
 
+type inFlightEntry struct {
+	waitCh chan struct{}
+	cs     *kubernetes.Clientset
+	err    error
+}
+
 var (
 	clientsetCache = make(map[string]*CachedClientSet)
 	mu             sync.Mutex
 	janitorOnce    sync.Once
+
+	// inFlight keeps track of clientsets currently being created to avoid redundant work.
+	inFlight = make(map[string]*inFlightEntry)
+
+	// hookMu protects testingInFlightWait and clientsetCreator from concurrent access.
+	hookMu sync.RWMutex
+
+	// testingInFlightWait is a hook for testing synchronization.
+	testingInFlightWait = func() {}
+
+	// clientsetCreator is a hook for testing de-duplication.
+	clientsetCreator = func(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
+		return k.ClientSetWithToken(token)
+	}
 )
 
 // startJanitor launches a background goroutine (exactly once) that
@@ -99,6 +119,78 @@ func evictExpiredClientsets() {
 	}
 }
 
+// getCachedClientSet retrieves a clientset from the cache if it's valid and not expired.
+func getCachedClientSet(cacheKey string) (*kubernetes.Clientset, bool) {
+	mu.Lock()
+
+	cs, found := clientsetCache[cacheKey]
+	if !found {
+		mu.Unlock()
+		return nil, false
+	}
+
+	now := time.Now()
+
+	if now.Sub(cs.lastUsed) > clientsetTTL {
+		delete(clientsetCache, cacheKey)
+
+		// Extract cluster name from cacheKey (format: "clusterName\x00token")
+		clusterName := strings.Split(cacheKey, "\x00")[0]
+		mu.Unlock()
+
+		logger.Log(logger.LevelInfo, nil, nil,
+			fmt.Sprintf("expired clientset for cluster %s was deleted", clusterName))
+
+		return nil, false
+	}
+
+	cs.lastUsed = now
+	mu.Unlock()
+
+	return cs.clientset, true
+}
+
+// createAndCacheClientSet creates a new clientset and stores it in the cache.
+func createAndCacheClientSet(
+	k *kubeconfig.Context,
+	token, cacheKey string,
+	contextKey []string,
+) (*kubernetes.Clientset, error) {
+	hookMu.RLock()
+
+	creator := clientsetCreator
+
+	hookMu.RUnlock()
+
+	cs, err := creator(k, token)
+	if err != nil {
+		return nil, fmt.Errorf("error while creating clientset for cluster %s: %w", contextKey[1], err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	// Double-check: another goroutine might have created a clientset for the same key
+	// while we were unlocked (though inFlight should prevent this for the same key,
+	// it's good practice for general double-checked locking).
+	if existing, found := clientsetCache[cacheKey]; found {
+		now := time.Now()
+		if now.Sub(existing.lastUsed) <= clientsetTTL {
+			// Reuse the existing one and discard ours.
+			existing.lastUsed = now
+
+			return existing.clientset, nil
+		}
+	}
+
+	clientsetCache[cacheKey] = &CachedClientSet{
+		clientset: cs,
+		lastUsed:  time.Now(),
+	}
+
+	return cs, nil
+}
+
 // GetClientSet returns *kubernetes.ClientSet and error which is further used for creating
 // SSAR requests to k8s server to authorize user. GetClientSet uses kubeconfig.Context and
 // authentication bearer token which will help to create clientSet based on the user's
@@ -111,36 +203,64 @@ func GetClientSet(k *kubeconfig.Context, token string) (*kubernetes.Clientset, e
 
 	startJanitor()
 
-	cacheKey := fmt.Sprintf("%s-%s", contextKey[1], token)
+	cacheKey := contextKey[1] + "\x00" + token
+
+	// Check cache first
+	if cs, found := getCachedClientSet(cacheKey); found {
+		return cs, nil
+	}
 
 	mu.Lock()
-	defer mu.Unlock()
 
+	// Re-check cache under lock before deciding to create
 	if cs, found := clientsetCache[cacheKey]; found {
 		now := time.Now()
-
-		// If the clientset was expired then delete the existing clientset resulting only fresh clientset.
-		if now.Sub(cs.lastUsed) > clientsetTTL {
-			delete(clientsetCache, cacheKey)
-			logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf("expired clientset for cluster %s was deleted", contextKey[1]))
-		} else {
-			// If the clientset is not expired then refresh its last-used time and return it.
+		if now.Sub(cs.lastUsed) <= clientsetTTL {
 			cs.lastUsed = now
+			mu.Unlock()
+
 			return cs.clientset, nil
 		}
 	}
 
-	cs, err := k.ClientSetWithToken(token)
-	if err != nil {
-		return nil, fmt.Errorf("error while creating clientset for cluster %s: %w", contextKey[1], err)
+	// If another goroutine is already creating this clientset, wait for it.
+	if entry, ok := inFlight[cacheKey]; ok {
+		mu.Unlock()
+
+		hookMu.RLock()
+
+		waitHook := testingInFlightWait
+
+		hookMu.RUnlock()
+
+		waitHook()
+		<-entry.waitCh
+
+		// Return the shared result.
+		return entry.cs, entry.err
 	}
 
-	clientsetCache[cacheKey] = &CachedClientSet{
-		clientset: cs,
-		lastUsed:  time.Now(),
+	// We are the one to create it.
+	entry := &inFlightEntry{
+		waitCh: make(chan struct{}),
 	}
+	inFlight[cacheKey] = entry
 
-	return cs, nil
+	mu.Unlock()
+
+	cs, err := createAndCacheClientSet(k, token, cacheKey, contextKey)
+
+	mu.Lock()
+
+	entry.cs = cs
+	entry.err = err
+
+	delete(inFlight, cacheKey)
+	close(entry.waitCh)
+
+	mu.Unlock()
+
+	return cs, err
 }
 
 // GetKindAndVerb extracts the Kubernetes resource kind and intended verb (e.g., get, watch)

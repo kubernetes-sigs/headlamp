@@ -87,3 +87,41 @@ func ClientsetCacheLen() int {
 
 	return len(clientsetCache)
 }
+
+// ResetInFlight clears the inFlight map for test isolation.
+func ResetInFlight() {
+	mu.Lock()
+	defer mu.Unlock()
+
+	inFlight = make(map[string]*inFlightEntry)
+}
+
+// SetClientsetCreator sets a custom clientset creator function for testing.
+// It returns a function to restore the original creator.
+func SetClientsetCreator(fn func(*kubeconfig.Context, string) (*kubernetes.Clientset, error)) func() {
+	hookMu.Lock()
+	original := clientsetCreator
+	clientsetCreator = fn
+	hookMu.Unlock()
+
+	return func() {
+		hookMu.Lock()
+		clientsetCreator = original
+		hookMu.Unlock()
+	}
+}
+
+// SetTestingInFlightWait sets a custom wait hook for testing.
+// It returns a function to restore the original hook.
+func SetTestingInFlightWait(fn func()) func() {
+	hookMu.Lock()
+	original := testingInFlightWait
+	testingInFlightWait = fn
+	hookMu.Unlock()
+
+	return func() {
+		hookMu.Lock()
+		testingInFlightWait = original
+		hookMu.Unlock()
+	}
+}

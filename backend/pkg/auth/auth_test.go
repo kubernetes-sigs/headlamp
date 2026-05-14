@@ -820,7 +820,9 @@ func TestRefreshAndCacheNewToken_ProviderError(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, &fakeCache{}, "id_token", "OLD", srv.URL, "")
+	_, err := auth.RefreshAndCacheNewToken(
+		context.Background(), config, &fakeCache{}, "id_token", "OLD", srv.URL, "",
+	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "getting provider")
 }
