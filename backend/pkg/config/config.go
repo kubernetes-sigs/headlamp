@@ -1,6 +1,7 @@
 package config
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"flag"
@@ -22,6 +23,7 @@ import (
 const (
 	defaultPort       = 4466
 	defaultSessionTTL = 86400 // 24 hours in seconds
+	maxPort           = 65535
 	osWindows         = "windows"
 )
 
@@ -96,6 +98,18 @@ type Config struct {
 }
 
 func (c *Config) Validate() error {
+	if c.Port == 0 || c.Port > maxPort {
+		return fmt.Errorf("port must be between 1 and %d", maxPort)
+	}
+
+	if !isValidLogLevel(c.LogLevel) {
+		return errors.New("log-level must be one of debug, info, warn, or error")
+	}
+
+	if err := validateTLSPaths(c.TLSCertPath, c.TLSKeyPath); err != nil {
+		return err
+	}
+
 	if !c.InCluster && !c.OidcUseCookie && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
 		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
 		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
@@ -151,6 +165,31 @@ func (c *Config) Validate() error {
 			(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
 			return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
 		}
+	}
+
+	return nil
+}
+
+func isValidLogLevel(logLevel string) bool {
+	switch strings.ToLower(strings.TrimSpace(logLevel)) {
+	case "debug", "info", "warn", "error":
+		return true
+	default:
+		return false
+	}
+}
+
+func validateTLSPaths(certPath, keyPath string) error {
+	if certPath == "" && keyPath == "" {
+		return nil
+	}
+
+	if certPath == "" || keyPath == "" {
+		return errors.New("tls-cert-path and tls-key-path must be configured together")
+	}
+
+	if _, err := tls.LoadX509KeyPair(certPath, keyPath); err != nil {
+		return fmt.Errorf("invalid tls certificate or key path: %w", err)
 	}
 
 	return nil
