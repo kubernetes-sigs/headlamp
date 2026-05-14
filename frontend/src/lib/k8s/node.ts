@@ -80,10 +80,7 @@ export function useNodeMetrics(cluster?: string): [KubeMetrics[] | null, ApiErro
 
   function setMetrics(data: KubeMetrics[]) {
     setNodeMetrics(data);
-
-    if (data !== null) {
-      setError(null);
-    }
+    setError(null);
   }
 
   useConnectApi(
@@ -103,10 +100,7 @@ export function useNodeSummaryStats(
 
   function setStats(stats: KubeNodeSummaryStats) {
     setSummaryStats(stats);
-
-    if (stats !== null) {
-      setError(null);
-    }
+    setError(null);
   }
 
   useConnectApi(nodeSummaryStats.bind(null, nodeName || '', setStats, setError, cluster));
@@ -119,6 +113,10 @@ class Node extends KubeObject<KubeNode> {
   static apiName = 'nodes';
   static apiVersion = 'v1';
   static isNamespaced = false;
+
+  static useMetrics = useNodeMetrics;
+
+  static useNodeSummaryStats = useNodeSummaryStats;
 
   get status(): KubeNode['status'] {
     return this.jsonData.status;
