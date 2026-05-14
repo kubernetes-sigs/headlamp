@@ -38,6 +38,8 @@ export interface ResourceListViewWithResourceClassProps<ItemClass extends KubeOb
   backLink?: BackLinkProps['to'] | boolean;
   headerProps?: Omit<SectionFilterHeaderProps, 'title'>;
   resourceClass: ItemClass;
+  /** Forwarded to {@link ResourceTable} when listing from a resource class. */
+  ignoreGlobalNamespaceFilter?: boolean;
 }
 
 export default function ResourceListView<ItemClass extends KubeObjectClass>(

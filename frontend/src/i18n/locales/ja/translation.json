@@ -843,5 +843,17 @@
   "Toggle column filters in tables": "",
   "Log Viewer Search": "",
   "Toggle search in log viewer": "",
+  "Generic resources": "汎用リソース",
+  "Filter": "フィルター",
+  "API version": "API バージョン",
+  "Scope": "スコープ",
+  "Namespaced": "名前空間",
+  "Cluster-wide": "クラスター全体",
+  "Resource": "リソース",
+  "Invalid or unknown resource type. Use the generic resources browser.": "無効または不明なリソース種別です。汎用リソースブラウザを使用してください。",
+  "Invalid or unknown resource type.": "無効または不明なリソース種別です。",
+  "Error loading resource: {{message}}": "リソースの読み込みエラー: {{message}}",
+  "No API resources were discovered.": "API リソースが見つかりませんでした。",
+  "No resources match the filter.": "フィルターに一致するリソースがありません。",
   "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_one": "{{ eventDate }} ({{ firstEventDate }} 以来 {{ count }} 回)"
 }

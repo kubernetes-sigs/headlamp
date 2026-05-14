@@ -1,7 +1,5 @@
 <body>
-  <div
-    aria-hidden="true"
-  >
+  <div>
     <div
       class="MuiSnackbar-root MuiSnackbar-anchorOriginBottomRight css-1mdvdtb-MuiSnackbar-root"
       role="presentation"
@@ -16,60 +14,7 @@
         <div
           class="MuiSnackbarContent-message css-1exqwzz-MuiSnackbarContent-message"
         >
-          An update is available
-        </div>
-        <div
-          class="MuiSnackbarContent-action css-1kr9x0n-MuiSnackbarContent-action"
-        >
-          <div
-            class="MuiBox-root css-70qvj9"
-          >
-            <div
-              class="MuiBox-root css-1aisqbv"
-            >
-              <button
-                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
-                style="color: inherit; text-transform: none;"
-                tabindex="0"
-                type="button"
-              >
-                Read more
-                <span
-                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                />
-              </button>
-            </div>
-            <div
-              class="MuiBox-root css-1itv5e3"
-            >
-              <button
-                aria-label="Disable update notifications"
-                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
-                style="color: rgb(255, 242, 0);"
-                tabindex="0"
-                type="button"
-              >
-                <span
-                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                />
-              </button>
-            </div>
-            <div
-              class="MuiBox-root css-0"
-            >
-              <button
-                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
-                style="color: rgb(255, 242, 0);"
-                tabindex="0"
-                type="button"
-              >
-                Dismiss
-                <span
-                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                />
-              </button>
-            </div>
-          </div>
+          Failed to fetch release information
         </div>
       </div>
     </div>

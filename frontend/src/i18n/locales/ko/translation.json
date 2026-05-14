@@ -843,5 +843,17 @@
   "Toggle column filters in tables": "",
   "Log Viewer Search": "",
   "Toggle search in log viewer": "",
+  "Generic resources": "일반 리소스",
+  "Filter": "필터",
+  "API version": "API 버전",
+  "Scope": "범위",
+  "Namespaced": "네임스페이스",
+  "Cluster-wide": "클러스터 전체",
+  "Resource": "리소스",
+  "Invalid or unknown resource type. Use the generic resources browser.": "유효하지 않거나 알 수 없는 리소스 유형입니다. 일반 리소스 브라우저를 사용하세요.",
+  "Invalid or unknown resource type.": "유효하지 않거나 알 수 없는 리소스 유형입니다.",
+  "Error loading resource: {{message}}": "리소스 로드 오류: {{message}}",
+  "No API resources were discovered.": "API 리소스를 찾지 못했습니다.",
+  "No resources match the filter.": "필터와 일치하는 리소스가 없습니다.",
   "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_one": "{{ firstEventDate }} 이후 {{ count }}회 발생 ({{ eventDate }})"
 }

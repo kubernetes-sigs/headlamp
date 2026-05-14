@@ -168,6 +168,12 @@ export interface ResourceTableFromResourceClassProps<KubeClass extends KubeObjec
   extends Omit<ResourceTableProps<InstanceType<KubeClass>>, 'data'> {
   resourceClass: KubeClass;
   namespaces?: string[];
+  /**
+   * When true, do not pass the global namespace filter into list requests (use [] so listing
+   * falls back to allowed namespaces / cluster-wide list). Use for API explorers where the user
+   * expects every namespace unless cluster settings restrict access.
+   */
+  ignoreGlobalNamespaceFilter?: boolean;
 }
 
 export default function ResourceTable<KubeClass extends KubeObjectClass>(
@@ -187,10 +193,13 @@ export default function ResourceTable<KubeClass extends KubeObjectClass>(
 function TableFromResourceClass<KubeClass extends KubeObjectClass>(
   props: ResourceTableFromResourceClassProps<KubeClass>
 ) {
-  const { resourceClass, id, ...otherProps } = props;
+  const { resourceClass, id, ignoreGlobalNamespaceFilter, ...otherProps } = props;
   const selectedNamespaces = useNamespaces();
+  const listNamespaces = ignoreGlobalNamespaceFilter
+    ? props.namespaces ?? ([] as string[])
+    : props.namespaces ?? selectedNamespaces;
   const { items, errors } = resourceClass.useList({
-    namespace: props.namespaces ?? selectedNamespaces,
+    namespace: listNamespaces,
   });
 
   // throttle the update of the table to once per second

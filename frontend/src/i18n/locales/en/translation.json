@@ -848,5 +848,17 @@
   "Toggle Table Filters": "Toggle Table Filters",
   "Toggle column filters in tables": "Toggle column filters in tables",
   "Log Viewer Search": "Log Viewer Search",
-  "Toggle search in log viewer": "Toggle search in log viewer"
+  "Toggle search in log viewer": "Toggle search in log viewer",
+  "Generic resources": "Generic resources",
+  "Filter": "Filter",
+  "API version": "API version",
+  "Scope": "Scope",
+  "Namespaced": "Namespaced",
+  "Cluster-wide": "Cluster-wide",
+  "Resource": "Resource",
+  "Invalid or unknown resource type. Use the generic resources browser.": "Invalid or unknown resource type. Use the generic resources browser.",
+  "Invalid or unknown resource type.": "Invalid or unknown resource type.",
+  "Error loading resource: {{message}}": "Error loading resource: {{message}}",
+  "No API resources were discovered.": "No API resources were discovered.",
+  "No resources match the filter.": "No resources match the filter."
 }

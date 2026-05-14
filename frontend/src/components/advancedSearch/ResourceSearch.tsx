@@ -31,6 +31,7 @@ import React from 'react';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { ApiResource } from '../../lib/k8s/api/v2/ApiResource';
+import { genericResourceRefFromKubeObject, serializeGenericResourceRef } from '../../lib/k8s/genericResourceRef';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { Activity } from '../activity/Activity';
 import { EditorDialog, Link } from '../common';
@@ -277,7 +278,21 @@ export function ResourceSearch({
                 gridTemplate: 'auto',
                 getValue: item => item.metadata.name,
                 render: item =>
-                  canRenderDetails(item.kind) ? <Link kubeObject={item} /> : item.metadata.name,
+                  canRenderDetails(item.kind) ? (
+                    <Link kubeObject={item} />
+                  ) : (
+                    <Link
+                      routeName="genericResource"
+                      params={{
+                        resourceId: serializeGenericResourceRef(genericResourceRefFromKubeObject(item)),
+                        namespace: item.metadata.namespace || '-',
+                        name: item.metadata.name,
+                      }}
+                      activeCluster={item.cluster}
+                    >
+                      {item.metadata.name}
+                    </Link>
+                  ),
               },
               'namespace',
               {
