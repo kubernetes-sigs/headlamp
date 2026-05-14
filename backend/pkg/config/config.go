@@ -245,22 +245,29 @@ func patchWatchPluginsChanges(config *Config, explicitFlags map[string]bool) {
 }
 
 // setKubeConfigPath sets the kubeconfig path if not set, using env or default.
-func setKubeConfigPath(config *Config) {
+func setKubeConfigPath(config *Config) error {
 	// If a specific path was set, use it. Otherwise, determine default.
 	if config.KubeConfigPath != "" {
-		return
+		return nil
 	}
 
 	if config.InCluster {
-		return
+		return nil
 	}
 
 	kubeConfigEnv := os.Getenv("KUBECONFIG")
 	if kubeConfigEnv != "" {
 		config.KubeConfigPath = kubeConfigEnv
 	} else {
-		config.KubeConfigPath = GetDefaultKubeConfigPath()
+		defaultPath, err := GetDefaultKubeConfigPath()
+		if err != nil {
+			return fmt.Errorf("getting default kubeconfig path: %w", err)
+		}
+
+		config.KubeConfigPath = defaultPath
 	}
+
+	return nil
 }
 
 // ApplyMeDefaults trims and applies defaults to the JMESPath expressions used for the /me endpoint.
@@ -345,7 +352,11 @@ func Parse(args []string) (*Config, error) {
 
 	// 7. Post-process: patch plugin flag and kubeconfig path.
 	patchWatchPluginsChanges(&config, explicitFlags)
-	setKubeConfigPath(&config)
+
+	if err := setKubeConfigPath(&config); err != nil {
+		return nil, err
+	}
+
 	setMeDefaults(&config)
 
 	// 8. Validate flags that depend on build-time behaviour.
@@ -580,14 +591,11 @@ func defaultUserPluginDir() string {
 	return userPluginsConfigDir
 }
 
-func GetDefaultKubeConfigPath() string {
-	user, err := user.Current()
+func GetDefaultKubeConfigPath() (string, error) {
+	currentUser, err := user.Current()
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "getting current user")
-		os.Exit(1)
+		return "", fmt.Errorf("getting current user for kubeconfig path: %w", err)
 	}
 
-	homeDirectory := user.HomeDir
-
-	return filepath.Join(homeDirectory, ".kube", "config")
+	return filepath.Join(currentUser.HomeDir, ".kube", "config"), nil
 }

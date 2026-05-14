@@ -329,11 +329,12 @@ func TestContext(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	kubeConfigFile := config.GetDefaultKubeConfigPath()
+	kubeConfigFile, err := config.GetDefaultKubeConfigPath()
+	require.NoError(t, err)
 
 	configStore := kubeconfig.NewContextStore()
 
-	err := kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
+	err = kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
 	if err != nil {
 		t.Skipf("Skipping test: failed to load default kubeconfig: %v", err)
 	}

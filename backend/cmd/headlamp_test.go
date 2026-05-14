@@ -107,6 +107,19 @@ func getResponseFromRestrictedEndpoint(handler http.Handler, method, url string,
 	return rr, nil
 }
 
+// getDefaultKubeConfigPathForTest is a test helper that wraps config.GetDefaultKubeConfigPath
+// and fails the test immediately if retrieving the default path returns an error.
+func getDefaultKubeConfigPathForTest(t *testing.T) string {
+	t.Helper()
+
+	path, err := config.GetDefaultKubeConfigPath()
+	if err != nil {
+		t.Fatalf("failed to get default kubeconfig path: %v", err)
+	}
+
+	return path
+}
+
 func TestGetConfigIncludesDefaultPodDebugImage(t *testing.T) {
 	c := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -585,7 +598,7 @@ func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:    false,
-						KubeConfigPath:  config.GetDefaultKubeConfigPath(),
+						KubeConfigPath:  getDefaultKubeConfigPathForTest(t),
 						KubeConfigStore: kubeConfigStore,
 					},
 					Cache:            cache,
@@ -819,7 +832,7 @@ func TestDeletePlugin(t *testing.T) {
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
-				KubeConfigPath:  config.GetDefaultKubeConfigPath(),
+				KubeConfigPath:  getDefaultKubeConfigPathForTest(t),
 				PluginDir:       devPluginDir,
 				UserPluginDir:   userPluginDir,
 				KubeConfigStore: kubeConfigStore,
@@ -874,7 +887,7 @@ func TestHandleClusterAPI_XForwardedHost(t *testing.T) {
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
-				KubeConfigPath:  config.GetDefaultKubeConfigPath(),
+				KubeConfigPath:  getDefaultKubeConfigPathForTest(t),
 				KubeConfigStore: kubeConfigStore,
 			},
 			Cache:            cache,
@@ -2041,7 +2054,12 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 
 	kubeConfigPath := os.Getenv("KUBECONFIG")
 	if kubeConfigPath == "" {
-		kubeConfigPath = config.GetDefaultKubeConfigPath()
+		var err error
+
+		kubeConfigPath, err = config.GetDefaultKubeConfigPath()
+		if err != nil {
+			t.Fatalf("failed to get default kubeconfig path: %v", err)
+		}
 	}
 
 	// KUBECONFIG may be a list of files separated by os.PathListSeparator.
