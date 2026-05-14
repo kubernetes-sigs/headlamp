@@ -47,6 +47,7 @@ func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// If there's any error, serve the index file
 		servedPath = path.Join("static", h.indexPath)
+
 		content, err = h.serveFile(servedPath)
 		if err != nil {
 			http.Error(w, "Unable to read index file", http.StatusInternalServerError)
@@ -87,8 +88,8 @@ func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h embeddedSpaHandler) serveFile(path string) ([]byte, error) {
-	f, err := h.staticFS.Open(path)
+func (h embeddedSpaHandler) serveFile(filePath string) ([]byte, error) {
+	f, err := h.staticFS.Open(filePath)
 	if err != nil {
 		return nil, err
 	}

@@ -159,12 +159,7 @@ func periodicallyWatchSubfolders(
 	// Initial walk
 	walk()
 
-	if ready != nil {
-		select {
-		case ready <- struct{}{}:
-		default:
-		}
-	}
+	notifyReady(ready)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -176,6 +171,17 @@ func periodicallyWatchSubfolders(
 		case <-ticker.C:
 			walk()
 		}
+	}
+}
+
+func notifyReady(ready chan<- struct{}) {
+	if ready == nil {
+		return
+	}
+
+	select {
+	case ready <- struct{}{}:
+	default:
 	}
 }
 
@@ -356,27 +362,8 @@ func ListPlugins(staticPluginDir, userPluginDir, pluginDir string) error {
 
 // pluginBasePathListForDir returns a list of valid plugin paths for the given directory.
 func pluginBasePathListForDir(pluginDir string, baseURL string) ([]string, error) {
-	if pluginDir == "" {
-		return nil, nil
-	}
-
-	info, err := os.Stat(pluginDir)
+	files, err := pluginDirEntries(pluginDir)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	if !info.IsDir() {
-		return nil, fmt.Errorf("%q is not a directory", pluginDir)
-	}
-
-	files, err := os.ReadDir(pluginDir)
-	if err != nil && !os.IsNotExist(err) {
-		logger.Log(logger.LevelError, map[string]string{"pluginDir": pluginDir},
-			err, "reading plugin directory")
-
 		return nil, err
 	}
 
@@ -421,6 +408,35 @@ func pluginBasePathListForDir(pluginDir string, baseURL string) ([]string, error
 	}
 
 	return pluginListURLs, nil
+}
+
+func pluginDirEntries(pluginDir string) ([]fs.DirEntry, error) {
+	if pluginDir == "" {
+		return nil, nil
+	}
+
+	info, err := os.Stat(pluginDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	if !info.IsDir() {
+		return nil, fmt.Errorf("%q is not a directory", pluginDir)
+	}
+
+	files, err := os.ReadDir(pluginDir)
+	if err != nil && !os.IsNotExist(err) {
+		logger.Log(logger.LevelError, map[string]string{"pluginDir": pluginDir},
+			err, "reading plugin directory")
+
+		return nil, err
+	}
+
+	return files, nil
 }
 
 func canSendRefresh(c cache.Cache[interface{}]) bool {

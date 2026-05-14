@@ -30,6 +30,7 @@ func (h *RequestHandler) RecordEvent(span trace.Span, msg string, attrs ...attri
 	if h == nil {
 		return
 	}
+
 	if h.telemetry != nil && span != nil {
 		if len(attrs) > 0 {
 			span.AddEvent(msg, trace.WithAttributes(attrs...))
@@ -44,6 +45,7 @@ func (h *RequestHandler) RecordError(span trace.Span, err error, msg string) {
 	if h == nil {
 		return
 	}
+
 	if h.metrics != nil && span != nil {
 		span.AddEvent(msg)
 		span.RecordError(err)
@@ -56,6 +58,7 @@ func (h *RequestHandler) RecordDuration(ctx context.Context, start time.Time, at
 	if h == nil {
 		return
 	}
+
 	if h.metrics != nil {
 		duration := float64(time.Since(start).Milliseconds())
 		h.metrics.RequestDuration.Record(ctx, duration, metric.WithAttributes(attrs...))
@@ -67,16 +70,18 @@ func (h *RequestHandler) RecordErrorCount(ctx context.Context, attrs ...attribut
 	if h == nil {
 		return
 	}
+
 	if h.metrics != nil {
 		h.metrics.ErrorCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
 	}
 }
 
-// RecordErrorCount increments error counter metrics.
+// RecordClusterProxyRequestsCount increments cluster-proxy request counter metrics.
 func (h *RequestHandler) RecordClusterProxyRequestsCount(ctx context.Context, attrs ...attribute.KeyValue) {
 	if h == nil {
 		return
 	}
+
 	if h.metrics != nil {
 		h.metrics.ClusterProxyRequests.Add(ctx, 1, metric.WithAttributes(attrs...))
 	}
@@ -88,6 +93,7 @@ func (h *RequestHandler) RecordRequestCount(ctx context.Context, r *http.Request
 	if h == nil {
 		return
 	}
+
 	if h.metrics != nil && h.telemetry != nil {
 		h.metrics.RequestCounter.Add(ctx, 1, metric.WithAttributes(append(attrs,
 			attribute.String("http.method", r.Method),

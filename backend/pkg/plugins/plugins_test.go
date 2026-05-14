@@ -35,7 +35,9 @@ import (
 
 func requireEvent(t *testing.T, events <-chan string, expected string) {
 	t.Helper()
+
 	timeout := time.After(10 * time.Second)
+
 	for {
 		select {
 		case event, ok := <-events:
@@ -43,9 +45,11 @@ func requireEvent(t *testing.T, events <-chan string, expected string) {
 				t.Fatalf("Events channel closed while waiting for event %s", expected)
 				return
 			}
+
 			if event == expected {
 				return
 			}
+
 			t.Logf("Got event %s, but expected %s", event, expected)
 		case <-timeout:
 			t.Fatalf("Timed out waiting for event %s", expected)
@@ -75,7 +79,8 @@ func TestWatch(t *testing.T) {
 	sentinelFile := filepath.Join(dirName, "sentinel-"+uuid.NewString())
 	sf, err := os.Create(sentinelFile) //nolint:gosec
 	require.NoError(t, err)
-	_ = sf.Close()
+
+	require.NoError(t, sf.Close())
 
 	// start watching the directory
 	go plugins.Watch(ctx, dirName, events)
@@ -88,7 +93,8 @@ func TestWatch(t *testing.T) {
 	fileName := filepath.Join(dirName, uuid.NewString())
 	f, err := os.Create(fileName) //nolint:gosec
 	require.NoError(t, err)
-	_ = f.Close()
+
+	require.NoError(t, f.Close())
 
 	// wait for the watcher to pick up the new directory
 	requireEvent(t, events, fileName+":CREATE")
@@ -106,7 +112,8 @@ func TestWatch(t *testing.T) {
 	subFileName := filepath.Join(subDirName, uuid.NewString())
 	subf, err := os.Create(subFileName) //nolint:gosec
 	require.NoError(t, err)
-	_ = subf.Close()
+
+	require.NoError(t, subf.Close())
 
 	// wait for the watcher to pick up the new file
 	requireEvent(t, events, subFileName+":CREATE")
@@ -123,6 +130,7 @@ func TestWatch(t *testing.T) {
 	// clean up
 	cancel()                             // Release file handles on Windows
 	<-time.After(500 * time.Millisecond) // Give it a moment to close
+
 	err = os.RemoveAll(dirName)
 	require.NoError(t, err)
 }
@@ -146,12 +154,14 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 		pluginPath := filepath.Join(subDir, "main.js")
 		pf, err := os.Create(pluginPath) //nolint:gosec
 		require.NoError(t, err)
-		_ = pf.Close()
+
+		require.NoError(t, pf.Close())
 
 		packageJSONPath := filepath.Join(subDir, "package.json")
 		ppf, err := os.Create(packageJSONPath) //nolint:gosec
 		require.NoError(t, err)
-		_ = ppf.Close()
+
+		require.NoError(t, ppf.Close())
 
 		pathList, err := plugins.GeneratePluginPaths("", "", testDirName)
 		require.NoError(t, err)
@@ -180,12 +190,14 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 		pluginPath := filepath.Join(subDir, "main.js")
 		spf, err := os.Create(pluginPath) //nolint:gosec
 		require.NoError(t, err)
-		_ = spf.Close()
+
+		require.NoError(t, spf.Close())
 
 		packageJSONPath := filepath.Join(subDir, "package.json")
 		sppf, err := os.Create(packageJSONPath) //nolint:gosec
 		require.NoError(t, err)
-		_ = sppf.Close()
+
+		require.NoError(t, sppf.Close())
 
 		pathList, err := plugins.GeneratePluginPaths(testDirName, "", "")
 		require.NoError(t, err)
@@ -214,7 +226,8 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 		fileName := filepath.Join(subDir, uuid.NewString())
 		rf, err := os.Create(fileName) //nolint:gosec
 		require.NoError(t, err)
-		_ = rf.Close()
+
+		require.NoError(t, rf.Close())
 
 		// test with file as plugin Dir
 		pathList, err := plugins.GeneratePluginPaths(fileName, "", "")
@@ -239,13 +252,15 @@ func createPlugin(t *testing.T, baseDir string, pluginName string) string {
 	mainJsPath := filepath.Join(pluginDir, "main.js")
 	mjf, err := os.Create(mainJsPath) //nolint:gosec
 	require.NoError(t, err)
-	_ = mjf.Close()
+
+	require.NoError(t, mjf.Close())
 
 	// create package.json
 	packageJSONPath := filepath.Join(pluginDir, "package.json")
 	pjf, err := os.Create(packageJSONPath) //nolint:gosec
 	require.NoError(t, err)
-	_ = pjf.Close()
+
+	require.NoError(t, pjf.Close())
 
 	return pluginDir
 }
@@ -369,12 +384,14 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 	pluginPath := filepath.Join(pluginDirPath, "main.js")
 	pf, err := os.Create(pluginPath) //nolint:gosec
 	require.NoError(t, err)
-	_ = pf.Close()
+
+	require.NoError(t, pf.Close())
 
 	packageJSONPath := filepath.Join(pluginDirPath, "package.json")
 	ppf, err := os.Create(packageJSONPath) //nolint:gosec
 	require.NoError(t, err)
-	_ = ppf.Close()
+
+	require.NoError(t, ppf.Close())
 
 	// create channel to receive events
 	events := make(chan string)

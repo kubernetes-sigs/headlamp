@@ -55,7 +55,10 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	relPath, err := filepath.Rel(absStaticPath, absPath)
-	if err != nil || filepath.IsAbs(relPath) || relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
+	if err != nil ||
+		filepath.IsAbs(relPath) ||
+		relPath == ".." ||
+		strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
 		http.Error(w, "Invalid file name (file to serve is outside of the static dir!)", http.StatusBadRequest)
 		return
 	}
