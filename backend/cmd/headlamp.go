@@ -89,6 +89,11 @@ const ContextUpdateCacheTTL = 20 * time.Second // seconds
 
 const JWTExpirationTTL = 10 * time.Second // seconds
 
+// externalProxyTimeout is the maximum time to wait for a proxy response.
+//
+//nolint:gochecknoglobals // allow test override
+var externalProxyTimeout = 30 * time.Second
+
 const kubeConfigSource = "kubeconfig" // source for kubeconfig contexts
 
 const (
@@ -593,9 +598,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		ctx := context.Background()
+		proxyCtx, cancel := context.WithTimeout(r.Context(), externalProxyTimeout)
+		defer cancel()
 
-		proxyReq, err := http.NewRequestWithContext(ctx, r.Method, proxyURL, r.Body) //nolint:gosec
+		proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, proxyURL, r.Body) //nolint:gosec
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "creating request")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -615,12 +621,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("X-Accel-Expires", "0")
 
-		proxyCtx, cancel := context.WithTimeout(r.Context(), 30 * time.Second)
-		defer cancel()
-
-		proxyReq = proxyReq.WithContext(proxyCtx)
-
-		client := http.Client{Timeout: 30 * time.Second}
+		client := http.Client{}
 
 		resp, err := client.Do(proxyReq) //nolint:gosec
 		if err != nil {

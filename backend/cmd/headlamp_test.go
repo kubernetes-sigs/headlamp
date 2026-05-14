@@ -530,6 +530,48 @@ func TestExternalProxyForwarding(t *testing.T) {
 	assert.Equal(t, `{"error": "not found"}`, rr.Body.String())
 }
 
+func TestExternalProxyTimeout(t *testing.T) {
+	originalLimit := externalProxyTimeout
+	externalProxyTimeout = 50 * time.Millisecond
+
+	t.Cleanup(func() { externalProxyTimeout = originalLimit })
+
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(100 * time.Millisecond) // Block longer than the timeout
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	defer proxyServer.Close()
+
+	proxyURL, err := url.Parse(proxyServer.URL)
+	require.NoError(t, err)
+
+	cache := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				ProxyURLs:       []string{proxyURL.String()},
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache: cache,
+		},
+	})
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
+	require.NoError(t, err)
+
+	req.Header.Set("proxy-to", proxyURL.String())
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadGateway, rr.Code)
+	assert.Contains(t, rr.Body.String(), "context deadline exceeded")
+}
+
 func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
 	type test struct {
 		handler http.Handler
@@ -1193,7 +1235,8 @@ func TestBaseURLReplace(t *testing.T) {
 		filepath.Join(tempDir,
 			"index.html"),
 		indexContent,
-		0o600)
+		0o600,
+	)
 
 	require.NoError(t, err)
 
@@ -1831,7 +1874,8 @@ func TestCacheMiddleware_CacheHitAndCacheMiss(t *testing.T) {
 	// 4. Wrap the proxy handler with the CacheMiddleWare
 	router := mux.NewRouter()
 	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
-		CacheMiddleWare(c)(proxyHandler))
+		CacheMiddleWare(c)(proxyHandler),
+	)
 
 	ts := httptest.NewServer(router)
 	defer ts.Close()
@@ -1896,7 +1940,8 @@ func TestCacheMiddleware_AuthErrorResponse(t *testing.T) {
 
 	router := mux.NewRouter()
 	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
-		CacheMiddleWare(c)(proxyHandler))
+		CacheMiddleWare(c)(proxyHandler),
+	)
 
 	ts := httptest.NewServer(router)
 	defer ts.Close()
@@ -1955,7 +2000,8 @@ func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
 
 	router := mux.NewRouter()
 	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
-		CacheMiddleWare(c)(proxyHandler))
+		CacheMiddleWare(c)(proxyHandler),
+	)
 
 	ts := httptest.NewServer(router)
 	defer ts.Close()
