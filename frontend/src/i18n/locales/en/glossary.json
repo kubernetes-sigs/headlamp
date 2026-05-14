@@ -229,6 +229,8 @@
   "Runtime Classes": "Runtime Classes",
   "Leases": "Leases",
   "Mutating Webhook Configurations": "Mutating Webhook Configurations",
+  "Mutating Admission Policies": "Mutating Admission Policies",
+  "Mutating Admission Policy Bindings": "Mutating Admission Policy Bindings",
   "Validating Webhook Configurations": "Validating Webhook Configurations",
   "Git Version": "Git Version",
   "Git Tree State": "Git Tree State",
