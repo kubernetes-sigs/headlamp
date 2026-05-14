@@ -1,0 +1,184 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: headlamp
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: headlamp
+  namespace: headlamp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: headlamp
+    namespace: headlamp
+---
+# OIDC config consumed by both replicas. Override OIDC_ISSUER_URL in dev mode
+# if Dex is reached via port-forward.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: headlamp-oidc
+  namespace: headlamp
+data:
+  OIDC_ISSUER_URL: "http://dex.dex.svc.cluster.local:5556/dex"
+  OIDC_CLIENT_ID: "headlamp-test"
+  OIDC_CLIENT_SECRET: "headlamp-test-secret"
+  OIDC_SCOPES: "openid,email,profile,groups,offline_access"
+---
+# TWO replicas, each as its own Deployment so we can address them
+# individually as hl-a and hl-b from nginx.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hl-a
+  namespace: headlamp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hl-a
+  template:
+    metadata:
+      labels:
+        app: hl-a
+    spec:
+      serviceAccountName: headlamp
+      containers:
+        - name: headlamp
+          # Built locally by up.sh and loaded into kind via `kind load docker-image`.
+          image: headlamp:repro
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-in-cluster"
+            - "-dev"
+            - "-oidc-client-id=$(OIDC_CLIENT_ID)"
+            - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
+            - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
+            - "-oidc-scopes=$(OIDC_SCOPES)"
+          envFrom:
+            - configMapRef:
+                name: headlamp-oidc
+          ports:
+            - containerPort: 4466
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hl-a
+  namespace: headlamp
+spec:
+  selector:
+    app: hl-a
+  ports:
+    - port: 4466
+      targetPort: 4466
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hl-b
+  namespace: headlamp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hl-b
+  template:
+    metadata:
+      labels:
+        app: hl-b
+    spec:
+      serviceAccountName: headlamp
+      containers:
+        - name: headlamp
+          image: headlamp:repro
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-in-cluster"
+            - "-dev"
+            - "-oidc-client-id=$(OIDC_CLIENT_ID)"
+            - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
+            - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
+            - "-oidc-scopes=$(OIDC_SCOPES)"
+          envFrom:
+            - configMapRef:
+                name: headlamp-oidc
+          ports:
+            - containerPort: 4466
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hl-b
+  namespace: headlamp
+spec:
+  selector:
+    app: hl-b
+  ports:
+    - port: 4466
+      targetPort: 4466
+---
+# nginx in front of hl-a and hl-b — strict round-robin to make the
+# multi-replica state-loss bug deterministic.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-rr
+  namespace: headlamp
+data:
+  nginx.conf: |
+    # Replaced at apply time by up.sh from headlamp/nginx-rr.conf.
+    # See the file in the repo for the actual config.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-rr
+  namespace: headlamp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-rr
+  template:
+    metadata:
+      labels:
+        app: nginx-rr
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: cfg
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+      volumes:
+        - name: cfg
+          configMap:
+            name: nginx-rr
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: headlamp
+  namespace: headlamp
+spec:
+  type: NodePort
+  selector:
+    app: nginx-rr
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080

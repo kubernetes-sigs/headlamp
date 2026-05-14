@@ -139,6 +139,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
 		OidcUseAccessToken:        conf.OidcUseAccessToken,
 		OidcUsePKCE:               conf.OidcUsePKCE,
+		OidcStateSigningKeyFile:   conf.OidcStateSigningKeyFile,
 		MeUsernamePaths:           conf.MeUsernamePath,
 		MeEmailPaths:              conf.MeEmailPath,
 		MeGroupsPaths:             conf.MeGroupsPath,

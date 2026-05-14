@@ -1,0 +1,22 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: headlamp-oidc-repro
+nodes:
+  - role: control-plane
+    # OIDC apiserver flags are intentionally NOT set here. The #5401 reproductions
+    # (state loss, redirect, testAuth, desktop callback) only exercise Headlamp's
+    # OIDC client; the apiserver doesn't need to validate tokens. Setting the
+    # `--oidc-issuer-url` flag points kube-apiserver at Dex BEFORE Dex exists,
+    # which makes kubeadm's wait-control-plane time out (apiserver can't start
+    # without reachable JWKS).
+    #
+    # When you reach the #5402 sub-path B work (in-cluster impersonation), add
+    # the flags below and recreate the cluster AFTER Dex is already deployed.
+    #
+    # extraArgs:
+    #   oidc-issuer-url: "http://dex.dex.svc.cluster.local:5556/dex"
+    #   oidc-client-id: "headlamp-test"
+    #   oidc-username-claim: "email"
+    #   oidc-groups-claim: "groups"
+networking:
+  apiServerAddress: "127.0.0.1"

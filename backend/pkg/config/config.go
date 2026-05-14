@@ -75,6 +75,13 @@ type Config struct {
 	MeGroupsPath              string `koanf:"me-groups-path"`
 	MeUserInfoURL             string `koanf:"me-user-info-url"`
 	OidcUsePKCE               bool   `koanf:"oidc-use-pkce"`
+	// OidcStateSigningKeyFile, when set, points at a file containing the
+	// HMAC key used to sign the OAuth2 `state` parameter. Without it,
+	// Headlamp generates a per-process random key at startup, which works
+	// for single-replica deployments but breaks under multi-replica
+	// rollouts (#4019). The key file's contents (trailing whitespace
+	// trimmed) must be at least 32 bytes.
+	OidcStateSigningKeyFile string `koanf:"oidc-state-signing-key-file"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -470,6 +477,12 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
 	f.Bool("oidc-use-cookie", false, "Enable OIDC cookie usage even when not running in-cluster")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
+	f.String("oidc-state-signing-key-file", "",
+		"Path to a file containing the HMAC key used to sign the OAuth2 state parameter. "+
+			"Required for multi-replica deployments so that all replicas can verify state "+
+			"tokens issued by any other replica. The file must contain at least 32 bytes "+
+			"(trailing whitespace is trimmed). When unset, a per-process random key is "+
+			"generated at startup.")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")
 	f.String("me-email-path", DefaultMeEmailPath,

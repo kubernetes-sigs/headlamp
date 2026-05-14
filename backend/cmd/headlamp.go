@@ -23,9 +23,11 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"io/fs"
 	"net"
@@ -38,7 +40,6 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -104,14 +105,6 @@ type clientConfig struct {
 	IsDynamicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
 	AllowKubeconfigChanges  bool      `json:"allowKubeconfigChanges"`
 	DefaultPodDebugImage    string    `json:"defaultPodDebugImage"`
-}
-
-type OauthConfig struct {
-	Config       *oauth2.Config
-	Verifier     *oidc.IDTokenVerifier
-	Ctx          context.Context
-	CodeVerifier string // PKCE code verifier
-	Cluster      string // cluster context name this is associated with
 }
 
 // returns True if a file exists.
@@ -394,7 +387,289 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 	}).Methods("GET")
 }
 
+// oidcStateTTL is the lifetime of a signed state token. It bounds how long
+// a user has to complete the IdP round-trip before /oidc-callback rejects
+// the state as expired.
+//
 //nolint:gocognit,funlen,gocyclo
+const oidcStateTTL = 10 * time.Minute
+
+// oidcStateLRUSize bounds the number of consumed-state entries kept in
+// memory at once. Tokens older than this — by insertion order — can
+// reuse their CSRF; for typical login volume this is several orders of
+// magnitude above concurrent in-flight logins.
+const oidcStateLRUSize = 4096
+
+// minOIDCSigningKeyBytes is enforced both by NewStateSigner and at config
+// load time so that operators get a clear error before the server starts.
+const minOIDCSigningKeyBytes = 32
+
+// oidcFlow bundles the per-request OIDC plumbing needed by both /oidc and
+// /oidc-callback. Reconstructing it on the callback (rather than caching
+// it across requests) is what makes signed state portable across replicas.
+//
+// The request-scoped context with TLS / issuer overrides is returned
+// alongside the flow rather than stored on it, so callers stay honest
+// about cancellation. Idiomatic Go (and contextcheck) avoids storing
+// context in struct fields.
+type oidcFlow struct {
+	OAuth2   *oauth2.Config
+	Verifier *oidc.IDTokenVerifier
+}
+
+// loadOIDCStateSigner constructs the StateSigner used by /oidc and
+// /oidc-callback.
+//
+// If config.OidcStateSigningKeyFile is set, the file is read, trailing
+// whitespace is trimmed, and the result is used as the HMAC key. The key
+// must be at least minOIDCSigningKeyBytes long; shorter keys produce a
+// startup error so misconfiguration is loud rather than silently degrading
+// to per-process random behavior.
+//
+// When the flag is unset, a 32-byte random key is generated. This works
+// for single-replica deployments but breaks multi-replica rollouts (the
+// kind of breakage characterized by #4019), so we emit one log line at
+// startup pointing operators at the flag.
+func loadOIDCStateSigner(config *HeadlampConfig) (*auth.StateSigner, error) {
+	if config.OidcStateSigningKeyFile != "" {
+		raw, err := os.ReadFile(config.OidcStateSigningKeyFile) //nolint:gosec
+		if err != nil {
+			return nil, fmt.Errorf("read oidc state signing key file: %w", err)
+		}
+
+		key := bytes.TrimRight(raw, " \t\r\n")
+		if len(key) < minOIDCSigningKeyBytes {
+			return nil, fmt.Errorf("oidc state signing key must be >= %d bytes (got %d)",
+				minOIDCSigningKeyBytes, len(key))
+		}
+
+		logger.Log(logger.LevelInfo, nil, nil,
+			"OIDC state signing key loaded from --oidc-state-signing-key-file")
+
+		return auth.NewStateSigner(key, oidcStateTTL, auth.WithLRUSize(oidcStateLRUSize)), nil
+	}
+
+	key := make([]byte, minOIDCSigningKeyBytes)
+	if _, err := rand.Read(key); err != nil {
+		return nil, fmt.Errorf("generate oidc state signing key: %w", err)
+	}
+
+	logger.Log(logger.LevelInfo, nil, nil,
+		"OIDC state signing key generated per-process. For multi-replica "+
+			"deployments, set --oidc-state-signing-key-file=<path> with a shared key file.")
+
+	return auth.NewStateSigner(key, oidcStateTTL, auth.WithLRUSize(oidcStateLRUSize)), nil
+}
+
+// buildOIDCFlow constructs the per-request OIDC plumbing — the OAuth2
+// config and the ID-token verifier — and returns the request context
+// with the right TLS / issuer overrides applied.
+//
+// Both /oidc and /oidc-callback call this. Building it on the callback
+// (instead of caching the /oidc result in a per-process map) is what makes
+// signed state portable across replicas; the cluster name comes from the
+// signed state payload, so the callback can rebuild the same OAuth2 config
+// on any replica that has the same kubeconfig.
+func buildOIDCFlow(ctx context.Context, config *HeadlampConfig, r *http.Request,
+	cluster string,
+) (*oidcFlow, context.Context, error) {
+	if config.Insecure {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		}
+		insecureClient := &http.Client{Transport: tr}
+		ctx = oidc.ClientContext(ctx, insecureClient)
+	}
+
+	kContext, err := config.KubeConfigStore.GetContext(cluster)
+	if err != nil {
+		return nil, ctx, &errFlowCluster{cluster: cluster, err: err}
+	}
+
+	oidcAuthConfig, err := kContext.OidcConfig()
+	if err != nil {
+		return nil, ctx, &errFlowOIDCConfig{cluster: cluster, err: err}
+	}
+
+	ctx = auth.ConfigureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
+
+	if config.OidcValidatorIdpIssuerURL != "" {
+		ctx = oidc.InsecureIssuerURLContext(ctx, config.OidcValidatorIdpIssuerURL)
+	}
+
+	provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
+	if err != nil {
+		return nil, ctx, &errFlowProvider{issuerURL: oidcAuthConfig.IdpIssuerURL, err: err}
+	}
+
+	validatorClientID := oidcAuthConfig.ClientID
+	if config.OidcValidatorClientID != "" {
+		validatorClientID = config.OidcValidatorClientID
+	}
+
+	verifier := provider.Verifier(&oidc.Config{ClientID: validatorClientID})
+	oauthConfig := &oauth2.Config{
+		ClientID:     oidcAuthConfig.ClientID,
+		ClientSecret: oidcAuthConfig.ClientSecret,
+		Endpoint:     provider.Endpoint(),
+		RedirectURL:  getOidcCallbackURL(r, config),
+		Scopes:       append([]string{oidc.ScopeOpenID}, oidcAuthConfig.Scopes...),
+	}
+
+	return &oidcFlow{OAuth2: oauthConfig, Verifier: verifier}, ctx, nil
+}
+
+// Concrete buildOIDCFlow error types. handleOIDCFlowError dispatches via
+// errors.As so each carries exactly the fields its caller needs and there
+// is no untyped `extra` map to drift.
+type errFlowCluster struct {
+	cluster string
+	err     error
+}
+
+func (e *errFlowCluster) Error() string { return e.err.Error() }
+func (e *errFlowCluster) Unwrap() error { return e.err }
+
+type errFlowOIDCConfig struct {
+	cluster string
+	err     error
+}
+
+func (e *errFlowOIDCConfig) Error() string { return e.err.Error() }
+func (e *errFlowOIDCConfig) Unwrap() error { return e.err }
+
+type errFlowProvider struct {
+	issuerURL string
+	err       error
+}
+
+func (e *errFlowProvider) Error() string { return e.err.Error() }
+func (e *errFlowProvider) Unwrap() error { return e.err }
+
+// handleOIDCFlowError translates buildOIDCFlow failures into HTTP
+// responses: 404 for missing cluster, 500 for OIDC config / provider
+// failure. Logs the full error server-side; the HTTP body is generic
+// to avoid leaking IdP-supplied error strings to anonymous callers.
+func handleOIDCFlowError(w http.ResponseWriter, r *http.Request, err error) {
+	var (
+		clusterErr  *errFlowCluster
+		configErr   *errFlowOIDCConfig
+		providerErr *errFlowProvider
+	)
+
+	switch {
+	case errors.As(err, &clusterErr):
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterErr.cluster},
+			clusterErr.err, "failed to get context")
+		http.NotFound(w, r)
+	case errors.As(err, &configErr):
+		logger.Log(logger.LevelError, map[string]string{"cluster": configErr.cluster},
+			configErr.err, "failed to get oidc config")
+		http.Error(w, "oidc not configured for cluster", http.StatusInternalServerError)
+	case errors.As(err, &providerErr):
+		logger.Log(logger.LevelError, map[string]string{"idpIssuerURL": providerErr.issuerURL},
+			providerErr.err, "failed to get provider")
+		http.Error(w, "oidc provider unavailable", http.StatusInternalServerError)
+	default:
+		logger.Log(logger.LevelError, nil, err, "OIDC flow error")
+		http.Error(w, "internal error", http.StatusInternalServerError)
+	}
+}
+
+// oidcCallbackError writes a 4xx/5xx response on /oidc-callback failure.
+// Browser callers (Accept: text/html) get a small HTML page with a link
+// back to the cluster (or root) so they're not stranded on a JSON error;
+// non-browser callers get the existing plain-text contract preserved
+// from the pre-stage-5 handler. plainBody is what non-HTML callers see
+// (preserve historical wording for downstream contract); htmlReason is
+// the friendlier text shown inside the HTML page.
+func oidcCallbackError(
+	w http.ResponseWriter, r *http.Request, status int,
+	plainBody, htmlReason string,
+	cluster, baseURL string,
+) {
+	if !wantsHTML(r) {
+		http.Error(w, plainBody, status)
+		return
+	}
+
+	clusterRoot := "/"
+	if trimmed := strings.Trim(baseURL, "/"); trimmed != "" {
+		clusterRoot = "/" + trimmed + "/"
+	}
+
+	if cluster != "" {
+		clusterRoot += "c/" + url.PathEscape(cluster) + "/"
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+
+	page := buildOIDCErrorPage(htmlReason, clusterRoot)
+	if _, err := io.WriteString(w, page); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing OIDC error page")
+	}
+}
+
+// wantsHTML returns true when the caller's Accept header prefers HTML
+// over JSON / plain text. We treat any "text/html" or "*/*" without a
+// more specific JSON preference as HTML — browsers are the dominant
+// caller of /oidc-callback so this skews toward HTML when the header
+// is ambiguous.
+func wantsHTML(r *http.Request) bool {
+	accept := r.Header.Get("Accept")
+	if accept == "" {
+		return false
+	}
+
+	lower := strings.ToLower(accept)
+	if strings.Contains(lower, "application/json") &&
+		!strings.Contains(lower, "text/html") {
+		return false
+	}
+
+	return strings.Contains(lower, "text/html") || strings.Contains(lower, "*/*")
+}
+
+// buildOIDCErrorPage renders the small HTML page shown on
+// /oidc-callback failures. The reason is HTML-escaped via
+// html/template; the link target is constructed from trusted server
+// state (cluster root) and is not user-controlled, so it's spliced in
+// directly via the template.
+func buildOIDCErrorPage(reason, clusterRoot string) string {
+	tmpl := template.Must(template.New("oidc-error").Parse(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sign-in error — Headlamp</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body { font-family: system-ui, sans-serif; max-width: 32rem; margin: 4rem auto; padding: 0 1rem; color: #222; }
+h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+p { line-height: 1.4; }
+a { color: #1565c0; }
+</style>
+</head>
+<body>
+<h1>Sign-in didn't complete</h1>
+<p>{{.Reason}}</p>
+<p><a href="{{.Home}}">Return to Headlamp</a> and try again.</p>
+</body>
+</html>`))
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, struct {
+		Reason string
+		Home   string
+	}{Reason: reason, Home: clusterRoot}); err != nil {
+		// Fall back to a static body if templating somehow fails. Defensive
+		// only — the template above is constant.
+		return "Sign-in didn't complete. <a href=\"" + clusterRoot + "\">Return to Headlamp</a>."
+	}
+
+	return buf.String()
+}
+
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
 
@@ -677,110 +952,109 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	config.addClusterSetupRoute(r)
 
-	var (
-		oauthRequestMap = make(map[string]*OauthConfig)
-		oauthMu         sync.Mutex
-	)
+	// stateSigner signs and verifies the OAuth2 state parameter for the
+	// OIDC handlers. A single signer is shared by /oidc and /oidc-callback
+	// in the same process. Operators that run multiple replicas must point
+	// every replica at the same signing key via
+	// --oidc-state-signing-key-file; otherwise a callback that lands on a
+	// different replica than the one that issued the state will be
+	// rejected (see #4019).
+	stateSigner, err := loadOIDCStateSigner(config)
+	if err != nil {
+		// A bad --oidc-state-signing-key-file (unreadable, too short) is
+		// an operator startup error and not survivable. We panic instead
+		// of returning the error to keep createHeadlampHandler's
+		// signature unchanged across many call sites; the recovery path
+		// in production is "fix the file and restart the binary".
+		// loadOIDCStateSigner only errors on file IO + length validation,
+		// not on the per-process default-key path, so tests that don't
+		// exercise the bad-key code path are unaffected.
+		logger.Log(logger.LevelError, nil, err, "loading OIDC state signing key")
+		panic(fmt.Sprintf("failed to load OIDC state signing key: %v", err))
+	}
 
 	r.HandleFunc("/oidc", func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.Background()
 		cluster := r.URL.Query().Get("cluster")
 
-		if config.Insecure {
-			tr := &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
-			}
-			InsecureClient := &http.Client{Transport: tr}
-			ctx = oidc.ClientContext(ctx, InsecureClient)
-		}
+		// mode controls how /oidc-callback redirects after a successful
+		// token exchange. ModePopup preserves the legacy /auth?cluster=...
+		// contract; ModeFullPage redirects directly to returnTo (or the
+		// cluster root if returnTo is absent). ModeDesktop is reserved
+		// for PR 2 of #5401 and is rejected here so its eventual
+		// semantics can't be silently established by abuse.
+		mode := auth.StateMode(r.URL.Query().Get("mode"))
+		switch mode {
+		case "":
+			mode = auth.ModePopup
+		case auth.ModePopup, auth.ModeFullPage:
+			// ok
+		case auth.ModeDesktop:
+			http.Error(w,
+				"mode=desktop is reserved for the desktop OIDC code-handoff flow "+
+					"(see kubernetes-sigs/headlamp#5401, PR 2) and is not yet supported",
+				http.StatusBadRequest)
 
-		kContext, err := config.KubeConfigStore.GetContext(cluster)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
-				err, "failed to get context")
-
-			http.NotFound(w, r)
-
+			return
+		default:
+			http.Error(w, "invalid mode", http.StatusBadRequest)
 			return
 		}
 
-		oidcAuthConfig, err := kContext.OidcConfig()
-		if err != nil {
-			// Avoid the noise in the pod log while accessing Headlamp using Service Token
-			if config.OidcIdpIssuerURL != "" {
+		var validatedReturnTo string
+
+		if rawReturnTo := r.URL.Query().Get("returnTo"); rawReturnTo != "" {
+			cleaned, vErr := auth.ValidateReturnTo(rawReturnTo, config.BaseURL)
+			if vErr != nil {
 				logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
-					err, "failed to get oidc config")
+					vErr, "rejected returnTo on /oidc")
+				http.Error(w, "invalid returnTo", http.StatusBadRequest)
+
+				return
 			}
 
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-
-			return
+			validatedReturnTo = cleaned
 		}
 
-		ctx = auth.ConfigureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
-
-		if config.OidcValidatorIdpIssuerURL != "" {
-			ctx = oidc.InsecureIssuerURLContext(ctx, config.OidcValidatorIdpIssuerURL)
-		}
-
-		provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
+		flow, _, err := buildOIDCFlow(r.Context(), config, r, cluster)
 		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"idpIssuerURL": oidcAuthConfig.IdpIssuerURL},
-				err, "failed to get provider")
+			handleOIDCFlowError(w, r, err)
+			return
+		}
 
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		csrfBytes := make([]byte, 16)
+		if _, err := rand.Read(csrfBytes); err != nil {
+			logger.Log(logger.LevelError, nil, err, "generating CSRF for OIDC state")
+			http.Error(w, "internal error", http.StatusInternalServerError)
 
 			return
 		}
 
-		validatorClientID := oidcAuthConfig.ClientID
-		if config.OidcValidatorClientID != "" {
-			validatorClientID = config.OidcValidatorClientID
-		}
-
-		oidcConfig := &oidc.Config{
-			ClientID: validatorClientID,
-		}
-
-		verifier := provider.Verifier(oidcConfig)
-		oauthConfig := &oauth2.Config{
-			ClientID:     oidcAuthConfig.ClientID,
-			ClientSecret: oidcAuthConfig.ClientSecret,
-			Endpoint:     provider.Endpoint(),
-			RedirectURL:  getOidcCallbackURL(r, config),
-			Scopes:       append([]string{oidc.ScopeOpenID}, oidcAuthConfig.Scopes...),
-		}
-
-		// state should be unique per request, cryptographically secure random, url safe
-		state := func() string {
-			b := make([]byte, 32)
-			if _, err := rand.Read(b); err != nil {
-				panic(err)
-			}
-
-			return base64.RawURLEncoding.EncodeToString(b)
-		}()
-
-		entry := &OauthConfig{
-			Config:   oauthConfig,
-			Verifier: verifier,
-			Ctx:      ctx,
+		payload := auth.StatePayload{
 			Cluster:  cluster,
+			Mode:     mode,
+			ReturnTo: validatedReturnTo,
+			CSRF:     hex.EncodeToString(csrfBytes),
 		}
 
 		var authURL string
 
 		if config.OidcUsePKCE {
-			entry.CodeVerifier = oauth2.GenerateVerifier()
-			authURL = oauthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(entry.CodeVerifier))
-		} else {
-			authURL = oauthConfig.AuthCodeURL(state)
+			payload.CodeVerifier = oauth2.GenerateVerifier()
 		}
 
-		// Store the request config keyed by state for callback handling
-		oauthMu.Lock()
-		oauthRequestMap[state] = entry
-		oauthMu.Unlock()
+		state, err := stateSigner.Encode(payload)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "encoding OIDC state")
+			http.Error(w, "internal error", http.StatusInternalServerError)
+
+			return
+		}
+
+		if config.OidcUsePKCE {
+			authURL = flow.OAuth2.AuthCodeURL(state, oauth2.S256ChallengeOption(payload.CodeVerifier))
+		} else {
+			authURL = flow.OAuth2.AuthCodeURL(state)
+		}
 
 		http.Redirect(w, r, authURL, http.StatusFound)
 	}).Queries("cluster", "{cluster}")
@@ -793,50 +1067,75 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		state := r.URL.Query().Get("state")
 
 		if state == "" {
-			logger.Log(logger.LevelError, nil, err, "invalid request state is empty")
-			http.Error(w, "invalid request state is empty", http.StatusBadRequest)
+			logger.Log(logger.LevelError, nil, nil, "invalid request state is empty")
+			oidcCallbackError(w, r, http.StatusBadRequest,
+				"invalid request state is empty",
+				"The sign-in link is missing required information.",
+				"", config.BaseURL)
 
 			return
 		}
 
-		oauthMu.Lock()
+		payload, err := stateSigner.Decode(state)
+		if err != nil {
+			// Any decode failure (bad signature, malformed, expired, bad
+			// version, oversize) collapses to "invalid request" so we
+			// don't leak details to anonymous callers.
+			logger.Log(logger.LevelError, nil, err, "decoding OIDC state")
+			oidcCallbackError(w, r, http.StatusBadRequest,
+				"invalid request",
+				"The sign-in link is invalid or has expired. Please start the sign-in again.",
+				"", config.BaseURL)
 
-		oauthConfig, ok := oauthRequestMap[state]
-		if ok {
-			// We have a copy of the oauthConfig, we can delete the map entry now
-			delete(oauthRequestMap, state)
+			return
 		}
 
-		oauthMu.Unlock()
+		if !stateSigner.MarkConsumed(payload.CSRF) {
+			// State has already been used. Same response shape as the
+			// unknown-state path so callers can't infer whether a state
+			// was previously valid.
+			oidcCallbackError(w, r, http.StatusBadRequest,
+				"invalid request",
+				"This sign-in link has already been used. Please start the sign-in again.",
+				payload.Cluster, config.BaseURL)
+			return
+		}
 
-		if !ok {
-			http.Error(w, "invalid request", http.StatusBadRequest)
+		flow, flowCtx, err := buildOIDCFlow(r.Context(), config, r, payload.Cluster)
+		if err != nil {
+			handleOIDCFlowError(w, r, err)
 			return
 		}
 
 		var oauth2Token *oauth2.Token
 
-		var err error
-
 		// Exchange authorization code for token, with or without PKCE
-		if config.OidcUsePKCE && oauthConfig.CodeVerifier != "" {
-			// Use PKCE code verifier for token exchange
-			oauth2Token, err = oauthConfig.Config.Exchange(
-				oauthConfig.Ctx,
+		if config.OidcUsePKCE && payload.CodeVerifier != "" {
+			oauth2Token, err = flow.OAuth2.Exchange(
+				flowCtx,
 				r.URL.Query().Get("code"),
-				oauth2.SetAuthURLParam("code_verifier", oauthConfig.CodeVerifier),
+				oauth2.SetAuthURLParam("code_verifier", payload.CodeVerifier),
 			)
 		} else {
-			// Standard token exchange without PKCE
-			oauth2Token, err = oauthConfig.Config.Exchange(
-				oauthConfig.Ctx,
+			oauth2Token, err = flow.OAuth2.Exchange(
+				flowCtx,
 				r.URL.Query().Get("code"),
 			)
 		}
 
 		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to exchange token")
-			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
+			// Don't echo the upstream OAuth2 error body to the browser;
+			// it can carry full IdP HTTP response bodies including
+			// internal addresses or stack traces. Log the full detail
+			// server-side and surface a generic message via
+			// oidcCallbackError so the response shape matches the rest
+			// of the 4xx/5xx paths.
+			logger.Log(logger.LevelError, map[string]string{"cluster": payload.Cluster},
+				err, "failed to exchange token")
+			oidcCallbackError(w, r, http.StatusInternalServerError,
+				"Failed to exchange token",
+				"The identity provider rejected the sign-in. Please try again.",
+				payload.Cluster, config.BaseURL)
 
 			return
 		}
@@ -848,7 +1147,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		rawUserToken, ok := oauth2Token.Extra(tokenType).(string)
 		if !ok {
-			logger.Log(logger.LevelError, nil, err, fmt.Sprintf("no %s field in oauth2 token", tokenType))
+			logger.Log(logger.LevelError, nil, nil, fmt.Sprintf("no %s field in oauth2 token", tokenType))
 			http.Error(w, fmt.Sprintf("No %s field in oauth2 token.", tokenType), http.StatusInternalServerError)
 
 			return
@@ -862,7 +1161,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawUserToken)
+		idToken, err := flow.Verifier.Verify(flowCtx, rawUserToken)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to verify ID Token")
 			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
@@ -895,9 +1194,51 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		// Set auth cookie
-		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
+		auth.SetTokenCookie(w, r, payload.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
 
-		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
+		// Re-validate returnTo at consumption time (defense in depth: even
+		// though the value was validated at /oidc and signed into the
+		// state, a future schema change or signing-key compromise should
+		// not be able to convert state into an arbitrary open redirect).
+		// We pass config.BaseURL so the validator also enforces the
+		// sub-path prefix when one is configured.
+		safeReturnTo := ""
+		if payload.ReturnTo != "" {
+			cleaned, vErr := auth.ValidateReturnTo(payload.ReturnTo, config.BaseURL)
+			if vErr == nil {
+				safeReturnTo = cleaned
+			} else {
+				logger.Log(logger.LevelError, map[string]string{"cluster": payload.Cluster},
+					vErr, "rejected returnTo on /oidc-callback (signed state had unsafe returnTo)")
+			}
+		}
+
+		escapedCluster := url.PathEscape(payload.Cluster)
+
+		switch payload.Mode {
+		case auth.ModeFullPage:
+			// Skip /auth entirely. Redirect straight to returnTo, or to
+			// the cluster root if returnTo is absent or unsafe.
+			if safeReturnTo != "" {
+				redirectURL = safeReturnTo
+			} else {
+				redirectURL += "c/" + escapedCluster + "/"
+			}
+		case auth.ModeDesktop:
+			// Belt-and-suspenders: /oidc rejects mode=desktop, but signed
+			// state could in principle carry it via a different code path.
+			http.Error(w, "mode=desktop is not yet supported", http.StatusBadRequest)
+			return
+		default:
+			// ModePopup (and unset, treated as popup): preserve the
+			// existing /auth?cluster=... contract, optionally with
+			// returnTo so the /auth page can finish navigating after the
+			// popup-storage handshake.
+			redirectURL += "auth?cluster=" + url.QueryEscape(payload.Cluster)
+			if safeReturnTo != "" {
+				redirectURL += "&returnTo=" + url.QueryEscape(safeReturnTo)
+			}
+		}
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 	})

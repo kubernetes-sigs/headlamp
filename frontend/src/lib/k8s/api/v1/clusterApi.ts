@@ -31,10 +31,58 @@ import { JSON_HEADERS } from './constants';
 /**
  * Test authentication for the given cluster.
  * Will throw an error if the user is not authenticated.
+ *
+ * For OIDC clusters (auth_type === 'oidc'), this calls the headlamp-server
+ * `/clusters/{cluster}/me` endpoint, which validates the per-cluster auth
+ * cookie. The handler is implemented at backend/pkg/auth/auth.go HandleMe;
+ * it returns 401 with `{"message": "unauthorized"}` (or "token expired")
+ * when the cookie is missing, malformed, or its embedded JWT cannot be
+ * verified, and otherwise returns `{"username": ..., "email": ..., ...}`
+ * with the JMESPath-extracted username from the JWT payload.
+ *
+ * The `clusterRequest` wrapper rejects the promise on any non-2xx, so
+ * 401 from /me surfaces as a thrown error and the caller routes the
+ * user to AuthChooser. The defense-in-depth `system:anonymous` check
+ * below covers the case where a future kubeconfig wires its OIDC
+ * username path to a claim that resolves to that string.
+ *
+ * This works around the SSRR false-positive reported in #4721: when
+ * `system:basic-user` is granted to `system:unauthenticated`, SSRR
+ * returns HTTP 201 for both anonymous and authenticated callers, so it
+ * cannot be used as the auth signal on those clusters.
+ *
+ * For non-OIDC clusters, behavior is unchanged: SSRR is the auth signal.
  */
 export async function testAuth(cluster = '', namespace = 'default') {
-  const spec = { namespace };
   const clusterName = cluster || getCluster();
+
+  if (clusterName) {
+    const clusterAuthType = store.getState().config?.clusters?.[clusterName]?.auth_type;
+
+    if (clusterAuthType === 'oidc') {
+      const me = await clusterRequest('/me', {
+        timeout: 5 * 1000,
+        cluster: clusterName,
+      });
+
+      const username: string = (me && me.username) || '';
+      if (!username || username.startsWith('system:anonymous')) {
+        // Defense in depth: a 200 with a system:anonymous-equivalent
+        // username should not count as authenticated. The backend is
+        // expected to surface unauthenticated cookies as 401 (which
+        // clusterRequest already throws on); this branch covers an
+        // operator who configures the JMESPath username extraction in a
+        // way that resolves to "system:anonymous" or empty.
+        const err = new Error('not authenticated') as Error & { status?: number };
+        err.status = 401;
+        throw err;
+      }
+
+      return me;
+    }
+  }
+
+  const spec = { namespace };
 
   return post('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', { spec }, false, {
     timeout: 5 * 1000,
