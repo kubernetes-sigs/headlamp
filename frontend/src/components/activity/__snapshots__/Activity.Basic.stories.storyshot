@@ -91,14 +91,23 @@
             <button
               aria-expanded="false"
               aria-haspopup="menu"
-              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              class="MuiButtonBase-root Mui-focusVisible MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
               title="Window"
               type="button"
             >
               <span
                 class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-              />
+              >
+                <span
+                  class="css-y4cjyz-MuiTouchRipple-ripple MuiTouchRipple-ripple MuiTouchRipple-rippleVisible MuiTouchRipple-ripplePulsate"
+                  style="width: 1px; height: 1px; top: -0.5px; left: -0.5px;"
+                >
+                  <span
+                    class="MuiTouchRipple-child MuiTouchRipple-childPulsate"
+                  />
+                </span>
+              </span>
             </button>
             <button
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"

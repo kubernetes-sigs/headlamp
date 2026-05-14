@@ -17,7 +17,7 @@
             Container
           </label>
           <div
-            class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary MuiInputBase-formControl  css-m7fptp-MuiInputBase-root-MuiInput-root-MuiSelect-root"
+            class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary MuiInputBase-formControl css-m7fptp-MuiInputBase-root-MuiInput-root-MuiSelect-root"
           >
             <div
               aria-controls=":mock-test-id:"
@@ -57,7 +57,7 @@
       >
         <div
           id="xterm-container"
-          style="flex: 1; display: flex; flex-direction: column-reverse;"
+          style="flex: 1 1 0%; display: flex; flex-direction: column-reverse;"
         >
           <div
             class="terminal xterm xterm-dom-renderer-owner focus"
