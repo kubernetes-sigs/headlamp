@@ -172,7 +172,7 @@ func (c *Config) Validate() error {
 
 func isValidLogLevel(logLevel string) bool {
 	switch strings.ToLower(strings.TrimSpace(logLevel)) {
-	case "debug", "info", "warn", "error":
+	case "", "debug", "info", "warn", "error":
 		return true
 	default:
 		return false
@@ -236,6 +236,11 @@ func recordExplicitFlags(f *flag.FlagSet) map[string]bool {
 	return explicitFlags
 }
 
+func hasWatchPluginsChangesEnv() bool {
+	_, ok := os.LookupEnv("HEADLAMP_CONFIG_WATCH_PLUGINS_CHANGES")
+	return ok
+}
+
 // loadConfigFromEnv loads config values from environment variables into koanf.
 func loadConfigFromEnv(k *koanf.Koanf) error {
 	err := k.Load(env.Provider("HEADLAMP_CONFIG_", ".", func(s string) string {
@@ -276,9 +281,9 @@ func unmarshalConfig(k *koanf.Koanf, config *Config) error {
 	return nil
 }
 
-// patchWatchPluginsChanges disables plugin watching if running in-cluster and user didn't set the flag.
-func patchWatchPluginsChanges(config *Config, explicitFlags map[string]bool) {
-	if config.InCluster && !explicitFlags["watch-plugins-changes"] {
+// patchWatchPluginsChanges disables plugin watching if running in-cluster and the user didn't set the option.
+func patchWatchPluginsChanges(config *Config, explicitFlags map[string]bool, hasEnvOverride bool) {
+	if config.InCluster && !explicitFlags["watch-plugins-changes"] && !hasEnvOverride {
 		config.WatchPluginsChanges = false
 	}
 }
@@ -378,6 +383,7 @@ func Parse(args []string) (*Config, error) {
 	if err := loadConfigFromEnv(k); err != nil {
 		return nil, err
 	}
+	watchPluginsChangesEnvSet := hasWatchPluginsChangesEnv()
 
 	// 5. Reload explicitly-set flags to override env values.
 	if err := reloadExplicitFlags(k, f, explicitFlags); err != nil {
@@ -390,7 +396,7 @@ func Parse(args []string) (*Config, error) {
 	}
 
 	// 7. Post-process: patch plugin flag and kubeconfig path.
-	patchWatchPluginsChanges(&config, explicitFlags)
+	patchWatchPluginsChanges(&config, explicitFlags, watchPluginsChangesEnvSet)
 
 	if err := setKubeConfigPath(&config); err != nil {
 		return nil, err

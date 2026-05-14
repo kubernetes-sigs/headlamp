@@ -186,6 +186,16 @@ var ParseWithEnvTests = []struct {
 			assert.Equal(t, "X-Env-Token-Header", conf.ProxyAuthTokenHeader)
 		},
 	},
+	{
+		name: "watch_plugins_changes_from_env_in_cluster",
+		args: []string{"go run ./cmd", "--in-cluster"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_WATCH_PLUGINS_CHANGES": "true",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.WatchPluginsChanges)
+		},
+	},
 }
 
 func TestParseWithEnv(t *testing.T) {
@@ -478,6 +488,22 @@ func TestOIDCTLSEnvironmentVariables(t *testing.T) {
 	}
 }
 
+func TestWatchPluginsChangesInClusterDefaults(t *testing.T) {
+	require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_WATCH_PLUGINS_CHANGES"))
+
+	conf, err := config.Parse([]string{"go run ./cmd", "--in-cluster"})
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+	assert.Equal(t, false, conf.WatchPluginsChanges)
+}
+
+func TestWatchPluginsChangesInClusterFlagOverride(t *testing.T) {
+	conf, err := config.Parse([]string{"go run ./cmd", "--in-cluster", "--watch-plugins-changes=true"})
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+	assert.Equal(t, true, conf.WatchPluginsChanges)
+}
+
 var applyMeDefaultsTests = []struct {
 	name             string
 	usernamePath     string
@@ -673,6 +699,16 @@ func TestValidateLogLevel(t *testing.T) {
 		{
 			name:        "log_level_error",
 			args:        []string{"go run ./cmd", "--log-level=error"},
+			expectError: false,
+		},
+		{
+			name:        "log_level_empty",
+			args:        []string{"go run ./cmd", "--log-level="},
+			expectError: false,
+		},
+		{
+			name:        "log_level_whitespace",
+			args:        []string{"go run ./cmd", "--log-level= \t"},
 			expectError: false,
 		},
 		{
