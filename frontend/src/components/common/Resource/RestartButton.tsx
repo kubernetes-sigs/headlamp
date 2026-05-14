@@ -49,18 +49,14 @@ export function RestartButton(props: RestartButtonProps) {
   const dispatch: AppDispatch = useDispatch();
   const { item, buttonStyle, afterConfirm } = props;
 
+  const [openDialog, setOpenDialog] = useState(false);
+  const location = useLocation();
+  const { t } = useTranslation(['translation']);
+  const dispatchRestartEvent = useEventCallback(HeadlampEventType.RESTART_RESOURCE);
+
   if (!item || !isRestartableResource(item)) {
     return null;
   }
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [openDialog, setOpenDialog] = useState(false);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const location = useLocation();
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { t } = useTranslation(['translation']);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const dispatchRestartEvent = useEventCallback(HeadlampEventType.RESTART_RESOURCE);
 
   async function restartResource() {
     const patchData = {
