@@ -69,6 +69,7 @@ const dependenciesToNotCopy = [
   'fake-indexeddb',
   'lint-staged',
   'openapi-types',
+  'remark-gfm',
   'resize-observer-polyfill',
   'vitest-canvas-mock',
   '@tanstack/react-query-devtools',

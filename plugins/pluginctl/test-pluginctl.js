@@ -23,10 +23,10 @@ This tests unpublished @headlamp-k8s/pluginctl package in repo.
 
 Assumes being run within the plugins/pluginctl folder
 `;
-const PACKAGE_NAME = "headlamp_opencost";
+const PACKAGE_NAME = "headlamp_flux";
 const PACKAGE_URL =
-  "https://artifacthub.io/packages/headlamp/test-123/headlamp_opencost";
-const PACKAGE_NAME_TO_UNINSTALL = "@headlamp-k8s/opencost";
+  "https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux";
+const PACKAGE_NAME_TO_UNINSTALL = "@headlamp-k8s/flux";
 
 function testPluginctl() {
   // remove some temporary files.
