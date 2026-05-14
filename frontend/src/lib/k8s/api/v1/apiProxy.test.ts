@@ -876,6 +876,7 @@ describe('apiProxy', () => {
 
   describe('getClusterUserInfo', () => {
     const apiPath = '/apis/authentication.k8s.io/v1/selfsubjectreviews';
+    const mePath = '/me';
     const mockUserInfo = {
       username: 'test-user',
       uid: 'test-uid',
@@ -891,14 +892,26 @@ describe('apiProxy', () => {
       nock.cleanAll();
     });
 
-    it('Successfully returns user info when API is available', async () => {
+    it('Successfully returns user info from /me API', async () => {
+      nock(baseApiUrl).get(`/clusters/${clusterName}${mePath}`).reply(200, {
+        username: 'me-user',
+        groups: ['me-group'],
+      });
+
+      const userInfo = await apiProxy.getClusterUserInfo(clusterName);
+      expect(userInfo).toEqual({ username: 'me-user', groups: ['me-group'] });
+    });
+
+    it('Falls back to SelfSubjectReview when /me API is unavailable', async () => {
+      nock(baseApiUrl).get(`/clusters/${clusterName}${mePath}`).reply(404);
       nock(baseApiUrl).post(`/clusters/${clusterName}${apiPath}`).reply(200, mockSuccessResponse);
 
       const userInfo = await apiProxy.getClusterUserInfo(clusterName);
       expect(userInfo).toEqual(mockUserInfo);
     });
 
-    it('Falls back to cluster name when API returns error', async () => {
+    it('Falls back to cluster name when both APIs return error', async () => {
+      nock(baseApiUrl).get(`/clusters/${clusterName}${mePath}`).reply(404);
       nock(baseApiUrl)
         .post(`/clusters/${clusterName}${apiPath}`)
         .reply(404, { message: 'Not Found' });
@@ -907,7 +920,8 @@ describe('apiProxy', () => {
       expect(userInfo).toEqual({ username: clusterName });
     });
 
-    it('Falls back to cluster name when API returns no user info', async () => {
+    it('Falls back to cluster name when both APIs return no user info', async () => {
+      nock(baseApiUrl).get(`/clusters/${clusterName}${mePath}`).reply(200, {});
       nock(baseApiUrl).post(`/clusters/${clusterName}${apiPath}`).reply(200, {});
 
       const userInfo = await apiProxy.getClusterUserInfo(clusterName);
