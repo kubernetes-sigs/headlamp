@@ -857,10 +857,6 @@ function quitServerProcess() {
   intentionalQuit = true;
   console.info('stopping server process...');
 
-  if (!serverProcess) {
-    return;
-  }
-
   serverProcess.stdin.destroy();
 
   if (process.platform === 'win32') {
