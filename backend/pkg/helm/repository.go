@@ -92,7 +92,7 @@ func lockRepositoryFile(lockCtx context.Context, repositoryConfig string) (bool,
 
 	fileLock := flock.New(lockPath)
 
-	locked, err := fileLock.TryLockContext(lockCtx, time.Second)
+	locked, err := fileLock.TryLockContext(lockCtx, lockRetryDelay)
 
 	return locked, fileLock, err
 }
@@ -109,7 +109,10 @@ func ensureRepositoryFileLocked(locked bool, err error) error {
 	return nil
 }
 
-const timeoutForLock = 30 * time.Second
+const (
+	timeoutForLock = 30 * time.Second
+	lockRetryDelay = 100 * time.Millisecond
+)
 
 // Adds a repository with name, url to the helm config. Returns error if there is one.
 func addRepository(name string, url string, settings *cli.EnvSettings) error {
