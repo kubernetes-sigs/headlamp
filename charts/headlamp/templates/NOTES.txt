@@ -36,5 +36,5 @@ NOTE:
   image.tag is explicitly set to {{ .Values.image.tag }}.
   Chart upgrades do not change this pinned value automatically.
   If the UI shows an older version than the chart's appVersion, update image.tag explicitly, for example:
-  helm upgrade {{ .Release.Name }} headlamp/headlamp --namespace {{ include "headlamp.namespace" . }} --set image.tag=v{{ .Chart.AppVersion }}
+  helm upgrade {{ .Release.Name }} <repo>/{{ .Chart.Name }} --namespace {{ include "headlamp.namespace" . }} --set image.tag=v{{ .Chart.AppVersion }}
 {{- end }}
