@@ -28,6 +28,7 @@ import { KubeList } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { WebSocketManager } from './multiplexer';
+import { kubeRequestRetry } from './retry';
 import { BASE_WS_URL, useWebSockets } from './webSocket';
 
 /**
@@ -72,6 +73,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
   return {
     placeholderData: null,
     refetchInterval,
+    retry: kubeRequestRetry,
     queryKey: [
       'kubeObject',
       'list',

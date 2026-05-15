@@ -25,6 +25,7 @@ import type { KubeListUpdateEvent } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { useWebSocket } from './multiplexer';
+import { kubeRequestRetry } from './retry';
 import { getWebsocketMultiplexerEnabled } from './useKubeObjectList';
 import { useWebSockets } from './webSocket';
 
@@ -139,6 +140,7 @@ export function useKubeObject<K extends KubeObject>({
     enabled: !!endpoint,
     placeholderData: null,
     staleTime: 5000,
+    retry: kubeRequestRetry,
     queryKey,
     queryFn: async () => {
       const url = makeUrl(
@@ -273,6 +275,7 @@ export const useEndpoints = (
 
   const { data: endpoint, error } = useQuery<KubeObjectEndpoint, ApiError>({
     enabled: endpoints.length > 1,
+    retry: false,
     queryKey: ['endpoints', cluster, namespace, name ?? '', endpointsKey],
     queryFn: () => getWorkingEndpoint(endpoints, cluster!, namespace, name),
   });
