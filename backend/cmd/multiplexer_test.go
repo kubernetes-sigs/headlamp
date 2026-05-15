@@ -487,6 +487,28 @@ func TestCloseConnection(t *testing.T) {
 	assert.True(t, conn.closed)
 }
 
+func TestCloseClientConnectionsClearsClientBeforeClosing(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore())
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	wsConn, wsServer := createTestWebSocketConnection()
+	defer wsServer.Close()
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	conn.WSConn = wsConn.conn
+
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+	m.connections[connKey] = conn
+
+	m.closeClientConnections(clientConn)
+
+	assert.Empty(t, m.connections)
+	assert.Nil(t, conn.Client)
+	assert.Equal(t, StateClosed, conn.Status.State)
+	assert.True(t, conn.closed)
+}
+
 func createTestConnection(
 	clusterID,
 	userID,

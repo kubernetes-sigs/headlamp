@@ -626,7 +626,7 @@ func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Reque
 		}
 
 		token, err := auth.GetTokenFromCookie(r, msg.ClusterID)
-		if err != nil && token != "" {
+		if err != nil {
 			logger.Log(logger.LevelError, map[string]string{"clusterID": msg.ClusterID}, err, "getting token from cookie")
 			m.sendClientError(lockClientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
 
@@ -669,6 +669,15 @@ func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
 	m.mutex.Unlock()
 
 	for _, conn := range connsToClose {
+		conn.mu.Lock()
+		if conn.Client == clientConn {
+			conn.Client = nil
+			conn.Status.State = StateClosed
+			conn.Status.LastMsg = time.Now()
+			conn.Status.Error = ""
+		}
+		conn.mu.Unlock()
+
 		conn.safeClose()
 	}
 }
