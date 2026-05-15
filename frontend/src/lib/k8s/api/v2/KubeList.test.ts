@@ -80,6 +80,33 @@ describe('KubeList.applyUpdate', () => {
     expect(updatedList.items[0] instanceof MockKubeObject).toBe(true);
   });
 
+  it('should keep pagination metadata when applying watch updates', () => {
+    const paginatedList: KubeList<any> = {
+      ...initialList,
+      metadata: {
+        resourceVersion: '1',
+        continue: 'continue-token',
+        remainingItemCount: 10,
+      },
+    };
+    const updateEvent: KubeListUpdateEvent<MockKubeObject> = {
+      type: 'MODIFIED',
+      object: {
+        apiVersion: 'v1',
+        kind: 'MockKubeObject',
+        metadata: { uid: '1', resourceVersion: '2' },
+      },
+    };
+
+    const updatedList = KubeList.applyUpdate(paginatedList, updateEvent, itemClass, cluster);
+
+    expect(updatedList.metadata).toEqual({
+      resourceVersion: '2',
+      continue: 'continue-token',
+      remainingItemCount: 10,
+    });
+  });
+
   it('should add a new item on MODIFIED event', () => {
     const updateEvent: KubeListUpdateEvent<MockKubeObject> = {
       type: 'MODIFIED',
