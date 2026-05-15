@@ -58,7 +58,8 @@ $ helm install my-headlamp headlamp/headlamp \
 If `image.tag` is set explicitly (for example in a values file or via `--set image.tag=...`), Helm upgrades will keep that value.
 This means the release can show a newer chart/app version while still running an older container image.
 
-To ensure the running image matches the chart version during upgrade, set the tag explicitly to the chart's appVersion-derived format:
+To ensure the running image matches the chart version during upgrade, set the tag explicitly to the chart's appVersion-derived format.
+Replace `<repo>` with the Helm repository alias you used during install (e.g. `headlamp`):
 
 ```console
 $ helm upgrade my-headlamp <repo>/headlamp \
