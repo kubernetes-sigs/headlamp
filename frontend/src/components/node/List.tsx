@@ -16,10 +16,11 @@
 
 import { useTranslation } from 'react-i18next';
 import Node from '../../lib/k8s/node';
+import { parseDiskSpace } from '../../lib/units';
 import { getResourceMetrics } from '../../lib/util';
 import { HoverInfoLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
-import { UsageBarChart } from './Charts';
+import { StorageBarChart, UsageBarChart } from './Charts';
 import { NodeReadyLabel } from './Details';
 import { formatTaint, NodeTaintsLabel } from './utils';
 
@@ -73,6 +74,19 @@ export default function NodeList() {
               noMetrics={noMetrics}
             />
           ),
+        },
+        {
+          id: 'disk',
+          label: t('translation|Disk'),
+          disableFiltering: true,
+          getValue: node => {
+            const alloc = node.status?.allocatable as
+              | Record<string, string | undefined>
+              | undefined;
+            const raw = alloc?.['ephemeral-storage'] ?? alloc?.ephemeralStorage ?? '0';
+            return parseDiskSpace(raw);
+          },
+          render: node => <StorageBarChart node={node} />,
         },
         {
           id: 'ready',

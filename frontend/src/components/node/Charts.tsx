@@ -19,6 +19,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { KubeMetrics } from '../../lib/k8s/cluster';
 import Node from '../../lib/k8s/node';
+import { parseDiskSpace, unparseDiskSpace } from '../../lib/units';
 import { getPercentStr, getResourceMetrics, getResourceStr } from '../../lib/util';
 import { PercentageBar } from '../common/Chart';
 import { TooltipIcon } from '../common/Tooltip';
@@ -41,7 +42,7 @@ export function UsageBarChart(props: UsageBarChartProps) {
 
   const data = [
     {
-      name: t('used'),
+      name: t('translation|used'),
       value: used,
     },
   ];
@@ -63,4 +64,46 @@ export function UsageBarChart(props: UsageBarChartProps) {
   ) : (
     <PercentageBar data={data} total={capacity} tooltipFunc={tooltipFunc} />
   );
+}
+
+interface StorageBarChartProps {
+  node: Node;
+}
+
+export function StorageBarChart(props: StorageBarChartProps) {
+  const { node } = props;
+  const { t } = useTranslation(['glossary', 'translation']);
+
+  const cap = node.status?.capacity as Record<string, string | undefined> | undefined;
+  const alloc = node.status?.allocatable as Record<string, string | undefined> | undefined;
+  const capacityRaw = cap?.['ephemeral-storage'] ?? cap?.ephemeralStorage ?? '0';
+  const allocatableRaw = alloc?.['ephemeral-storage'] ?? alloc?.ephemeralStorage ?? '0';
+  const capacity = parseDiskSpace(capacityRaw);
+  const allocatable = parseDiskSpace(allocatableRaw);
+
+  if (capacity === 0) {
+    return null;
+  }
+
+  const capacityInfo = unparseDiskSpace(capacity);
+  const allocatableInfo = unparseDiskSpace(allocatable);
+
+  const data = [
+    {
+      name: t('translation|Allocatable'),
+      value: allocatable,
+    },
+  ];
+
+  function tooltipFunc() {
+    return (
+      <Typography>
+        {t('translation|Allocatable')}: {allocatableInfo.value}
+        {allocatableInfo.unit} / {t('glossary|Capacity')}: {capacityInfo.value}
+        {capacityInfo.unit} ({getPercentStr(allocatable, capacity)})
+      </Typography>
+    );
+  }
+
+  return <PercentageBar data={data} total={capacity} tooltipFunc={tooltipFunc} />;
 }
