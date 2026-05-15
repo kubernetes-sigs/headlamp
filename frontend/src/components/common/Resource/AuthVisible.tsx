@@ -92,15 +92,17 @@ export default function AuthVisible(props: AuthVisibleProps) {
     },
   });
 
-  const visible = data?.status?.allowed ?? false;
+  const visible = isAuthVerbValid && (data?.status?.allowed ?? false);
 
   useEffect(() => {
-    if (data) {
-      onAuthResult?.({
-        allowed: visible,
-        reason: data.status?.reason ?? '',
-      });
+    if (!isAuthVerbValid || !data) {
+      return;
     }
+    onAuthResult?.({
+      allowed: visible,
+      reason: data.status?.reason ?? '',
+    });
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
