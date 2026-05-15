@@ -77,6 +77,7 @@ import (
 
 type HeadlampConfig struct {
 	*headlampconfig.HeadlampConfig
+	CompiledProxyURLs []glob.Glob
 }
 
 const DrainNodeCacheTTL = 20 // seconds
@@ -603,8 +604,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		isURLContainedInProxyURLs := false
 
-		for _, proxyURL := range config.ProxyURLs {
-			g := glob.MustCompile(proxyURL)
+		for _, g := range config.CompiledProxyURLs {
 			if g.Match(url.String()) {
 				isURLContainedInProxyURLs = true
 				break

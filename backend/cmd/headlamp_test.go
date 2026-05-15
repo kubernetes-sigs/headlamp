@@ -38,6 +38,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gobwas/glob"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -429,6 +430,7 @@ func TestExternalProxy(t *testing.T) {
 					},
 					Cache: cache,
 				},
+				CompiledProxyURLs: []glob.Glob{glob.MustCompile(proxyURL.String())},
 			}),
 			useForwardedHeaders: true,
 		},
@@ -455,6 +457,7 @@ func TestExternalProxy(t *testing.T) {
 					},
 					Cache: cache,
 				},
+				CompiledProxyURLs: []glob.Glob{glob.MustCompile(proxyURL.String())},
 			}),
 			useProxyURL: true,
 		},
@@ -527,6 +530,7 @@ func TestExternalProxyForwarding(t *testing.T) {
 			},
 			Cache: cache,
 		},
+		CompiledProxyURLs: []glob.Glob{glob.MustCompile(proxyURL.String())},
 	})
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
@@ -572,6 +576,7 @@ func TestExternalProxyTimeout(t *testing.T) {
 			},
 			Cache: cache,
 		},
+		CompiledProxyURLs: []glob.Glob{glob.MustCompile(proxyURL.String())},
 	})
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
