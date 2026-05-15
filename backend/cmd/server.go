@@ -103,16 +103,17 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 			if conf.ProxyURLs == "" {
 				return []string{}
 			}
+
 			return strings.Split(conf.ProxyURLs, ",")
 		}(),
-		TLSCertPath:            conf.TLSCertPath,
-		TLSKeyPath:             conf.TLSKeyPath,
-		SessionTTL:             conf.SessionTTL,
-		PodDebugImage:          conf.PodDebugImage,
-		OidcUseCookie:          conf.OidcUseCookie,
-		DefaultLightTheme:      conf.DefaultLightTheme,
-		DefaultDarkTheme:       conf.DefaultDarkTheme,
-		ForceTheme:             conf.ForceTheme,
+		TLSCertPath:       conf.TLSCertPath,
+		TLSKeyPath:        conf.TLSKeyPath,
+		SessionTTL:        conf.SessionTTL,
+		PodDebugImage:     conf.PodDebugImage,
+		OidcUseCookie:     conf.OidcUseCookie,
+		DefaultLightTheme: conf.DefaultLightTheme,
+		DefaultDarkTheme:  conf.DefaultDarkTheme,
+		ForceTheme:        conf.ForceTheme,
 	}
 }
 
@@ -181,6 +182,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 				err, "failed to compile proxy URL pattern")
 			os.Exit(1)
 		}
+
 		compiledProxyURLs = append(compiledProxyURLs, g)
 	}
 
