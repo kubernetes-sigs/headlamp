@@ -317,8 +317,7 @@ function PortForwardContent(props: PortForwardProps) {
     setLoading(true);
     stopOrDeletePortForward(cluster, portForward.id, true)
       .then(() => {
-        portForward.status = PORT_FORWARD_STOP_STATUS;
-        setPortForward(portForward);
+        setPortForward({ ...portForward, status: PORT_FORWARD_STOP_STATUS });
       })
       .catch(error => {
         setError(error?.message);
