@@ -100,7 +100,13 @@ export default function AuthVisible(props: AuthVisibleProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
-  if (!visible) {
+  useEffect(() => {
+    if (!isValidVerb) {
+      console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
+    }
+  }, [isValidVerb, authVerb]);
+
+  if (!isValidVerb || !visible) {
     return null;
   }
 
