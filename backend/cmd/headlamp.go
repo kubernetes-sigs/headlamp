@@ -89,6 +89,18 @@ const ContextUpdateCacheTTL = 20 * time.Second // seconds
 
 const JWTExpirationTTL = 10 * time.Second // seconds
 
+const (
+	// serverReadHeaderTimeout is the maximum time to read the request headers.
+	serverReadHeaderTimeout = 10 * time.Second
+	// serverIdleTimeout is the maximum time to wait for the next request on a keep-alive connection.
+	serverIdleTimeout = 120 * time.Second
+)
+
+// maxProxyResponseSize is the maximum size (in bytes) for proxied responses.
+//
+//nolint:gochecknoglobals // allow test override
+var maxProxyResponseSize int64 = 100 * 1024 * 1024
+
 // externalProxyTimeout is the maximum time to wait for a proxy response.
 //
 //nolint:gochecknoglobals // allow test override
@@ -314,7 +326,10 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 		logger.Log(logger.LevelInfo, nil, nil, "Received DELETE request for plugin: "+mux.Vars(r)["name"])
 
 		if err := config.checkHeadlampBackendToken(w, r); err != nil {
-			config.TelemetryHandler.RecordError(span, err, "Invalid backend token")
+			if config.TelemetryHandler != nil {
+				config.TelemetryHandler.RecordError(span, err, "Invalid backend token")
+			}
+
 			logger.Log(logger.LevelWarn, nil, err, "Invalid backend token for DELETE /plugins/{name}")
 
 			return
@@ -322,7 +337,9 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 
 		err := plugins.Delete(config.UserPluginDir, config.PluginDir, pluginName, pluginType)
 		if err != nil {
-			config.TelemetryHandler.RecordError(span, err, "Failed to delete plugin")
+			if config.TelemetryHandler != nil {
+				config.TelemetryHandler.RecordError(span, err, "Failed to delete plugin")
+			}
 
 			logger.Log(logger.LevelError, nil, err, "Error deleting plugin: "+pluginName)
 
@@ -651,23 +668,25 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			reader = resp.Body
 		}
 
-		respBody, err := io.ReadAll(reader)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "reading response")
-			http.Error(w, err.Error(), http.StatusBadGateway)
-
-			return
-		}
-
 		if contentType := resp.Header.Get("Content-Type"); contentType != "" {
 			w.Header().Set("Content-Type", contentType)
 		}
 
+		// Reject early if Content-Length exceeds the maximum allowed size.
+		if resp.ContentLength > maxProxyResponseSize {
+			logger.Log(logger.LevelError, nil, nil, "proxy response exceeded maximum allowed size (Content-Length)")
+			http.Error(w, "response too large", http.StatusBadGateway)
+
+			return
+		}
+
 		w.WriteHeader(resp.StatusCode)
 
-		_, err = w.Write(respBody)
+		// Stream the response with a limit to prevent memory exhaustion and decompression bombs.
+		// Note: If Content-Length is unknown and the limit is reached, the response will be truncated.
+		_, err = io.Copy(w, io.LimitReader(reader, maxProxyResponseSize))
 		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "writing response")
+			logger.Log(logger.LevelError, nil, err, "streaming response")
 
 			return
 		}
@@ -1237,6 +1256,7 @@ func hostValidationMiddleware(listenAddr string, port uint) func(http.Handler) h
 	}
 }
 
+//nolint:funlen
 func StartHeadlampServer(config *HeadlampConfig) {
 	tel, err := initTelemetry(config)
 	if err != nil {
@@ -1282,7 +1302,12 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	listenHost := strings.TrimPrefix(strings.TrimSuffix(config.ListenAddr, "]"), "[")
 	addr := net.JoinHostPort(listenHost, fmt.Sprintf("%d", config.Port))
 
-	server := &http.Server{Addr: addr, Handler: handler} //nolint:gosec
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: serverReadHeaderTimeout,
+		IdleTimeout:       serverIdleTimeout,
+	}
 
 	serverDone := make(chan struct{})
 	setupGracefulShutdown(server, cancel, serverDone)
