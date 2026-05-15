@@ -61,8 +61,9 @@ This means the release can show a newer chart/app version while still running an
 To ensure the running image matches the chart version during upgrade, set the tag explicitly to the chart's appVersion-derived format:
 
 ```console
-$ helm upgrade my-headlamp headlamp/headlamp \
+$ helm upgrade my-headlamp <repo>/headlamp \
   --namespace kube-system \
+  --reuse-values \
   --set image.tag=v<appVersion>
 ```
 
