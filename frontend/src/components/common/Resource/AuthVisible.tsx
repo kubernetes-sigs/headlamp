@@ -56,11 +56,13 @@ export interface AuthVisibleProps extends React.PropsWithChildren<{}> {
 export default function AuthVisible(props: AuthVisibleProps) {
   const { item, authVerb, subresource, namespace, onError, onAuthResult, children } = props;
 
+  const isValidVerb = VALID_AUTH_VERBS.includes(authVerb);
+
   const itemClass: KubeObjectClass | null = (item as KubeObject)?._class?.() ?? item;
   const itemName = (item as KubeObject)?.getName?.();
 
   const { data } = useQuery<any>({
-    enabled: !!item,
+    enabled: !!item && isValidVerb,
     queryKey: [
       'authVisible',
       itemName,
@@ -84,15 +86,17 @@ export default function AuthVisible(props: AuthVisibleProps) {
     },
   });
 
-  const visible = data?.status?.allowed ?? false;
+  const visible = isValidVerb && (data?.status?.allowed ?? false);
 
   useEffect(() => {
-    if (data) {
-      onAuthResult?.({
-        allowed: visible,
-        reason: data.status?.reason ?? '',
-      });
+    if (!isValidVerb || !data) {
+      return;
     }
+    onAuthResult?.({
+      allowed: visible,
+      reason: data.status?.reason ?? '',
+    });
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
