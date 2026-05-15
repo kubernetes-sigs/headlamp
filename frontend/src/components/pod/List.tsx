@@ -16,10 +16,12 @@
 
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Fade from '@mui/material/Fade';
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '../../lib/k8s/api/v2/ApiError';
+import { DEFAULT_LIST_LIMIT } from '../../lib/k8s/api/v2/useKubeObjectList';
 import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
 import { METRIC_REFETCH_INTERVAL_MS, PodMetrics } from '../../lib/k8s/PodMetrics';
@@ -31,6 +33,7 @@ import { CreateResourceButton } from '../common';
 import { StatusLabel, StatusLabelProps } from '../common/Label';
 import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
+import { useThrottle } from '../common/Resource/ResourceTable';
 import { SimpleTableProps } from '../common/SimpleTable';
 import { TooltipIcon } from '../common/Tooltip';
 import LightTooltip from '../common/Tooltip/TooltipLight';
@@ -181,6 +184,10 @@ function getContainerDisplayStatus(container: KubeContainerStatus) {
   };
 }
 
+function podMetricKey(cluster: string, namespace: string | undefined, name: string) {
+  return `${cluster}/${namespace ?? ''}/${name}`;
+}
+
 export interface PodListProps {
   pods: Pod[] | null;
   metrics: PodMetrics[] | null;
@@ -191,6 +198,9 @@ export interface PodListProps {
   hideCreateButton?: boolean;
   enableRowActions?: boolean;
   enableRowSelection?: boolean;
+  hasMore?: boolean;
+  remainingItemCount?: number;
+  onLoadMore?: () => Promise<void>;
 }
 
 export function PodListRenderer(props: PodListProps) {
@@ -204,30 +214,49 @@ export function PodListRenderer(props: PodListProps) {
     hideCreateButton,
     enableRowActions,
     enableRowSelection,
+    hasMore,
+    remainingItemCount,
+    onLoadMore,
   } = props;
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  async function handleLoadMore() {
+    if (!onLoadMore) return;
+    setLoadingMore(true);
+    try {
+      await onLoadMore();
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   const { t } = useTranslation(['glossary', 'translation']);
+  const loadedCount = pods?.length ?? 0;
+  const loadMoreLabel =
+    remainingItemCount === undefined
+      ? t('{{ loaded }} loaded', { loaded: loadedCount.toLocaleString() })
+      : t('{{ loaded }} of ~{{ total }}', {
+          loaded: loadedCount.toLocaleString(),
+          total: (loadedCount + remainingItemCount).toLocaleString(),
+        });
+
+  const metricsMap = useMemo(() => {
+    const map = new Map<string, PodMetrics>();
+    metrics?.forEach(m => map.set(podMetricKey(m.cluster, m.getNamespace(), m.getName()), m));
+    return map;
+  }, [metrics]);
 
   const getCpuUsage = (pod: Pod) => {
-    const metric = metrics?.find(
-      it => it.getName() === pod.getName() && it.getNamespace() === pod.getNamespace()
-    );
+    const metric = metricsMap.get(podMetricKey(pod.cluster, pod.getNamespace(), pod.getName()));
     if (!metric) return;
-
-    return (
-      metric?.jsonData.containers.map(it => parseCpu(it.usage.cpu)).reduce((a, b) => a + b, 0) ?? 0
-    );
+    return metric.jsonData.containers.map(it => parseCpu(it.usage.cpu)).reduce((a, b) => a + b, 0);
   };
 
   const getMemoryUsage = (pod: Pod) => {
-    const metric = metrics?.find(
-      it => it.getName() === pod.getName() && it.getNamespace() === pod.getNamespace()
-    );
+    const metric = metricsMap.get(podMetricKey(pod.cluster, pod.getNamespace(), pod.getName()));
     if (!metric) return;
-
-    return (
-      metric?.jsonData.containers.map(it => parseRam(it.usage.memory)).reduce((a, b) => a + b, 0) ??
-      0
-    );
+    return metric.jsonData.containers
+      .map(it => parseRam(it.usage.memory))
+      .reduce((a, b) => a + b, 0);
   };
 
   return (
@@ -235,9 +264,26 @@ export function PodListRenderer(props: PodListProps) {
       title={t('Pods')}
       headerProps={{
         noNamespaceFilter,
-        titleSideActions: hideCreateButton
-          ? []
-          : [<CreateResourceButton resourceClass={Pod} key="create-pod-button" />],
+        titleSideActions: [
+          ...(hideCreateButton
+            ? []
+            : [<CreateResourceButton resourceClass={Pod} key="create-pod-button" />]),
+          ...(hasMore
+            ? [
+                <Box key="load-more" display="flex" alignItems="center" gap={1}>
+                  <span style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{loadMoreLabel}</span>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={loadingMore}
+                    onClick={handleLoadMore}
+                  >
+                    {loadingMore ? t('Loading...') : t('Load more')}
+                  </Button>
+                </Box>,
+              ]
+            : []),
+        ],
       }}
       hideColumns={hideColumns}
       errors={errors}
@@ -507,22 +553,43 @@ export function PodListRenderer(props: PodListProps) {
 }
 
 export default function PodList() {
-  const { items, errors } = Pod.useList({ namespace: useNamespaces() });
-  const { items: podMetrics } = PodMetrics.useList({
-    namespace: useNamespaces(),
+  const namespaces = useNamespaces();
+  const { items, errors, hasMore, remainingItemCount, loadMore } = Pod.useList({
+    namespace: namespaces,
+    limit: DEFAULT_LIST_LIMIT,
+  });
+  const { items: podMetrics, loadMore: loadMoreMetrics } = PodMetrics.useList({
+    namespace: namespaces,
+    limit: DEFAULT_LIST_LIMIT,
     refetchInterval: METRIC_REFETCH_INTERVAL_MS,
   });
+
+  const throttledItems = useThrottle(items, 1000);
+  const loadMorePodsAndMetrics = React.useCallback(async () => {
+    await loadMore?.();
+    await loadMoreMetrics?.();
+  }, [loadMore, loadMoreMetrics]);
 
   const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.LIST_VIEW);
 
   React.useEffect(() => {
     dispatchHeadlampEvent({
-      resources: items ?? [],
+      resources: throttledItems ?? [],
       resourceKind: 'Pod',
       error: errors?.[0] || undefined,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, errors]);
+  }, [throttledItems, errors]);
 
-  return <PodListRenderer pods={items} errors={errors} metrics={podMetrics} reflectTableInURL />;
+  return (
+    <PodListRenderer
+      pods={throttledItems}
+      errors={errors}
+      metrics={podMetrics}
+      reflectTableInURL
+      hasMore={hasMore}
+      remainingItemCount={remainingItemCount}
+      onLoadMore={loadMore ? loadMorePodsAndMetrics : undefined}
+    />
+  );
 }

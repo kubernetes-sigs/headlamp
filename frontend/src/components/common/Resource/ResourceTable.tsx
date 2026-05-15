@@ -686,12 +686,17 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
 
   const filterFunc = filterFunction ?? defaultFilterFunc;
 
+  // Faceted values build a unique-value map per column across the full dataset.
+  // On large clusters this is the dominant cause of OOM crashes, so we disable
+  // it once the dataset exceeds a threshold where the cost outweighs the UX benefit.
+  const enableFacetedValues = (data?.length ?? 0) <= 500;
+
   return (
     <>
       <ClusterGroupErrorMessage errors={errors} />
       <Table<RowItem>
         enableFullScreenToggle={false}
-        enableFacetedValues
+        enableFacetedValues={enableFacetedValues}
         enableRowSelection={wrappedEnableRowSelection}
         renderRowSelectionToolbar={renderRowSelectionToolbar}
         errorMessage={errorMessage}
