@@ -152,6 +152,40 @@ const controllers = new Map<string, AbortController>();
 /** The amount of time to wait before allowing the action to be cancelled. */
 export const CLUSTER_ACTION_GRACE_PERIOD = 5000;
 
+// Splits the body of a K8s "is invalid: [...]" multi-error into one entry per
+// field error. A naive regex split on `, ` followed by `\w+:` falsely splits Go
+// struct value printouts that the API server embeds in `Invalid value:` (e.g.
+// `v1.LabelSelector{MatchLabels:..., MatchExpressions:...}`). To avoid that, we
+// track `{}` / `[]` depth and only split at top level, and only when the next
+// token starts with a lowercase field path — Go struct fields start uppercase,
+// so they cannot accidentally trigger a split.
+export function splitK8sValidationErrors(inner: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let inString = false;
+  let start = 0;
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i];
+    if (ch === '"' && inner[i - 1] !== '\\') {
+      inString = !inString;
+    } else if (!inString) {
+      if (ch === '{' || ch === '[') depth++;
+      else if (ch === '}' || ch === ']') depth = Math.max(0, depth - 1);
+      else if (
+        depth === 0 &&
+        ch === ',' &&
+        inner[i + 1] === ' ' &&
+        /^[a-z][\w./[\]-]*:/.test(inner.slice(i + 2))
+      ) {
+        parts.push(inner.slice(start, i));
+        start = i + 2;
+      }
+    }
+  }
+  parts.push(inner.slice(start));
+  return parts;
+}
+
 /**
  * Uses the callback to execute an action and dispatches actions
  * to update the UI based on the result.
@@ -239,7 +273,23 @@ export const executeClusterAction = createAsyncThunk(
     function dispatchError(err?: Error | string | null) {
       let message = errorMessage || '';
       if (err) {
-        const originalMessage = typeof err === 'string' ? err : err.message;
+        const rawMessage = typeof err === 'string' ? err : err.message;
+        const originalMessage = rawMessage
+          ? (() => {
+              const cleaned = rawMessage.replace(/,?\s*regex used for validation is '[^']*'/g, '');
+              // K8s multi-error format: "... is invalid: [field1: msg1, field2: msg2]"
+              const match = cleaned.match(/^(.*?is invalid:)\s*\[(.+)\]\s*$/s);
+              if (match) {
+                const prefix = match[1];
+                const inner = match[2];
+                const bullets = splitK8sValidationErrors(inner)
+                  .map(s => `• ${s.trim()}`)
+                  .join('\n');
+                return `${prefix}\n${bullets}`.trim();
+              }
+              return cleaned.trim();
+            })()
+          : rawMessage;
         if (originalMessage) {
           const separator = message ? (message.endsWith('.') ? ' ' : '. ') : '';
           message = `${message}${separator}${originalMessage}`;
