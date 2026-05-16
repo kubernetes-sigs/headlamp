@@ -613,10 +613,22 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 		params.TelemetryHandler.RecordErrorCount(params.Ctx, attribute.String("error", "token_refresh_failure"))
 	} else if newToken != nil {
 		var newTokenString string
+
+		var ok bool
+
 		if params.OIDCUseAccessToken {
-			newTokenString = newToken.Extra("access_token").(string)
+			newTokenString, ok = newToken.Extra("access_token").(string)
 		} else {
-			newTokenString = newToken.Extra("id_token").(string)
+			newTokenString, ok = newToken.Extra("id_token").(string)
+		}
+
+		if !ok || newTokenString == "" {
+			logger.Log(logger.LevelError, map[string]string{"cluster": params.Cluster},
+				errors.New("refreshed token missing expected field"), "failed to extract token string")
+			params.TelemetryHandler.RecordError(params.Span,
+				errors.New("refreshed token missing expected field"), "Token extraction failed")
+
+			return
 		}
 
 		// Set refreshed token in cookie
