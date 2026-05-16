@@ -733,6 +733,17 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		// We may want to filter some headers, otherwise we could just use a shallow copy
 		proxyReq.Header = make(http.Header)
 		for h, val := range r.Header {
+			// Skip sensitive headers and internal routing headers
+			hLower := strings.ToLower(h)
+			if hLower == "authorization" ||
+				hLower == "cookie" ||
+				strings.HasPrefix(hLower, "x-headlamp-") ||
+				strings.HasPrefix(hLower, "x-headlamp_") ||
+				hLower == "proxy-to" ||
+				hLower == "forward-to" {
+				continue
+			}
+
 			proxyReq.Header[h] = val
 		}
 
