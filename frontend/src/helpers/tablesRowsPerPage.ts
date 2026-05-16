@@ -29,7 +29,8 @@ export function getTablesRowsPerPage(defaultRowsPerPage: number = 5) {
     return defaultRowsPerPage;
   }
 
-  return parseInt(perPageStr);
+  const parsed = parseInt(perPageStr);
+  return Number.isNaN(parsed) ? defaultRowsPerPage : parsed;
 }
 
 /**
