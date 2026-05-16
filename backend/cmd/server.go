@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/cli/browser"
-	"github.com/gobwas/glob"
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -174,21 +173,15 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cfg.ProxyAuthEmailHeader = conf.ProxyAuthEmailHeader
 	cfg.ProxyAuthTokenHeader = conf.ProxyAuthTokenHeader
 
-	compiledProxyURLs := make([]glob.Glob, 0, len(cfg.ProxyURLs))
-	for _, pattern := range cfg.ProxyURLs {
-		g, err := glob.Compile(pattern)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"pattern": pattern},
-				err, "failed to compile proxy URL pattern")
-			os.Exit(1)
-		}
-
-		compiledProxyURLs = append(compiledProxyURLs, g)
+	compiledProxyURLs, err := compileProxyURLPatterns(cfg.ProxyURLs)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to compile proxy URL patterns")
+		os.Exit(1)
 	}
 
 	return &HeadlampConfig{
 		HeadlampConfig:    cfg,
-		CompiledProxyURLs: compiledProxyURLs,
+		compiledProxyURLs: compiledProxyURLs,
 	}
 }
 
