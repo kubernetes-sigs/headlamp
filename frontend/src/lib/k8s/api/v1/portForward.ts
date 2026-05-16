@@ -122,13 +122,12 @@ export async function startPortForward(
   });
 }
 
-// @todo: stopOrDelete true is confusing, rename this param to justStop?
 /**
  * Stops or deletes a portforward with the specified details.
  *
  * @param cluster - The cluster to portforward for.
  * @param id - The id to portforward for.
- * @param stopOrDelete - Whether to stop or delete the portforward. True for stop, false for delete.
+ * @param justStop - Whether to just stop the portforward (true) or delete it entirely (false).
  *
  * @returns The response from the API.
  * @throws {Error} if the request fails.
@@ -136,7 +135,7 @@ export async function startPortForward(
 export async function stopOrDeletePortForward(
   cluster: string,
   id: string,
-  stopOrDelete: boolean = true
+  justStop: boolean = true
 ): Promise<string> {
   const kubeconfig = await findKubeconfigByClusterName(cluster);
   const headers = new Headers(addBackstageAuthHeaders(JSON_HEADERS));
@@ -151,7 +150,7 @@ export async function stopOrDeletePortForward(
     headers: headers,
     body: JSON.stringify({
       id,
-      stopOrDelete,
+      stopOrDelete: justStop,
     }),
     cluster,
   }).then(async response => {
