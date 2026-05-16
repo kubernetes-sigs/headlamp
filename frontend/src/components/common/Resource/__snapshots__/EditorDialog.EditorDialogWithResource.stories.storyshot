@@ -281,6 +281,7 @@
             />
           </button>
           <button
+            aria-controls="editor-textarea-id"
             class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-1uk0gch-MuiButtonBase-root-MuiButton-root"
             disabled=""
             tabindex="-1"
