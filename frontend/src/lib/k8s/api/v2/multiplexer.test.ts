@@ -659,6 +659,14 @@ describe('WebSocket Multiplexer', () => {
             kind: 'Status',
             status: 'Failure',
             message: 'cluster connection failed',
+            metadata: {
+              resourceVersion: '0',
+              uid: `${WebSocketManager.createKey(
+                clusterName,
+                path,
+                query
+              )}:ERROR:cluster connection failed`,
+            },
           },
         });
       });
@@ -689,6 +697,14 @@ describe('WebSocket Multiplexer', () => {
             kind: 'Status',
             status: 'Failure',
             message: 'plain backend error',
+            metadata: {
+              resourceVersion: '0',
+              uid: `${WebSocketManager.createKey(
+                clusterName,
+                path,
+                query
+              )}:ERROR:plain backend error`,
+            },
           },
         });
       });

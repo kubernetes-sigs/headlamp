@@ -609,6 +609,8 @@ func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Reque
 		msg, isFatal, err := m.readClientMessage(clientConn)
 		if err != nil {
 			if isFatal {
+				logUnexpectedClientReadClose(err)
+
 				break
 			}
 			// For non-fatal errors (like parsing), log and continue because
@@ -679,6 +681,12 @@ func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
 		conn.mu.Unlock()
 
 		conn.safeClose()
+	}
+}
+
+func logUnexpectedClientReadClose(err error) {
+	if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+		logger.Log(logger.LevelError, nil, err, "reading client message")
 	}
 }
 
