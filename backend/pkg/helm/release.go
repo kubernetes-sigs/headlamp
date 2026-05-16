@@ -131,6 +131,20 @@ func getReleases(req ListReleaseRequest, config *action.Configuration) ([]*relea
 	return listClient.Run()
 }
 
+func (h *Handler) prepareAsyncContext(r *http.Request) (context.Context, context.CancelFunc, bool) {
+	// Respect pre-dispatch cancellation to avoid starting background work.
+	if err := r.Context().Err(); err != nil {
+		return nil, nil, false
+	}
+
+	// Detach from transient request lifecycle using WithoutCancel to allow
+	// background worker persistence while propagating metadata (auth, tracing).
+	// Safety is ensured via mandatory timeout.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), statusCacheTimeout)
+
+	return ctx, cancel, true
+}
+
 func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req ListReleaseRequest
@@ -378,8 +392,7 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 	}
 
 	// check if release exists
-	_, err = actionConfig.Releases.Deployed(req.Name)
-	if errors.Is(err, driver.ErrReleaseNotFound) {
+	if _, err = actionConfig.Releases.Deployed(req.Name); errors.Is(err, driver.ErrReleaseNotFound) {
 		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "request": "uninstall_release"},
 			err, "release not found")
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -387,8 +400,17 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 		return
 	}
 
-	err = h.setReleaseStatus("uninstall", req.Name, processing, nil)
-	if err != nil {
+	// Pre-flight check ensures request integrity before committing to processing state.
+	ctx, cancel, ok := h.prepareAsyncContext(r)
+	if !ok {
+		// If the request was cancelled before we started, we don't even enter processing state.
+		http.Error(w, "request cancelled", http.StatusBadRequest)
+
+		return
+	}
+
+	if err = h.setReleaseStatus("uninstall", req.Name, processing, nil); err != nil {
+		cancel()
 		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release", "releaseName": req.Name},
 			err, "setting status")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -396,19 +418,16 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 		return
 	}
 
-	go func(h *Handler) {
-		h.uninstallRelease(req, actionConfig)
-	}(h)
+	go func() {
+		defer cancel()
 
-	response := map[string]string{
-		"message": "uninstall request accepted",
-	}
+		h.uninstallRelease(ctx, req, actionConfig)
+	}()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 
-	err = json.NewEncoder(w).Encode(response)
-	if err != nil {
+	if err = json.NewEncoder(w).Encode(map[string]string{"message": "uninstall request accepted"}); err != nil {
 		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release", "releaseName": req.Name},
 			err, "encoding response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -417,12 +436,24 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 	}
 }
 
-func (h *Handler) uninstallRelease(req UninstallReleaseRequest, actionConfig *action.Configuration) {
+func (h *Handler) uninstallRelease(ctx context.Context,
+	req UninstallReleaseRequest,
+	actionConfig *action.Configuration,
+) {
 	// Get uninstall client
 	uninstallClient := action.NewUninstall(actionConfig)
 
 	status := success
 
+	// Check for cancellation before starting
+	if err := ctx.Err(); err != nil {
+		h.setReleaseStatusSilent("uninstall", req.Name, failed,
+			fmt.Errorf("%w (request context: %v)", err, ctx.Err()))
+
+		return
+	}
+
+	// Uninstall currently uses Run as the SDK lacks full RunWithContext support.
 	_, err := uninstallClient.Run(req.Name)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "namespace": req.Namespace},
@@ -467,44 +498,46 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "rollback_release"},
-			err, "creating action config")
+		logger.Log(logger.LevelError, map[string]string{"request": "rollback_release"}, err, "creating action config")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
 
 	// check if release exists
-	_, err = actionConfig.Releases.Deployed(req.Name)
-	if errors.Is(err, driver.ErrReleaseNotFound) {
-		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name},
-			err, "release not found")
+	if _, err = actionConfig.Releases.Deployed(req.Name); errors.Is(err, driver.ErrReleaseNotFound) {
+		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name}, err, "release not found")
 		http.Error(w, err.Error(), http.StatusNotFound)
 
 		return
 	}
 
-	err = h.setReleaseStatus("rollback", req.Name, processing, nil)
-	if err != nil {
+	// Pre-flight check ensures request integrity before committing to processing state.
+	ctx, cancel, ok := h.prepareAsyncContext(r)
+	if !ok {
+		http.Error(w, "request cancelled", http.StatusBadRequest)
+
+		return
+	}
+
+	if err = h.setReleaseStatus("rollback", req.Name, processing, nil); err != nil {
+		cancel()
 		logger.Log(logger.LevelError, nil, err, "setting status")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
 
-	go func(h *Handler) {
-		h.rollbackRelease(req, actionConfig)
-	}(h)
+	go func() {
+		defer cancel()
 
-	response := map[string]string{
-		"message": "rollback request accepted",
-	}
+		h.rollbackRelease(ctx, req, actionConfig)
+	}()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 
-	err = json.NewEncoder(w).Encode(response)
-	if err != nil {
+	if err = json.NewEncoder(w).Encode(map[string]string{"message": "rollback request accepted"}); err != nil {
 		logger.Log(logger.LevelError, nil, err, "encoding response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -512,12 +545,24 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 	}
 }
 
-func (h *Handler) rollbackRelease(req RollbackReleaseRequest, actionConfig *action.Configuration) {
+func (h *Handler) rollbackRelease(ctx context.Context,
+	req RollbackReleaseRequest,
+	actionConfig *action.Configuration,
+) {
 	rollbackClient := action.NewRollback(actionConfig)
 	rollbackClient.Version = req.Revision
 
 	status := success
 
+	// Check for cancellation before starting
+	if err := ctx.Err(); err != nil {
+		h.setReleaseStatusSilent("rollback", req.Name, failed,
+			fmt.Errorf("%w (request context: %v)", err, ctx.Err()))
+
+		return
+	}
+
+	// Rollback currently uses Run as the SDK lacks full RunWithContext support.
 	err := rollbackClient.Run(req.Name)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name},
@@ -598,17 +643,26 @@ func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		return
 	}
 
+	ctx, cancel, ok := h.prepareAsyncContext(r)
+	if !ok {
+		http.Error(w, "request cancelled", http.StatusBadRequest)
+		return
+	}
+
 	err = h.setReleaseStatus("install", req.Name, processing, nil)
 	if err != nil {
+		cancel()
 		logger.Log(logger.LevelError, nil, err, "setting status")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
 
-	go func(h *Handler) {
-		h.installRelease(req, actionConfig)
-	}(h)
+	go func() {
+		defer cancel()
+
+		h.installRelease(ctx, req, actionConfig)
+	}()
 
 	h.returnResponse(w, req.Name, http.StatusAccepted, "install request accepted")
 }
@@ -700,7 +754,10 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 	return true
 }
 
-func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Configuration) {
+func (h *Handler) installRelease(ctx context.Context,
+	req InstallRequest,
+	actionConfig *action.Configuration,
+) {
 	installClient := action.NewInstall(actionConfig)
 	installClient.ReleaseName = req.Name
 	installClient.Namespace = req.Namespace
@@ -739,7 +796,16 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 		return
 	}
 
-	if _, err = installClient.Run(chart, values); err != nil {
+	// Check for cancellation before starting
+	if err := ctx.Err(); err != nil {
+		h.setReleaseStatusSilent("install", req.Name, failed,
+			fmt.Errorf("%w (request context: %v)", err, ctx.Err()))
+
+		return
+	}
+
+	// Install utilizes RunWithContext for cancellation-aware execution.
+	if _, err = installClient.RunWithContext(ctx, chart, values); err != nil {
 		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
 			err, "installing chart")
 		h.setReleaseStatusSilent("install", req.Name, failed, err)
@@ -792,15 +858,24 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		return
 	}
 
-	err = h.setReleaseStatus("upgrade", req.Name, processing, nil)
-	if err != nil {
-		handleError(w, req.Name, err, "setting status", http.StatusInternalServerError)
+	ctx, cancel, ok := h.prepareAsyncContext(r)
+	if !ok {
+		http.Error(w, "request cancelled", http.StatusBadRequest)
 		return
 	}
 
-	go func(h *Handler) {
-		h.upgradeRelease(req, actionConfig)
-	}(h)
+	if err = h.setReleaseStatus("upgrade", req.Name, processing, nil); err != nil {
+		cancel()
+		handleError(w, req.Name, err, "setting status", http.StatusInternalServerError)
+
+		return
+	}
+
+	go func() {
+		defer cancel()
+
+		h.upgradeRelease(ctx, req, actionConfig)
+	}()
 
 	h.returnResponse(w, req.Name, http.StatusAccepted, "upgrade request accepted")
 }
@@ -826,7 +901,10 @@ func (h *Handler) logActionState(zlog *zerolog.Event,
 	h.setReleaseStatusSilent(action, releaseName, status, err)
 }
 
-func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action.Configuration) {
+func (h *Handler) upgradeRelease(ctx context.Context,
+	req UpgradeReleaseRequest,
+	actionConfig *action.Configuration,
+) {
 	// find chart
 	upgradeClient := action.NewUpgrade(actionConfig)
 	upgradeClient.Namespace = req.Namespace
@@ -855,8 +933,17 @@ func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action
 		return
 	}
 
+	// Check for cancellation before starting
+	if err := ctx.Err(); err != nil {
+		h.setReleaseStatusSilent("upgrade", req.Name, failed,
+			fmt.Errorf("%w (request context: %v)", err, ctx.Err()))
+
+		return
+	}
+
 	// Upgrade chart
-	_, err = upgradeClient.Run(req.Name, chart, values)
+	// Upgrade utilizes RunWithContext for cancellation-aware execution.
+	_, err = upgradeClient.RunWithContext(ctx, req.Name, chart, values)
 	if err != nil {
 		h.logActionState(zlog.Error(), err, "upgrade", req.Chart, req.Name, failed, "chart upgrade failed")
 		return
