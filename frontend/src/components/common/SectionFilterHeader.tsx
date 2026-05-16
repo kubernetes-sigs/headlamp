@@ -63,24 +63,21 @@ export default function SectionFilterHeader(props: SectionFilterHeaderProps) {
   const dispatch = useDispatch();
   const location = useLocation();
 
-  React.useEffect(
-    () => {
-      const namespace = getFilterValueByNameFromURL('namespace', location);
-      if (namespace.length > 0) {
-        const namespaceFromStore = [...filter.namespaces].sort();
-        if (
-          namespace
-            .slice()
-            .sort()
-            .every((value: string, index: number) => value !== namespaceFromStore[index])
-        ) {
-          dispatch(setNamespaceFilter(namespace));
-        }
+  React.useEffect(() => {
+    const namespace = getFilterValueByNameFromURL('namespace', location);
+    if (namespace.length > 0) {
+      const namespaceFromStore = [...filter.namespaces].sort();
+      const namespaceFromURL = namespace.slice().sort();
+      const namespacesMatch =
+        namespaceFromURL.length === namespaceFromStore.length &&
+        namespaceFromURL.every(
+          (value: string, index: number) => value === namespaceFromStore[index]
+        );
+      if (!namespacesMatch) {
+        dispatch(setNamespaceFilter(namespace));
       }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+    }
+  }, [location, filter.namespaces, dispatch]);
 
   let actions: React.ReactNode[] = [];
   if (preRenderFromFilterActions) {
