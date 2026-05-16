@@ -259,8 +259,8 @@ const useDefaultNamespaceFallback = (
         dispatch(setNamespaceFilter([defaultNamespaceFromKubeconfig]));
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [namespacesList, isNamespaceError, currentCluster]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dispatch is stable (Redux guarantee); selectedNamespaces omitted to avoid re-triggering fallback when user clears the filter
+  }, [namespacesList, isNamespaceError, currentCluster, allClustersConfigs]);
 };
 
 function NamespacesFromClusterAutocomplete(
