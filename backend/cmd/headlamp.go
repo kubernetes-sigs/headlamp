@@ -33,7 +33,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -178,34 +177,31 @@ type OauthConfig struct {
 	Cluster      string // cluster context name this is associated with
 }
 
-// returns True if a file exists.
-func fileExists(filename string) bool {
+// fileExists returns true if a path exists and is not a directory.
+func fileExists(filename string) (bool, error) {
 	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+
+		return false, err
 	}
 
-	return !info.IsDir()
+	return !info.IsDir(), nil
 }
 
-func mustReadFile(path string) []byte {
+func readFile(path string) ([]byte, error) {
 	data, err := os.ReadFile(path) //nolint:gosec
 	if err != nil {
-		// Error Reading the file
-		logger.Log(logger.LevelError, nil, err, "reading file")
-		os.Exit(1)
+		return nil, err
 	}
 
-	return data
+	return data, nil
 }
 
-func mustWriteFile(path string, data []byte) {
-	err := os.WriteFile(path, data, fs.FileMode(0o600))
-	if err != nil {
-		// Error writing the file
-		logger.Log(logger.LevelError, nil, err, "writing file")
-		os.Exit(1)
-	}
+func writeFile(path string, data []byte) error {
+	return os.WriteFile(path, data, fs.FileMode(0o600))
 }
 
 func makeBaseURLReplacements(data []byte, baseURL string) []byte {
@@ -242,20 +238,40 @@ func makeBaseURLReplacements(data []byte, baseURL string) []byte {
 }
 
 // make sure the base-url is updated in the index.html file.
-func baseURLReplace(staticDir string, baseURL string) {
-	indexBaseURL := path.Join(staticDir, "index.baseUrl.html")
-	index := path.Join(staticDir, "index.html")
+func baseURLReplace(staticDir string, baseURL string) error {
+	indexBaseURL := filepath.Join(staticDir, "index.baseUrl.html")
+	index := filepath.Join(staticDir, "index.html")
 
 	// keep a copy of the untouched index.html file as the source for replacements
-	if !fileExists(indexBaseURL) {
-		d := mustReadFile(index)
-		mustWriteFile(indexBaseURL, d)
+	exists, err := fileExists(indexBaseURL)
+	if err != nil {
+		return fmt.Errorf("failed to check if original index copy exists at %q: %w", indexBaseURL, err)
+	}
+
+	if !exists {
+		d, err := readFile(index)
+		if err != nil {
+			return fmt.Errorf("failed to read original index file %q: %w", index, err)
+		}
+
+		if err := writeFile(indexBaseURL, d); err != nil {
+			return fmt.Errorf("failed to write original index copy to %q: %w", indexBaseURL, err)
+		}
 	}
 
 	// replace baseURL starting from the original copy, incase we run this multiple times
-	data := mustReadFile(indexBaseURL)
+	data, err := readFile(indexBaseURL)
+	if err != nil {
+		return fmt.Errorf("failed to read index copy %q: %w", indexBaseURL, err)
+	}
+
 	output := makeBaseURLReplacements(data, baseURL)
-	mustWriteFile(index, output)
+
+	if err := writeFile(index, output); err != nil {
+		return fmt.Errorf("failed to write replaced index to %q: %w", index, err)
+	}
+
+	return nil
 }
 
 func getOidcCallbackURL(r *http.Request, config *HeadlampConfig) string {
@@ -536,11 +552,18 @@ func setupInClusterContext(config *HeadlampConfig) {
 }
 
 //nolint:gocognit,funlen,gocyclo
-func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
+func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, error) {
 	kubeConfigPath := config.KubeConfigPath
 
 	config.ServerCtx = ctx
 	config.StaticPluginDir = os.Getenv("HEADLAMP_STATIC_PLUGINS_DIR")
+
+	if config.StaticDir != "" {
+		if err := baseURLReplace(config.StaticDir, config.BaseURL); err != nil {
+			return nil, fmt.Errorf("base-url replacement failed for static dir %q and base URL %q: %w",
+				config.StaticDir, config.BaseURL, err)
+		}
+	}
 
 	logger.Log(logger.LevelInfo, nil, nil, "Creating Headlamp handler")
 	logger.Log(logger.LevelInfo, nil, nil, "Listen address: "+fmt.Sprintf("%s:%d", config.ListenAddr, config.Port))
@@ -577,13 +600,27 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			go plugins.Watch(ctx, config.UserPluginDir, userPluginEventChan)
 			// Merge both event channels into one
 			go func() {
-				for event := range userPluginEventChan {
-					pluginEventChan <- event
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case event, ok := <-userPluginEventChan:
+						if !ok {
+							return
+						}
+
+						select {
+						case <-ctx.Done():
+							return
+						case pluginEventChan <- event:
+						}
+					}
 				}
 			}()
 		}
 
-		go plugins.HandlePluginEvents(
+		go plugins.HandlePluginEventsWithContext(
+			ctx,
 			config.StaticPluginDir,
 			config.UserPluginDir,
 			config.PluginDir,
@@ -597,10 +634,6 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// In-cluster
 	if config.UseInCluster {
 		setupInClusterContext(config)
-	}
-
-	if config.StaticDir != "" {
-		baseURLReplace(config.StaticDir, config.BaseURL)
 	}
 
 	// For when using a base-url, like "/headlamp" with a reverse proxy.
@@ -1106,10 +1139,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			methods,
 			handlers.AllowCredentials(),
 			handlers.AllowedOriginValidator(func(s string) bool { return true }),
-		)(r)
+		)(r), nil
 	}
 
-	return r
+	return r, nil
 }
 
 // setTokenFromCookie attempts to get a token from the cookie and set it as Authorization header.
@@ -1455,7 +1488,10 @@ func hostValidationMiddleware(listenAddr string, port uint) func(http.Handler) h
 }
 
 func serverHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, error) {
-	handler := createHeadlampHandler(ctx, config)
+	handler, err := createHeadlampHandler(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create headlamp handler: %w", err)
+	}
 
 	if err := startClusterInventory(ctx, config); err != nil {
 		return nil, err
@@ -1508,7 +1544,7 @@ func StartHeadlampServer(config *HeadlampConfig) {
 
 	handler, err := serverHandler(ctx, config)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "starting cluster inventory discovery")
+		logger.Log(logger.LevelError, nil, err, "starting server")
 		return
 	}
 

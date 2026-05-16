@@ -113,7 +113,10 @@ func TestCreateHeadlampHandlerSkipsInClusterContextWhenConfigUnavailable(t *test
 	var handler http.Handler
 
 	require.NotPanics(t, func() {
-		handler = createHeadlampHandler(context.Background(), cfg)
+		var err error
+
+		handler, err = createHeadlampHandler(context.Background(), cfg)
+		require.NoError(t, err)
 	})
 	require.NotNil(t, handler)
 
@@ -173,6 +176,15 @@ func TestGetConfigIncludesDefaultPodDebugImage(t *testing.T) {
 	err := json.Unmarshal(recorder.Body.Bytes(), &config)
 	require.NoError(t, err)
 	assert.Equal(t, "registry.example.com/debug:latest", config.DefaultPodDebugImage)
+}
+
+func createHandler(t *testing.T, ctx context.Context, config *HeadlampConfig) http.Handler {
+	t.Helper()
+
+	handler, err := createHeadlampHandler(ctx, config)
+	require.NoError(t, err)
+
+	return handler
 }
 
 //nolint:gocognit,funlen
@@ -272,7 +284,7 @@ func TestDynamicClusters(t *testing.T) {
 					TelemetryHandler: &telemetry.RequestHandler{},
 				},
 			}
-			handler := createHeadlampHandler(context.Background(), &c)
+			handler := createHandler(t, context.Background(), &c)
 
 			var resp *httptest.ResponseRecorder
 
@@ -365,7 +377,7 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 			TelemetryHandler: &telemetry.RequestHandler{},
 		},
 	}
-	handler := createHeadlampHandler(context.Background(), &c)
+	handler := createHandler(t, context.Background(), &c)
 
 	r, err := getResponseFromRestrictedEndpoint(handler, "POST", "/cluster", req)
 	if err != nil {
@@ -532,7 +544,7 @@ func TestExternalProxy(t *testing.T) {
 
 	tests := []test{
 		{
-			handler: createHeadlampHandler(context.Background(), &HeadlampConfig{
+			handler: createHandler(t, context.Background(), &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:    false,
@@ -545,7 +557,7 @@ func TestExternalProxy(t *testing.T) {
 			useForwardedHeaders: true,
 		},
 		{
-			handler: createHeadlampHandler(context.Background(), &HeadlampConfig{
+			handler: createHandler(t, context.Background(), &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:    false,
@@ -558,7 +570,7 @@ func TestExternalProxy(t *testing.T) {
 			useNoProxyURL: true,
 		},
 		{
-			handler: createHeadlampHandler(context.Background(), &HeadlampConfig{
+			handler: createHandler(t, context.Background(), &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:    false,
@@ -669,7 +681,7 @@ func newExternalProxyHandler(t *testing.T, upstream string) http.Handler {
 		t.Fatal(err)
 	}
 
-	return createHeadlampHandler(context.Background(), &HeadlampConfig{
+	return createHandler(t, context.Background(), &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
@@ -768,7 +780,7 @@ func TestExternalProxyTimeout(t *testing.T) {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
 
-	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+	handler, err := createHeadlampHandler(context.Background(), &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
@@ -778,6 +790,7 @@ func TestExternalProxyTimeout(t *testing.T) {
 			Cache: cache,
 		},
 	})
+	require.NoError(t, err)
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
 	require.NoError(t, err)
@@ -802,7 +815,7 @@ func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
 
 	tests := []test{
 		{
-			handler: createHeadlampHandler(context.Background(), &HeadlampConfig{
+			handler: createHandler(t, context.Background(), &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:    false,
@@ -1182,7 +1195,7 @@ func TestDeletePlugin(t *testing.T) {
 		},
 	}
 
-	handler := createHeadlampHandler(context.Background(), &c)
+	handler := createHandler(t, context.Background(), &c)
 
 	rr, err := getResponseFromRestrictedEndpoint(handler, "DELETE", "/plugins/test-plugin", nil)
 	require.NoError(t, err)
@@ -1239,7 +1252,7 @@ func TestHandleClusterAPI_XForwardedHost(t *testing.T) {
 		},
 	}
 
-	handler := createHeadlampHandler(context.Background(), &c)
+	handler := createHandler(t, context.Background(), &c)
 
 	// Create a test request to the cluster API endpoint
 	ctx := context.Background()
@@ -1496,7 +1509,7 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 			TelemetryHandler: &telemetry.RequestHandler{},
 		},
 	}
-	handler := createHeadlampHandler(context.Background(), &c)
+	handler := createHandler(t, context.Background(), &c)
 
 	r, err := getResponseFromRestrictedEndpoint(handler, "POST", "/cluster", req)
 	if err != nil {
@@ -1556,15 +1569,21 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 
 func TestFileExists(t *testing.T) {
 	// Test for existing file
-	assert.True(t, fileExists("./headlamp_testdata/kubeconfig"),
+	exists, err := fileExists("./headlamp_testdata/kubeconfig")
+	require.NoError(t, err)
+	assert.True(t, exists,
 		"fileExists() should return true for existing file")
 
 	// Test for non-existent file
-	assert.False(t, fileExists("./headlamp_testdata/nonexistent"),
+	exists, err = fileExists("./headlamp_testdata/nonexistent")
+	require.NoError(t, err)
+	assert.False(t, exists,
 		"fileExists() should return false for non-existent file")
 
 	// Test for directory
-	assert.False(t, fileExists("./headlamp_testdata"),
+	exists, err = fileExists("./headlamp_testdata")
+	require.NoError(t, err)
+	assert.False(t, exists,
 		"fileExists() should return false for directory")
 }
 
@@ -1634,7 +1653,8 @@ func TestBaseURLReplace(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			baseURLReplace(tempDir, tc.baseURL)
+			err := baseURLReplace(tempDir, tc.baseURL)
+			require.NoError(t, err)
 
 			// Read the modified index.html
 			modifiedContent, err := os.ReadFile(filepath.Join(tempDir, "index.html")) //nolint:gosec
@@ -1799,7 +1819,8 @@ func TestOidcCallbackEmptyStateDoesNotLogStaleError(t *testing.T) {
 		},
 	}
 
-	handler := createHeadlampHandler(ctx, cfg)
+	handler, err := createHeadlampHandler(ctx, cfg)
+	require.NoError(t, err)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/oidc-callback", nil)
 	require.NoError(t, err)
@@ -2607,7 +2628,7 @@ func TestCacheMiddleware_CacheHitAndCacheMiss_RealK8s(t *testing.T) {
 	}
 
 	c, clusterName := newRealK8sHeadlampConfig(t)
-	handler := createHeadlampHandler(context.Background(), c)
+	handler := createHandler(t, context.Background(), c)
 	ts := httptest.NewServer(handler)
 	t.Cleanup(ts.Close)
 
@@ -2646,7 +2667,7 @@ func TestCacheMiddleware_CacheInvalidation_RealK8s(t *testing.T) {
 	}
 
 	c, clusterName := newRealK8sHeadlampConfig(t)
-	handler := createHeadlampHandler(context.Background(), c)
+	handler := createHandler(t, context.Background(), c)
 	ts := httptest.NewServer(handler)
 	t.Cleanup(ts.Close)
 
@@ -3420,7 +3441,10 @@ func TestExternalProxyOversizeResponse(t *testing.T) {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
 
-	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	handler := createHandler(t, ctx, &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
@@ -3465,7 +3489,10 @@ func TestExternalProxyOversizeResponseUnknownLength(t *testing.T) {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
 
-	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	handler := createHandler(t, ctx, &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
@@ -3519,7 +3546,10 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
 
-	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	handler := createHandler(t, ctx, &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
@@ -3540,4 +3570,23 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
+}
+
+func TestCreateHeadlampHandler_BaseURLReplaceError(t *testing.T) {
+	tmpDir := t.TempDir()
+	config := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				StaticDir: tmpDir,
+			},
+			Cache: cache.New[interface{}](),
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, err := createHeadlampHandler(ctx, &config)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "base-url replacement failed")
 }

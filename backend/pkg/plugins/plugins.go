@@ -95,10 +95,10 @@ func Watch(ctx context.Context, watchPath string, notify chan<- string, ready ..
 			return
 		case event := <-watcher.Events:
 			select {
-			case notify <- event.Name + ":" + event.Op.String():
 			case <-ctx.Done():
 				logger.Log(logger.LevelInfo, nil, nil, "watcher: shutting down plugin watcher during event notify")
 				return
+			case notify <- filepath.ToSlash(event.Name) + ":" + event.Op.String():
 			}
 		case err := <-watcher.Errors:
 			logger.Log(logger.LevelError, nil, err, "Plugin watcher Error")
@@ -145,9 +145,9 @@ func periodicallyWatchSubfolders(
 
 				for _, entry := range entries {
 					select {
-					case notify <- filepath.Join(entryPath, entry.Name()) + ":" + fsnotify.Create.String():
 					case <-ctx.Done():
 						return ctx.Err()
+					case notify <- filepath.ToSlash(filepath.Join(entryPath, entry.Name())) + ":" + fsnotify.Create.String():
 					}
 				}
 			}
@@ -212,9 +212,15 @@ func generateSeparatePluginPaths(
 		}
 	}
 
-	pluginListURL, err := pluginBasePathListForDir(pluginDir, "plugins")
-	if err != nil {
-		return nil, nil, nil, err
+	var pluginListURL []string
+
+	if pluginDir != "" {
+		var err error
+
+		pluginListURL, err = pluginBasePathListForDir(pluginDir, "plugins")
+		if err != nil {
+			return nil, nil, nil, err
+		}
 	}
 
 	return pluginListURLStatic, pluginListURLUser, pluginListURL, nil
@@ -463,30 +469,46 @@ func canSendRefresh(c cache.Cache[interface{}]) bool {
 func HandlePluginEvents(staticPluginDir, userPluginDir, pluginDir string,
 	notify <-chan string, cache cache.Cache[interface{}],
 ) {
-	for event := range notify {
-		// Skip CHMOD events to avoid looping on electron when user-plugins folder is watched
-		// these events are not relevant to see if plugins have changed.
-		if strings.HasSuffix(event, "CHMOD") {
-			continue
-		}
+	HandlePluginEventsWithContext(context.Background(), staticPluginDir, userPluginDir, pluginDir, notify, cache)
+}
 
-		// Set the refresh signal only if we cannot send it. We prevent it here
-		// because we only want to send refresh signals that *happen after* we are
-		// allowed to send them.
-		err := cache.Set(context.Background(), PluginRefreshKey, canSendRefresh(cache))
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "setting plugin refresh key")
-		}
+// HandlePluginEventsWithContext handles the plugin events by updating the plugin list
+// and plugin refresh key in the cache, and supports cancellation through ctx.
+func HandlePluginEventsWithContext(ctx context.Context, staticPluginDir, userPluginDir, pluginDir string,
+	notify <-chan string, cache cache.Cache[interface{}],
+) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok := <-notify:
+			if !ok {
+				return
+			}
+			// Skip CHMOD events to avoid looping on electron when user-plugins folder is watched
+			// these events are not relevant to see if plugins have changed.
+			if strings.HasSuffix(event, "CHMOD") {
+				continue
+			}
 
-		// generate the plugin list
-		pluginList, err := GeneratePluginPaths(staticPluginDir, userPluginDir, pluginDir)
-		if err != nil && !os.IsNotExist(err) {
-			logger.Log(logger.LevelError, nil, err, "generating plugins path")
-		}
+			// Set the refresh signal only if we cannot send it. We prevent it here
+			// because we only want to send refresh signals that *happen after* we are
+			// allowed to send them.
+			err := cache.Set(ctx, PluginRefreshKey, canSendRefresh(cache))
+			if err != nil {
+				logger.Log(logger.LevelError, nil, err, "setting plugin refresh key")
+			}
 
-		err = cache.Set(context.Background(), PluginListKey, pluginList)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "setting plugin list key")
+			// generate the plugin list
+			pluginList, err := GeneratePluginPaths(staticPluginDir, userPluginDir, pluginDir)
+			if err != nil && !os.IsNotExist(err) {
+				logger.Log(logger.LevelError, nil, err, "generating plugins path")
+			}
+
+			err = cache.Set(ctx, PluginListKey, pluginList)
+			if err != nil {
+				logger.Log(logger.LevelError, nil, err, "setting plugin list key")
+			}
 		}
 	}
 }
