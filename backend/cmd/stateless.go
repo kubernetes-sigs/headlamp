@@ -170,6 +170,11 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 	}
 
 	kubeconfigs := kubeconfigReq.Kubeconfigs
+	if len(kubeconfigs) == 0 {
+		http.Error(w, "kubeconfigs is required", http.StatusBadRequest)
+
+		return
+	}
 
 	contexts, setupErrors := parseClusterFromKubeConfig(kubeconfigs)
 	if len(setupErrors) > 0 {
