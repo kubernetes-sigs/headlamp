@@ -70,35 +70,40 @@ describe('savedSearches', () => {
   });
 
   it('adds a saved search to the front of the list', () => {
+    vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-14T00:00:00.000Z'));
 
-    const searches = addSavedAdvancedSearch(
-      [
+    try {
+      const searches = addSavedAdvancedSearch(
+        [
+          {
+            id: 'saved-1',
+            name: 'Existing',
+            query: 'true',
+            resources: 'all',
+            namespaces: [],
+            createdAt: 1,
+          },
+        ],
         {
-          id: 'saved-1',
-          name: 'Existing',
-          query: 'true',
-          resources: 'all',
-          namespaces: [],
-          createdAt: 1,
-        },
-      ],
-      {
-        name: ' New search ',
-        query: ' metadata.name === "nginx" ',
-        resources: '',
-        namespaces: ['default', 'default'],
-      }
-    );
+          name: ' New search ',
+          query: ' metadata.name === "nginx" ',
+          resources: '',
+          namespaces: ['default', 'default'],
+        }
+      );
 
-    expect(searches).toHaveLength(2);
-    expect(searches[0]).toMatchObject({
-      name: 'New search',
-      query: 'metadata.name === "nginx"',
-      resources: '',
-      namespaces: ['default'],
-      createdAt: Date.parse('2026-05-14T00:00:00.000Z'),
-    });
+      expect(searches).toHaveLength(2);
+      expect(searches[0]).toMatchObject({
+        name: 'New search',
+        query: 'metadata.name === "nginx"',
+        resources: '',
+        namespaces: ['default'],
+        createdAt: Date.parse('2026-05-14T00:00:00.000Z'),
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('does not add a saved search without a name or query', () => {

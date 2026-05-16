@@ -27,7 +27,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
@@ -58,6 +58,7 @@ export function SavedSearches({
   const selectedNamespaces = useTypedSelector(state => state.filter.namespaces);
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [searches, setSearches] = useState(() => readSavedAdvancedSearches());
+  const searchesRef = useRef(searches);
   const [saveName, setSaveName] = useState('');
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -66,13 +67,15 @@ export function SavedSearches({
   const queryCanBeSaved = rawQuery.trim().length > 0;
 
   const updateSearches = (updater: (current: SavedAdvancedSearch[]) => SavedAdvancedSearch[]) => {
-    const next = updater(searches);
-    if (next === searches) {
+    const current = searchesRef.current;
+    const next = updater(current);
+    if (next === current) {
       return;
     }
 
     try {
       writeSavedAdvancedSearches(next);
+      searchesRef.current = next;
       setSearches(next);
       setError('');
     } catch {
