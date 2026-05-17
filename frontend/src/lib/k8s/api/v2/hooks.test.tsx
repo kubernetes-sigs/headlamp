@@ -18,10 +18,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, type MockedFunction, vi } from 'vitest';
+import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
-import { useEndpoints, useKubeObject } from './hooks';
+import { useEndpoints, useKubeObject, useStableCleanedQueryParams } from './hooks';
 import type { KubeObjectEndpoint } from './KubeObjectEndpoint';
+import { getKubeObjectClassCacheKey } from './queryKeys';
 
 vi.mock('./fetch', () => ({
   clusterFetch: vi.fn(),
@@ -395,5 +397,166 @@ describe('useKubeObject watch wiring', () => {
       expect(lastCall.enabled).toBe(true);
       expect(lastCall.url()).toContain('namespaces/my-ns');
     });
+  });
+});
+
+describe('useKubeObject class-identity cache key', () => {
+  beforeEach(() => vi.clearAllMocks());
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('produces distinct query entries for two classes with the same JS name and endpoint', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns' },
+      })
+    );
+
+    const PodA = class Pod {
+      static apiEndpoint = {
+        apiInfo: [{ version: 'v1', resource: 'pods' }] as KubeObjectEndpoint[],
+      };
+      constructor(public jsonData: any, public cluster?: string) {}
+    } as any;
+    const PodB = class Pod {
+      static apiEndpoint = {
+        apiInfo: [{ version: 'v1', resource: 'pods' }] as KubeObjectEndpoint[],
+      };
+      constructor(public jsonData: any, public cluster?: string) {}
+    } as any;
+
+    expect(PodA.name).toBe(PodB.name);
+    expect(PodA).not.toBe(PodB);
+    expect(getKubeObjectClassCacheKey(PodA)).not.toBe(getKubeObjectClassCacheKey(PodB));
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+          refetchOnWindowFocus: false,
+          refetchOnMount: false,
+          refetchOnReconnect: false,
+        },
+      },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const resultA = renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: PodA,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster: 'test',
+        }),
+      { wrapper }
+    );
+    const resultB = renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: PodB,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster: 'test',
+        }),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(resultA.result.current.data).toBeTruthy();
+      expect(resultB.result.current.data).toBeTruthy();
+    });
+
+    expect(resultA.result.current.data).toBeInstanceOf(PodA);
+    expect(resultB.result.current.data).toBeInstanceOf(PodB);
+    expect(resultA.result.current.data).not.toBeInstanceOf(PodB);
+    expect(resultB.result.current.data).not.toBeInstanceOf(PodA);
+
+    const objectQueries = queryClient
+      .getQueryCache()
+      .getAll()
+      .filter(q => Array.isArray(q.queryKey) && q.queryKey[0] === 'object');
+    expect(objectQueries).toHaveLength(2);
+  });
+
+  it('agrees on the same discriminator across separate module instances of queryKeys', async () => {
+    // Surrogate for the plugin SDK shipping its own copy of `frontend/src/lib/**`:
+    // re-import `queryKeys` from a fresh module instance and verify that calling
+    // `getKubeObjectClassCacheKey(Cls)` from either instance yields the same id
+    // for the same class. The globalThis-stored registry under `Symbol.for(...)`
+    // means the second call reads the value the first call stamped, regardless
+    // of module identity.
+    const SharedCls = class Shared {} as any;
+    const first = getKubeObjectClassCacheKey(SharedCls);
+
+    vi.resetModules();
+    const fresh = await import('./queryKeys');
+    expect(fresh.getKubeObjectClassCacheKey).not.toBe(getKubeObjectClassCacheKey);
+    const second = fresh.getKubeObjectClassCacheKey(SharedCls);
+
+    expect(second).toBe(first);
+  });
+});
+
+describe('useStableCleanedQueryParams', () => {
+  it('returns the same reference when the cleaned entries are unchanged across rerenders', () => {
+    const { result, rerender } = renderHook<
+      ReturnType<typeof useStableCleanedQueryParams>,
+      { qp: QueryParameters | undefined }
+    >(({ qp }) => useStableCleanedQueryParams(qp), {
+      initialProps: { qp: { labelSelector: 'a=b' } },
+    });
+    const first = result.current;
+
+    // New input object, structurally equal content → same returned reference.
+    rerender({ qp: { labelSelector: 'a=b' } });
+    expect(result.current).toBe(first);
+  });
+
+  it('returns the same reference regardless of key insertion order', () => {
+    const { result, rerender } = renderHook<
+      ReturnType<typeof useStableCleanedQueryParams>,
+      { qp: QueryParameters | undefined }
+    >(({ qp }) => useStableCleanedQueryParams(qp), {
+      initialProps: { qp: { labelSelector: 'a=b', fieldSelector: 'metadata.name=foo' } },
+    });
+    const first = result.current;
+
+    rerender({ qp: { fieldSelector: 'metadata.name=foo', labelSelector: 'a=b' } });
+    expect(result.current).toBe(first);
+  });
+
+  it('treats undefined/empty values as equivalent to the entry being absent', () => {
+    const { result, rerender } = renderHook<
+      ReturnType<typeof useStableCleanedQueryParams>,
+      { qp: QueryParameters | undefined }
+    >(({ qp }) => useStableCleanedQueryParams(qp), {
+      initialProps: { qp: { labelSelector: 'a=b' } },
+    });
+    const first = result.current;
+
+    rerender({ qp: { labelSelector: 'a=b', fieldSelector: '' } });
+    expect(result.current).toBe(first);
+
+    rerender({ qp: { labelSelector: 'a=b', fieldSelector: undefined } });
+    expect(result.current).toBe(first);
+  });
+
+  it('returns a new reference when an effective value actually changes', () => {
+    const { result, rerender } = renderHook<
+      ReturnType<typeof useStableCleanedQueryParams>,
+      { qp: QueryParameters | undefined }
+    >(({ qp }) => useStableCleanedQueryParams(qp), {
+      initialProps: { qp: { labelSelector: 'a=b' } },
+    });
+    const first = result.current;
+
+    rerender({ qp: { labelSelector: 'a=c' } });
+    expect(result.current).not.toBe(first);
+    expect(result.current).toEqual({ labelSelector: 'a=c' });
   });
 });

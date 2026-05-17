@@ -314,16 +314,23 @@ describe('useKubeObjectList', () => {
     const spy = vi.spyOn(websocket, 'useWebSockets');
     const queryClient = new QueryClient();
 
-    queryClient.setQueryData(['kubeObject', 'list', 'v1', 'pods', 'default', 'a', {}], {
-      list: { items: [], metadata: { resourceVersion: '0' } },
-      cluster: 'default',
-      namespace: 'a',
-    });
-    queryClient.setQueryData(['kubeObject', 'list', 'v1', 'pods', 'default', 'b', {}], {
-      list: { items: [], metadata: { resourceVersion: '0' } },
-      cluster: 'default',
-      namespace: 'b',
-    });
+    const podsEndpoint = { version: 'v1', resource: 'pods' };
+    queryClient.setQueryData(
+      kubeObjectListQuery(mockClass, podsEndpoint, 'a', 'default', {}).queryKey,
+      {
+        list: { items: [], metadata: { resourceVersion: '0' } },
+        cluster: 'default',
+        namespace: 'a',
+      }
+    );
+    queryClient.setQueryData(
+      kubeObjectListQuery(mockClass, podsEndpoint, 'b', 'default', {}).queryKey,
+      {
+        list: { items: [], metadata: { resourceVersion: '0' } },
+        cluster: 'default',
+        namespace: 'b',
+      }
+    );
 
     const result = renderHook(
       (props: {}) =>
@@ -351,14 +358,21 @@ describe('useKubeObjectList', () => {
     const spy = vi.spyOn(websocket, 'useWebSockets');
     const queryClient = new QueryClient();
 
-    queryClient.setQueryData(['kubeObject', 'list', 'v1', 'nodes', 'cluster-1', '', {}], {
-      list: { items: [], metadata: { resourceVersion: '0' } },
-      cluster: 'cluster-1',
-    });
-    queryClient.setQueryData(['kubeObject', 'list', 'v1', 'nodes', 'cluster-2', '', {}], {
-      list: { items: [], metadata: { resourceVersion: '0' } },
-      cluster: 'cluster-2',
-    });
+    const nodesEndpoint = { version: 'v1', resource: 'nodes' };
+    queryClient.setQueryData(
+      kubeObjectListQuery(mockNodeClass, nodesEndpoint, undefined, 'cluster-1', {}).queryKey,
+      {
+        list: { items: [], metadata: { resourceVersion: '0' } },
+        cluster: 'cluster-1',
+      }
+    );
+    queryClient.setQueryData(
+      kubeObjectListQuery(mockNodeClass, nodesEndpoint, undefined, 'cluster-2', {}).queryKey,
+      {
+        list: { items: [], metadata: { resourceVersion: '0' } },
+        cluster: 'cluster-2',
+      }
+    );
 
     const result = renderHook(
       (props: { requests: Array<{ cluster: string; namespaces?: string[] }> }) =>
@@ -496,5 +510,70 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     );
 
     expect(spy).toHaveBeenCalledWith({ enabled: false, connections: [] });
+  });
+});
+
+describe('kubeObjectListQuery query key', () => {
+  const endpoint = { version: 'v1', resource: 'pods' };
+  const cluster = 'default';
+  const namespace = 'ns';
+  const queryParams = {};
+
+  it('separates cache entries for distinct classes that target the same API (#4780)', () => {
+    const builtInPodClass = class {
+      static apiVersion = 'v1';
+      static apiName = 'pods';
+    } as any;
+    const pluginPodClass = class {
+      static apiVersion = 'v1';
+      static apiName = 'pods';
+    } as any;
+
+    const builtInKey = kubeObjectListQuery(
+      builtInPodClass,
+      endpoint,
+      namespace,
+      cluster,
+      queryParams
+    ).queryKey;
+    const pluginKey = kubeObjectListQuery(
+      pluginPodClass,
+      endpoint,
+      namespace,
+      cluster,
+      queryParams
+    ).queryKey;
+
+    expect(builtInKey).not.toEqual(pluginKey);
+    // Both keys still share the apiVersion + apiName segments; only the
+    // per-class discriminator differentiates them.
+    expect(builtInKey).toContain('v1');
+    expect(builtInKey).toContain('pods');
+    expect(pluginKey).toContain('v1');
+    expect(pluginKey).toContain('pods');
+  });
+
+  it('separates cache entries even when two distinct classes share a JS name (#4780)', () => {
+    const A = class Pod {
+      static apiVersion = 'v1';
+      static apiName = 'pods';
+    } as any;
+    const B = class Pod {
+      static apiVersion = 'v1';
+      static apiName = 'pods';
+    } as any;
+    expect(A).not.toBe(B);
+    expect(A.name).toBe(B.name);
+
+    const keyA = kubeObjectListQuery(A, endpoint, namespace, cluster, queryParams).queryKey;
+    const keyB = kubeObjectListQuery(B, endpoint, namespace, cluster, queryParams).queryKey;
+    expect(keyA).not.toEqual(keyB);
+  });
+
+  it('produces the same cache key for the same class and arguments', () => {
+    const keyA = kubeObjectListQuery(mockClass, endpoint, namespace, cluster, queryParams).queryKey;
+    const keyB = kubeObjectListQuery(mockClass, endpoint, namespace, cluster, queryParams).queryKey;
+
+    expect(keyA).toEqual(keyB);
   });
 });
