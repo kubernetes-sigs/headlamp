@@ -268,6 +268,11 @@
       "description": "Environment variables to pass to the deployment",
       "items": {
         "type": "object",
+        "required": ["name"],
+        "oneOf": [
+          { "required": ["value"] },
+          { "required": ["valueFrom"] }
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -276,9 +281,69 @@
           "value": {
             "type": "string",
             "description": "Value of the environment variable"
+          },
+          "valueFrom": {
+            "type": "object",
+            "description": "Source for the environment variable's value.",
+            "oneOf": [
+              {
+                "description": "Selects a key of a ConfigMap.",
+                "type": "object",
+                "properties": {
+                  "configMapKeyRef": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "The ConfigMap to select from."
+                      },
+                      "key": {
+                        "type": "string",
+                        "description": "The key to select."
+                      },
+                      "optional": {
+                        "type": "boolean",
+                        "description": "Specify whether the ConfigMap or its key must be defined."
+                      }
+                    },
+                    "required": ["name", "key"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["configMapKeyRef"],
+                "additionalProperties": false
+              },
+              {
+                "description": "Selects a key of a Secret.",
+                "type": "object",
+                "properties": {
+                  "secretKeyRef": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "The Secret to select from."
+                      },
+                      "key": {
+                        "type": "string",
+                        "description": "The key to select."
+                      },
+                      "optional": {
+                        "type": "boolean",
+                        "description": "Specify whether the Secret or its key must be defined."
+                      }
+                    },
+                    "required": ["name", "key"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["secretKeyRef"],
+                "additionalProperties": false
+              }
+            ],
+            "additionalProperties": false
           }
         },
-        "required": ["name", "value"],
         "additionalProperties": false
       }
     },
