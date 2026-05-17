@@ -887,7 +887,9 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		state := r.URL.Query().Get("state")
 
 		if state == "" {
-			logger.Log(logger.LevelError, nil, err, "invalid request state is empty")
+			// nil err: the closure-local err is declared below, so any err
+			// here would leak from createHeadlampHandler's outer scope.
+			logger.Log(logger.LevelError, nil, nil, "invalid request state is empty")
 			http.Error(w, "invalid request state is empty", http.StatusBadRequest)
 
 			return

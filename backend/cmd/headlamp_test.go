@@ -35,6 +35,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,6 +45,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1428,6 +1430,80 @@ func TestGetOidcCallbackURL(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Regression test for #4839: /oidc-callback's missing-state log must not
+// carry the outer-scope kubeconfig-load err from createHeadlampHandler.
+func TestOidcCallbackEmptyStateDoesNotLogStaleError(t *testing.T) {
+	type logCall struct {
+		level uint
+		msg   string
+		err   interface{}
+	}
+
+	var (
+		logMu    sync.Mutex
+		logCalls []logCall
+	)
+
+	originalLogFunc := logger.SetLogFunc(func(level uint, _ map[string]string, err interface{}, msg string) {
+		logMu.Lock()
+		defer logMu.Unlock()
+
+		logCalls = append(logCalls, logCall{level: level, msg: msg, err: err})
+	})
+	defer logger.SetLogFunc(originalLogFunc)
+
+	scratch := t.TempDir()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster: false,
+				// Guaranteed-missing kubeconfig so the startup load fails and
+				// seeds the outer-scope err the callback closure would leak.
+				KubeConfigPath:  filepath.Join(scratch, "missing-kubeconfig"),
+				KubeConfigStore: kubeconfig.NewContextStore(),
+				PluginDir:       scratch,
+				UserPluginDir:   scratch,
+				StaticPluginDir: scratch,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handler := createHeadlampHandler(ctx, cfg)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/oidc-callback", nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code,
+		"empty state should still produce a 400 response")
+
+	logMu.Lock()
+	captured := append([]logCall(nil), logCalls...)
+	logMu.Unlock()
+
+	var stateLog *logCall
+
+	for i := range captured {
+		if captured[i].msg == "invalid request state is empty" {
+			stateLog = &captured[i]
+			break
+		}
+	}
+
+	require.NotNil(t, stateLog, "expected a log entry for the missing-state branch")
+	assert.Nil(t, stateLog.err,
+		"missing-state log must not carry a stale error from the outer createHeadlampHandler scope")
 }
 
 func TestOIDCTokenRefreshMiddleware(t *testing.T) {
