@@ -77,6 +77,7 @@ import (
 
 type HeadlampConfig struct {
 	*headlampconfig.HeadlampConfig
+	proxyURLMu        sync.Mutex
 	compiledProxyURLs []glob.Glob
 }
 
@@ -96,16 +97,23 @@ func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
 }
 
 func (c *HeadlampConfig) proxyURLAllowed(proxyURL string) (bool, error) {
+	c.proxyURLMu.Lock()
+
 	if c.compiledProxyURLs == nil && len(c.ProxyURLs) > 0 {
 		compiledProxyURLs, err := compileProxyURLPatterns(c.ProxyURLs)
 		if err != nil {
+			c.proxyURLMu.Unlock()
+
 			return false, err
 		}
 
 		c.compiledProxyURLs = compiledProxyURLs
 	}
 
-	for _, g := range c.compiledProxyURLs {
+	compiledProxyURLs := c.compiledProxyURLs
+	c.proxyURLMu.Unlock()
+
+	for _, g := range compiledProxyURLs {
 		if g.Match(proxyURL) {
 			return true, nil
 		}
