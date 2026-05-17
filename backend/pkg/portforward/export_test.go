@@ -27,7 +27,7 @@ func StorePortForwardForTest(c cache.Cache[interface{}], clusterName, userID str
 		Pod:        "test-pod",
 		Namespace:  "default",
 		Cluster:    clusterName,
-		cacheKey:   clusterName + userID,
+		cacheKey:   portforwardClusterKey(clusterName, userID),
 		Port:       "8080",
 		TargetPort: "80",
 		Status:     RUNNING,

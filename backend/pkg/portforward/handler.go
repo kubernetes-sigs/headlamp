@@ -55,6 +55,7 @@ const (
 const (
 	PodAvailabilityCheckTimer   = 5 // seconds
 	PortForwardReadinessTimeout = 30 * time.Second
+	portforwardClusterKeySep    = "\x00"
 )
 
 var inFlightPortForwards sync.Map
@@ -99,6 +100,14 @@ type portForward struct {
 	TargetPort       string `json:"targetPort"`
 	Status           string `json:"status"`
 	Error            string `json:"error"`
+}
+
+func portforwardClusterKey(clusterName, userID string) string {
+	if userID == "" {
+		return clusterName
+	}
+
+	return clusterName + portforwardClusterKeySep + userID
 }
 
 // setStatusAndSnapshot updates the Status and Error fields and returns a
@@ -157,6 +166,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	userID := r.Header.Get("X-HEADLAMP-USER-ID")
 	requestClusterName := mux.Vars(r)["clusterName"]
 	clusterName := requestClusterName
+	cacheKey := portforwardClusterKey(requestClusterName, userID)
 
 	if userID != "" {
 		clusterName += userID
@@ -165,7 +175,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	// Ensure we don't orphan an existing port-forward by overwriting its cache entry.
 	// This check happens before any resource allocation or blocking code so duplicates short-circuit
 	// deterministically and avoid unnecessary listener churn.
-	if existingPF, err := getPortForwardByID(cache, clusterName, p.ID); err == nil && existingPF.Status == RUNNING {
+	if existingPF, err := getPortForwardByID(cache, cacheKey, p.ID); err == nil && existingPF.Status == RUNNING {
 		//nolint:goconst
 		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName, "id": p.ID},
 			nil, "portforward ID already exists")
@@ -175,7 +185,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	}
 
 	// Reject duplicates before any resource-consuming work (port alloc, kubeconfig lookup).
-	inFlightKey := strings.Join([]string{requestClusterName, userID, p.ID}, "\x00")
+	inFlightKey := strings.Join([]string{requestClusterName, userID, p.ID}, portforwardClusterKeySep)
 	if _, loaded := inFlightPortForwards.LoadOrStore(inFlightKey, struct{}{}); loaded {
 		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName, "id": p.ID},
 			nil, "portforward ID is already starting")
@@ -220,7 +230,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		token, _ = auth.GetTokenFromCookie(r, requestClusterName)
 	}
 
-	err = startPortForward(kContext, cache, p, token, clusterName, requestClusterName)
+	err = startPortForward(kContext, cache, p, token, cacheKey, requestClusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
 
@@ -621,7 +631,7 @@ func runAndMonitorPortForward(
 // startPortForward starts a port forward. This is the internal function that was refactored.
 // It sets up Kubernetes clients, initializes the port forwarder, and manages its lifecycle.
 func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{}],
-	p portForwardRequest, token string, clusterName string, requestClusterName string,
+	p portForwardRequest, token string, cacheKey string, requestClusterName string,
 ) error {
 	clientset, rConf, err := getKubeClientAndConfig(kContext, token)
 	if err != nil {
@@ -658,7 +668,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 		closeChan:        stopChan,
 		Pod:              p.Pod,
 		Cluster:          requestClusterName,
-		cacheKey:         clusterName,
+		cacheKey:         cacheKey,
 		Namespace:        p.Namespace,
 		Service:          p.Service,
 		ServiceNamespace: p.ServiceNamespace,
@@ -721,10 +731,7 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], w http.ResponseWrit
 
 	userID := r.Header.Get("X-HEADLAMP-USER-ID")
 	clusterName := mux.Vars(r)["clusterName"]
-
-	if userID != "" {
-		clusterName += userID
-	}
+	clusterName = portforwardClusterKey(clusterName, userID)
 
 	err = stopOrDeletePortForward(cache, clusterName, p.ID, p.StopOrDelete)
 	if err == nil {
@@ -750,11 +757,7 @@ func GetPortForwards(cache cache.Cache[interface{}], w http.ResponseWriter, r *h
 	}
 
 	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-	clusterName := cluster
-
-	if userID != "" {
-		clusterName = cluster + userID
-	}
+	clusterName := portforwardClusterKey(cluster, userID)
 
 	ports := getPortForwardList(cache, clusterName)
 
@@ -787,11 +790,7 @@ func GetPortForwardByID(cache cache.Cache[interface{}], w http.ResponseWriter, r
 	}
 
 	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-	clusterName := cluster
-
-	if userID != "" {
-		clusterName = cluster + userID
-	}
+	clusterName := portforwardClusterKey(cluster, userID)
 
 	p, err := getPortForwardByID(cache, clusterName, id)
 	if err != nil {
