@@ -161,6 +161,7 @@
   "Sort sidebar items alphabetically": "Сортировка элементов боковой панели по алфавиту",
   "Use evict for pod deletion": "Использовать Evict при удалении Pod",
   "Theme": "Тема",
+  "Theme has been forced by your administrator": "",
   "Keyboard Shortcuts": "Сочетания клавиш",
   "Configure keyboard shortcuts for quick access to various parts of the application.": "Настройте сочетания клавиш для быстрого доступа к различным частям приложения.",
   "Cluster Settings": "Настройки кластера",

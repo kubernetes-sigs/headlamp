@@ -99,6 +99,14 @@ type Config struct {
 	ForceTheme        string `koanf:"force-theme"`
 }
 
+func (c *Config) warnRedundantThemeDefaults() {
+	if c.ForceTheme != "" && (c.DefaultLightTheme != "" || c.DefaultDarkTheme != "") {
+		logger.Log(logger.LevelWarn, nil, nil,
+			"force-theme is set together with default-light-theme/default-dark-theme, "+
+				"default themes will be ignored when force-theme is active")
+	}
+}
+
 func (c *Config) Validate() error {
 	if !c.InCluster && !c.OidcUseCookie && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
 		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
@@ -107,12 +115,8 @@ func (c *Config) Validate() error {
 			"meant to be used in inCluster mode or with --oidc-use-cookie")
 	}
 
-	// Theme configuration warning.
-	if c.ForceTheme != "" && (c.DefaultLightTheme != "" || c.DefaultDarkTheme != "") {
-		logger.Log(logger.LevelWarn, nil, nil,
-			"force-theme is set together with default-light-theme/default-dark-theme, "+
-				"default themes will be ignored when force-theme is active")
-	}
+	// Extracted to keep Validate's cognitive complexity within the linter limit.
+	c.warnRedundantThemeDefaults()
 
 	// OIDC TLS verification warning.
 	if c.OidcSkipTLSVerify {
