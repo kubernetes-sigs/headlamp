@@ -662,7 +662,11 @@ func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
 
 	m.mutex.Lock()
 	for key, conn := range m.connections {
-		if conn.Client == clientConn {
+		conn.mu.RLock()
+		isClient := conn.Client == clientConn
+		conn.mu.RUnlock()
+
+		if isClient {
 			connsToClose = append(connsToClose, conn)
 
 			delete(m.connections, key)
@@ -963,10 +967,6 @@ func (m *Multiplexer) sendDataMessage(
 ) error {
 	dataMsg := m.createWrapperMessage(conn, messageType, message)
 
-	conn.mu.Lock()
-	conn.Status.LastMsg = time.Now()
-	conn.mu.Unlock()
-
 	conn.writeMu.Lock()
 	err := clientConn.WriteJSON(dataMsg)
 	conn.writeMu.Unlock()
@@ -974,6 +974,10 @@ func (m *Multiplexer) sendDataMessage(
 	if err != nil {
 		return err
 	}
+
+	conn.mu.Lock()
+	conn.Status.LastMsg = time.Now()
+	conn.mu.Unlock()
 
 	return nil
 }

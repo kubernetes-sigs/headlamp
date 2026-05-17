@@ -37,6 +37,9 @@ export const WebSocketManager = {
   /** Map of message handlers for each subscription path */
   listeners: new Map<string, Set<(data: any) => void>>(),
 
+  /** Map of error handlers for each subscription path */
+  errorListeners: new Map<string, Set<(err: Error) => void>>(),
+
   /** Set of paths that have received a COMPLETE message */
   completedPaths: new Set<string>(),
 
@@ -161,13 +164,15 @@ export const WebSocketManager = {
    * @param path - API resource path
    * @param query - Query parameters
    * @param onMessage - Callback for handling incoming messages
+   * @param onError - Callback for handling errors
    * @returns Promise resolving to cleanup function
    */
   async subscribe(
     clusterId: string,
     path: string,
     query: string,
-    onMessage: (data: any) => void
+    onMessage: (data: any) => void,
+    onError?: (err: Error) => void
   ): Promise<() => void> {
     const key = this.createKey(clusterId, path, query);
 
@@ -178,6 +183,13 @@ export const WebSocketManager = {
     const listeners = this.listeners.get(key) || new Set();
     listeners.add(onMessage);
     this.listeners.set(key, listeners);
+
+    // Add error listener if provided
+    if (onError) {
+      const errListeners = this.errorListeners.get(key) || new Set();
+      errListeners.add(onError);
+      this.errorListeners.set(key, errListeners);
+    }
 
     // Establish connection and send REQUEST
     const socket = await this.connect();
@@ -192,7 +204,7 @@ export const WebSocketManager = {
     socket.send(JSON.stringify(requestMsg));
 
     // Return cleanup function
-    return () => this.unsubscribe(key, clusterId, path, query, onMessage);
+    return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
   },
 
   /**
@@ -215,13 +227,15 @@ export const WebSocketManager = {
    * @param path - API resource path being watched
    * @param query - Query parameters for filtering
    * @param onMessage - Message handler to remove from subscription
+   * @param onError - Error handler to remove from subscription
    */
   unsubscribe(
     key: string,
     clusterId: string,
     path: string,
     query: string,
-    onMessage: (data: any) => void
+    onMessage: (data: any) => void,
+    onError?: (err: Error) => void
   ): void {
     // Clear any pending unsubscribe for this key
     const pendingTimeout = this.pendingUnsubscribes.get(key);
@@ -262,6 +276,17 @@ export const WebSocketManager = {
         }, 100); // 100ms debounce
 
         this.pendingUnsubscribes.set(key, timeout);
+      }
+    }
+
+    // Remove the error listener
+    if (onError) {
+      const errListeners = this.errorListeners.get(key);
+      if (errListeners) {
+        errListeners.delete(onError);
+        if (errListeners.size === 0) {
+          this.errorListeners.delete(key);
+        }
       }
     }
   },
@@ -309,26 +334,39 @@ export const WebSocketManager = {
           errorMessage = data.data || errorMessage;
         }
 
-        const update = {
-          type: 'ERROR',
-          object: {
-            kind: 'Status',
-            status: 'Failure',
-            message: errorMessage,
-            metadata: {
-              resourceVersion: '0',
-              uid: `${key}:ERROR:${errorMessage}`,
-            },
-          },
-        };
-
-        const listeners = this.listeners.get(key);
-        if (listeners) {
-          for (const listener of listeners) {
+        const errListeners = this.errorListeners.get(key);
+        if (errListeners && errListeners.size > 0) {
+          const errorObj = new Error(errorMessage);
+          for (const errListener of errListeners) {
             try {
-              listener(update);
+              errListener(errorObj);
             } catch (err) {
               console.error('Failed to process WebSocket error message:', err);
+            }
+          }
+        } else {
+          // Fallback to data listeners as a safety net for legacy/direct callers
+          const update = {
+            type: 'ERROR',
+            object: {
+              kind: 'Status',
+              status: 'Failure',
+              message: errorMessage,
+              metadata: {
+                resourceVersion: '0',
+                uid: `${key}:ERROR:${errorMessage}`,
+              },
+            },
+          };
+
+          const listeners = this.listeners.get(key);
+          if (listeners) {
+            for (const listener of listeners) {
+              try {
+                listener(update);
+              } catch (err) {
+                console.error('Failed to process WebSocket error message:', err);
+              }
             }
           }
         }
@@ -433,7 +471,8 @@ export function useWebSocket<T>({
           cluster,
           subscriptionPath,
           subscriptionQuery,
-          stableOnMessage
+          stableOnMessage,
+          onError
         );
         if (isCancelled) {
           unsubscribe();
@@ -448,7 +487,8 @@ export function useWebSocket<T>({
             cluster,
             subscriptionPath,
             subscriptionQuery,
-            stableOnMessage
+            stableOnMessage,
+            onError
           );
         }
         if (isCancelled) {

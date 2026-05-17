@@ -435,6 +435,7 @@ describe('WebSocket Multiplexer', () => {
           clusterName,
           '/api/v1/pods',
           '',
+          expect.any(Function),
           expect.any(Function)
         );
       });
@@ -707,6 +708,32 @@ describe('WebSocket Multiplexer', () => {
             },
           },
         });
+      });
+    });
+
+    it('should route backend error to dedicated error callback when provided', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=true';
+
+      const errorCallback = vi.fn();
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage, errorCallback);
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          data: JSON.stringify({ error: 'dedicated error message' }),
+          type: 'ERROR',
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(errorCallback).toHaveBeenCalledWith(expect.any(Error));
+        expect(errorCallback.mock.calls[0][0].message).toBe('dedicated error message');
+        expect(onMessage).not.toHaveBeenCalled();
       });
     });
 
