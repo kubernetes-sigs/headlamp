@@ -31,6 +31,7 @@ import { ResourceSearch } from './ResourceSearch';
 import type { SavedAdvancedSearch } from './savedAdvancedSearches';
 import { SavedSearches } from './SavedSearches';
 import { SearchSettings } from './SearchSettings';
+import { getSelectedResourcesValue } from './selectedResources';
 
 const emptyList: [] = [];
 
@@ -84,11 +85,7 @@ export function AdvancedSearch() {
     if (!selectedResources) return;
 
     setSelectedResourcesState(() =>
-      selectedResources.size === resources?.length
-        ? 'all'
-        : selectedResources.size === 0
-        ? ''
-        : [...selectedResources].join('+')
+      getSelectedResourcesValue(selectedResources, resources?.length)
     );
     // setSelectedResourcesState is not stable between renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -104,11 +101,7 @@ export function AdvancedSearch() {
       return selectedResourcesState || '';
     }
 
-    if (resources?.length && selectedResources.size === resources.length) {
-      return 'all';
-    }
-
-    return selectedResources.size === 0 ? '' : [...selectedResources].join('+');
+    return getSelectedResourcesValue(selectedResources, resources?.length);
   }, [resources, selectedResources, selectedResourcesState]);
 
   const restoreSavedSearch = useCallback(

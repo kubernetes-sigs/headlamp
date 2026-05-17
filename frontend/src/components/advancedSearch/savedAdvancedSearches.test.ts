@@ -23,7 +23,7 @@ import {
   SAVED_ADVANCED_SEARCHES_KEY,
 } from './savedAdvancedSearches';
 
-describe('savedSearches', () => {
+describe('savedAdvancedSearches', () => {
   beforeEach(() => {
     localStorage.clear();
   });
