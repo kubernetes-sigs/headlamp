@@ -161,6 +161,7 @@
   "Sort sidebar items alphabetically": "साइडबार आइटमों को वर्णानुक्रम में सॉर्ट करें",
   "Use evict for pod deletion": "Pod हटाने के लिए निष्कासन का उपयोग करें",
   "Theme": "थीम",
+  "Theme has been forced by your administrator": "",
   "Keyboard Shortcuts": "कीबोर्ड शॉर्टकट्स",
   "Configure keyboard shortcuts for quick access to various parts of the application.": "एप्लिकेशन के विभिन्न हिस्सों तक तेज़ पहुँच के लिए कीबोर्ड शॉर्टकट्स कॉन्फ़िगर करें।",
   "Cluster Settings": "क्लस्टर सेटिंग्स",
