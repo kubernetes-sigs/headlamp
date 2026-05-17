@@ -98,15 +98,7 @@ type Config struct {
 }
 
 func (c *Config) Validate() error {
-	if c.Port == 0 || c.Port > maxPort {
-		return fmt.Errorf("port must be between 1 and %d", maxPort)
-	}
-
-	if !isValidLogLevel(c.LogLevel) {
-		return errors.New("log-level must be one of debug, info, warn, or error")
-	}
-
-	if err := validateTLSPaths(c.TLSCertPath, c.TLSKeyPath); err != nil {
+	if err := c.validateOptionValues(); err != nil {
 		return err
 	}
 
@@ -168,6 +160,18 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func (c *Config) validateOptionValues() error {
+	if c.Port == 0 || c.Port > maxPort {
+		return fmt.Errorf("port must be between 1 and %d", maxPort)
+	}
+
+	if !isValidLogLevel(c.LogLevel) {
+		return errors.New("log-level must be one of debug, info, warn, or error")
+	}
+
+	return validateTLSPaths(c.TLSCertPath, c.TLSKeyPath)
 }
 
 func isValidLogLevel(logLevel string) bool {
@@ -383,6 +387,7 @@ func Parse(args []string) (*Config, error) {
 	if err := loadConfigFromEnv(k); err != nil {
 		return nil, err
 	}
+
 	watchPluginsChangesEnvSet := hasWatchPluginsChangesEnv()
 
 	// 5. Reload explicitly-set flags to override env values.
