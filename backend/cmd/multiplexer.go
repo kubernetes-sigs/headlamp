@@ -334,6 +334,20 @@ func (c *Connection) writeStatusLocked() error {
 // safeClose safely closes the connection and its resources.
 func (c *Connection) safeClose() {
 	c.closeOnce.Do(func() {
+		c.mu.Lock()
+		if !c.closed {
+			c.Status.State = StateClosed
+			c.Status.LastMsg = time.Now()
+			c.Status.Error = ""
+
+			if c.Client != nil {
+				_ = c.writeStatusLocked()
+			}
+
+			c.closed = true
+		}
+		c.mu.Unlock()
+
 		if c.Done != nil {
 			select {
 			case <-c.Done:
@@ -342,10 +356,6 @@ func (c *Connection) safeClose() {
 				close(c.Done)
 			}
 		}
-
-		c.mu.Lock()
-		c.closed = true
-		c.mu.Unlock()
 
 		if c.WSConn != nil {
 			_ = c.WSConn.Close()
