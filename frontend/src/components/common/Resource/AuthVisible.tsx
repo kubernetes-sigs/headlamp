@@ -66,11 +66,13 @@ export default function AuthVisible(props: AuthVisibleProps) {
 
   const itemClass: KubeObjectClass | null = (item as KubeObject)?._class?.() ?? item;
   const itemName = (item as KubeObject)?.getName?.();
+  const cluster = (item as any)?.cluster;
 
   const { data } = useQuery<any>({
     enabled: !!item && isAuthVerbValid,
     queryKey: [
       'authVisible',
+      cluster,
       itemName,
       itemClass?.apiName,
       itemClass?.apiVersion,
@@ -80,14 +82,14 @@ export default function AuthVisible(props: AuthVisibleProps) {
     ],
     queryFn: async () => {
       try {
-        const res = await item!.getAuthorization(
-          authVerb,
-          { subresource, namespace },
-          (item as any).cluster
-        );
-        return res;
+        if (!item) {
+          return null;
+        }
+
+        return await item.getAuthorization(authVerb, { subresource, namespace }, cluster);
       } catch (e: any) {
         onError?.(e);
+        return null;
       }
     },
   });
