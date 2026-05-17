@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { vi } from 'vitest';
 import { AppLogoProps, AppLogoType } from './AppLogo';
 import themeReducer, {
   applyBackendThemeConfig,
@@ -54,11 +55,11 @@ describe('themeSlice', () => {
       expect(actual.name).toEqual('corporate');
     });
 
-    it('should clear localStorage preference when forced theme is applied', () => {
+    it('should preserve localStorage preference when forced theme is applied', () => {
       localStorage.setItem('headlampThemePreference', 'dark');
       const state = { ...initialState, name: 'light' };
       themeReducer(state, applyBackendThemeConfig({ forceTheme: 'corporate' }));
-      expect(localStorage.getItem('headlampThemePreference')).toBeNull();
+      expect(localStorage.getItem('headlampThemePreference')).toEqual('dark');
     });
 
     it('should not update state if theme has not changed', () => {
@@ -68,13 +69,19 @@ describe('themeSlice', () => {
     });
 
     it('should persist to localStorage when theme is not forced', () => {
+      // Stub matchMedia to prefer light so getThemeName deterministically picks defaultLightTheme.
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        configurable: true,
+        value: vi.fn(query => ({ matches: query === '(prefers-color-scheme: light)' })),
+      });
       const state = { ...initialState, name: 'old-theme' };
-      const config = { defaultLightTheme: 'solarized-light' };
-      const actual = themeReducer(state, applyBackendThemeConfig(config));
-      // Theme changed, so it should be persisted via setTheme (property assignment)
-      if (actual.name !== state.name) {
-        expect(localStorage.headlampThemePreference).toEqual(actual.name);
-      }
+      const actual = themeReducer(
+        state,
+        applyBackendThemeConfig({ defaultLightTheme: 'solarized-light' })
+      );
+      expect(actual.name).toEqual('solarized-light');
+      expect(localStorage.headlampThemePreference).toEqual('solarized-light');
     });
   });
 });

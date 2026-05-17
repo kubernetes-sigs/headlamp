@@ -90,14 +90,11 @@ const themeSlice = createSlice({
       // Only update if theme has changed
       if (newThemeName !== state.name) {
         state.name = newThemeName;
-        // Only persist to localStorage if not forced
+        // Do not persist to localStorage when a forced theme is active — getThemeName()
+        // already returns forceTheme before reading localStorage, so the stored preference
+        // is never consulted while force is active and will be restored when it is lifted.
         if (!backendConfig.forceTheme) {
           setAppTheme(newThemeName);
-        } else {
-          // Clear any previously stored user theme preference when a forced theme is applied
-          try {
-            localStorage.removeItem('headlampThemePreference');
-          } catch (e) {}
         }
       }
     },
