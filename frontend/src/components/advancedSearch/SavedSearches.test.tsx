@@ -14,12 +14,17 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
 import { TestContext } from '../../test';
+import { SAVED_ADVANCED_SEARCHES_KEY } from './savedAdvancedSearches';
 import { SavedSearches } from './SavedSearches';
 
 describe('SavedSearches', () => {
+  afterEach(() => {
+    localStorage.clear();
+  });
+
   it('opens the saved searches popover when clicked', () => {
     render(
       <TestContext>
@@ -31,5 +36,43 @@ describe('SavedSearches', () => {
 
     expect(screen.getByText('Save current search')).toBeInTheDocument();
     expect(screen.getByText('No saved searches yet.')).toBeInTheDocument();
+  });
+
+  it('clears transient popover state when dismissed', async () => {
+    localStorage.setItem(
+      SAVED_ADVANCED_SEARCHES_KEY,
+      JSON.stringify([
+        {
+          id: 'saved-1',
+          name: 'Existing',
+          query: 'true',
+          resources: 'all',
+          namespaces: [],
+          createdAt: 1,
+        },
+      ])
+    );
+
+    render(
+      <TestContext>
+        <SavedSearches rawQuery="true" resourcesValue="all" onSearchSelected={() => {}} />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Searches' }));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Draft save name' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    expect(screen.getByDisplayValue('Existing')).toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByRole('presentation'), { code: 'Escape', key: 'Escape' });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Save current search')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Searches' }));
+
+    expect(screen.queryByDisplayValue('Existing')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveValue('');
   });
 });

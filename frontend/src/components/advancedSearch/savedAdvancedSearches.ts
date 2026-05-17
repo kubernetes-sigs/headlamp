@@ -64,7 +64,7 @@ function normalizeSavedSearch(value: unknown): SavedAdvancedSearch | null {
   return {
     id: maybeSearch.id,
     name: maybeSearch.name.trim(),
-    query: maybeSearch.query,
+    query: maybeSearch.query.trim(),
     resources: maybeSearch.resources,
     namespaces: uniqueStrings(maybeSearch.namespaces),
     createdAt: maybeSearch.createdAt,

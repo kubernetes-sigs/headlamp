@@ -66,6 +66,14 @@ export function SavedSearches({
 
   const queryCanBeSaved = rawQuery.trim().length > 0;
 
+  const closePopover = () => {
+    setEditId(null);
+    setEditName('');
+    setSaveName('');
+    setError('');
+    setAnchorEl(null);
+  };
+
   const updateSearches = (updater: (current: SavedAdvancedSearch[]) => SavedAdvancedSearch[]) => {
     const current = searchesRef.current;
     const next = updater(current);
@@ -101,7 +109,7 @@ export function SavedSearches({
     onSearchSelected(search);
     dispatch(setNamespaceFilter(search.namespaces));
     updateNamespaceQuery(search.namespaces);
-    setAnchorEl(null);
+    closePopover();
   };
 
   return (
@@ -138,7 +146,7 @@ export function SavedSearches({
           vertical: 'bottom',
           horizontal: 'left',
         }}
-        onClose={() => setAnchorEl(null)}
+        onClose={closePopover}
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
       >

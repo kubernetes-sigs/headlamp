@@ -43,7 +43,7 @@ describe('savedSearches', () => {
         {
           id: 'saved-1',
           name: ' Unhealthy pods ',
-          query: 'status.phase !== "Running"',
+          query: ' status.phase !== "Running" ',
           resources: 'v1/pods',
           namespaces: ['default', 'default', 1],
           createdAt: 1,
@@ -53,6 +53,14 @@ describe('savedSearches', () => {
           name: 'Broken',
           resources: 'all',
           createdAt: 2,
+        },
+        {
+          id: 'blank-query',
+          name: 'Blank query',
+          query: '   ',
+          resources: 'all',
+          namespaces: [],
+          createdAt: 3,
         },
       ])
     );
