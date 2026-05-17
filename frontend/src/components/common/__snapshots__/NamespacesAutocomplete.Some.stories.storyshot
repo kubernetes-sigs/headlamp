@@ -63,10 +63,10 @@
             </div>
             <fieldset
               aria-hidden="true"
-              class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+              class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
             >
               <legend
-                class="css-sl37lx-MuiNotchedOutlined-root"
+                class="css-14lo706"
               >
                 <span>
                   Namespaces

@@ -18,6 +18,8 @@ import React from 'react';
 import { useHistory } from 'react-router';
 import NotFoundComponent from '../../components/404';
 import AuthToken from '../../components/account/Auth';
+import APIServiceDetails from '../../components/apiservice/Details';
+import APIServiceList from '../../components/apiservice/List';
 import AddCluster from '../../components/App/CreateCluster/AddCluster';
 import Home from '../../components/App/Home';
 import NotificationList from '../../components/App/Notifications/List';
@@ -223,6 +225,18 @@ const defaultRoutes: { [routeName: string]: Route } = {
     path: '/namespaces/:name',
     sidebar: 'namespaces',
     component: () => <NamespaceDetails />,
+  },
+  apiservices: {
+    path: '/apiservices',
+    name: 'APIServices',
+    exact: true,
+    sidebar: 'apiservices',
+    component: () => <APIServiceList />,
+  },
+  apiservice: {
+    path: '/apiservices/:name',
+    sidebar: 'apiservices',
+    component: () => <APIServiceDetails />,
   },
   nodes: {
     path: '/nodes',

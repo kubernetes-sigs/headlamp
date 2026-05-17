@@ -201,6 +201,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             label: t('glossary|Nodes'),
           },
           {
+            name: 'apiservices',
+            label: t('glossary|API Services'),
+          },
+          {
             name: 'advancedSearch',
             label: t('Advanced Search (Beta)'),
           },
