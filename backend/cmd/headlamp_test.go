@@ -3629,6 +3629,17 @@ func TestExternalProxyHeaderFiltering(t *testing.T) {
 	// Test an underscore-style X-HEADLAMP_* variant defensively as well.
 	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "sensitive-underscore-token")
 
+	// Set transport/protocol headers that should not be forwarded.
+	req.Header.Set("Accept-Encoding", "br, zstd")
+	req.Header.Set("Connection", "Upgrade, X-Connection-Only")
+	req.Header.Set("Keep-Alive", "timeout=5")
+	req.Header.Set("Proxy-Connection", "keep-alive")
+	req.Header.Set("TE", "trailers")
+	req.Header.Set("Trailer", "Expires")
+	req.Header.Set("Transfer-Encoding", "chunked")
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("X-Connection-Only", "drop-me")
+
 	// Set a non-sensitive header that should be preserved
 	req.Header.Set("X-Custom-Preserve", "preserve-me")
 
@@ -3644,4 +3655,15 @@ func TestExternalProxyHeaderFiltering(t *testing.T) {
 	assertHeadersEmpty(t, receivedHeaders, "X-HEADLAMP_BACKEND-TOKEN")
 	assertHeaderPrefixAbsent(t, receivedHeaders, "X-HEADLAMP_")
 	assertHeadersEmpty(t, receivedHeaders, "proxy-to", "Forward-to")
+	assertHeadersEmpty(t, receivedHeaders,
+		"Accept-Encoding",
+		"Connection",
+		"Keep-Alive",
+		"Proxy-Connection",
+		"TE",
+		"Trailer",
+		"Transfer-Encoding",
+		"Upgrade",
+		"X-Connection-Only",
+	)
 }

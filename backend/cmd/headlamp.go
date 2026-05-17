@@ -151,6 +151,11 @@ var maxProxyResponseSize int64 = 100 * 1024 * 1024
 //nolint:gochecknoglobals // allow test override
 var externalProxyTimeout = 30 * time.Second
 
+//nolint:gochecknoglobals // shared client preserves connection pooling for external proxy requests
+var externalProxyHTTPClient = &http.Client{
+	Transport: newExternalProxyTransport(),
+}
+
 const kubeConfigSource = "kubeconfig" // source for kubeconfig contexts
 
 const (
@@ -732,15 +737,14 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		// We may want to filter some headers, otherwise we could just use a shallow copy
 		proxyReq.Header = make(http.Header)
+		connectionHeaderTokens := externalProxyConnectionHeaderTokens(r.Header)
+
 		for h, val := range r.Header {
-			// Skip sensitive headers and internal routing headers
-			hLower := strings.ToLower(h)
-			if hLower == "authorization" ||
-				hLower == "cookie" ||
-				strings.HasPrefix(hLower, "x-headlamp-") ||
-				strings.HasPrefix(hLower, "x-headlamp_") ||
-				hLower == "proxy-to" ||
-				hLower == "forward-to" {
+			if shouldFilterExternalProxyRequestHeader(h) {
+				continue
+			}
+
+			if _, ok := connectionHeaderTokens[strings.ToLower(h)]; ok {
 				continue
 			}
 
@@ -753,9 +757,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("X-Accel-Expires", "0")
 
-		client := http.Client{}
-
-		resp, err := client.Do(proxyReq) //nolint:gosec
+		resp, err := externalProxyHTTPClient.Do(proxyReq) //nolint:gosec
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "making request")
 			http.Error(w, err.Error(), http.StatusBadGateway)
@@ -1374,6 +1376,62 @@ func isLoopbackAddr(addr string) bool {
 	ip := net.ParseIP(strings.Trim(addr, "[]"))
 
 	return ip != nil && ip.IsLoopback()
+}
+
+func shouldFilterExternalProxyRequestHeader(headerName string) bool {
+	hLower := strings.ToLower(headerName)
+
+	if hLower == "authorization" ||
+		hLower == "cookie" ||
+		hLower == "accept-encoding" ||
+		strings.HasPrefix(hLower, "x-headlamp-") ||
+		strings.HasPrefix(hLower, "x-headlamp_") {
+		return true
+	}
+
+	switch hLower {
+	case "connection",
+		"forward-to",
+		"keep-alive",
+		"proxy-connection",
+		"proxy-to",
+		"te",
+		"trailer",
+		"transfer-encoding",
+		"upgrade":
+		return true
+	default:
+		return false
+	}
+}
+
+func externalProxyConnectionHeaderTokens(headers http.Header) map[string]struct{} {
+	tokens := map[string]struct{}{}
+
+	for _, headerValue := range headers.Values("Connection") {
+		for _, token := range strings.Split(headerValue, ",") {
+			token = strings.ToLower(strings.TrimSpace(token))
+			if token != "" {
+				tokens[token] = struct{}{}
+			}
+		}
+	}
+
+	return tokens
+}
+
+func newExternalProxyTransport() http.RoundTripper {
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return &http.Transport{
+			DisableCompression: true,
+		}
+	}
+
+	transport := defaultTransport.Clone()
+	transport.DisableCompression = true
+
+	return transport
 }
 
 // allowedHosts returns the set of normalized host values that are considered
