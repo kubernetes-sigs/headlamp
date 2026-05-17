@@ -79,6 +79,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
   const [nodeSummaryStats, nodeSummaryError] = Node.useNodeSummaryStats(name, cluster);
   const [isupdatingNodeScheduleProperty, setisUpdatingNodeScheduleProperty] = React.useState(false);
   const [isNodeDrainInProgress, setisNodeDrainInProgress] = React.useState(false);
+  const [pollingDrainNodeName, setPollingDrainNodeName] = React.useState<string | null>(null);
   const [nodeFromAPI, nodeError] = Node.useGet(name, undefined, { cluster });
   const { items: nodePods } = Pod.useList({
     fieldSelector: name
@@ -92,7 +93,6 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
 
   const isMountedRef = React.useRef(true);
   const currentNodeIdRef = React.useRef(`${cluster}:${name}`);
-  const drainTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -105,12 +105,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
     currentNodeIdRef.current = `${cluster}:${name}`;
     setisNodeDrainInProgress(false);
     setisUpdatingNodeScheduleProperty(false);
-    return () => {
-      if (drainTimeoutRef.current !== null) {
-        clearTimeout(drainTimeoutRef.current);
-        drainTimeoutRef.current = null;
-      }
-    };
+    setPollingDrainNodeName(null);
   }, [name, cluster]);
 
   useEffect(() => {
@@ -170,54 +165,79 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
     );
   }
 
-  function getDrainNodeStatus(drainCluster: string, nodeName: string) {
-    const reqId = `${drainCluster}:${nodeName}`;
-    if (drainTimeoutRef.current !== null) {
-      clearTimeout(drainTimeoutRef.current);
+  useEffect(() => {
+    const clusterName = cluster;
+    const nodeName = pollingDrainNodeName;
+
+    if (!nodeName || !clusterName) {
+      return;
     }
-    drainTimeoutRef.current = setTimeout(() => {
-      drainNodeStatus(drainCluster, nodeName)
+
+    const drainCluster = clusterName;
+    const drainNodeName = nodeName;
+    const reqId = `${drainCluster}:${drainNodeName}`;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    function poll() {
+      drainNodeStatus(drainCluster, drainNodeName)
         .then(data => {
-          if (!isMountedRef.current || currentNodeIdRef.current !== reqId) return;
+          if (!isMountedRef.current || currentNodeIdRef.current !== reqId) {
+            return;
+          }
 
           if (data && data.id.startsWith('error')) {
             enqueueSnackbar(data.id, { variant: 'error' });
+            setPollingDrainNodeName(null);
             return;
           }
+
           if (data && data.id !== 'success') {
-            getDrainNodeStatus(drainCluster, nodeName);
+            timer = setTimeout(poll, 1000);
             return;
           }
+
           setNode(currentNode => {
             if (!currentNode) return currentNode;
             const cloneNode = _.cloneDeep(currentNode);
             cloneNode.spec.unschedulable = true;
             return cloneNode;
           });
+          setPollingDrainNodeName(null);
         })
         .catch(error => {
           if (!isMountedRef.current || currentNodeIdRef.current !== reqId) return;
+
           enqueueSnackbar(error.message, { variant: 'error' });
+          setPollingDrainNodeName(null);
         });
-    }, 1000);
-  }
+    }
+
+    poll();
+
+    return () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [pollingDrainNodeName, cluster, enqueueSnackbar]);
 
   function toggleDrainDialogVisibility() {
     setDrainDialogOpen(drainDialogOpen => !drainDialogOpen);
   }
 
   function handleNodeDrain(node: Node) {
-    if (!cluster) return;
-    const reqId = `${cluster}:${node.metadata.name}`;
+    const clusterName = cluster;
+    if (!clusterName) return;
+    const reqId = `${clusterName}:${node.metadata.name}`;
 
     setisNodeDrainInProgress(true);
     dispatch(
       clusterAction(
         () =>
-          drainNode(cluster, node.metadata.name)
+          drainNode(clusterName, node.metadata.name)
             .then(() => {
               if (isMountedRef.current && currentNodeIdRef.current === reqId)
-                getDrainNodeStatus(cluster, node.metadata.name);
+                setPollingDrainNodeName(node.metadata.name);
             })
             .catch(error => {
               if (isMountedRef.current && currentNodeIdRef.current === reqId)
@@ -308,7 +328,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
                     icon="mdi:delete-variant"
                     onClick={() => toggleDrainDialogVisibility()}
                     iconButtonProps={{
-                      disabled: isNodeDrainInProgress,
+                      disabled: isNodeDrainInProgress || !!pollingDrainNodeName,
                     }}
                   />
                 </AuthVisible>
