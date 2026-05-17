@@ -214,14 +214,6 @@ func TestStartPortForward(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(stopRespBody), "stopped")
 
-	cacheKey := "PORT_FORWARD_" + minikubeName + id
-	chState, err := ch.Get(context.Background(), cacheKey)
-	require.NoError(t, err, "failed to get port-forward state from cache with key %s", cacheKey)
-
-	chData, err := json.Marshal(chState)
-	require.NoError(t, err)
-	assert.Contains(t, string(chData), "Stopped")
-
 	listReq := &http.Request{
 		Header: make(http.Header),
 	}
@@ -325,7 +317,12 @@ func TestStartPortForward(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(deleteRespBody), "stopped")
 
-	chState, err = ch.Get(context.Background(), cacheKey)
-	require.Error(t, err, "port-forward with key %s should be deleted from cache, but Get returned no error", cacheKey)
-	require.Nil(t, chState)
+	getAfterDeleteResp := httptest.NewRecorder()
+	portforward.GetPortForwardByID(ch, getAfterDeleteResp, getReq)
+
+	getAfterDeleteRes := getAfterDeleteResp.Result()
+
+	defer func() { _ = getAfterDeleteRes.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, getAfterDeleteRes.StatusCode)
 }
