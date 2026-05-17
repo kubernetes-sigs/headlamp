@@ -47,6 +47,9 @@ describe('themeSlice', () => {
   describe('applyBackendThemeConfig', () => {
     beforeEach(() => {
       localStorage.clear();
+      // The mock's clear() only resets store; setTheme() writes localStorage.headlampThemePreference
+      // as a direct property that survives clear(). Delete it explicitly so tests start clean.
+      delete (localStorage as any).headlampThemePreference;
     });
 
     it('should apply forced theme and override current theme', () => {
@@ -69,12 +72,11 @@ describe('themeSlice', () => {
     });
 
     it('should persist to localStorage when theme is not forced', () => {
-      // Stub matchMedia to prefer light so getThemeName deterministically picks defaultLightTheme.
-      Object.defineProperty(window, 'matchMedia', {
-        writable: true,
-        configurable: true,
-        value: vi.fn(query => ({ matches: query === '(prefers-color-scheme: light)' })),
-      });
+      // setupTests defines matchMedia with writable:true so direct assignment works;
+      // Object.defineProperty with configurable:true would throw on a non-configurable property.
+      (window as any).matchMedia = vi.fn((query: string) => ({
+        matches: query === '(prefers-color-scheme: light)',
+      }));
       const state = { ...initialState, name: 'old-theme' };
       const actual = themeReducer(
         state,
