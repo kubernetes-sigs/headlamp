@@ -70,6 +70,10 @@ vi.mock('../common/ObjectEventList', () => ({
   default: () => <div data-testid="mock-event-list" />,
 }));
 
+vi.mock('../common/Loader', () => ({
+  default: ({ title }: { title: string }) => <div data-testid="mock-loader">{title}</div>,
+}));
+
 describe('CustomResourceDetails', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -94,7 +98,7 @@ describe('CustomResourceDetails', () => {
           ],
         },
       },
-      makeCRClass: () => ({
+      makeCRClassOrNull: () => ({
         useGet: vi.fn(() => [
           {
             metadata: { name: 'my-resource', namespace: 'default' },
@@ -150,5 +154,26 @@ describe('CustomResourceDetails', () => {
     const statusRow = await screen.findByTestId('extra-info-Status');
     expect(statusRow).toBeInTheDocument();
     expect(statusRow.querySelector('.info-value')).toHaveTextContent('Running');
+  });
+
+  it('renders an empty state when makeCRClassOrNull() returns null (incomplete CRD spec, #4824)', async () => {
+    const mockCrd = {
+      metadata: { name: 'my-crd' },
+      jsonData: { spec: {} },
+      makeCRClassOrNull: () => null,
+    };
+    (CustomResourceDefinition.useGet as any).mockReturnValue([mockCrd, null]);
+
+    render(
+      <TestContext routerMap={{ crd: 'my-crd', namespace: 'default', crName: 'my-resource' }}>
+        <CustomResourceDetails crd="my-crd" crName="my-resource" namespace="default" />
+      </TestContext>
+    );
+
+    expect(
+      await screen.findByText(/This CustomResourceDefinition has an incomplete spec/i)
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('mock-main-info')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mock-loader')).not.toBeInTheDocument();
   });
 });
