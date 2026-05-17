@@ -114,8 +114,17 @@ export default function Tabs(props: TabsProps) {
               tabs?.length > 7
                 ? {
                     minWidth: 150, // allows 8 tabs to show like on pods
+                    '&:hover': {
+                      backgroundColor: 'action.hover', // Material UI's default hover color
+                      transition: 'background-color 0.2s ease',
+                    },
                   }
-                : {}
+                : {
+                    '&:hover': {
+                      backgroundColor: 'action.hover',
+                      transition: 'background-color 0.2s ease',
+                    },
+                  }
             }
             id={`full-width-tab-${i}-${ariaLabel.replace(' ', '')}-${uniqueIdSuffix}`}
             aria-controls={`full-width-tabpanel-${i}-${ariaLabel.replace(
