@@ -77,11 +77,28 @@ func TestLoadAndStoreKubeConfigs(t *testing.T) {
 		require.Equal(t, "minikube", ctx.Name)
 	})
 
-	t.Run("invalid_file", func(t *testing.T) {
-		kubeConfigFile := "invalid_kubeconfig"
+	t.Run("missing_file", func(t *testing.T) {
+		// Regression for issues #4724 and #4401: a kubeconfig path that does
+		// not exist on disk (in-cluster dynamic-cluster persistence file,
+		// fresh deployments) used to surface as an ERROR. It should now be
+		// treated as "no contexts to load".
+		err := kubeconfig.LoadAndStoreKubeConfigs(
+			contextStore, "missing_kubeconfig", kubeconfig.KubeConfig, nil,
+		)
+		require.NoError(t, err)
+	})
 
-		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
-		require.Error(t, err)
+	t.Run("empty_path", func(t *testing.T) {
+		// Regression for issues #4724 and #4401: in-cluster mode leaves
+		// KubeConfigPath empty; passing "" should not error.
+		store := kubeconfig.NewContextStore()
+
+		err := kubeconfig.LoadAndStoreKubeConfigs(store, "", kubeconfig.KubeConfig, nil)
+		require.NoError(t, err)
+
+		contexts, err := store.GetContexts()
+		require.NoError(t, err)
+		require.Empty(t, contexts)
 	})
 }
 
@@ -115,13 +132,22 @@ func TestLoadContextsFromKubeConfigFile(t *testing.T) {
 		require.Equal(t, 2, len(contexts), "Expected 2 contexts from valid file")
 	})
 
-	t.Run("invalid_file", func(t *testing.T) {
-		kubeConfigFile := "invalid_kubeconfig"
+	t.Run("missing_file", func(t *testing.T) {
+		// Regression for issues #4724 and #4401. See TestLoadAndStoreKubeConfigs.
+		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(
+			"missing_kubeconfig", kubeconfig.KubeConfig,
+		)
+		require.NoError(t, err, "missing file is not an error condition")
+		require.Empty(t, contextErrors)
+		require.Empty(t, contexts)
+	})
 
-		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(kubeConfigFile, kubeconfig.KubeConfig)
-		require.Error(t, err, "Expected error for invalid file")
-		require.Empty(t, contextErrors, "Expected no context errors for invalid file")
-		require.Empty(t, contexts, "Expected no contexts from invalid file")
+	t.Run("empty_path", func(t *testing.T) {
+		// Regression for issues #4724 and #4401: in-cluster mode passes "".
+		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile("", kubeconfig.KubeConfig)
+		require.NoError(t, err)
+		require.Empty(t, contextErrors)
+		require.Empty(t, contexts)
 	})
 
 	t.Run("autherror", func(t *testing.T) {
