@@ -72,7 +72,6 @@
   "Authentication required": "Authentication required",
   "Insufficient permissions": "Insufficient permissions",
   "Unavailable": "Unavailable",
-  "Control plane unhealthy": "Control plane unhealthy",
   "Plugin": "Plugin",
   "In-cluster": "In-cluster",
   "Cluster Inventory": "Cluster Inventory",

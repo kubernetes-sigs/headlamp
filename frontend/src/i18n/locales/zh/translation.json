@@ -72,7 +72,6 @@
   "Authentication required": "",
   "Insufficient permissions": "",
   "Unavailable": "",
-  "Control plane unhealthy": "",
   "Plugin": "插件",
   "In-cluster": "集群内",
   "Cluster Inventory": "",
