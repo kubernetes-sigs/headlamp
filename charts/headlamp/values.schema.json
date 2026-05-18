@@ -233,10 +233,6 @@
                 "enabled": {
                   "type": "boolean",
                   "description": "Enable the external secret"
-                },
-                "hasScopes": {
-                  "type": "boolean",
-                  "description": "Set to true if the external secret contains an OIDC_SCOPES key"
                 }
               }
             }
