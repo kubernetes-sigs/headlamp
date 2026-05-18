@@ -254,6 +254,14 @@ func (m *Multiplexer) readServiceAccountToken(path string) (string, error) {
 	return token, nil
 }
 
+// IsClosed returns whether the connection is closed.
+func (c *Connection) IsClosed() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.closed
+}
+
 // updateStatus updates the status of a connection and notifies the client.
 func (c *Connection) updateStatus(state ConnectionState, err error) {
 	c.mu.Lock()
@@ -336,11 +344,12 @@ func (c *Connection) safeClose() {
 	c.closeOnce.Do(func() {
 		c.mu.Lock()
 		if !c.closed {
+			shouldWriteStatus := c.Status.State != StateClosed
 			c.Status.State = StateClosed
 			c.Status.LastMsg = time.Now()
 			c.Status.Error = ""
 
-			if c.Client != nil {
+			if shouldWriteStatus && c.Client != nil {
 				_ = c.writeStatusLocked()
 			}
 
@@ -571,7 +580,7 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 
 // reconnect attempts to reestablish a connection.
 func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
-	if conn.closed {
+	if conn.IsClosed() {
 		return nil, fmt.Errorf("cannot reconnect closed connection")
 	}
 
@@ -884,14 +893,16 @@ func (m *Multiplexer) processClusterMessage(
 // of a resource. When a new message is received, it extracts the resource version from
 // the message metadata. If the resource version has changed since the last known version,
 // it sends a complete message to the client to update them with the latest resource state.
+// Non-JSON payloads (e.g., terminal/exec raw bytes or binary payloads) are gracefully
+// ignored and do not trigger an error.
 // Parameters:
-//   - message: The JSON-encoded message containing resource information.
+//   - message: The message containing resource information (or non-JSON frames to be ignored).
 //   - conn: The connection object representing the current connection.
 //   - clientConn: The WebSocket connection to the client.
 //   - lastResourceVersion: A pointer to the last known resource version string.
 //
 // Returns:
-//   - An error if any issues occur while processing the message, or nil if successful.
+//   - An error if any issues occur while writing to the client, or nil if successful/ignored.
 func (m *Multiplexer) sendIfNewResourceVersion(
 	message []byte,
 	conn *Connection,
