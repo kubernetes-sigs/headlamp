@@ -188,6 +188,7 @@ export type ClusterMeResult =
  * @param cluster - Name of the cluster.
  * @returns A ClusterMeResult object.
  */
+/** @internal — exported for testability via injectable fetchClusterMeFn parameter only. Not a stable plugin API. */
 export async function fetchClusterMe(cluster: string): Promise<ClusterMeResult> {
   try {
     const response = await backendFetch(`/clusters/${cluster}/me`);
