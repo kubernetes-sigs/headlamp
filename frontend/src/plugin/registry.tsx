@@ -22,7 +22,9 @@ import { runCommand } from '../components/App/runCommand';
 import { setBrandingAppLogoComponent, themeSlice } from '../components/App/themeSlice';
 import { ClusterChooserProps, ClusterChooserType } from '../components/cluster/ClusterChooser';
 import {
+  addResourceStatusProvider,
   addResourceTableColumnsProcessor,
+  ResourceStatusProvider,
   TableColumnsProcessor,
 } from '../components/common/Resource/resourceTableSlice';
 import { SectionBox } from '../components/common/SectionBox';
@@ -150,6 +152,7 @@ export type {
   GraphSource,
   IconDefinition,
   OverviewChartsProcessor,
+  ResourceStatusProvider,
 };
 
 export type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
@@ -278,6 +281,20 @@ export default class Registry {
       'Registry.registerClusterChooserComponent is deprecated. Please use registerClusterChooser.'
     );
     return registerClusterChooser(component);
+  }
+
+  /**
+   * Register a resource status provider.
+   * Allows plugins to return a status badge/pill Component for a given resource.
+   *
+   * @param callback - Callback function that receives a KubeObject and returns a ReactNode.
+   *                  Note: The callback runs on every row render in a hot path. It MUST be pure,
+   *                  cheap, and synchronous. While Headlamp catches and safely handles any exceptions
+   *                  thrown by providers to keep the table functional, providers should still avoid
+   *                  throwing exceptions to prevent performance degradation and console spam.
+   */
+  registerResourceStatusProvider(callback: ResourceStatusProvider) {
+    return registerResourceStatusProvider(callback);
   }
 }
 
@@ -1216,6 +1233,20 @@ export function registerProjectApiResource(apiResource: ApiResource) {
       : apiResource;
 
   store.dispatch(addProjectApiResource(normalizedResource));
+}
+
+/**
+ * Register a resource status provider.
+ * Allows plugins to return a status badge/pill Component for a given resource.
+ *
+ * @param callback - Callback function that receives a KubeObject and returns a ReactNode.
+ *                  Note: The callback runs on every row render in a hot path. It MUST be pure,
+ *                  cheap, and synchronous. While Headlamp catches and safely handles any exceptions
+ *                  thrown by providers to keep the table functional, providers should still avoid
+ *                  throwing exceptions to prevent performance degradation and console spam.
+ */
+export function registerResourceStatusProvider(callback: ResourceStatusProvider) {
+  store.dispatch(addResourceStatusProvider(callback));
 }
 
 export {

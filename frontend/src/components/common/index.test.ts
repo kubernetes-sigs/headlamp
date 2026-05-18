@@ -53,6 +53,7 @@ const checkExports = [
   'NamespacesAutocomplete',
   'NameValueTable',
   'Resource',
+  'ResourceStatusBadge',
   'SectionBox',
   'SectionFilterHeader',
   'SectionHeader',
