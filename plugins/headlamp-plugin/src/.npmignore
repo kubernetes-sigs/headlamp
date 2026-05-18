@@ -1,0 +1,6 @@
+# We need .npmignore in order to "not ignore" the
+# generated types, as without this file npm will pick
+# .gitignore and effectively not include any types in
+# the resulting module.
+# See https://docs.npmjs.com/cli/v8/configuring-npm/package-json#files
+.gitignore

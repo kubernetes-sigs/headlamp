@@ -1,0 +1,11 @@
+<body>
+  <div>
+    <p
+      aria-label="hover info"
+      class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+      data-mui-internal-clone-element="true"
+    >
+      Some label
+    </p>
+  </div>
+</body>

@@ -1,0 +1,190 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import '../../../i18n/config';
+import { useTranslation } from 'react-i18next';
+import type { ApiError } from '../../../lib/k8s/api/v2/ApiError';
+import type { KubeNodeSummaryStats } from '../../../lib/k8s/api/v2/nodeSummaryApi';
+import { KubeMetrics } from '../../../lib/k8s/cluster';
+import Node from '../../../lib/k8s/node';
+import Pod from '../../../lib/k8s/pod';
+import { parseCpu, parseDiskSpace, parseRam, TO_GB, TO_ONE_CPU } from '../../../lib/units';
+import ResourceCircularChart, {
+  CircularChartProps as ResourceCircularChartProps,
+} from '../../common/Resource/CircularChart';
+import TileChart from '../../common/TileChart';
+
+export function MemoryCircularChart(props: ResourceCircularChartProps) {
+  const { noMetrics } = props;
+  const { t } = useTranslation(['translation', 'glossary']);
+
+  function memoryUsedGetter(item: KubeMetrics) {
+    return parseRam(item.usage.memory) / TO_GB;
+  }
+
+  function memoryAvailableGetter(item: Node | Pod) {
+    return parseRam(item.status?.capacity?.memory) / TO_GB;
+  }
+
+  function getLegend(used: number, available: number) {
+    if (available === 0 || available === -1) {
+      return '';
+    }
+
+    const availableLabel = `${available.toFixed(2)} GB`;
+    if (noMetrics) {
+      return availableLabel;
+    }
+
+    return `${used.toFixed(2)} / ${availableLabel}`;
+  }
+
+  return (
+    <ResourceCircularChart
+      getLegend={getLegend}
+      resourceUsedGetter={memoryUsedGetter}
+      resourceAvailableGetter={memoryAvailableGetter}
+      title={noMetrics ? t('glossary|Memory') : t('translation|Memory Usage')}
+      {...props}
+    />
+  );
+}
+
+export function CpuCircularChart(props: ResourceCircularChartProps) {
+  const { noMetrics } = props;
+  const { t } = useTranslation(['translation', 'glossary']);
+
+  function cpuUsedGetter(item: KubeMetrics) {
+    return parseCpu(item.usage.cpu) / TO_ONE_CPU;
+  }
+
+  function cpuAvailableGetter(item: Node | Pod) {
+    return parseCpu(item.status?.capacity?.cpu) / TO_ONE_CPU;
+  }
+
+  function getLegend(used: number, available: number) {
+    if (available === 0 || available === -1) {
+      return '';
+    }
+
+    const availableLabel = t('translation|{{ available }} units', { available });
+    if (noMetrics) {
+      return availableLabel;
+    }
+
+    return `${used.toFixed(2)} / ${availableLabel}`;
+  }
+
+  return (
+    <ResourceCircularChart
+      getLegend={getLegend}
+      resourceUsedGetter={cpuUsedGetter}
+      resourceAvailableGetter={cpuAvailableGetter}
+      title={noMetrics ? t('glossary|CPU') : t('translation|CPU Usage')}
+      {...props}
+    />
+  );
+}
+
+export function PodCapacityCircularChart(props: { node: Node | null; pods: Pod[] | null }) {
+  const { node, pods } = props;
+  const { t } = useTranslation(['translation', 'glossary']);
+  const used = pods?.length ?? -1;
+  const rawTotal = node?.status?.allocatable?.pods ?? node?.status?.capacity?.pods;
+  const parsedTotal = Number(rawTotal);
+  const total = Number.isFinite(parsedTotal) ? parsedTotal : -1;
+  const isLoading = pods === null || total < 0;
+
+  function getLabel() {
+    if (isLoading || total <= 0) {
+      return '…';
+    }
+
+    return `${((used / total) * 100).toFixed(1)} %`;
+  }
+
+  function getLegend() {
+    if (isLoading || total <= 0) {
+      return '';
+    }
+
+    return t('translation|{{ used }} / {{ total }} Pods', { used, total });
+  }
+
+  return (
+    <TileChart
+      title={t('translation|Pod Usage')}
+      data={
+        isLoading || total <= 0
+          ? []
+          : [
+              {
+                name: 'used',
+                value: used,
+              },
+            ]
+      }
+      label={getLabel()}
+      legend={getLegend()}
+      total={isLoading ? -1 : total}
+    />
+  );
+}
+
+interface EphemeralStorageCircularChartProps {
+  node: Node | null;
+  summaryStats: KubeNodeSummaryStats | null;
+  summaryError: ApiError | null;
+}
+
+export function EphemeralStorageCircularChart(props: EphemeralStorageCircularChartProps) {
+  const { node, summaryStats, summaryError } = props;
+  const { t } = useTranslation(['translation', 'glossary']);
+  const allocatable = (node?.status?.allocatable || {}) as Record<string, string | undefined>;
+  const capacity = (node?.status?.capacity || {}) as Record<string, string | undefined>;
+  const rawTotal =
+    allocatable.ephemeralStorage ||
+    allocatable['ephemeral-storage'] ||
+    capacity.ephemeralStorage ||
+    capacity['ephemeral-storage'] ||
+    '';
+  const totalBytes = parseDiskSpace(rawTotal);
+  const fs = summaryStats?.node?.fs;
+  const usedBytes =
+    typeof fs?.usedBytes === 'number'
+      ? fs.usedBytes
+      : typeof fs?.capacityBytes === 'number' && typeof fs?.availableBytes === 'number'
+      ? fs.capacityBytes - fs.availableBytes
+      : -1;
+
+  const hasData = totalBytes > 0 && usedBytes >= 0;
+  const usedGB = usedBytes / TO_GB;
+  const totalGB = totalBytes / TO_GB;
+  const usagePercent = hasData ? (usedBytes / totalBytes) * 100 : 0;
+
+  return (
+    <TileChart
+      title={t('translation|Ephemeral Storage Usage')}
+      data={hasData ? [{ name: 'used', value: usedBytes }] : null}
+      total={hasData ? totalBytes : -1}
+      label={hasData ? `${usagePercent.toFixed(1)} %` : '…'}
+      legend={hasData ? `${usedGB.toFixed(2)} / ${totalGB.toFixed(2)} GB` : ''}
+      infoTooltip={
+        summaryError ? t('translation|Unable to fetch ephemeral storage usage from kubelet.') : null
+      }
+    />
+  );
+}

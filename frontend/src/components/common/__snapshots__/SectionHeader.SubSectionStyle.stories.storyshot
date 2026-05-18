@@ -1,0 +1,30 @@
+<body>
+  <div>
+     
+    <div
+      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <h2
+            class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+          >
+            Subsection Title
+          </h2>
+          <div
+            class="MuiBox-root css-ldp2l3"
+          />
+        </div>
+        <p
+          class="MuiTypography-root MuiTypography-h6 css-1fggqnx-MuiTypography-root"
+        >
+          This is a helpful subtitle for the subsection.
+        </p>
+      </div>
+    </div>
+  </div>
+</body>

@@ -1,0 +1,15 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-j1fy4m"
+    >
+      <div
+        class="MuiBox-root css-1txv3mw"
+      >
+        <p>
+          A child paragraph.
+        </p>
+      </div>
+    </div>
+  </div>
+</body>

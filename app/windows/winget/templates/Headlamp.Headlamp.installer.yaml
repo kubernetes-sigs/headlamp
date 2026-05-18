@@ -1,0 +1,15 @@
+PackageIdentifier: Headlamp.Headlamp
+PackageVersion: __PACKAGE_VERSION__
+InstallerLocale: en-US
+InstallerType: nullsoft
+Scope: user
+InstallModes:
+  - interactive
+  - silent
+ReleaseDate: __RELEASE_DATE__
+Installers:
+  - Architecture: x64
+    InstallerUrl: __INSTALLER_URL__
+    InstallerSha256: __INSTALLER_SHA256__
+ManifestType: installer
+ManifestVersion: 1.6.0

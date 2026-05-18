@@ -1,0 +1,433 @@
+/*
+Copyright 2025 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package helm
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/gofrs/flock"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+
+	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/getter"
+	"helm.sh/helm/v3/pkg/repo"
+)
+
+const (
+	defaultNewConfigFileMode   os.FileMode = os.FileMode(0o644)
+	defaultNewConfigFolderMode os.FileMode = os.FileMode(0o770)
+)
+
+var (
+	errRepositoryNotFound        = errors.New("repository not found")
+	errRepositoryLockNotAcquired = errors.New("repository lock not acquired")
+)
+
+// add repository.
+type AddUpdateRepoRequest struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+	// TODO: Figure out how to support auth
+	// like username, password, certfile etc
+	// https://github.com/helm/helm/blob/39ca699ca790e02ba36753dec6ba4177cc68d417/cmd/helm/repo_add.go#L169
+}
+
+func (r AddUpdateRepoRequest) Validate() error {
+	if strings.TrimSpace(r.Name) == "" {
+		return errors.New("name is required")
+	}
+
+	if strings.TrimSpace(r.URL) == "" {
+		return errors.New("url is required")
+	}
+
+	return nil
+}
+
+// Creates a filename if it's not there, including any missing directories.
+func createFileIfNotThere(fileName string) error {
+	_, err := os.Stat(fileName)
+	if os.IsNotExist(err) {
+		// create changes
+		_, err = createFullPath(fileName)
+		return err
+	}
+
+	return nil
+}
+
+// Uses a file lock like the helm tool.
+func lockRepositoryFile(lockCtx context.Context, repositoryConfig string) (bool, *flock.Flock, error) {
+	var lockPath string
+
+	repoFileExt := filepath.Ext(repositoryConfig)
+
+	if len(repoFileExt) > 0 && len(repoFileExt) < len(repositoryConfig) {
+		lockPath = strings.Replace(repositoryConfig, repoFileExt, ".lock", 1)
+	} else {
+		lockPath = repositoryConfig + ".lock"
+	}
+
+	fileLock := flock.New(lockPath)
+
+	locked, err := fileLock.TryLockContext(lockCtx, time.Second)
+
+	return locked, fileLock, err
+}
+
+func ensureRepositoryFileLocked(locked bool, err error) error {
+	if err != nil {
+		return err
+	}
+
+	if !locked {
+		return errRepositoryLockNotAcquired
+	}
+
+	return nil
+}
+
+const timeoutForLock = 30 * time.Second
+
+// Adds a repository with name, url to the helm config. Returns error if there is one.
+func addRepository(name string, url string, settings *cli.EnvSettings) error {
+	err := createFileIfNotThere(settings.RepositoryConfig)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "creating empty RepositoryConfig file")
+		return err
+	}
+
+	lockCtx, cancel := context.WithTimeout(context.Background(), timeoutForLock)
+	defer cancel()
+
+	locked, fileLock, err := lockRepositoryFile(lockCtx, settings.RepositoryConfig)
+	if err = ensureRepositoryFileLocked(locked, err); err != nil {
+		logger.Log(logger.LevelError, nil, err, "locking repository config file")
+		return err
+	}
+
+	defer func() {
+		err := fileLock.Unlock()
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
+		}
+	}()
+
+	// read repo file
+	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "reading repo file")
+		return err
+	}
+
+	// add repo
+	newRepo := &repo.Entry{
+		Name: name,
+		URL:  url,
+	}
+
+	repo, err := repo.NewChartRepository(newRepo, getter.All(settings))
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "creating chart repository")
+		return err
+	}
+
+	// download chart repo index
+	_, err = repo.DownloadIndexFile()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "downloading index file")
+		return err
+	}
+
+	// write repo file
+	repoFile.Update(newRepo)
+
+	err = repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing repo file")
+		return err
+	}
+
+	return nil
+}
+
+func (h *Handler) AddRepo(w http.ResponseWriter, r *http.Request) {
+	// parse request
+	var request AddUpdateRepoRequest
+
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "parsing request")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	err = request.Validate()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "validating request")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	err = addRepository(request.Name, request.URL, h.EnvSettings)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// respond
+	response := map[string]string{
+		"message": "success",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	err = json.NewEncoder(w).Encode(response)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "encoding response")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+}
+
+// List repository.
+type repositoryInfo struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+type ListRepoResponse struct {
+	Repositories []repositoryInfo `json:"repositories"`
+}
+
+// Create a full path, including directories if it does not exist.
+func createFullPath(p string) (*os.File, error) {
+	if err := os.MkdirAll(filepath.Dir(p), defaultNewConfigFolderMode); err != nil {
+		return nil, err
+	}
+
+	return os.Create(p) //nolint:gosec
+}
+
+func listRepositories(settings *cli.EnvSettings) ([]repositoryInfo, error) {
+	err := createFileIfNotThere(settings.RepositoryConfig)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "creating empty RepositoryConfig file")
+		return nil, err
+	}
+
+	// read repo file
+	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "reading repo file")
+		return nil, err
+	}
+
+	// response
+	repositories := make([]repositoryInfo, 0, len(repoFile.Repositories))
+
+	for _, repo := range repoFile.Repositories {
+		repositories = append(repositories, repositoryInfo{
+			Name: repo.Name,
+			URL:  repo.URL,
+		})
+	}
+
+	return repositories, nil
+}
+
+func (h *Handler) ListRepo(w http.ResponseWriter, r *http.Request) {
+	repositories, err := listRepositories(h.EnvSettings)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	response := ListRepoResponse{
+		Repositories: repositories,
+	}
+
+	var buf bytes.Buffer
+
+	err = json.NewEncoder(&buf).Encode(response)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "encoding response")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if _, err := w.Write(buf.Bytes()); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing repo list response")
+	}
+}
+
+func RemoveRepository(name string, settings *cli.EnvSettings) error {
+	err := createFileIfNotThere(settings.RepositoryConfig)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "creating empty RepositoryConfig file")
+		return err
+	}
+
+	lockCtx, cancel := context.WithTimeout(context.Background(), timeoutForLock)
+	defer cancel()
+
+	locked, fileLock, err := lockRepositoryFile(lockCtx, settings.RepositoryConfig)
+	if err = ensureRepositoryFileLocked(locked, err); err != nil {
+		logger.Log(logger.LevelError, nil, err, "locking repository config file")
+		return err
+	}
+
+	defer func() {
+		err := fileLock.Unlock()
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
+		}
+	}()
+
+	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "reading repo file")
+		return err
+	}
+
+	isRemoved := repoFile.Remove(name)
+	if !isRemoved {
+		logger.Log(logger.LevelError, nil, errRepositoryNotFound, "repository not found")
+		return errRepositoryNotFound
+	}
+
+	// write repo file
+	err = repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing repo file")
+		return err
+	}
+
+	return nil
+}
+
+// Remove repository name.
+func (h *Handler) RemoveRepo(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "name query parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	err := RemoveRepository(name, h.EnvSettings)
+	if err != nil {
+		if errors.Is(err, errRepositoryNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func UpdateRepository(name, url string, settings *cli.EnvSettings) error {
+	err := createFileIfNotThere(settings.RepositoryConfig)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "creating empty RepositoryConfig file")
+		return err
+	}
+
+	lockCtx, cancel := context.WithTimeout(context.Background(), timeoutForLock)
+	defer cancel()
+
+	locked, fileLock, err := lockRepositoryFile(lockCtx, settings.RepositoryConfig)
+	if err = ensureRepositoryFileLocked(locked, err); err != nil {
+		logger.Log(logger.LevelError, nil, err, "locking repository config file")
+		return err
+	}
+
+	defer func() {
+		err := fileLock.Unlock()
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
+		}
+	}()
+
+	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "reading repo file")
+		return err
+	}
+
+	// update repo
+	repoFile.Update(&repo.Entry{
+		Name: name,
+		URL:  url,
+	})
+
+	err = repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing repo file")
+		return err
+	}
+
+	return nil
+}
+
+// Update repository name.
+func (h *Handler) UpdateRepository(w http.ResponseWriter, r *http.Request) {
+	// parse request
+	var request AddUpdateRepoRequest
+
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "parsing request")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	err = request.Validate()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "validating request")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	err = UpdateRepository(request.Name, request.URL, h.EnvSettings)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}

@@ -1,0 +1,88 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1n7m0yu"
+    >
+      <div
+        aria-label="Resource form"
+        class="MuiBox-root css-13qs1rf"
+      >
+        <fieldset
+          class="MuiBox-root css-jh9hvo"
+        >
+          <legend
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
+          >
+            Spec
+          </legend>
+          <div
+            class="MuiBox-root css-1u8z8t1"
+          >
+            <div
+              class="MuiBox-root css-0"
+            >
+              <div
+                class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+              >
+                <label
+                  class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
+                  data-shrink="true"
+                  for=":mock-test-id:"
+                  id=":mock-test-id:"
+                >
+                  Restart Policy
+                </label>
+                <div
+                  class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
+                >
+                  <div
+                    aria-controls=":mock-test-id:"
+                    aria-expanded="false"
+                    aria-haspopup="listbox"
+                    aria-labelledby=":mock-test-id:"
+                    class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
+                    id=":mock-test-id:"
+                    role="combobox"
+                    tabindex="0"
+                  >
+                    Always
+                  </div>
+                  <input
+                    aria-hidden="true"
+                    aria-invalid="false"
+                    class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+                    tabindex="-1"
+                    value="Always"
+                  />
+                  <svg
+                    aria-hidden="true"
+                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiSelect-icon MuiSelect-iconOutlined css-hfutr2-MuiSvgIcon-root-MuiSelect-icon"
+                    data-testid="ArrowDropDownIcon"
+                    focusable="false"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M7 10l5 5 5-5z"
+                    />
+                  </svg>
+                  <fieldset
+                    aria-hidden="true"
+                    class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+                  >
+                    <legend
+                      class="css-sl37lx-MuiNotchedOutlined-root"
+                    >
+                      <span>
+                        Restart Policy
+                      </span>
+                    </legend>
+                  </fieldset>
+                </div>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+  </div>
+</body>

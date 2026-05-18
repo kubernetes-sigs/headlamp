@@ -1,0 +1,34 @@
+# Build the plugin
+FROM node:22@sha256:9059d9d7db987b86299e052ff6630cd95e5a770336967c21110e53289a877433 as builder
+
+# Set the working directory
+WORKDIR /headlamp-plugins
+
+# Copy the example plugins source code to the working directory
+COPY ./plugins/examples /headlamp-plugins/
+
+# Copy the plugin source code to the working directory
+COPY ./plugins/headlamp-plugin /headlamp-plugins/headlamp-plugin
+
+# Install dependencies.
+# We are doing so that we can use the local binary to build
+# the example plugin.
+RUN chmod +x /headlamp-plugins/headlamp-plugin/install-dependencies.sh && /headlamp-plugins/headlamp-plugin/install-dependencies.sh
+
+# Create a build directory
+RUN mkdir -p /headlamp-plugins/build
+
+# Build the example plugins (excluding headlamp-plugin)
+RUN find /headlamp-plugins -mindepth 1 -maxdepth 1 -type d ! -name "headlamp-plugin" -exec ./headlamp-plugin/bin/headlamp-plugin.js build {} \;
+
+# Extract the built plugin files to the build directory (excluding headlamp-plugin)
+RUN find /headlamp-plugins -mindepth 1 -maxdepth 1 -type d ! -name "headlamp-plugin" -exec ./headlamp-plugin/bin/headlamp-plugin.js extract {} /headlamp-plugins/build \;
+
+# Create the final image
+FROM alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+
+# Copy the built plugin files from the first stage to /plugins directory
+COPY --from=builder /headlamp-plugins/build/ /plugins/
+
+# Command to run when the container starts
+CMD ["/bin/sh", "-c", "mkdir -p /build/plugins && cp -r /plugins/* /build/plugins/"]

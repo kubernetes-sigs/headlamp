@@ -1,0 +1,823 @@
+<body>
+  <div>
+    <button
+      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+      tabindex="0"
+      type="button"
+    >
+      <span
+        class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+      />
+      <p
+        class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+        style="padding-top: 3px;"
+      >
+        Back
+      </p>
+      <span
+        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+      />
+    </button>
+    <div
+      class="MuiBox-root css-j1fy4m"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+      >
+        <div
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        >
+          <div
+            class="MuiBox-root css-70qvj9"
+          >
+            <h1
+              class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+            >
+              General Settings
+            </h1>
+            <div
+              class="MuiBox-root css-ldp2l3"
+            />
+          </div>
+        </div>
+        <div
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        >
+          <div
+            class="MuiGrid-root MuiGrid-container MuiGrid-item css-ztq4zc-MuiGrid-root"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            >
+              <button
+                aria-label="Version"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                data-mui-internal-clone-element="true"
+                tabindex="0"
+                type="button"
+              >
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiBox-root css-1txv3mw"
+      >
+        <dl
+          class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+        >
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+          >
+            Language
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          >
+            <div
+              class="MuiFormControl-root css-1nrlq1o-MuiFormControl-root"
+            >
+              <div
+                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall css-uwmwwo-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
+              >
+                <div
+                  aria-controls="under-test"
+                  aria-expanded="false"
+                  aria-haspopup="listbox"
+                  aria-label="Select locale"
+                  class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
+                  role="combobox"
+                  tabindex="0"
+                >
+                  English
+                </div>
+                <input
+                  aria-controls="under-test"
+                  aria-hidden="true"
+                  aria-invalid="false"
+                  class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+                  tabindex="-1"
+                  value="en"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiSelect-icon MuiSelect-iconOutlined css-hfutr2-MuiSvgIcon-root-MuiSelect-icon"
+                  data-testid="ArrowDropDownIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M7 10l5 5 5-5z"
+                  />
+                </svg>
+                <fieldset
+                  aria-hidden="true"
+                  class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+                >
+                  <legend
+                    class="css-1whs34k-MuiNotchedOutlined-root"
+                  >
+                    <span
+                      class="notranslate"
+                    >
+                      ​
+                    </span>
+                  </legend>
+                </fieldset>
+              </div>
+            </div>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+          >
+            Resource details view
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          >
+            <div
+              class="MuiBox-root css-k008qs"
+            >
+              <button
+                aria-pressed="true"
+                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-17o2rvr-MuiButtonBase-root-MuiButton-root"
+                tabindex="0"
+                type="button"
+              >
+                <div
+                  class="MuiBox-root css-q5uj3p"
+                >
+                  <div
+                    class="MuiBox-root css-10tc75p"
+                  />
+                  <div
+                    class="MuiBox-root css-1tuh5dl"
+                  />
+                  <div
+                    class="MuiBox-root css-1wsar2n"
+                  >
+                    <div
+                      class="MuiBox-root css-flohcj"
+                    />
+                  </div>
+                </div>
+                Window
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+              <button
+                aria-pressed="false"
+                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gl7zuq-MuiButtonBase-root-MuiButton-root"
+                tabindex="0"
+                type="button"
+              >
+                <div
+                  class="MuiBox-root css-q5uj3p"
+                >
+                  <div
+                    class="MuiBox-root css-10tc75p"
+                  />
+                  <div
+                    class="MuiBox-root css-1tuh5dl"
+                  />
+                  <div
+                    class="MuiBox-root css-b95qjn"
+                  >
+                    <div
+                      class="MuiBox-root css-y7640i"
+                    />
+                  </div>
+                </div>
+                Full page
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+            </div>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+            id="rows-per-page-label"
+          >
+            Number of rows for tables
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          >
+            <div
+              class="MuiFormControl-root css-1nrlq1o-MuiFormControl-root"
+            >
+              <div
+                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall css-uwmwwo-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
+                style="width: 100px;"
+              >
+                <div
+                  aria-controls=":mock-test-id:"
+                  aria-expanded="false"
+                  aria-haspopup="listbox"
+                  aria-labelledby="rows-per-page-label"
+                  class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
+                  role="combobox"
+                  tabindex="0"
+                >
+                  15
+                </div>
+                <input
+                  aria-hidden="true"
+                  aria-invalid="false"
+                  class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+                  tabindex="-1"
+                  value="15"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiSelect-icon MuiSelect-iconOutlined css-hfutr2-MuiSvgIcon-root-MuiSelect-icon"
+                  data-testid="ArrowDropDownIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M7 10l5 5 5-5z"
+                  />
+                </svg>
+                <fieldset
+                  aria-hidden="true"
+                  class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+                >
+                  <legend
+                    class="css-1whs34k-MuiNotchedOutlined-root"
+                  >
+                    <span
+                      class="notranslate"
+                    >
+                      ​
+                    </span>
+                  </legend>
+                </fieldset>
+              </div>
+            </div>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+            id="timezone-label"
+          >
+            Timezone to display for dates
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          >
+            <div
+              class="MuiBox-root css-10rqxfs"
+            >
+              <div
+                class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-ka7ti6-MuiAutocomplete-root"
+              >
+                <div
+                  class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                >
+                  <div
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
+                  >
+                    <input
+                      aria-autocomplete="both"
+                      aria-describedby="cluster-selector-autocomplete-helper-text"
+                      aria-expanded="false"
+                      aria-invalid="false"
+                      aria-labelledby="timezone-label"
+                      autocapitalize="none"
+                      autocomplete="off"
+                      class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                      id="cluster-selector-autocomplete"
+                      role="combobox"
+                      spellcheck="false"
+                      type="text"
+                      value="(UTC+0) UTC"
+                    />
+                    <div
+                      class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
+                    >
+                      <button
+                        aria-label="Open"
+                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-1aav1nn-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
+                        tabindex="-1"
+                        title="Open"
+                        type="button"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                          data-testid="ArrowDropDownIcon"
+                          focusable="false"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            d="M7 10l5 5 5-5z"
+                          />
+                        </svg>
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                    </div>
+                    <fieldset
+                      aria-hidden="true"
+                      class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+                    >
+                      <legend
+                        class="css-1whs34k-MuiNotchedOutlined-root"
+                      >
+                        <span
+                          class="notranslate"
+                        >
+                          ​
+                        </span>
+                      </legend>
+                    </fieldset>
+                  </div>
+                  <p
+                    class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained MuiFormHelperText-filled css-153yz37-MuiFormHelperText-root"
+                    id="cluster-selector-autocomplete-helper-text"
+                  >
+                    Timezone
+                  </p>
+                </div>
+              </div>
+            </div>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+            id="sort-sidebar-label"
+          >
+            Sort sidebar items alphabetically
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          >
+            <span
+              class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
+            >
+              <span
+                class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
+              >
+                <input
+                  aria-labelledby="sort-sidebar-label"
+                  class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
+                  type="checkbox"
+                />
+                <span
+                  class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
+                />
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+              <span
+                class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
+              />
+            </span>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+            id="use-evict-label"
+          >
+            Use evict for pod deletion
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+          >
+            <span
+              class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
+            >
+              <span
+                class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
+              >
+                <input
+                  aria-labelledby="use-evict-label"
+                  checked=""
+                  class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
+                  type="checkbox"
+                />
+                <span
+                  class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
+                />
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+              <span
+                class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
+              />
+            </span>
+          </dd>
+        </dl>
+        <div
+          class="MuiBox-root css-1k57ox4"
+        >
+          <div
+            class="MuiBox-root css-xonqoi"
+          >
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-k2ogvs-MuiTypography-root"
+            >
+              Theme
+            </p>
+          </div>
+          <div
+            class="MuiBox-root css-exrnj3"
+          >
+            <div
+              class="MuiBox-root css-1smd7c5"
+            >
+              <div
+                class="MuiBox-root css-1yhz2ch"
+                role="button"
+                tabindex="0"
+              >
+                <div
+                  class="MuiBox-root css-h3uu27"
+                >
+                  <div
+                    class="MuiBox-root css-1f1uc6a"
+                  />
+                  <div
+                    class="MuiBox-root css-1z0uf79"
+                  />
+                  <div
+                    class="MuiBox-root css-5zxu0k"
+                  />
+                  <div
+                    class="MuiBox-root css-1oxk0si"
+                  />
+                  <div
+                    class="MuiBox-root css-jkymop"
+                  />
+                  <div
+                    class="MuiBox-root css-n01h7b"
+                  />
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
+                  Light
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-ba9uxd"
+                role="button"
+                tabindex="0"
+              >
+                <div
+                  class="MuiBox-root css-1giqewv"
+                >
+                  <div
+                    class="MuiBox-root css-ni9bm1"
+                  />
+                  <div
+                    class="MuiBox-root css-1z0uf79"
+                  />
+                  <div
+                    class="MuiBox-root css-3dcp9m"
+                  />
+                  <div
+                    class="MuiBox-root css-1coq5wc"
+                  />
+                  <div
+                    class="MuiBox-root css-ew82rx"
+                  />
+                  <div
+                    class="MuiBox-root css-1ep3rs4"
+                  />
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
+                  Dark
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-ba9uxd"
+                role="button"
+                tabindex="0"
+              >
+                <div
+                  class="MuiBox-root css-h3uu27"
+                >
+                  <div
+                    class="MuiBox-root css-1aoxae"
+                  />
+                  <div
+                    class="MuiBox-root css-1xqumfe"
+                  />
+                  <div
+                    class="MuiBox-root css-19czym2"
+                  />
+                  <div
+                    class="MuiBox-root css-1swhc7p"
+                  />
+                  <div
+                    class="MuiBox-root css-c8sfqn"
+                  />
+                  <div
+                    class="MuiBox-root css-8jmga1"
+                  />
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
+                  Headlamp classic
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-ba9uxd"
+                role="button"
+                tabindex="0"
+              >
+                <div
+                  class="MuiBox-root css-161eg9d"
+                >
+                  <div
+                    class="MuiBox-root css-1uehyk8"
+                  />
+                  <div
+                    class="MuiBox-root css-1xynfpy"
+                  />
+                  <div
+                    class="MuiBox-root css-okkunh"
+                  />
+                  <div
+                    class="MuiBox-root css-1fzrvd"
+                  />
+                  <div
+                    class="MuiBox-root css-4usmf5"
+                  />
+                  <div
+                    class="MuiBox-root css-44mj8i"
+                  />
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
+                  Lights out
+                </div>
+              </div>
+              <div
+                class="MuiBox-root css-ba9uxd"
+                role="button"
+                tabindex="0"
+              >
+                <div
+                  class="MuiBox-root css-1y7ghyx"
+                >
+                  <div
+                    class="MuiBox-root css-zbyu3o"
+                  />
+                  <div
+                    class="MuiBox-root css-1ajpcw4"
+                  />
+                  <div
+                    class="MuiBox-root css-1c66u4w"
+                  />
+                  <div
+                    class="MuiBox-root css-1o70p9j"
+                  />
+                  <div
+                    class="MuiBox-root css-iszuoz"
+                  />
+                  <div
+                    class="MuiBox-root css-8mvqu"
+                  />
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
+                  Monochrome light
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="MuiBox-root css-h5fkc8"
+        >
+          <div
+            class="MuiBox-root css-j1fy4m"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+            >
+              <div
+                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              >
+                <div
+                  class="MuiBox-root css-70qvj9"
+                >
+                  <h2
+                    class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+                  >
+                    Keyboard Shortcuts
+                  </h2>
+                  <div
+                    class="MuiBox-root css-ldp2l3"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="MuiBox-root css-1txv3mw"
+            >
+              <p
+                class="MuiTypography-root MuiTypography-body2 css-1wgus3-MuiTypography-root"
+              >
+                Configure keyboard shortcuts for quick access to various parts of the application.
+              </p>
+              <div
+                class="MuiBox-root css-1yuhvjn"
+              >
+                <dl
+                  class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+                >
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 MuiGrid-grid-md-12 css-gvwr1e-MuiGrid-root"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-button css-jwury-MuiTypography-root"
+                    >
+                      Search
+                    </span>
+                  </dt>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-0"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
+                      >
+                        Global Search
+                      </p>
+                      <span
+                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                      >
+                        Open the global search dialog
+                      </span>
+                    </div>
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-42kczj"
+                    >
+                      <button
+                        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
+                        tabindex="0"
+                        type="button"
+                      >
+                        /
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                    </div>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-0"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
+                      >
+                        Log Viewer Search
+                      </p>
+                      <span
+                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                      >
+                        Toggle search in log viewer
+                      </span>
+                    </div>
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-42kczj"
+                    >
+                      <button
+                        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
+                        tabindex="0"
+                        type="button"
+                      >
+                        Ctrl + Shift + F
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                    </div>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 MuiGrid-grid-md-12 css-gvwr1e-MuiGrid-root"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-button css-jwury-MuiTypography-root"
+                    >
+                      Navigation
+                    </span>
+                  </dt>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-0"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
+                      >
+                        Cluster Chooser
+                      </p>
+                      <span
+                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                      >
+                        Open the cluster chooser popup
+                      </span>
+                    </div>
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-42kczj"
+                    >
+                      <button
+                        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
+                        tabindex="0"
+                        type="button"
+                      >
+                        Ctrl + Shift + L
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                    </div>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 MuiGrid-grid-md-12 css-gvwr1e-MuiGrid-root"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-button css-jwury-MuiTypography-root"
+                    >
+                      General
+                    </span>
+                  </dt>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-0"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
+                      >
+                        Toggle Table Filters
+                      </p>
+                      <span
+                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                      >
+                        Toggle column filters in tables
+                      </span>
+                    </div>
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-42kczj"
+                    >
+                      <button
+                        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
+                        tabindex="0"
+                        type="button"
+                      >
+                        Alt + Shift + T
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                    </div>
+                  </dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
