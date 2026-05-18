@@ -1,0 +1,58 @@
+# Dex configuration used by the Headlamp + OAuth2-Proxy tutorial.
+#
+# The `issuer` URL must be reachable from:
+#   - your browser (to complete the login)
+#   - the Minikube apiserver (to fetch the OIDC discovery document)
+#   - the oauth2-proxy pod inside the cluster
+#
+# `host.minikube.internal` resolves inside the cluster (Minikube injects
+# it into the node's /etc/hosts) and from the OAuth2-Proxy pod. The
+# browser will also be redirected to this hostname during the OIDC
+# `/auth` step, so it must resolve there too. On Linux/macOS hosts that
+# is typically already true (Docker/Minikube networking puts it in the
+# host resolver). If your browser cannot resolve `host.minikube.internal`,
+# add an entry to your `/etc/hosts`:
+#
+#     127.0.0.1   host.minikube.internal
+#
+# Dex itself listens on 0.0.0.0:5556 below so the same address works
+# from all three places (host browser, Minikube node, in-cluster pod).
+issuer: http://host.minikube.internal:5556
+
+storage:
+  type: sqlite3
+  config:
+    file: /tmp/dex.db
+
+web:
+  http: 0.0.0.0:5556
+
+staticClients:
+  - id: headlamp
+    name: "Headlamp via OAuth2-Proxy"
+    secret: headlamp-oauth2-proxy-secret
+    redirectURIs:
+      # OAuth2-Proxy callback as exposed via `kubectl port-forward`.
+      - "http://localhost:8080/oauth2/callback"
+
+enablePasswordDB: true
+
+staticPasswords:
+  - email: "admin@example.com"
+    # bcrypt hash of the literal string "password":
+    #   echo password | htpasswd -BinC 10 admin | cut -d: -f2
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: "admin"
+    userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+  # A second static user used by the e2e suite to confirm that the
+  # OIDC plumbing does not hard-code a single user (the post-sign-in
+  # /oauth2/userinfo email must match whoever actually authenticated).
+  # The bcrypt hash is the same value because both users share the
+  # password "password" — bcrypt is per-credential, not per-identity.
+  - email: "alice@example.com"
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: "alice"
+    userID: "5b1b8e1e-2c0e-4f2d-9b8e-1a7c4e9d2b3a"
+
+oauth2:
+  skipApprovalScreen: true

@@ -1,0 +1,15 @@
+# Grants cluster-admin to the Dex test user. The Kubernetes API server is
+# configured (via `--oidc-username-claim=email`) to use the email claim of
+# the id_token as the Kubernetes username.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: admin-user-clusterrolebinding
+subjects:
+  - kind: User
+    name: admin@example.com
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
