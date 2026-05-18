@@ -39,6 +39,7 @@ import React, {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useHistory } from 'react-router-dom';
 import { loadTableSettings, storeTableSettings } from '../../../helpers/tableSettings';
 import { useSelectedClusters } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
@@ -162,6 +163,16 @@ export interface ResourceTableProps<RowItem> {
   errors?: ApiError[] | null;
   /** State of the Table (page, rows per page) is reflected in the url */
   reflectInURL?: string | boolean;
+  /** Disable row activation via keyboard (Enter key).
+   * When false or not provided, Enter uses `onRowOpen` if provided,
+   * otherwise it navigates to the row's detail page via `getDetailsLink()`.
+   */
+  disableRowOpen?: boolean;
+  /**
+   * Called when a row is activated via keyboard (Enter key).
+   * When not provided, Enter navigates to the row's detail page via `getDetailsLink()`.
+   */
+  onRowOpen?: (row: KubeObject, event: React.KeyboardEvent) => void;
 }
 
 export interface ResourceTableFromResourceClassProps<KubeClass extends KubeObjectClass>
@@ -315,9 +326,12 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     enableRowActions = false,
     enableRowSelection = false,
     errors,
+    onRowOpen,
+    disableRowOpen,
   } = props;
   const { t } = useTranslation(['glossary', 'translation']);
   const theme = useTheme();
+  const history = useHistory();
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const clusters = useSelectedClusters();
   const tableProcessors = useTypedSelector(state => state.resourceTable.tableColumnsProcessors);
@@ -719,6 +733,21 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
         globalFilterFn="kubeObjectSearch"
         filterFunction={filterFunc}
         getRowId={item => item?.metadata?.uid}
+        onRowOpen={
+          disableRowOpen
+            ? undefined
+            : onRowOpen
+            ? (row: RowItem, event: React.KeyboardEvent) => onRowOpen(row, event)
+            : (row: RowItem, event: React.KeyboardEvent) => {
+                const link = row.getDetailsLink?.();
+                if (!link) return;
+                if (event.ctrlKey || event.metaKey || event.shiftKey) {
+                  window.open(link, '_blank', 'noopener,noreferrer');
+                } else {
+                  history.push(link);
+                }
+              }
+        }
       />
     </>
   );
