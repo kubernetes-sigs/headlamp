@@ -42,6 +42,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -407,7 +408,7 @@ func TestGetClustersClusterInventorySource(t *testing.T) {
 	require.Len(t, clusters, 1)
 	assert.Equal(t, "cluster_inventory", clusters[0].Metadata["source"])
 	assert.Equal(t, "cluster-inventory/in-cluster/default/spoke-a", clusters[0].Metadata["clusterID"])
-	inventory, ok := clusters[0].Metadata["clusterInventory"].(*kubeconfig.ClusterInventoryMetadata)
+	inventory, ok := clusters[0].Metadata["clusterInventory"].(*inventorymetadata.Metadata)
 	require.True(t, ok)
 	assert.Equal(t, "default", inventory.Profile.Namespace)
 	assert.Equal(t, "spoke-a", inventory.Profile.Name)
@@ -416,7 +417,7 @@ func TestGetClustersClusterInventorySource(t *testing.T) {
 	assert.Equal(t, metav1.ConditionFalse, inventory.Conditions[0].Status)
 	require.NotNil(t, inventory.Version)
 	assert.Equal(t, "v1.35.0", inventory.Version.Kubernetes)
-	assert.Equal(t, []kubeconfig.ClusterInventoryProperty{{Name: "region", Value: "us-west1"}}, inventory.Properties)
+	assert.Equal(t, []inventorymetadata.Property{{Name: "region", Value: "us-west1"}}, inventory.Properties)
 
 	recorder := httptest.NewRecorder()
 	c.getConfig(recorder, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil))
@@ -440,6 +441,7 @@ func TestGetClustersClusterInventorySource(t *testing.T) {
 	assert.Equal(t, "False", configCondition["status"])
 }
 
+// clusterInventoryConfigContext returns a minimal discovered context with Cluster Inventory metadata.
 func clusterInventoryConfigContext() *kubeconfig.Context {
 	return &kubeconfig.Context{
 		Name:        "cluster-inventory-in-cluster--default--spoke-a--dbdb0aa95e5d",
@@ -448,8 +450,8 @@ func clusterInventoryConfigContext() *kubeconfig.Context {
 		AuthInfo:    &api.AuthInfo{},
 		Source:      kubeconfig.ClusterInventory,
 		ClusterID:   "cluster-inventory/in-cluster/default/spoke-a",
-		ClusterInventory: &kubeconfig.ClusterInventoryMetadata{
-			Profile: kubeconfig.ClusterInventoryProfile{
+		ClusterInventory: &inventorymetadata.Metadata{
+			Profile: inventorymetadata.Profile{
 				Namespace: "default",
 				Name:      "spoke-a",
 				Key:       "in-cluster/default/spoke-a",
@@ -464,8 +466,8 @@ func clusterInventoryConfigContext() *kubeconfig.Context {
 					ObservedGeneration: 3,
 				},
 			},
-			Version: &kubeconfig.ClusterInventoryVersion{Kubernetes: "v1.35.0"},
-			Properties: []kubeconfig.ClusterInventoryProperty{
+			Version: &inventorymetadata.Version{Kubernetes: "v1.35.0"},
+			Properties: []inventorymetadata.Property{
 				{Name: "region", Value: "us-west1"},
 			},
 		},

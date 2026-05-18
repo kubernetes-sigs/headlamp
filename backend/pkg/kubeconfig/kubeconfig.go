@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
+	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/exec"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"k8s.io/client-go/kubernetes"
@@ -75,54 +76,7 @@ type Context struct {
 	// ClusterID is the unique identifier for the cluster, consisting of the filepath and context name.
 	ClusterID string `json:"clusterID"`
 	// ClusterInventory stores metadata copied from a Cluster Inventory ClusterProfile.
-	ClusterInventory *ClusterInventoryMetadata `json:"clusterInventory,omitempty"`
-}
-
-// ClusterInventoryProfile identifies the ClusterProfile that produced a context.
-type ClusterInventoryProfile struct {
-	Namespace string `json:"namespace"`
-	Name      string `json:"name"`
-	Key       string `json:"key"`
-}
-
-// ClusterInventoryVersion contains version details reported by Cluster Inventory.
-type ClusterInventoryVersion struct {
-	Kubernetes string `json:"kubernetes,omitempty"`
-}
-
-// ClusterInventoryProperty describes a property reported by Cluster Inventory.
-type ClusterInventoryProperty struct {
-	Name             string      `json:"name"`
-	Value            string      `json:"value"`
-	LastObservedTime metav1.Time `json:"lastObservedTime,omitempty"`
-}
-
-// ClusterInventoryMetadata contains non-sensitive ClusterProfile status metadata.
-type ClusterInventoryMetadata struct {
-	Profile    ClusterInventoryProfile    `json:"profile"`
-	Conditions []metav1.Condition         `json:"conditions,omitempty"`
-	Version    *ClusterInventoryVersion   `json:"version,omitempty"`
-	Properties []ClusterInventoryProperty `json:"properties,omitempty"`
-}
-
-// DeepCopy returns an independent copy of ClusterInventoryMetadata.
-func (m *ClusterInventoryMetadata) DeepCopy() *ClusterInventoryMetadata {
-	if m == nil {
-		return nil
-	}
-
-	copied := &ClusterInventoryMetadata{
-		Profile:    m.Profile,
-		Conditions: append([]metav1.Condition(nil), m.Conditions...),
-		Properties: append([]ClusterInventoryProperty(nil), m.Properties...),
-	}
-
-	if m.Version != nil {
-		version := *m.Version
-		copied.Version = &version
-	}
-
-	return copied
+	ClusterInventory *inventorymetadata.Metadata `json:"clusterInventory,omitempty"`
 }
 
 // Copy creates a deep copy of the Context, excluding the proxy field which is created on demand.

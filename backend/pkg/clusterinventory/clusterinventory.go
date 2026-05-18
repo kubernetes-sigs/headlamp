@@ -40,6 +40,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd/api"
 
+	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	apisv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
@@ -532,9 +533,9 @@ func (r *Runner) contextFromClusterProfile(
 func clusterInventoryMetadataFromProfile(
 	profileKey string,
 	cp *apisv1alpha1.ClusterProfile,
-) *kubeconfig.ClusterInventoryMetadata {
-	metadata := &kubeconfig.ClusterInventoryMetadata{
-		Profile: kubeconfig.ClusterInventoryProfile{
+) *inventorymetadata.Metadata {
+	metadata := &inventorymetadata.Metadata{
+		Profile: inventorymetadata.Profile{
 			Namespace: cp.Namespace,
 			Name:      cp.Name,
 			Key:       profileKey,
@@ -543,15 +544,15 @@ func clusterInventoryMetadataFromProfile(
 	}
 
 	if cp.Status.Version.Kubernetes != "" {
-		metadata.Version = &kubeconfig.ClusterInventoryVersion{
+		metadata.Version = &inventorymetadata.Version{
 			Kubernetes: cp.Status.Version.Kubernetes,
 		}
 	}
 
 	if len(cp.Status.Properties) > 0 {
-		metadata.Properties = make([]kubeconfig.ClusterInventoryProperty, len(cp.Status.Properties))
+		metadata.Properties = make([]inventorymetadata.Property, len(cp.Status.Properties))
 		for i, property := range cp.Status.Properties {
-			metadata.Properties[i] = kubeconfig.ClusterInventoryProperty{
+			metadata.Properties[i] = inventorymetadata.Property{
 				Name:             property.Name,
 				Value:            property.Value,
 				LastObservedTime: property.LastObservedTime,
