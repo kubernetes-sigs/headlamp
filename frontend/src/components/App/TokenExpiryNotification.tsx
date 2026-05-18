@@ -59,8 +59,14 @@ export function PureTokenExpiryNotification({
   // Tracks wall-clock seconds; updated every second once we have an expiry to count down.
   const [now, setNow] = React.useState(() => Math.floor(Date.now() / 1000));
 
+  // Refs so the async check closure always sees the latest expired state and can
+  // cancel the interval without waiting for a React re-render.
+  const tokenExpiredRef = React.useRef(false);
+  const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Restart the poller whenever the cluster changes.
   React.useEffect(() => {
+    tokenExpiredRef.current = false;
     setTokenExpiry(null);
     setTokenExpired(false);
     setNow(Math.floor(Date.now() / 1000));
@@ -73,12 +79,17 @@ export function PureTokenExpiryNotification({
     let mounted = true;
 
     const check = async () => {
-      if (!mounted) return;
+      if (!mounted || tokenExpiredRef.current) return;
       const result = await fetchClusterMeFn(cluster);
-      if (!mounted) return;
+      if (!mounted || tokenExpiredRef.current) return;
 
       if (result.tokenExpired) {
+        tokenExpiredRef.current = true;
         setTokenExpired(true);
+        if (intervalRef.current !== null) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
       } else if (result.data?.tokenExpiry !== null && result.data?.tokenExpiry !== undefined) {
         setTokenExpiry(result.data.tokenExpiry);
       }
@@ -86,11 +97,14 @@ export function PureTokenExpiryNotification({
 
     // Run once immediately, then on the regular interval.
     check();
-    const id = setInterval(check, POLL_INTERVAL_MS);
+    intervalRef.current = setInterval(check, POLL_INTERVAL_MS);
 
     return () => {
       mounted = false;
-      clearInterval(id);
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
   }, [clusterName, fetchClusterMeFn]);
 
@@ -146,7 +160,7 @@ export function PureTokenExpiryNotification({
     return true;
   }, [pathname]);
 
-  if (!showOnRoute || !getCluster()) {
+  if (!showOnRoute || !clusterName) {
     return null;
   }
 
