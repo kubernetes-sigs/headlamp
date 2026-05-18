@@ -264,21 +264,21 @@
         },
         "clusterInventory": {
           "type": "object",
-          "description": "Cluster Inventory configuration",
+          "description": "Experimental/alpha Cluster Inventory configuration",
           "properties": {
             "enabled": {
               "type": "boolean",
-              "description": "Enable Cluster Inventory discovery",
+              "description": "Enable experimental/alpha Cluster Inventory discovery",
               "default": false
             },
             "accessProvidersConfig": {
               "type": "object",
-              "description": "Cluster Inventory access providers config",
+              "description": "Experimental/alpha Cluster Inventory access providers config",
               "default": {}
             },
             "plugins": {
               "type": "array",
-              "description": "Kubernetes image volumes that provide Cluster Inventory access provider binaries",
+              "description": "Kubernetes image volumes that provide experimental/alpha Cluster Inventory access provider binaries",
               "items": {
                 "type": "object",
                 "required": ["name", "image", "mountPath"],
@@ -305,17 +305,17 @@
             },
             "labelSelector": {
               "type": "string",
-              "description": "Kubernetes label selector used to filter ClusterProfile resources",
+              "description": "Kubernetes label selector used to filter experimental/alpha ClusterProfile resources",
               "default": "!headlamp.dev/ignore"
             },
             "rootReconcileInterval": {
               "type": "string",
-              "description": "Override the Cluster Inventory root reconcile interval. Empty uses the Headlamp default",
+              "description": "Override the experimental/alpha Cluster Inventory root reconcile interval. Empty uses the Headlamp default",
               "default": ""
             },
             "noCRDCacheTTL": {
               "type": "string",
-              "description": "Override the Cluster Inventory no-CRD cache TTL. Empty uses the Headlamp default",
+              "description": "Override the experimental/alpha Cluster Inventory no-CRD cache TTL. Empty uses the Headlamp default",
               "default": ""
             }
           }

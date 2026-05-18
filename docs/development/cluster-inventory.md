@@ -4,6 +4,14 @@ title: Cluster Inventory development
 
 # Cluster Inventory development
 
+:::warning Experimental alpha feature
+
+Headlamp Cluster Inventory support is alpha/experimental and disabled by
+default. The upstream Cluster Inventory API is currently `v1alpha1` and the
+Headlamp integration uses the `v0.1.x` API, so fields and behavior may change.
+
+:::
+
 Headlamp can discover additional clusters from Cluster Inventory API
 `ClusterProfile` resources when started with Cluster Inventory enabled. The
 backend uses `sigs.k8s.io/cluster-inventory-api v0.1.0`, the `pkg/access`

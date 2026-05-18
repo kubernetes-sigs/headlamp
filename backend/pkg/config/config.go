@@ -564,15 +564,15 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
 	f.Bool("enable-helm", false, "Enable Helm operations")
 	f.Bool("enable-cluster-inventory", false,
-		"Enable automatic discovery of clusters from ClusterProfile resources")
+		"Enable experimental/alpha automatic discovery of clusters from ClusterProfile resources")
 	f.String("cluster-inventory-provider-file", "",
-		"Path to the JSON configuration file for Cluster Inventory access providers")
+		"Path to the JSON configuration file for experimental/alpha Cluster Inventory access providers")
 	f.String("cluster-inventory-label-selector", "",
-		"Label selector used to filter ClusterProfile resources for Cluster Inventory")
+		"Label selector used to filter ClusterProfile resources for experimental/alpha Cluster Inventory")
 	f.Duration("cluster-inventory-root-reconcile-interval", clusterinventory.DefaultRootReconcileInterval,
-		"Interval for reconciling Cluster Inventory roots")
+		"Interval for reconciling experimental/alpha Cluster Inventory roots")
 	f.Duration("cluster-inventory-no-crd-cache-ttl", clusterinventory.DefaultNoCRDCacheTTL,
-		"How long to cache that an API server has no ClusterProfile CRD")
+		"How long to cache that an API server has no experimental/alpha ClusterProfile CRD")
 	f.String("default-light-theme", "", "Default theme to use when user prefers light mode")
 	f.String("default-dark-theme", "", "Default theme to use when user prefers dark mode")
 	f.String("force-theme", "", "Force a specific theme, overriding user preferences")
