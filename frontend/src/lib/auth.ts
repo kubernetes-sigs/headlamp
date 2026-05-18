@@ -174,9 +174,8 @@ export interface ClusterMeResponse {
  * `data` is null when the request failed for any reason other than a 401.
  */
 export type ClusterMeResult =
-  | { tokenExpired: false; data: ClusterMeResponse }
-  | { tokenExpired: true; data: null }
-  | { tokenExpired: false; data: null };
+  | { tokenExpired: false; data: ClusterMeResponse | null }
+  | { tokenExpired: true; data: null };
 
 /**
  * Fetches identity and token-expiry information for the given cluster from the
