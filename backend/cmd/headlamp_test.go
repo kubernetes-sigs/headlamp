@@ -1434,6 +1434,8 @@ func TestGetOidcCallbackURL(t *testing.T) {
 
 // Regression test for #4839: /oidc-callback's missing-state log must not
 // carry the outer-scope kubeconfig-load err from createHeadlampHandler.
+//
+//nolint:funlen
 func TestOidcCallbackEmptyStateDoesNotLogStaleError(t *testing.T) {
 	type logCall struct {
 		level uint
@@ -1489,7 +1491,9 @@ func TestOidcCallbackEmptyStateDoesNotLogStaleError(t *testing.T) {
 		"empty state should still produce a 400 response")
 
 	logMu.Lock()
+
 	captured := append([]logCall(nil), logCalls...)
+
 	logMu.Unlock()
 
 	var stateLog *logCall
