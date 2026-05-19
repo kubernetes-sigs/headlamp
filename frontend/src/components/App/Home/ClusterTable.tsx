@@ -65,7 +65,7 @@ import { getCustomClusterNames } from './customClusterNames';
  * @param {Object} props - The component props.
  * @param {ApiError|null} [props.error] - The error object if there is an error with the cluster.
  */
-function ClusterStatus({
+export function ClusterStatus({
   error,
   cluster,
   isConnected,
@@ -83,7 +83,11 @@ function ClusterStatus({
   const customStatuses = useTypedSelector(state => state.clusterProvider.clusterStatuses);
   const renderedCustomStatus = useMemo(() => {
     for (const Status of customStatuses) {
-      const renderedStatus = <Status cluster={cluster} error={error} />;
+      // Call as a function (not JSX) so the null-check below is meaningful.
+      // Using <Status ... /> creates a React element object which is always
+      // non-null, causing the loop to exit after the first registered callback
+      // regardless of what that callback renders. Callbacks must not use hooks.
+      const renderedStatus = Status({ cluster, error });
       if (renderedStatus !== null) {
         return renderedStatus;
       }
