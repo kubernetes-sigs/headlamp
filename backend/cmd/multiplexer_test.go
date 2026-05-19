@@ -488,7 +488,7 @@ func TestCloseConnection(t *testing.T) {
 }
 
 func TestCloseClientConnectionsClearsClientBeforeClosing(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore())
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()

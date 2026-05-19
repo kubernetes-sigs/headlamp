@@ -326,7 +326,7 @@ func (c *Connection) writeStatusLocked() error {
 	if jsonErr != nil {
 		logger.Log(logger.LevelError, map[string]string{"clusterID": c.ClusterID}, jsonErr, "marshaling status message")
 
-		return nil
+		return jsonErr
 	}
 
 	statusMsg := Message{
@@ -639,39 +639,56 @@ func (m *Multiplexer) HandleClientWebSocket(w http.ResponseWriter, r *http.Reque
 			continue
 		}
 
-		// Check if it's a close message
-		if msg.Type == "CLOSE" {
-			m.CloseConnection(msg.ClusterID, msg.Path, msg.UserID)
+		// Validate required routing fields upfront
+		if msg.ClusterID == "" || msg.Path == "" || msg.UserID == "" || msg.Type == "" {
+			errStr := fmt.Errorf(
+				"missing required routing fields: clusterId='%s', path='%s', userId='%s', type='%s'",
+				msg.ClusterID, msg.Path, msg.UserID, msg.Type,
+			)
+			logger.Log(logger.LevelError, nil, errStr, "invalid client message")
 
 			continue
 		}
 
-		token, err := auth.GetTokenFromCookie(r, msg.ClusterID)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"clusterID": msg.ClusterID}, err, "getting token from cookie")
-			m.sendClientError(lockClientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
+		m.processClientMessage(r, lockClientConn, msg)
+	}
+}
 
-			continue
-		}
+// processClientMessage processes a single client message that has been verified to be routable.
+func (m *Multiplexer) processClientMessage(
+	r *http.Request,
+	lockClientConn *WSConnLock,
+	msg Message,
+) {
+	// Check if it's a close message
+	if msg.Type == "CLOSE" {
+		m.CloseConnection(msg.ClusterID, msg.Path, msg.UserID)
 
-		var tokenPtr *string
-		if token != "" {
-			tokenPtr = &token
-		}
+		return
+	}
 
-		conn, err := m.getOrCreateConnection(msg, lockClientConn, tokenPtr)
-		if err != nil {
-			m.handleConnectionError(lockClientConn, msg, err)
+	token, err := auth.GetTokenFromCookie(r, msg.ClusterID)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"clusterID": msg.ClusterID}, err, "getting token from cookie")
+		m.sendClientError(lockClientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
 
-			continue
-		}
+		return
+	}
 
-		if msg.Type == "REQUEST" && conn.Status.State == StateConnected {
-			err = m.writeMessageToCluster(conn, []byte(msg.Data))
-			if err != nil {
-				continue
-			}
-		}
+	var tokenPtr *string
+	if token != "" {
+		tokenPtr = &token
+	}
+
+	conn, err := m.getOrCreateConnection(msg, lockClientConn, tokenPtr)
+	if err != nil {
+		m.handleConnectionError(lockClientConn, msg, err)
+
+		return
+	}
+
+	if msg.Type == "REQUEST" && conn.Status.State == StateConnected {
+		_ = m.writeMessageToCluster(conn, []byte(msg.Data))
 	}
 }
 
