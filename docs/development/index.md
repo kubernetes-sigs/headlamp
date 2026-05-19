@@ -18,6 +18,12 @@ These are the required dependencies to get started. Other dependencies are pulle
 - [Go](https://go.dev/doc/install) (>= 1.25.8)
 - [Kubernetes](https://kubernetes.io/), we suggest [minikube](https://minikube.sigs.k8s.io/docs/) as one good K8s installation for testing locally. Other k8s installations are supported (see [platforms](../platforms.md)).
 
+You can install the required frontend, app, and backend dependencies by running:
+
+```bash
+npm run install:all
+```
+
 ## Build the code
 
 Headlamp is composed of a `backend` and a `frontend`.
