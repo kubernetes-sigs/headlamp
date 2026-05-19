@@ -6,7 +6,7 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.42.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
     app.kubernetes.io/version: "0.42.0"
@@ -18,7 +18,7 @@ kind: ClusterRoleBinding
 metadata:
   name: headlamp-admin
   labels:
-    helm.sh/chart: headlamp-0.42.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
     app.kubernetes.io/version: "0.42.0"
@@ -39,7 +39,7 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.42.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
     app.kubernetes.io/version: "0.42.0"
@@ -57,16 +57,13 @@ spec:
     app.kubernetes.io/instance: headlamp
 ---
 # Source: headlamp/templates/deployment.yaml
-# This block of code is used to extract the values from the env.
-# This is done to check if the values are non-empty and if they are, they are used in the deployment.yaml.
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.42.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
     app.kubernetes.io/version: "0.42.0"
@@ -99,28 +96,19 @@ spec:
           imagePullPolicy: IfNotPresent
           
           env:
-            - name: OIDC_CLIENT_ID
+            - name: HEADLAMP_CONFIG_OIDC_CLIENT_ID
               value: generic-oidc-client
-            - name: OIDC_CLIENT_SECRET
+            - name: HEADLAMP_CONFIG_OIDC_CLIENT_SECRET
               value: generic-oidc-secret
-            - name: OIDC_ISSUER_URL
+            - name: HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL
               value: https://auth.example.com
-            - name: OIDC_SCOPES
+            - name: HEADLAMP_CONFIG_OIDC_SCOPES
               value: openid email profile
           args:
             - "-in-cluster"
             - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             - "-session-ttl=86400"
-            # Check if externalSecret is disabled
-            # Check if clientID is non empty either from env or oidc.config
-            - "-oidc-client-id=$(OIDC_CLIENT_ID)"
-            # Check if clientSecret is non empty either from env or oidc.config
-            - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
-            # Check if issuerURL is non empty either from env or oidc.config
-            - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
-            # Check if scopes are non empty either from env or oidc.config
-            - "-oidc-scopes=$(OIDC_SCOPES)"
           ports:
             - name: http
               containerPort: 4466

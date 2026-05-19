@@ -128,6 +128,28 @@ config:
       name: your-oidc-secret
 ```
 
+### Upgrade Notes
+
+Chart `0.43.0` changes how OIDC values are passed to Headlamp. The chart now relies on
+Headlamp's `HEADLAMP_CONFIG_*` environment variables instead of translating legacy
+`OIDC_*` and `ME_USER_INFO_URL` values into container arguments.
+
+If you provide OIDC values through `env:` or an external secret, rename those entries to
+the `HEADLAMP_CONFIG_*` equivalents before upgrading. In particular:
+
+- `OIDC_CLIENT_ID` -> `HEADLAMP_CONFIG_OIDC_CLIENT_ID`
+- `OIDC_CLIENT_SECRET` -> `HEADLAMP_CONFIG_OIDC_CLIENT_SECRET`
+- `OIDC_ISSUER_URL` -> `HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL`
+- `OIDC_SCOPES` -> `HEADLAMP_CONFIG_OIDC_SCOPES`
+- `OIDC_CALLBACK_URL` -> `HEADLAMP_CONFIG_OIDC_CALLBACK_URL`
+- `OIDC_VALIDATOR_CLIENT_ID` -> `HEADLAMP_CONFIG_OIDC_VALIDATOR_CLIENT_ID`
+- `OIDC_VALIDATOR_ISSUER_URL` -> `HEADLAMP_CONFIG_OIDC_VALIDATOR_IDP_ISSUER_URL`
+- `OIDC_USE_ACCESS_TOKEN` -> `HEADLAMP_CONFIG_OIDC_USE_ACCESS_TOKEN`
+- `OIDC_USE_PKCE` -> `HEADLAMP_CONFIG_OIDC_USE_PKCE`
+- `ME_USER_INFO_URL` -> `HEADLAMP_CONFIG_ME_USER_INFO_URL`
+
+Values set through `config.oidc.*` continue to work without changes.
+
 ### Deployment Configuration
 
 | Key | Type | Default | Description |
