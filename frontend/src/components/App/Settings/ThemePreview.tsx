@@ -18,10 +18,16 @@ import { Box } from '@mui/system';
 import { useMemo } from 'react';
 import { AppTheme } from '../../../lib/AppTheme';
 import { createMuiTheme } from '../../../lib/themes';
+import { darkTheme, lightTheme } from '../defaultAppThemes';
+import { useAppThemes, useBackendThemeConfig } from '../themeSlice';
 
-export function ThemePreview({ theme, size = 50 }: { theme: AppTheme; size?: number }) {
-  const muiTheme = useMemo(() => createMuiTheme(theme), [theme]);
-
+function ThemePreviewInner({
+  muiTheme,
+  size,
+}: {
+  muiTheme: ReturnType<typeof createMuiTheme>;
+  size: number;
+}) {
   return (
     <Box
       sx={{
@@ -121,4 +127,74 @@ export function ThemePreview({ theme, size = 50 }: { theme: AppTheme; size?: num
       />
     </Box>
   );
+}
+
+export function ThemePreview({ theme, size = 50 }: { theme: AppTheme; size?: number }) {
+  const backendConfig = useBackendThemeConfig();
+  const allThemes = useAppThemes();
+
+  const autoLightTheme: AppTheme = useMemo(() => {
+    const name = backendConfig.defaultLightTheme;
+    return (name ? allThemes.find(t => t.name === name) : undefined) ?? lightTheme;
+  }, [backendConfig.defaultLightTheme, allThemes]);
+
+  const autoDarkTheme: AppTheme = useMemo(() => {
+    const name = backendConfig.defaultDarkTheme;
+    return (name ? allThemes.find(t => t.name === name) : undefined) ?? darkTheme;
+  }, [backendConfig.defaultDarkTheme, allThemes]);
+
+  const lightMuiTheme = useMemo(() => createMuiTheme(autoLightTheme), [autoLightTheme]);
+  const darkMuiTheme = useMemo(() => createMuiTheme(autoDarkTheme), [autoDarkTheme]);
+  const muiTheme = useMemo(() => createMuiTheme(theme), [theme]);
+
+  if (theme.name === 'auto') {
+    return (
+      <Box
+        sx={{
+          position: 'relative',
+          width: size + 'px',
+          height: size + 'px',
+          borderRadius: '4px',
+          overflow: 'hidden',
+          border: '1px solid',
+          borderColor: lightMuiTheme.palette.divider,
+        }}
+      >
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '50%',
+            height: '100%',
+            overflow: 'hidden',
+          }}
+        >
+          <Box
+            sx={{ position: 'absolute', top: 0, left: 0, width: size + 'px', height: size + 'px' }}
+          >
+            <ThemePreviewInner muiTheme={lightMuiTheme} size={size} />
+          </Box>
+        </Box>
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: '50%',
+            height: '100%',
+            overflow: 'hidden',
+          }}
+        >
+          <Box
+            sx={{ position: 'absolute', top: 0, right: 0, width: size + 'px', height: size + 'px' }}
+          >
+            <ThemePreviewInner muiTheme={darkMuiTheme} size={size} />
+          </Box>
+        </Box>
+      </Box>
+    );
+  }
+
+  return <ThemePreviewInner muiTheme={muiTheme} size={size} />;
 }

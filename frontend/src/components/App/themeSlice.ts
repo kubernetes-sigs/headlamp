@@ -17,9 +17,16 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { useSelector } from 'react-redux';
 import { AppTheme } from '../../lib/AppTheme';
-import { getThemeName, setTheme as setAppTheme } from '../../lib/themes';
+import { getThemeName, setTheme as setAppTheme, usePrefersColorScheme } from '../../lib/themes';
 import { AppLogoType } from './AppLogo';
 import defaultAppThemes from './defaultAppThemes';
+
+export interface BackendThemeConfig {
+  defaultLightTheme?: string;
+  defaultDarkTheme?: string;
+  forceTheme?: string;
+}
+
 export interface ThemeState {
   /**
    * The logo component to use for the app.
@@ -31,12 +38,14 @@ export interface ThemeState {
   name: string;
   /** List of all custom App Themes */
   appThemes: AppTheme[];
+  backendConfig: BackendThemeConfig;
 }
 
 export const initialState: ThemeState = {
   logo: null,
   name: getThemeName(),
   appThemes: defaultAppThemes,
+  backendConfig: {},
 };
 
 const themeSlice = createSlice({
@@ -76,15 +85,9 @@ const themeSlice = createSlice({
      * Applies backend theme configuration if set.
      * Should be called after config is loaded from backend.
      */
-    applyBackendThemeConfig(
-      state,
-      action: PayloadAction<{
-        defaultLightTheme?: string;
-        defaultDarkTheme?: string;
-        forceTheme?: string;
-      }>
-    ) {
+    applyBackendThemeConfig(state, action: PayloadAction<BackendThemeConfig>) {
       const backendConfig = action.payload;
+      state.backendConfig = backendConfig;
       const newThemeName = getThemeName(backendConfig);
 
       // Only update if theme has changed
@@ -107,12 +110,22 @@ export const useAppThemes = (): AppTheme[] => {
 
 const currentThemeCacheKey = 'cached-current-theme';
 
+export const useBackendThemeConfig = (): BackendThemeConfig => {
+  return useSelector((state: any) => state.theme.backendConfig) ?? {};
+};
+
 export const useCurrentAppTheme = () => {
   let themeName = useSelector((state: any) => state.theme.name);
+  const backendConfig = useBackendThemeConfig();
+  usePrefersColorScheme();
   if (!themeName) {
-    themeName = getThemeName();
+    themeName = getThemeName(backendConfig);
   }
   const allThemes = useAppThemes();
+
+  if (themeName === 'auto') {
+    themeName = getThemeName(backendConfig);
+  }
 
   let currentTheme = allThemes.find(it => it.name === themeName);
 
