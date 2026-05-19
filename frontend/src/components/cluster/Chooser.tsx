@@ -65,26 +65,37 @@ export interface ClusterTitleProps {
   onClick?: (event?: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
 }
 
+/**
+ * Returns true when ClusterTitle would render something for the given cluster/clusters.
+ * Use this to decide whether to include ClusterTitle in a menu so the caller can pass
+ * null as the action instead of mounting an empty wrapper.
+ */
+export function useClusterTitleVisible(
+  cluster?: string,
+  clusters?: { [clusterName: string]: Cluster }
+): boolean {
+  const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
+  const ChooserButton = useTypedSelector(state => state.ui.clusterChooserButtonComponent);
+
+  if (!cluster) return false;
+  if (!arePluginsLoaded || _.isNull(ChooserButton)) return false;
+  if (!ChooserButton && Object.keys(clusters || {}).length <= 1) return false;
+  return true;
+}
+
 export function ClusterTitle(props: ClusterTitleProps) {
   const { cluster, clusters, selectedClusters, onClick } = props;
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const buttonRef = React.useRef<HTMLButtonElement>(null);
-  const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
+  // ChooserButton is still needed here to decide which component to render.
   const ChooserButton = useTypedSelector(state => state.ui.clusterChooserButtonComponent);
+  const isVisible = useClusterTitleVisible(cluster, clusters);
 
   useShortcut('CLUSTER_CHOOSER', () => {
     setAnchorEl(buttonRef.current);
   });
 
-  if (!cluster) {
-    return null;
-  }
-
-  if (!arePluginsLoaded || _.isNull(ChooserButton)) {
-    return null;
-  }
-
-  if (!ChooserButton && Object.keys(clusters || {}).length <= 1) {
+  if (!isVisible) {
     return null;
   }
 
