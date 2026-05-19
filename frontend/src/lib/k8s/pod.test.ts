@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import Pod from './pod';
 
@@ -80,5 +80,57 @@ describe('Pod class', () => {
     delete data.status.conditions;
     const pod = new Pod(data);
     expect(() => pod.getDetailedStatus()).not.toThrow();
+  });
+});
+
+// Module-level capture array for addEphemeralContainer patch tests
+// (vi.mock is hoisted so closures over local variables don't work)
+const capturedPatchBodies: any[] = [];
+
+vi.mock('./api/v1/clusterRequests', async importOriginal => {
+  const actual = await importOriginal<typeof import('./api/v1/clusterRequests')>();
+  return {
+    ...actual,
+    patch: vi.fn(async (_url: string, body: any) => {
+      capturedPatchBodies.push(body);
+    }),
+  };
+});
+
+describe('Pod.addEphemeralContainer targetContainerName', () => {
+  beforeEach(() => {
+    capturedPatchBodies.length = 0;
+  });
+
+  it('includes targetContainerName in PATCH body when provided', async () => {
+    const pod = new Pod({
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: { name: 'test-pod', namespace: 'default', uid: 'uid-1' },
+      spec: { containers: [{ name: 'main', image: 'nginx' }], ephemeralContainers: [] },
+      status: {},
+    } as any);
+
+    await pod.addEphemeralContainer('headlamp-debug-1', 'busybox', ['sh'], 'main');
+
+    const ephemeralContainers = capturedPatchBodies[0]?.spec?.ephemeralContainers;
+    expect(ephemeralContainers).toBeDefined();
+    expect(ephemeralContainers[0].targetContainerName).toBe('main');
+  });
+
+  it('omits targetContainerName from PATCH body when not provided', async () => {
+    const pod = new Pod({
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: { name: 'test-pod', namespace: 'default', uid: 'uid-2' },
+      spec: { containers: [{ name: 'main', image: 'nginx' }], ephemeralContainers: [] },
+      status: {},
+    } as any);
+
+    await pod.addEphemeralContainer('headlamp-debug-2', 'busybox', ['sh']);
+
+    const ephemeralContainers = capturedPatchBodies[0]?.spec?.ephemeralContainers;
+    expect(ephemeralContainers).toBeDefined();
+    expect(ephemeralContainers[0].targetContainerName).toBeUndefined();
   });
 });

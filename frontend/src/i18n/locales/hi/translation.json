@@ -858,5 +858,11 @@
   "Toggle Table Filters": "टेबल फ़िल्टर्स टॉगल करें",
   "Toggle column filters in tables": "टेबल में कॉलम फ़िल्टर्स टॉगल करें",
   "Log Viewer Search": "लॉग व्यूअर खोज",
-  "Toggle search in log viewer": "लॉग व्यूअर में खोज टॉगल करें"
+  "Toggle search in log viewer": "लॉग व्यूअर में खोज टॉगल करें",
+  "Target Container": "लक्ष्य कंटेनर",
+  "(None)": "(कोई नहीं)",
+  "Select a target container to share its process namespace, or choose \"(None)\" to run without targeting.": "प्रक्रिया नेमस्पेस साझा करने के लिए लक्ष्य कंटेनर चुनें।",
+  "Start Debug": "डीबग शुरू करें",
+  "Debug Pod: {{ name }}": "डीबग पॉड: {{ name }}",
+  "Targeting container: {{container}}": "कंटेनर को लक्ष्य कर रहे हैं: {{container}}"
 }

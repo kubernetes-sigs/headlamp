@@ -864,5 +864,11 @@
   "Toggle Table Filters": "",
   "Toggle column filters in tables": "",
   "Log Viewer Search": "",
-  "Toggle search in log viewer": ""
+  "Toggle search in log viewer": "",
+  "Target Container": "",
+  "(None)": "",
+  "Select a target container to share its process namespace, or choose \"(None)\" to run without targeting.": "",
+  "Start Debug": "",
+  "Debug Pod: {{ name }}": "",
+  "Targeting container: {{container}}": ""
 }

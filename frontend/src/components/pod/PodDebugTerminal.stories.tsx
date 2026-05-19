@@ -70,6 +70,64 @@ const mockPod = new Pod(
   'default'
 );
 
+/** Mock pod with multiple containers to demonstrate target selection */
+const multiContainerPod = new Pod(
+  {
+    kind: 'Pod',
+    apiVersion: 'v1',
+    metadata: {
+      name: 'multi-container-pod',
+      namespace: 'default',
+      creationTimestamp: '2023-01-01T00:00:00Z',
+      uid: 'mock-uid-multi',
+      resourceVersion: '456',
+    },
+    status: {
+      phase: 'Running',
+      ephemeralContainerStatuses: [],
+      conditions: [],
+      containerStatuses: [
+        {
+          name: 'app',
+          image: 'nginx',
+          imageID: 'docker-pullable://nginx@sha256:mock',
+          containerID: 'containerd://mock-app',
+          ready: true,
+          restartCount: 0,
+          state: { running: { startedAt: '2023-01-01T00:00:00Z' } },
+          lastState: {},
+        },
+        {
+          name: 'sidecar',
+          image: 'fluentd',
+          imageID: 'docker-pullable://fluentd@sha256:mock',
+          containerID: 'containerd://mock-sidecar',
+          ready: true,
+          restartCount: 0,
+          state: { running: { startedAt: '2023-01-01T00:00:00Z' } },
+          lastState: {},
+        },
+      ],
+      startTime: '2023-01-01T00:00:00Z',
+      hostIP: '192.168.1.1',
+      podIP: '10.0.0.2',
+    },
+    spec: {
+      containers: [
+        { name: 'app', image: 'nginx', imagePullPolicy: 'IfNotPresent' },
+        { name: 'sidecar', image: 'fluentd', imagePullPolicy: 'IfNotPresent' },
+      ],
+      ephemeralContainers: [],
+      nodeName: 'mock-node',
+      restartPolicy: 'Always',
+      serviceAccountName: 'default',
+      serviceAccount: 'default',
+      tolerations: [],
+    },
+  },
+  'default'
+);
+
 export default {
   title: 'Pod/PodDebugTerminal',
   component: PodDebugTerminal,
@@ -119,27 +177,76 @@ export default {
         ),
         // Mock the PATCH request to create ephemeral container
         http.patch(
-          'http://localhost:4466/clusters/default/api/v1/namespaces/default/pods/mock-pod/ephemeralcontainers',
-          async () => {
-            // We won't really create an ephemeral container, so always return empty arrays
+          'http://localhost:4466/clusters/default/api/v1/namespaces/default/pods/:podName/ephemeralcontainers',
+          async ({ params }) => {
+            const podName = String(params.podName);
+
+            const podData =
+              podName === multiContainerPod.metadata.name
+                ? multiContainerPod.jsonData
+                : mockPod.jsonData;
+
+            const debugContainerName = 'headlamp-debug';
             return HttpResponse.json({
-              ...mockPod.jsonData,
+              ...podData,
               spec: {
-                ...mockPod.jsonData.spec,
-                ephemeralContainers: [],
+                ...podData.spec,
+                ephemeralContainers: [
+                  { name: debugContainerName, image: 'busybox', command: ['sh'] },
+                ],
               },
               status: {
-                ...mockPod.jsonData.status,
-                ephemeralContainerStatuses: [],
+                ...podData.status,
+                ephemeralContainerStatuses: [
+                  {
+                    name: debugContainerName,
+                    image: 'busybox',
+                    imageID: '',
+                    ready: false,
+                    restartCount: 0,
+                    state: { running: { startedAt: '2023-01-01T00:00:01Z' } },
+                    lastState: {},
+                  },
+                ],
               },
             });
           }
         ),
-        // Mock the GET request to poll pod status
+        // Mock the GET request to poll pod status — returns pod with running debug container
+        // so PodDebugTerminal doesn't time out waiting for state.running
         http.get(
-          'http://localhost:4466/clusters/default/api/v1/namespaces/default/pods/mock-pod',
-          () => {
-            return HttpResponse.json(mockPod.jsonData);
+          'http://localhost:4466/clusters/default/api/v1/namespaces/default/pods/:podName',
+          ({ params }) => {
+            const podName = String(params.podName);
+            const podData =
+              podName === multiContainerPod.metadata.name
+                ? multiContainerPod.jsonData
+                : mockPod.jsonData;
+
+            const debugContainerName = 'headlamp-debug';
+            return HttpResponse.json({
+              ...podData,
+              spec: {
+                ...podData.spec,
+                ephemeralContainers: [
+                  { name: debugContainerName, image: 'busybox', command: ['sh'] },
+                ],
+              },
+              status: {
+                ...podData.status,
+                ephemeralContainerStatuses: [
+                  {
+                    name: debugContainerName,
+                    image: 'busybox',
+                    imageID: '',
+                    ready: false,
+                    restartCount: 0,
+                    state: { running: { startedAt: '2023-01-01T00:00:01Z' } },
+                    lastState: {},
+                  },
+                ],
+              },
+            });
           }
         ),
       ],
@@ -152,4 +259,17 @@ const Template: StoryFn<typeof PodDebugTerminal> = args => <PodDebugTerminal {..
 export const Default = Template.bind({});
 Default.args = {
   item: mockPod,
+};
+
+/** Debug terminal targeting a specific container */
+export const WithTargetContainer = Template.bind({});
+WithTargetContainer.args = {
+  item: mockPod,
+  targetContainer: 'main',
+};
+
+export const MultiContainerWithTarget = Template.bind({});
+MultiContainerWithTarget.args = {
+  item: multiContainerPod,
+  targetContainer: 'app',
 };

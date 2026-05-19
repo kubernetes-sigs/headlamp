@@ -19,7 +19,6 @@ import DialogContent from '@mui/material/DialogContent';
 import Typography from '@mui/material/Typography';
 import _ from 'lodash';
 import { useSnackbar } from 'notistack';
-import type { MutableRefObject } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_POD_DEBUG_IMAGE, loadClusterSettings } from '../../helpers/clusterSettings';
@@ -32,20 +31,25 @@ import { useTypedSelector } from '../../redux/hooks';
  * Props for PodDebugTerminal.
  *
  * @property {Pod} item - Pod instance to debug
+ * @property {string} [targetContainer] - Optional target container name to share PID namespace with
  * @property {() => void} [onClose] - Callback when terminal closes
  */
 interface PodDebugTerminalProps {
   item: Pod;
+  targetContainer?: string;
   onClose?: () => void;
 }
 
 /**
- * Finds a running debug container in the pod's ephemeral containers.
+ * Finds a running debug container in the pod's ephemeral containers
+ * that matches the requested target container.
  *
  * @param item - Pod to search
- * @returns Running debug container or null
+ * @param targetContainerName - The target container name to match.
+ *   If undefined, matches containers with no target set.
+ * @returns Running debug container matching the target, or null
  */
-function findRunningDebugContainer(item: Pod): any {
+function findRunningDebugContainer(item: Pod, targetContainerName?: string): any {
   const existingEphemeralContainers = item.jsonData?.spec?.ephemeralContainers || [];
   const debugContainers = existingEphemeralContainers.filter((c: any) =>
     c.name.startsWith('headlamp-debug')
@@ -55,7 +59,7 @@ function findRunningDebugContainer(item: Pod): any {
 
   for (const debugContainer of debugContainers) {
     const status = ephemeralStatuses.find((s: any) => s.name === debugContainer.name);
-    if (status?.state?.running) {
+    if (status?.state?.running && debugContainer.targetContainerName === targetContainerName) {
       return debugContainer;
     }
   }
@@ -93,17 +97,21 @@ function generateContainerName(item: Pod): string {
  * @param containerName - Name for the new container
  * @param debugImage - Container image for debugging
  * @param onError - Error handler callback
+ * @param targetContainerName - Optional name of the container to target.
+ *   When set, the debug container shares the target's PID namespace.
+ *   If undefined, no targeting is applied.
  * @returns Object with containerName if successful, empty object on error
  */
 async function debugPod(
   item: Pod,
   containerName: string,
   debugImage: string,
-  onError: (message: string) => void
+  onError: (message: string) => void,
+  targetContainerName?: string
 ) {
   try {
     // Add ephemeral container to the pod
-    await item.addEphemeralContainer(containerName, debugImage, ['sh']);
+    await item.addEphemeralContainer(containerName, debugImage, ['sh'], targetContainerName);
 
     // Wait for the container to be ready by polling the pod status
     const maxRetries = 30; // 30 seconds timeout
@@ -169,7 +177,7 @@ async function debugPod(
  * @returns DialogContent with embedded terminal
  */
 export function PodDebugTerminal(props: PodDebugTerminalProps) {
-  const { item, onClose } = props;
+  const { item, targetContainer, onClose } = props;
   const { t } = useTranslation(['translation']);
   const { enqueueSnackbar } = useSnackbar();
   const [terminalContainerRef, setTerminalContainerRef] = useState<HTMLElement | null>(null);
@@ -182,7 +190,6 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
   const isSuccessfulExitRef = useRef<(channel: number, text: string) => boolean>(() => false);
   const isShellNotFoundRef = useRef<(channel: number, text: string) => boolean>(() => false);
   const shellConnectFailedRef = useRef<(xtermc: XTerminalConnected) => void>(() => {});
-  const terminalRef = useRef<MutableRefObject<XTerminalConnected | null> | null>(null);
 
   useEffect(() => {
     defaultPodDebugImageRef.current = defaultPodDebugImage;
@@ -209,21 +216,22 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
         return { stream: null };
       }
 
-      const runningDebugContainer = findRunningDebugContainer(item);
+      const runningDebugContainer = findRunningDebugContainer(item, targetContainer);
       let containerName: string;
 
       if (runningDebugContainer) {
         containerName = runningDebugContainer.name;
         containerCreatedRef.current = true;
-        terminalRef.current?.current?.xterm.writeln(
-          t('translation|Attaching to existing debug container...') + '\r\n'
-        );
+        xtermRef.current?.xterm.writeln(t('translation|Attaching to existing debug container...'));
       } else {
         containerName = generateContainerName(item);
 
-        terminalRef.current?.current?.xterm.writeln(
-          t('translation|Creating ephemeral debug container...')
-        );
+        xtermRef.current?.xterm.writeln(t('translation|Creating ephemeral debug container...'));
+        if (targetContainer) {
+          xtermRef.current?.xterm.writeln(
+            t('translation|Targeting container: {{container}}', { container: targetContainer })
+          );
+        }
 
         const { containerName: readyContainerName } = await debugPod(
           item,
@@ -236,10 +244,9 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
               }),
               { variant: 'error' }
             );
-            terminalRef.current?.current?.xterm.writeln(
-              `\r\n${t('translation|Error')}: ${errorMessage}\r\n`
-            );
-          }
+            xtermRef.current?.xterm.writeln(`\r\n${t('translation|Error')}: ${errorMessage}\r\n`);
+          },
+          targetContainer
         );
 
         if (!readyContainerName) {
@@ -247,9 +254,7 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
         }
 
         containerCreatedRef.current = true;
-        terminalRef.current?.current?.xterm.writeln(
-          t('translation|Attaching to debug container...')
-        );
+        xtermRef.current?.xterm.writeln(t('translation|Attaching to debug container...'));
       }
 
       const stream = item.attach(containerName, onDataCallback, {});
@@ -258,7 +263,9 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
         stream,
       };
     },
-    [enqueueSnackbar, item, t]
+    // xtermRef is a stable ref object from useTerminalStream — safe to omit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [enqueueSnackbar, item, t, targetContainer]
   );
 
   const errorHandlers = useMemo(
@@ -278,7 +285,6 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
     onClose: handleTerminalClose,
     errorHandlers,
   });
-  terminalRef.current = xtermRef;
 
   const sendExitIfPossible = useCallback(() => {
     if (exitSentRef.current) {

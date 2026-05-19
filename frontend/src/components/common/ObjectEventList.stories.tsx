@@ -118,11 +118,14 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get(
+          // Handle both plain and cluster-prefixed URLs (TestContext uses /clusters/default/ prefix)
+          ...[
             'http://localhost:4466/api/v1/namespaces/:namespace/events',
-            ({ params, request }) => {
-              const url = new URL(request.url);
-              const fieldSelector = url.searchParams.get('fieldSelector');
+            'http://localhost:4466/clusters/default/api/v1/namespaces/:namespace/events',
+          ].map(url =>
+            http.get(url, ({ params, request }) => {
+              const reqUrl = new URL(request.url);
+              const fieldSelector = reqUrl.searchParams.get('fieldSelector');
               const reqNamespace = params.namespace;
 
               if (
@@ -148,7 +151,7 @@ export default {
                 return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
               }
               return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
-            }
+            })
           ),
         ],
       },
@@ -193,20 +196,28 @@ ErrorFetching.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/events', () => {
-          return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
-        }),
-        http.get('http://localhost:4466/api/v1/namespaces/errors/events', ({ request }) => {
-          const url = new URL(request.url);
-          const fieldSelector = url.searchParams.get('fieldSelector');
-          if (fieldSelector && fieldSelector.includes('involvedObject.name=error-secret')) {
-            return HttpResponse.json(
-              { message: 'Simulated server error fetching events' },
-              { status: 500 }
-            );
-          }
-          return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
-        }),
+        ...[
+          'http://localhost:4466/api/v1/namespaces/default/events',
+          'http://localhost:4466/clusters/default/api/v1/namespaces/default/events',
+        ].map(url =>
+          http.get(url, () => HttpResponse.json({ kind: 'EventList', items: [], metadata: {} }))
+        ),
+        ...[
+          'http://localhost:4466/api/v1/namespaces/errors/events',
+          'http://localhost:4466/clusters/default/api/v1/namespaces/errors/events',
+        ].map(url =>
+          http.get(url, ({ request }) => {
+            const reqUrl = new URL(request.url);
+            const fieldSelector = reqUrl.searchParams.get('fieldSelector');
+            if (fieldSelector && fieldSelector.includes('involvedObject.name=error-secret')) {
+              return HttpResponse.json(
+                { message: 'Simulated server error fetching events' },
+                { status: 500 }
+              );
+            }
+            return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
+          })
+        ),
       ],
     },
   },

@@ -493,6 +493,16 @@ export interface KubeContainer {
    * Cannot be updated.
    */
   workingDir?: string;
+  /**
+   * If set, the name of the container from the pod spec that this ephemeral
+   * container targets. The ephemeral container will be run in the namespaces
+   * (IPC, PID, etc.) of this container. If not set, the ephemeral container
+   * uses the namespaces configured in the Pod spec.
+   *
+   * The container runtime must support this feature.
+   * Only applies to ephemeral containers.
+   */
+  targetContainerName?: string;
 }
 
 export interface KubeContainerProbe {

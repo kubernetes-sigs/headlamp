@@ -853,5 +853,11 @@
   "Toggle column filters in tables": "",
   "Log Viewer Search": "",
   "Toggle search in log viewer": "",
-  "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_one": "{{ firstEventDate }} 이후 {{ count }}회 발생 ({{ eventDate }})"
+  "{{ eventDate }} ({{ count }} times since {{ firstEventDate }})_one": "{{ firstEventDate }} 이후 {{ count }}회 발생 ({{ eventDate }})",
+  "Target Container": "",
+  "(None)": "",
+  "Select a target container to share its process namespace, or choose \"(None)\" to run without targeting.": "",
+  "Start Debug": "",
+  "Debug Pod: {{ name }}": "",
+  "Targeting container: {{container}}": ""
 }
