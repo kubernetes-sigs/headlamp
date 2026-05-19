@@ -16,6 +16,7 @@
 
 import {
   combineClusterListErrors,
+  compareUnits,
   flattenClusterListItems,
   formatDuration,
   normalizeUnit,
@@ -197,6 +198,51 @@ describe('formatDuration (Kubernetes apimachinery parity)', () => {
   });
 });
 
+describe('compareUnits', () => {
+  it('should return true for equal quantities with different suffixes', () => {
+    expect(compareUnits('1Gi', '1024Mi')).toBe(true);
+    expect(compareUnits('1Mi', '1024Ki')).toBe(true);
+    expect(compareUnits('1', '1000m')).toBe(true);
+  });
+
+  it('should return false for different quantities', () => {
+    expect(compareUnits('1Gi', '1Mi')).toBe(false);
+    expect(compareUnits('1', '0.5')).toBe(false);
+  });
+
+  it('should handle nanocores and microcores', () => {
+    expect(compareUnits('1u', '1000n')).toBe(true);
+    expect(compareUnits('1m', '1000u')).toBe(true);
+  });
+
+  it('should handle decimal CPU values without suffix', () => {
+    expect(compareUnits('0.5', '500m')).toBe(true);
+    expect(compareUnits('0.5', '0.6')).toBe(false);
+  });
+
+  it('should not misclassify memory SI units as CPU', () => {
+    // '1M' (memory megabyte) must not be lowercased into '1m' (CPU millicores)
+    expect(compareUnits('1M', '1m')).toBe(false);
+    expect(compareUnits('1Gi', '1Gi')).toBe(true);
+  });
+
+  it('should handle memory decimal SI prefixes including lowercase k', () => {
+    expect(compareUnits('1M', '1000k')).toBe(true);
+    expect(compareUnits('1G', '1000M')).toBe(true);
+    expect(compareUnits('1k', '1000')).toBe(true);
+  });
+
+  it('should use resourceType to disambiguate when provided', () => {
+    expect(compareUnits('500m', '0.5', 'cpu')).toBe(true);
+    expect(compareUnits('1024', '1Ki', 'memory')).toBe(true);
+    expect(compareUnits('1.5Gi', '1536Mi', 'memory')).toBe(true);
+    expect(compareUnits('1000m', '1', 'memory')).toBe(true);
+    expect(compareUnits('1000000u', '1', 'memory')).toBe(true);
+    expect(compareUnits('1000000000n', '1', 'memory')).toBe(true);
+    expect(compareUnits('2Mi', '2048Ki', 'requests.hugepages-2Mi')).toBe(true);
+  });
+});
+
 describe('timeAgo', () => {
   it('matches formatDuration for the fixed test clock offset (UNDER_TEST)', () => {
     const start = new Date('2020-06-15T12:00:00.000Z');
@@ -302,6 +348,15 @@ describe('normalizeUnit', () => {
     it('handles empty string gracefully', () => {
       expect(normalizeUnit('memory', '')).toBe('');
     });
+
+    it('returns the original quantity if parsing fails (NaN guard)', () => {
+      expect(normalizeUnit('cpu', 'invalid')).toBe('invalid');
+      expect(normalizeUnit('memory', 'not-a-number')).toBe('not-a-number');
+    });
+
+    it('returns the original quantity for non-finite values (Infinity guard)', () => {
+      expect(normalizeUnit('cpu', '1e309')).toBe('1e309');
+    });
   });
 
   describe('cpu', () => {
@@ -315,6 +370,19 @@ describe('normalizeUnit', () => {
 
     it('shows plural cores', () => {
       expect(normalizeUnit('cpu', '2')).toBe('2 cores');
+    });
+
+    it('converts microcores', () => {
+      expect(normalizeUnit('cpu', '1000u')).toBe('0.001 cores');
+    });
+
+    it('converts nanocores', () => {
+      expect(normalizeUnit('cpu', '1000000n')).toBe('0.001 cores');
+    });
+
+    it('formats very small nanocores without scientific notation', () => {
+      expect(normalizeUnit('cpu', '1n')).toBe('0.000000001 cores');
+      expect(normalizeUnit('cpu', '10n')).toBe('0.00000001 cores');
     });
   });
 });

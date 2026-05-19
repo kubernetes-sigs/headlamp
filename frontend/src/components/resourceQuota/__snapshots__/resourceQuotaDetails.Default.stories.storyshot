@@ -262,7 +262,7 @@
                             <td
                               class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                             >
-                              300m (0.3 cores)
+                              0.3 cores
                             </td>
                           </tr>
                           <tr
@@ -276,12 +276,12 @@
                             <td
                               class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                             >
-                              500m (0.5 cores)
+                              0.5 cores
                             </td>
                             <td
                               class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                             >
-                              200m (0.2 cores)
+                              0.2 cores
                             </td>
                           </tr>
                         </tbody>
