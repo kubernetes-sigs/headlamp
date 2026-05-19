@@ -884,12 +884,15 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		config.handleNodeDrainStatus).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
 
 	r.HandleFunc("/oidc-callback", func(w http.ResponseWriter, r *http.Request) {
+		// Shadow createHeadlampHandler's outer-scope err so any log call in
+		// this handler is guaranteed to reference this closure's err and
+		// never the startup kubeconfig-load error. See issue #4839.
+		var err error
+
 		state := r.URL.Query().Get("state")
 
 		if state == "" {
-			// nil err: the closure-local err is declared below, so any err
-			// here would leak from createHeadlampHandler's outer scope.
-			logger.Log(logger.LevelError, nil, nil, "invalid request state is empty")
+			logger.Log(logger.LevelError, nil, err, "invalid request state is empty")
 			http.Error(w, "invalid request state is empty", http.StatusBadRequest)
 
 			return
@@ -911,8 +914,6 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		var oauth2Token *oauth2.Token
-
-		var err error
 
 		// Exchange authorization code for token, with or without PKCE
 		if config.OidcUsePKCE && oauthConfig.CodeVerifier != "" {
