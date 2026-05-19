@@ -163,7 +163,9 @@ export interface ResourceTableProps<RowItem> {
   errors?: ApiError[] | null;
   /** State of the Table (page, rows per page) is reflected in the url */
   reflectInURL?: string | boolean;
-  /** Disable row activation via keyboard (Enter key).
+  /**
+   * Disables all keyboard navigation on the table: ArrowUp/ArrowDown row focus,
+   * Enter-to-open, tabIndex on rows, focus highlight styling, and the blur handler.
    * When false or not provided, Enter uses `onRowOpen` if provided,
    * otherwise it navigates to the row's detail page via `getDetailsLink()`.
    */

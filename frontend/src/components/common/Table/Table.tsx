@@ -528,10 +528,12 @@ export default function Table<RowItem extends Record<string, any>>({
 
   const handleRowClickCombined = useCallback(
     (e: React.MouseEvent, rowIndex: number) => {
-      onKeyboardRowClick(rowIndex);
+      if (onRowOpen) {
+        onKeyboardRowClick(rowIndex);
+      }
       handleRowClick(e, rowIndex);
     },
-    [onKeyboardRowClick, handleRowClick]
+    [onRowOpen, onKeyboardRowClick, handleRowClick]
   );
 
   const emptyMsg = emptyMessage || t('No data to be shown.');

@@ -88,19 +88,21 @@ export function useKeyboardNavigation({
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setFocusedRowIndex(prev => {
-          if (prev === -1) return 0;
-          return prev + 1 < rowCount ? prev + 1 : prev;
-        });
+        const next =
+          effectiveFocusedRowIndex === -1
+            ? 0
+            : Math.min(effectiveFocusedRowIndex + 1, rowCount - 1);
+        setFocusedRowIndex(next);
         return;
       }
 
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setFocusedRowIndex(prev => {
-          if (prev === -1) return rowCount - 1;
-          return prev - 1 >= 0 ? prev - 1 : prev;
-        });
+        const next =
+          effectiveFocusedRowIndex === -1
+            ? rowCount - 1
+            : Math.max(effectiveFocusedRowIndex - 1, 0);
+        setFocusedRowIndex(next);
         return;
       }
 
