@@ -51,6 +51,7 @@
     "ContainersSection": [Function],
     "CopyButton": [Function],
     "CreateButton": [Function],
+    "CreateDeploymentForm": [Function],
     "CreatePodForm": [Function],
     "CreateResourceButton": [Function],
     "CreateResourceForm": [Function],
@@ -69,6 +70,7 @@
     "EmptyContent": [Function],
     "EnvVarGrid": [Function],
     "ErrorPage": [Function],
+    "FieldLabel": [Function],
     "FormTextField": [Function],
     "HeaderLabel": [Function],
     "HoverInfoLabel": [Function],
@@ -109,11 +111,20 @@
     "PortForward": [Function],
     "PureNamespacesAutocomplete": [Function],
     "RESOURCE_DEFINITIONS": {
+      "Deployment": {
+        "class": [Function],
+        "form": [Function],
+      },
       "Pod": {
         "class": [Function],
         "form": [Function],
       },
+      "ReplicaSet": {
+        "class": [Function],
+        "form": [Function],
+      },
     },
+    "ReplicaSetForm": [Function],
     "Resource": {
       "A8RInfo": [Function],
       "AuthVisible": [Function],
@@ -126,6 +137,7 @@
       "ContainersSection": [Function],
       "CopyButton": [Function],
       "CreateButton": [Function],
+      "CreateDeploymentForm": [Function],
       "CreatePodForm": [Function],
       "CreateResourceForm": [Function],
       "DOCKER_DESKTOP_MAX_PORT": 32000,
@@ -138,6 +150,7 @@
       "EditButton": [Function],
       "EditorDialog": [Function],
       "EnvVarGrid": [Function],
+      "FieldLabel": [Function],
       "FormTextField": [Function],
       "LOGGABLE_WORKLOAD_KINDS": Set {
         "Deployment",
@@ -162,11 +175,20 @@
       "PageGrid": [Function],
       "PortForward": [Function],
       "RESOURCE_DEFINITIONS": {
+        "Deployment": {
+          "class": [Function],
+          "form": [Function],
+        },
         "Pod": {
           "class": [Function],
           "form": [Function],
         },
+        "ReplicaSet": {
+          "class": [Function],
+          "form": [Function],
+        },
       },
+      "ReplicaSetForm": [Function],
       "ResourceLink": [Function],
       "ResourceListView": [Function],
       "ResourceTable": {
@@ -180,6 +202,7 @@
       "RollbackDialog": [Function],
       "ScaleButton": [Function],
       "ScaleMultipleButton": [Function],
+      "SchemaResourceForm": [Function],
       "SecretField": [Function],
       "SectionGrid": [Function],
       "SimpleEditor": [Function],
@@ -230,6 +253,7 @@
     "RollbackDialog": [Function],
     "ScaleButton": [Function],
     "ScaleMultipleButton": [Function],
+    "SchemaResourceForm": [Function],
     "SearchPopover": [Function],
     "SecretField": [Function],
     "SectionBox": [Function],

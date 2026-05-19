@@ -26,14 +26,20 @@ import * as yaml from 'js-yaml';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../../lib/k8s';
+import Deployment from '../../../lib/k8s/deployment';
 import Pod from '../../../lib/k8s/pod';
+import ReplicaSet from '../../../lib/k8s/replicaSet';
 import { Activity } from '../../activity/Activity';
+import CreateDeploymentForm from '../../deployments/CreateDeploymentForm';
 import CreatePodForm from '../../pod/CreatePodForm';
+import ReplicaSetForm from '../../replicaset/ReplicaSetForm';
 import ActionButton from '../ActionButton';
 import EditorDialog from './EditorDialog';
 
 export const RESOURCE_DEFINITIONS = {
   Pod: { class: Pod, form: CreatePodForm },
+  Deployment: { class: Deployment, form: CreateDeploymentForm },
+  ReplicaSet: { class: ReplicaSet, form: ReplicaSetForm },
 };
 
 export type ResourceType = keyof typeof RESOURCE_DEFINITIONS;

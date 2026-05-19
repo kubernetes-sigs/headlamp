@@ -60,6 +60,7 @@ const checkExports = [
   'RollbackDialog',
   'ScaleButton',
   'ScaleMultipleButton',
+  'SchemaResourceForm',
   'SimpleEditor',
   'UploadDialog',
   'ViewButton',
