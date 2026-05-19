@@ -19,11 +19,13 @@ import { SnackbarKey, useSnackbar } from 'notistack';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useHistory } from 'react-router-dom';
+import { useHistory, useLocation } from 'react-router-dom';
 import { isElectron } from '../helpers/isElectron';
+import { getClusterPathParam } from '../lib/cluster';
 import { useTypedSelector } from '../redux/hooks';
 import { fetchAndExecutePlugins } from './index';
 import { pluginsLoaded, setPluginSettings } from './pluginsSlice';
+import { usePluginRefreshCheck } from './usePluginRefreshCheck';
 
 /**
  * For discovering and executing plugins.
@@ -42,6 +44,14 @@ export default function Plugins() {
   const { t } = useTranslation();
 
   const settingsPlugins = useTypedSelector(state => state.plugins.pluginSettings);
+
+  const location = useLocation();
+  const cluster = getClusterPathParam(location.pathname);
+
+  // Poll for plugin refresh status to enable hot-reload on non-cluster pages.
+  // This is needed in Electron mode or development mode where local plugin development is done.
+  // We avoid polling on cluster pages because the plugin reload status is handled by valid cluster requests.
+  usePluginRefreshCheck((isElectron() || import.meta.env.DEV) && !cluster);
 
   // only run on first load
   useEffect(() => {
