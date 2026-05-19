@@ -122,11 +122,11 @@ export function PureTokenExpiryNotification({
       return () => clearInterval(intervalId!);
     }
 
-    const delay = (secondsLeft - WARNING_BEFORE_EXPIRY_SECONDS) * 1000;
+    const safeDelay = Math.min((secondsLeft - WARNING_BEFORE_EXPIRY_SECONDS) * 1000, 2147483647);
     const timeoutId = setTimeout(() => {
       setNow(Math.floor(Date.now() / 1000));
       intervalId = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
-    }, delay);
+    }, safeDelay);
 
     return () => {
       clearTimeout(timeoutId);
@@ -138,6 +138,11 @@ export function PureTokenExpiryNotification({
   // than waiting up to POLL_INTERVAL_MS after the token has already expired.
   React.useEffect(() => {
     if (tokenExpiry !== null && now >= tokenExpiry && !tokenExpired) {
+      tokenExpiredRef.current = true;
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
       setTokenExpired(true);
     }
   }, [now, tokenExpiry, tokenExpired]);
