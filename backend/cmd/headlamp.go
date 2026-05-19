@@ -154,6 +154,9 @@ var externalProxyTimeout = 30 * time.Second
 //nolint:gochecknoglobals // shared client preserves connection pooling for external proxy requests
 var externalProxyHTTPClient = &http.Client{
 	Transport: newExternalProxyTransport(),
+	CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
 }
 
 const kubeConfigSource = "kubeconfig" // source for kubeconfig contexts
@@ -1384,6 +1387,7 @@ func shouldFilterExternalProxyRequestHeader(headerName string) bool {
 	if hLower == "authorization" ||
 		hLower == "cookie" ||
 		hLower == "accept-encoding" ||
+		hLower == "proxy-authorization" ||
 		strings.HasPrefix(hLower, "x-headlamp-") ||
 		strings.HasPrefix(hLower, "x-headlamp_") {
 		return true
