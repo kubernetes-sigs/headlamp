@@ -168,6 +168,7 @@
   "Timezone to display for dates": "তারিখের জন্য প্রদর্শিত টাইমজোন",
   "Sort sidebar items alphabetically": "সাইডবার itemগুলি বর্ণানুক্রমিকভাবে বাছাই করুন",
   "Use evict for pod deletion": "Pod delete করার জন্য উচ্ছেদ ব্যবহার করুন",
+  "Show system tray icon": "",
   "Theme": "থিম",
   "Theme has been forced by your administrator": "আপনার প্রশাসক দ্বারা থিম নির্ধারিত হয়েছে",
   "Keyboard Shortcuts": "কীবোর্ড শর্টকাট",
