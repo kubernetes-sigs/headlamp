@@ -20,6 +20,16 @@ import { getCluster } from '../../../lib/cluster';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import ActionButton from '../../common/ActionButton';
 
+/** Pushes the cluster-settings route and optionally calls a post-navigation callback. */
+export function navigateToClusterSettings(
+  cluster: string,
+  history: ReturnType<typeof useHistory>,
+  onClickExtra?: () => void
+) {
+  history.push(createRouteURL('settingsCluster', { cluster }));
+  onClickExtra?.();
+}
+
 export default function SettingsButton(props: { onClickExtra?: () => void }) {
   const { onClickExtra } = props;
   const { t } = useTranslation(['glossary', 'translation']);
@@ -30,6 +40,10 @@ export default function SettingsButton(props: { onClickExtra?: () => void }) {
     return null;
   }
 
+  const handleClick = () => {
+    navigateToClusterSettings(clusterName, history, onClickExtra);
+  };
+
   return (
     <ActionButton
       icon="mdi:cog"
@@ -37,10 +51,7 @@ export default function SettingsButton(props: { onClickExtra?: () => void }) {
       iconButtonProps={{
         color: 'inherit',
       }}
-      onClick={() => {
-        history.push(createRouteURL('settingsCluster', { cluster: clusterName }));
-        onClickExtra && onClickExtra();
-      }}
+      onClick={handleClick}
     />
   );
 }
