@@ -91,6 +91,58 @@ describe('themes.ts', () => {
       });
       expect(getThemeName()).toBe('dark');
     });
+
+    it('should resolve auto to dark when OS prefers dark', () => {
+      vi.stubGlobal('localStorage', {
+        headlampThemePreference: 'auto',
+        clear: vi.fn(),
+      });
+      vi.stubGlobal('window', {
+        matchMedia: vi.fn(query => ({
+          matches: query === '(prefers-color-scheme: dark)',
+        })),
+      });
+      expect(getThemeName()).toBe('dark');
+    });
+
+    it('should resolve auto to light when OS prefers light', () => {
+      vi.stubGlobal('localStorage', {
+        headlampThemePreference: 'auto',
+        clear: vi.fn(),
+      });
+      vi.stubGlobal('window', {
+        matchMedia: vi.fn(query => ({
+          matches: query !== '(prefers-color-scheme: dark)',
+        })),
+      });
+      expect(getThemeName()).toBe('light');
+    });
+
+    it('should resolve auto with backend dark default when OS prefers dark', () => {
+      vi.stubGlobal('localStorage', {
+        headlampThemePreference: 'auto',
+        clear: vi.fn(),
+      });
+      vi.stubGlobal('window', {
+        matchMedia: vi.fn(query => ({
+          matches: query === '(prefers-color-scheme: dark)',
+        })),
+      });
+      expect(getThemeName({ defaultDarkTheme: 'corporate-dark' })).toBe('corporate-dark');
+    });
+
+    it('should resolve auto with backend light default when OS prefers light', () => {
+      vi.stubGlobal('localStorage', {
+        headlampThemePreference: 'auto',
+        clear: vi.fn(),
+      });
+      vi.stubGlobal('window', {
+        matchMedia: vi.fn(query => ({
+          matches: false,
+        })),
+      });
+      expect(getThemeName({ defaultLightTheme: 'corporate-light' })).toBe('corporate-light');
+    });
   });
 
   describe('setTheme', () => {

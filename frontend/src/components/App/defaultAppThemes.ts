@@ -155,7 +155,12 @@ export const monochromeLightTheme: AppTheme = {
   buttonTextTransform: 'none',
 };
 
+export const autoTheme: AppTheme = {
+  name: 'auto',
+};
+
 const defaultAppThemes = [
+  autoTheme,
   lightTheme,
   darkTheme,
   headlampClassicLightTheme,

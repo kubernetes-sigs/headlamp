@@ -558,16 +558,25 @@ export function usePrefersColorScheme() {
 }
 
 /**
- * Hook gets theme based on user preference, and also OS/Browser preference.
+ * Returns the OS-preferred color scheme ('light' or 'dark').
+ * Used to resolve the 'auto' theme at runtime.
  */
+function getOsColorScheme(): 'light' | 'dark' {
+  if (typeof window.matchMedia !== 'function') {
+    return 'light';
+  }
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
 /**
  * Computes the theme name based on user preference, backend configuration, and OS preference.
  *
  * Precedence order:
  * 1. If forceTheme is set → use it (ignore user preference)
- * 2. If user has selected theme in localStorage → use it
- * 3. If backend has default theme matching OS preference → use it
- * 4. Fallback to OS/browser preference (light/dark)
+ * 2. If user has selected 'auto' in localStorage → resolve to OS preference
+ * 3. If user has selected a specific theme in localStorage → use it
+ * 4. If backend has default theme matching OS preference → use it
+ * 5. Fallback to OS/browser preference (light/dark)
  *
  * @param backendConfig - Optional backend theme configuration
  * @returns The theme name to use
@@ -586,6 +595,16 @@ export function getThemeName(backendConfig?: {
 
   // User-selected theme preference takes precedence
   if (themePreference) {
+    if (themePreference === 'auto') {
+      const osScheme = getOsColorScheme();
+      if (osScheme === 'dark' && backendConfig?.defaultDarkTheme) {
+        return backendConfig.defaultDarkTheme;
+      }
+      if (osScheme === 'light' && backendConfig?.defaultLightTheme) {
+        return backendConfig.defaultLightTheme;
+      }
+      return osScheme;
+    }
     return themePreference;
   }
 
